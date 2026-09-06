@@ -232,6 +232,18 @@ set -uo pipefail
 #                (count_test[0] rather than count_test[1]) is the one
 #                destroyed, so the stage reports verdict=fail. Independent
 #                of BREAK, which this stage never reads.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P, between STAGE 5
+#                and PART F): after the world has moved out of band, assert
+#                the saved plan file APPLIES cleanly - the Break text in
+#                tools/gauntlet/stages.go for plan_approval is literally
+#                "Apply the planfile after a mutation and expect success;
+#                the run must refuse", so this assertion has to fail.
+#                Independent of BREAK and BREAK_COUNT, and the only one of
+#                them under which PART P runs at all - the others
+#                deliberately leave the estate somewhere PART P does not
+#                describe, and it reports no verdict there.
 #   DEBUG_KEEP   set to 1 to skip the exit trap: the floci container and the
 #                WORK directory (both estate copies, every plan log) are
 #                left behind for inspection instead of being torn down.
@@ -1210,6 +1222,194 @@ if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-final-notr
 fi
 log "  final plan: no resource action proposed"
 gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty"
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - s3-bucket-
+#          $PET's accelerate status is flipped back to Enabled out of band
+#          through the AWS CLI, the same mutation STAGE 5 above already
+#          proves this estate's plan notices - and the apply must refuse:
+#          exit 3, the named summary, the unapproved row printed by address
+#          AND by the live object it was computed against, and the reviewed
+#          change still not landed when the reviewed bucket's tags are read
+#          back through the CLI.
+#   P4     nothing has moved (the accelerate status is put back first) and
+#          the SAME file must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two instances are deliberately disjoint, and on two different live
+# buckets - the change under review is module.cloudfront_log_bucket's own
+# aws_s3_bucket.this[0] (a `tags` input is added to that module call), the
+# out-of-band move is module.s3_bucket.aws_s3_bucket_accelerate_
+# configuration.this[0] on s3-bucket-$PET - so the refusal has an EXTRA row
+# to name, about a different object, rather than a values-only disagreement
+# about the same row. `tags` is the safe in-place shape issue #903's own
+# trap note names: it is ForceNew on nothing, and the module threads
+# var.tags to aws_s3_bucket.this and to no other resource it creates
+# (.corpus/s3-bucket/main.tf).
+#
+# WHY cloudfront_log_bucket AND NOT s3_bucket, measured rather than
+# guessed: module.s3_bucket sets seven attach_*_policy inputs, so the
+# module's own aws_iam_policy_document data sources exist for it and read
+# the bucket's arn. Any pending change to that bucket defers all seven to
+# apply, which makes module.s3_bucket.aws_s3_bucket_policy.this[0] a SECOND
+# "will be updated in-place" row on a one-tag edit - the first run of this
+# leg failed there, and the log named both rows. module.cloudfront_log_
+# bucket sets no attach_* input at all, so those data sources are count = 0
+# for it and one tag is one row. It is also safe under issue #903's other
+# trap: STAGE 6 renames it, but only through a `moved` block that asserts
+# the bucket NAME is unchanged, and P5 below reverts the edit and replans
+# empty before that stage starts, so no live id a later part captured is
+# disturbed.
+#
+# Runs only on a real run. Under any of this script's BREAK controls the
+# estate is deliberately left somewhere this part does not describe, so it
+# reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_DIR="$ESTATE/examples/complete"
+  P_REVIEWED_ADDR="module.cloudfront_log_bucket.aws_s3_bucket.this[0]"
+  P_REVIEWED_BUCKET="cloudfront-logs-$PET"
+  P_MOVED_ADDR="module.s3_bucket.aws_s3_bucket_accelerate_configuration.this[0]"
+  P_MOVED_BUCKET="s3-bucket-$PET"
+  P_TAG_LINE='  tags   = { Reviewed = "yes" }'
+
+  log "=== P1. the change under review: one argument, on one bucket ==="
+  # module "cloudfront_log_bucket" declares no tags input of its own, so
+  # one is added to that module call and nothing else in the configuration
+  # is touched.
+  [ "$(grep -c '^module "cloudfront_log_bucket" {$' "$P_DIR/main.tf")" = "1" ] \
+    || fail "main.tf no longer carries exactly one module \"cloudfront_log_bucket\" block - the corpus pin has moved"
+  grep -qF "$P_TAG_LINE" "$P_DIR/main.tf" && fail "main.tf already carries the reviewed tag argument before PART P edited anything"
+  perl -0pi -e 's/^module "cloudfront_log_bucket" \{\n  source = "\.\.\/\.\.\/"\n/module "cloudfront_log_bucket" {\n  source = "..\/..\/"\n  tags   = { Reviewed = "yes" }\n/m' "$P_DIR/main.tf"
+  [ "$(grep -cF "$P_TAG_LINE" "$P_DIR/main.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one tags argument onto module \"cloudfront_log_bucket\""
+  log "  edited one argument: module \"cloudfront_log_bucket\" gains tags = { Reviewed = \"yes\" }"
+
+  P_PLAN_OUT="$(cd "$P_DIR" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$P_DIR/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$P_DIR/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl s3api put-bucket-accelerate-configuration --bucket "$P_MOVED_BUCKET" --accelerate-configuration Status=Enabled \
+    || fail "the out-of-band move (put-bucket-accelerate-configuration) failed"
+  P_MOVED_VALUE="$(awsl s3api get-bucket-accelerate-configuration --bucket "$P_MOVED_BUCKET" --query 'Status' --output text)"
+  [ "$P_MOVED_VALUE" = "Enabled" ] || fail "the out-of-band move did not take: accelerate status reads \"$P_MOVED_VALUE\", not Enabled"
+  log "  $P_MOVED_BUCKET's accelerate status changed out of band to Enabled - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$P_DIR" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved instance, so asserting over the
+  # whole output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  # The row is "<address>  <action>  <identity>"; the identity of an
+  # aws_s3_bucket_accelerate_configuration is the bucket it configures, so
+  # this asserts the live object the unapproved change was computed against
+  # and not just its address.
+  P_MOVED_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
+  grep -qF "$P_MOVED_BUCKET" <<< "$P_MOVED_ROW" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry $P_MOVED_BUCKET, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl s3api get-bucket-tagging --bucket "$P_REVIEWED_BUCKET" --query "TagSet[?Key=='Reviewed'].Value | [0]" --output text 2>/dev/null || true)"
+  [ "$P_REVIEWED_TAG" = "None" ] || [ -z "$P_REVIEWED_TAG" ] \
+    || fail "the refused apply still wrote the reviewed change: $P_REVIEWED_BUCKET carries Reviewed=\"$P_REVIEWED_TAG\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl s3api put-bucket-accelerate-configuration --bucket "$P_MOVED_BUCKET" --accelerate-configuration Status=Suspended \
+    || fail "undoing the out-of-band move failed"
+  P_RESTORED="$(awsl s3api get-bucket-accelerate-configuration --bucket "$P_MOVED_BUCKET" --query 'Status' --output text)"
+  [ "$P_RESTORED" = "Suspended" ] || fail "the out-of-band move was not undone: accelerate status reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$P_DIR" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl s3api get-bucket-tagging --bucket "$P_REVIEWED_BUCKET" --query "TagSet[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_LANDED" = "yes" ] \
+    || fail "the approved change did not land: $P_REVIEWED_BUCKET carries Reviewed=\"$P_LANDED\", want \"yes\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_REVIEWED_BUCKET now carries Reviewed=yes, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$P_DIR/approved.tfplan"
+  perl -0pi -e 's/^  tags   = \{ Reviewed = "yes" \}\n//m' "$P_DIR/main.tf"
+  grep -qF "$P_TAG_LINE" "$P_DIR/main.tf" && fail "reverting the reviewed edit left the tags argument behind"
+  [ "$(grep -c '^module "cloudfront_log_bucket" {$' "$P_DIR/main.tf")" = "1" ] \
+    || fail "reverting the reviewed edit damaged the module \"cloudfront_log_bucket\" block"
+  P_BACK_OUT="$(cd "$P_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+  P_GONE="$(awsl s3api get-bucket-tagging --bucket "$P_REVIEWED_BUCKET" --query "TagSet[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the reviewed tag is still on $P_REVIEWED_BUCKET after the revert: \"$P_GONE\""
+  # THE OUTPUTS QUIRK (see STAGE 3): no "Plan:"/"No changes." line to grep
+  # for on an empty plan, so convergence is the absence of any resource
+  # action header.
+  plan_into "$WORK/plan-p-final.log" || { grep -vE '^[0-9]{4}-' "$WORK/plan-p-final.log" | tail -40; fail "the post-revert live-plan exited non-zero"; }
+  grep -vE '^[0-9]{4}-' "$WORK/plan-p-final.log" > "$WORK/plan-p-final-notrace.log"
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-p-final-notrace.log"; then
+    grep -E '^  # .+ will be' "$WORK/plan-p-final-notrace.log"
+    fail "the estate is not converged again after PART P"
+  fi
+  log "  reverted; the estate is converged again and PART F starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (module.cloudfront_log_bucket gains tags = { Reviewed = \"yes\" }, reaching aws_s3_bucket.this[0] and nothing else the module creates - that module call sets no attach_*_policy input, so the module's own policy-document data sources are count = 0 for it and one tag is one row), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band ($P_MOVED_BUCKET's transfer-acceleration status flipped to Enabled through the AWS CLI, never through choudoufu - STAGE 5's own proven mutation, on a DIFFERENT instance and a DIFFERENT live bucket from the one under review) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $P_MOVED_BUCKET it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - get-bucket-tagging on $P_REVIEWED_BUCKET still returned no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the accelerate status put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_REVIEWED_BUCKET read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART F starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
+fi
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
