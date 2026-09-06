@@ -156,6 +156,10 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 	// root live block's own two lists.
 	selection := identity.SelectionFor(req.Config)
 
+	// The parent rule's "does this estate hold the parent" side, built once
+	// for the whole pass. See [parentHolder].
+	holder := newParentHolder(res, store)
+
 	for _, key := range keys {
 		addr, ok := projection.RecordAddr(prefix, key)
 		if !ok {
@@ -328,7 +332,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// the live tag itself: the sweep listed the parent and read
 			// another estate's tofu-estate off it, which is the ruling's
 			// own evidence and outranks anything a resolution says.
-			// [parentHeldByThisPass] is the safe-side fallback for the
+			// [parentHolder.held] is the safe-side fallback for the
 			// parent whose tag the sweep could not read at all
 			// (iam:ListRoles serves no tags, and the tagging index does
 			// not cover IAM on a real account): an absent map entry is
@@ -338,7 +342,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			switch {
 			case parentHeldByOtherEstate(res, link.Parent, parentValue):
 				why = "which the sweep saw carrying another estate's marker"
-			case !parentHeldByThisPass(res, link.Parent, parentValue):
+			case !holder.held(ctx, link.Parent, parentValue):
 				why = fmt.Sprintf("which this pass did not resolve as estate %q's own (not declared, and not swept carrying this estate's marker)", req.Estate)
 			}
 			if why != "" {
@@ -576,6 +580,108 @@ func parentHeldByThisPass(res *Result, parentType, parentValue string) bool {
 		}
 	}
 	return false
+}
+
+// parentHolder answers the parent rule's "does this estate hold the live
+// object this child's identity names as its parent" once per pass, caching
+// the answer per parent type.
+//
+// It exists because a bound [identity.Resolution.ImportID] is only ONE of
+// the two ways this estate's own configuration holds a parent, and the
+// other one is the ordinary case for a migrated estate. A resolution
+// reaches this leg carrying an ImportID only when the marker sweep bound it
+// in this same pass; the foundation-order ruling (HANDOFF.md, "The
+// foundation": the record holds the identity of every instance and a plan
+// reads it first) means a declared instance whose identity the estate's own
+// record already answers is never re-derived from a marker here, so it sits
+// in res.Resolutions still ClassNeedsDiscovery with an empty ImportID while
+// the run knows perfectly well which live object it is.
+//
+// Reading [parentHeldByThisPass] alone as "not held" for such a parent
+// silently withheld every untaggable child of it from removal: measured on
+// corpus-simpleinfra-dns's day2_count, where all seven declared
+// aws_route53_zone resolutions were NEEDS_DISCOVERY with importID "" at
+// this point and the dropped for_each record's destroy was never proposed.
+//
+// The ruling it must not undo (2026-09-03, the carve-by-retag claim) is
+// about a parent that LEFT: live-mv -from-estate moves the parent to
+// another estate and the block goes with it, so no DECLARED resolution
+// names it here at all and the record arm below contributes nothing. A
+// parent whose live tag names another estate is caught earlier still, by
+// [parentHeldByOtherEstate], which outranks this whole check.
+//
+// Nothing here names a resource type: the parent type comes from
+// [identity.ParentOf]'s derivation and the identity from the estate's own
+// record, exactly as the child's own does two functions up.
+type parentHolder struct {
+	res   *Result
+	store *projection.RecordStore
+
+	// byType memoizes [parentHolder.recordedIdentities] per parent type -
+	// one record read per declared instance of that type, once, however
+	// many children ask about it.
+	byType map[string]map[string]bool
+}
+
+func newParentHolder(res *Result, store *projection.RecordStore) *parentHolder {
+	return &parentHolder{res: res, store: store, byType: make(map[string]map[string]bool)}
+}
+
+// held reports whether this estate holds the parent named by parentValue,
+// by either arm: a resolution this pass bound to that identity, or a
+// DECLARED instance of the type whose identity the estate's own record
+// store answers with that value.
+func (p *parentHolder) held(ctx context.Context, parentType, parentValue string) bool {
+	if parentValue == "" {
+		return false
+	}
+	if parentHeldByThisPass(p.res, parentType, parentValue) {
+		return true
+	}
+	recorded, ok := p.byType[parentType]
+	if !ok {
+		recorded = p.recordedIdentities(ctx, parentType)
+		p.byType[parentType] = recorded
+	}
+	return recorded[parentValue]
+}
+
+// recordedIdentities is the second arm: the identity the estate's own
+// record store holds for every DECLARED instance of parentType this pass
+// did not bind. Undeclared entries are deliberately excluded - one is
+// either already carrying the ImportID the first arm reads, or it is a
+// left-behind record for an object that is no longer this estate's, which
+// is the very thing the 2026-09-03 ruling refuses to anchor a child on.
+//
+// A record that cannot be read, does not exist, or holds a composite this
+// run cannot compose contributes nothing, so the answer degrades to
+// exactly what [parentHeldByThisPass] said on its own.
+func (p *parentHolder) recordedIdentities(ctx context.Context, parentType string) map[string]bool {
+	out := make(map[string]bool)
+	if p.store == nil {
+		return out
+	}
+	for _, r := range p.res.Resolutions {
+		if r.Type() != parentType || r.Undeclared || r.ImportID != "" {
+			continue
+		}
+		rec, _, keyExists, identityFound, err := p.store.GetIdentity(ctx, r.Addr)
+		if err != nil || !keyExists || !identityFound {
+			continue
+		}
+		id := rec.ImportID
+		if id == "" {
+			var composed bool
+			id, composed = composeImportIDFromComponents(parentType, rec.Components)
+			if !composed {
+				continue
+			}
+		}
+		if id != "" {
+			out[id] = true
+		}
+	}
+	return out
 }
 
 // splitImportIDByComponents is the inverse of [composeImportIDFromComponents]
