@@ -2017,24 +2017,45 @@ EOF
   F_TD_ARN_D="$(awsl ecs list-task-definitions --family-prefix "$F_OLD_FAMILY" --query "taskDefinitionArns[0]" --output text)"
   [ -n "$F_TD_ARN_D" ] && [ "$F_TD_ARN_D" != "None" ] || fail "no live task definition found by family prefix $F_OLD_FAMILY ahead of day2_replace"
 
-  # NO RECORD-STORE CHECK for this type, unlike this unit's other day2_
-  # replace sections: aws_ecs_task_definition's own identity attrs are
-  # `family` AND `revision` (live/identity/table_generated.go) - revision
-  # changes on every apply that touches the container spec at all, not
-  # only ones that change family, so a cached import_id would already be
-  # stale after ordinary day-2 use, not just a rename. Confirmed directly
-  # against the actual record store, no tofu in the loop: cat-ing every
-  # key this estate's store holds after Part D found no aws_ecs_task_
-  # definition entry at all, while every other taggable type in the same
-  # estate (aws_ecs_cluster, aws_ecs_service, aws_lb, ...) has one. Not
-  # investigated further in this script-only unit; the marker checks
-  # below (tofu-address tag, moved onto the new object) are this
-  # section's own identity verification for this resource instead.
+  # THE RECORD-STORE CHECK, and the two issues that made it possible.
+  # This section used to carry a comment saying no aws_ecs_task_definition
+  # record existed at all - true when it was written, and the cause was
+  # #671: the type's wire identity is `family` AND `revision`, revision is
+  # a NUMBER on the block, and LocatedIdentityPlanFor's required-component
+  # loop admitted only strings, so the whole record was refused silently.
+  # 98b6101f5e closed that, and this estate's own greenfield stage now
+  # counts 62 of 62 records rather than 60.
+  #
+  # A record that exists is not automatically a record that can be USED,
+  # and #879 is the difference. The record names the object the way the
+  # provider's identity SCHEMA does (family + revision); every live object
+  # this type can be found by is found by its marker alone - there is no
+  # list route for it - and is named the way its documented import string
+  # does (the whole task-definition ARN). Nothing could compare the two,
+  # so the tombstone a replace writes for the object it destroyed could
+  # not be matched against that object's own lingering tag, and F2 below
+  # refused "Indistinguishable instances without per-instance markers" on
+  # every plan after the replace, forever - ECS deregisters rather than
+  # deletes, so the dead object keeps its tags. An apply now records BOTH
+  # names (identity.secondary_id), which is what the assertions here read.
+  RECORD_DIR="$ADOPTED_EST/.tofu-records/tofu-records/$ESTATE/aws_ecs_task_definition"
+  record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
+  F_RECORD="$RECORD_DIR/$(record_key "$F_ADDR")"
+
   log "=== F0. capture the live task definition ahead of the forced replace ==="
   F_OLD_ADDR_TAG="$(awsl ecs list-tags-for-resource --resource-arn "$F_TD_ARN_D" --query "tags[?key=='tofu-address'].value | [0]" --output text)"
   [ "$F_OLD_ADDR_TAG" = "module.ecs_task_definition.aws_ecs_task_definition.this:0" ] \
     || fail "$F_TD_ARN_D does not carry tofu-address=module.ecs_task_definition.aws_ecs_task_definition.this:0 ahead of day2_replace"
   log "  $F_TD_ARN_D, tofu-address=$F_OLD_ADDR_TAG"
+
+  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace (expected $F_RECORD) - #671 made this type recordable and greenfield counts it, so its absence here is a regression, not the old known gap"
+  F_OLD_REC_FAMILY="$(jq -r '.identity.attrs.family' "$F_RECORD")"
+  F_OLD_REC_SECONDARY="$(jq -r '.identity.secondary_id // ""' "$F_RECORD")"
+  [ "$F_OLD_REC_FAMILY" = "$F_OLD_FAMILY" ] \
+    || fail "the record for $F_ADDR names family=$F_OLD_REC_FAMILY ahead of day2_replace, not $F_OLD_FAMILY"
+  [ "$F_OLD_REC_SECONDARY" = "$F_TD_ARN_D" ] \
+    || fail "the record for $F_ADDR carries identity.secondary_id=$F_OLD_REC_SECONDARY, not the live object's own ARN $F_TD_ARN_D - without that second name nothing can match this record against a live object found by its marker alone (#879)"
+  log "  record: identity.attrs.family=$F_OLD_REC_FAMILY identity.secondary_id=$F_OLD_REC_SECONDARY, read off the local record store"
 
   if [ "${BREAK:-}" = "replace" ]; then
     log "=== F1 (BREAK=replace). manufacture the coexistence a skipped destroy would leave behind ==="
@@ -2049,12 +2070,35 @@ EOF
       --tags "key=tofu-estate,value=$ESTATE" "key=tofu-address,value=module.ecs_task_definition.aws_ecs_task_definition.this:0" "key=tofu-slot,value=0" \
       --query "taskDefinition.taskDefinitionArn" --output text)"
     BREAK_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+    # Deregistering is not removal for this type - the whole reason this
+    # stage exists - so the manufactured ghost keeps answering the tagging
+    # API with its markers and would still claim this address on every
+    # LATER stage's own sweep in the same run. Strip them explicitly, the
+    # same completeness PR #880 added to corpus-ec2-instance-complete's
+    # own terminated collision instance.
     awsl ecs deregister-task-definition --task-definition "$BREAK_COLLISION_ARN" >/dev/null 2>&1 || true
+    awsl ecs untag-resource --resource-arn "$BREAK_COLLISION_ARN" --tag-keys tofu-estate tofu-address tofu-slot >/dev/null 2>&1 || true
     [ "$BREAK_PLAN_RC" -ne 0 ] \
       || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan succeeded with two live objects claiming the same tofu-address/tofu-slot - it must report the collision, not propose nothing"; }
-    grep -qF 'Two live resources claiming one slot' <<< "$BREAK_PLAN_OUT" \
-      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the slot collision - this stage's check is not load-bearing"; }
-    log "  BREAK=replace: choudoufu correctly refused with a named collision (two live resources claiming one slot) rather than silently proposing nothing - the Break text's own outcome"
+    # The observed wording, measured against the current pin rather than
+    # asserted from memory. This leg used to grep for "Two live resources
+    # claiming one slot" (ProblemDuplicateSlot), which nothing produces
+    # here: the address is record-backed since #671 gave this type a
+    # record at all, so bindCountBlock takes bindCountByAddress
+    # unconditionally ([countBlock.hasRecordBackedEntry]) and never
+    # classifies the live set by slot. That is the same stale-wording
+    # family issue #864 named and PR #880 fixed on
+    # corpus-ec2-instance-complete and corpus-alb-complete, whose scope
+    # did not include this estate; the fix here follows PR #863's pattern
+    # exactly - assert the error's own name AND both live ids, so the
+    # check cannot pass on a refusal about something else.
+    grep -qF 'Indistinguishable instances without per-instance markers' <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the plan failed for a reason other than the fungible-slot collision - this stage's check is not load-bearing"; }
+    grep -qF "$F_TD_ARN_D" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the real, still-valid task definition ($F_TD_ARN_D)"; }
+    grep -qF "$BREAK_COLLISION_ARN" <<< "$BREAK_PLAN_OUT" \
+      || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -20; fail "BREAK=replace: the collision refusal does not name the manufactured duplicate ($BREAK_COLLISION_ARN)"; }
+    log "  BREAK=replace: caught - choudoufu correctly refused with \"Indistinguishable instances without per-instance markers\", naming both $F_TD_ARN_D and $BREAK_COLLISION_ARN, rather than silently proposing nothing - the Break text's own outcome"
   else
     log "=== F1. choudoufu: change the ForceNew name argument, forcing a replace at the same declared address ==="
     perl -0pi -e 's/module "ecs_task_definition" \{\n  source = "\.\.\/\.\.\/modules\/service"\n\n  # Service\n  name           = "\$\{local\.name\}-standalone"\n/module "ecs_task_definition" {\n  source = "..\/..\/modules\/service"\n\n  # Service\n  name           = "\${local.name}-standalone-v2"\n/' "$ADOPTED_EST/main.tf"
@@ -2092,6 +2136,19 @@ EOF
     [ "$F_NEW_ARN" != "$F_TD_ARN_D" ] \
       || fail "sanity: the task definition ARN did not change at all across the replace"
 
+    # The record after the replace has to say two things at once, and
+    # #879's refusal is what happens when the second one cannot be read
+    # back: this address owns the NEW object now, and this estate's own
+    # apply destroyed the old one. Both are asserted by value, off the
+    # record store, before the plan below is ever run.
+    F_NEW_REC_SECONDARY="$(jq -r '.identity.secondary_id // ""' "$F_RECORD")"
+    [ "$F_NEW_REC_SECONDARY" = "$F_NEW_ARN" ] \
+      || fail "after the replace the record for $F_ADDR names identity.secondary_id=$F_NEW_REC_SECONDARY, not the new object $F_NEW_ARN"
+    F_TOMBSTONED="$(jq -r '[.tombstone // {} | .[] | .identity.secondary_id // ""] | join(",")' "$F_RECORD")"
+    [ "$F_TOMBSTONED" = "$F_TD_ARN_D" ] \
+      || fail "after the replace the record for $F_ADDR tombstones [$F_TOMBSTONED], want exactly $F_TD_ARN_D - with the destroyed object unrecorded, its lingering tag is indistinguishable from a second live resource and the next plan refuses forever (#879)"
+    log "  record: identity.secondary_id=$F_NEW_REC_SECONDARY, tombstone names $F_TOMBSTONED - the estate recorded which object it destroyed"
+
     log "=== F2. one more plan: config and reality agree, no marker collision ==="
     F_FINAL_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
     [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
@@ -2099,7 +2156,7 @@ EOF
       || { printf '%s\n' "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
-    gauntlet_stage day2_replace pass "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one ($F_NEW_ARN) carries the marker, moved via the tofu-address tag ($F_TD_ARN_D -> $F_NEW_ARN); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; no local record store check for this type - see this section's own header comment (aws_ecs_task_definition's identity attrs include \`revision\`, which changes on every apply, and no record was ever found for it in this estate's store); two earlier target choices each found a genuine, separate defect: aws_service_discovery_http_namespace.this_renamed's (mv.go's propagateModuleRename skipping MoveRecord for a same-module rename) is FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit, neither of which was re-run for #412; module.alb_renamed's (the non-converging cascade, F-ORACLE's own header comment, finding 2) remains a separate, open finding, not fixed here."
+    gauntlet_stage day2_replace pass "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address ($F_PLAN_LINE), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one ($F_NEW_ARN) carries the marker, moved via the tofu-address tag ($F_TD_ARN_D -> $F_NEW_ARN); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address ($REPLACE_ORACLE_PLAN_LINE, plan only, not applied - it shares floci's account with \$ADOPTED_EST); BREAK=replace confirms a manufactured marker collision - a second, genuinely live task definition wearing this address's marker, which no tombstone names as destroyed - is still reported loudly (\"Indistinguishable instances without per-instance markers\", naming both ARNs) rather than pruned or silently proposed as nothing, which is #849's own rule holding on this route too. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; the local record store is read by value on both sides of the replace (#879): before it, the record names family=$F_OLD_FAMILY with identity.secondary_id=$F_TD_ARN_D; after it, identity.secondary_id=$F_NEW_ARN with exactly one tombstone naming $F_TD_ARN_D, which is what lets the F2 plan tell the deregistered object's lingering tag from a second live claimant instead of refusing \"Indistinguishable instances without per-instance markers\" forever; two earlier target choices each found a genuine, separate defect: aws_service_discovery_http_namespace.this_renamed's (mv.go's propagateModuleRename skipping MoveRecord for a same-module rename) is FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit, neither of which was re-run for #412; module.alb_renamed's (the non-converging cascade, F-ORACLE's own header comment, finding 2) remains a separate, open finding, not fixed here."
   fi
   gauntlet_end_stage
 
