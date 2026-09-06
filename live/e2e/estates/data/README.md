@@ -15,7 +15,7 @@ This cohort exercises every type this batch ratified into
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort data -types aws_athena_data_catalog,aws_athena_workgroup,aws_glue_catalog_database,aws_glue_catalog_table,aws_glue_classifier,aws_glue_connection,aws_glue_crawler,aws_glue_data_catalog_encryption_settings,aws_glue_job,aws_glue_ml_transform,aws_glue_registry,aws_glue_trigger,aws_kinesis_firehose_delivery_stream,aws_kinesis_stream,aws_kinesis_stream_consumer -out live/e2e/estates/data
+go run ./tools/estate-gen -cohort data -types aws_athena_data_catalog,aws_athena_workgroup,aws_glue_catalog_database,aws_glue_catalog_table,aws_glue_classifier,aws_glue_connection,aws_glue_crawler,aws_glue_data_catalog_encryption_settings,aws_glue_job,aws_glue_ml_transform,aws_glue_registry,aws_glue_trigger,aws_kinesis_firehose_delivery_stream,aws_kinesis_stream,aws_kinesis_stream_consumer -out /tmp/estate-gen/data
 # (roster pinned; the bare -cohort form regenerates a different tree once
 # admission grows - GENERATED.md is the authoritative command)
 ```

@@ -39,7 +39,7 @@ declares them.
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort media -types aws_ivs_channel,aws_ivs_recording_configuration,aws_ivschat_logging_configuration,aws_ivschat_room,aws_media_package_channel,aws_media_packagev2_channel_group,aws_medialive_multiplex -out live/e2e/estates/media
+go run ./tools/estate-gen -cohort media -types aws_ivs_channel,aws_ivs_recording_configuration,aws_ivschat_logging_configuration,aws_ivschat_room,aws_media_package_channel,aws_media_packagev2_channel_group,aws_medialive_multiplex -out /tmp/estate-gen/media
 ```
 
 `-types` is explicit because `tools/estate-gen/cohort.go`'s no-`-types`

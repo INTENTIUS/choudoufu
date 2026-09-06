@@ -61,6 +61,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 )
 
 const (
@@ -96,6 +97,7 @@ func main() {
 	initBin := flag.String("init-bin", defaultInitBin, "binary that downloads the pinned provider (terraform, tofu or choudoufu)")
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary that formats the generated *.tf files (terraform, tofu or choudoufu)")
 	moduleWrap := flag.Bool("module-wrap", false, "wrap the cohort's resources in one static module call (module \"wrapped\") instead of writing them at the estate root, to exercise issue #59's traversal")
+	all := flag.Bool("all", false, "render every cohort in internal/live/cohorts into -out/<cohort>, one provider-schema acquisition for the whole set; -cohort and -types are refused with it (issue #699)")
 	moduleKeys := flag.String("module-keys", "", "comma-separated instance keys; requires -module-wrap, and switches it from a static module call to a for_each over these keys (issue #59, 59c). Two keys is the common case for the sibling-stability e2e fixture.")
 	flag.Parse()
 
@@ -109,10 +111,80 @@ func main() {
 		}
 	}
 
+	if *all {
+		if err := runAll(*cohort, *types, *out, *count, *moduleWrap, keys, *initBin, *fmtBin); err != nil {
+			fmt.Fprintf(os.Stderr, "estate-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin, *moduleWrap, keys); err != nil {
 		fmt.Fprintf(os.Stderr, "estate-gen: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// runAll renders every cohort in the committed roster
+// ([cohorts.All], internal/live/cohorts) into out/<cohort>, sharing one
+// provider-schema acquisition across the whole set.
+//
+// This is the mode the cohort runner uses (issue #699): the rendered trees
+// are not committed any more, so the acceptance tier generates them into its
+// own work directory the way live/e2e/terralith-scale/run.sh generates its
+// estate with tools/terralith-gen, and throws them away afterwards. Sharing
+// the schema read is the whole reason it is one flag rather than 31
+// invocations: acquireSchemas runs `terraform init` and launches the provider
+// plugin, which is minutes, and doing it per cohort would dominate a run
+// whose actual rendering is under a tenth of a second each.
+//
+// The single-cohort flags are refused rather than ignored: -cohort with -all
+// reads as "render this one", and silently rendering all 31 instead is the
+// kind of quiet disagreement between a command line and its effect that this
+// tool's own -out default already caused once.
+func runAll(cohort, typesFlag, out string, count int, moduleWrap bool, moduleKeys []string, initBin, fmtBin string) error {
+	switch {
+	case cohort != "":
+		return fmt.Errorf("-all renders every cohort in the roster; drop -cohort, or drop -all to render just %s", cohort)
+	case typesFlag != "":
+		return fmt.Errorf("-all takes each cohort's roster from internal/live/cohorts; -types cannot apply to all of them at once")
+	case count > 0:
+		return fmt.Errorf("-all and -count are different estates: -count builds one scale/benchmark estate from a single type")
+	case moduleWrap || len(moduleKeys) > 0:
+		return fmt.Errorf("-all renders the flat cohorts; -module-wrap and -module-keys build the named traversal fixtures instead")
+	case out == "":
+		return fmt.Errorf("-all requires -out: there is no committed cohort tree to default to any more (issue #699)")
+	}
+
+	workdir, err := os.MkdirTemp("", "estate-gen-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(workdir)
+
+	schemas, err := acquireSchemas(initBin, workdir, os.Stderr)
+	if err != nil {
+		return err
+	}
+
+	roster := cohorts.All()
+	for _, c := range roster {
+		dir := filepath.Join(out, c.Name)
+		g, err := planCohort(c.Name, schemas, c.Types)
+		if err != nil {
+			return fmt.Errorf("%s: %w", c.Name, err)
+		}
+		if err := writeCohort(dir, c.Name, c.Types, g, false, nil); err != nil {
+			return fmt.Errorf("%s: %w", c.Name, err)
+		}
+		if err := formatWithBinary(fmtBin, dir, runCombined); err != nil {
+			return fmt.Errorf("%s: %w", c.Name, err)
+		}
+		fmt.Fprintf(os.Stderr, "estate-gen: wrote %s (%d resource(s): %d coverage, %d supporting)\n",
+			dir, len(g.order), countKind(g, kindCoverage), countKind(g, kindSupporting))
+	}
+	fmt.Fprintf(os.Stderr, "estate-gen: rendered %d cohorts into %s\n", len(roster), out)
+	return nil
 }
 
 func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, moduleWrap bool, moduleKeys []string) error {

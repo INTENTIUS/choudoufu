@@ -23,7 +23,7 @@ row-gen's own registry-derived guess (both new parents identify by a bare
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort aps -types aws_prometheus_workspace,aws_prometheus_scraper,aws_prometheus_alert_manager_definition,aws_prometheus_query_logging_configuration,aws_prometheus_scraper_logging_configuration -out live/e2e/estates/aps
+go run ./tools/estate-gen -cohort aps -types aws_prometheus_workspace,aws_prometheus_scraper,aws_prometheus_alert_manager_definition,aws_prometheus_query_logging_configuration,aws_prometheus_scraper_logging_configuration -out /tmp/estate-gen/aps
 ```
 
 ## Provenance
