@@ -160,6 +160,84 @@ func (v *View) Diagnostics(diags tfdiags.Diagnostics) {
 	v.diagnostics(diags, false)
 }
 
+// StdoutOnStderr returns a copy of this view whose Stdout stream IS its
+// Stderr stream, so that everything built over the copy - a plan view's
+// resource diff, the per-instance lines [UiHook] prints while the plan
+// graph walks, warning diagnostics - lands on Stderr instead of
+// interleaving with a machine-readable document another view is printing
+// to the real Stdout.
+//
+// GitHub issue #894's second half. "choudoufu live-plan -json" prints one
+// [LivePlanDocument] and nothing else, but the plan it runs still drives
+// [UiHook], whose lines go through streams.Stdout unconditionally
+// (hook_ui.go's println). A configuration with a data source therefore
+// printed
+//
+//	data.aws_caller_identity.current: Reading...
+//	data.aws_caller_identity.current: Read complete after 0s [id=...]
+//
+// ahead of the document, and a consumer piping stdout straight into a JSON
+// parser got "jq: parse error: Invalid numeric literal at line 1, column
+// 33" (reproduced against a live emulator, 2026-09-06). Redirecting the
+// stream the hooks were built over fixes that at the one place both halves
+// already agree on - the view - rather than teaching every hook a second
+// stream it would have to be told about again next time one is added.
+//
+// The copy shares Stdin and every other setting; only the streams change.
+// [View.DiagnosticsToStderr] is the narrower tool for the same problem
+// where diagnostics alone are at stake.
+func (v *View) StdoutOnStderr() *View {
+	if v == nil || v.streams == nil {
+		return v
+	}
+	copied := *v
+	streams := &terminal.Streams{
+		Stdout: v.streams.Stderr,
+		Stderr: v.streams.Stderr,
+		Stdin:  v.streams.Stdin,
+	}
+	copied.streams = streams
+
+	// diagsPrinter closes over the streams it was built with (see
+	// [NewView]), so carrying the original one across would send warnings
+	// straight back to the real Stdout - the one thing this copy exists to
+	// keep clear. Rebuilt over the redirected streams; the severity split
+	// it encodes is moot once both halves are the same stream.
+	if v.diagsPrinter != nil {
+		copied.diagsPrinter = func(_ tfdiags.Severity, msg string) {
+			_, _ = streams.Eprint(msg)
+		}
+	}
+
+	// The three callbacks below are installed LAZILY on the original view -
+	// Meta.configLoader sets all three the first time a command reads the
+	// configuration, which is normally after this copy has been made - so
+	// they are forwarded rather than snapshotted. Snapshotting them made
+	// every source-ranged diagnostic rendered through the copy print
+	// "(source code not available)" in place of its snippet, observed on
+	// live-plan's own "Estate named by both the live block and -estate"
+	// refusal.
+	copied.configSources = func() map[string]*hcl.File {
+		if v.configSources == nil {
+			return nil
+		}
+		return v.configSources()
+	}
+	copied.isRemoteModuleSource = func(m addrs.Module) bool {
+		if v.isRemoteModuleSource == nil {
+			return false
+		}
+		return v.isRemoteModuleSource(m)
+	}
+	copied.moduleSourceAddrs = func(m addrs.Module) addrs.ModuleSource {
+		if v.moduleSourceAddrs == nil {
+			return nil
+		}
+		return v.moduleSourceAddrs(m)
+	}
+	return &copied
+}
+
 // DiagnosticsToStderr is [View.Diagnostics] with one difference: every
 // diagnostic goes to Stderr, warnings included, rather than splitting
 // warnings onto Stdout. It exists for a command whose successful Stdout is

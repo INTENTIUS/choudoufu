@@ -171,8 +171,8 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// message belongs to the general UI-message stream every other "-json"
 	// command in this package speaks, and GitHub issue #788's document is
 	// deliberately not one more line of that stream: it is a single object,
-	// printed once, only for the "-estate" form and only once the run has
-	// something to say (see [views.LivePlanDocument]'s own doc comment).
+	// printed once, and only once the run has something to say (see
+	// [views.LivePlanDocument]'s own doc comment).
 	// renderOpts is a copy for exactly that reason - forced Human whatever
 	// -json asked for, so this command's own diagnostics and (for a
 	// surface or an error this issue does not touch) its ordinary
@@ -182,7 +182,21 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	jsonRequested := args.ViewOptions.ViewType == arguments.ViewJSON
 	renderOpts := args.ViewOptions
 	renderOpts.ViewType = arguments.ViewHuman
-	view := views.NewPlan(renderOpts, c.View)
+	// GitHub issue #894's stream half. Under -json this command's stdout
+	// carries exactly one thing - the document, printed by statelessView
+	// below over the REAL streams - so every human-prose renderer built
+	// here is given a view whose stdout IS stderr instead. Forcing
+	// renderOpts to Human above was never enough on its own: the plan view
+	// also supplies [views.UiHook] through view.Hooks(), and that hook
+	// prints its per-instance lines to streams.Stdout unconditionally, so
+	// a configuration with a data source put "data.x.y: Reading..." on
+	// stdout ahead of the document and a consumer piping stdout into a
+	// JSON parser failed on the first one. See [views.View.StdoutOnStderr].
+	renderView := c.View
+	if jsonRequested {
+		renderView = c.View.StdoutOnStderr()
+	}
+	view := views.NewPlan(renderOpts, renderView)
 
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -217,11 +231,22 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// Load errors are tolerated rather than reported: a configuration that
 	// will not load is not evidence either way, and the ordinary path below
 	// reports the problem in its own voice.
+	//
+	// GitHub issue #894 put one shape through the alias instead of past it:
+	// -json over a configuration that names its own estate. PlanCommand
+	// cannot answer that - its pipeline is statelessBegin/StatelessRun
+	// (live_mode.go), which has nothing that builds #788's document - so
+	// delegating there refused a document the docs' own recommended
+	// configuration shape is the one that could never get. See
+	// configDeclaresEstate below.
+	var configDeclaresEstate bool
 	if settings, _ := c.statelessSettings(ctx, true); settings != nil {
 		if estateFlag != "" {
 			// Half of this conflict is the flag and half is the block; the
 			// block is the half with a source range, so it is what the
-			// diagnostic points at.
+			// diagnostic points at. Unchanged by #894: two names that can
+			// disagree is still the ambiguity the block exists to remove,
+			// whatever the output format.
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Estate named by both the live block and -estate",
@@ -231,12 +256,86 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 			view.Diagnostics(diags)
 			return 1
 		}
-		plan := &PlanCommand{Meta: c.Meta}
-		return plan.Run(originalArgs)
+		if !jsonRequested {
+			plan := &PlanCommand{Meta: c.Meta}
+			return plan.Run(originalArgs)
+		}
+		// GitHub issue #894's document route. This function's own pipeline
+		// ([LivePlanCommand.livePlan]) is the ONLY thing in the fork that
+		// builds [views.LivePlanDocument], and it already reads everything
+		// a live block carries - record_store, policy, guided discovery -
+		// off config.Module.Live rather than off the flag (see its own
+		// hintStore, statelessPolicy and statelessApplyGuidedDiscovery call
+		// sites, all written this way before this route existed). What it
+		// did NOT have was the estate name, because statelessEstateFor
+		// reads the -estate value and then the tofu-estate tags the
+		// configuration stamps, never the live block. Handing it
+		// settings.Estate here is exactly what
+		// [statelessRunner.estateName] already does on the other pipeline,
+		// so both pipelines settle the name from the same two sources in
+		// the same order, and an empty settings.Estate still falls through
+		// to the tag derivation on both.
+		//
+		// The refusal this replaces (live_mode.go's "Machine-readable
+		// output is not available under live resource markers yet") was
+		// guarding a real gap rather than an unwired flag - nothing on
+		// PlanCommand's pipeline renders the document, and it still does
+		// not - so it stays exactly where it is for every other -json run
+		// under a live block ("choudoufu apply -json", "-json-into"). What
+		// changes is that a plan asking for the document no longer reaches
+		// that pipeline at all.
+		configDeclaresEstate = true
+		estateFlag = settings.Estate
+		if estateFlag != "" && !discovery.ValidEstateName(estateFlag) {
+			// statelessEstateFor would report this too, but as
+			// -estate=%q, naming a flag this run never passed. The live
+			// block is what named it and the live block has a source
+			// range, so this is [statelessBegin]'s own wording for the
+			// same fact.
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid estate name",
+				Detail:   fmt.Sprintf("The live block names estate %q, which does not match the tofu-estate marker grammar in live/MARKERS.md: a lowercase letter followed by lowercase letters, digits or hyphens, at most 128 characters.", estateFlag),
+				Subject:  settings.DeclRange.Ptr(),
+			})
+			view.Diagnostics(diags)
+			return 1
+		}
 	}
 
-	// Past the alias, so this run is the -estate form for certain, and
-	// [surfaceEstateFlag] is the surface whose refusals apply. GitHub issue
+	// GitHub issue #894. The surface below is [surfaceEstateFlag] on both
+	// routes, because it names a pipeline rather than a flag: livePlan is
+	// what runs either way, and what it can and cannot honour does not
+	// change with where the estate name came from. Two of that surface's
+	// refusals explain themselves by "this configuration has no live
+	// block", though, which is exactly false on the document route, so
+	// both are answered first here in this command's own voice and for
+	// this route's own reason. Refusing before statelessRejections runs is
+	// what keeps its wording off this route entirely and keeps the
+	// "-estate" form's own answers byte-identical to what they were.
+	if configDeclaresEstate {
+		if args.OutPath != "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"-out and -json cannot be combined",
+				"-json asks for GitHub issue #788's bound/omissions/unowned document, which is printed instead of the plan; -out asks for a saved plan file, which records the plan itself. This run cannot produce both. Rerun with one of the two: \"choudoufu plan -out=FILE\" under a live block writes the file and \"choudoufu apply FILE\" re-plans the live system against it (GitHub issue #878), and \"choudoufu plan -json\" prints the document.",
+			))
+		}
+		if args.Operation != nil && args.Operation.PlanMode == plans.DestroyMode {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"-destroy and -json cannot be combined",
+				"GitHub issue #788's document is built by calling the planner directly in the normal planning mode, so -destroy here would be accepted and then ignored. Rerun without -json to plan the destroy - \"choudoufu plan -destroy\" and \"choudoufu destroy\" run this same pipeline in destroy mode (GitHub issue #320, ruled in #425) - or without -destroy to get the document.",
+			))
+		}
+		if diags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
+
+	// Past the alias, so this run is livePlan's own pipeline for certain,
+	// and [surfaceEstateFlag] is the surface whose refusals apply. GitHub issue
 	// #619: this check used to run BEFORE the alias above, out of one of two
 	// refusal sets that had already drifted apart on -destroy. That put the
 	// wrong list in front of a live-block configuration - "choudoufu
@@ -249,16 +348,21 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// Rendered through the base view rather than the plan view: one of the
 	// things this can still reject is -json-into, and reporting "no JSON
 	// output" as JSON-into would be a strange way to say it. -json itself
-	// is no longer on this list for the "-estate" form - GitHub issue #788
+	// is no longer on this list for livePlan's pipeline - GitHub issue #788
 	// gave it a document of its own (see [views.LivePlanDocument] and this
 	// function's own jsonRequested handling below) - but statelessRejections
 	// is the ONE shared list plain "choudoufu plan"/"apply" under a live
-	// block use too (surfaceLiveBlock, in plan.go and apply.go), and #788's
-	// Ask is this command's own "-estate" form only: it stays rejected
-	// there, so surfaceEstateFlag is what statelessRejections switches on
-	// to tell the two apart.
+	// block use too (surfaceLiveBlock, in plan.go and apply.go), and that
+	// pipeline still renders no document: it stays rejected there, so
+	// surfaceEstateFlag is what statelessRejections switches on to tell the
+	// two apart. GitHub issue #894 did not widen the live-block surface's
+	// answer; it moved the runs that want a document onto this pipeline,
+	// which is the one that has always had that answer.
+	//
+	// renderView, not c.View: under -json every word this command speaks
+	// belongs on stderr (#894).
 	if moreDiags := statelessRejections(surfaceEstateFlag, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""); moreDiags.HasErrors() {
-		c.View.Diagnostics(moreDiags)
+		renderView.Diagnostics(moreDiags)
 		return 1
 	}
 
