@@ -348,6 +348,20 @@ func (b *Local) opApply(
 		}
 	}
 
+	// GitHub issue #908: read the plan's replace set HERE, while the plan
+	// still has its changes. lr.Core.Apply below drains an applied change
+	// out of plan.Changes as each instance finishes (writeChange with a nil
+	// change calls Changes.RemoveResourceInstanceChange), so by the time
+	// the WriteBack call site is reached every applied replace is gone and
+	// replacedInstances(plan) reads empty on every real run. Computed at
+	// the WriteBack call site instead - which is how #854 first shipped -
+	// the tombstone mechanism is inert: no replace records a destroyed
+	// identity, and one ForceNew replace of a taggable, server-assigned
+	// resource blocks the next plan on a collision with its own corpse,
+	// the exact symptom #670 was opened for. Do not move this line below
+	// the goroutine.
+	replacedAddrs := replacedInstances(plan)
+
 	// Set up our hook for continuous state updates
 	stateHook.StateMgr = opState
 
@@ -403,7 +417,7 @@ func (b *Local) opApply(
 	// resource failed still deserves its record, so the next plan does not
 	// propose creating it again.
 	if b.Stateless != nil {
-		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedInstances(plan))
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs)
 		diags = diags.Append(wbDiags)
 		if wbDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)
