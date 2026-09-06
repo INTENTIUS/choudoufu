@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // checkChildModules rejects the module-call shapes whose expansion is
@@ -123,7 +124,7 @@ func childModuleDetail(ctx context.Context, cfg *configs.Config, call *configs.M
 	mod := cfg.Module
 	switch {
 	case call.Count != nil:
-		if _, ok := staticCount(ctx, mod, call.Count); !ok {
+		if _, ok := staticeval.Count(ctx, mod, call.Count); !ok {
 			return fmt.Sprintf(
 				"count on a module block is admitted only when it is statically "+
 					"evaluable - a literal, or an expression built from variables, locals, "+
