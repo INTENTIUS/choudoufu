@@ -790,3 +790,98 @@ func discoverCountWith(t *testing.T, cloud *fakeCloud, size int, req Request) (*
 	req.Provider = cloud
 	return Discover(context.Background(), req)
 }
+
+// TestDiscover_supersededUntombstonedClaimantIsNeverCalledDestroyed is
+// GitHub issue #854's read half: the record an import or a live-mv leaves
+// behind, and the wording it must not produce.
+//
+// After #854's write-side change, an `import` block that points an address
+// at a second live object, and a `live-mv` onto an address that already held
+// a record, write the new identity and NO tombstone - the plan scheduled no
+// replace, so nothing was destroyed. That is exactly the record seeded here:
+// aws_vpc.main names vpc-imported, vpc-previous is still live and still
+// wearing the address's marker, and nothing records it as destroyed.
+//
+// Two things are asserted, and the second is the one this issue is about.
+// The address must refuse, because vpc-previous may well be alive. And no
+// diagnostic this run produces may describe vpc-previous as destroyed:
+// before #854 the write side recorded it, this pass pruned it, and the
+// operator was told "records this one as destroyed by an earlier apply of
+// this estate" about a running resource.
+func TestDiscover_supersededUntombstonedClaimantIsNeverCalledDestroyed(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-previous", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-imported", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-imported"})
+
+	res, diags := discoverFixture(t, cloud, Request{HintStore: rawStore})
+	if !diags.HasErrors() {
+		t.Fatalf("an import at an occupied address resolved the displaced object away with nothing recording it as destroyed:\n%s", res)
+	}
+
+	// The rendered summary an operator reads, by value.
+	var summaries []string
+	for _, d := range diags {
+		if d.Severity() == tfdiags.Error {
+			summaries = append(summaries, d.Description().Summary)
+		}
+	}
+	if len(summaries) != 1 || summaries[0] != "Two live resources claiming one address" {
+		t.Fatalf("the run failed with %v, want exactly [Two live resources claiming one address]", summaries)
+	}
+
+	// The wording. Every rendered detail this run produced, checked for the
+	// sentence that would be a lie about a live object.
+	for _, p := range res.Problems {
+		if strings.Contains(p.Detail, "destroyed by an earlier apply of this estate") {
+			t.Errorf("a run that recorded no destroy still told the operator one happened:\n%s", p.Detail)
+		}
+	}
+	for _, d := range diags {
+		if strings.Contains(d.Description().Detail, "destroyed by an earlier apply of this estate") {
+			t.Errorf("a diagnostic describes a live object as destroyed:\n%s", d.Description().Detail)
+		}
+	}
+	if got := displacedIDs(res); len(got) != 0 {
+		t.Errorf("the displaced object was reported as superseded (%v) rather than refused, which says nothing is proposed for it while it is live and marked:\n%s", got, res)
+	}
+}
+
+// TestDiscover_supersededReportNamesWhatDoesNotWriteAnEntry is the pair to
+// the test above, on the branch that DOES prune. The message an operator
+// reads there has to distinguish the two, or the report is unreadable
+// exactly where it matters: it must say that this object was recorded
+// destroyed, and it must say that an import or a live-mv records nothing, so
+// an operator can tell why the object beside it in the same estate refused
+// instead.
+//
+// Asserted on the rendered Detail, by substring, because that string is the
+// whole of what the operator has.
+func TestDiscover_supersededReportSaysWhatDoesNotWriteAnEntry(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-old", `aws_vpc.main`)
+	cloud.own("aws_vpc", "vpc-new", `aws_vpc.main`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_vpc.main`, projection.LocatedRecord{ImportID: "vpc-new"})
+	seedTombstone(t, seedStore, `aws_vpc.main`, projection.TombstoneRecord{ImportID: "vpc-old"})
+
+	res, diags := discoverFixture(t, cloud, Request{HintStore: rawStore})
+	assertNoErrors(t, diags)
+
+	problems := res.ProblemsOfKind(ProblemDisplacedMarker)
+	if len(problems) != 1 {
+		t.Fatalf("want exactly one displaced-marker report for the tombstoned shadow, got:\n%s", res)
+	}
+	for _, want := range []string{
+		"destroyed by an earlier apply of this estate",
+		"a replace this estate's own plan scheduled",
+		"An import or a live-mv that re-points this address at a different object records nothing",
+	} {
+		if !strings.Contains(problems[0].Detail, want) {
+			t.Errorf("the displaced report does not say %q, so an operator cannot tell this case from the one that refuses:\n%s", want, problems[0].Detail)
+		}
+	}
+}

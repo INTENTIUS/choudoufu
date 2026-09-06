@@ -33,10 +33,26 @@ import (
 
 // supersedeApply runs one apply's write-back for the located test type at
 // addr, with appliedID as the identity the object came out of the apply
-// carrying, and returns the envelope version it wrote. It is
-// TestWriteBackLocatedRoundTrip's own body, parameterized so a test can run
-// several applies in a row against one store the way an estate does.
+// carrying, and returns the envelope version it wrote. The apply's plan
+// scheduled a replace FOR THIS ADDRESS, which is what the write side now
+// requires before it records anything as destroyed (GitHub issue #854).
+// It is TestWriteBackLocatedRoundTrip's own body, parameterized so a test
+// can run several applies in a row against one store the way an estate
+// does.
 func supersedeApply(t *testing.T, rs *RecordStore, addr addrs.AbsResourceInstance, appliedID, version string) string {
+	t.Helper()
+	return supersedeApplyReplacing(t, rs, addr, appliedID, version, []addrs.AbsResourceInstance{addr})
+}
+
+// supersedeApplyReplacing is [supersedeApply] with the plan's own replace
+// set spelled out: exactly the addresses whose planned action was
+// DeleteThenCreate or CreateThenDelete, which is what
+// [WriteBackRequest.ReplacedAddrs] carries and what backend/local's
+// replacedInstances derives from the plan. Passing nil is an apply that
+// replaced nothing - an import block, a live-mv onto an address that
+// already held a record, or an ordinary create-and-forget - and it is the
+// distinction GitHub issue #854 exists for.
+func supersedeApplyReplacing(t *testing.T, rs *RecordStore, addr addrs.AbsResourceInstance, appliedID, version string, replaced []addrs.AbsResourceInstance) string {
 	t.Helper()
 	ctx := context.Background()
 
@@ -63,6 +79,7 @@ func supersedeApply(t *testing.T, rs *RecordStore, addr addrs.AbsResourceInstanc
 		EnvelopeVersions: []RecordVersion{{Addr: addr, Version: version}},
 		FinalState:       final,
 		Schemas:          schemas,
+		ReplacedAddrs:    replaced,
 	}))
 
 	_, next, _, exists, err := rs.GetIdentity(ctx, addr)
@@ -207,5 +224,101 @@ func TestWriteBackReplaceTombstonesAreBounded(t *testing.T) {
 	}
 	if want := fmt.Sprintf("eipassoc-%02d", applies-1); rec.ImportID != want {
 		t.Errorf("the current identity is %q, want %q - the live object must never be evicted into, or confused with, the tombstone list", rec.ImportID, want)
+	}
+}
+
+// TestWriteBackImportOfADifferentObjectTombstonesNothing is GitHub issue
+// #854's headline, and the case the record alone cannot see.
+//
+// The record for an address names eipassoc-old. An `import` block then
+// points that same address at eipassoc-imported - a SECOND, GENUINELY LIVE
+// object - and the apply that follows re-records the address accordingly.
+// The record evidence is byte for byte what a replace leaves behind: the
+// identity changed, and the address is still in the final state. The one
+// thing that differs is the plan, which scheduled no replace, and therefore
+// no destroy.
+//
+// Nothing may be recorded as destroyed here. eipassoc-old is running, and an
+// entry naming it would be read back by
+// [discovery.pruneSupersededEntry], which would drop it out of any collision
+// it turns up in and describe it, in the operator's own report, as
+// "destroyed by an earlier apply of this estate".
+func TestWriteBackImportOfADifferentObjectTombstonesNothing(t *testing.T) {
+	ctx := context.Background()
+	addr := mustAddr(t, locatedTestType+`.bastion`)
+	const oldID = "eipassoc-00112233445566778"
+	const importedID = "eipassoc-44556677889900112"
+
+	located := newTestLocatedStore(localHintStore(t), "test-estate")
+
+	// The apply that first recorded the address. A create replaces nothing.
+	version := supersedeApplyReplacing(t, located.rs, addr, oldID, "", nil)
+
+	// The import. The plan's replace set is empty: an `import` block plans
+	// a Create or a NoOp carrying an Importing side, never a replace.
+	supersedeApplyReplacing(t, located.rs, addr, importedID, version, nil)
+
+	rec, _, _, exists, err := located.rs.GetIdentity(ctx, addr)
+	if err != nil || !exists {
+		t.Fatalf("reading the current identity after the import: exists=%v err=%v", exists, err)
+	}
+	if rec.ImportID != importedID {
+		t.Errorf("the address's current identity is %q, want the imported object %q - the import must still re-point the record", rec.ImportID, importedID)
+	}
+
+	if got := tombstonedIDs(t, located.rs, addr); len(got) != 0 {
+		t.Fatalf("an import at an address that already held a record recorded %v as destroyed, want none. %q is alive: the next plan would drop it out of the collision it belongs in and tell the operator this estate destroyed it.", got, oldID)
+	}
+}
+
+// TestWriteBackMvOntoAnOccupiedAddressTombstonesNothing is the same defect
+// on the `live-mv` path, and it pins the gate as PER ADDRESS rather than per
+// run.
+//
+// The estate's apply really does replace something - aws_eip.other - so the
+// plan's replace set is not empty. The address under test is not in it: its
+// record changed hands because a live-mv brought another object's marker to
+// it while the object it used to name kept running. An implementation that
+// asked "did this run replace anything" rather than "was THIS address
+// replaced" would record eipassoc-previous as destroyed here.
+func TestWriteBackMvOntoAnOccupiedAddressTombstonesNothing(t *testing.T) {
+	addr := mustAddr(t, locatedTestType+`.bastion`)
+	other := mustAddr(t, locatedTestType+`.other`)
+	const previousID = "eipassoc-11223344556677889"
+	const movedID = "eipassoc-99887766554433221"
+
+	located := newTestLocatedStore(localHintStore(t), "test-estate")
+
+	version := supersedeApplyReplacing(t, located.rs, addr, previousID, "", nil)
+	// A replace happened in this apply, at a DIFFERENT address.
+	supersedeApplyReplacing(t, located.rs, addr, movedID, version, []addrs.AbsResourceInstance{other})
+
+	if got := tombstonedIDs(t, located.rs, addr); len(got) != 0 {
+		t.Fatalf("a live-mv onto an address that already held a record recorded %v as destroyed while the run's only replace was at %s, want none recorded at %s", got, other, addr)
+	}
+}
+
+// TestWriteBackReplaceWithNoPlanSignalTombstonesNothing pins the direction
+// this fails in when the signal is absent rather than false.
+//
+// A caller that hands [WriteBack] no replace set at all gets no tombstone,
+// even for an apply that really did replace the object. That is the loud
+// direction: with nothing recorded, the next plan keeps the extra claimant
+// and refuses the address, exactly as it did before tombstones existed. The
+// opposite default - "no signal, so fall back to the record" - is the bug
+// this issue is fixing, and it would silently reappear for any future caller
+// that forgot the field.
+func TestWriteBackReplaceWithNoPlanSignalTombstonesNothing(t *testing.T) {
+	addr := mustAddr(t, locatedTestType+`.bastion`)
+	const oldID = "eipassoc-00112233445566778"
+	const newID = "eipassoc-99887766554433221"
+
+	located := newTestLocatedStore(localHintStore(t), "test-estate")
+
+	version := supersedeApplyReplacing(t, located.rs, addr, oldID, "", nil)
+	supersedeApplyReplacing(t, located.rs, addr, newID, version, nil)
+
+	if got := tombstonedIDs(t, located.rs, addr); len(got) != 0 {
+		t.Fatalf("a write-back with no plan replace set recorded %v as destroyed; absence of the signal must refuse, never assume", got)
 	}
 }
