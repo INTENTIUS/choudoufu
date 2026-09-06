@@ -15,7 +15,7 @@ passes - an active stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-06T01:27:32Z and 2026-09-06T05:35:09Z. Each row below carries its own `last_run` date; they are not all the same run.
+Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-06T01:27:32Z and 2026-09-06T05:49:39Z. Each row below carries its own `last_run` date; they are not all the same run.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -61,7 +61,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass FAIL not run |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass not run |
@@ -87,7 +87,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h39m17.6s, but not from one sweep: 18m10.8s across 3 estate(s) at commit `cb5ae2009f`; 24m52.9s across 4 estate(s) at commit `d72960cdc3`; 1h56m13.9s across 20 estate(s) at commit `eec6fb4282`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
+27 of 27 estates have a recorded run duration, totaling 2h47m4.6s, but not from one sweep: 10m48s across 1 estate(s) at commit `3977d90784`; 18m10.8s across 3 estate(s) at commit `cb5ae2009f`; 24m52.9s across 4 estate(s) at commit `d72960cdc3`; 1h53m12.9s across 19 estate(s) at commit `eec6fb4282`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -95,7 +95,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | 6m57.3s | cold_deploy 1m45s, migrate 1m21s, test_plan 4s, test_apply 5s, drift_reconverge 8s, day2_rename 18s, day2_remove 21s, day2_count 57s, day2_replace 18s, greenfield 1m39s |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 4m2.5s | cold_deploy 35s, migrate 1m30s, test_plan 2s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 6s, day2_count 31s, day2_replace 13s, greenfield 45s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | 7m2.7s | cold_deploy 1m18s, migrate 30s, test_plan 5s, test_apply 4s, drift_reconverge 6s, day2_rename 17s, day2_remove 30s, day2_count 2m11s, day2_replace 50s, greenfield 1m11s |
-| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | 3m1s | cold_deploy 1m35s, migrate 1m17s, test_plan 28s, test_apply 5s, drift_reconverge 11s, day2_rename 51s, day2_remove 16s, day2_count 1m10s, day2_replace 16s, greenfield 1m25s |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | 10m48s | cold_deploy 1m45s, migrate 1m26s, test_plan 29s, test_apply 5s, drift_reconverge 12s, day2_rename 59s, day2_remove 20s, day2_count 2m2s, day2_replace 25s, greenfield 3m4s |
 | [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | 14m4.9s | cold_deploy 1m35s, migrate 1m59s, test_plan 17s, test_apply 21s, drift_reconverge 39s, day2_rename 1m17s, day2_remove 1m1s, day2_count 3m20s, day2_replace 1m0s, greenfield 2m34s |
 | [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | 2m26.6s | cold_deploy 29s, migrate 36s, test_plan 3s, test_apply 3s, drift_reconverge 4s, day2_rename 10s, day2_remove 7s, day2_count 14s, day2_replace 13s, greenfield 27s |
 | [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | 2m42.7s | cold_deploy 39s, migrate 24s, test_plan 4s, test_apply 4s, drift_reconverge 5s, day2_rename 11s, day2_remove 7s, day2_count 39s, day2_replace 10s, greenfield 20s |
