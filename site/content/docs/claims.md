@@ -39,7 +39,7 @@ fault and requires the run to succeed.
 | The tag is the boundary | `just smoke the-tag-is-the-boundary` | 4 min |
 | A plan costs its estate, not its account | `just smoke plan-cost-tracks-the-estate` | 2 min |
 | Apply exactly what was approved | `just smoke apply-what-was-approved` | 4 min |
-| The boundary holds across provider configurations | `just smoke the-boundary-holds-across-regions` | 3 min |
+| The boundary holds across provider configurations | `just smoke the-boundary-holds-across-regions` | 2 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
