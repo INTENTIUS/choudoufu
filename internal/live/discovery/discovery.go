@@ -649,24 +649,58 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	diags = diags.Append(bind(ctx, req, decl, res))
 	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
 
-	// The parent-read leg (issue #60) runs after bind and classifyOrphans:
-	// it reads res.Resolutions to find both which parent instances this
-	// pass resolved and which children are already declared, and both are
-	// only settled once binding and orphan classification have run.
+	// The three removal legs that read res.Resolutions rather than the tag
+	// sweep, all of them after bind and classifyOrphans: each needs to know
+	// which parent instances this pass resolved and which children are
+	// already accounted for, and neither is settled until binding and orphan
+	// classification have run. The record-orphan-read leg also needs
+	// res.Unbound settled the same way classifyOrphans's own rename-safety
+	// check does.
+	//
+	// That leg (issue #364 ruling item 1's removal half) goes FIRST of the
+	// three, because the estate's own record is the authority on what an
+	// undeclared instance is CALLED and the parent-read legs are the
+	// recovery path for what the record cannot answer - the foundation-order
+	// ruling (HANDOFF.md, "The foundation": the record holds the identity of
+	// every instance and a plan reads it first; the marker sweep and the
+	// derivations from configuration are the recovery paths).
+	//
+	// It used to run last, and the two orders differ for exactly one shape:
+	// a taggable parent and an untaggable child whose identity composes from
+	// it, both removed in the same change, so the parent comes back from the
+	// tag sweep as this estate's own orphan and the child is reachable from
+	// either leg at once. The parent-read legs mint such a child's address
+	// from its own recovered identity, which they say is best effort because
+	// they have nothing better ([listRecoveredChildAddr],
+	// [syntheticChildAddr]: no marker and no declared block to read a name
+	// from); the record's key IS the address the deleted block declared.
+	// Running the record leg first puts that address into res.Resolutions,
+	// where the parent-read legs' own per-value declared check
+	// ([declaredChildImportIDs], which composes the identity of EVERY
+	// resolution of the type, declared or not) already excludes it, so the
+	// same live child is not minted a second time under a different name.
+	// Measured on corpus-hongbomiao-labelbox's day2_remove (GitHub issue
+	// #875): deleting module.labelbox_iam_role_renamed's block proposed the
+	// inline policy's destroy at
+	// ...aws_iam_role_policy.LabelboxRoleS3Policy-hm-labelbox-v2 - the live
+	// policy's own name - where stock proposes
+	// ...aws_iam_role_policy.labelbox_iam_role_s3_policy.
+	//
+	// Nothing else about the three legs' inputs moves with the order. The
+	// record leg reads res.Resolutions for its parent rule and for its
+	// destroy ordering, and both only ever consult a TAGGABLE parent
+	// ([taggableAdmittedTypes] gates [identity.ParentOf]) - a population
+	// bind and classifyOrphans settle, and one neither parent-read leg adds
+	// to, since both legs' whole population is untaggable by construction.
 	if req.Sweep {
+		diags = diags.Append(recordOrphanReadSweep(ctx, req, schemas, res))
+		// The parent-read leg (issue #60).
 		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
-		// The fold-child leg (issue #68) runs right after: same res.Resolutions
-		// vantage point, generalized to a parent that may itself be
-		// untaggable and composite rather than concrete. See
+		// The fold-child leg (issue #68) runs right after: same
+		// res.Resolutions vantage point, generalized to a parent that may
+		// itself be untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
 		diags = diags.Append(foldChildReadSweep(ctx, req, schemas, res))
-		// The record-orphan-read leg (issue #364 ruling item 1's removal
-		// half) runs last of the three: it needs res.Resolutions AND
-		// res.Unbound settled the same way classifyOrphans's own
-		// rename-safety check does. See
-		// internal/live/discovery/recordorphan_read.go's package doc
-		// comment.
-		diags = diags.Append(recordOrphanReadSweep(ctx, req, schemas, res))
 	}
 
 	// Policy narrows the undeclared_tagged quadrant last, once every removal

@@ -58,10 +58,12 @@ import (
 )
 
 // recordOrphanReadSweep is the leg's entry point, called once per [Discover]
-// pass that asked for a sweep, alongside [parentReadSweep] and
-// [foldChildReadSweep]. It costs one record-store List plus one GetIdentity
-// per undeclared key - bounded by the estate's own record population, never
-// by a type's whole live inventory.
+// pass that asked for a sweep, ahead of [parentReadSweep] and
+// [foldChildReadSweep] - see [Discover]'s own comment on the three legs for
+// why the record is read before either derivation, and what the two orders
+// differ on. It costs one record-store List plus one GetIdentity per
+// undeclared key - bounded by the estate's own record population, never by
+// a type's whole live inventory.
 func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.Schemas, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
