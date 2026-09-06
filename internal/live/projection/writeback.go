@@ -550,10 +550,27 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 						// automatic and selected arms above raise a real
 						// error), so the marker still decides ownership and
 						// a per-apply warning would be about a redundant
-						// carrier. Whether the untaggable slice of this
-						// population deserves more than a log line is a
-						// real question and #746 leaves it open rather than
-						// answering it here.
+						// carrier.
+						//
+						// #746 left open whether the UNTAGGABLE slice of
+						// this population - the one where the record really
+						// is the only surviving identity carrier, marker or
+						// no marker - deserves more than a log line. Issue
+						// #855 measured it: at hashicorp/aws 6.59.0
+						// (2026-09-05), zero of the 27 markerless,
+						// wire-identity-composite types with no list
+						// resource, no Cloud Control enumeration source and
+						// no content-match binding carry a sensitive
+						// identity attribute
+						// (identity.SensitiveIdentityAttr). The population
+						// this branch's sensitive arm actually reaches, for
+						// an instance with nowhere else to be found, is
+						// empty today, so there is nothing to promote.
+						// internal/live/identity's
+						// TestUntaggableUnlistableSensitivePopulation pins
+						// the 27 and the (empty) sensitive subset by value;
+						// a failure there naming an added type is what
+						// reopens this question.
 						if !unrecordableLogged[typeName] {
 							unrecordableLogged[typeName] = true
 							if secret := identity.SensitiveIdentityAttr(typeName, schema); secret != "" {
