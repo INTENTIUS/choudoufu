@@ -33,11 +33,23 @@ Two things it cannot see, said rather than hidden:
     request`" classification exists - a gap closed by an SDK retry is backoff,
     which is the shape #683 found.
 
-Pass attribution: the sweep is the only thing that logs `stateless/discovery:`
-lines, and it runs before the read pass. So the sweep window is [t0, last
-discovery line] and everything after it is the read pass. A log with no
-discovery lines at all (stock terraform) reports one undivided pass, named
-"graph walk", because stock has no sweep to attribute anything to.
+Pass attribution is read off the provider's own `tf_rpc` attribute, not off
+the clock. The sweep's per-type listing is a `tf_rpc=ListResource` call and
+the read pass's import and read are `tf_rpc=ImportResourceState` and
+`tf_rpc=ReadResource`, and the SDK stamps that attribute on the `retrying
+request` line itself - so the stall is attributed to the pass whose OWN call
+was in backoff, which is the question, rather than to whichever phase the
+wall clock happened to be in. A gap with no retry line inside it falls back
+to the `tf_rpc` of the request that closes it, and says so.
+
+That matters here because the two passes overlap on the wire more than their
+log lines suggest: on the 745-resource estate, listing one client-side-
+filtered type fans out into hundreds of provider calls that are still arriving
+while the read pass has started.
+
+A log with no `stateless/discovery:` lines at all (stock terraform) reports
+one undivided pass, named "graph walk", because stock has no sweep to
+attribute anything to.
 
 Usage:
 
@@ -52,6 +64,19 @@ import sys
 TS = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d+[-+]\d{4})\s")
 RETRY = re.compile(r"retrying request ([^,]+), attempt (\d+)")
 LEVEL = re.compile(r"\[(TRACE|DEBUG|INFO|WARN|ERROR)\]\s+(\S+)")
+TFRPC = re.compile(r"tf_rpc=([A-Za-z]+)")
+
+# Which pass each provider RPC belongs to. ListResource is the sweep's
+# per-type listing (internal/live/discovery); ImportResourceState and
+# ReadResource are the read pass's pair per instance
+# (internal/live/projection). Anything else - ConfigureProvider,
+# GetProviderSchema, ValidateResourceConfig - belongs to neither and is
+# reported under its own name rather than folded into one of them.
+PASS_OF_RPC = {
+    "ListResource": "sweep",
+    "ImportResourceState": "read",
+    "ReadResource": "read",
+}
 
 
 def read(path):
@@ -128,21 +153,14 @@ def report(label, path, minlen):
         print("  passes                         : one undivided pass (no sweep in this log)")
     else:
         print(
-            f"  passes                         : sweep [0.0s .. {sweep_s:.1f}s], "
-            f"read pass [{sweep_s:.1f}s .. {span:.1f}s]"
+            f"  last stateless/discovery line  : t={sweep_s:.1f}s "
+            f"(informational; stalls are attributed by tf_rpc, not by this)"
         )
 
     by_pass = collections.Counter()
     retry_closed = 0
     for a, b, dt in gaps:
         off = (a - t0).total_seconds()
-        if sweep_s is None:
-            which = "graph walk"
-        elif off <= sweep_s:
-            which = "sweep"
-        else:
-            which = "read"
-        by_pass[which] += dt
         # `a < t <= b`, not `a < t < b`: hclog stamps at millisecond
         # resolution, and the SDK's `retrying request` line and the
         # `HTTP Request Sent` line that closes the gap routinely land in
@@ -151,13 +169,32 @@ def report(label, path, minlen):
         # that says what the stall was, which is the one thing this
         # classification exists to read.
         inside = [l for t, l in lines if a < t <= b]
-        retries = [RETRY.search(l) for l in inside]
-        retries = [m for m in retries if m]
+        retry_lines = [l for l in inside if RETRY.search(l)]
         closer = ""
-        if retries:
+        if retry_lines:
             retry_closed += 1
-            last = retries[-1]
+            last = RETRY.search(retry_lines[-1])
             closer = f"  ENDS IN RETRY: {last.group(1)} attempt {last.group(2)}"
+
+        # The pass whose own call was in backoff, from tf_rpc on the retry
+        # lines inside the gap; failing that, from the request that closes it.
+        if sweep_s is None:
+            which = "graph walk"
+        else:
+            rpcs = []
+            for l in retry_lines:
+                m = TFRPC.search(l)
+                if m:
+                    rpcs.append(PASS_OF_RPC.get(m.group(1), m.group(1)))
+            if not rpcs:
+                tail = [l for l in inside if "HTTP Request Sent" in l]
+                for l in tail[-1:]:
+                    m = TFRPC.search(l)
+                    if m:
+                        rpcs.append(PASS_OF_RPC.get(m.group(1), m.group(1)) + "?")
+            names = sorted(set(rpcs))
+            which = "+".join(names) if names else "unattributed"
+        by_pass[which] += dt
         kinds = collections.Counter()
         for l in inside:
             m = LEVEL.search(l)
