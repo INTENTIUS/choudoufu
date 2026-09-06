@@ -1327,13 +1327,17 @@ else
       || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
     # The row is "<address>  <action>  <identity>", and this type's identity
     # is ZONEID_NAME_TYPE (internal/live/identity's own row for
-    # aws_route53_record), so both halves of the live object are asserted
-    # here - not just the address, which the plan above already printed.
+    # aws_route53_record, whose ImportSyntax is exactly that), so the WHOLE
+    # live identity is rebuilt here from the three facts this script already
+    # knows independently and asserted as one string - not just the address,
+    # which the plan above already printed. The name component carries no
+    # trailing dot: Route 53's own record name does ("2016.rustconf.com."),
+    # the rendered identity does not, measured off a real refusal on the
+    # first run of this leg rather than assumed either way.
+    P_MOVED_IDENTITY="${DRIFT_ZONE_ID}_${DRIFT_RECORD_NAME%.}_${DRIFT_RECORD_TYPE}"
     P_MOVED_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
-    grep -qF "$DRIFT_ZONE_ID" <<< "$P_MOVED_ROW" \
-      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry the live hosted zone id $DRIFT_ZONE_ID it was computed against"; }
-    grep -qF "$DRIFT_RECORD_NAME" <<< "$P_MOVED_ROW" \
-      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry the live record name $DRIFT_RECORD_NAME it was computed against"; }
+    grep -qF "$P_MOVED_IDENTITY" <<< "$P_MOVED_ROW" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry the live identity $P_MOVED_IDENTITY it was computed against"; }
     grep -qF "Exit status 3" <<< "$P_REFUSAL" \
       || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
     if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
@@ -1387,7 +1391,7 @@ else
 
     log ""
     log "PART P (plan, review, apply): PASS"
-    gauntlet_stage plan_approval pass "one argument edited (module.arewewebyet_org's ttl 300 -> $P_REVIEWED_TTL; that call declares exactly one record, the www CNAME, so one argument is one instance), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR (\"Plan: 0 to add, 1 to change, 0 to destroy\"); the world then moved out of band ($DRIFT_RECORD_NAME's TTL set to $DRIFT_TTL in zone $DRIFT_ZONE_ID through the AWS CLI, never through choudoufu - STAGE 5's own proven mutation, on a DIFFERENT instance in a DIFFERENT hosted zone from the one under review) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming $P_MOVED_ADDR together with the live identity it was computed against - both the hosted zone id $DRIFT_ZONE_ID and the record name $DRIFT_RECORD_NAME, this type's ZONEID_NAME_TYPE identity - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $P_REVIEWED_RECORD still read TTL $WANT_TTL through the AWS CLI, which is stronger evidence than the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the drifted TTL put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_REVIEWED_RECORD read back at TTL $P_REVIEWED_TTL, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied, the $RECORDS record sets re-counted and the estate replanned empty, so PART F starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+    gauntlet_stage plan_approval pass "one argument edited (module.arewewebyet_org's ttl 300 -> $P_REVIEWED_TTL; that call declares exactly one record, the www CNAME, so one argument is one instance), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR (\"Plan: 0 to add, 1 to change, 0 to destroy\"); the world then moved out of band ($DRIFT_RECORD_NAME's TTL set to $DRIFT_TTL in zone $DRIFT_ZONE_ID through the AWS CLI, never through choudoufu - STAGE 5's own proven mutation, on a DIFFERENT instance in a DIFFERENT hosted zone from the one under review) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming $P_MOVED_ADDR together with the whole live identity it was computed against, $P_MOVED_IDENTITY (this type's ZONEID_NAME_TYPE import syntax, rebuilt in the script from the zone id, record name and type it already knew independently) - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $P_REVIEWED_RECORD still read TTL $WANT_TTL through the AWS CLI, which is stronger evidence than the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the drifted TTL put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_REVIEWED_RECORD read back at TTL $P_REVIEWED_TTL, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied, the $RECORDS record sets re-counted and the estate replanned empty, so PART F starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
     log ""
   fi
 
