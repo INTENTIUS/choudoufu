@@ -205,6 +205,25 @@ showing its own checks would have caught it.
   enforcement on. The BREAK control drops the conditions from one role's
   grant, and the cross-half refusal must vanish.
 
+- **the-boundary-holds-across-regions** - *Claim 16: the boundary holds
+  across provider configurations.* One estate spans two aliased
+  providers, a region each, under one `tofu-estate` marker and one
+  record store; a client-chosen name mirrored into both regions stays
+  two distinct objects, so deleting one names that region's instance
+  and only that one while the other region keeps being served from
+  cache (the #745 defect, pinned); each pass lists its own
+  configuration's declarations, so an account-global type declared
+  under one provider is listed once rather than once per region; and
+  the two honest edges are pinned rather than argued - a region whose
+  last declaration is removed drops out of the sweep with its provider
+  configuration, and a region change is a replace whose leftover object
+  no plan proposes removing (#906). Per-pass request counts come off
+  the wire, from the region each request was signed for. The BREAK
+  control points the west provider at the east region and strips the
+  surviving object's markers, so the same name in the other region is
+  the only live evidence for the deleted instance - the plan reports it
+  unchanged and the run must fail on that line.
+
 ## Knobs
 
 | Variable | Effect |

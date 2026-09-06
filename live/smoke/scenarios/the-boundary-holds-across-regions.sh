@@ -6,7 +6,6 @@ mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
 LOGDIR="$SMOKE_WORKROOT/tworegions-logs"; mkdir -p "$LOGDIR"
 
 LG_NAME="/smoke-two-regions/app"
-EAST_ARN="arn:aws:logs:us-east-1:000000000000:log-group:$LG_NAME"
 CACHE="$SMOKE_WORK/.terraform/choudoufu-cache.tfstate"
 
 # The estate, written here rather than copied from live/e2e so the two
@@ -251,7 +250,8 @@ if [ "${BREAK:-0}" = "1" ]; then
     fail "regions" "BREAK: aws.west's dead instance was still named, so this control manufactured nothing and step 2's check proves nothing: $B_OUT"
   fi
   grep 'state cache hit for aws_cloudwatch_log_group.west' "$LOGDIR/break.log" | sed 's/.*projection: //' | head -1 | evidence
-  grep -E 'Plan: |No changes\.' <<< "$B_OUT" | head -1 | evidence
+  { echo "the whole change set this plan proposes:"; grep -E '^  # .* will be ' <<< "$B_OUT" || echo "  (nothing)"; } | evidence
+  echo "aws_cloudwatch_log_group.west is not in it, and its object in us-west-2 is gone" | evidence
   proof "caught - with aws.west pointed at the region east's same-named object lives in, the deleted us-west-2 instance reads as unchanged and no plan line mentions it. Step 2's check is what stands between that and a silent, dead instance."
   exit 0
 fi
@@ -308,18 +308,90 @@ LEFT="$(awsl --region us-west-2 ec2 describe-vpcs --filters "Name=tag:tofu-addre
   || fail "regions" "the us-west-2 vpc is gone, so 'the sweep stopped looking' is not what was measured here"
 echo "with no aws.west declaration left: $(grep -m1 'No changes.' <<< "$P_NOPROV")" | evidence
 echo "and $LEFT is still in us-west-2, still marked tofu-address=aws_vpc.west" | evidence
-proof "an orphan in a region a provider configuration still points at is named in that region; a region nothing declares any more drops out of the sweep and keeps its marked objects. Recovering them is putting a provider configuration for that region back - which the next step does."
-
-step "4. teardown"
-explain \
-  "Both provider configurations come back, the estate binds both regions" \
-  "again from the markers alone, and one destroy removes exactly what" \
-  "the two regions hold between them."
-cmd "restore both provider configurations ; choudoufu apply -destroy -auto-approve"
 write_estate
 P_BACK="$(plan_default)" || fail "regions" "the restored plan failed"
 grep -q "No changes." <<< "$P_BACK" \
   || fail "regions" "putting aws.west back did not rebind its region from markers: $P_BACK"
+proof "an orphan in a region a provider configuration still points at is named in that region; a region nothing declares any more drops out of the sweep and keeps its marked objects. Recovering them is putting a provider configuration for that region back, and doing so rebound us-west-2 from its markers with nothing else."
+
+step "4. recovery is a re-run in both regions at once"
+explain \
+  "Claim 5 with two provider configurations. Every local file the run" \
+  "wrote is deleted - the state cache and the whole record store - and" \
+  "the same plan runs again. Both regions have to come back from what" \
+  "the cloud itself carries: the markers in each region for the" \
+  "server-assigned instances, the configuration's own names for the" \
+  "client-named ones. If recovery were region-blind, the region whose" \
+  "objects were not re-derived would show up as a create. The ANSWER" \
+  "must be identical; the WORK must not be, because with no record to" \
+  "read the run has to list for markers in each region - and a run that" \
+  "reported identical coverage would be a run that never noticed the" \
+  "files were gone."
+cmd "rm the cache and the record store ; choudoufu plan"
+[ -f "$CACHE" ] || fail "regions" "no state cache to lose - this step would measure nothing"
+rm -f "$CACHE"
+rm -rf "$SMOKE_WORK/.tofu-records"
+P_LOST="$(plan_default)" || fail "regions" "the plan after losing every local file failed"
+CS_BACK="$(grep -E '^No changes\.|^Plan: |^  # .* will be ' <<< "$P_BACK" || true)"
+CS_LOST="$(grep -E '^No changes\.|^Plan: |^  # .* will be ' <<< "$P_LOST" || true)"
+[ -n "$CS_LOST" ] || fail "regions" "the post-recovery plan printed no change set at all, so nothing below compares anything"
+[ "$CS_BACK" = "$CS_LOST" ] \
+  || fail "regions" "losing the cache and the record store changed the answer for a two-region estate.
+--- before ---
+$CS_BACK
+--- after ---
+$CS_LOST"
+[ "$P_BACK" != "$P_LOST" ] \
+  || fail "regions" "the whole plan text was identical, coverage report included - the run did not notice the record store was gone, so this step measured nothing"
+echo "change set before losing the files: $CS_BACK" | evidence
+echo "change set after:                   $CS_LOST" | evidence
+echo "coverage report differs: aws_vpc had to be listed per region for its markers, which is the price of the loss" | evidence
+proof "the answer survived losing every local file - both aws.east's and aws.west's halves re-derived from what their own regions carry - and the only thing that moved was the work each provider configuration had to do."
+
+step "5. a region change is a replace, and today you finish it by hand"
+explain \
+  "The last question, answered by measurement rather than hope. An" \
+  "address's provider configuration is part of what the address means," \
+  "so pointing a resource at a different region cannot relocate an" \
+  "object - no cloud API moves a VPC between regions, and live-mv" \
+  "rewrites ownership tags rather than resources. So a region change is" \
+  "a replace. What this step pins is which half of the replace the plan" \
+  "actually proposes: the create in the new region, yes; the removal of" \
+  "the object left behind in the old one, NOT today. The old object's" \
+  "marker names an address the configuration still declares, so the" \
+  "sweep does not read it as an orphan - and the address now lives" \
+  "under a provider configuration that looks at a different region." \
+  "That is issue #906. Change a resource's region and the old object is" \
+  "yours to delete."
+cmd "aws_vpc.west: provider = aws.east ; choudoufu plan ; aws ec2 describe-vpcs (us-west-2)"
+OLD_VPC="$(awsl --region us-west-2 ec2 describe-vpcs --filters "Name=tag:tofu-address,Values=aws_vpc.west" --query 'Vpcs[0].VpcId' --output text)"
+[ -n "$OLD_VPC" ] && [ "$OLD_VPC" != "None" ] || fail "regions" "no marked vpc in us-west-2 to move away from"
+sed_i "$SMOKE_WORK/main.tf" '/resource "aws_vpc" "west"/,/^}/ s/provider   = aws.west/provider   = aws.east/'
+grep -A1 'resource "aws_vpc" "west"' "$SMOKE_WORK/main.tf" | grep -q 'aws.east' \
+  || fail "regions" "the edit did not repoint aws_vpc.west at aws.east"
+P_MOVE="$(plan_default)" || fail "regions" "the repointed plan failed"
+grep -q 'aws_vpc.west will be created' <<< "$P_MOVE" \
+  || fail "regions" "a region change did not plan a create in the new region, so it was read as a move after all: $P_MOVE"
+STILL_VPC="$(awsl --region us-west-2 ec2 describe-vpcs --filters "Name=tag:tofu-address,Values=aws_vpc.west" --query 'Vpcs[0].VpcId' --output text)"
+[ "$STILL_VPC" = "$OLD_VPC" ] \
+  || fail "regions" "the us-west-2 object is not where this step left it ($STILL_VPC vs $OLD_VPC), so what follows measures nothing"
+grep -E 'aws_vpc.west will be (created|destroyed)' <<< "$P_MOVE" | evidence
+grep -E '^Plan: ' <<< "$P_MOVE" | head -1 | evidence
+echo "and $OLD_VPC is still in us-west-2, marked tofu-address=aws_vpc.west, with no plan line about it (issue #906)" | evidence
+if grep -q 'aws_vpc.west will be destroyed' <<< "$P_MOVE"; then
+  fail "regions" "the old region's object IS proposed for removal now - issue #906 is fixed and this step's pinned answer is stale; update it rather than the product"
+fi
+sed_i "$SMOKE_WORK/main.tf" '/resource "aws_vpc" "west"/,/^}/ s/provider   = aws.east/provider   = aws.west/'
+P_UNDO="$(plan_default)" || fail "regions" "the plan after undoing the region change failed"
+grep -q "No changes." <<< "$P_UNDO" \
+  || fail "regions" "undoing the region change did not return the estate to converged: $P_UNDO"
+proof "moving aws_vpc.west from aws.west to aws.east planned a create in us-east-1 - a replace, never a move - and left $OLD_VPC in us-west-2 with no plan line proposing to remove it. That is the honest answer, pinned here so it cannot change quietly."
+
+step "6. teardown"
+explain \
+  "One destroy removes exactly what the two provider configurations" \
+  "hold between them."
+cmd "choudoufu apply -destroy -auto-approve"
 DOUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "regions" "teardown failed: $DOUT"
 grep -qE "Resources: 0 added, 0 changed, $ADDED destroyed" <<< "$DOUT" \
