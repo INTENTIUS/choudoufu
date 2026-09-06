@@ -17,7 +17,7 @@ This cohort exercises every type this batch ratified into
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort iot -types aws_iot_authorizer,aws_iot_billing_group,aws_iot_domain_configuration,aws_iot_policy,aws_iot_provisioning_template,aws_iot_role_alias,aws_iot_thing,aws_iot_thing_group,aws_iot_thing_type,aws_iot_topic_rule,aws_iot_topic_rule_destination -out live/e2e/estates/iot
+go run ./tools/estate-gen -cohort iot -types aws_iot_authorizer,aws_iot_billing_group,aws_iot_domain_configuration,aws_iot_policy,aws_iot_provisioning_template,aws_iot_role_alias,aws_iot_thing,aws_iot_thing_group,aws_iot_thing_type,aws_iot_topic_rule,aws_iot_topic_rule_destination -out /tmp/estate-gen/iot
 ```
 
 ## Coverage map

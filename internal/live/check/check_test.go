@@ -101,16 +101,22 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"approval":     true,
 		"check":        true, // this package: the instrument itself
 		"cloudcontrol": true, // a client for one AWS API
-		"docsref":      true, // parses the doc references refusals carry
-		"docrefs":      true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
-		"flocitest":    true, // test harness
-		"foreign":      true, // classification of unclaimed resources, inside discovery's stage
-		"harness":      true, // the burndown and assumptions registries; measures the instrument, is not part of it
-		"lifecycle":    true,
-		"listclient":   true, // a client
-		"liveimport":   true, // the bulk migration command's engine
-		"markerkey":    true,
-		"markers":      true, // the marker vocabulary itself
+		// The verification cohorts' pinned rosters (issue #699): 31 cohort
+		// names, each with the -types list tools/estate-gen renders and the
+		// supporting types that render adds. Data, read by the generator, by
+		// the acceptance tier and by three type-coverage guards. It is not on
+		// the live path at all and refuses nothing.
+		"cohorts":    true,
+		"docsref":    true, // parses the doc references refusals carry
+		"docrefs":    true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
+		"flocitest":  true, // test harness
+		"foreign":    true, // classification of unclaimed resources, inside discovery's stage
+		"harness":    true, // the burndown and assumptions registries; measures the instrument, is not part of it
+		"lifecycle":  true,
+		"listclient": true, // a client
+		"liveimport": true, // the bulk migration command's engine
+		"markerkey":  true,
+		"markers":    true, // the marker vocabulary itself
 		// GitHub issue #613's detection: does a plan built from a STATE
 		// FILE propose removing an estate's ownership markers? It is the
 		// only package here that runs on the state-backed path and never
@@ -298,8 +304,17 @@ func TestAnalyzeRoutesStateBackendToWarning(t *testing.T) {
 // prove a boundary of the count.index rule, and identity - which does
 // evaluate count expressions - correctly refuses it. Two passes, two
 // meanings of clean.
+//
+// It used to read live/e2e/estates/s3, a generated cohort. Issue #699 stopped
+// committing those, and the failure was the useful kind: the directory still
+// existed (it holds the cohort's hand notes) and still loaded, so
+// report.Readable() and !report.Blocked() both held and only the
+// Instances == 0 leg caught it - which is exactly the leg that exists because
+// "a report that refused everything would pass every test above". The demo
+// estate is the committed fixture that was always the intent: clean for both
+// passes, and not generator output.
 func TestCleanFixtureIsNotBlocked(t *testing.T) {
-	report := Dir(t.Context(), filepath.Join("..", "..", "..", "live", "e2e", "estates", "s3"), Context{})
+	report := Dir(t.Context(), filepath.Join("..", "..", "..", "live", "e2e", "estate"), Context{})
 	if !report.Readable() {
 		t.Fatalf("fixture did not load: %s", report.Load.Diags.Error())
 	}

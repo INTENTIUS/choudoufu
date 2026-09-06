@@ -41,10 +41,9 @@ type Totals struct {
 	// DistinctTypes is the size of the union of every estate's Types.
 	DistinctTypes int `json:"distinct_types"`
 
-	// TypesInNoCohort is DistinctTypes' subset that
-	// live/e2e/estates/*/*.tf (the estate-gen cohort fixtures) never
-	// declares, per a text scan of those committed files - see cohort.go.
-	// -1 means the cross-reference was not attempted this run.
+	// TypesInNoCohort is DistinctTypes' subset that no estate-gen cohort
+	// declares, read off the roster in internal/live/cohorts - see
+	// cohort.go. -1 means the cross-reference was not attempted this run.
 	TypesInNoCohort int `json:"types_in_no_cohort"`
 }
 

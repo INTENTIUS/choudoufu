@@ -253,10 +253,6 @@
   ],
   "sources": [
     {
-      "glob": "live/e2e/estates/*",
-      "origin": "in-repo fixture"
-    },
-    {
       "glob": ".corpus/vpc/examples/*",
       "origin": "terraform-aws-modules",
       "fetch": {
