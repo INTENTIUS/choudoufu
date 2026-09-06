@@ -440,18 +440,19 @@ const (
 // has to be written down as a clause that names its reason, where
 // TestStatelessRejections_surfacesAgree can see it.
 //
-// planOut and planFile are the two the fork thought hardest about, and they
-// are refused for the same reason. A saved plan file records the state
-// snapshot the plan was made against so that apply can check that the state
-// has not moved. That record is authoritative by the roadmap's own test: if
-// it is wrong - if the live system moved between plan and apply - applying it
-// does the wrong thing to the world. Stateless mode exists to have no such
-// record, so v0 has neither half: "plan -out" produces nothing to apply, and
-// "apply <planfile>" is refused rather than being handed a stale projection
-// with no discovery, no marker stamping and no live read behind it. The
-// stateless answer to "review then apply" is that plan and apply each read
-// the world when they run. Both, plus -refresh-only, are ruled reopenable by
-// the stale-state ruling (#604); none of them is reopened here.
+// planOut and planFile were the two the fork thought hardest about, and both
+// are now admitted under a live block - GitHub issue #878, ruled 2026-09-05.
+// The old reasoning refused them because a saved plan file records the state
+// snapshot the plan was made against, and acting on that record would be
+// acting on how the world was rather than how it is. That reasoning is kept
+// and the conclusion is not: a live-markers "apply <planfile>" reads the live
+// system and plans against it exactly as a bare apply does, and the file is
+// compared against the result rather than executed. See
+// internal/command/live_approval.go and internal/live/approval. So there is
+// no clause here for planFile at all, and -out is refused on ONE surface:
+// live-plan's "-estate" form, where plain apply in the same directory is an
+// ordinary state-backed command and the file it wrote would be applied by
+// something that has never heard of the estate.
 func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -481,23 +482,17 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 		reject("Machine-readable output is not available under live resource markers yet",
 			"A live-markers run prints sections describing what it could not read from the live system and what it found that nobody owns, and those sections have no JSON representation yet under a live block. Rerun without -json or -json-into. live-plan's own \"-estate\" form is the one exception: \"choudoufu live-plan -estate=... -json\" is accepted, and prints GitHub issue #788's own document instead of the plan; -json-into still has no representation there either.")
 	}
-	if planOut != "" {
-		// The second half is guidance rather than a second reason, and it
-		// is only TRUE on the -estate form: there, and only there, plain
-		// plan and apply in the same directory are stock state-backed
-		// commands that would duplicate the estate. Saying so under a live
-		// block would be false.
-		detail := "A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Here prior state is rebuilt from the live system every run, so an apply plans against the live system at the moment it runs. "
-		switch surface {
-		case surfaceEstateFlag:
-			detail += "Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands rather than live-markers ones, and they would write a state file and propose creating resources this estate already owns. A live-markers apply exists only for a configuration carrying a live block, where plain plan and apply run on markers and an approval gate between them approves the intent rather than a frozen diff."
-		default:
-			detail += "Rerun without -out and apply directly."
-		}
-		reject("Saved plan files are not available under live resource markers", detail)
-	}
-	if planFile != "" {
-		diags = diags.Append(statelessRejectPlanFile(planFile))
+	if planOut != "" && surface == surfaceEstateFlag {
+		// The one surface -out is still refused on. A configuration with a
+		// live block accepts it since GitHub issue #878: "plan -out" writes
+		// stock's own plan file and "apply <planfile>" re-plans live and
+		// compares. Here there is no live block, so plain "choudoufu plan"
+		// and "choudoufu apply" in this directory are ORDINARY state-backed
+		// commands - a file written from this form would be applied by
+		// something that has never heard of the estate, and would propose
+		// creating resources the estate already owns.
+		reject("Saved plan files are not available under live resource markers",
+			"A saved plan file records the state snapshot the plan was made against so that apply can check the state has not moved since. Here prior state is rebuilt from the live system every run, so an apply plans against the live system at the moment it runs. Rerun without -out. Note that this configuration has no live block, so plain \"choudoufu plan\" and \"choudoufu apply\" here are ORDINARY state-backed commands rather than live-markers ones, and they would write a state file and propose creating resources this estate already owns. Under a live block \"choudoufu plan -out=FILE\" is accepted, and \"choudoufu apply FILE\" re-plans the live system and refuses if what it finds is not what that file describes (GitHub issue #878).")
 	}
 	if generateConfigOut != "" {
 		reject("Config generation is not available under live resource markers yet",
@@ -553,20 +548,6 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 	}
 
 	return diags
-}
-
-// statelessRejectPlanFile is its own function because the apply command has
-// to refuse a saved plan before it tries to read one: a stateless
-// configuration and a plan file are incompatible whether or not the file is
-// readable, and "that is not a valid plan file" would be a confusing answer
-// to a request that was never going to be honored.
-func statelessRejectPlanFile(path string) tfdiags.Diagnostics {
-	var diags tfdiags.Diagnostics
-	return diags.Append(tfdiags.Sourceless(
-		tfdiags.Error,
-		"Applying a saved plan file is not available under live resource markers",
-		fmt.Sprintf("This configuration has a live block, so an apply builds its prior state by reading the live system, stamps ownership markers, and plans against what it finds. Applying %q would instead act on a record of how things were when the plan was made. Run \"choudoufu apply\" with no plan file.", path),
-	))
 }
 
 // ---------------------------------------------------------------------------
