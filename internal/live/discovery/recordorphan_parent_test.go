@@ -6,6 +6,9 @@
 package discovery
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -195,5 +198,145 @@ func TestRecordOrphanReadSweep_ParentHeldByThisPassIsProposed(t *testing.T) {
 	}
 	if !orphanAppended(res, addr) {
 		t.Fatalf("%s was not proposed although the pass holds its zone", addr)
+	}
+}
+
+// The regression the parent rule shipped with, measured on
+// corpus-simpleinfra-dns's day2_count (GitHub issues #872/#873, and the same
+// shape on #868/#871/#875): dropping a key from a for_each block of
+// untaggable, record-backed children proposed NO destroy at all for the
+// dropped child, because the check that asks whether this estate holds the
+// child's parent only ever accepted a parent this same pass had bound to an
+// ImportID.
+//
+// The foundation-order ruling (HANDOFF.md, "The foundation") is what makes
+// that the ordinary case rather than an edge: the record holds every
+// instance's identity and a plan reads it first, so a DECLARED parent whose
+// identity the estate's own record already answers is never re-derived from
+// a marker in this pass and sits in res.Resolutions as ClassNeedsDiscovery
+// with an empty ImportID. Instrumenting a real run of that estate showed all
+// seven declared aws_route53_zone resolutions in exactly that state at this
+// point, and the dropped record's destroy withheld with "not declared, and
+// not swept carrying this estate's marker" - about a zone the configuration
+// declares on the line above.
+//
+// The fixture is the failure's own shape: the parent is DECLARED, its
+// identity is in the estate's record store, and the cloud lists nothing, so
+// no marker sweep can bind anything. Compare
+// TestRecordOrphanReadSweep_Route53RecordWithNoParentHeldIsNotProposed,
+// which is the ruling's own case and stays red-side: there the parent's
+// block is GONE, so nothing declares it and no record arm can reach it.
+func TestRecordOrphanReadSweep_DeclaredParentAnsweredOnlyByTheRecordStillHoldsItsChild(t *testing.T) {
+	dir := t.TempDir()
+	const src = `
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.59.0"
+    }
+  }
+}
+
+resource "aws_route53_zone" "eu" {
+  name = "datacite.eu"
+}
+
+resource "aws_route53_record" "cname" {
+  for_each = toset(["2022", "2023"])
+  zone_id  = aws_route53_zone.eu.zone_id
+  name     = "${each.key}.datacite.eu"
+  type     = "CNAME"
+  ttl      = 300
+  records  = ["x.example.com"]
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir)
+	resolutions := resolveOrFail(t, cfg).All()
+
+	rawStore, seedStore := recordOrphanHintStore(t)
+	const zoneID = "ZJB88OBW3J7TXGA"
+	if _, err := projection.SeedLocatedForInstance(t.Context(), seedStore, mustAddr(t, "aws_route53_zone.eu"), recordOrphanProviderAddr, projection.LocatedRecord{
+		ImportID: zoneID,
+	}); err != nil {
+		t.Fatalf("seeding the zone's identity record: %s", err)
+	}
+	// Every key the block ever had, the way an apply leaves them: the two
+	// still declared and the one just dropped.
+	for _, key := range []string{"2022", "2023", "2024"} {
+		addr := mustAddr(t, fmt.Sprintf("aws_route53_record.cname[%q]", key))
+		if _, err := projection.SeedLocatedForInstance(t.Context(), seedStore, addr, recordOrphanProviderAddr, projection.LocatedRecord{
+			Components: map[string]string{
+				"zone_id": zoneID,
+				"name":    key + ".datacite.eu",
+				"type":    "CNAME",
+			},
+		}); err != nil {
+			t.Fatalf("seeding %s: %s", addr, err)
+		}
+	}
+
+	// Nothing live is listed at all, so no resolution in the pass is ever
+	// bound to an ImportID - the state the record-first path leaves a
+	// declared parent in, reproduced without needing a marker sweep to be
+	// skipped for some other reason.
+	cloud := newFakeCloud()
+
+	res, diags := Discover(t.Context(), Request{
+		Estate:      estateName,
+		Config:      cfg,
+		Resolutions: resolutions,
+		Provider:    cloud,
+		Sweep:       true,
+		HintStore:   rawStore,
+	})
+	assertNoErrors(t, diags)
+
+	// The parent really is in the state this test is about: declared, and
+	// carrying no ImportID for the old check to have matched on.
+	var sawUnboundParent bool
+	for _, r := range res.Resolutions {
+		if r.Addr.String() == "aws_route53_zone.eu" && !r.Undeclared && r.ImportID == "" {
+			sawUnboundParent = true
+		}
+	}
+	if !sawUnboundParent {
+		t.Fatalf("the fixture no longer reproduces the shape: aws_route53_zone.eu is not a declared resolution with an empty ImportID in:\n%s", res)
+	}
+
+	dropped := mustAddr(t, `aws_route53_record.cname["2024"]`)
+	const wantID = "ZJB88OBW3J7TXGA_2024.datacite.eu_CNAME"
+	var got *identity.Resolution
+	for i, r := range res.Resolutions {
+		if r.Addr.String() == dropped.String() {
+			got = &res.Resolutions[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("the dropped for_each key %s was not proposed for removal, so its live object would be left orphaned; res:\n%s", dropped, res)
+	}
+	if !got.Undeclared {
+		t.Errorf("resolution for %s is not marked Undeclared: %+v", dropped, *got)
+	}
+	if got.Class != identity.ClassConcrete {
+		t.Errorf("resolution for %s has class %v, want %v", dropped, got.Class, identity.ClassConcrete)
+	}
+	if got.ImportID != wantID {
+		t.Errorf("resolution for %s has ImportID %q, want %q", dropped, got.ImportID, wantID)
+	}
+
+	// The two keys the configuration still declares must not be dragged in
+	// with it - the scale-down destroys exactly one instance.
+	for _, key := range []string{"2022", "2023"} {
+		addr := mustAddr(t, fmt.Sprintf("aws_route53_record.cname[%q]", key))
+		for _, r := range res.Resolutions {
+			if r.Addr.String() == addr.String() && r.Undeclared {
+				t.Errorf("%s is still declared but was proposed for removal: %+v", addr, r)
+			}
+		}
 	}
 }
