@@ -1,5 +1,5 @@
 # record-only-survives-cache-loss
-# CLAIM 16 - A record-only composite identity survives cache loss without a duplicate create. ~2 min.
+# CLAIM 17 - A record-only composite identity survives cache loss without a duplicate create. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/recordonly"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
