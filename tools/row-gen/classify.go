@@ -47,7 +47,7 @@ const (
 	bucketFoldChild bucket = "fold-child"
 	// bucketComposite: a composite identity (two or more parts) whose
 	// separator AND argument order this run recovered from pinned evidence
-	// rather than a human's hand - the rowgen-convergence gap #39's
+	// rather than a human's hand - the classifier-versus-ratified gap #39's
 	// "needs-hand-separator, never pastable" rule left open. Built either
 	// from live/import-grammar.json's own composed_of_arguments/arguments/
 	// separator fields (confirmed against the documented example string's
@@ -66,7 +66,7 @@ const (
 	// literals, and configuration-argument tail segments. The one proposal
 	// shape whose components can carry a Component{Cloud: ...} or a
 	// mid-string literal at all. Pastable: Assembled carries the segments
-	// render.go and convergence.go both build the Components from, and
+	// render.go and comparison.go both build the Components from, and
 	// applyDerivedIdentityAttrs (identityattr.go) derives the per-component
 	// IdentityAttr from the leading literal - the "future ARN-template
 	// proposal shape" that function was wired for. See
@@ -100,7 +100,7 @@ const (
 	// resolveArgName over at all - a classifyUnmapped row with no CFN
 	// model, an unresolved fold parent, or a registry primaryIdentifier
 	// shape rule 2 does not fit. Kept distinct from argSourceIdentitySchema
-	// so a reader of the printed report and of live/rowgen-convergence.json's
+	// so a reader of the printed report and of live/rowgen-mismatches.json's
 	// evidence_only_schema bucket can tell the two provenances apart -
 	// see evidenceschema.go's own doc comment.
 	argSourceIdentitySchemaEvidenceOnly argSource = "provider identity schema (live/survey-full.json), issue #428's evidence-only sweep"

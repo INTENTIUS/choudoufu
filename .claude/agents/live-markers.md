@@ -80,12 +80,14 @@ derivation for one.
 
 ## The measurement trap, which is the main thing to avoid
 
-**`live/rowgen-convergence.json` and `adopted_unchanged` are not coverage.**
-They measure whether row-gen's fresh proposal agrees with a human-ratified row.
+**`live/rowgen-mismatches.json` is not coverage.**
+It measures whether row-gen's fresh proposal agrees with a human-ratified row.
 The ratified row is what ships (`tools/row-gen/emit.go:41` copies every field
 verbatim), so a mismatch is generator-autonomy debt, not a failure any user
-experiences. Three sessions were organised around raising that number. Do not
-quote it, rank work by it, or report progress in it.
+experiences. Three sessions were organised around raising the ratio the old
+`live/rowgen-convergence.json` led with (`adopted_unchanged`); `#695` deleted
+that artifact and the ratio with it. Do not quote what is left, rank work by
+it, or report progress in it.
 
 The gate users hit is **admission** (a type absent from `DefaultTable` is a hard
 resolve error at `table.go:244`; `#364` removes it, landing such a type on

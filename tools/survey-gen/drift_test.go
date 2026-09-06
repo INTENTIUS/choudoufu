@@ -15,7 +15,7 @@ import (
 // This file is issue #169's gate. Until it existed the two survey artifacts
 // had none, alone among this repository's generated artifacts -
 // live/registry.json has TestRegistryCounts_MatchIssue42ReferenceValues,
-// live/rowgen-convergence.json has TestConvergenceArtifactMatchesCommitted,
+// live/rowgen-mismatches.json has TestMismatchLedgerMatchesCommitted,
 // the generated tables have TestEmitFilesMatchCommitted, and
 // live/LIMITATIONS.md's spans have their own render check.
 //

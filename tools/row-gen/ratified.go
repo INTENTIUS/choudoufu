@@ -37,7 +37,7 @@ import (
 // in a file no generator writes, so reverting the cause of a retraction
 // restores the rows - they were never the generator's to lose. Three reads
 // moved together to make that true: [emittedRows]' corpus, [markerlessRoster]'s
-// server-assignment verdict, and [buildConvergence]'s population. Two did not,
+// server-assignment verdict, and [buildComparison]'s population. Two did not,
 // and both are comparisons against what currently ships rather than statements
 // about what is ratified: retraction.go's gate and [recordBackedRows]'
 // dropped-row check.
@@ -68,7 +68,7 @@ import (
 // types is unchanged by this file to the row: 878 before, 878 after.
 //
 // The derivation debt is unchanged too, and it stays measured where it already
-// is. live/rowgen-convergence.json records which of these rows a fresh
+// is. live/rowgen-mismatches.json records which of these rows a fresh
 // classify.go run reproduces on its own; shrinking the corrected half is the
 // work, and moving the rows does not shrink or grow it by one.
 //
@@ -339,7 +339,7 @@ func ratifiedRowsOf(table map[string]identity.TypeIdentity) map[string]identity.
 }
 
 // loadEmittedTable is the read-only half of -emit: the exact rows -emit would
-// write, without writing them. It is what the measuring modes (-convergence,
+// write, without writing them. It is what the measuring modes (-mismatches,
 // -propose) compare the fresh classifier against, so that the population they
 // measure and the population -emit ships can never be two different sets.
 //

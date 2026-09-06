@@ -4,17 +4,19 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // provider-bump-report is issue #441's movement report: "a bump is a report,
-// not an event". It reads live/survey-full.json, live/readiness.json and
-// live/rowgen-convergence.json as committed at a git ref (-old-ref, HEAD by
-// default) and the same three files as they stand on disk right now, and
-// prints what moved: types added or removed, tier/status movement, the #387
-// schema-precedence bucket's own before/after, the ratified-row convergence
-// headline, and whether internal/live/check's golden identity table moved.
+// not an event". It reads live/survey-full.json, live/readiness.json,
+// live/schema-precedence.json and live/rowgen-mismatches.json as committed
+// at a git ref (-old-ref, HEAD by default) and the same four files as they
+// stand on disk right now, and prints what moved: types added or removed,
+// tier/status movement, the #387 schema-precedence verdicts' own
+// before/after, whether any classifier mismatch became unruled, and whether
+// internal/live/check's golden identity table moved.
 //
 // It is the last step of `just provider-bump <version>` (see that recipe in
-// the justfile), run after survey-gen, readiness-gen and row-gen
-// -convergence have already regenerated the three artifacts at the new
-// release - this tool reads them, it does not run them:
+// the justfile), run after survey-gen, readiness-gen and row-gen's
+// -mismatches and -schema-precedence modes have already regenerated the
+// four artifacts at the new release - this tool reads them, it does not run
+// them:
 //
 //	go run ./tools/provider-bump-report
 //
@@ -42,12 +44,13 @@ import (
 	"strings"
 )
 
-// Committed artifact paths, repo-relative - the same three tools/readiness-gen's
-// build.go and tools/row-gen/main.go already write.
+// Committed artifact paths, repo-relative - the same four tools/survey-gen's,
+// tools/readiness-gen's and tools/row-gen's own generators already write.
 const (
-	surveyFullJSONRel  = "live/survey-full.json"
-	readinessJSONRel   = "live/readiness.json"
-	convergenceJSONRel = "live/rowgen-convergence.json"
+	surveyFullJSONRel       = "live/survey-full.json"
+	readinessJSONRel        = "live/readiness.json"
+	schemaPrecedenceJSONRel = "live/schema-precedence.json"
+	mismatchesJSONRel       = "live/rowgen-mismatches.json"
 )
 
 // repoRoot resolves the checkout's root from this file's own location, the
@@ -116,19 +119,28 @@ func loadArtifactsAtRef(root, ref string) (bumpArtifacts, error) {
 		return out, fmt.Errorf("decoding %s@%s: %w", readinessJSONRel, ref, err)
 	}
 
-	convData, err := gitShow(root, ref, convergenceJSONRel)
+	spData, err := gitShow(root, ref, schemaPrecedenceJSONRel)
 	if err != nil {
 		return out, err
 	}
-	if err := json.Unmarshal(convData, &out.Convergence); err != nil {
-		return out, fmt.Errorf("decoding %s@%s: %w", convergenceJSONRel, ref, err)
+	if err := json.Unmarshal(spData, &out.SchemaPrecedence); err != nil {
+		return out, fmt.Errorf("decoding %s@%s: %w", schemaPrecedenceJSONRel, ref, err)
+	}
+
+	misData, err := gitShow(root, ref, mismatchesJSONRel)
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(misData, &out.Mismatches); err != nil {
+		return out, fmt.Errorf("decoding %s@%s: %w", mismatchesJSONRel, ref, err)
 	}
 	return out, nil
 }
 
-// loadArtifactsFromDisk reads the three committed artifacts as they stand in
+// loadArtifactsFromDisk reads the four committed artifacts as they stand in
 // the working tree right now - the shape they are in immediately after
-// survey-gen, readiness-gen and row-gen -convergence have regenerated them.
+// survey-gen, readiness-gen and row-gen's two measuring modes have
+// regenerated them.
 func loadArtifactsFromDisk(root string) (bumpArtifacts, error) {
 	var out bumpArtifacts
 
@@ -148,12 +160,20 @@ func loadArtifactsFromDisk(root string) (bumpArtifacts, error) {
 		return out, fmt.Errorf("decoding %s: %w", readinessJSONRel, err)
 	}
 
-	convData, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(convergenceJSONRel))) //nolint:gosec // a fixed path inside the checkout
+	spData, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(schemaPrecedenceJSONRel))) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {
 		return out, err
 	}
-	if err := json.Unmarshal(convData, &out.Convergence); err != nil {
-		return out, fmt.Errorf("decoding %s: %w", convergenceJSONRel, err)
+	if err := json.Unmarshal(spData, &out.SchemaPrecedence); err != nil {
+		return out, fmt.Errorf("decoding %s: %w", schemaPrecedenceJSONRel, err)
+	}
+
+	misData, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(mismatchesJSONRel))) //nolint:gosec // a fixed path inside the checkout
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(misData, &out.Mismatches); err != nil {
+		return out, fmt.Errorf("decoding %s: %w", mismatchesJSONRel, err)
 	}
 	return out, nil
 }

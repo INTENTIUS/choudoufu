@@ -46,8 +46,8 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 159, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 151 | at most 151 | `live/rowgen-convergence.json summary.admitted_total` at 1049, floor 850 | #132 |
-| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 1023, floor 800 | #132 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 151 | at most 151 | `live/rowgen-mismatches.json summary.admitted_total` at 1049, floor 850 | #132 |
+| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-mismatches.json summary.compared` at 1023, floor 800 | #132 |
 | [`unreached-types`](#unreached-types) | 463 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
@@ -105,12 +105,12 @@ tools/row-gen/annotations.json is a list of named extractor gaps that only ever 
 
 Now **151 rulings**, at most **151**. At the bound.
 
-every ruling names one of the 1023 types the convergence artifact carries, over 1049 admitted types.
+every ruling names one of the 1023 types the mismatch artifact carries, over 1049 admitted types.
 
 - Measured on tools/row-gen/annotations.json.
-- Held against live/rowgen-convergence.json. Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.
-- Instrument: the committed ledger read as JSON, cross-checked against the committed convergence artifact's type list.
-- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 1049 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
+- Held against live/rowgen-mismatches.json. Every ruling has to name a type the mismatch artifact compared, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.
+- Instrument: the committed ledger read as JSON, cross-checked against the committed mismatch artifact's type list.
+- Denominator `live/rowgen-mismatches.json summary.admitted_total`, measured at 1049 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
 
 What the instrument cannot see:
 
@@ -143,15 +143,15 @@ Now **0 unruled mismatches**, at most **0**. At the bound.
 
 recomputed from 1023 compared rows: 147 unmatched, every one of them named by one of the ledger's 151 rulings.
 
-- Measured on live/rowgen-convergence.json summary.unannotated_mismatches.
+- Measured on live/rowgen-mismatches.json summary.unannotated_mismatches.
 - Held against tools/row-gen/annotations.json. The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.
-- Instrument: the committed convergence artifact plus the committed ledger, both read as JSON. Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift half.
-- Denominator `live/rowgen-convergence.json summary.compared`, measured at 1023 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
+- Instrument: the committed mismatch artifact plus the committed ledger, both read as JSON. Not a regeneration - tools/row-gen's TestMismatchLedgerMatchesCommitted is the drift half.
+- Denominator `live/rowgen-mismatches.json summary.compared`, measured at 1023 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
 
 What the instrument cannot see:
 
-- This is generator-autonomy debt and not user-visible coverage. tools/row-gen/emit.go:41 copies every field of a ratified row verbatim, so a mismatch changes nothing a user experiences. adopted_unchanged from the same artifact is not coverage either and must not be quoted as such.
-- It compares only the mapped set. The types in summary.not_in_mapped_set have no proposal to compare at all and are outside this number - the -emit gate holds them to the same bar separately.
+- This is generator-autonomy debt and not user-visible coverage. tools/row-gen/emit.go:41 copies every field of a ratified row verbatim, so a mismatch changes nothing a user experiences. Issue #695 deleted the adopted-unchanged ratio this artifact's predecessor led with, for exactly that reason: it was read as coverage three sessions running.
+- It compares only the mapped set. The admitted types with no fresh proposal at all - admitted_total minus compared - are outside this number; the -emit gate holds them to the same bar separately.
 
 Where the bound has been:
 
@@ -249,7 +249,7 @@ Every committed measurement artifact whose numbers get quoted is tracked and rea
 **If this stops being true.** A number that cannot be dated outlives the tree it describes. A site total measured on a branch was propagated into three committed files and was wrong by exactly the size of a class a later merge had emptied; the one copy that survived contact was the one that named its commit. An artifact regenerated and quoted but not committed is the same failure with nothing at all to point at.
 
 - `live/corpus-refusals.json`
-- `live/rowgen-convergence.json`
+- `live/rowgen-mismatches.json`
 - `live/mapping.json`
 - `live/survey-full.json`
 - `live/cohort-acceptance.json`

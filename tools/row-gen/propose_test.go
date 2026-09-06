@@ -17,7 +17,7 @@ import (
 // that exclusion exists (a fold-child's Matched rate is always 0 by
 // construction, not a real signal).
 func TestRuleAdoption_GroupsByBucketAndRule(t *testing.T) {
-	rows := []convergenceRow{
+	rows := []comparisonRow{
 		{TFType: "aws_a", ProposedBucket: "server-assigned", ProposedRule: "rule-1", Matched: true},
 		{TFType: "aws_b", ProposedBucket: "server-assigned", ProposedRule: "rule-1", Matched: true},
 		{TFType: "aws_c", ProposedBucket: "server-assigned", ProposedRule: "rule-1", Matched: false},
@@ -349,7 +349,7 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// times with a separator in its ImportSyntax; the marker is the
 	// discriminator and the parent scope only narrows the candidate set.
 	// Each was reproduced by the fresh classifier with no generator change
-	// and no annotations.json ruling (rowgen-convergence: matched, no
+	// and no annotations.json ruling (the mismatch ledger: matched, no
 	// mismatch classes), which is why the batch adds no rule here.
 	// 80 (2026-08-17, issue #274): the markerless-veto two-source exception
 	// took aws_cognito_risk_configuration out. Its own ruling here named

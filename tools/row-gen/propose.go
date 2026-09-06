@@ -30,13 +30,13 @@ import (
 //
 // Two measurements, both over data already in the checkout:
 //
-//  1. ruleAdoption groups every admitted type's fresh convergence comparison
-//     (buildConvergence's own compareOne, unmodified) by rule class - the
+//  1. ruleAdoption groups every admitted type's fresh comparison
+//     (buildComparison's own compareOne, unmodified) by rule class - the
 //     bucket plus the exact classify.go/importprecedence.go rule string that
 //     produced it - and counts how many of that rule's historical instances
 //     matched the ratified entry byte-for-byte. This reuses the exact
-//     Matched semantics live/rowgen-convergence.json already commits to, so
-//     PROPOSE's confidence claim is the same one that artifact's own ratchet
+//     Matched semantics live/rowgen-mismatches.json already commits to, so
+//     PROPOSE's confidence claim is the same one that artifact's own drift
 //     test polices, not a second, looser measure.
 //  2. loadRejectedTypes is a second, independent, deliberately
 //     over-inclusive safety net: a rule class can reach a spotless matched
@@ -72,7 +72,7 @@ const proposeMinSample = 5
 // ruleKey identifies one classification rule class: the bucket it produces
 // plus the exact prose rule string that fired (classify.go's or
 // importprecedence.go's own Rule assignments) - the same granularity
-// convergenceRow.ProposedRule already records, so two proposals in the same
+// comparisonRow.ProposedRule already records, so two proposals in the same
 // bucket but reached by different evidence (the base registry-only rule vs.
 // an import-grammar precedence correction) are counted as different rule
 // classes with independent track records, never pooled together.
@@ -124,16 +124,16 @@ func pastableBucket(b bucket) bool {
 	}
 }
 
-// ruleAdoption groups a fresh convergence comparison's rows (buildConvergence's
-// own Types slice - one row per type internal/live/identity.DefaultTable
+// ruleAdoption groups a fresh comparison's rows (buildComparison's
+// own Rows slice - one row per type internal/live/identity.DefaultTable
 // already admits) by rule class, counting Compared/Matched per class.
 // Restricted to the pastable buckets: a rule class built from
 // bucketFoldChild or bucketNeedsHandSeparator could never produce a pastable
-// candidate, so its Matched rate (which is always 0 - see convergence.go's
+// candidate, so its Matched rate (which is always 0 - see comparison.go's
 // proposedFields default case) would only ever read as a permanent, and
 // misleading, disqualification rather than the "not applicable" it actually
 // is.
-func ruleAdoption(rows []convergenceRow) map[ruleKey]ruleStats {
+func ruleAdoption(rows []comparisonRow) map[ruleKey]ruleStats {
 	out := map[ruleKey]ruleStats{}
 	for _, r := range rows {
 		b := bucket(r.ProposedBucket)
@@ -274,10 +274,10 @@ func selectProposeCandidates(proposals []proposal, admitted, rejected, vetoed ma
 
 // buildProposeReport is -propose's whole pipeline: load the mapped set,
 // compare it against what is already admitted (the same classifyAll and
-// buildConvergence every other mode already uses), scan for recorded
+// buildComparison every other mode already uses), scan for recorded
 // rejections, select candidates, and render both the report (stdout) and the
 // one-line summary (stderr) admission-pipeline's REPORT stage greps for -
-// the same shape run()'s and runConvergence's own summary lines already
+// the same shape run()'s and runMismatches' own summary lines already
 // take.
 func buildProposeReport(root string) (report, summary string, err error) {
 	proposals, err := loadProposals(root)
@@ -292,8 +292,8 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	art := buildConvergence(emittedTable, proposals, annotations)
-	stats := ruleAdoption(art.Types)
+	cmp := buildComparison(emittedTable, proposals, annotations)
+	stats := ruleAdoption(cmp.Rows)
 	qualifying := qualifyingRules(stats)
 
 	rejected, err := loadRejectedTypes(root)

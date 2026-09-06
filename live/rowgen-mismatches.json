@@ -1,0 +1,5127 @@
+{
+  "generated_by": "tools/row-gen -mismatches (go run ./tools/row-gen -mismatches)",
+  "note": "Per admitted type with a fresh proposal: did tools/row-gen's own classifier reproduce the hand-ratified row in tools/row-gen/ratified.json, and does a mismatched row carry a ruling in tools/row-gen/annotations.json. NOT A COVERAGE METRIC. The ratified row is what ships - emit.go copies every field of it verbatim - so a mismatch is generator-autonomy debt, not a failure any user experiences. The gate users actually hit is admission, and above that the config-language subset; issue #102 and live/corpus-refusals.json measure that. Regenerate with `go run ./tools/row-gen -mismatches`.",
+  "summary": {
+    "admitted_total": 1049,
+    "compared": 1023,
+    "genuine_mismatches": 147,
+    "unannotated_mismatches": 0
+  },
+  "types": [
+    {
+      "tf_type": "aws_accessanalyzer_analyzer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_accessanalyzer_archive_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_acm_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_acmpca_certificate_authority",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_acmpca_certificate_authority_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_acmpca_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_listener",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_listener_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_listener_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_target_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_alb_target_group_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_amplify_app",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_amplify_backend_environment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_amplify_branch",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_amplify_domain_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_api_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_base_path_mapping",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_api_gateway_client_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_documentation_version",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_domain_name",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_domain_name_access_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_gateway_response",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_integration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_integration_response",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_method",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_method_response",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_method_settings",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_api_gateway_model",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_rest_api",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_rest_api_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_stage",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_usage_plan",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_usage_plan_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_vpc_link",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apigatewayv2_api",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apigatewayv2_domain_name",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apigatewayv2_stage",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_apigatewayv2_vpc_link",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_app_cookie_stickiness_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_appautoscaling_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_appautoscaling_target",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_configuration_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_deployment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_deployment_strategy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_environment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appconfig_extension",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appflow_connector_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appflow_flow",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appintegrations_data_integration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appintegrations_event_integration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_auto_scaling_configuration_version",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_custom_domain_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_default_auto_scaling_configuration_version",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_observability_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_vpc_connector",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_apprunner_vpc_ingress_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_fleet",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_fleet_stack_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_image_builder",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_stack",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_user",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appstream_user_stack_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_api",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_appsync_api_cache",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_channel_namespace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_domain_name",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_domain_name_api_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_appsync_graphql_api",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_arcregionswitch_plan",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_arczonalshift_autoshift_observer_notification_status",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_arczonalshift_zonal_autoshift_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_athena_data_catalog",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_athena_prepared_statement",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_athena_workgroup",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_auditmanager_account_registration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_auditmanager_assessment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_auditmanager_framework",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_lifecycle_hook",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_schedule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_traffic_source_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_backup_framework",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_backup_logically_air_gapped_vault",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_backup_plan",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_backup_report_plan",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_backup_restore_testing_plan",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_backup_restore_testing_selection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_backup_vault",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_batch_compute_environment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_batch_job_definition",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_batch_job_queue",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_batch_scheduling_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bcmdataexports_export",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrock_guardrail",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrock_inference_profile",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_bedrock_model_invocation_logging_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagent_agent",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagent_agent_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagent_flow",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagent_knowledge_base",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagent_prompt",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_agent_runtime",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_agent_runtime_endpoint",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_api_key_credential_provider",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_browser",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_browser_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_code_interpreter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_evaluator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_harness",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_memory",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_oauth2_credential_provider",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_online_evaluation_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_policy_engine",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_bedrockagentcore_workload_identity",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_billing_view",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_budgets_budget",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_budgets_budget_action",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ce_anomaly_monitor",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ce_anomaly_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ce_cost_category",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_chatbot_slack_channel_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cleanrooms_collaboration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cleanrooms_configured_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cleanrooms_membership",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloud9_environment_ec2",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_anycast_ip_list",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_cache_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_connection_function",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_connection_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_distribution",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_distribution_tenant",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_function",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_key_value_store",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_monitoring_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_multitenant_distribution",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_origin_request_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_realtime_log_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_response_headers_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_trust_store",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_vpc_origin",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfrontkeyvaluestore_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudtrail",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cloudtrail_event_data_store",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_alarm_mute_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_composite_alarm",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_contributor_insight_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_contributor_managed_insight_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_dashboard",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_api_destination",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_archive",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_bus",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_permission",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_event_target",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_account_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_anomaly_detector",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_delivery",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_delivery_destination",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_delivery_source",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_destination",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_metric_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_resource_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_stream",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_subscription_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_log_transformer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_metric_alarm",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_metric_stream",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_otel_enrichment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codeartifact_domain",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_codeartifact_domain_permissions_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_codeartifact_repository",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codeartifact_repository_permissions_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_codebuild_fleet",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codebuild_project",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codebuild_report_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codebuild_webhook",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codecommit_approval_rule_template_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codecommit_repository",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codeconnections_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codedeploy_app",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codedeploy_deployment_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codedeploy_deployment_group",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_codegurureviewer_repository_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codepipeline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codepipeline_custom_action_type",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_codepipeline_webhook",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_codestarconnections_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_codestarnotifications_notification_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cognito_identity_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cognito_identity_pool_provider_principal_tag",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cognito_identity_pool_roles_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cognito_identity_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cognito_resource_server",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cognito_risk_configuration",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cognito_user",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cognito_user_group",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cognito_user_in_group",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_cognito_user_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cognito_user_pool_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cognito_user_pool_ui_customization",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_comprehend_document_classifier",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_comprehend_entity_recognizer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_aggregate_authorization",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_config_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_configuration_aggregator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_conformance_pack",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_organization_conformance_pack",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_config_remediation_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_contact_flow",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_contact_flow_module",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_hours_of_operation",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_lambda_function_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_phone_number",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_phone_number_contact_flow_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_queue",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_quick_connect",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_routing_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_security_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_user",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_user_hierarchy_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_connect_user_hierarchy_structure",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_controltower_baseline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_controltower_control",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_controltower_landing_zone",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cur_report_definition",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_customer_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datapipeline_pipeline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datapipeline_pipeline_definition",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_datasync_agent",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_azure_blob",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_efs",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_fsx_lustre_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_fsx_ontap_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_fsx_openzfs_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_fsx_windows_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_hdfs",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_nfs",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_object_storage",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_s3",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_location_smb",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datasync_task",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datazone_asset_type",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datazone_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_datazone_environment_blueprint_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_event_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_instance_role_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_option_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_proxy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_proxy_default_target_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_proxy_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_db_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_default_network_acl",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_default_route_table",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_default_security_group",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_detective_graph",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_detective_member",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_devopsguru_event_sources_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_devopsguru_resource_collection",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_devopsguru_service_integration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_directory_service_conditional_forwarder",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_directory_service_region",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_directory_service_trust",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dlm_lifecycle_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_event_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_replication_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_replication_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_replication_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_replication_task",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dms_s3_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_cluster_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_cluster_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_event_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdbelastic_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dsql_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_connection",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_dx_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dx_lag",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_dx_private_virtual_interface",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_dx_public_virtual_interface",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_dx_transit_virtual_interface",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_dynamodb_global_secondary_index",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dynamodb_global_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dynamodb_kinesis_streaming_destination",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dynamodb_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_dynamodb_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ebs_fast_snapshot_restore",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ebs_snapshot_block_public_access",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ebs_volume",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_allowed_images_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_capacity_reservation",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_client_vpn_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_client_vpn_route",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_fleet",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_host",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_instance_connect_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route_table_virtual_interface_group_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_local_gateway_route_table_vpc_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_managed_prefix_list",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_managed_prefix_list_entry",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_network_insights_access_scope",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_network_insights_analysis",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_network_insights_path",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_traffic_mirror_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_traffic_mirror_session",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_traffic_mirror_target",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_connect",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_connect_peer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_metering_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_metering_policy_entry",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_multicast_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_peering_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_policy_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_policy_table_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_route",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_route_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_route_table_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_route_table_propagation",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ec2_transit_gateway_vpc_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecr_lifecycle_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecr_pull_through_cache_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecr_pull_time_update_exclusion",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecr_repository",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecr_repository_creation_template",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecr_repository_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecrpublic_repository",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecrpublic_repository_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_capacity_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_cluster_capacity_providers",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_daemon",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_daemon_task_definition",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_express_gateway_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_task_definition",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ecs_task_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_efs_access_point",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_efs_backup_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_efs_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_efs_file_system_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_efs_replication_configuration",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_egress_only_internet_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eip",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_access_entry",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_eks_access_policy_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_eks_addon",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_capability",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_fargate_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_node_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_pod_identity_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elastic_beanstalk_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elastic_beanstalk_environment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_elasticache_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_replication_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_serverless_cache",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_user",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_user_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticache_user_group_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elasticsearch_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_elb",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_emr_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_emr_security_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_emr_studio",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_emr_studio_session_mapping",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_emrcontainers_virtual_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_emrserverless_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_evidently_project",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_evidently_segment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fis_experiment_template",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fis_target_account_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_flow_log",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fms_resource_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_data_repository_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_lustre_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_ontap_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_ontap_storage_virtual_machine",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_ontap_volume",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_openzfs_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_openzfs_snapshot",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_openzfs_volume",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_s3_access_point_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_fsx_windows_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_build",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_fleet",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_game_server_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_gamelift_script",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_globalaccelerator_accelerator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_globalaccelerator_cross_account_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_catalog",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_catalog_database",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_glue_catalog_table",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_glue_catalog_table_optimizer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_classifier",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_connection",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_glue_crawler",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_data_catalog_encryption_settings",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_glue_data_quality_ruleset",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_dev_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_job",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_ml_transform",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_registry",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_glue_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_schema",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_security_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_trigger",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_user_defined_function",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_workflow",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_grafana_workspace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_grafana_workspace_saml_configuration",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_guardduty_detector",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_ipset",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_malware_protection_plan",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_member",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_organization_admin_account",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_guardduty_organization_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_publishing_destination",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_guardduty_threatintelset",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_account_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_account_password_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_group_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_group_policy_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_instance_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_openid_connect_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_role",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_role_policies_exclusive",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_role_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_role_policy_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_role_policy_attachments_exclusive",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_saml_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_server_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_service_linked_role",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_user",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_user_group_membership",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_user_login_profile",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_user_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_user_policy_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_iam_virtual_mfa_device",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_component",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_container_recipe",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_distribution_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_image",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_image_pipeline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_image_recipe",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_infrastructure_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_lifecycle_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_imagebuilder_workflow",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector2_delegated_admin_account",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector2_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector2_member_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector_assessment_template",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_inspector_resource_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_internet_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_internet_gateway_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_internetmonitor_monitor",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_invoicing_invoice_unit",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_authorizer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_billing_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_domain_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_event_configurations",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_provisioning_template",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_role_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_thing",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_thing_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_thing_group_membership",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_thing_type",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iot_topic_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivs_channel",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivs_recording_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivschat_logging_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ivschat_room",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kendra_data_source",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_kendra_faq",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_kendra_index",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_key_pair",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_keyspaces_keyspace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_keyspaces_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_account_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_analytics_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_firehose_delivery_stream",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_stream",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_stream_consumer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesisanalyticsv2_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kms_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kms_external_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kms_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kms_replica_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lakeformation_data_cells_filter",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lakeformation_lf_tag",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lakeformation_lf_tag_expression",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_capacity_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_code_signing_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_event_source_mapping",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_function",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_function_event_invoke_config",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lambda_function_scaling_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_layer_version_permission",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_permission",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lambda_provisioned_concurrency_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_launch_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_launch_template",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_listener",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_listener_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_listener_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_target_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_target_group_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lb_trust_store",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_trust_store_revocation",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lexv2models_bot",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lexv2models_bot_locale",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_licensemanager_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_bucket",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_bucket_resource_access",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lightsail_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_container_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_database",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_disk",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_distribution",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_domain_entry",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lightsail_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_lb",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_lightsail_lb_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lightsail_lb_certificate",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lightsail_lb_certificate_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_lightsail_static_ip",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_location_geofence_collection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_location_map",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_location_place_index",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_location_route_calculator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_location_tracker",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_location_tracker_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_m2_application",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_m2_environment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_macie2_classification_export_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_classification_job",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_macie2_custom_data_identifier",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_findings_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_member",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_macie2_organization_admin_account",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_mailmanager_ingress_point",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mailmanager_rule_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mailmanager_traffic_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_media_package_channel",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_media_packagev2_channel_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_medialive_multiplex",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_memorydb_acl",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_memorydb_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_memorydb_multi_region_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_memorydb_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_memorydb_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_memorydb_user",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mq_broker",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mq_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_cluster_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_replicator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_scram_secret_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_serverless_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_single_scram_secret_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_topic",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_msk_vpc_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mskconnect_connector",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mskconnect_custom_plugin",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mskconnect_worker_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_mwaa_environment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_nat_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_nat_gateway_eip_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_cluster_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_cluster_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_network_acl",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_network_acl_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_network_interface",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_network_interface_sg_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkfirewall_firewall",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkfirewall_firewall_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkfirewall_logging_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkfirewall_rule_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkfirewall_tls_inspection_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkfirewall_vpc_endpoint_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkflowmonitor_monitor",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_attachment_routing_policy_label",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_connect_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_connect_peer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_core_network",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_core_network_policy_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_customer_gateway_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_device",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_dx_gateway_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_global_network",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_link",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_link_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_prefix_list_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_site",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_site_to_site_vpn_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_transit_gateway_peering",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_transit_gateway_registration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_transit_gateway_route_table_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_networkmanager_vpc_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_channel_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_notifications_managed_notification_account_contact_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_managed_notification_additional_channel_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_notification_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_notification_hub",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notifications_organizational_unit_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_notificationscontacts_email_contact",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_oam_link",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_oam_sink",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_s3_table_integration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_enrichment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_evaluation",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_evaluation_for_organization",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_pipeline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_odb_cloud_autonomous_vm_cluster",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_odb_cloud_exadata_infrastructure",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_odb_cloud_vm_cluster",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_odb_network",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_odb_network_peering_connection",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_opensearch_authorize_vpc_endpoint_access",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearch_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearch_package_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearchserverless_access_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearchserverless_collection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearchserverless_collection_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearchserverless_lifecycle_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_opensearchserverless_security_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_account",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_delegated_administrator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_organizational_unit",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_organizations_policy_attachment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_organizations_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_osis_pipeline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_paymentcryptography_key",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_paymentcryptography_key_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_configuration_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_event_destination",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_opt_out_list",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_phone_number",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_sender_id",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pipes_pipe",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_placement_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_alert_manager_definition",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_prometheus_anomaly_detector",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_query_logging_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_rule_group_namespace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_scraper",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_scraper_logging_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_prometheus_workspace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_qbusiness_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_qldb_ledger",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_quicksight_analysis",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_custom_permissions",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_dashboard",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_data_set",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_data_source",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_refresh_schedule",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_template",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_theme",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_quicksight_vpc_connection",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ram_permission",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ram_principal_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ram_resource_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ram_resource_share",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rbin_rule",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_rds_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_cluster_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_cluster_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_cluster_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_cluster_role_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_custom_db_engine_version",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_global_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_integration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rds_shard_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_endpoint_access",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_endpoint_authorization",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_redshift_logging",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_redshift_parameter_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_snapshot_schedule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_subnet_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshiftserverless_custom_domain_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshiftserverless_namespace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_redshiftserverless_workgroup",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rekognition_collection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rekognition_project",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rekognition_stream_processor",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehub_resiliency_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resiliencehubv2_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourceexplorer2_index",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourceexplorer2_view",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourcegroups_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_resourcegroups_resource",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rolesanywhere_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_rolesanywhere_trust_anchor",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_route53_cidr_collection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_cidr_location",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_health_check",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_hosted_zone_dnssec",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_key_signing_key",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_route53_record",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_route53_resolver_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_firewall_domain_list",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_firewall_rule",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_route53_resolver_firewall_rule_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_firewall_rule_group_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_query_log_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_resolver_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_vpc_association_authorization",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_zone",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53_zone_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_route53profiles_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53profiles_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoverycontrolconfig_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoverycontrolconfig_control_panel",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoverycontrolconfig_safety_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoveryreadiness_cell",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoveryreadiness_readiness_check",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoveryreadiness_recovery_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route53recoveryreadiness_resource_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_route_table_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_rum_app_monitor",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_account_public_access_block",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_accelerate_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_analytics_configuration",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_s3_bucket_intelligent_tiering_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_inventory",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_s3_bucket_lifecycle_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_metric",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_s3_bucket_object_lock_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_public_access_block",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_replication_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_request_payment_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_server_side_encryption_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_versioning",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_directory_bucket",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_bucket",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_bucket_lifecycle_configuration",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_s3control_bucket_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_multi_region_access_point",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_object_lambda_access_point",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_object_lambda_access_point_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_storage_lens_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_access_point",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_file_system",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3files_file_system_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3tables_table_bucket",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3tables_table_bucket_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_index",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_vector_bucket",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_vector_bucket_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_algorithm",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_app",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_app_image_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_code_repository",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_data_quality_job_definition",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_device_fleet",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_endpoint_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_feature_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_hub",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_hub_content_reference",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_image",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_mlflow_app",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_mlflow_tracking_server",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model_card",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model_package_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_model_package_group_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_monitoring_schedule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_notebook_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_notebook_instance_lifecycle_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_pipeline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_project",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_servicecatalog_portfolio_status",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_space",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_studio_lifecycle_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_user_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_workteam",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_scheduler_schedule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_scheduler_schedule_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_schemas_discoverer",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_schemas_schema",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_secretsmanager_secret",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_secretsmanager_secret_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_secretsmanager_secret_rotation",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_secretsmanager_tag",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_security_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_security_group_rule",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_securityhub_account_v2",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_aggregator_v2",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_automation_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_automation_rule_v2",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_configuration_policy_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_connector_v2",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_securityhub_member",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_securityhub_organization_admin_account",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_standards_control",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securityhub_standards_control_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securitylake_data_lake",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_securitylake_subscriber",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_service_discovery_http_namespace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_private_dns_namespace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_public_dns_namespace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_service_discovery_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_budget_resource_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_portfolio",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_portfolio_share",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_servicecatalog_principal_portfolio_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_servicecatalog_product",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_product_portfolio_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_servicecatalog_provisioned_product",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_tag_option_resource_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalogappregistry_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalogappregistry_attribute_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalogappregistry_attribute_group_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicequotas_auto_management",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_servicequotas_service_quota",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ses_identity_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ses_receipt_filter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ses_receipt_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ses_receipt_rule_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ses_template",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_account_vdm_attributes",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_configuration_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_contact_list",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_dedicated_ip_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_email_identity",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_email_identity_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_tenant",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_tenant_resource_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sfn_activity",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sfn_state_machine",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_shield_protection",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_shield_protection_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_shield_protection_health_check_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_signer_signing_profile_permission",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_sns_topic",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_sns_topic_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_spot_datafeed_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_spot_fleet_request",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sqs_queue",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_sqs_queue_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_maintenance_window",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_maintenance_window_target",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ssm_parameter",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_patch_baseline",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_patch_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_resource_data_sync",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_service_setting",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmcontacts_contact",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmcontacts_rotation",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssmincidents_replication_set",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ssmincidents_response_plan",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ssmquicksetup_configuration_manager",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_account_assignment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_application",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_application_assignment",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_ssoadmin_customer_managed_policy_attachments_exclusive",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_instance_access_control_attributes",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_managed_policy_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_managed_policy_attachments_exclusive",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_permission_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_permission_set_inline_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_permissions_boundary_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_region",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_storagegateway_tape_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_subnet",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_synthetics_canary",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_synthetics_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_synthetics_group_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_timestreaminfluxdb_db_cluster",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_timestreaminfluxdb_db_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_timestreamquery_scheduled_query",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_timestreamwrite_database",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_timestreamwrite_table",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_access",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_agreement",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_certificate",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_connector",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_profile",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_server",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_user",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_web_app",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_transfer_web_app_customization",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_transfer_workflow",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_instance",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_instance_logging_configuration",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_verifiedaccess_instance_trust_provider_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_trust_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedpermissions_policy_store",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_volume_attachment",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_block_public_access_exclusion",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_block_public_access_options",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_dhcp_options",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_dhcp_options_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_encryption_control",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_policy",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_private_dns",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_route_table_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_security_group_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_endpoint_subnet_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_vpc_ipam",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_ipam_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_ipam_pool_cidr",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_vpc_ipam_pool_cidr_allocation",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_ipam_resource_discovery",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_ipam_resource_discovery_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_ipam_scope",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_peering_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server_endpoint",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server_peer",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server_propagation",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_vpc_route_server_vpc_association",
+      "matched": false,
+      "annotated": true
+    },
+    {
+      "tf_type": "aws_vpc_security_group_egress_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_security_group_ingress_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_security_group_rules_exclusive",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_security_group_vpc_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_access_log_subscription",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_auth_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_domain_verification",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_listener",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_listener_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_resource_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_resource_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_service",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_service_network",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_service_network_resource_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_service_network_service_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_service_network_vpc_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpclattice_target_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpn_concentrator",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpn_connection",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpn_gateway",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_waf_web_acl",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_rate_based_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_web_acl",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafregional_web_acl_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_ip_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_regex_pattern_set",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_rule_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_web_acl",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_web_acl_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_web_acl_logging_configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_wafv2_web_acl_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workmail_domain",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspaces_connection_alias",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspaces_ip_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspaces_pool",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspaces_workspace",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_browser_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_browser_settings_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_data_protection_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_data_protection_settings_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_identity_provider",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_ip_access_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_ip_access_settings_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_network_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_network_settings_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_portal",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_session_logger",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_session_logger_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_trust_store",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_trust_store_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_user_access_logging_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_user_access_logging_settings_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_user_settings",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workspacesweb_user_settings_association",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_xray_encryption_config",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_xray_group",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_xray_resource_policy",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_xray_sampling_rule",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_xray_trace_segment_destination",
+      "matched": true,
+      "annotated": false
+    }
+  ]
+}

@@ -112,7 +112,7 @@ func TestTryAssembledTemplate_FailClosed(t *testing.T) {
 // proposedFields renders an assembled proposal into the exact Component
 // shape the ratified table spells for this class - identityattr.go's
 // derived IdentityAttr on every component included. Pinned against the real
-// ratified rows so the byte-for-byte convergence claim is tested here, not
+// ratified rows so the byte-for-byte comparison claim is tested here, not
 // only measured in the artifact.
 func TestProposedFields_AssembledMatchesRatifiedComponents(t *testing.T) {
 	for _, tf := range []string{
@@ -142,7 +142,7 @@ func TestProposedFields_AssembledMatchesRatifiedComponents(t *testing.T) {
 			t.Errorf("%s: serverAssigned=%v claimedAttrs=%v, want false/false", tf, serverAssigned, claimed)
 		}
 		// componentsEqual rather than reflect.DeepEqual: it is the relation
-		// convergence itself measures, and it is the honest one here,
+		// the comparison itself measures, and it is the honest one here,
 		// because the ratified row carries two fields emit.go merges in from
 		// live/import-grammar.json that no proposal bucket ever claims - see
 		// stripMergedFields. Every other field is compared in full.
