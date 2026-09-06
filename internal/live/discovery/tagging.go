@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -363,9 +364,32 @@ func arnJoinCovers(cfnType string) bool { return arnJoinCoverage[cfnType] }
 // the type; [arnJoinTable] is a curated, per-ARN-resource-type mapping for
 // thirteen services today, so most admitted types answer false here, and
 // that is expected, not a gap to close type by type.
-func arnJoinReaches(req Request, typeName string) bool {
+//
+// The unserved-service term ([taggingAPIUnservedType], issue #692) is a
+// ROUTING preference, not a fact about the join, and it is conditional on
+// the leg it routes to being a route at all. schemas is the provider's own
+// list-protocol surface, so [listclient.Schemas.Supports] is the whole
+// question "can the native per-type leg enumerate this type" - and for a
+// type it answers false for, routing away from the tagging leg leaves the
+// sweep with NO enumeration of the type whatsoever. That is the charter's
+// rule 2 read backwards, and issue #881 measured what it costs: deleting a
+// declared, marked, taggable instance profile's block proposed no destroy
+// at all, because the provider serves no list resource for the type (8 of
+// IAM's types have one at provider 6.59.0, and that is not one of them) and
+// #692's prefix had taken the type out of the one GetResources call the
+// sweep makes anyway. Falling back to the tagging leg cannot cost a wrong
+// marker: on an account where the API really does not serve the service
+// the candidate list is empty and [sweepViaTagging] reports its own gap,
+// loudly, where the native leg reported [SweepGapNotListable] before.
+func arnJoinReaches(req Request, schemas listclient.Schemas, typeName string) bool {
 	cfnType, mapped := arnJoinCFNType(req.Roster, typeName)
-	return mapped && arnJoinCovers(cfnType) && !taggingAPIUnservedType(typeName)
+	if !mapped || !arnJoinCovers(cfnType) {
+		return false
+	}
+	if taggingAPIUnservedType(typeName) {
+		return !schemas.Supports(typeName)
+	}
+	return true
 }
 
 // taggingAPIUnservedServices is the set of ARN service segments the

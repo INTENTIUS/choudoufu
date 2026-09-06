@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/registry"
 )
 
@@ -463,7 +464,7 @@ func TestArnJoinWideningMovesOnlyProvenanceGapTypes(t *testing.T) {
 		if !wideOK || !arnJoinCovers(wide) {
 			continue // the wider join reaches no CFN type the ARN table covers
 		}
-		if !arnJoinReaches(req, typeName) {
+		if !arnJoinReaches(req, listclient.Schemas{}, typeName) {
 			t.Errorf("%s: the ARN join table covers %s under the wider join, but arnJoinReaches still routes the type to the native leg", typeName, wide)
 		}
 		moved = append(moved, typeName)
@@ -907,6 +908,150 @@ func TestTaggingSweepNoARNJoinTypeFoundNatively(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("the undeclared aws_s3_bucket_policy did not surface as an orphan at all - the exact silent-loss shape this fix closes:\n%s", res)
+	}
+}
+
+// TestSweepFindsAnUnservedServiceTypeTheProviderCannotList is issue #881 at
+// unit scale, and it is about a routing decision rather than about IAM.
+//
+// [taggingAPIUnservedType] (issue #692) sends every type in a service the
+// Resource Groups Tagging API does not index to the native per-type leg,
+// because on real AWS the one GetResources call cannot see them. That is a
+// PREFERENCE between two legs, and it is only ever an improvement while the
+// leg it prefers can do the job: the provider has to offer a list resource
+// for the type. At provider 6.59.0 it offers one for eight of IAM's types
+// and not for the instance profile, so before this fix the sweep had no
+// enumeration of the type at all - the tagging leg had been told not to
+// look and the native leg could not - and a deleted block's live, marked,
+// taggable object was never proposed for destruction.
+//
+// The fixture is that shape exactly: a type whose service is unserved, whose
+// ARN [arnJoinTable] can place, which the fake provider cannot list, and one
+// live object of it carrying this estate's marker for an address the
+// configuration does not declare. The assertion is the destroy itself, by
+// value - the removal's address and the identity a destroy would be planned
+// at - not a predicate about which leg ran.
+func TestSweepFindsAnUnservedServiceTypeTheProviderCannotList(t *testing.T) {
+	const unservedType = "aws_iam_instance_profile"
+
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	// The premise, stated rather than assumed: the provider serves no list
+	// route for this type. If a future fake ever grows one, this fixture
+	// stops being about the bug and the assertion below would pass for the
+	// wrong reason.
+	cloud.unlistable(unservedType)
+	if schemas, diags := listclient.ListSchemas(context.Background(), cloud); diags.HasErrors() {
+		t.Fatalf("reading the fake provider's list schemas: %s", renderDiags(diags))
+	} else if schemas.Supports(unservedType) {
+		t.Fatalf("the fake provider lists %s, so this fixture no longer reproduces the no-native-route shape #881 is about", unservedType)
+	}
+	if !taggingAPIUnservedType(unservedType) {
+		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this fixture no longer exercises #692's routing at all", unservedType)
+	}
+
+	const arn = "arn:aws:iam::123456789012:instance-profile/estate-team-profile"
+	srv := &taggingServer{
+		arns: []string{arn},
+		tags: map[string]map[string]string{
+			arn: {TagEstate: estateName, TagAddress: `aws_iam_instance_profile.removed`},
+		},
+	}
+	server := srv.start(t)
+	defer server.Close()
+
+	req := Request{
+		Sweep:        true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL}),
+		TaggingSweep: true,
+		Roster:       taggingRoster(t, unservedType, "AWS::IAM::InstanceProfile", true),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	assertNoErrors(t, diags)
+
+	removals := removalsByAddr(res)
+	got, ok := removals["aws_iam_instance_profile.removed"]
+	if !ok {
+		var addresses []string
+		for addr := range removals {
+			addresses = append(addresses, addr)
+		}
+		sort.Strings(addresses)
+		t.Fatalf("the live %s carrying this estate's marker for aws_iam_instance_profile.removed was not proposed for removal; removals proposed: %v\n%s", unservedType, addresses, res)
+	}
+	if got.ImportID != "estate-team-profile" {
+		t.Errorf("the removal's import identity is %q, want %q - a destroy is planned at the identity, so a removal naming the wrong one destroys the wrong object", got.ImportID, "estate-team-profile")
+	}
+	if got.TypeName != unservedType {
+		t.Errorf("the removal's type is %q, want %q", got.TypeName, unservedType)
+	}
+
+	// The same fact from the other end: the resolution list the projection
+	// reads carries the undeclared, concrete instance a destroy is built
+	// from.
+	var resolved bool
+	for _, r := range res.Resolutions {
+		if r.Addr.String() != "aws_iam_instance_profile.removed" {
+			continue
+		}
+		resolved = true
+		if r.Class != identity.ClassConcrete || r.ImportID != "estate-team-profile" || !r.Undeclared {
+			t.Errorf("the merged resolution is %s (undeclared=%v), want CONCRETE estate-team-profile undeclared=true", r, r.Undeclared)
+		}
+	}
+	if !resolved {
+		t.Errorf("no resolution was merged for aws_iam_instance_profile.removed, so the projection has nothing to plan a destroy from:\n%s", res)
+	}
+}
+
+// TestUnservedServiceTypeTheProviderCanListStaysOnTheNativeLeg is the
+// control that keeps #692's own routing in force: the fix above is
+// conditional on the native leg having no route, so a type in the SAME
+// unserved service that the provider CAN list must still go native, where
+// its own list call sees the objects GetResources would not on real AWS.
+// Without this the fix would quietly hand every IAM type back to an API
+// that does not index the service.
+func TestUnservedServiceTypeTheProviderCanListStaysOnTheNativeLeg(t *testing.T) {
+	const unservedType = "aws_iam_role_policy_attachment"
+
+	cloud := newFakeCloud()
+	cloud.listable(unservedType)
+	schemas, diags := listclient.ListSchemas(context.Background(), cloud)
+	if diags.HasErrors() {
+		t.Fatalf("reading the fake provider's list schemas: %s", renderDiags(diags))
+	}
+	if !schemas.Supports(unservedType) {
+		t.Fatalf("the fake provider does not list %s, so this control cannot say anything about the with-a-route case", unservedType)
+	}
+	if !taggingAPIUnservedType(unservedType) {
+		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this control no longer exercises #692's routing", unservedType)
+	}
+
+	req := Request{
+		Sweep:        true,
+		Estate:       estateName,
+		TaggingSweep: true,
+		Roster:       taggingRoster(t, unservedType, "AWS::IAM::Role", true),
+	}
+	req.Config = loadConfig(t, estateDir(t))
+	req.Resolutions = resolveOrFail(t, req.Config).All()
+	decl, declDiags := declaredInstances(context.Background(), req)
+	if declDiags.HasErrors() {
+		t.Fatalf("building the declared set: %s", renderDiags(declDiags))
+	}
+
+	if arnJoinReaches(req, schemas, unservedType) {
+		t.Errorf("arnJoinReaches routes %s to the tagging leg even though the provider lists it natively; #692's routing has been lost", unservedType)
+	}
+	_, native := partitionSweepTypes(req, schemas, decl)
+	var found bool
+	for _, typeName := range native {
+		if typeName == unservedType {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("%s is not in the native sweep leg, so its own list call - the only enumeration real AWS serves for the service - is never made", unservedType)
 	}
 }
 

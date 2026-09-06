@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/registry"
@@ -388,7 +389,8 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 	}
 	taggingLeg, nativeLeg := 0, 0
 	if decl, declDiags := declaredInstances(context.Background(), req); !declDiags.HasErrors() {
-		tagging, native := partitionSweepTypes(req, decl)
+		listSchemas, _ := listclient.ListSchemas(context.Background(), provider)
+		tagging, native := partitionSweepTypes(req, listSchemas, decl)
 		taggingLeg, nativeLeg = len(tagging), len(native)
 	}
 
@@ -447,8 +449,14 @@ func TestSweepUniversePartitionIsMostlyNative(t *testing.T) {
 		t.Fatalf("building an empty declared set: %s", renderDiags(diags))
 	}
 
+	// This test holds no provider handle, so the routing is computed
+	// against a provider with no list surface at all - the shape that
+	// gives the native leg the least to work with, and the one where
+	// [arnJoinReaches]'s unserved-service term falls back to the tagging
+	// leg (issue #881). Every assertion below is a partition invariant,
+	// which is true of any Schemas; only the two logged sizes move with it.
 	universe := sweepTypes(req, decl)
-	tagging, native := partitionSweepTypes(req, decl)
+	tagging, native := partitionSweepTypes(req, listclient.Schemas{}, decl)
 
 	t.Logf("sweep universe=%d tagging_leg=%d native_leg=%d", len(universe), len(tagging), len(native))
 
@@ -508,12 +516,17 @@ func TestNativeSweepLegRoutingIsExhaustive(t *testing.T) {
 		t.Fatalf("building an empty declared set: %s", renderDiags(diags))
 	}
 
-	tagging, native := partitionSweepTypes(req, decl)
+	// Same offline stand-in as TestSweepSplitCoversTheUniverse above, and
+	// the same reason it is sound: every clause below recomputes with the
+	// SAME Schemas value the partition was built from, so the routing is
+	// self-consistent whatever the provider's real list surface is.
+	schemas := listclient.Schemas{}
+	tagging, native := partitionSweepTypes(req, schemas, decl)
 
 	var carveOut, noARNJoin, both, unexplained int
 	for _, typeName := range native {
 		needsObject := typeNeedsResourceObjectToRecompose(typeName)
-		noJoin := !arnJoinReaches(req, typeName)
+		noJoin := !arnJoinReaches(req, schemas, typeName)
 		switch {
 		case needsObject && noJoin:
 			both++
@@ -553,7 +566,7 @@ func TestNativeSweepLegRoutingIsExhaustive(t *testing.T) {
 		inTagging[typeName] = true
 	}
 	for _, typeName := range sweepTypes(req, decl) {
-		if typeNeedsResourceObjectToRecompose(typeName) || !arnJoinReaches(req, typeName) {
+		if typeNeedsResourceObjectToRecompose(typeName) || !arnJoinReaches(req, schemas, typeName) {
 			continue
 		}
 		if !inTagging[typeName] {
