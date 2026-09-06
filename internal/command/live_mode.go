@@ -1099,7 +1099,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
-		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
+		// GitHub issue #906. Empty unless this estate spans provider
+		// configurations AND `strict { provider_change = "recreate" }` let a
+		// repointed block through: it names the object left behind, so the
+		// coverage line for the instance being created in its place says so
+		// instead of promising that marker discovery will find it.
+		StrandedByProviderChange: disco.StrandedByProviderChange(),
+		Ownership:                statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
 		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
 		// a cache is an optimisation, so every failure to load one is a
 		// missing optimisation and never a failed run.

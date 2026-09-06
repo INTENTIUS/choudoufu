@@ -376,6 +376,37 @@ func liveResourcePhrase(found []strandedSighting) string {
 	return fmt.Sprintf("%d live %s resources", len(found), found[0].typeName)
 }
 
+// StrandedByProviderChange names, per declared instance address, this
+// estate's marked live object that no provider configuration this run could
+// bind through reaches - the object a region or account change left behind,
+// rendered the way the warning beside it renders it ("vpc-0abc in
+// us-west-2").
+//
+// It is non-empty only under `strict { provider_change = "recreate" }`,
+// because the default refuses and nothing downstream of the merge runs. Its
+// consumer is [projection.Options.StrandedByProviderChange], whose coverage
+// line for such an instance would otherwise promise that marker discovery
+// will find it. See outofscope.go's doc comment.
+func (r *Result) StrandedByProviderChange() map[string]string {
+	if r == nil {
+		// A run that never discovered anything - no estate, no provider -
+		// strands nothing. Callers hand this straight into the projection's
+		// options, so nil is answered here rather than at each of them.
+		return nil
+	}
+	var out map[string]string
+	for _, p := range r.ProblemsOfKind(ProblemAbandonedByProviderChange) {
+		if p.Addr.Resource.Resource.Type == "" || len(p.LiveIDs) == 0 {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, 1)
+		}
+		out[p.Addr.String()] = strings.Join(p.LiveIDs, ", ")
+	}
+	return out
+}
+
 // dedupeStrings collapses runs of equal entries in a sorted slice, into a
 // slice of its own rather than in place: the caller's input is a projection
 // of another pass's Result and is not this function's to rewrite.

@@ -748,7 +748,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
-		Ownership:           statelessOwnershipWith(estate, disco, pol, reconcileVerified),
+		// GitHub issue #906. Empty unless this estate spans provider
+		// configurations AND `strict { provider_change = "recreate" }` let a
+		// repointed block through: it names the object left behind, so the
+		// coverage line for the instance being created in its place says so
+		// instead of promising that marker discovery will find it.
+		StrandedByProviderChange: disco.StrandedByProviderChange(),
+		Ownership:                statelessOwnershipWith(estate, disco, pol, reconcileVerified),
 		// GitHub issue #364: one store for GitHub issue #270's record-located
 		// instances (the reason this is wired at all - without it nothing
 		// can say which live object the instance owns, so live-plan would
