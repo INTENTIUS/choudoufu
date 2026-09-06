@@ -224,6 +224,20 @@ showing its own checks would have caught it.
   the only live evidence for the deleted instance - the plan reports it
   unchanged and the run must fail on that line.
 
+- **record-only-survives-cache-loss** - *Claim 17: a record-only
+  composite identity survives cache loss without a duplicate create.*
+  `aws_iam_group_policy` with its `name` left for the provider to
+  assign carries no tags argument and no list route this fork uses, so
+  once it is created neither half of its two-part identity (group,
+  policy name) is a literal or a reference its own configuration
+  states - the record an apply writes is the only place that identity
+  is ever held. Losing the disposable state cache costs nothing, the
+  same as any other resource, and the recovered plan's own read is
+  checked by value against the group and name the record printed
+  earlier. The BREAK control deletes the identity record itself before
+  that same re-plan: the plan must propose one create, named, rather
+  than silently reporting no changes.
+
 ## Knobs
 
 | Variable | Effect |
