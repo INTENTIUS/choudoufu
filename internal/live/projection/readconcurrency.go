@@ -94,6 +94,45 @@ const DefaultReadParallelism = 10
 // projection holds for every instance by the end of the pass either way. The
 // buffer bounds the DUPLICATION, not the residency.
 //
+// # What the split was worth, on the estate the defect was found on
+//
+// Issue #867 re-measured it against real AWS on the same 745-instance estate
+// (us-east-2, provider 6.59.0, choudoufu built from `d455a2fed4`, harness and
+// instrument `3889d2476c`, 2026-09-06). Three steady-state plans, and three
+// stock plans of the same estate in the same session so the account's own
+// throttling is held roughly constant across the comparison. An idle gap is a
+// stretch of at least 0.8s with zero AWS requests in flight, counted by
+// live/live-cert/wallclock-gaps.py:
+//
+//	                span   idle >=0.8s   largest stall   ends in a retry
+//	choudoufu 1    56.0s    8.1s (14%)         4.68s              4 of 4
+//	choudoufu 2    50.0s    3.1s ( 6%)         1.63s              2 of 2
+//	choudoufu 3    57.1s   11.5s (20%)         4.30s              5 of 5
+//	stock 1        20.0s    0.0s ( 0%)             -              0 of 0
+//	stock 2        38.2s   15.9s (42%)         8.04s              6 of 6
+//	stock 3        29.2s   10.6s (36%)         7.79s              2 of 2
+//
+// Read the fork's share next to STOCK's in the same session rather than on
+// its own, because the account does not throttle the same way twice: #683's
+// captures, put through the same instrument, are 21.1s idle of 42.8s (49%)
+// and 31.4s of 56.1s (56%) against a stock plan idle 8.0s of 40.7s (20%) -
+// two and a half times stock's share. Here it is 6-20% against stock's
+// 0-42%, which is below stock's. The worst single stall the read pass now
+// takes, 4.68s, is shorter than the worst stock took on the same estate in
+// the same session, 8.04s, and shorter than the 13.69s single backoff sleep
+// #683 measured.
+//
+// Every stall on both sides, nineteen of them, ends in an SDK `retrying
+// request` line: what is left is the provider's backoff schedule and nothing
+// this package decides. And all nine of the read pass's stalls fall in the
+// last quarter of their run, which is the shape the split predicts - while
+// there are reads left to launch, a read in backoff holds one in-flight slot
+// and no buffer slot, so the launcher keeps going; the residue is the tail,
+// where fewer than [DefaultReadParallelism] instances remain and a slow one
+// has nothing left to overlap with. #683's stalls were spread from t=6.9s to
+// t=52.9s of a 56.1s plan, because back then any one of them stopped
+// everything.
+//
 // Set it per run with [Options.ReadBuffer].
 const DefaultReadBufferFactor = 100
 

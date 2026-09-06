@@ -112,6 +112,47 @@ const DefaultSweepParallelism = 10
 // types still holds a hundred listings at the default width, and a sweep at
 // parallelism one holds ten.
 //
+// # Measured on real AWS, and what the measurement could not settle
+//
+// Issue #839 shipped this split with the mechanism proven by a fake and the
+// real-AWS number owed, because floci does not throttle. Issue #867 took it,
+// on the 745-instance terralith (us-east-2, provider 6.59.0, choudoufu built
+// from `d455a2fed4`, harness and instrument `3889d2476c`, 2026-09-06): three
+// steady-state plans, every idle gap of at least 0.8s attributed to the pass
+// whose OWN call was in backoff, read off the tf_rpc the provider stamps on
+// its `retrying request` line - ListResource is this file, ReadResource is
+// the read pass.
+//
+//	              sweep stalls   largest sweep stall   read-pass stalls
+//	choudoufu 1        1                1.23s                 3
+//	choudoufu 2        1                1.51s                 1
+//	choudoufu 3        0                    -                 5
+//
+// Two throttled list calls across three runs, costing 1.23s and 1.51s. No
+// straggler: nothing on this side of the run came near the 26.20 seconds of
+// backoff #683 measured on the read path, and the buffer was never what
+// stopped the launcher.
+//
+// The reason is structural, and it is the half worth carrying forward,
+// because it says the run could not have found a straggler however long it
+// ran. Of the types this estate's sweep covers, thirty-two are answered by
+// ONE estate-filtered GetResources through the tagging leg (tagging.go's
+// sweepViaTagging), which is not per-type work and takes no slot here. Only
+// three - aws_ecs_service, aws_iam_policy, aws_iam_role - take the per-type
+// list path this file bounds, on the first post-migration plan and on a
+// steady-state one alike. Three calls against a width of ten means at most
+// three listings are ever fetched-and-unconsumed, so [sweepBuffer] is never
+// reached and a factor of one would have produced the identical run. The
+// largest real-AWS estate this fork is measured on does not exercise this
+// number.
+//
+// So ten still rests on the derivation above and not on a measurement, and
+// #867 is cited here for the negative result rather than as a confirmation.
+// What would test it is an estate whose types mostly lack a server-side tag
+// filter, so the concurrent leg is hundreds of list calls rather than three;
+// that is also the only shape in which #839's defect could have cost
+// anything.
+//
 // Set it per run with [Request.SweepBuffer].
 const DefaultSweepBufferFactor = 10
 
