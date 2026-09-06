@@ -140,6 +140,16 @@ type DeclaredSighting struct {
 // exactly as it was, which is the safe direction, since a missing sighting
 // can only ever make [strandedAcrossProviderConfigs] quieter.
 func noteDeclaredSighting(req Request, decl *declared, res *Result, typeName, escaped, importID string) {
+	if req.ScopeProvider.Provider.Type == "" {
+		// An unscoped pass owns every block ([inScope]), so every sighting
+		// it could file would be in scope and nothing across passes could
+		// ever disagree with it. Returning here keeps the single-provider
+		// path free of the resolution below, which is not merely a cost:
+		// [providerscope.ResolveResource] reads the module's own provider
+		// requirements, and the single-provider callers include tests and
+		// tools whose synthesized configurations do not carry them.
+		return
+	}
 	da := decl.all[typeName][escaped]
 	if da == nil || da.ambiguous {
 		return
@@ -250,6 +260,15 @@ func strandedAcrossProviderConfigs(estate string, passes []Pass, res *Result, di
 	for _, key := range keys {
 		found := strandedOf[key]
 		first := found[0]
+		if _, ran := labelOf[first.owner.String()]; !ran {
+			// The address's own provider configuration contributed no pass
+			// at all - statelessDiscover drops one whose configuration
+			// depends on a managed resource this run has not created yet.
+			// Silence from a pass that never ran is not evidence the
+			// address's own configuration cannot find its object, and this
+			// finding rests entirely on that pass having looked.
+			continue
+		}
 
 		ids := make([]string, 0, len(found))
 		for _, s := range found {
