@@ -95,8 +95,13 @@ var enforcedLimits = map[string]Rule{
 	// GitHub issue #365 ruling 4 (the foundation-order ruling (#388)).
 	// See live/LIMITATIONS.md, "strict-no-source-create".
 	"strict-no-source-create": RuleStrictNoSourceCreate,
-	"policy-scope":            RulePolicyScope,
-	"policy-threshold":        RulePolicyThreshold,
+	// GitHub issue #906. Same shape one toggle over: the fixture writes a
+	// provider_change spelling outside the vocabulary, and "move" is the
+	// plausible typo precisely because moving is what this toggle cannot
+	// do. See live/LIMITATIONS.md, "strict-provider-change".
+	"strict-provider-change": RuleStrictProviderChange,
+	"policy-scope":           RulePolicyScope,
+	"policy-threshold":       RulePolicyThreshold,
 	// GitHub issue #365's first strict-profile toggle. The fixture sets
 	// marker_repair = "never", a setting the schema defines and no build
 	// implements yet; internal/live/lint/testdata carries the rest of the

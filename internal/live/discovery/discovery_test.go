@@ -1611,6 +1611,7 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 		ProblemUndeclaredCrossTypeMarker,
 		ProblemDisplacedMarker,
 		ProblemOutOfScopeMarker,
+		ProblemAbandonedByProviderChange,
 		ProblemNeedsSlotMarkers,
 		ProblemMixedSlots,
 		ProblemMalformedSlot,

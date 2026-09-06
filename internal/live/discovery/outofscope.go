@@ -81,6 +81,20 @@ import (
 // where the collision it prevents is neither: after the apply, no pass can
 // bind the old object and no plan proposes anything for it, so the estate is
 // billed for it until a human finds it by hand.
+//
+// # The escape hatch
+//
+// An estate that deliberately repoints a resource across provider
+// configurations says so with `strict { provider_change = "recreate" }`
+// (maintainer ruling, 2026-09-06), the fourth toggle in the schema
+// internal/live/strict declares and the twin of `no_source_create`: refuse by
+// default, and the other setting selects stock OpenTofu's own behavior. Under
+// it the plan proceeds and the same finding is raised as a WARNING instead -
+// [ProblemAbandonedByProviderChange] - naming the object, the provider
+// configuration that found it, and the truth that nothing will find it again.
+// The toggle buys the create; it does not buy silence, and neither mode
+// prints the "Marker discovery will find it" sentence that sent an operator
+// looking in a region the object is not in.
 
 // DeclaredSighting is one live object a pass listed that carries this
 // estate's ownership marker for an address the configuration declares -
@@ -200,11 +214,16 @@ type strandedSighting struct {
 	owner    addrs.AbsProviderConfig
 }
 
-// strandedAcrossProviderConfigs refuses the run for every declared address
-// whose marked live object was sighted only by provider configurations that
-// do not declare it. See this file's doc comment for why that predicate is
-// the honest reading of a multi-pass sweep, and why the answer is a refusal.
-func strandedAcrossProviderConfigs(estate string, passes []Pass, res *Result, diags *tfdiags.Diagnostics) {
+// strandedAcrossProviderConfigs reports every declared address whose marked
+// live object was sighted only by provider configurations that do not declare
+// it. See this file's doc comment for why that predicate is the honest
+// reading of a multi-pass sweep, and why the default answer is a refusal.
+//
+// recreate is `strict { provider_change = "recreate" }`, resolved by the
+// caller the way internal/live/projection's NodeResolver.NoSourceCreate is -
+// a bool this package acts on rather than a setting it re-reads, so a caller
+// holding no configuration passes false and gets the refusal.
+func strandedAcrossProviderConfigs(estate string, passes []Pass, res *Result, recreate bool, diags *tfdiags.Diagnostics) {
 	// The label each provider configuration answers to in a message: its
 	// own pass's region where a caller gave one, its configuration address
 	// otherwise. Built over the passes because the owning configuration is
@@ -296,25 +315,51 @@ func strandedAcrossProviderConfigs(estate string, passes []Pass, res *Result, di
 			passClause = "this estate's own passes over " + strings.Join(places, " and ")
 		}
 
-		detail := fmt.Sprintf(
-			"%s carries estate %q and the address %q, and it was listed only by %s. The configuration declares %s under %s, and that pass found nothing for it. Marker discovery looks where a provider configuration points, so no run of this configuration reaches that resource at that address again, and creating %s in %s would leave two live resources carrying this estate's marker for one address - a tofu-address marker names one live resource per estate regardless of region or account (live/MARKERS.md, \"Ownership semantics\"). Destroy it in %s, remove its tofu-estate and tofu-address tags to disown it, or declare %s under a provider configuration that reaches %s again.",
-			liveResourcePhrase(found), estate, first.marker, passClause,
-			first.addr, ownerLabel,
+		// The half both modes share: which object, where it was found, and
+		// where its address now points. Everything after it differs, and
+		// nothing in either half promises a recovery that does not exist.
+		what := fmt.Sprintf(
+			"%s carries estate %q and the address %q, and it was listed only by %s. The configuration declares %s under %s, and that pass found nothing for it. Marker discovery looks where a provider configuration points, so no run of this configuration reaches that resource at that address again.",
+			liveResourcePhrase(found), estate, first.marker, passClause, first.addr, ownerLabel)
+
+		kind := ProblemOutOfScopeMarker
+		severity := tfdiags.Error
+		detail := what + fmt.Sprintf(
+			" Creating %s in %s while it is still there would leave two live resources carrying this estate's marker for one address - a tofu-address marker names one live resource per estate regardless of region or account (live/MARKERS.md, \"Ownership semantics\"). Destroy it in %s, remove its tofu-estate and tofu-address tags to disown it, declare %s under a provider configuration that reaches %s again, or set strict { provider_change = %q } to plan the create anyway and leave it behind.",
 			first.addr, ownerLabel,
 			strings.Join(places, " and "),
-			first.addr, strings.Join(places, " and "))
+			first.addr, strings.Join(places, " and "),
+			recreateSetting)
+
+		if recreate {
+			kind = ProblemAbandonedByProviderChange
+			severity = tfdiags.Warning
+			detail = what + fmt.Sprintf(
+				" strict { provider_change = %q } is set, so the plan proceeds and creates %s in %s. What is left behind is the resource above: it stays live in %s, keeps this estate's tofu-estate and tofu-address tags, and no plan will propose anything for it - not this one, not a later one, and not a destroy of the whole estate. This line is the only notice there will be. Destroy it in %s, or remove those two tags to disown it.",
+				recreateSetting, first.addr, ownerLabel,
+				strings.Join(places, " and "),
+				strings.Join(places, " and "))
+		}
 
 		res.Problems = append(res.Problems, Problem{
-			Kind:     ProblemOutOfScopeMarker,
+			Kind:     kind,
 			TypeName: first.typeName,
 			Addr:     first.addr,
 			Marker:   first.marker,
 			LiveIDs:  ids,
 			Detail:   detail,
 		})
-		*diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, problemSummaries[ProblemOutOfScopeMarker], detail))
+		*diags = diags.Append(tfdiags.Sourceless(severity, problemSummaries[kind], detail))
 	}
 }
+
+// recreateSetting is the `strict { provider_change = ... }` spelling both
+// messages name as the remedy, written here rather than imported so that
+// internal/live/discovery keeps taking a resolved bool from its caller (see
+// [strandedAcrossProviderConfigs]) instead of depending on
+// internal/live/strict. TestRecreateSettingMatchesTheSchema pins the two
+// strings together.
+const recreateSetting = "recreate"
 
 // liveResourcePhrase names the stranded objects at the head of the detail:
 // "A live aws_vpc (vpc-0abc)" for the ordinary one, a count for the several

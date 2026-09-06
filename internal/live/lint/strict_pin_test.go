@@ -21,7 +21,8 @@ import (
 // it).
 //
 // It reuses testdata/strict-secrets-store and
-// testdata/strict-nosourcecreate-create rather than adding new fixtures:
+// testdata/strict-nosourcecreate-create and
+// testdata/strict-providerchange-recreate rather than adding new fixtures:
 // both already exist as the "the default/toggle written out by hand"
 // clean-pass cases in TestCheck, which is test (c) - "pin unset: config
 // governs, today's behavior" - for these same two files, so the pair
@@ -57,6 +58,16 @@ func TestStrictPinRefusesWhatItPins(t *testing.T) {
 			safeValue:     "refuse",
 			wantLine:      9,
 			wantConstruct: `strict.no_source_create = "create"`,
+		},
+		{
+			name:          "provider_change = \"recreate\" while the pin forces \"refuse\"",
+			dir:           "testdata/strict-providerchange-recreate",
+			rule:          RuleStrictProviderChange,
+			toggleName:    "provider_change",
+			writtenValue:  "recreate",
+			safeValue:     "refuse",
+			wantLine:      10,
+			wantConstruct: `strict.provider_change = "recreate"`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

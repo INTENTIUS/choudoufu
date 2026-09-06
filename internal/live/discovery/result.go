@@ -894,6 +894,24 @@ const (
 	// answer HANDOFF's safety rule leaves.
 	ProblemOutOfScopeMarker ProblemKind = "OUT_OF_SCOPE_MARKER"
 
+	// ProblemAbandonedByProviderChange is [ProblemOutOfScopeMarker]'s exact
+	// situation seen under `strict { provider_change = "recreate" }`: the
+	// operator has said, in the configuration, that this is what they meant.
+	//
+	// A warning rather than an error, because the toggle is the decision and
+	// this is the notice, not a second opinion about it. It is not silence:
+	// the object stays live, keeps this estate's markers, and no plan will
+	// ever propose anything for it - so this line, on every plan that sees
+	// it, is the only notice there will ever be, and it names the object,
+	// the provider configuration that found it and the truth that nothing
+	// will find it again. GitHub issue #906 (maintainer ruling, 2026-09-06).
+	//
+	// Two kinds rather than one severity computed at the call site, because
+	// TestSeverityForRefusalMatchesTheDiagnostic pins severity per kind: a
+	// kind that were sometimes an error and sometimes a warning would make
+	// live/LIMITATIONS.md's own severity column a guess.
+	ProblemAbandonedByProviderChange ProblemKind = "ABANDONED_BY_PROVIDER_CHANGE"
+
 	// ProblemNeedsSlotMarkers is several live resources sharing one count
 	// instance's address, with no slot markers to tell them apart. Guessing
 	// here would attach a plan to an arbitrary member of a fungible set.
@@ -1094,7 +1112,7 @@ const (
 func (k ProblemKind) Severity() Severity {
 	switch k {
 	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker, ProblemUnreadableMarker,
-		ProblemUndeclaredCrossTypeMarker:
+		ProblemUndeclaredCrossTypeMarker, ProblemAbandonedByProviderChange:
 		return SeverityWarning
 	}
 	return SeverityError

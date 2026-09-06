@@ -37,7 +37,7 @@ func TestMergeSinglePassIsUnchanged(t *testing.T) {
 	assertNoErrors(t, diags)
 
 	provider := testProviderAddr(t, "")
-	merged, providerOf, mergeDiags := Merge(estateName, []Pass{{Provider: provider, Result: res}})
+	merged, providerOf, mergeDiags := Merge(estateName, []Pass{{Provider: provider, Result: res}}, false)
 	assertNoErrors(t, mergeDiags)
 
 	if merged != res {
@@ -74,7 +74,7 @@ func TestMergeUnionsDisjointPasses(t *testing.T) {
 	merged, providerOf, mergeDiags := Merge(estateName, []Pass{
 		{Provider: providerA, Result: resA},
 		{Provider: providerB, Result: resB},
-	})
+	}, false)
 	assertNoErrors(t, mergeDiags)
 
 	if len(merged.ProblemsOfKind(ProblemCollision)) != 0 {
@@ -144,7 +144,7 @@ func TestMergeCrossProviderOrphanCollision(t *testing.T) {
 	merged, _, mergeDiags := Merge(estateName, []Pass{
 		{Provider: providerA, Region: "us-east-1", Result: resA},
 		{Provider: providerB, Region: "us-west-2", Result: resB},
-	})
+	}, false)
 	if !mergeDiags.HasErrors() {
 		t.Fatalf("a cross-provider marker collision produced no error")
 	}
@@ -282,7 +282,7 @@ func TestMergeSameLiveObjectAcrossPassesIsNotACollision(t *testing.T) {
 	merged, _, mergeDiags := Merge(estateName, []Pass{
 		{Provider: testProviderAddr(t, ""), Result: resA},
 		{Provider: testProviderAddr(t, "production"), Result: resB},
-	})
+	}, false)
 	assertNoErrors(t, mergeDiags)
 
 	if got := merged.ProblemsOfKind(ProblemCollision); len(got) != 0 {
@@ -335,7 +335,7 @@ func TestMergeSameLiveObjectAcrossPassesPrefersAPendingRename(t *testing.T) {
 	merged, _, mergeDiags := Merge(estateName, []Pass{
 		{Provider: testProviderAddr(t, ""), Result: resA},
 		{Provider: testProviderAddr(t, "production"), Result: resB},
-	})
+	}, false)
 	assertNoErrors(t, mergeDiags)
 
 	if got := merged.ProblemsOfKind(ProblemCollision); len(got) != 0 {
@@ -360,7 +360,7 @@ func TestMergeSameLiveObjectAcrossPassesPrefersAPendingRename(t *testing.T) {
 }
 
 func TestMergeEmpty(t *testing.T) {
-	merged, providerOf, diags := Merge(estateName, nil)
+	merged, providerOf, diags := Merge(estateName, nil, false)
 	assertNoErrors(t, diags)
 	if merged.Estate != estateName {
 		t.Errorf("empty merge lost the estate name: %q", merged.Estate)
@@ -461,7 +461,7 @@ func TestMergeDedupesSweepCoverage(t *testing.T) {
 	merged, _, mergeDiags := Merge(estateName, []Pass{
 		{Provider: testProviderAddr(t, ""), Result: resA},
 		{Provider: testProviderAddr(t, "west"), Result: resB},
-	})
+	}, false)
 	assertNoErrors(t, mergeDiags)
 
 	dbInstanceGaps := 0

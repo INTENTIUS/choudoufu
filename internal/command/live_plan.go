@@ -1370,7 +1370,13 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	merged, providerOf, mergeDiags := discovery.Merge(estate, passes)
+	// GitHub issue #906's toggle, resolved here rather than inside the
+	// merge for the same reason internal/live/projection's
+	// NodeResolver.NoSourceCreate is resolved at this layer: the strict
+	// schema is the command's to read, and the package that acts takes the
+	// answer as a plain bool.
+	merged, providerOf, mergeDiags := discovery.Merge(estate, passes,
+		strict.RecreatesOnProviderChange(identity.ProviderChangeFor(config)))
 	diags = diags.Append(mergeDiags)
 	if mergeDiags.HasErrors() {
 		return merged, noProvider, providerOf, diags

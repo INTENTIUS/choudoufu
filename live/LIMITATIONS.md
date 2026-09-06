@@ -1950,6 +1950,76 @@ configuration meets before a plan ever runs; `NodeResolver` asks the same
 question again at the layer that acts, so a caller that skipped lint still
 gets the refusal rather than a silent duplicate create.
 
+### strict-provider-change
+
+**Construct.** A `strict { provider_change = "..." }` argument naming
+something outside this fork's vocabulary. The two settings are:
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    strict {
+      provider_change = "recreate" # default "refuse"
+    }
+  }
+}
+```
+
+`"refuse"`, the default, is what a resource block that has moved to a
+different provider configuration gets - repointed from `provider = aws.west`
+to `provider = aws.east`, say - while a live object in the configuration it
+left still carries this estate's marker for its address: the object is
+named, with the provider configuration that found it and the one its address
+now belongs to, and the plan stops. `"recreate"` selects stock OpenTofu's own
+behavior instead: plan the create under the new configuration and leave the
+old one's object where it is.
+
+**Why bounded.** GitHub issue #906 (maintainer ruling, 2026-09-06). A region
+or account change is a replace, and only half of it is expressible: a
+resource address carries exactly one provider configuration in the plan
+graph, taken from its own block, so the destroy of the object left behind
+cannot be planned at that address at all. That leaves proceeding or refusing,
+and the default refuses because proceeding leaves two live resources carrying
+one address's marker - the state `MARKERS.md`'s ownership semantics forbid,
+and the one `internal/live/discovery`'s own `crossProviderOrphanCollisions`
+refuses a plan over once both objects exist. Refusing is that refusal one
+step earlier, before the run manufactures the state rather than after.
+Writing the default out by hand is clean and means exactly what omitting it
+means.
+
+**What `"recreate"` gives up, exactly.** The old provider configuration's
+object stays live. It keeps this estate's `tofu-estate` and `tofu-address`
+tags, and no plan will ever propose anything for it, because the sweep looks
+where a provider configuration points and none points there for that address
+any more. The run says so out loud - by name, with the object's identity and
+its region - on every plan that sees it, and that warning is the only notice
+there will ever be. Removing it is the operator's, by hand.
+
+**Forwarding address.** Correct the spelling, destroy the old provider
+configuration's object or strip its `tofu-estate` and `tofu-address` tags to
+disown it, point the block back at a provider configuration that reaches it,
+or set `provider_change = "recreate"` to accept stock's own outcome for this
+resource.
+
+**Enforcement.** `RuleStrictProviderChange`, `internal/live/lint/strict.go`
+(`checkStrictProviderChange`), against `internal/live/strict`'s
+`ProviderChangeValid`. Fixture at
+`live/e2e/limits/strict-provider-change/`; the two valid spellings and the
+default written out are in `internal/live/lint/testdata`.
+
+The *setting* itself is read in `internal/live/discovery`'s cross-pass merge
+(`Merge`, `internal/live/discovery/outofscope.go`), the first point in a
+multi-provider-configuration run with every pass in view and therefore the
+only one that can tell an object stranded by a repoint apart from an ordinary
+account-global sighting of somebody else's declared resource. Under `"refuse"`
+it raises `Marked resource outside its address's provider configuration`; under
+`"recreate"` it raises `Marked resource abandoned by a provider configuration
+change`, a warning, and the plan proceeds. `internal/live/lint`'s check above
+is the gate a configuration meets before a plan ever runs; the merge asks the
+same question again at the layer that acts, so a caller that skipped lint
+still gets the refusal rather than a silent abandonment.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity
@@ -2251,6 +2321,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Located identity record unreadable | error | `internal/live/discovery` | "Located identity record unreadable" |
 | - | - | discovery | Malformed ownership marker | error | `internal/live/discovery` | "Malformed ownership marker" |
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
+| - | - | discovery | Marked resource abandoned by a provider configuration change | warning | `internal/live/discovery` | "strict-provider-change" |
 | - | - | discovery | Marked resource outside its address's provider configuration | error | `internal/live/discovery` | "Marked resource outside its address's provider configuration" |
 | - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
 | - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
@@ -2367,6 +2438,7 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-markers | error | `internal/live/lint` | "strict-markers" |
 | - | - | lint | strict-markers-unrecordable | error | `internal/live/lint` | "strict-markers-unrecordable" |
 | - | - | lint | strict-no-source-create | error | `internal/live/lint` | "strict-no-source-create" |
+| - | - | lint | strict-provider-change | error | `internal/live/lint` | "strict-provider-change" |
 | - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
@@ -2424,7 +2496,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**221 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**223 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

@@ -130,6 +130,11 @@ var refusals = []Refusal{
 		What:    "A live resource's tofu-slot tag is not a slot value this run can read.",
 	},
 	{
+		Summary: "Marked resource abandoned by a provider configuration change",
+		What:    "The same situation the refusal above names, under `strict { provider_change = \"recreate\" }`: the operator has said in the configuration that the old provider configuration's object is to be left behind. A warning, and the only notice there will ever be - the object stays live, keeps this estate's markers, and no plan will propose anything for it.",
+		Doc:     `live/LIMITATIONS.md, "strict-provider-change"`,
+	},
+	{
 		Summary: "Marked resource outside its address's provider configuration",
 		What:    "A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.",
 	},

@@ -2656,7 +2656,16 @@ const (
 	// fixture, internal/live/discovery/testdata/region-change, with no
 	// child module, so one directory (identityGoldenPinInstances moves in
 	// step - see its own note).
-	identityGoldenPinDirs = 650
+	// Then 650 -> 654, the same issue's maintainer ruling (2026-09-06) adding
+	// the strict { provider_change } toggle: four new fixtures, three lint
+	// ones for the toggle's own vocabulary
+	// (internal/live/lint/testdata/strict-providerchange-refuse, -recreate
+	// and -invalid) and the limits fixture
+	// live/e2e/limits/strict-provider-change. None declares a managed
+	// resource - they are live blocks and nothing else - so
+	// identityGoldenPinInstances and every class count stay exactly where
+	// they are, which is why only this pin moves.
+	identityGoldenPinDirs = 654
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

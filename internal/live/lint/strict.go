@@ -70,6 +70,7 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 
 	checkStrictSecrets(st, path, issues)
 	checkStrictNoSourceCreate(st, path, issues)
+	checkStrictProviderChange(st, path, issues)
 
 	if !st.MarkerRepairSet {
 		// An omitted argument resolves to strict.DefaultMarkerRepair, which
@@ -216,6 +217,46 @@ func checkStrictNoSourceCreate(st *configs.LiveStrict, path addrs.Module, issues
 			st.NoSourceCreate, strict.NoSourceCreateNames(), strict.DefaultNoSourceCreate, strict.NoSourceCreateOn,
 		),
 		Subject: st.NoSourceCreateRange,
+	})
+}
+
+// checkStrictProviderChange validates the strict block's provider_change
+// argument (GitHub issue #906): the same shape [checkStrictNoSourceCreate]
+// checks, since both settings the vocabulary defines are implemented and
+// there is nothing here beyond a typo to catch.
+func checkStrictProviderChange(st *configs.LiveStrict, path addrs.Module, issues *[]Issue) {
+	if !st.ProviderChangeSet {
+		// An omitted argument resolves to strict.ProviderChangeDefault().
+		// Nothing to check - and pinning changes nothing here anyway, since
+		// strict.DefaultProviderChange was already the safety-first setting.
+		return
+	}
+	if strict.ProviderChangeValid(strict.ProviderChange(st.ProviderChange)) {
+		if detail := strict.PinRefusal("provider_change", st.ProviderChange); detail != "" {
+			*issues = append(*issues, Issue{
+				Rule:      RuleStrictProviderChange,
+				Construct: fmt.Sprintf("strict.provider_change = %q", st.ProviderChange),
+				Module:    path,
+				Detail:    detail,
+				Subject:   st.ProviderChangeRange,
+			})
+		}
+		return
+	}
+	*issues = append(*issues, Issue{
+		Rule:      RuleStrictProviderChange,
+		Construct: fmt.Sprintf("strict.provider_change = %q", st.ProviderChange),
+		Module:    path,
+		Detail: fmt.Sprintf(
+			"%q is not a provider_change setting. Valid settings: %s. %q, which is what omitting the argument "+
+				"means, refuses a resource block that has moved to a different provider configuration while a "+
+				"live object in the one it left still carries this estate's marker for its address - the safe "+
+				"default, since planning the create anyway would leave two live resources answering to one "+
+				"address. %q selects stock OpenTofu's own behavior instead: plan the create and leave the old "+
+				"configuration's object where it is.",
+			st.ProviderChange, strict.ProviderChangeNames(), strict.DefaultProviderChange, strict.ProviderChangeRecreate,
+		),
+		Subject: st.ProviderChangeRange,
 	})
 }
 

@@ -4252,6 +4252,7 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUndeclaredCrossTypeMarker: "Cross-type marker on an undeclared type",
 	ProblemDisplacedMarker:           "Live resource displaced from the address it is marked for",
 	ProblemOutOfScopeMarker:          "Marked resource outside its address's provider configuration",
+	ProblemAbandonedByProviderChange: "Marked resource abandoned by a provider configuration change",
 	ProblemNeedsSlotMarkers:          "Indistinguishable instances without per-instance markers",
 	ProblemMixedSlots:                "Partial slot markers on a count set",
 	ProblemMalformedSlot:             "Malformed slot marker",

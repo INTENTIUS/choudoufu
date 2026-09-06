@@ -155,7 +155,16 @@ func (p Pass) label() string {
 // in the *same* account claiming one address) are unaffected - Discover
 // already resolved those, via [collisionOrphanProblem], before Merge ever
 // sees the result.
-func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+//
+// recreateOnProviderChange is `strict { provider_change = "recreate" }`,
+// resolved by the caller into a bool the way internal/live/projection's
+// NodeResolver.NoSourceCreate is (GitHub issue #906). It governs one thing
+// and nothing else: whether an address stranded by a provider configuration
+// change refuses the run or warns and proceeds - see
+// [strandedAcrossProviderConfigs] and outofscope.go. It does not reach
+// [crossProviderOrphanCollisions], which is a different finding about two
+// live objects that both already exist, and which no toggle relaxes.
+func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	providerOf := make(map[string]addrs.AbsProviderConfig)
@@ -186,7 +195,7 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 	// declare it could see is an object this configuration can no longer
 	// reach, and creating its replacement would manufacture exactly the
 	// collision above. See outofscope.go.
-	strandedAcrossProviderConfigs(estate, passes, res, &diags)
+	strandedAcrossProviderConfigs(estate, passes, res, recreateOnProviderChange, &diags)
 
 	// base holds the merged answer for every resolution that came out of
 	// the configuration (r.Undeclared == false: a needs-discovery instance
