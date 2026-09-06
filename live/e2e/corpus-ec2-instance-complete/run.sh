@@ -245,6 +245,17 @@ set -uo pipefail
 #                be destroyed; the assertion must fail"). A BREAK_COUNT=1
 #                run must print `GAUNTLET stage=day2_count verdict=fail`
 #                and exit non-zero.
+#   BREAK_APPROVAL
+#                plan_approval's own negative control (PART P), independent
+#                of BREAK and BREAK_COUNT: after the module.ec2_complete
+#                instance's Example tag has moved out of band, assert the
+#                saved plan file APPLIES cleanly - the Break text in
+#                tools/gauntlet/stages.go for plan_approval, verbatim
+#                ("Apply the planfile after a mutation and expect success;
+#                the run must refuse") - so this assertion has to fail. It
+#                is the only break control under which PART P runs at all;
+#                the others deliberately leave the estate somewhere PART P
+#                does not describe, and it reports no verdict there.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -1022,6 +1033,190 @@ log ""
 gauntlet_stage drift_reconverge pass "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\""
 log "STAGE 5 (drift and reconverge): PASS"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the
+#          module.ec2_complete instance's Example tag is changed out of
+#          band through the AWS CLI, the same mutation STAGE 5 above
+#          already proves this estate's plan notices - and the apply must
+#          refuse: exit 3, the named summary, the unapproved row printed by
+#          address AND by the live instance id it was computed against, and
+#          the reviewed change still not landed when the "/dev/sdf" EBS
+#          volume is read back through the CLI.
+#   P4     nothing has moved (the tag is put back first) and the SAME file
+#          must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint. The change under review is the
+# "/dev/sdf" entry's own `tags` map inside module "ec2_complete"'s
+# `ebs_volumes` argument. terraform-aws-ec2-instance merges each entry's
+# tags into that entry's aws_ebs_volume alone (its `each.value.tags` is the
+# last term of aws_ebs_volume.this's tag merge and appears nowhere else), so
+# the edit reaches exactly module.ec2_complete.aws_ebs_volume.this
+# ["/dev/sdf"]. The out-of-band move is on
+# module.ec2_complete.aws_instance.this[0] - a different object - so the
+# refusal has an EXTRA row to name rather than a values-only disagreement
+# about the same row.
+#
+# Measured, not assumed. The first candidate was module
+# "ec2_metadata_options"'s tags, and this script's own reduction (step 1
+# above) deletes that module call along with every other ec2_* variant: the
+# estate that reaches the emulator has exactly ONE EC2 instance, and PART P
+# found that out by listing every live instance rather than by guessing.
+# The reduced estate leaves few single-instance targets, and the ones that
+# remain are all objects a later part touches - module.security_group and
+# module.vpc are renamed by PART D, module.ec2_complete's own instance is
+# the moved object and is replaced by PART F. The "/dev/sdf" volume is the
+# exception: PART C scales a SYNTHETIC aws_ebs_volume.count_test, a
+# different resource, and nothing else reads this one by id.
+#
+# Runs only on a real run. Under this script's other BREAK controls the
+# estate is deliberately left somewhere this part does not describe, so it
+# reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR='module.ec2_complete.aws_ebs_volume.this["/dev/sdf"]'
+  P_MOVED_ADDR="module.ec2_complete.aws_instance.this[0]"
+  # Found through the AWS CLI by the tag the example's own config puts on
+  # it, by enumerating volumes rather than by a server-side tag filter: this
+  # part's first draft used "--filters Name=tag:...", and on the pinned
+  # emulator that returned nothing for a tag the object demonstrably carries
+  # (measured, 2026-09-06). Enumerating and matching in the shell is the
+  # same answer without depending on that filter.
+  P_VOL_LIST="$(awsl ec2 describe-volumes --query "Volumes[].[VolumeId, Tags[?Key=='MountPoint'] | [0].Value]" --output text)"
+  P_VOL_ID="$(awk '$2 == "/mnt/data" { print $1 }' <<< "$P_VOL_LIST")"
+  P_VOL_N="$(printf '%s\n' "$P_VOL_ID" | grep -c . || true)"
+  [ "$P_VOL_N" = "1" ] || {
+    printf '%s\n' "$P_VOL_LIST"
+    fail "expected exactly one live EBS volume tagged MountPoint=/mnt/data, found $P_VOL_N (every live volume is listed above as id/MountPoint)"
+  }
+  P_VOL_REVIEWED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_VOL_ID" "Name=key,Values=MountPoint" --query 'Tags[0].Value' --output text)"
+  [ "$P_VOL_REVIEWED" = "/mnt/data" ] || fail "$P_VOL_ID carries MountPoint=\"$P_VOL_REVIEWED\", not the configured \"/mnt/data\", going into PART P"
+  P_INSTANCE_EXAMPLE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=Example" --query 'Tags[0].Value' --output text)"
+  [ -n "$P_INSTANCE_EXAMPLE" ] && [ "$P_INSTANCE_EXAMPLE" != "None" ] || fail "$INSTANCE_ID carries no Example tag going into PART P"
+  log "  the change under review lands on volume $P_VOL_ID ($P_REVIEWED_ADDR, MountPoint=\"$P_VOL_REVIEWED\"); the out-of-band move lands on $INSTANCE_ID ($P_MOVED_ADDR, Example=\"$P_INSTANCE_EXAMPLE\")"
+
+  log "=== P1. the change under review: one argument, on one EBS volume ==="
+  [ "$(grep -c 'MountPoint = "/mnt/data"' "$EST/main.tf")" = "1" ] \
+    || fail "main.tf no longer carries exactly one MountPoint = \"/mnt/data\" volume tag - the corpus pin has moved"
+  perl -0pi -e 's{MountPoint = "/mnt/data"}{MountPoint = "/mnt/data-reviewed"}' "$EST/main.tf"
+  [ "$(grep -c 'MountPoint = "/mnt/data-reviewed"' "$EST/main.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one MountPoint = \"/mnt/data-reviewed\" volume tag"
+  log "  edited one argument: the \"/dev/sdf\" volume's MountPoint tag is now \"/mnt/data-reviewed\""
+
+  P_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -60; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$EST/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$EST/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl ec2 create-tags --resources "$INSTANCE_ID" --tags Key=Example,Value=moved-after-approval
+  P_MOVED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=Example" --query 'Tags[0].Value' --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $INSTANCE_ID's Example tag reads \"$P_MOVED_VALUE\""
+  log "  $INSTANCE_ID's Example tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved instance, so asserting over the
+  # whole output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$INSTANCE_ID" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $INSTANCE_ID, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_VOL_ID" "Name=key,Values=MountPoint" --query 'Tags[0].Value' --output text)"
+  [ "$P_REVIEWED_TAG" = "/mnt/data" ] \
+    || fail "the refused apply still wrote the reviewed change: $P_VOL_ID carries MountPoint=\"$P_REVIEWED_TAG\", not the pre-approval \"/mnt/data\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl ec2 create-tags --resources "$INSTANCE_ID" --tags "Key=Example,Value=$P_INSTANCE_EXAMPLE"
+  P_RESTORED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=Example" --query 'Tags[0].Value' --output text)"
+  [ "$P_RESTORED" = "$P_INSTANCE_EXAMPLE" ] || fail "the out-of-band move was not undone: $INSTANCE_ID's Example tag reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -60; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_VOL_ID" "Name=key,Values=MountPoint" --query 'Tags[0].Value' --output text)"
+  [ "$P_LANDED" = "/mnt/data-reviewed" ] \
+    || fail "the approved change did not land: $P_VOL_ID carries MountPoint=\"$P_LANDED\", want \"/mnt/data-reviewed\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_VOL_ID now carries MountPoint=/mnt/data-reviewed, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$EST/approved.tfplan"
+  perl -0pi -e 's{MountPoint = "/mnt/data-reviewed"}{MountPoint = "/mnt/data"}' "$EST/main.tf"
+  [ "$(grep -c 'MountPoint = "/mnt/data"' "$EST/main.tf")" = "1" ] \
+    || fail "reverting the reviewed edit did not restore the MountPoint = \"/mnt/data\" volume tag"
+  P_BACK_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -60; fail "the revert apply failed"; }
+  P_GONE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_VOL_ID" "Name=key,Values=MountPoint" --query 'Tags[0].Value' --output text)"
+  [ "$P_GONE" = "/mnt/data" ] \
+    || fail "the reviewed MountPoint value is still on $P_VOL_ID after the revert: \"$P_GONE\""
+  P_FINAL_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -60; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  log "  reverted; the estate is converged again and PART C starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (the \"/dev/sdf\" entry's MountPoint volume tag inside module \"ec2_complete\"'s ebs_volumes argument, /mnt/data -> /mnt/data-reviewed - the module merges each entry's tags into that entry's aws_ebs_volume alone, so it reaches $P_REVIEWED_ADDR and nothing else), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is that one update; the world then moved out of band ($INSTANCE_ID's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $INSTANCE_ID it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - volume $P_VOL_ID still read MountPoint=/mnt/data through ec2 describe-tags, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with $INSTANCE_ID's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_VOL_ID read back with MountPoint=/mnt/data-reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART C starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
+fi
 
   # ══════════════════════════════════════════════════════════════════════
   # PART C: CHANGE COUNT (day2_count, active - live/GAUNTLET.md #8; the
