@@ -291,9 +291,14 @@ func strandedAcrossProviderConfigs(estate string, passes []Pass, res *Result, di
 		sort.Strings(places)
 		places = dedupeStrings(places)
 
+		passClause := "this estate's own pass over " + places[0]
+		if len(places) > 1 {
+			passClause = "this estate's own passes over " + strings.Join(places, " and ")
+		}
+
 		detail := fmt.Sprintf(
-			"%s carries estate %q and the address %q, and the only pass that listed it was this estate's own pass over %s. The configuration declares %s under %s, and that pass found nothing for it. Marker discovery looks where a provider configuration points, so no run of this configuration reaches that resource at that address again, and creating %s in %s would leave two live resources carrying this estate's marker for one address - a tofu-address marker names one live resource per estate regardless of region or account (live/MARKERS.md, \"Ownership semantics\"). Destroy it in %s, remove its tofu-estate and tofu-address tags to disown it, or declare %s under a provider configuration that reaches %s again.",
-			liveResourcePhrase(found), estate, first.marker, strings.Join(places, " and "),
+			"%s carries estate %q and the address %q, and it was listed only by %s. The configuration declares %s under %s, and that pass found nothing for it. Marker discovery looks where a provider configuration points, so no run of this configuration reaches that resource at that address again, and creating %s in %s would leave two live resources carrying this estate's marker for one address - a tofu-address marker names one live resource per estate regardless of region or account (live/MARKERS.md, \"Ownership semantics\"). Destroy it in %s, remove its tofu-estate and tofu-address tags to disown it, or declare %s under a provider configuration that reaches %s again.",
+			liveResourcePhrase(found), estate, first.marker, passClause,
 			first.addr, ownerLabel,
 			first.addr, ownerLabel,
 			strings.Join(places, " and "),
