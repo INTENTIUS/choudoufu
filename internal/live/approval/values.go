@@ -248,7 +248,24 @@ func renderValue(v cty.Value) (string, bool) {
 	}
 }
 
+// renderElements renders every element of a collection.
+//
+// The Unmark is the guard internal/live/marksafe's scanner needs, and it is
+// repeated here rather than inherited from [renderValue]: the scanner cannot
+// see across a call boundary, and a guard that only holds while one caller
+// keeps behaving is the shape that produced issue #240's panics.
+//
+// Unmarking is the RIGHT guard for this package, where the scanner's usual
+// advice - refuse, never unmark - does not apply. That advice exists because
+// a marked value must not become an identity component or a cloud tag.
+// Nothing here becomes either: a rendering is compared against another
+// rendering and then discarded. And the mark is not dropped, it is honoured -
+// a container marked sensitive as a whole collapses to one digest over its
+// elements, so no element of it is ever rendered into anything a caller can
+// print. That is the same reasoning internal/live/markerstrip is held to zero
+// on.
 func renderElements(v cty.Value) ([]string, bool) {
+	v, ms := v.Unmark()
 	var parts []string
 	anyUnknown := false
 	for it := v.ElementIterator(); it.Next(); {
@@ -256,6 +273,9 @@ func renderElements(v cty.Value) ([]string, bool) {
 		text, unknown := renderValue(elem)
 		anyUnknown = anyUnknown || unknown
 		parts = append(parts, text)
+	}
+	if isSensitive(ms) {
+		return []string{digestOf(strings.Join(parts, ","))}, anyUnknown
 	}
 	return parts, anyUnknown
 }

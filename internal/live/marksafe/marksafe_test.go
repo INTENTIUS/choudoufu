@@ -28,6 +28,20 @@ const liveRoot = ".."
 // from it. That is the population issue #240's eight panics came from.
 var guardedPackages = []string{
 	"acceptance",
+	// GitHub issue #878's approval gate. It reads PLAN values, which is
+	// deferredPackages' population, and it is held to zero anyway because
+	// every collection it walks is unmarked at the site that walks it -
+	// renderValue, renderAttrs and renderElements each Unmark before they
+	// iterate, and renderElements repeats the guard rather than inheriting
+	// it from its one caller. Unmarking is the right guard HERE, where the
+	// usual advice (refuse, never unmark) does not apply: nothing this
+	// package produces becomes an identity component or a cloud tag - a
+	// rendering is compared against another rendering and discarded - and
+	// the mark is honoured rather than dropped, since a sensitive value
+	// renders as a digest of its unmarked form and a sensitive container
+	// collapses to one digest over its elements. Same reasoning as
+	// "markerstrip" below.
+	"approval",
 	"check",
 	"cloudcontrol",
 	"dataread",

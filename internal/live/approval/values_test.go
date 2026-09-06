@@ -110,6 +110,34 @@ func TestRenderValue_sensitiveIsHashedNotPrinted(t *testing.T) {
 	}
 }
 
+// TestRenderElements_sensitiveContainerCollapsesToOneDigest is the guard
+// internal/live/marksafe holds this package to, asserted rather than assumed.
+//
+// renderElements unmarks before it iterates, which is what makes the
+// ElementIterator call provable. Unmarking must not turn into dropping the
+// mark: a container marked sensitive as a whole has to collapse to one digest
+// over its elements, so no element of it is ever rendered into something a
+// caller can print.
+func TestRenderElements_sensitiveContainerCollapsesToOneDigest(t *testing.T) {
+	secretList := cty.ListVal([]cty.Value{cty.StringVal("hunter2"), cty.StringVal("hunter3")}).Mark(marks.Sensitive)
+
+	parts, _ := renderElements(secretList)
+	joined := strings.Join(parts, ",")
+	if strings.Contains(joined, "hunter2") || strings.Contains(joined, "hunter3") {
+		t.Fatalf("a sensitive container rendered its elements in plaintext: %q", joined)
+	}
+	if len(parts) != 1 || !strings.HasPrefix(parts[0], "sensitive:sha256:") {
+		t.Errorf("a sensitive container rendered %d part(s) %q, want one sensitive:sha256: digest", len(parts), joined)
+	}
+
+	// And the digest still moves when the secret does, or a changed secret
+	// would read as no change.
+	moved, _ := renderElements(cty.ListVal([]cty.Value{cty.StringVal("hunter2"), cty.StringVal("hunter4")}).Mark(marks.Sensitive))
+	if strings.Join(moved, ",") == joined {
+		t.Errorf("two different sensitive containers rendered the same digest %q", joined)
+	}
+}
+
 // TestCompareValues_unknownsAreExcluded is the "matched file stays matched"
 // half of the ruling: an attribute that is unknown on either side is not a
 // difference, whatever the other side says about it.
