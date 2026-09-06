@@ -409,6 +409,17 @@ set -uo pipefail
 #                rather than a grep that always matches. Stages 1 and 2 are
 #                unaffected and still pass; stage 3 is the one that must
 #                fail.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P): after the world
+#                has moved out of band, assert the saved plan file APPLIES
+#                cleanly - the Break text in tools/gauntlet/stages.go for
+#                plan_approval is literally "Apply the planfile after a
+#                mutation and expect success; the run must refuse", so this
+#                assertion has to fail. Independent of both BREAKs above,
+#                and the only one of them under which PART P runs at all -
+#                the others deliberately leave the estate somewhere PART P
+#                does not describe, and it reports no verdict there.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -1574,6 +1585,206 @@ else
   log "  reconverged: the primary DB instance's Example tag is back to"
   log "  \"$FIXED_VALUE\", its pre-tamper, config-matching value"
   gauntlet_stage drift_reconverge pass "one object tampered (primary DB instance's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the PRIMARY
+#          DB instance's Example tag is changed out of band through the AWS
+#          CLI, the SAME mutation STAGE 5 above already proves this estate's
+#          plan notices and scopes to one object - and the apply must
+#          refuse: exit 3, the named summary, the unapproved row printed by
+#          address AND by the live ARN it was computed against, and the
+#          reviewed change still not landed when the OTHER instance's tags
+#          are read back through the CLI.
+#   P4     nothing has moved (the Example tag is put back to its
+#          pre-tamper, config-matching value first) and the SAME file must
+#          APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is one
+# in-place tag update on module.db_default's own DB instance, the
+# out-of-band move is on module.db's - so the refusal has an EXTRA row to
+# name rather than a values-only disagreement about the same row
+# (approvalMismatchDetail's Drifted branch). module.db_default is the right
+# half of that pair for a second reason: its own nested module.db_instance
+# call runs with create_db_option_group = false and
+# create_db_parameter_group = false, so a tag edit on it reaches exactly ONE
+# live object (its only other child, random_id.snapshot_identifier, has no
+# cloud representation at all - issue #340), where the same edit on module.db
+# would also reach that module's parameter group, option group and log
+# groups through db_parameter_group_tags and friends. A tag is in-place, so
+# no live id moves under it: PART F below replaces module.db (not
+# db_default) and captures its own ARNs afterwards, and PART D renames
+# module.db_default by its BLOCK name, which this part never touches.
+#
+# Runs only on a real run. Under either of this script's BREAK controls the
+# estate is deliberately left somewhere this part does not describe, so it
+# reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log ""
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="module.db_default.module.db_instance.aws_db_instance.this[0]"
+  P_MOVED_ADDR="module.db.module.db_instance.aws_db_instance.this[0]"
+
+  log "=== P0. the two live objects, read by their own markers ==="
+  P_REVIEWED_ARN="$(awsl rds describe-db-instances \
+    --query "DBInstances[?contains(TagList[?Key=='tofu-address'].Value, \`module.db_default.module.db_instance.aws_db_instance.this:0\`)].DBInstanceArn | [0]" --output text)"
+  if [ -z "$P_REVIEWED_ARN" ] || [ "$P_REVIEWED_ARN" = "None" ]; then
+    P_REVIEWED_ARN="$(awsl rds describe-db-instances \
+      --query "DBInstances[?contains(TagList[?Key=='tofu-address'].Value, \`module.db_default.module.db_instance.aws_db_instance.this[0]\`)].DBInstanceArn | [0]" --output text)"
+  fi
+  [ -n "$P_REVIEWED_ARN" ] && [ "$P_REVIEWED_ARN" != "None" ] \
+    || fail "no live db instance found for $P_REVIEWED_ADDR by its tofu-address marker"
+  [ "$P_REVIEWED_ARN" != "$DB_ARN" ] \
+    || fail "the reviewed object and the out-of-band object resolved to the same live ARN ($DB_ARN) - this leg needs two disjoint rows"
+  # The identity choudoufu resolves for an aws_db_instance is RDS's own
+  # server-minted DbiResourceId, not the ARN and not the client-chosen
+  # identifier (measured, not assumed: the first run of this leg asserted
+  # the ARN and the refusal row printed "db-420E1AA47C46495095F58435"
+  # instead). Read it off the live instance here so P3 below compares the
+  # refusal against a value the AWS CLI answered, never against a string
+  # this script composed.
+  P_MOVED_IDENTITY="$(awsl rds describe-db-instances --db-instance-identifier complete-postgresql \
+    --query 'DBInstances[0].DbiResourceId' --output text)"
+  [ -n "$P_MOVED_IDENTITY" ] && [ "$P_MOVED_IDENTITY" != "None" ] \
+    || fail "the primary DB instance answers no DbiResourceId through the AWS CLI - PART P has no live identity to compare the refusal against"
+  log "  reviewed: $P_REVIEWED_ARN ($P_REVIEWED_ADDR); moved out of band: $DB_ARN / $P_MOVED_IDENTITY ($P_MOVED_ADDR)"
+
+  log "=== P1. the change under review: one argument, reaching one instance ==="
+  P_TAGS_BEFORE="$(grep -c '^  tags = local\.tags$' "$ADOPTED_EST/main.tf")"
+  [ "$P_TAGS_BEFORE" -ge 2 ] \
+    || fail "main.tf carries $P_TAGS_BEFORE \"tags = local.tags\" module arguments - the corpus pin has moved"
+  # Anchored on module "db_default"'s own last two arguments
+  # (backup_retention_period = 0 is unique to that block in this example),
+  # so the edit reaches module.db_default and none of the other module calls
+  # that pass the same local.tags map.
+  perl -0pi -e 's/(\n  backup_retention_period = 0\n\n)  tags = local\.tags\n/$1  tags = merge(local.tags, { Reviewed = "yes" })\n/' "$ADOPTED_EST/main.tf"
+  [ "$(grep -c 'Reviewed = "yes"' "$ADOPTED_EST/main.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one merge(local.tags, ...) argument"
+  [ "$(grep -c '^  tags = local\.tags$' "$ADOPTED_EST/main.tf")" = "$((P_TAGS_BEFORE - 1))" ] \
+    || fail "the reviewed edit changed more than one of the $P_TAGS_BEFORE \"tags = local.tags\" module arguments"
+  log "  edited one argument: module \"db_default\"'s tags now merge in Reviewed = \"yes\""
+
+  P_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$ADOPTED_EST/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ (will be (created|destroyed)|must be replaced)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create, a destroy or a replace; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$ADOPTED_EST/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl rds add-tags-to-resource --resource-name "$DB_ARN" --tags Key=Example,Value=moved-after-approval >/dev/null \
+    || fail "the out-of-band Example-tag move could not be made through the AWS CLI"
+  P_MOVED_VALUE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" --query "TagList[?Key=='Example'].Value | [0]" --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $DB_ARN's Example tag reads \"$P_MOVED_VALUE\""
+  log "  $DB_ARN's Example tag changed out of band to \"moved-after-approval\" (config says \"$ORIGINAL_EXAMPLE\") - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved instance, so asserting over the
+  # whole output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  P_EXTRA_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
+  [ -n "$P_EXTRA_ROW" ] \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$P_MOVED_IDENTITY" <<< "$P_EXTRA_ROW" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $P_MOVED_IDENTITY, the live identity ($DB_ARN's own DbiResourceId, read through the AWS CLI) the change was computed against: the row reads \"$P_EXTRA_ROW\""; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl rds list-tags-for-resource --resource-name "$P_REVIEWED_ARN" --query "TagList[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_REVIEWED_TAG" = "None" ] || [ -z "$P_REVIEWED_TAG" ] \
+    || fail "the refused apply still wrote the reviewed change: $P_REVIEWED_ARN carries Reviewed=\"$P_REVIEWED_TAG\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - the row it names is \"$P_EXTRA_ROW\", exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl rds add-tags-to-resource --resource-name "$DB_ARN" --tags "Key=Example,Value=$ORIGINAL_EXAMPLE" >/dev/null \
+    || fail "the out-of-band move could not be undone through the AWS CLI"
+  P_RESTORED="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" --query "TagList[?Key=='Example'].Value | [0]" --output text)"
+  [ "$P_RESTORED" = "$ORIGINAL_EXAMPLE" ] || fail "the out-of-band move was not undone: $DB_ARN's Example tag reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl rds list-tags-for-resource --resource-name "$P_REVIEWED_ARN" --query "TagList[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_LANDED" = "yes" ] \
+    || fail "the approved change did not land: $P_REVIEWED_ARN carries Reviewed=\"$P_LANDED\", want \"yes\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_REVIEWED_ARN now carries Reviewed=yes, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$ADOPTED_EST/approved.tfplan"
+  perl -0pi -e 's/(\n  backup_retention_period = 0\n\n)  tags = merge\(local\.tags, \{ Reviewed = "yes" \}\)\n/$1  tags = local.tags\n/' "$ADOPTED_EST/main.tf"
+  [ "$(grep -c '^  tags = local\.tags$' "$ADOPTED_EST/main.tf")" = "$P_TAGS_BEFORE" ] \
+    || fail "reverting the reviewed edit did not restore all $P_TAGS_BEFORE \"tags = local.tags\" arguments"
+  P_REVERT_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_REVERT_RC=$?
+  [ "$P_REVERT_RC" -eq 0 ] || { printf '%s\n' "$P_REVERT_OUT" | tail -40; fail "the revert apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_REVERT_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_REVERT_OUT"; fail "the revert apply did not change exactly the one reviewed resource back"; }
+  P_GONE="$(awsl rds list-tags-for-resource --resource-name "$P_REVIEWED_ARN" --query "TagList[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the Reviewed tag is still on $P_REVIEWED_ARN after the revert: \"$P_GONE\""
+  P_KEPT_EXAMPLE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" --query "TagList[?Key=='Example'].Value | [0]" --output text)"
+  [ "$P_KEPT_EXAMPLE" = "$ORIGINAL_EXAMPLE" ] \
+    || fail "the primary DB instance's Example tag is \"$P_KEPT_EXAMPLE\" after PART P, not its config-matching \"$ORIGINAL_EXAMPLE\""
+  P_FINAL_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  log "  reverted; the estate is converged again and PART F starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (module \"db_default\"'s tags gain Reviewed=yes - in-place, so no live id moves, and reaching exactly ONE live object because that module call runs with create_db_option_group=false and create_db_parameter_group=false, where the same edit on module.db would also reach its parameter group, option group and log groups), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band ($DB_ARN's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming the extra row as \"$P_EXTRA_ROW\" - both $P_MOVED_ADDR and the live identity it was computed against, which for an aws_db_instance is RDS's own server-minted DbiResourceId $P_MOVED_IDENTITY rather than the ARN or the client-chosen identifier, read off $DB_ARN through the AWS CLI and compared by value - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $P_REVIEWED_ARN still carried no Reviewed tag, read back through rds list-tags-for-resource rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the Example tag put back to its pre-tamper value and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_REVIEWED_ARN read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. Reverted and reconverged in P5 (Reviewed gone, the primary instance's Example tag still \"$ORIGINAL_EXAMPLE\", next plan proposes no resource action) so PART F starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
 fi
 
 # ══════════════════════════════════════════════════════════════════════════
