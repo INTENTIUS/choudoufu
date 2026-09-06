@@ -526,6 +526,18 @@ set -uo pipefail
 #                assertion must fail" - so day2_count MUST report fail
 #                under it. Every earlier stage is unaffected and still
 #                passes.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P): after the ALB's
+#                Example tag has moved out of band, assert the saved plan
+#                file APPLIES cleanly - the Break text in
+#                tools/gauntlet/stages.go for plan_approval is literally
+#                "Apply the planfile after a mutation and expect success;
+#                the run must refuse", so this assertion has to fail.
+#                Independent of BREAK and BREAK_COUNT, and the only one of
+#                them under which PART P runs at all - the others
+#                deliberately leave the estate somewhere PART P does not
+#                describe, and it reports no verdict there.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -1749,6 +1761,193 @@ if [ -n "${STAGE3_PASSED:-}" ]; then
     [ "$FIXED_VALUE" != "tampered-out-of-band" ] || fail "the ALB's Example tag is still \"tampered-out-of-band\" after reconverging"
     log "  reconverged: $LB_ARN's Example tag is back to its configured value ($FIXED_VALUE)"
     gauntlet_stage drift_reconverge pass "one object tampered (the ALB's Example tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and the Example tag reconverged"
+  fi
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, #903)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # The pipeline shape CI has always run: plan on the pull request, a human
+  # approves, apply exactly what was approved. The artifact that crosses
+  # that gate is the plan file, and under live markers it is an APPROVAL
+  # rather than an instruction - "apply <planfile>" re-reads the live
+  # system, plans against what it finds now, and compares that fresh plan
+  # with the file's, refusing by name and with exit 3 when the two disagree
+  # (issue #878, internal/command/live_approval.go).
+  #
+  # Both arms run on every real run, because only the pair is evidence:
+  #
+  #   P2/P3  the world MOVES between the approval and the apply - the ALB's
+  #          own Example tag is changed out of band through the AWS CLI, the
+  #          same mutation stage 5 above already proves this estate's plan
+  #          notices - and the apply must refuse: exit 3, the named summary,
+  #          the unapproved row printed by address AND by the live ARN it
+  #          was computed against, and the reviewed change still not landed
+  #          when the live target group is read back through the CLI.
+  #   P4     nothing has moved (the tag is put back first) and the SAME file
+  #          must APPLY. This is the inverted control that
+  #          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+  #          comparison which refuses unconditionally is not a check, so
+  #          P3's refusal is only worth something if the identical artifact
+  #          goes through when the world is where the approval left it.
+  #
+  # The two objects are deliberately disjoint - the change under review is
+  # the "ex-instance" target group's own one-key `tags` argument, which
+  # reaches exactly one instance (module.alb.aws_lb_target_group.this
+  # ["ex-instance"]) and nothing else, the out-of-band move is on
+  # module.alb.aws_lb.this[0] - so the refusal has an EXTRA row to name
+  # rather than a values-only disagreement about the same row. Neither
+  # object is one PART D/E/F/G captures an id for: those hold the two EC2
+  # instances, one target-group ATTACHMENT (a different resource type from
+  # the target group itself) and, later, a synthetic security group.
+  #
+  # Measured, not assumed: the first candidate here was module.log_bucket's
+  # `tags = local.tags`, and it does not work. Its single aws_s3_bucket
+  # instance has a data source hanging off it - the s3-bucket module's
+  # aws_iam_policy_document for the bucket policy - so a planned in-place
+  # update to the bucket defers that read and drags
+  # module.log_bucket.aws_s3_bucket_policy.this[0] into the same change set,
+  # which makes the approval two rows rather than one. A resource with a
+  # dependent DATA SOURCE cannot carry this leg's edit; a target group,
+  # which nothing reads back, can.
+  #
+  # Runs only on a real run. Under this script's other BREAK controls the
+  # estate is deliberately left somewhere this part does not describe, so it
+  # reports no verdict at all and the runner records the stage as not_run,
+  # never as a pass.
+  if [ -z "${BREAK:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+    gauntlet_begin_stage plan_approval
+    log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+    P_REVIEWED_ADDR='module.alb.aws_lb_target_group.this["ex-instance"]'
+    P_MOVED_ADDR="module.alb.aws_lb.this[0]"
+
+    # The "ex-instance" target group is found the way the rest of this
+    # script finds live objects - through the AWS CLI, by the tag the
+    # example's own config gives it - never through choudoufu's report.
+    P_TG_ARN=""
+    for _tg in $(awsl elbv2 describe-target-groups --query 'TargetGroups[].TargetGroupArn' --output text); do
+      _v="$(awsl elbv2 describe-tags --resource-arns "$_tg" --query "TagDescriptions[0].Tags[?Key=='InstanceTargetGroupTag'].Value | [0]" --output text)"
+      if [ -n "$_v" ] && [ "$_v" != "None" ]; then
+        [ -z "$P_TG_ARN" ] || fail "more than one live target group carries an InstanceTargetGroupTag tag - the edit below would not reach exactly one instance"
+        P_TG_ARN="$_tg"; P_TG_TAG="$_v"
+      fi
+    done
+    [ -n "$P_TG_ARN" ] || fail "no live target group carries the InstanceTargetGroupTag tag the example's config sets"
+    [ "$P_TG_TAG" = "baz" ] || fail "the ex-instance target group's InstanceTargetGroupTag reads \"$P_TG_TAG\", not the configured \"baz\", going into PART P"
+    P_LB_EXAMPLE="$(awsl elbv2 describe-tags --resource-arns "$LB_ARN" --query "TagDescriptions[0].Tags[?Key=='Example'].Value | [0]" --output text)"
+    [ -n "$P_LB_EXAMPLE" ] && [ "$P_LB_EXAMPLE" != "None" ] || fail "the ALB carries no Example tag going into PART P"
+    log "  the change under review lands on $P_TG_ARN ($P_REVIEWED_ADDR, InstanceTargetGroupTag=\"$P_TG_TAG\"); the out-of-band move lands on $LB_ARN ($P_MOVED_ADDR, Example=\"$P_LB_EXAMPLE\")"
+
+    log "=== P1. the change under review: one argument, on one target group ==="
+    # examples/complete-alb gives exactly one of its three target groups a
+    # `tags` block of its own - InstanceTargetGroupTag = "baz" on the
+    # "ex-instance" group - and the module merges it over var.tags for that
+    # one instance alone. Changing its value is therefore one argument
+    # reaching one live object, with no dependent resource or data source
+    # to drag in behind it.
+    [ "$(grep -c 'InstanceTargetGroupTag = "baz"' "$ADOPTED_EST/main.tf")" = "1" ] \
+      || fail "main.tf no longer carries exactly one InstanceTargetGroupTag = \"baz\" argument - the corpus pin has moved"
+    perl -0pi -e 's/InstanceTargetGroupTag = "baz"/InstanceTargetGroupTag = "reviewed"/' "$ADOPTED_EST/main.tf"
+    [ "$(grep -c 'InstanceTargetGroupTag = "reviewed"' "$ADOPTED_EST/main.tf")" = "1" ] \
+      || fail "the reviewed edit did not write exactly one InstanceTargetGroupTag = \"reviewed\" argument"
+    [ "$(grep -c 'InstanceTargetGroupTag = "baz"' "$ADOPTED_EST/main.tf")" = "0" ] \
+      || fail "the reviewed edit left an InstanceTargetGroupTag = \"baz\" argument behind"
+    log "  edited one argument: the ex-instance target group's InstanceTargetGroupTag is now \"reviewed\""
+
+    P_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+    [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -60; fail "plan -out exited $P_PLAN_RC"; }
+    [ -f "$ADOPTED_EST/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+    P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+    [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+      || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+    if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+      grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+    fi
+    P_PLAN_BYTES="$(wc -c < "$ADOPTED_EST/approved.tfplan" | tr -d ' ')"
+    log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+    log "=== P2. the world moves between the approval and the apply ==="
+    awsl elbv2 add-tags --resource-arns "$LB_ARN" --tags Key=Example,Value=moved-after-approval >/dev/null
+    P_MOVED_VALUE="$(awsl elbv2 describe-tags --resource-arns "$LB_ARN" --query "TagDescriptions[0].Tags[?Key=='Example'].Value | [0]" --output text)"
+    [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: the ALB's Example tag reads \"$P_MOVED_VALUE\""
+    log "  $LB_ARN's Example tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+    log "=== P3. apply the approved plan against a world that moved ==="
+    P_GATE_RC=0
+    P_GATE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+    if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+      # stages.go's own Break line for plan_approval, executed literally:
+      # "Apply the planfile after a mutation and expect success; the run
+      # must refuse." Expecting success here is the defect this stage
+      # exists to catch, so this assertion has to fail.
+      [ "$P_GATE_RC" = "0" ] \
+        || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+      log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+    fi
+    [ "$P_GATE_RC" = "3" ] \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+    grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply stopped, but not with the named refusal"; }
+    # Everything from the refusal's own summary line onward. The fresh plan
+    # printed above it also names the moved ALB, so asserting over the whole
+    # output would pass on a refusal that named nothing at all.
+    P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+    grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+    grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+    grep -qF "$LB_ARN" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $LB_ARN, the live object the change was computed against"; }
+    grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+    if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+      printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+    fi
+    # Not "no Apply complete line" alone: read the live object the approval
+    # was about and confirm the reviewed change did not land.
+    P_REVIEWED_TAG="$(awsl elbv2 describe-tags --resource-arns "$P_TG_ARN" --query "TagDescriptions[0].Tags[?Key=='InstanceTargetGroupTag'].Value | [0]" --output text)"
+    [ "$P_REVIEWED_TAG" = "baz" ] \
+      || fail "the refused apply still wrote the reviewed change: $P_TG_ARN carries InstanceTargetGroupTag=\"$P_REVIEWED_TAG\", not the pre-approval \"baz\""
+    printf '%s\n' "$P_REFUSAL" | head -12
+    log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+    log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+    awsl elbv2 add-tags --resource-arns "$LB_ARN" --tags "Key=Example,Value=$P_LB_EXAMPLE" >/dev/null
+    P_RESTORED="$(awsl elbv2 describe-tags --resource-arns "$LB_ARN" --query "TagDescriptions[0].Tags[?Key=='Example'].Value | [0]" --output text)"
+    [ "$P_RESTORED" = "$P_LB_EXAMPLE" ] || fail "the out-of-band move was not undone: the ALB's Example tag reads \"$P_RESTORED\""
+    P_OK_RC=0
+    P_OK_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+    [ "$P_OK_RC" = "0" ] \
+      || { printf '%s\n' "$P_OK_OUT" | tail -60; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+      || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+    P_LANDED="$(awsl elbv2 describe-tags --resource-arns "$P_TG_ARN" --query "TagDescriptions[0].Tags[?Key=='InstanceTargetGroupTag'].Value | [0]" --output text)"
+    [ "$P_LANDED" = "reviewed" ] \
+      || fail "the approved change did not land: $P_TG_ARN carries InstanceTargetGroupTag=\"$P_LANDED\", want \"reviewed\""
+    log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_TG_ARN now carries InstanceTargetGroupTag=reviewed, read via the AWS CLI"
+
+    log "=== P5. put the estate back where the rest of this script expects it ==="
+    rm -f "$ADOPTED_EST/approved.tfplan"
+    perl -0pi -e 's/InstanceTargetGroupTag = "reviewed"/InstanceTargetGroupTag = "baz"/' "$ADOPTED_EST/main.tf"
+    [ "$(grep -c 'InstanceTargetGroupTag = "baz"' "$ADOPTED_EST/main.tf")" = "1" ] \
+      || fail "reverting the reviewed edit did not restore the InstanceTargetGroupTag = \"baz\" argument"
+    P_BACK_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+    [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -60; fail "the revert apply failed"; }
+    P_GONE="$(awsl elbv2 describe-tags --resource-arns "$P_TG_ARN" --query "TagDescriptions[0].Tags[?Key=='InstanceTargetGroupTag'].Value | [0]" --output text)"
+    [ "$P_GONE" = "baz" ] \
+      || fail "the reviewed value is still on $P_TG_ARN after the revert: \"$P_GONE\""
+    P_FINAL_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+    [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -60; fail "the post-revert plan exited $P_FINAL_RC"; }
+    if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$P_FINAL_OUT"; then
+      grep -E '^  # .+ will be' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+    fi
+    log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+    log ""
+    log "PART P (plan, review, apply): PASS"
+    gauntlet_stage plan_approval pass "one argument edited (the \"ex-instance\" target group's own InstanceTargetGroupTag tag, baz -> reviewed - the one tags argument in examples/complete-alb that reaches exactly one instance, with no dependent resource or data source behind it), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band ($LB_ARN's Example tag, through the AWS CLI, never through choudoufu - the same mutation stage 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $LB_ARN it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $P_TG_ARN still read InstanceTargetGroupTag=baz through elbv2 describe-tags, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the ALB's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_TG_ARN read back with InstanceTargetGroupTag=reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+    log ""
   fi
 
   if [ "${BREAK:-}" != "1" ]; then
