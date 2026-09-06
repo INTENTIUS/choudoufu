@@ -99,6 +99,11 @@ var guardedPackages = []string{
 	// is held to zero rather than deferred - it has nothing to defer.
 	"statefulcost",
 	"staterecord",
+	// The shared config-subset evaluator (issue #826), holding the copies
+	// that used to live in identity, lint, dataread, discovery and foreign -
+	// every one of them already in this list. It evaluates CONFIGURATION,
+	// which is this population exactly.
+	"staticeval",
 	"strict",
 	"uniquename",
 }
