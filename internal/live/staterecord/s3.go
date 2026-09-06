@@ -105,6 +105,13 @@ func (s *S3Store) objectKey(key string) string {
 	return strings.TrimSuffix(s.keyPrefix, "/") + "/" + key
 }
 
+// ObjectKey is the S3 object key this store will read and write key at:
+// [S3Config.KeyPrefix] joined ahead of it. Exported for the same reason
+// [SSMStore.ParameterName] is - see that method's comment and issue #916.
+func (s *S3Store) ObjectKey(key string) string {
+	return s.objectKey(key)
+}
+
 // keyFromObjectKey reverses objectKey, for turning ListObjectsV2 results
 // back into the opaque keys [Store.List] promises.
 func (s *S3Store) keyFromObjectKey(objectKey string) string {

@@ -197,6 +197,35 @@ func TestSSMStoreConformanceWithNestedKeyPrefix(t *testing.T) {
 	})
 }
 
+// TestSSMStoreConformanceWithNoKeyPrefix covers the shape
+// internal/live/projection now builds this store with: no prefix of its
+// own, because the namespace already lives in every key it is handed
+// (issue #916). It used to normalize "" to "/" and render every parameter
+// name with a leading "//".
+func TestSSMStoreConformanceWithNoKeyPrefix(t *testing.T) {
+	runConformance(t, func(t *testing.T) Store {
+		t.Helper()
+		store, _ := newTestSSMStore(t, "")
+		return store
+	})
+}
+
+// TestSSMStoreEmptyKeyPrefixRendersAtTheHierarchyRoot asserts the rendered
+// parameter name by value, which the conformance run above cannot: that
+// run reads back through the same renderer it wrote through, so it agrees
+// with itself whatever name it produced. "//tofu-records/..." round-trips
+// perfectly through this package and is not a name real SSM will accept.
+func TestSSMStoreEmptyKeyPrefixRendersAtTheHierarchyRoot(t *testing.T) {
+	store, err := NewSSMStore(SSMConfig{Client: &ssm.Client{}, KeyPrefix: ""})
+	if err != nil {
+		t.Fatalf("NewSSMStore: %v", err)
+	}
+	const key = "tofu-records/prod-networking/aws_instance/YXdz"
+	if got, want := store.ParameterName(key), "/"+key; got != want {
+		t.Errorf("ParameterName(%q) = %q, want %q", key, got, want)
+	}
+}
+
 // TestSSMStorePayloadIsBase64OnTheWire proves the binary-safety encoding
 // this store's doc comment promises: the parameter's raw Value is base64,
 // not the caller's literal payload, even though Get hands the literal

@@ -98,6 +98,13 @@ type SSMConfig struct {
 	// the parameter name KeyPrefix + "/" + key. This package does not
 	// interpret KeyPrefix beyond that join — it is an opaque string, the
 	// same as every key passed to the [Store] interface.
+	//
+	// Empty means the parameter hierarchy's own root: a key becomes the
+	// parameter name "/" + key, with nothing prepended. That is the shape
+	// a caller wants when the namespace already lives in the keys it
+	// passes — as internal/live/projection's record keys do, which is why
+	// feeding that namespace here as well wrote every record one level
+	// deeper than the configuration named (issue #916).
 	KeyPrefix string
 }
 
@@ -107,7 +114,7 @@ func NewSSMStore(cfg SSMConfig) (*SSMStore, error) {
 		return nil, fmt.Errorf("staterecord: ssm: Client must not be nil")
 	}
 	prefix := strings.TrimSuffix(cfg.KeyPrefix, "/")
-	if !strings.HasPrefix(prefix, "/") {
+	if prefix != "" && !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
 	return &SSMStore{client: cfg.Client, keyPrefix: prefix}, nil
@@ -117,6 +124,18 @@ func NewSSMStore(cfg SSMConfig) (*SSMStore, error) {
 // SSM.
 func (s *SSMStore) parameterName(key string) string {
 	return s.keyPrefix + "/" + strings.TrimPrefix(key, "/")
+}
+
+// ParameterName is the SSM parameter name this store will read and write
+// key at: [SSMConfig.KeyPrefix] joined ahead of it. Exported because the
+// name a store renders is the only thing an operator, an IAM policy, a
+// teardown script or a test can see from outside - and a store whose
+// rendered name is not the one the configuration named is invisible to
+// every one of them while remaining perfectly self-consistent inside this
+// package (issue #916). Assert on this, never on a Put/List round trip,
+// which agrees with itself no matter what name it used.
+func (s *SSMStore) ParameterName(key string) string {
+	return s.parameterName(key)
 }
 
 // keyFromParameterName reverses parameterName, for turning
@@ -281,6 +300,12 @@ func (s *SSMStore) List(ctx context.Context, keyPrefix string) ([]string, error)
 	folder := s.keyPrefix
 	if i := strings.LastIndex(keyPrefix, "/"); i >= 0 {
 		folder = s.parameterName(keyPrefix[:i])
+	}
+	if folder == "" {
+		// An empty s.keyPrefix and a keyPrefix with no "/" in it: the
+		// enclosing folder is the hierarchy root, which
+		// GetParametersByPath spells "/" and not "".
+		folder = "/"
 	}
 
 	var keys []string
