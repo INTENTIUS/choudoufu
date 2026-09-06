@@ -210,3 +210,107 @@ func TestStatelessPlan_lookalikesSectionEmpty(t *testing.T) {
 		t.Errorf("an empty lookalike list rendered output:\n%s", got)
 	}
 }
+
+// TestLivePlanDocument_topLevelShapeIsPinned pins GitHub issue #788's
+// document by VALUE, not by field access, because its whole point is being
+// somebody else's wire format: INTENTIUS/chant's terraform lexicon (chant
+// #2104) and behold both read it, and neither of them recompiles when this
+// struct does. A renamed json tag, a reordered field, an omitempty added or
+// dropped, a section quietly becoming an object - each is invisible to a
+// test that reads doc.Bound[0].Addr and each breaks those readers.
+//
+// GitHub issue #894 is why this exists now: that issue made the document
+// reachable from three command shapes instead of one, and its own text says
+// "Nothing about the document's shape needs to change". This is what makes
+// that a check rather than an intention.
+//
+// If a field is deliberately added, this test fails and the fix is to
+// update `want` below AND to say in the pull request which consumers were
+// told. Do not update it to make a red run green.
+func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlanJSON(NewView(streams))
+
+	// Every field populated, including the three that carry omitempty
+	// somewhere inside them, so that this pins what a full document looks
+	// like rather than what an empty one does.
+	if !v.Document(LivePlanDocument{
+		Estate:           "dev",
+		ChoudoufuVersion: "0.6.0",
+		UpstreamVersion:  "1.13.0",
+		Bound: []LivePlanBound{
+			{
+				Addr:           "aws_vpc.main",
+				TypeName:       "aws_vpc",
+				Identity:       "vpc-42",
+				IdentityValues: map[string]string{"id": "vpc-42"},
+				Source:         LivePlanBoundMarker,
+			},
+		},
+		Omissions: []StatelessOmission{
+			{Addr: "aws_s3_bucket.data", Reason: "UNOWNED", Detail: "somebody else holds it"},
+		},
+		Unowned: []StatelessUnowned{
+			{
+				Addr:          "aws_s3_bucket.data",
+				TypeName:      "aws_s3_bucket",
+				LiveID:        "tofu-dev-data",
+				MarkerEstate:  "dev",
+				MarkerAddress: "aws_s3_bucket.data",
+			},
+		},
+		Diagnostics: []LivePlanDiagnostic{
+			{Severity: "warning", Summary: "State file present but not consulted", Detail: "it was left untouched"},
+		},
+	}) {
+		t.Fatal("Document reported a marshalling failure")
+	}
+
+	const want = `{
+  "estate": "dev",
+  "choudoufu_version": "0.6.0",
+  "upstream_version": "1.13.0",
+  "bound": [
+    {
+      "addr": "aws_vpc.main",
+      "type": "aws_vpc",
+      "identity": "vpc-42",
+      "identity_values": {
+        "id": "vpc-42"
+      },
+      "source": "marker"
+    }
+  ],
+  "omissions": [
+    {
+      "addr": "aws_s3_bucket.data",
+      "reason": "UNOWNED",
+      "detail": "somebody else holds it"
+    }
+  ],
+  "unowned": [
+    {
+      "addr": "aws_s3_bucket.data",
+      "type": "aws_s3_bucket",
+      "identity": "tofu-dev-data",
+      "adopt_tofu_estate": "dev",
+      "adopt_tofu_address": "aws_s3_bucket.data"
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "summary": "State file present but not consulted",
+      "detail": "it was left untouched"
+    }
+  ]
+}
+`
+	out := done(t)
+	if got := out.Stdout(); got != want {
+		t.Errorf("the document's wire shape moved.\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+	if got := out.Stderr(); got != "" {
+		t.Errorf("Document wrote to stderr on a successful marshal: %q", got)
+	}
+}

@@ -3948,7 +3948,17 @@ Options:
                           saved plan to show, by design (-out is rejected
                           below) - it is this fork's own live sections, the
                           ones a stock plan has no notion of at all. Cannot
-                          be combined with -adoption-only.
+                          be combined with -adoption-only, -out or -destroy.
+
+                          The estate can come from -estate or from the
+                          configuration's own live block or estate.chdf.hcl
+                          sidecar; the document is the same either way, and
+                          "choudoufu plan -json" prints it too on a
+                          configuration that declares its estate (GitHub
+                          issue #894). Stdout carries the document and
+                          nothing else - progress and diagnostics go to
+                          stderr - so it can be piped straight into a
+                          parser.
 
   The following stock plan options are rejected rather than ignored, because
   live resource markers remove what they operate on or have not built them

@@ -293,22 +293,34 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 		}
 	})
 
-	t.Run("-json's live-block refusal names its own -estate exception", func(t *testing.T) {
+	t.Run("-json's live-block refusal names the pipeline that does have a document", func(t *testing.T) {
 		jsonView := arguments.ViewOptions{ViewType: arguments.ViewJSON}
 		block := unwrapped(renderRejections(surfaceLiveBlock, nil, nil, jsonView, "", "", "")[jsonOutputSummary])
 		if block == "" {
-			t.Fatalf("the live-block surface accepted -json - GitHub issue #788 only widens the -estate surface")
+			t.Fatalf("the live-block surface accepted -json - GitHub issue #788 only widens the -estate surface, and #894 moved the runs that want a document onto it rather than widening this one")
 		}
 		if _, estateRefused := renderRejections(surfaceEstateFlag, nil, nil, jsonView, "", "", "")[jsonOutputSummary]; estateRefused {
 			t.Fatalf("live-plan's -estate surface still refused -json under GitHub issue #788's own exemption")
 		}
+		// Who still reaches this refusal changed with GitHub issue #894:
+		// a PLAN asking for -json over a live block is handed to
+		// live-plan's pipeline before it gets here, so what is left is an
+		// apply. The refusal has to say what a reader can do instead, and
+		// after #894 that is "choudoufu plan -json" with no flag at all -
+		// telling them to add -estate would send them into the "Estate
+		// named by both the live block and -estate" refusal.
 		for _, want := range []string{
-			`live-plan's own "-estate" form is the one exception`,
+			"Planning is the one exception",
+			`"choudoufu plan -json"`,
 			"GitHub issue #788",
+			"GitHub issue #894",
 		} {
 			if !strings.Contains(block, want) {
 				t.Errorf("the live-block surface's -json refusal does not name its own exception:\n%s\nwant substring %q", block, want)
 			}
+		}
+		if strings.Contains(block, `live-plan's own "-estate" form is the one exception`) {
+			t.Errorf("the refusal still points a live-block reader at -estate, which is refused beside a live block:\n%s", block)
 		}
 	})
 }

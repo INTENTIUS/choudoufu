@@ -6,7 +6,23 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 ## choudoufu v0.14.0 (Unreleased)
 
-Nothing recorded yet.
+FORK WORK:
+
+- **`live-plan -json` is reachable on a configuration that declares its own
+  estate** (#894). `#788`'s document could be produced only through
+  `live-plan -estate=NAME -json`, and that flag is refused beside a `live`
+  block or an `estate.chdf.hcl` sidecar -- so the shape the docs recommend
+  was the one shape the document could not be produced for. `choudoufu plan
+  -json` and `choudoufu live-plan -json` now print it there too, from the
+  same pipeline and byte-identically to the `-estate` form. `-estate` beside
+  a declared estate is still refused; an `apply -json` still has no document
+  and still says so.
+- **`-json` keeps stdout to the document** (#894). The plan graph's own UI
+  hooks wrote to stdout, so a configuration with a data source printed
+  `data.x.y: Reading...` ahead of the document and piping stdout into a
+  parser failed. Progress and diagnostics now go to stderr, as stock `plan
+  -json` does. `live-check -json` was checked for the same defect and does
+  not have it.
 
 ## choudoufu v0.13.0 (2026-09-06)
 
