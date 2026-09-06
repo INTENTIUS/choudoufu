@@ -1108,7 +1108,10 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 	noteDeclaredSighting(req, decl, res, bindType, escaped, c.importID)
 
 	if entry, ok := decl.entryFor(bindType, escaped); ok {
-		entry.claimants = append(entry.claimants, claim)
+		// [declaredEntry.addClaimant], not a bare append: this leg and the
+		// config-driven scan can both enumerate one declared type in the
+		// same pass, and they then see the same live object.
+		entry.addClaimant(claim)
 		return diags
 	}
 	if decl.declares(bindType, escaped) {

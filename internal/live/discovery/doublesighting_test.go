@@ -167,6 +167,58 @@ func TestOneLiveObjectSeenByBothLegsAtItsOwnAddress(t *testing.T) {
 	}
 }
 
+// TestTwoDifferentLiveObjectsAcrossTheTwoLegsStillCollide is the mutation
+// control for the fix above, and it is the half that matters most: the
+// deduplication is by import identity, so it must refuse exactly when the
+// two legs see two DIFFERENT live objects claiming one address. Silencing
+// that would be a wrong marker - one of the two would be bound and the
+// other quietly left carrying a marker for an address it does not own -
+// which live/MARKERS.md and HANDOFF's safety rule both put above any
+// refusal.
+//
+// Same fixture, same two legs, two distinct identities.
+func TestTwoDifferentLiveObjectsAcrossTheTwoLegsStillCollide(t *testing.T) {
+	const viaCloudControl = "estate-1111111111111111111111"
+	const viaTagging = "estate-2222222222222222222222"
+	const markerAddr = instanceProfileType + ".original"
+
+	req, cc, tagging := doubleSightingFixture(t, viaCloudControl, markerAddr)
+
+	// Repoint the tagging leg at a second, genuinely different live object
+	// carrying the same marker. The Cloud Control leg still serves the
+	// first.
+	otherARN := "arn:aws:iam::123456789012:instance-profile/" + viaTagging
+	tagging.arns = []string{otherARN}
+	tagging.tags = map[string]map[string]string{
+		otherARN: {TagEstate: estateName, TagAddress: markerAddr},
+	}
+
+	res, diags := Discover(context.Background(), req)
+	assertBothLegsSaw(t, res, cc, tagging)
+
+	if !diags.HasErrors() {
+		t.Fatalf("two different live objects claiming one address did not refuse the plan - the deduplication is masking a real collision:\n%s", res)
+	}
+	var found *Problem
+	for i, p := range res.Problems {
+		if p.Kind == ProblemCollision {
+			found = &res.Problems[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("no %s problem was reported: %v\n%s", ProblemCollision, describeProblems(res), res)
+	}
+	got := append([]string(nil), found.LiveIDs...)
+	sort.Strings(got)
+	want := []string{viaCloudControl, viaTagging}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("the collision names %v, want %v - a collision that does not name both real objects cannot be resolved by the human it is addressed to", got, want)
+	}
+	if len(res.Bindings) != 0 {
+		t.Errorf("a contested address bound anyway: %v", res.Bindings)
+	}
+}
+
 // assertBothLegsSaw fails unless the config-driven Cloud Control leg and the
 // estate-wide tagging sweep BOTH enumerated the type in this pass. It is the
 // control that keeps the two tests above load-bearing: a routing change that
