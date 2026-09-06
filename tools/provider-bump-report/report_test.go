@@ -22,14 +22,15 @@ func TestBuildReportZeroMovement(t *testing.T) {
 				{Type: "aws_vpc", Tier: "marker-carried", Status: "in-contract"},
 			},
 		},
-		Convergence: convergenceArtifact{},
+		SchemaPrecedence: schemaPrecedenceArtifact{
+			HasIdentitySchema:  10,
+			Reproduced:         []string{"aws_s3_bucket"},
+			ReproducedCount:    1,
+			NotReproducedCount: 9,
+		},
 	}
-	side.Convergence.Summary.Compared = 100
-	side.Convergence.Summary.AdoptedUnchangedPct = 95.5
-	side.Convergence.SchemaReproduces.HasIdentitySchema = 10
-	side.Convergence.SchemaReproduces.Reproduced = []string{"aws_s3_bucket"}
-	side.Convergence.SchemaReproduces.ReproducedCount = 1
-	side.Convergence.SchemaReproduces.NotReproducedCount = 9
+	side.Mismatches.Summary.Compared = 100
+	side.Mismatches.Summary.GenuineMismatches = 5
 
 	report := buildReport(side, side, goldenResult{Ran: true, Passed: true})
 
@@ -118,19 +119,19 @@ func TestBuildReportSchemaPrecedenceMovement(t *testing.T) {
 		Survey:    surveyArtifact{ProviderVersion: "6.59.0"},
 		Readiness: readinessArtifact{},
 	}
-	old.Convergence.SchemaReproduces.HasIdentitySchema = 2
-	old.Convergence.SchemaReproduces.Reproduced = []string{"aws_a"}
-	old.Convergence.SchemaReproduces.ReproducedCount = 1
-	old.Convergence.SchemaReproduces.NotReproducedCount = 1
+	old.SchemaPrecedence.HasIdentitySchema = 2
+	old.SchemaPrecedence.Reproduced = []string{"aws_a"}
+	old.SchemaPrecedence.ReproducedCount = 1
+	old.SchemaPrecedence.NotReproducedCount = 1
 
 	newer := bumpArtifacts{
 		Survey:    surveyArtifact{ProviderVersion: "6.60.0"},
 		Readiness: readinessArtifact{},
 	}
-	newer.Convergence.SchemaReproduces.HasIdentitySchema = 2
-	newer.Convergence.SchemaReproduces.Reproduced = []string{"aws_a", "aws_b"}
-	newer.Convergence.SchemaReproduces.ReproducedCount = 2
-	newer.Convergence.SchemaReproduces.NotReproducedCount = 0
+	newer.SchemaPrecedence.HasIdentitySchema = 2
+	newer.SchemaPrecedence.Reproduced = []string{"aws_a", "aws_b"}
+	newer.SchemaPrecedence.ReproducedCount = 2
+	newer.SchemaPrecedence.NotReproducedCount = 0
 
 	report := buildReport(old, newer, goldenResult{})
 
@@ -164,5 +165,57 @@ func TestBuildReportGoldenMoved(t *testing.T) {
 	}
 	if !strings.Contains(report, "FAIL: TestIdentityGolden") {
 		t.Errorf("the golden section should carry the test's own output; got:\n%s", report)
+	}
+}
+
+// TestBuildReportNewUnruledMismatch is the one alarm the mismatch section
+// raises: a bump that leaves a compared row unreproduced AND unruled is a
+// row nobody has looked at. The count moving down, or the compared set
+// moving at all, is reported but is not movement to act on.
+func TestBuildReportNewUnruledMismatch(t *testing.T) {
+	old := bumpArtifacts{Survey: surveyArtifact{ProviderVersion: "6.59.0"}}
+	old.Mismatches.Summary.Compared = 100
+	old.Mismatches.Summary.GenuineMismatches = 4
+
+	newer := bumpArtifacts{Survey: surveyArtifact{ProviderVersion: "6.59.0"}}
+	newer.Mismatches.Summary.Compared = 100
+	newer.Mismatches.Summary.GenuineMismatches = 5
+	newer.Mismatches.Summary.UnannotatedMismatches = 1
+
+	report := buildReport(old, newer, goldenResult{})
+
+	if !strings.Contains(report, "NEW unruled mismatch(es)") {
+		t.Errorf("a newly unruled mismatch should raise the alarm; got:\n%s", report)
+	}
+	if !strings.Contains(report, "MOVEMENT DETECTED") {
+		t.Errorf("a newly unruled mismatch is movement; got:\n%s", report)
+	}
+	if !strings.Contains(report, "genuine mismatches: 4 (0 unruled) -> 5 (1 unruled)") {
+		t.Errorf("the section should carry both counts before and after; got:\n%s", report)
+	}
+}
+
+// TestBuildReportQuotesNoAdoptedUnchangedRatio pins issue #695's own
+// deletion. The retired metric is the share of ratified rows row-gen's
+// classifier already reproduces; it was read as coverage three sessions
+// running and it predicted nothing. This report is where it would come
+// back first, because a percentage looks like a headline.
+func TestBuildReportQuotesNoAdoptedUnchangedRatio(t *testing.T) {
+	side := bumpArtifacts{Survey: surveyArtifact{ProviderVersion: "6.59.0"}}
+	side.Mismatches.Summary.Compared = 1023
+	side.Mismatches.Summary.GenuineMismatches = 147
+	side.SchemaPrecedence.HasIdentitySchema = 161
+	side.SchemaPrecedence.ReproducedCount = 134
+	side.SchemaPrecedence.NotReproducedCount = 27
+
+	report := buildReport(side, side, goldenResult{Ran: true, Passed: true})
+
+	for _, banned := range []string{"adopted-unchanged", "adopted_unchanged", "convergence", "rowgen-convergence.json"} {
+		if strings.Contains(report, banned) {
+			t.Errorf("the report quotes %q, which #695 retired; got:\n%s", banned, report)
+		}
+	}
+	if strings.Contains(report, "%") {
+		t.Errorf("no section of this report is a percentage any more; got:\n%s", report)
 	}
 }

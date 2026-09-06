@@ -185,7 +185,7 @@ corpus init_bin="terraform":
 # ---------------------------------------------------------------------------
 
 # Regenerate every derived artifact, in dependency order (#133). No network.
-tables: mapping row-emit convergence identity-sources survey-render tagverbs-render limits harness toggles
+tables: mapping row-emit rowgen-mismatches schema-precedence identity-sources survey-render tagverbs-render limits harness toggles
     @git status --porcelain || true
 
 # CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
@@ -241,9 +241,18 @@ row-emit:
 wo-sweep init_bin="terraform":
     env -u PWD go run ./tools/wo-sweep -init-bin {{init_bin}} > live/wo-sweep.json
 
-# Measure the classifier against the shipped table -> rowgen-convergence.json. NOT a coverage metric.
-convergence:
-    env -u PWD go run ./tools/row-gen -convergence
+# Measure the classifier against the shipped table -> rowgen-mismatches.json.
+# NOT a coverage metric: the ratified row is what ships, so a mismatch is
+# generator-autonomy debt. Issue #102 and live/corpus-refusals.json measure
+# what a user actually hits.
+rowgen-mismatches:
+    env -u PWD go run ./tools/row-gen -mismatches
+
+# #387: does the provider's own identity schema reproduce each ratified row
+# -> live/schema-precedence.json. The offline half of the precedence
+# inversion internal/live/identity performs at resolution time.
+schema-precedence:
+    env -u PWD go run ./tools/row-gen -schema-precedence
 
 # Provider schemas -> live/survey.json and live/survey-full.json. Needs the provider.
 survey init_bin="terraform":
@@ -268,8 +277,8 @@ readiness-render:
 # Issue #441: re-run survey-gen and row-gen at VERSION (a hashicorp/aws
 # release), regenerate live/readiness.json, and print the movement report a
 # provider bump's PR should carry - types added/removed, tier movement, the
-# #387 schema-precedence delta (rowgen-convergence.json's schema_reproduces),
-# the ratified-row convergence headline, and whether the golden identity
+# #387 schema-precedence delta (live/schema-precedence.json), any newly
+# unruled classifier mismatch, and whether the golden identity
 # table moved. This is a report, not an event: nothing here bumps
 # internal/live/pins.AWSProviderVersion or commits anything, and
 # live/pins_drift_test.go stays red on the regenerated artifacts until a
@@ -287,7 +296,8 @@ readiness-render:
 provider-bump version init_bin="terraform":
     env -u PWD go run ./tools/survey-gen -all -provider-version {{version}} -init-bin {{init_bin}}
     env -u PWD go run ./tools/readiness-gen
-    env -u PWD go run ./tools/row-gen -convergence
+    env -u PWD go run ./tools/row-gen -mismatches
+    env -u PWD go run ./tools/row-gen -schema-precedence
     env -u PWD go run ./tools/provider-bump-report
 
 # Where the sources describing each type's identity disagree (#106), into

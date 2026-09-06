@@ -42,31 +42,36 @@ type readinessRow struct {
 	Status string `json:"status"`
 }
 
-// convergenceArtifact is live/rowgen-convergence.json narrowed to the two
-// buckets this report reads: the #387 schema-precedence measurement
-// (SchemaReproduces, tools/row-gen/schemafirst.go's own artifact shape) and
-// the headline ratified-row convergence summary.
-type convergenceArtifact struct {
-	Summary struct {
-		Compared              int     `json:"compared"`
-		AdoptedUnchangedPct   float64 `json:"adopted_unchanged_pct"`
-		GenuineMismatches     int     `json:"genuine_mismatches"`
-		UnannotatedMismatches int     `json:"unannotated_mismatches"`
-	} `json:"summary"`
-	SchemaReproduces struct {
-		HasIdentitySchema  int      `json:"has_identity_schema"`
-		Reproduced         []string `json:"reproduced"`
-		ReproducedCount    int      `json:"reproduced_count"`
-		NotReproducedCount int      `json:"not_reproduced_count"`
-	} `json:"schema_reproduces"`
+// schemaPrecedenceArtifact is live/schema-precedence.json narrowed to what
+// this report reads: issue #387's measurement, tools/row-gen/schemafirst.go's
+// own artifact shape.
+type schemaPrecedenceArtifact struct {
+	HasIdentitySchema  int      `json:"has_identity_schema"`
+	Reproduced         []string `json:"reproduced"`
+	ReproducedCount    int      `json:"reproduced_count"`
+	NotReproducedCount int      `json:"not_reproduced_count"`
 }
 
-// bumpArtifacts bundles one side (before or after) of the three committed
+// mismatchesArtifact is live/rowgen-mismatches.json narrowed to the two
+// counts this report reads. Deliberately no ratio: issue #695 retired
+// adopted-unchanged, and the section below reports movement in unruled
+// mismatches, which is a thing to act on, rather than a percentage that was
+// read as coverage three sessions running.
+type mismatchesArtifact struct {
+	Summary struct {
+		Compared              int `json:"compared"`
+		GenuineMismatches     int `json:"genuine_mismatches"`
+		UnannotatedMismatches int `json:"unannotated_mismatches"`
+	} `json:"summary"`
+}
+
+// bumpArtifacts bundles one side (before or after) of the four committed
 // artifacts a provider bump touches.
 type bumpArtifacts struct {
-	Survey      surveyArtifact
-	Readiness   readinessArtifact
-	Convergence convergenceArtifact
+	Survey           surveyArtifact
+	Readiness        readinessArtifact
+	SchemaPrecedence schemaPrecedenceArtifact
+	Mismatches       mismatchesArtifact
 }
 
 // goldenResult is whether and how internal/live/check's TestIdentityGolden
@@ -88,9 +93,9 @@ const listCap = 50
 // buildReport is the whole of this tool's output: pure over its three
 // arguments, so report_test.go exercises it with hand-built fixtures and no
 // git, no filesystem and no subprocess. old is the artifacts as committed at
-// -old-ref (HEAD by default); new is the same three artifacts as they stand
+// -old-ref (HEAD by default); new is the same four artifacts as they stand
 // on disk after `just provider-bump <version>` re-ran survey-gen,
-// readiness-gen and row-gen -convergence. golden is the result of running
+// readiness-gen and row-gen's two measuring modes. golden is the result of running
 // internal/live/check's TestIdentityGolden against the regenerated tree, or
 // the zero value when -skip-golden-test was passed.
 func buildReport(old, new bumpArtifacts, golden goldenResult) string {
@@ -159,10 +164,10 @@ func buildReport(old, new bumpArtifacts, golden goldenResult) string {
 	// 3. Schema-precedence, issue #387 (ruling 2 of
 	// the foundation-order ruling (#388)): whether the provider's own
 	// identity schema reproduces the ratified row, for every ratified type
-	// carrying one - live/rowgen-convergence.json's schema_reproduces
-	// bucket, tools/row-gen/schemafirst.go's own measurement.
-	oSR, nSR := old.Convergence.SchemaReproduces, new.Convergence.SchemaReproduces
-	fmt.Fprintf(&b, "## Schema-precedence, #387 (rowgen-convergence.json's schema_reproduces)\n")
+	// carrying one - live/schema-precedence.json, tools/row-gen/
+	// schemafirst.go's own measurement.
+	oSR, nSR := old.SchemaPrecedence, new.SchemaPrecedence
+	fmt.Fprintf(&b, "## Schema-precedence, #387 (live/schema-precedence.json)\n")
 	fmt.Fprintf(&b, "  candidates with a provider identity schema: %d -> %d\n", oSR.HasIdentitySchema, nSR.HasIdentitySchema)
 	fmt.Fprintf(&b, "  reproduced (schema agrees with the ratified row): %d -> %d\n", oSR.ReproducedCount, nSR.ReproducedCount)
 	fmt.Fprintf(&b, "  not reproduced: %d -> %d\n", oSR.NotReproducedCount, nSR.NotReproducedCount)
@@ -178,21 +183,21 @@ func buildReport(old, new bumpArtifacts, golden goldenResult) string {
 		b.WriteString("\n")
 	}
 
-	// 4. The ratified-row convergence headline: NOT a coverage metric (see
-	// tools/row-gen/main.go's own notACoverageMetric) - this is
-	// row-gen's fresh classifier measured against tools/row-gen/ratified.json,
-	// the human-ratified ledger, so a moved percentage says the classifier's
-	// own agreement with past judgment shifted, never that support changed.
-	fmt.Fprintf(&b, "## Ratified-row convergence (rowgen-convergence.json summary; NOT a coverage metric)\n")
-	fmt.Fprintf(&b, "  adopted-unchanged: %.2f%% of %d compared -> %.2f%% of %d compared\n",
-		old.Convergence.Summary.AdoptedUnchangedPct, old.Convergence.Summary.Compared,
-		new.Convergence.Summary.AdoptedUnchangedPct, new.Convergence.Summary.Compared)
-	fmt.Fprintf(&b, "  genuine mismatches: %d (%d unannotated) -> %d (%d unannotated)\n",
-		old.Convergence.Summary.GenuineMismatches, old.Convergence.Summary.UnannotatedMismatches,
-		new.Convergence.Summary.GenuineMismatches, new.Convergence.Summary.UnannotatedMismatches)
-	if new.Convergence.Summary.UnannotatedMismatches > old.Convergence.Summary.UnannotatedMismatches {
+	// 4. Classifier mismatches: NOT a coverage metric. This is row-gen's
+	// fresh classifier measured against tools/row-gen/ratified.json, the
+	// human-ratified ledger that -emit copies verbatim, so a moved count
+	// says the classifier's own agreement with past judgment shifted, never
+	// that support changed. Only the unruled count is an alarm: an unruled
+	// mismatch is a row nobody has looked at, which is the one thing here a
+	// bump can introduce and a human has to act on.
+	fmt.Fprintf(&b, "## Classifier mismatches (rowgen-mismatches.json; NOT a coverage metric)\n")
+	fmt.Fprintf(&b, "  compared: %d -> %d\n", old.Mismatches.Summary.Compared, new.Mismatches.Summary.Compared)
+	fmt.Fprintf(&b, "  genuine mismatches: %d (%d unruled) -> %d (%d unruled)\n",
+		old.Mismatches.Summary.GenuineMismatches, old.Mismatches.Summary.UnannotatedMismatches,
+		new.Mismatches.Summary.GenuineMismatches, new.Mismatches.Summary.UnannotatedMismatches)
+	if new.Mismatches.Summary.UnannotatedMismatches > old.Mismatches.Summary.UnannotatedMismatches {
 		movement = true
-		b.WriteString("  NEW unannotated mismatch(es) - review before ratifying\n")
+		b.WriteString("  NEW unruled mismatch(es) - review before ratifying\n")
 	}
 	b.WriteString("\n")
 

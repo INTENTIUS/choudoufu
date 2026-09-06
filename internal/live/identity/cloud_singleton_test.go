@@ -25,7 +25,7 @@ import (
 // resource's own, so "the type is admitted" and "the marker names the right
 // object" are further apart here than anywhere else in the table: an
 // admission boolean would be green over a component that resolved to the
-// empty string, and so would rowgen-convergence.
+// empty string, and so would row-gen's own mismatch ledger.
 //
 // The two blocks in the first fixture deliberately reach their region by the
 // two different routes resolve.go distinguishes, because only one of the two
