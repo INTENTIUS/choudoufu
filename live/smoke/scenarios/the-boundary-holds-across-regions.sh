@@ -129,9 +129,11 @@ explain \
   "region's instance is named, while the other region keeps being served" \
   "from cache. What a pass lists is its own configuration's declarations," \
   "so a type only one region declares is listed once, not once per region." \
-  "And the honest edge: the sweep looks where a provider configuration" \
+  "And the honest edges: the sweep looks where a provider configuration" \
   "points, so removing a region's last declaration takes the region out" \
-  "of the sweep with it."
+  "of the sweep with it, and repointing a block at another region is a" \
+  "replace whose other half no address can express - so it is refused" \
+  "by name rather than half-done."
 
 write_estate
 stack_up
@@ -357,44 +359,58 @@ echo "change set after:                   $CS_LOST" | evidence
 echo "coverage report differs: aws_vpc had to be listed per region for its markers, which is the price of the loss" | evidence
 proof "the answer survived losing every local file - both aws.east's and aws.west's halves re-derived from what their own regions carry - and the only thing that moved was the work each provider configuration had to do."
 
-step "5. a region change is a replace, and today you finish it by hand"
+step "5. a region change is a replace, and the half it cannot plan it refuses"
 explain \
   "The last question, answered by measurement rather than hope. An" \
   "address's provider configuration is part of what the address means," \
   "so pointing a resource at a different region cannot relocate an" \
   "object - no cloud API moves a VPC between regions, and live-mv" \
   "rewrites ownership tags rather than resources. So a region change is" \
-  "a replace. What this step pins is which half of the replace the plan" \
-  "actually proposes: the create in the new region, yes; the removal of" \
-  "the object left behind in the old one, NOT today. The old object's" \
-  "marker names an address the configuration still declares, so the" \
-  "sweep does not read it as an orphan - and the address now lives" \
-  "under a provider configuration that looks at a different region." \
-  "That is issue #906. Change a resource's region and the old object is" \
-  "yours to delete."
+  "a replace, and only half of it is expressible: a resource address" \
+  "carries exactly one provider configuration in the plan graph, taken" \
+  "from its own block, so the destroy of the object left behind in the" \
+  "region that block no longer names cannot be planned at that address" \
+  "at all. What this step pins is what the run does with the half it" \
+  "cannot plan. It refuses - naming the live VPC, the region it is in," \
+  "the region the address now points at, and what an operator can do" \
+  "about it - because creating the new object beside a live marked one" \
+  "would leave two live resources carrying this estate's marker for one" \
+  "address, which live/MARKERS.md forbids and which no later run could" \
+  "untangle. That is issue #906; before the fix the create was proposed" \
+  "with no line about the old object at all, under a coverage sentence" \
+  "promising marker discovery would find it - in a region it is not in."
 cmd "aws_vpc.west: provider = aws.east ; choudoufu plan ; aws ec2 describe-vpcs (us-west-2)"
 OLD_VPC="$(awsl --region us-west-2 ec2 describe-vpcs --filters "Name=tag:tofu-address,Values=aws_vpc.west" --query 'Vpcs[0].VpcId' --output text)"
 [ -n "$OLD_VPC" ] && [ "$OLD_VPC" != "None" ] || fail "regions" "no marked vpc in us-west-2 to move away from"
 sed_i "$SMOKE_WORK/main.tf" '/resource "aws_vpc" "west"/,/^}/ s/provider   = aws.west/provider   = aws.east/'
 grep -A1 'resource "aws_vpc" "west"' "$SMOKE_WORK/main.tf" | grep -q 'aws.east' \
   || fail "regions" "the edit did not repoint aws_vpc.west at aws.east"
-P_MOVE="$(plan_default)" || fail "regions" "the repointed plan failed"
-grep -q 'aws_vpc.west will be created' <<< "$P_MOVE" \
-  || fail "regions" "a region change did not plan a create in the new region, so it was read as a move after all: $P_MOVE"
+# The plan is expected to fail now, so its status is not the measurement -
+# the verdict lines below are. || true keeps set -e out of the way.
+P_MOVE="$(plan_default || true)"
+grep -q 'Marked resource outside its address' <<< "$P_MOVE" \
+  || fail "regions" "a region change did not refuse: the old region's marked object was abandoned with no line about it, which is issue #906's defect: $P_MOVE"
+grep -q "$OLD_VPC" <<< "$P_MOVE" \
+  || fail "regions" "the refusal does not name $OLD_VPC, the live object left in us-west-2, so an operator cannot act on it: $P_MOVE"
+grep -q 'us-west-2' <<< "$P_MOVE" \
+  || fail "regions" "the refusal does not name the region the object is in: $P_MOVE"
+if grep -q 'aws_vpc.west will be created' <<< "$P_MOVE"; then
+  fail "regions" "the run proposed creating aws_vpc.west in us-east-1 anyway, so it is about to manufacture two live resources carrying one address's marker: $P_MOVE"
+fi
+if grep -q 'Marker discovery will find it' <<< "$P_MOVE"; then
+  fail "regions" "the plan still tells the operator marker discovery will find aws_vpc.west; discovery for it lists us-east-1 now, where the object is not and cannot be (issue #906)"
+fi
 STILL_VPC="$(awsl --region us-west-2 ec2 describe-vpcs --filters "Name=tag:tofu-address,Values=aws_vpc.west" --query 'Vpcs[0].VpcId' --output text)"
 [ "$STILL_VPC" = "$OLD_VPC" ] \
-  || fail "regions" "the us-west-2 object is not where this step left it ($STILL_VPC vs $OLD_VPC), so what follows measures nothing"
-grep -E 'aws_vpc.west will be (created|destroyed)' <<< "$P_MOVE" | evidence
-grep -E '^Plan: ' <<< "$P_MOVE" | head -1 | evidence
-echo "and $OLD_VPC is still in us-west-2, marked tofu-address=aws_vpc.west, with no plan line about it (issue #906)" | evidence
-if grep -q 'aws_vpc.west will be destroyed' <<< "$P_MOVE"; then
-  fail "regions" "the old region's object IS proposed for removal now - issue #906 is fixed and this step's pinned answer is stale; update it rather than the product"
-fi
+  || fail "regions" "the us-west-2 object is not where this step left it ($STILL_VPC vs $OLD_VPC) - a refusal must change nothing in the cloud"
+grep -A2 'Marked resource outside its address' <<< "$P_MOVE" | head -4 | evidence
+echo "and $OLD_VPC is still in us-west-2, untouched: a refusal is loud and reversible" | evidence
 sed_i "$SMOKE_WORK/main.tf" '/resource "aws_vpc" "west"/,/^}/ s/provider   = aws.east/provider   = aws.west/'
 P_UNDO="$(plan_default)" || fail "regions" "the plan after undoing the region change failed"
 grep -q "No changes." <<< "$P_UNDO" \
   || fail "regions" "undoing the region change did not return the estate to converged: $P_UNDO"
-proof "moving aws_vpc.west from aws.west to aws.east planned a create in us-east-1 - a replace, never a move - and left $OLD_VPC in us-west-2 with no plan line proposing to remove it. That is the honest answer, pinned here so it cannot change quietly."
+grep -m1 'No changes.' <<< "$P_UNDO" | evidence
+proof "moving aws_vpc.west from aws.west to aws.east refused by name - $OLD_VPC, in us-west-2, for an address that now points at us-east-1 - rather than creating a second object and leaving the first one billed and unmentioned; nothing in either region moved, and pointing the block back planned clean."
 
 step "6. teardown"
 explain \
@@ -413,6 +429,9 @@ echo "  them; a client-chosen name mirrored into two regions staying two"
 echo "  distinct objects, so deleting one named that region's instance and"
 echo "  only that one while the other region kept being served from cache;"
 echo "  each pass listing its own configuration's declarations, so an"
-echo "  account-global type declared once was listed once; and the honest"
+echo "  account-global type declared once was listed once; the honest"
 echo "  edge - the sweep follows provider configurations, so a region's"
-echo "  last declaration takes the region out of the sweep with it."
+echo "  last declaration takes the region out of the sweep with it; and"
+echo "  a region change refused by name rather than half-planned, because"
+echo "  a create in the new region beside a live marked object in the old"
+echo "  one is two live resources answering to one address."
