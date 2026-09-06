@@ -748,7 +748,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	projResult, projDiags := projection.BuildWith(ctx, config, merged, provs, projection.Options{
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
-		Ownership:           statelessOwnershipWith(estate, disco, pol, reconcileVerified),
+		// GitHub issue #906. Empty unless this estate spans provider
+		// configurations AND `strict { provider_change = "recreate" }` let a
+		// repointed block through: it names the object left behind, so the
+		// coverage line for the instance being created in its place says so
+		// instead of promising that marker discovery will find it.
+		StrandedByProviderChange: disco.StrandedByProviderChange(),
+		Ownership:                statelessOwnershipWith(estate, disco, pol, reconcileVerified),
 		// GitHub issue #364: one store for GitHub issue #270's record-located
 		// instances (the reason this is wired at all - without it nothing
 		// can say which live object the instance owns, so live-plan would
@@ -1370,7 +1376,13 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	merged, providerOf, mergeDiags := discovery.Merge(estate, passes)
+	// GitHub issue #906's toggle, resolved here rather than inside the
+	// merge for the same reason internal/live/projection's
+	// NodeResolver.NoSourceCreate is resolved at this layer: the strict
+	// schema is the command's to read, and the package that acts takes the
+	// answer as a plain bool.
+	merged, providerOf, mergeDiags := discovery.Merge(estate, passes,
+		strict.RecreatesOnProviderChange(identity.ProviderChangeFor(config)))
 	diags = diags.Append(mergeDiags)
 	if mergeDiags.HasErrors() {
 		return merged, noProvider, providerOf, diags

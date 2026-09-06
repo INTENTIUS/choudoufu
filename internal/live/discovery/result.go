@@ -60,6 +60,19 @@ type Verdicts struct {
 	// [Result.MarkerVerified].
 	VerifiedDeclared []addrs.AbsResourceInstance
 
+	// DeclaredSightings is every live object this pass listed that carries
+	// this estate's marker for an address the configuration declares,
+	// labeled with the provider configuration that address's own resource
+	// block uses and whether that is the configuration this pass listed
+	// through (GitHub issue #906).
+	//
+	// [Merge] is its only consumer: a single pass cannot tell an ordinary
+	// account-global sighting of somebody else's declared resource apart
+	// from a resource stranded in a region its address no longer points
+	// at, because from inside one account both look the same - declared
+	// elsewhere, sighted here. See outofscope.go.
+	DeclaredSightings []DeclaredSighting
+
 	// CacheVouchSightings is the vouch pass's second product (issue #692
 	// increment 2): for each [Request.CacheVouchTypes] type, the set of
 	// live import identities the listing returned WITHOUT a visible
@@ -858,6 +871,47 @@ const (
 	// [ProblemUnsweepableOwnedType] and a [SweepGap] fail in.
 	ProblemDisplacedMarker ProblemKind = "DISPLACED_MARKER"
 
+	// ProblemOutOfScopeMarker is a live resource carrying this estate's
+	// marker for an address the configuration declares under a provider
+	// configuration that never listed it, while every pass that did list it
+	// was one the address does not belong to.
+	//
+	// GitHub issue #906: the population is a region or account change - a
+	// resource block repointed from `provider = aws.west` to
+	// `provider = aws.east`, which is a replace in stock terms, except that
+	// the old region's object keeps this estate's markers and the sweep's
+	// unit is the provider configuration, never the region. The create in
+	// the new region is planned; the old object was in no section of the
+	// result at all, and the coverage line beside the create said marker
+	// discovery would find it, which for that instance can never come true.
+	//
+	// An error rather than a warning, and the only one of the marker
+	// findings that refuses a plan the run could otherwise complete: what it
+	// stops is the run manufacturing [ProblemCollision] itself, by creating a
+	// second live resource carrying one address's marker. See
+	// internal/live/discovery/outofscope.go for why the destroy of the old
+	// object is not available at that address, and why refusing is the
+	// answer HANDOFF's safety rule leaves.
+	ProblemOutOfScopeMarker ProblemKind = "OUT_OF_SCOPE_MARKER"
+
+	// ProblemAbandonedByProviderChange is [ProblemOutOfScopeMarker]'s exact
+	// situation seen under `strict { provider_change = "recreate" }`: the
+	// operator has said, in the configuration, that this is what they meant.
+	//
+	// A warning rather than an error, because the toggle is the decision and
+	// this is the notice, not a second opinion about it. It is not silence:
+	// the object stays live, keeps this estate's markers, and no plan will
+	// ever propose anything for it - so this line, on every plan that sees
+	// it, is the only notice there will ever be, and it names the object,
+	// the provider configuration that found it and the truth that nothing
+	// will find it again. GitHub issue #906 (maintainer ruling, 2026-09-06).
+	//
+	// Two kinds rather than one severity computed at the call site, because
+	// TestSeverityForRefusalMatchesTheDiagnostic pins severity per kind: a
+	// kind that were sometimes an error and sometimes a warning would make
+	// live/LIMITATIONS.md's own severity column a guess.
+	ProblemAbandonedByProviderChange ProblemKind = "ABANDONED_BY_PROVIDER_CHANGE"
+
 	// ProblemNeedsSlotMarkers is several live resources sharing one count
 	// instance's address, with no slot markers to tell them apart. Guessing
 	// here would attach a plan to an arbitrary member of a fungible set.
@@ -1058,7 +1112,7 @@ const (
 func (k ProblemKind) Severity() Severity {
 	switch k {
 	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker, ProblemUnreadableMarker,
-		ProblemUndeclaredCrossTypeMarker:
+		ProblemUndeclaredCrossTypeMarker, ProblemAbandonedByProviderChange:
 		return SeverityWarning
 	}
 	return SeverityError

@@ -119,6 +119,26 @@ type Options struct {
 	// configuration to begin with.
 	UndeclaredProviders map[string]addrs.AbsProviderConfig
 
+	// StrandedByProviderChange names, per declared instance address, this
+	// estate's marked live object for that address which no provider
+	// configuration the run could bind through reaches - the object a region
+	// or account change left behind, in the form the diagnostic beside it
+	// uses ("vpc-0abc in us-west-2"). GitHub issue #906.
+	//
+	// It reaches a plan at all only under
+	// `strict { provider_change = "recreate" }`: the default refuses, so
+	// nothing downstream of the merge runs. Its one job is the coverage line
+	// this package writes for such an instance, which otherwise says marker
+	// discovery will find it - a recovery path that for this instance cannot
+	// happen, because discovery for it now lists an account and region the
+	// object is not in. A map rather than a flag because it is per address:
+	// every OTHER needs-discovery instance in the same estate keeps the
+	// ordinary sentence, which for them is true.
+	//
+	// Nil for every caller that has no such instance, which is every
+	// single-provider run.
+	StrandedByProviderChange map[string]string
+
 	// Ownership is the rule deciding which live objects may enter the prior
 	// state. Nil means no check, which is what a caller that has no estate
 	// concept at all - the marker rewrite in internal/live/mv, reading
@@ -588,7 +608,7 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	concrete, derived, needsDiscovery, cyclic, recordBacked, located := orderWork(rest)
 
 	for _, r := range needsDiscovery {
-		b.omit(r.Addr, ReasonNeedsDiscovery, needsDiscoveryDetail(r), needsDiscoveryCause(r))
+		b.omit(r.Addr, ReasonNeedsDiscovery, b.needsDiscoveryDetail(r), b.needsDiscoveryCause(r))
 	}
 
 	declaredRecordBacked := make(map[string]bool, len(recordBacked))
@@ -3979,11 +3999,31 @@ func (b *builder) omitFailed(addr addrs.AbsResourceInstance, detail string) {
 	b.omit(addr, ReasonFailed, detail, omitFailedCause)
 }
 
-func needsDiscoveryDetail(r identity.Resolution) string {
-	return "No import identity exists for this instance: " + discoveryReason(r) + " Marker discovery will find it; until then the plan will propose creating it."
+// needsDiscoveryDetail is the coverage line for an instance whose identity
+// only a marker sweep can supply.
+//
+// The ordinary sentence promises the sweep will find it, and for the ordinary
+// instance that is true - the next converged run binds it. GitHub issue #906
+// is the instance for which it is not, and printing it there sent an operator
+// looking in a region the object is not in: the block has moved to a provider
+// configuration that does not reach this estate's marked object for its
+// address, so no run of this configuration will ever list the place it is.
+// [Options.StrandedByProviderChange] is what says which instances those are,
+// and this says so instead.
+func (b *builder) needsDiscoveryDetail(r identity.Resolution) string {
+	base := "No import identity exists for this instance: " + discoveryReason(r)
+	if where, ok := b.opts.StrandedByProviderChange[r.Addr.String()]; ok && where != "" {
+		return base + " Marker discovery will NOT find it: this estate's marked object for this address (" + where +
+			") is outside the reach of the provider configuration this block now names, and the plan proposes creating a new one beside it. See the warning above."
+	}
+	return base + " Marker discovery will find it; until then the plan will propose creating it."
 }
 
-func needsDiscoveryCause(r identity.Resolution) string {
+func (b *builder) needsDiscoveryCause(r identity.Resolution) string {
+	if where, ok := b.opts.StrandedByProviderChange[r.Addr.String()]; ok && where != "" {
+		return strings.TrimSuffix(discoveryReason(r), ".") +
+			", and this estate's marked object for it (" + where + ") is outside the reach of the provider configuration this block now names, so nothing will find it."
+	}
 	return strings.TrimSuffix(discoveryReason(r), ".") + ", so only marker discovery can find it."
 }
 

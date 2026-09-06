@@ -126,3 +126,26 @@ func NoSourceCreateFor(cfg *configs.Config) strict.NoSourceCreate {
 	}
 	return v
 }
+
+// ProviderChangeFor is [NoSourceCreateFor]'s twin for GitHub issue #906's
+// toggle, resolved the same way and for the same reasons: an absent live
+// block, an absent strict block and an omitted argument all answer
+// [strict.ProviderChangeDefault], and a spelling internal/live/strict does
+// not know has already been refused by internal/live/lint
+// (RuleStrictProviderChange), so a caller reaching here with one has
+// skipped lint and the honest answer is the default rather than a guess at
+// which way the operator meant to move.
+func ProviderChangeFor(cfg *configs.Config) strict.ProviderChange {
+	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil || cfg.Module.Live.Strict == nil {
+		return strict.ProviderChangeDefault()
+	}
+	st := cfg.Module.Live.Strict
+	if !st.ProviderChangeSet {
+		return strict.ProviderChangeDefault()
+	}
+	v := strict.ProviderChange(st.ProviderChange)
+	if !strict.ProviderChangeValid(v) {
+		return strict.ProviderChangeDefault()
+	}
+	return v
+}

@@ -181,6 +181,13 @@ const (
 	// one shape here: a typo. GitHub issue #365, ruling 4. See strict.go.
 	RuleStrictNoSourceCreate Rule = "strict-no-source-create"
 
+	// RuleStrictProviderChange covers a live block's strict block whose
+	// provider_change argument names something outside
+	// internal/live/strict's vocabulary. Both settings the vocabulary
+	// defines are implemented, so like [RuleStrictNoSourceCreate] there is
+	// only one shape here: a typo. GitHub issue #906. See strict.go.
+	RuleStrictProviderChange Rule = "strict-provider-change"
+
 	// RulePolicyThreshold covers a policy block's threshold argument set to
 	// zero or a negative number. It exists to be raised deliberately once a
 	// delete quadrant's roster has been reviewed, which a non-positive
@@ -388,6 +395,10 @@ var ruleInfo = map[Rule]struct {
 	RuleStrictNoSourceCreate: {
 		summary: "No-source-create setting is not one this fork's schema defines",
 		docsRef: `live/LIMITATIONS.md, "strict-no-source-create"`,
+	},
+	RuleStrictProviderChange: {
+		summary: "Provider-change setting is not one this fork's schema defines",
+		docsRef: `live/LIMITATIONS.md, "strict-provider-change"`,
 	},
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",

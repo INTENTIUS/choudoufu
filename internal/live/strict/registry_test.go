@@ -21,6 +21,7 @@ func TestTogglesDefaultsMatchConstants(t *testing.T) {
 		"marker_repair":    string(DefaultMarkerRepair),
 		"secrets":          string(DefaultSecrets),
 		"no_source_create": string(DefaultNoSourceCreate),
+		"provider_change":  string(DefaultProviderChange),
 	}
 	seen := make(map[string]bool)
 	for _, tg := range Toggles {
@@ -53,6 +54,7 @@ func TestToggleNamedAndPinnability(t *testing.T) {
 	}{
 		{"secrets", true, true},
 		{"no_source_create", true, true},
+		{"provider_change", true, true},
 		{"marker_repair", true, false},
 		{"no_such_toggle", false, false},
 	} {
@@ -95,6 +97,7 @@ func TestToggleValuesAreRecognizedSpellings(t *testing.T) {
 		"marker_repair":    func(v string) bool { return Valid(MarkerRepair(v)) },
 		"secrets":          func(v string) bool { return SecretsValid(Secrets(v)) },
 		"no_source_create": func(v string) bool { return NoSourceCreateValid(NoSourceCreate(v)) },
+		"provider_change":  func(v string) bool { return ProviderChangeValid(ProviderChange(v)) },
 	}
 	for _, tg := range Toggles {
 		isValid, ok := valid[tg.Name]

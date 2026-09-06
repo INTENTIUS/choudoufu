@@ -62,6 +62,14 @@ func PinnedSecrets() Secrets { return Refuse }
 // function's.
 func PinnedNoSourceCreate() NoSourceCreate { return NoSourceRefuse }
 
+// PinnedProviderChange is [PinnedSecrets]'s twin for the provider_change
+// toggle. It equals [DefaultProviderChange], the same way
+// [PinnedNoSourceCreate] equals its own default: the safety-first setting
+// is already what an omitted argument resolves to, so pinning only ever
+// changes behavior for a configuration that explicitly asks for
+// "recreate", and that case is [PinRefusal]'s.
+func PinnedProviderChange() ProviderChange { return ProviderChangeRefuse }
+
 // SecretsDefault is what internal/live/identity.SecretsFor resolves an
 // omitted, absent, or unrecognised secrets argument to: [DefaultSecrets]
 // unless [Pinned], in which case [PinnedSecrets] - the pin's silent half.
@@ -81,6 +89,15 @@ func NoSourceCreateDefault() NoSourceCreate {
 		return PinnedNoSourceCreate()
 	}
 	return DefaultNoSourceCreate
+}
+
+// ProviderChangeDefault is [SecretsDefault]'s twin for
+// internal/live/identity.ProviderChangeFor.
+func ProviderChangeDefault() ProviderChange {
+	if Pinned() {
+		return PinnedProviderChange()
+	}
+	return DefaultProviderChange
 }
 
 // PinRefusal returns the refusal detail for a `strict.<name>` argument

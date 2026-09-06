@@ -1760,71 +1760,157 @@ func TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider(t *testing.T) {
 // configuration cannot see it, and the aliased configuration must not bind
 // it however plainly the marker names it.
 //
-// A create is the visible, safe failure; a silent bind to an object in
+// A refusal is the visible, safe failure; a silent bind to an object in
 // another region is the invisible, unsafe one. This test demands the first.
+//
+// GitHub issue #906 moved which visible failure it is. When this test was
+// written the run proposed a create for aws_vpc.east and said nothing about
+// vpc-misplaced, which is #906's defect standing right here in this fixture:
+// the estate would end up with two live objects carrying one address's
+// marker, and no later run could bind or destroy either. The refusal
+// replaces it, and every property this test exists for is unchanged - the
+// misplaced object is still never read, aws_vpc.west is still bound through
+// its own configuration - while the third assertion moved from "the create
+// is proposed" to "the run names the object and stops". The escape hatch, if
+// this were really what an operator meant, is
+// strict { provider_change = "recreate" }: see
+// internal/live/discovery/outofscope_test.go, which exercises both settings.
 //
 // Mutation: drop ScopeProvider from statelessDiscover's multi-provider loop
 // (pass addrs.AbsProviderConfig{} as scopeProvider, the single-provider
 // path's own value) and the aliased configuration's pass binds
-// aws_vpc.east to vpc-misplaced, the plan comes back with no create for it,
-// and both assertions below go red.
+// aws_vpc.east to vpc-misplaced - which is a binding, not a stranding, so
+// the refusal below never fires either and every assertion goes red.
 func TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders(t *testing.T) {
-	td := t.TempDir()
-	testCopyDir(t, testFixturePath("live-plan-multi-provider-needs-discovery"), td)
-	t.Chdir(td)
+	// misplacedEstate lays the fixture down and puts the two objects in it:
+	// aws_vpc.west's own, where it belongs, and one carrying aws_vpc.east's
+	// marker in the region only the ALIASED configuration reaches.
+	// providerChange, when non-empty, is written into a live block as the
+	// strict toggle for the arm that exercises it.
+	misplacedEstate := func(t *testing.T, providerChange string) *statelessTestCloud {
+		t.Helper()
+		td := t.TempDir()
+		testCopyDir(t, testFixturePath("live-plan-multi-provider-needs-discovery"), td)
+		if providerChange != "" {
+			// Written here rather than in a second fixture directory: the
+			// estate, the providers and the two resource blocks must be the
+			// SAME ones the refusing arm runs over, or the two arms would be
+			// comparing different configurations rather than two settings.
+			path := filepath.Join(td, "main.tf")
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("reading the copied fixture: %s", err)
+			}
+			live := "terraform {\n  live {\n    estate = \"multi-provider-unit\"\n    strict {\n      provider_change = \"" + providerChange + "\"\n    }\n  }\n}\n\n"
+			if err := os.WriteFile(path, append([]byte(live), src...), 0o600); err != nil {
+				t.Fatalf("writing the fixture with the toggle: %s", err)
+			}
+		}
+		t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+		cloud := newStatelessTestCloud()
 
-	// aws_vpc.west's own object, where it belongs.
-	cloud.putMarked("aws_vpc", "vpc-in-west", "multi-provider-unit", "aws_vpc.west", map[string]string{
-		"id": "vpc-in-west", "cidr_block": "10.1.0.0/16",
+		// aws_vpc.west's own object, where it belongs.
+		cloud.putMarked("aws_vpc", "vpc-in-west", "multi-provider-unit", "aws_vpc.west", map[string]string{
+			"id": "vpc-in-west", "cidr_block": "10.1.0.0/16",
+		})
+		cloud.list("aws_vpc", "vpc-in-west", "the aliased configuration's VPC",
+			map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.west"},
+			map[string]string{"cidr_block": "10.1.0.0/16"})
+		cloud.inRegion("aws_vpc", "vpc-in-west", "us-west-2")
+
+		// An object carrying aws_vpc.east's marker, in the region only the
+		// ALIASED configuration reaches. aws_vpc.east's own block uses the
+		// default configuration, so no pass may bind this.
+		cloud.putMarked("aws_vpc", "vpc-misplaced", "multi-provider-unit", "aws_vpc.east", map[string]string{
+			"id": "vpc-misplaced", "cidr_block": "10.0.0.0/16",
+		})
+		cloud.list("aws_vpc", "vpc-misplaced", "an east-marked VPC in the west",
+			map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.east"},
+			map[string]string{"cidr_block": "10.0.0.0/16"})
+		cloud.inRegion("aws_vpc", "vpc-misplaced", "us-west-2")
+
+		return cloud
+	}
+
+	// The default. The run refuses and names the object, and #283's own
+	// hazard - reading vpc-misplaced, which is what binding it looks like -
+	// is what it must not do on the way there.
+	t.Run("default: refused by name, nothing bound across configurations", func(t *testing.T) {
+		cloud := misplacedEstate(t, "")
+		c, done := newLivePlanCommand(t, cloud)
+
+		code := c.Run([]string{"-no-color", "-estate=multi-provider-unit"})
+		output := done(t)
+		all := output.Stdout() + output.Stderr()
+		if code == 0 {
+			t.Fatalf("exit code 0: an object carrying aws_vpc.east's marker sits where only the aliased configuration reaches it, and the run neither bound it nor said so (GitHub issue #906):\n%s", all)
+		}
+		if cloud.imported("aws_vpc", "vpc-misplaced") {
+			t.Errorf("vpc-misplaced was read back, so a pass bound an object visible only to the aliased provider configuration to aws_vpc.east, whose block uses the default one. That is a wrong marker, which is worse than the missing one this replaces:\n%s", all)
+		}
+		if !strings.Contains(all, "Marked resource outside its address's provider configuration") {
+			t.Errorf("the run did not refuse by name; aws_vpc.east's marked object is somewhere its own provider configuration cannot reach and the plan must say so:\n%s", all)
+		}
+		for _, want := range []string{"vpc-misplaced", "aws_vpc.east", `strict { provider_change = "recreate" }`} {
+			if !strings.Contains(all, want) {
+				t.Errorf("the refusal does not name %q:\n%s", want, all)
+			}
+		}
+		if strings.Contains(all, "aws_vpc.east will be created") {
+			t.Errorf("aws_vpc.east was proposed as a create over the top of vpc-misplaced, which would leave two live objects carrying one address's marker:\n%s", all)
+		}
 	})
-	cloud.list("aws_vpc", "vpc-in-west", "the aliased configuration's VPC",
-		map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.west"},
-		map[string]string{"cidr_block": "10.1.0.0/16"})
-	cloud.inRegion("aws_vpc", "vpc-in-west", "us-west-2")
 
-	// An object carrying aws_vpc.east's marker, in the region only the
-	// ALIASED configuration reaches. aws_vpc.east's own block uses the
-	// default configuration, so no pass may bind this.
-	cloud.putMarked("aws_vpc", "vpc-misplaced", "multi-provider-unit", "aws_vpc.east", map[string]string{
-		"id": "vpc-misplaced", "cidr_block": "10.0.0.0/16",
+	// The toggle. This is the arm that still measures #283's own property in
+	// full, because it is the one where the run gets all the way to reading
+	// the live system: aws_vpc.west is bound through its own configuration,
+	// vpc-misplaced is never read, and aws_vpc.east is the one create.
+	t.Run("provider_change = recreate: proceeds, still binding nothing across configurations", func(t *testing.T) {
+		cloud := misplacedEstate(t, "recreate")
+		c, done := newLivePlanCommand(t, cloud)
+
+		// No -estate here: the live block this arm writes is what names the
+		// estate, and naming it twice is refused on purpose.
+		code := c.Run([]string{"-no-color"})
+		output := done(t)
+		stdout, stderr := output.Stdout(), output.Stderr()
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0 under the toggle\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		}
+		all := stdout + stderr
+
+		if cloud.imported("aws_vpc", "vpc-misplaced") {
+			t.Errorf("vpc-misplaced was read back, so a pass bound an object visible only to the aliased provider configuration to aws_vpc.east, whose block uses the default one. That is a wrong marker, which is worse than the missing one this replaces:\n%s", all)
+		}
+		if !cloud.imported("aws_vpc", "vpc-in-west") {
+			t.Errorf("aws_vpc.west was not bound to its own region's object; this test proves nothing if discovery found nothing at all: %v", cloud.imports)
+		}
+		if !strings.Contains(stdout, "aws_vpc.east will be created") {
+			t.Errorf("aws_vpc.east has no object its own provider configuration can see, so the plan must propose creating it. Anything quieter means it bound something:\n%s", all)
+		}
+		if strings.Contains(stdout, "aws_vpc.west will be created") {
+			t.Errorf("aws_vpc.west exists in its own configuration's region and must not be proposed as a create:\n%s", all)
+		}
+		if !strings.Contains(stdout, "Plan: 1 to add, 0 to change, 0 to destroy") {
+			t.Errorf("want exactly one create (aws_vpc.east) and nothing else:\n%s", all)
+		}
+		// The toggle buys the create, not silence: vpc-misplaced is still
+		// named, and the coverage line beside the create no longer promises
+		// that marker discovery will find it.
+		if !strings.Contains(all, "Marked resource abandoned by a provider configuration change") {
+			t.Errorf("the toggle silenced the finding entirely; the abandoned object has to be named on every plan that sees it:\n%s", all)
+		}
+		if strings.Contains(collapseSpace(all), "Marker discovery will find it") {
+			t.Errorf("the coverage line still promises marker discovery will find aws_vpc.east; it lists us-east-1 now, where vpc-misplaced is not:\n%s", all)
+		}
 	})
-	cloud.list("aws_vpc", "vpc-misplaced", "an east-marked VPC in the west",
-		map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.east"},
-		map[string]string{"cidr_block": "10.0.0.0/16"})
-	cloud.inRegion("aws_vpc", "vpc-misplaced", "us-west-2")
-
-	c, done := newLivePlanCommand(t, cloud)
-
-	code := c.Run([]string{"-no-color", "-estate=multi-provider-unit"})
-	output := done(t)
-	if code != 0 {
-		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
-	}
-	stdout := output.Stdout()
-
-	// The wrong-marker hazard itself: the misplaced object must never have
-	// been read, because reading it is what binding it looks like.
-	if cloud.imported("aws_vpc", "vpc-misplaced") {
-		t.Errorf("vpc-misplaced was read back, so a pass bound an object visible only to the aliased provider configuration to aws_vpc.east, whose block uses the default one. That is a wrong marker, which is worse than the missing one this replaces:\n%s", stdout)
-	}
-	// aws_vpc.west is unaffected, and still bound through its own
-	// configuration - the guard has to distinguish "bound nothing" from
-	// "bound nothing across configurations".
-	if !cloud.imported("aws_vpc", "vpc-in-west") {
-		t.Errorf("aws_vpc.west was not bound to its own region's object; this test proves nothing if discovery found nothing at all: %v", cloud.imports)
-	}
-	if !strings.Contains(stdout, "aws_vpc.east will be created") {
-		t.Errorf("aws_vpc.east has no object its own provider configuration can see, so the plan must propose creating it. Anything quieter means it bound something:\n%s", stdout)
-	}
-	if strings.Contains(stdout, "aws_vpc.west will be created") {
-		t.Errorf("aws_vpc.west exists in its own configuration's region and must not be proposed as a create:\n%s", stdout)
-	}
-	if !strings.Contains(stdout, "Plan: 1 to add, 0 to change, 0 to destroy") {
-		t.Errorf("want exactly one create (aws_vpc.east) and nothing else:\n%s", stdout)
-	}
 }
+
+// collapseSpace folds every run of whitespace into one space, so an
+// assertion about a SENTENCE is not defeated by the width the diagnostic
+// renderer happened to wrap it at.
+func collapseSpace(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // TestStatelessTestCloud_recordsEveryImportUnderConcurrency is GitHub issue
 // #629's guard, and it guards the HARNESS rather than the product: the mock

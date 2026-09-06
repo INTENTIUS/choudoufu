@@ -872,19 +872,29 @@ The steps as they print:
    no record to read, each region has to be listed for markers, and a run
    reporting the same coverage would be a run that never noticed the
    files were gone.
-5. `a region change is a replace, and today you finish it by hand` - one
-   VPC's `provider` moves from `aws.west` to `aws.east`. The plan
-   proposes creating it in `us-east-1`, which is the honest reading: no
-   cloud API moves a VPC between regions, and `live-mv` rewrites
-   ownership tags rather than resources. What the plan does **not**
-   propose is removing the object left behind in `us-west-2`. Its marker
-   names an address the configuration still declares, so the sweep does
-   not read it as an orphan, and the address now sits under a provider
-   configuration pointed somewhere else. Change a resource's region today
-   and the old object is yours to delete:
-   [issue #906](https://github.com/INTENTIUS/choudoufu/issues/906). The
-   step asserts the leftover is still live and unmentioned, and fails if
-   that ever stops being true, so the pin cannot go stale quietly.
+5. `a region change is a replace: refused by default, permitted by name` -
+   one VPC's `provider` moves from `aws.west` to `aws.east`. That is a
+   replace, not a move: no cloud API relocates a VPC between regions, and
+   `live-mv` rewrites ownership tags rather than resources. Only half of
+   the replace is expressible, because a resource address carries exactly
+   one provider configuration in the plan graph - taken from its own block
+   - so the destroy of the object left behind in `us-west-2` cannot be
+   planned at that address at all. The step runs both of the two answers
+   the schema offers for the half that cannot be planned. **By default the
+   run refuses**: the plan names the live VPC, the region it is in, the
+   region its address now points at, and the four things an operator can do
+   about it, one of which is the toggle. Proceeding would leave two live
+   resources carrying this estate's marker for one address, which is what
+   live/MARKERS.md's ownership semantics forbid and what
+   `crossProviderOrphanCollisions` already refuses a plan over once both
+   objects exist. **With `strict { provider_change = "recreate" }` the plan
+   proceeds** - stock OpenTofu's own outcome - and the same finding comes
+   back as a warning naming the object, where it is, and the fact that no
+   plan will ever propose anything for it. The toggle buys the create, not
+   the silence, and in neither mode does anything claim marker discovery
+   will find the old object:
+   [issue #906](https://github.com/INTENTIUS/choudoufu/issues/906) and its
+   maintainer ruling of 2026-09-06.
 6. `teardown` - one destroy removes exactly what the two provider
    configurations hold between them.
 

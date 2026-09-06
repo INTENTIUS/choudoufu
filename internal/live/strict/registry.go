@@ -156,6 +156,28 @@ var Toggles = []Toggle{
 			`"choudoufu live-import" from a stock state that already holds it, or this toggle. "create" ` +
 			`selects stock OpenTofu's own behavior for a resource with no prior state: plan a create.`,
 	},
+	{
+		Name:    "provider_change",
+		Default: string(DefaultProviderChange),
+		Relaxes: `"recreate" relaxes the default refusal of a resource block that has moved to a different ` +
+			`provider configuration while a live object in the one it left still carries this estate's marker ` +
+			`for its address, into stock OpenTofu's own behavior: plan the create under the new configuration ` +
+			`and leave the old one's object where it is. What is given up is that object - it stays live, keeps ` +
+			`this estate's tofu-estate and tofu-address tags, and no plan will ever propose anything for it, ` +
+			`because the sweep looks where a provider configuration points and none points there for that ` +
+			`address any more. The run says so out loud, by name, every time.`,
+		Doc:       `live/LIMITATIONS.md, "strict-provider-change"`,
+		Pinnable:  true,
+		SafeValue: string(ProviderChangeRefuse),
+		Values:    []string{string(ProviderChangeRefuse), string(ProviderChangeRecreate)},
+		Meaning: `What a run does when a resource block names a different provider configuration than the one ` +
+			`whose account or region still holds a live object carrying this estate's marker for that block's ` +
+			`address - a region or account change. "refuse" reports the object, by name, with the provider ` +
+			`configuration that found it and the one its address now belongs to, and names both remedies: ` +
+			`destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own ` +
+			`behavior - plan the create under the new configuration - and warns, by name, that the old one's ` +
+			`object is abandoned and nothing will find it again.`,
+	},
 }
 
 // toggleNamed returns the [Toggle] whose Name matches, and whether one was

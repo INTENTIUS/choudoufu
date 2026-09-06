@@ -139,7 +139,7 @@ func TestCacheVouchSightingsStayWithTheirPass(t *testing.T) {
 		return Pass{Provider: provider, Result: res}
 	}
 
-	merged, _, diags := Merge(estateName, []Pass{pass(east, eastCloud), pass(west, westCloud)})
+	merged, _, diags := Merge(estateName, []Pass{pass(east, eastCloud), pass(west, westCloud)}, false)
 	assertNoErrors(t, diags)
 
 	if merged.CacheVouchSightings.Sighted(east, "aws_cloudwatch_log_group", "/app/logs") {

@@ -2341,6 +2341,12 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			noIdentity:   !hasID,
 		}
 
+		// GitHub issue #906: this object's marker names a declared address,
+		// which is exactly the condition the next two branches share. The
+		// sighting is filed with the provider configuration that address's
+		// block uses, in scope or out, for [Merge] to read across passes.
+		noteDeclaredSighting(req, decl, res, bindType, escaped, importID)
+
 		if entry, ok := decl.entryFor(bindType, escaped); ok {
 			if !claimantAlreadyPresent(entry.claimants, c) {
 				entry.claimants = append(entry.claimants, c)
@@ -4245,6 +4251,8 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemMalformedMarker:           "Malformed ownership marker",
 	ProblemUndeclaredCrossTypeMarker: "Cross-type marker on an undeclared type",
 	ProblemDisplacedMarker:           "Live resource displaced from the address it is marked for",
+	ProblemOutOfScopeMarker:          "Marked resource outside its address's provider configuration",
+	ProblemAbandonedByProviderChange: "Marked resource abandoned by a provider configuration change",
 	ProblemNeedsSlotMarkers:          "Indistinguishable instances without per-instance markers",
 	ProblemMixedSlots:                "Partial slot markers on a count set",
 	ProblemMalformedSlot:             "Malformed slot marker",

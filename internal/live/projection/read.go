@@ -135,7 +135,7 @@ func ReadInstances(ctx context.Context, cfg *configs.Config, resolutions []ident
 	// demanded it, and a caller comparing the two passes needs to know which
 	// of the two happened.
 	for _, r := range needsDiscovery {
-		b.omit(r.Addr, ReasonNeedsDiscovery, needsDiscoveryDetail(r), needsDiscoveryCause(r))
+		b.omit(r.Addr, ReasonNeedsDiscovery, b.needsDiscoveryDetail(r), b.needsDiscoveryCause(r))
 	}
 	for _, r := range cyclic {
 		b.omit(r.Addr, ReasonCycle, fmt.Sprintf(

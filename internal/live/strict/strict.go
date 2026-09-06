@@ -402,3 +402,85 @@ func NoSourceCreateNames() string {
 func CreatesFromNoSource(v NoSourceCreate) bool {
 	return v == NoSourceCreateOn
 }
+
+// ProviderChange is what a run does when a resource block has moved to a
+// different provider configuration while a live object in the one it left
+// still carries this estate's ownership marker for that block's address.
+// GitHub issue #906.
+//
+// Repointing `provider = aws.west` at `aws.east` is a replace in stock
+// terms, and only half of it is expressible here: a resource address
+// carries exactly one provider configuration in the plan graph, taken from
+// its own block, so the destroy of the object left behind cannot be planned
+// at that address at all. That leaves proceeding or refusing, and
+// HANDOFF.md's safety rule is why the default refuses: proceeding creates a
+// second live resource carrying one address's marker, which live/MARKERS.md
+// forbids outright and which internal/live/discovery's own
+// crossProviderOrphanCollisions refuses a plan over once both objects
+// exist. A refusal here is that refusal one step earlier, before the run
+// manufactures the state rather than after.
+type ProviderChange string
+
+const (
+	// ProviderChangeRefuse is the default: the run reports the live object,
+	// by name, with the provider configuration that found it and the one
+	// its address now belongs to, and names both remedies - removing or
+	// disowning the object, or setting this toggle.
+	ProviderChangeRefuse ProviderChange = "refuse"
+
+	// ProviderChangeRecreate selects stock OpenTofu's own behavior for a
+	// resource whose provider configuration changed: plan the create under
+	// the new one and leave the old configuration's object where it is.
+	// The object stays live, keeps this estate's markers, and no plan will
+	// ever propose anything for it, because the sweep looks where a
+	// provider configuration points and none points there for that address
+	// any more. It is the toggle, not the default, for the reason
+	// [NoSourceCreateOn] is: a real object this run can see is about to be
+	// duplicated, and only an operator can say that is what they meant.
+	ProviderChangeRecreate ProviderChange = "recreate"
+)
+
+// DefaultProviderChange is what an omitted provider_change argument means:
+// [ProviderChangeRefuse].
+//
+// Unlike this schema's other three, it is NOT what every configuration
+// written before the toggle existed used to get - that was to proceed
+// silently, which is the defect GitHub issue #906 records. "Compatible out
+// of the box" is about configurations stock OpenTofu runs, and this default
+// refuses a configuration stock does run; the trade is deliberate and the
+// toggle is the escape hatch (maintainer ruling, 2026-09-06, on PR #914).
+const DefaultProviderChange = ProviderChangeRefuse
+
+var providerChangeSettings = map[ProviderChange]bool{
+	ProviderChangeRefuse:   true,
+	ProviderChangeRecreate: true,
+}
+
+// ProviderChangeValid reports whether v is one of the two settings this
+// fork's schema defines.
+func ProviderChangeValid(v ProviderChange) bool {
+	return providerChangeSettings[v]
+}
+
+// ProviderChangeNames renders the vocabulary for a diagnostic, sorted so
+// the message is stable: `"recreate", "refuse"`.
+func ProviderChangeNames() string {
+	out := make([]string, 0, len(providerChangeSettings))
+	for v := range providerChangeSettings {
+		out = append(out, `"`+string(v)+`"`)
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
+}
+
+// RecreatesOnProviderChange reports whether v is the setting under which a
+// resource whose provider configuration changed is planned as a create,
+// leaving the old configuration's object behind, instead of refused.
+//
+// A function over the type rather than a comparison at each call site, for
+// [CreatesFromNoSource]'s own reason: the zero value, ProviderChange(""),
+// answers false here, so a layer holding no configuration never concludes
+// the operator asked to relax the refusal.
+func RecreatesOnProviderChange(v ProviderChange) bool {
+	return v == ProviderChangeRecreate
+}

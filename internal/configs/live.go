@@ -198,6 +198,24 @@ type LiveStrict struct {
 	NoSourceCreateSet   bool
 	NoSourceCreateRange hcl.Range
 
+	// ProviderChange is the literal string an author wrote for the
+	// "provider_change" argument - "refuse", "recreate", or whatever they
+	// typed, valid or not. GitHub issue #906's toggle (maintainer ruling,
+	// 2026-09-06): a resource block that has moved to a different provider
+	// configuration, while a live object in the one it left still carries
+	// this estate's marker for its address, refuses by default; this
+	// selects stock OpenTofu's own behavior of planning the create under
+	// the new configuration and leaving the old one's object where it is.
+	// Read the same way [LiveStrict.NoSourceCreate] is, by the same
+	// decoder; internal/live/strict says what the spellings mean.
+	//
+	// ProviderChangeSet distinguishes an omitted argument, which resolves
+	// to internal/live/strict.DefaultProviderChange, from one written out,
+	// the same reason [LiveStrict.SecretsSet] exists.
+	ProviderChange      string
+	ProviderChangeSet   bool
+	ProviderChangeRange hcl.Range
+
 	// MarkersRecord is the optional nested `markers "record"` block: which
 	// resources hold their identity in the estate's record store instead of
 	// in an ownership marker tag, HANDOFF.md's "per-type or per-address
@@ -488,6 +506,7 @@ var liveStrictSchema = &hcl.BodySchema{
 		{Name: "marker_repair"},
 		{Name: "secrets"},
 		{Name: "no_source_create"},
+		{Name: "provider_change"},
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "markers", LabelNames: []string{"kind"}},
@@ -713,6 +732,7 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 		{"marker_repair", &st.MarkerRepair, &st.MarkerRepairSet, &st.MarkerRepairRange},
 		{"secrets", &st.Secrets, &st.SecretsSet, &st.SecretsRange},
 		{"no_source_create", &st.NoSourceCreate, &st.NoSourceCreateSet, &st.NoSourceCreateRange},
+		{"provider_change", &st.ProviderChange, &st.ProviderChangeSet, &st.ProviderChangeRange},
 	} {
 		attr, exists := content.Attributes[f.name]
 		if !exists {

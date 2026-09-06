@@ -282,6 +282,37 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
+			// GitHub issue #906's toggle. The default written out by hand,
+			// #101's lesson once more.
+			name: "strict provider_change, the default written out explicitly",
+			dir:  "testdata/strict-providerchange-refuse",
+			want: nil,
+		},
+		{
+			// The toggle turned on. Clean at this layer: it is a valid,
+			// implemented setting, and what it changes is
+			// internal/live/discovery's own cross-pass merge, not anything
+			// lint refuses.
+			name: "strict provider_change, the toggle turned on",
+			dir:  "testdata/strict-providerchange-recreate",
+			want: nil,
+		},
+		{
+			// A setting outside the vocabulary altogether. The only shape
+			// RuleStrictProviderChange has - both defined settings are
+			// implemented.
+			name: "strict provider_change outside the vocabulary",
+			dir:  "testdata/strict-providerchange-invalid",
+			want: []wantIssue{
+				{
+					rule:      RuleStrictProviderChange,
+					construct: `strict.provider_change = "move"`,
+					file:      "testdata/strict-providerchange-invalid/main.tf",
+					line:      10,
+				},
+			},
+		},
+		{
 			name: "logical resources, one per banned prefix",
 			dir:  "testdata/logical",
 			want: []wantIssue{
