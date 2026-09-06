@@ -52,95 +52,88 @@ import (
 // live-import will also have to pay for every server-assigned
 // (needs-discovery) type.
 //
-// # Measured scaling (2026-08-30, floci pin sha256:c55d74e1, darwin/arm64)
+// # Measured scaling (2026-09-05, floci pin sha256:a39185cc, darwin/arm64)
+//
+// Supersedes the 2026-08-30 table this section used to carry, which
+// predated terralith-gen's module-nested bucket (issue #574). #708 fixed
+// this file's own fixture loader (discovery_test.go's loadConfig) so the
+// benchmark could run against the current generator at all, and this table
+// is #838's full six-tier re-measurement against that fixed loader.
 //
 // Six tiers, each its own `go test` process (TERRALITH_CEILING_SCALE=N),
-// spanning a 73x resource-count range:
+// spanning a 75x resource-count range:
 //
 //	scale  resources  calls  pagination  throttle   apply       discover    build      harness_rss  floci_rss  materialized
-//	1      55         77     0           0          31.7s       54.1ms      158.1ms    227MB        245MB      28
-//	4      205        257    0           0          78.0s       82.1ms      453.3ms    225MB        304MB      109
-//	10     505        617    0           0          189.9s      98.5ms      765.5ms    226MB        255MB      271
-//	20     1005       1217   0           0          373.5s      155.3ms     1420.3ms   243MB        276MB      541
-//	40     2005       2417   0           0          743.7s      323.0ms     3270.1ms   267MB        291MB      1081
-//	80     4005       4817   0           0          1499.3s     451.6ms     5298.5ms   288MB        298MB      2161
+//	1      79         113    0           0          31.8s       52.9ms      82.6ms     223MB        251MB      44
+//	4      301        401    0           0          88.6s       80.4ms      251.5ms    228MB        260MB      173
+//	10     745        977    0           0          211.8s      133.6ms     568.3ms    232MB        279MB      431
+//	20     1485       1937   0           0          418.3s      216.5ms     1096.7ms   240MB        293MB      861
+//	40     2965       3857   0           0          837.8s      569.8ms     3025.2ms   273MB        280MB      1721
+//	80     5925       7697   0           0          1720.9s     806.6ms     4863.5ms   334MB        399MB      3441
 //
 // (harness_rss/floci_rss are peak values sampled during the Discover+Build
 // window only - see PeakHarnessRSSKB/PeakFlociRSSKB's own doc comments for
 // what each process is.)
 //
 // Per-unit rates make the shape legible: apply cost is flat at
-// ~0.37s/resource from scale=4 onward (0.577, 0.380, 0.376, 0.372, 0.371,
-// 0.374 s/resource) - floci's own per-create latency, linear with no sign
-// of degradation even with 4005 objects in one account. discover cost per
-// API call FALLS as N grows (0.70, 0.32, 0.16, 0.13, 0.13, 0.09 ms/call) -
-// the opposite of a dominance signal. build cost per materialized instance
-// is flat after the small-N startup effect (5.65, 4.16, 2.82, 2.63, 3.02,
-// 2.45 ms/instance). Peak process memory - both choudoufu's own harness and
-// floci's container - stayed within a ~225-300MB band across the whole
-// range, not proportional to resource count.
+// ~0.28s/resource from scale=4 onward (0.294, 0.284, 0.282, 0.283, 0.290
+// s/resource) - floci's own per-create latency, linear with no sign of
+// degradation even with 5925 objects in one account; scale=1's higher
+// 0.403s/resource is fixed per-run overhead (container health-check,
+// terraform init) amortized over fewer resources, the same shape the prior
+// table showed at its own scale=1. discover cost per API call falls as N
+// grows (0.469, 0.201, 0.137, 0.112, 0.148, 0.105 ms/call) - still the
+// opposite of a dominance signal, though scale=40 breaks the decline by a
+// small margin (0.148ms vs scale=20's 0.112ms) before scale=80 falls again
+// to 0.105ms; noise at millisecond resolution, not a trend. build cost per
+// materialized instance stays in a 1.27-1.88ms band with no growth trend
+// (1.877, 1.454, 1.319, 1.274, 1.758, 1.413 ms/instance) - the same
+// millisecond-scale noise applies.
 //
-// pagination_total reads zero at EVERY tier, including scale=80's 480
-// aws_iam_policy instances (4.8x real AWS's documented 100-item default
-// page size for IAM ListPolicies) and 80 aws_ecs_task_definition instances
-// in one aws_ecs_task_definition ListTaskDefinitions call. Confirmed by a
-// direct API probe outside choudoufu entirely (no terraform, no provider,
-// plain `aws` CLI against a fresh floci container): 150 IAM policies and
-// 120 ECS task definitions, `--max-items`/`--max-results` given explicitly,
-// both come back in one response with IsTruncated/nextToken unset. This is
-// an emulator gap, not an artifact of these tiers being too small - see
-// lex00/floci#185. throttle_total is also zero at every tier, including the
-// 4817-call scale=80 run; floci applies no rate limiting in this range.
+// Peak process memory is the one line that no longer reads as a flat band.
+// choudoufu's own harness grew from 223MB to 334MB (1.50x) and floci's
+// container from 251MB to 399MB (1.59x) across the range - real, gradual
+// growth, but strongly sub-linear against the 75x growth in resource count
+// (79->5925) and 78x growth in materialized instances (44->3441). Neither
+// series shows a sharp knee at one tier (floci's own line actually dips to
+// 280MB at scale=40 before its largest single-tier jump, to 399MB, lands at
+// scale=80), and 334MB/399MB is nowhere near a working ceiling on the
+// hardware this ran on - but it is a real change from the pre-#574 table's
+// finding of a flat ~225-300MB band, and this table says so rather than
+// repeating the old claim unchanged.
 //
-// # Stale as of #574, re-verified only at scale=1 (issue #708)
-//
-// terralith-gen has emitted a module-nested bucket ("modules/team_pod",
-// issue #574) since 2026-08-31, after the table above was recorded. That
-// changed the resource count AT EVERY TIER - the table's own scale/resource
-// pairing no longer holds for the current generator:
-//
-//	scale  table's resources (stale)  current resources (go run ./tools/terralith-gen -scale N)
-//	1      55                         79
-//	4      205                        301
-//	10     505                        745
-//	20     1005                       1485
-//	40     2005                       2965
-//	80     4005                       5925
-//
-// #708 fixed this file's own fixture loader (discovery_test.go's
-// loadConfig), which refused the module call outright and so could not run
-// this benchmark AT ALL against the current generator - not a resource-count
-// drift, a hard failure at every tier. Re-verified directly against floci
-// post-fix, scale=1 only (a maintainer scope note during #708 bounded that
-// worker's own testing to this one tier, to keep per-worker cost down across
-// a parallel batch):
-//
-//	scale=1 resources=79 types=13(needs-discovery=6) apply=31.656379583s discover=56.42925ms build=91.390542ms api_calls_total=113 pagination_total=0 throttle_total=0 peak_harness_rss_kb=234416 peak_floci_rss_kb=258764 materialized=44 bound=0 unbound=15 unclaimed=20 problems=11 [emulator=floci]
-//
-// resources and api_calls_total both grew (55->79, 77->113) by roughly the
-// same ~1.44x the module bucket adds at every tier, matching the table
-// above; apply, discover and build all stayed within the same order of
-// magnitude as the old scale=1 row, so nothing in this one tier suggests the
-// module shape is itself expensive. Scales 4/10/20/40/80 have NOT been
-// re-measured against the current generator - #838 tracks re-running all
-// six tiers and replacing this table for real, per this section's own
-// convention (date, floci pin, platform, per-tier table, per-unit-rate
-// commentary, restated ceiling). Until #838 lands, "The stated ceiling"
-// below is evidence from the stale, smaller-resource-count generator, not a
-// claim re-established against today's terralith-gen output.
+// pagination_total reads zero at EVERY tier, including scale=80's 800
+// aws_iam_policy instances (8x real AWS's documented 100-item default page
+// size for IAM ListPolicies) and 80 aws_ecs_task_definition instances
+// (unchanged from the pre-#574 generator - the module bucket added IAM and
+// DNS resources, not ECS task definitions) in one aws_ecs_task_definition
+// ListTaskDefinitions call. Confirmed by a direct API probe outside
+// choudoufu entirely (no terraform, no provider, plain `aws` CLI against a
+// fresh floci container): 150 IAM policies and 120 ECS task definitions,
+// `--max-items`/`--max-results` given explicitly, both come back in one
+// response with IsTruncated/nextToken unset. This is an emulator gap, not
+// an artifact of these tiers being too small - see lex00/floci#185.
+// throttle_total is also zero at every tier, including the 7697-call
+// scale=80 run; floci applies no rate limiting in this range.
 //
 // # The stated ceiling
 //
-// No wall was found, in the measured range (55-4005 resources / 77-4817 API
-// calls), in any of the metrics that reflect choudoufu's OWN code: API call
-// count, discovery time, build/materialization time, and peak process
-// memory all stay flat or improve as the estate grows. Floci-backed
-// measurements of THOSE components are trustworthy at least through
-// ~4000 resources / ~4800 API calls (this run's own top tier) - the epic's
-// "roughly N resources" framing does not apply to them because no ceiling
-// showed up to look for. See the section above: this paragraph's numbers
-// predate #574's module expansion and are unverified past scale=1 against
-// the current generator.
+// No wall was found, in the measured range (79-5925 resources / 113-7697
+// API calls), in the request/timing metrics that reflect choudoufu's OWN
+// code: API call count, apply cost per resource, discover cost per call,
+// and build cost per materialized instance all stay flat or improve as the
+// estate grows, this run included. Peak process memory is the one metric
+// whose character changed from the pre-#574 table: it is no longer flat
+// within a fixed band, though it stays strongly sub-linear against the
+// resource-count growth (see above), and 334MB/399MB at the top tier is not
+// itself a practical ceiling on the hardware this ran on (an ordinary
+// developer laptop). Floci-backed measurements of these components are
+// trustworthy at least through ~5925 resources / ~7697 API calls (this
+// run's own top tier, up from the pre-#574 table's ~4000/~4800) - the
+// epic's "roughly N resources" framing still does not apply to API-call
+// count or per-unit timing, and now carries an explicit, measured caveat
+// for peak memory: it does grow with N, gradually and sub-linearly, not
+// sharply.
 //
 // Two components of #546's central claim are a DIFFERENT kind of ceiling,
 // though, and it has nothing to do with resource count: list pagination
@@ -152,8 +145,8 @@ import (
 // of how large a floci-backed estate grows.
 //
 // The practical limit on iterating further at THIS tier is apply/teardown
-// wall-clock time, not measurement validity: scale=80 alone cost ~25
-// minutes just to stand up (linear at ~0.37s/resource), which is what
+// wall-clock time, not measurement validity: scale=80 alone cost ~28.7
+// minutes just to stand up (apply=1720.9s, ~0.29s/resource), which is what
 // stopped this benchmark's own climb, not a signal that anything above it
 // would behave differently.
 //
