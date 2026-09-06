@@ -80,7 +80,7 @@ func TestChangeSet_rendersActionsAndIdentities(t *testing.T) {
 		change(t, "aws_vpc.untouched", plans.NoOp),
 	)
 
-	got := ChangeSet(plan)
+	got := ChangeSet(plan, nil)
 	want := []string{
 		"aws_cloudwatch_log_group.app  Create  -",
 		"aws_s3_bucket.data  Delete  tofu-data",
@@ -108,7 +108,7 @@ func TestChangeSet_deposedObjectsAreDistinctRows(t *testing.T) {
 			{Addr: addr, PrevRunAddr: addr, DeposedKey: states.DeposedKey("abcd1234"), ChangeSrc: plans.ChangeSrc{Action: plans.Delete}},
 		}},
 	}
-	got := renderRows(ChangeSet(plan))
+	got := renderRows(ChangeSet(plan, nil))
 	for _, want := range []string{
 		"aws_instance.web  Update  -",
 		"aws_instance.web (deposed abcd1234)  Delete  -",
@@ -170,6 +170,40 @@ func TestCompare_drift(t *testing.T) {
 		}
 	})
 
+	// The maintainer ruling on PR #889. Everything about this change is the
+	// one that was approved - same instance, same action, same live object -
+	// and it writes something else. Before the ruling this compared EQUAL,
+	// because the row key was the whole comparison.
+	t.Run("the same address, the same action, a different planned value", func(t *testing.T) {
+		row := func(retention string) Row {
+			return Row{
+				Address: "aws_cloudwatch_log_group.app", Action: "Update", Identity: "lg-1",
+				Values: Values{
+					Decoded: true,
+					Before:  map[string]Attr{"retention_in_days": {Text: "n:1"}},
+					After:   map[string]Attr{"retention_in_days": {Text: "n:" + retention}},
+				},
+			}
+		}
+		diff := Compare([]Row{row("3")}, []Row{row("14")})
+		if diff.Empty() {
+			t.Fatalf("a change that keeps its address, action and live object and writes something else compared equal")
+		}
+		if len(diff.Extra) != 0 || len(diff.Missing) != 0 {
+			t.Errorf("value drift was reported as an unapproved or a dropped change:\nextra:   %s\nmissing: %s",
+				renderRows(diff.Extra), renderRows(diff.Missing))
+		}
+		if len(diff.Drifted) != 1 {
+			t.Fatalf("got %d drifted changes, want 1", len(diff.Drifted))
+		}
+		if got := diff.Drifted[0].Row.String(); got != "aws_cloudwatch_log_group.app  Update  lg-1" {
+			t.Errorf("the drifted row rendered %q", got)
+		}
+		if got := strings.Join(diff.Drifted[0].Attrs, ","); got != "after.retention_in_days" {
+			t.Errorf("the drift names %q, want %q", got, "after.retention_in_days")
+		}
+	})
+
 	t.Run("the same address with a different action", func(t *testing.T) {
 		fresh := []Row{{Address: "aws_vpc.main", Action: "DeleteThenCreate", Identity: "vpc-owned"}}
 		diff := Compare(base, fresh)
@@ -177,6 +211,31 @@ func TestCompare_drift(t *testing.T) {
 			t.Errorf("extra rows rendered %q", renderRows(diff.Extra))
 		}
 	})
+}
+
+// TestCompare_matchWithValues is the other half of the ruling: with values
+// in the comparison, a plan of an unmoved world must still match - including
+// when an attribute is unknown on both sides and when a set was walked in a
+// different order.
+func TestCompare_matchWithValues(t *testing.T) {
+	approved := []Row{{
+		Address: "aws_cloudwatch_log_group.app", Action: "Update", Identity: "lg-1",
+		Values: Values{Decoded: true, After: map[string]Attr{
+			"arn":               {Text: unknownToken, Unknown: true},
+			"retention_in_days": {Text: "n:3"},
+		}},
+	}}
+	fresh := []Row{{
+		Address: "aws_cloudwatch_log_group.app", Action: "Update", Identity: "lg-1",
+		Values: Values{Decoded: true, After: map[string]Attr{
+			// The fresh plan worked the arn out; the approved one had not.
+			"arn":               {Text: "s:arn:aws:logs:::app", Unknown: false},
+			"retention_in_days": {Text: "n:3"},
+		}},
+	}}
+	if diff := Compare(approved, fresh); !diff.Empty() {
+		t.Errorf("an unmoved world refused over an unknown:\ndrifted: %v", diff.Drifted)
+	}
 }
 
 // TestCompare_duplicateRowsAreCounted: two identical rows are two changes.

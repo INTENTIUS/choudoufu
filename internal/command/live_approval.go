@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/approval"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/planfile"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -27,7 +29,10 @@ import (
 // The pipeline shape this serves is the one CI has always run - plan on the
 // pull request, a human approves, apply exactly what was approved - and the
 // property it adds is that "what was approved" and "what ran" are the same
-// thing or the run refuses. What it does NOT add is a saved plan that apply
+// thing or the run refuses. Same instances, same actions, same live objects,
+// and - since the maintainer ruling on PR #889 - the same planned values;
+// internal/live/approval's package doc says exactly what the value
+// comparison covers and what it deliberately leaves out. What it does NOT add is a saved plan that apply
 // trusts: the file is never prior state, never consulted for ownership, and
 // never a substitute for the live read. HANDOFF.md's foundation holds
 // unchanged - live wins, and a record is not permission.
@@ -66,8 +71,17 @@ type approvedPlan struct {
 	// names, or "" when the snapshot carries no live block at all.
 	Estate string
 
-	// Rows is the approved change set.
-	Rows []approval.Row
+	// Plan is the plan the file carries, with its own prior-state snapshot
+	// attached, kept ONLY so the change set can be rendered later.
+	//
+	// It is not rendered here because rendering the planned values needs the
+	// provider schemas, and at the moment this file is read no provider has
+	// been launched. Deferring it to the guard also makes the comparison
+	// apples-to-apples by construction: both plans are decoded through the
+	// same schema set, so a difference can never be an artifact of two
+	// different decodings. Nothing else in this struct is ever handed to the
+	// operation - see readApprovedPlan.
+	Plan *plans.Plan
 }
 
 // readApprovedPlan opens a saved plan file for its approval content only.
@@ -138,7 +152,7 @@ func (c *ApplyCommand) readApprovedPlan(ctx context.Context, path string, live *
 		return nil, diags
 	}
 
-	return &approvedPlan{Path: path, Estate: estate, Rows: approval.ChangeSet(plan)}, diags
+	return &approvedPlan{Path: path, Estate: estate, Plan: plan}, diags
 }
 
 // planFileEstate reads the estate named by the live block in the plan file's
@@ -208,12 +222,27 @@ func (c *ApplyCommand) planFileEstate(ctx context.Context, path string, reader *
 // returns. A pointer rather than a returned value because the guard is
 // called from inside the backend operation, several frames down.
 func approvalGuard(approved *approvedPlan, refused *bool) func(*plans.Plan, *tofu.Schemas) tfdiags.Diagnostics {
-	return func(plan *plans.Plan, _ *tofu.Schemas) tfdiags.Diagnostics {
+	return func(plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
 		var diags tfdiags.Diagnostics
 		if approved == nil || plan == nil {
 			return diags
 		}
-		diff := approval.Compare(approved.Rows, approval.ChangeSet(plan))
+		// One schema resolver for both plans. The approved plan's values
+		// were encoded against the provider the plan ran with; decoding them
+		// through THIS run's schema is what makes the two renderings
+		// comparable, and a type this run has no schema for falls back to
+		// comparing address, action and identity rather than to guessing.
+		var schemaFor approval.SchemaFor
+		if schemas != nil {
+			schemaFor = func(provider addrs.Provider, mode addrs.ResourceMode, typeName string) *providers.Schema {
+				schema, _ := schemas.ResourceTypeConfig(provider, mode, typeName)
+				return schema
+			}
+		}
+		diff := approval.Compare(
+			approval.ChangeSet(approved.Plan, schemaFor),
+			approval.ChangeSet(plan, schemaFor),
+		)
 		if diff.Empty() {
 			return diags
 		}
@@ -246,6 +275,11 @@ func approvalMismatchDetail(path string, diff approval.Difference) string {
 		b.WriteString(approvalRowList(diff.Missing))
 		b.WriteString("\n")
 	}
+	if len(diff.Drifted) > 0 {
+		b.WriteString("Both plans make this change to this live object, and disagree about the values it writes:\n")
+		b.WriteString(approvalDriftList(diff.Drifted))
+		b.WriteString("\n")
+	}
 	b.WriteString(
 		"Three things produce this. The live system moved between the plan and the apply. Another apply landed in between, so what that file approved has already happened. Or the configuration changed since the file was written.\n\n")
 	fmt.Fprintf(&b,
@@ -270,6 +304,33 @@ func approvalRowList(rows []approval.Row) string {
 	}
 	if len(rows) > len(shown) {
 		fmt.Fprintf(&b, "  ... and %d more\n", len(rows)-len(shown))
+	}
+	return b.String()
+}
+
+// approvalDriftList renders the changes whose planned values moved, with the
+// attributes that moved under each. Attribute NAMES only: a value that is
+// sensitive must not be printed, and a value that is not sensitive was
+// already printed in full in the plan above.
+func approvalDriftList(drifted []approval.ValueDrift) string {
+	const rowLimit = 10
+	const attrLimit = 6
+	shown := drifted
+	if len(shown) > rowLimit {
+		shown = shown[:rowLimit]
+	}
+	var b strings.Builder
+	for _, d := range shown {
+		fmt.Fprintf(&b, "  %s\n", d.Row.String())
+		attrs := d.Attrs
+		if len(attrs) > attrLimit {
+			fmt.Fprintf(&b, "      %s, and %d more\n", strings.Join(attrs[:attrLimit], ", "), len(attrs)-attrLimit)
+			continue
+		}
+		fmt.Fprintf(&b, "      %s\n", strings.Join(attrs, ", "))
+	}
+	if len(drifted) > len(shown) {
+		fmt.Fprintf(&b, "  ... and %d more\n", len(drifted)-len(shown))
 	}
 	return b.String()
 }

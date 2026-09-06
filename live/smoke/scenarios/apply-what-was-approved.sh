@@ -1,5 +1,5 @@
 # apply-what-was-approved
-# CLAIM 15 - Apply exactly what was approved: a saved plan crosses the approval gate, and the apply that consumes it still reads the live system - matching, or refusing by name. ~3 min.
+# CLAIM 15 - Apply exactly what was approved: a saved plan crosses the approval gate, and the apply that consumes it still reads the live system - matching down to the planned values, or refusing by name. ~4 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/approval"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -78,8 +78,8 @@ step "4. apply the approved plan"
 explain \
   "The apply reads the live system and plans against what it finds, the" \
   "way every live-markers run does. It does not replay the file. It" \
-  "compares: same resources, same actions, same live objects, or it" \
-  "refuses before anything changes."
+  "compares: same resources, same actions, same live objects, same" \
+  "planned values, or it refuses before anything changes."
 cmd "choudoufu apply approved.tfplan"
 CODE=0
 GATE_OUT="$(cd "$SMOKE_WORK" && chdf apply -input=false -no-color approved.tfplan 2>&1)" || CODE=$?
@@ -111,7 +111,35 @@ if grep -q "Apply complete!" <<< "$GATE_OUT"; then
 fi
 proof "refused by name, exit 3, nothing applied - and the row it names is exactly the change that appeared after the approval."
 
-step "5. re-plan, re-approve, apply"
+step "5. the same change, a different value"
+explain \
+  "The subtler failure, and the one a comparison over resource names" \
+  "alone would wave through: the change set is IDENTICAL - the same" \
+  "resource, the same update, the same live log group - and what it" \
+  "writes moved. Someone edited the configuration after the approval and" \
+  "asked for fourteen days instead of three. The apply has to refuse" \
+  "that too, and name the attribute."
+cmd "edit retention_in_days 3 -> 14 ; choudoufu apply approved.tfplan"
+awsl ec2 delete-subnet --subnet-id "$CRASHED" >/dev/null 2>&1 || fail "approval" "could not remove the out-of-band subnet"
+sed_i "$SMOKE_WORK/logs.tf" 's/retention_in_days = 3/retention_in_days = 14/'
+VCODE=0
+VALUE_OUT="$(cd "$SMOKE_WORK" && chdf apply -input=false -no-color approved.tfplan 2>&1)" || VCODE=$?
+[ "$VCODE" = "3" ] \
+  || fail "approval" "the apply exited $VCODE, want 3 - the same change writing a different value must refuse like any other difference: $VALUE_OUT"
+VALUE_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$VALUE_OUT")"
+# Collapsed to one line first: the diagnostic printer folds at its width,
+# and this assertion is about the sentence, not about where the fold landed.
+VALUE_FLAT="$(tr '\n' ' ' <<< "$VALUE_REFUSAL" | tr -s ' ')"
+grep -q "disagree about the values it writes" <<< "$VALUE_FLAT" \
+  || fail "approval" "the refusal does not say the values moved: $VALUE_REFUSAL"
+grep -q "after.retention_in_days" <<< "$VALUE_REFUSAL" \
+  || fail "approval" "the refusal does not name the attribute that moved: $VALUE_REFUSAL"
+head -14 <<< "$VALUE_REFUSAL" | evidence
+echo "exit status: $VCODE" | evidence
+sed_i "$SMOKE_WORK/logs.tf" 's/retention_in_days = 14/retention_in_days = 3/'
+proof "refused again, exit 3, and it names after.retention_in_days - the values are part of what was approved, not just the resource names."
+
+step "6. re-plan, re-approve, apply"
 explain \
   "The way forward the refusal names: plan again against the world as it" \
   "is now, review THAT, and apply the artifact it produced. The same two" \
@@ -126,14 +154,16 @@ grep -q "Apply complete!" <<< "$SECOND" || fail "approval" "the re-approved appl
 RETENTION="$(awsl logs describe-log-groups --log-group-name-prefix "/stateless-e2e-block/app" --query 'logGroups[0].retentionInDays' --output text)"
 [ "$RETENTION" = "3" ] \
   || fail "approval" "the approved change did not land: retention is $RETENTION, want 3"
-proof "retention is $RETENTION days and the unapproved subnet is gone. The gate held and then let the right thing through."
+proof "retention is $RETENTION days, exactly what was reviewed. The gate held twice and then let the right thing through."
 
-step "6. teardown"
+step "7. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
 ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "approval" "teardown failed"
 proof "estate gone."
 
 echo "  What you watched: a plan saved to a file, approved, and then"
 echo "  applied against a world that had moved underneath it - refused by"
-echo "  name with its own exit status, never replayed. Then the same two"
-echo "  commands over an unmoved world, applying exactly what was reviewed."
+echo "  name with its own exit status, never replayed. Then refused again"
+echo "  for a change that kept its name and its action and moved the value"
+echo "  it writes. Then the same two commands over an unmoved world,"
+echo "  applying exactly what was reviewed."

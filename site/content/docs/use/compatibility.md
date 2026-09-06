@@ -316,7 +316,10 @@ An acceptable configuration can still be refused by how it is invoked.
   `plan -out=FILE` writes stock's own plan file, and `apply FILE` **re-reads
   the live system and plans against it**, then compares that fresh plan with
   the one the file describes. Same resources, same actions, same live
-  objects, and it applies without re-prompting, exactly as stock does.
+  objects, same planned values - compared canonically, with unknown
+  ("known after apply") attributes skipped and sensitive values compared as
+  a stable digest rather than in plaintext - and it applies without
+  re-prompting, exactly as stock does.
   Different, and it refuses - `The approved plan no longer matches the live
   system` - and exits **3**, so a pipeline can route it back to review rather
   than treat it as a broken run. **This is how most CI runs Terraform**, and

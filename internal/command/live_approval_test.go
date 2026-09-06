@@ -152,6 +152,59 @@ func TestApproval_driftRefuses(t *testing.T) {
 	assertNoStateArtifacts(t, dir)
 }
 
+// TestApproval_valueDriftRefuses is the maintainer ruling on PR #889 at the
+// command level: the change set is identical - same instance, same action,
+// same live object - and the values it plans to write moved after the
+// approval. Before the ruling this applied.
+//
+// The move here is a configuration edit between the plan and the apply, which
+// is one of the three causes the refusal names and the easiest of them to
+// arrange without touching the world.
+func TestApproval_valueDriftRefuses(t *testing.T) {
+	dir := approvalFixture(t, "")
+	cloud := newStatelessTestCloud()
+	path := planOut(t, dir, cloud, "approved.tfplan")
+
+	main := filepath.Join(dir, "main.tf")
+	src, err := os.ReadFile(main)
+	if err != nil {
+		t.Fatalf("reading the fixture: %s", err)
+	}
+	moved := strings.Replace(string(src), `cidr_block = "10.42.0.0/16"`, `cidr_block = "10.99.0.0/16"`, 1)
+	if moved == string(src) {
+		t.Fatalf("the fixture no longer declares cidr_block = 10.42.0.0/16; this test's rewrite is stale")
+	}
+	if err := os.WriteFile(main, []byte(moved), 0o644); err != nil {
+		t.Fatalf("rewriting the fixture: %s", err)
+	}
+
+	code, output := applyPlanFile(t, dir, cloud, filepath.Base(path))
+	if code != ExitApprovalRefused {
+		t.Fatalf("apply after a value moved exit code %d, want %d\n%s", code, ExitApprovalRefused, output)
+	}
+	flat := unwrapped(output)
+	for _, want := range []string{
+		summaryApprovalMismatch,
+		"Both plans make this change to this live object, and disagree about the values it writes",
+		"aws_vpc.main",
+		"after.cidr_block",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("the refusal does not carry %q:\n%s", want, output)
+		}
+	}
+	// The plan's own rows agree, so this must NOT be reported as a change
+	// nobody approved - that would send a reader looking for a resource that
+	// is not the problem.
+	if strings.Contains(flat, "This apply would do, and the approved plan does not include") {
+		t.Errorf("value drift was reported as an unapproved change:\n%s", output)
+	}
+	if strings.Contains(output, "Apply complete!") {
+		t.Errorf("the apply ran anyway after refusing:\n%s", output)
+	}
+	assertNoStateArtifacts(t, dir)
+}
+
 // TestApproval_wrongEstateRefuses: an artifact produced for another estate
 // is refused by name, before any comparison, because an approval for one
 // estate says nothing about another.

@@ -38,11 +38,13 @@ import (
 // approval covers: which instance, what the apply will do to it, and which
 // live object it computed that against.
 //
-// Attribute values are deliberately NOT part of a row. The approval question
-// this answers is "same resources, same actions, same live objects"; value
-// equality is a strictly larger claim, and one this cannot make honestly
-// while a plan legitimately carries unknowns. See the design comment on
-// GitHub issue #878.
+// A row's Address, Action and Identity are its IDENTITY in the comparison -
+// two rows are the same change exactly when those three match. Values is
+// carried alongside rather than folded into that key, because "you approved
+// this change and it now writes something else" is a different sentence from
+// "this change was not approved at all", and a reader acting on the refusal
+// needs to be told which one happened. See values.go for exactly what the
+// rendering does and does not cover.
 type Row struct {
 	// Address is the absolute resource instance address, with the deposed
 	// key appended when the change is about a deposed object rather than the
@@ -59,6 +61,11 @@ type Row struct {
 	// object, and IdentityUnknown when a prior object exists but does not
 	// carry a readable string id.
 	Identity string
+
+	// Values is this change's planned values on both sides, canonically
+	// rendered. Not part of [Row.String], and not part of the key the
+	// comparison pairs rows by - see values.go.
+	Values Values
 }
 
 const (
@@ -88,7 +95,10 @@ func (r Row) String() string {
 // execute. Anything left out cannot make two plans compare equal that a
 // reader would call different, because a resource moving in or out of the
 // acted-on set changes the rows either way.
-func ChangeSet(plan *plans.Plan) []Row {
+// schemaFor may be nil, and each change whose schema it cannot resolve keeps
+// its address, action and identity and carries no comparable values - see
+// [Values.Decoded].
+func ChangeSet(plan *plans.Plan, schemaFor SchemaFor) []Row {
 	if plan == nil || plan.Changes == nil {
 		return nil
 	}
@@ -107,6 +117,7 @@ func ChangeSet(plan *plans.Plan) []Row {
 			Address:  renderAddress(change.Addr, change.DeposedKey),
 			Action:   change.Action.String(),
 			Identity: priorIdentity(plan.PriorState, change.Addr, change.DeposedKey),
+			Values:   valuesOf(change, schemaFor),
 		})
 	}
 	Sort(rows)
@@ -177,10 +188,30 @@ type Difference struct {
 	// Missing are rows the approved artifact has that the fresh plan does
 	// not: what was approved and would not happen.
 	Missing []Row
+
+	// Drifted are the changes both plans agree on down to the live object,
+	// and disagree on the values of. Same address, same action, same
+	// identity, different planned values - the case a comparison over the
+	// row key alone would call a match, and the one the maintainer ruling on
+	// PR #889 closed.
+	Drifted []ValueDrift
+}
+
+// ValueDrift is one change whose planned values moved between the approval
+// and this run.
+type ValueDrift struct {
+	// Row is the change, as both plans agree it is.
+	Row Row
+
+	// Attrs are the attributes that differ, sorted and side-prefixed:
+	// "after.retention_in_days", "before.tags".
+	Attrs []string
 }
 
 // Empty reports whether the two change sets are the same one.
-func (d Difference) Empty() bool { return len(d.Extra) == 0 && len(d.Missing) == 0 }
+func (d Difference) Empty() bool {
+	return len(d.Extra) == 0 && len(d.Missing) == 0 && len(d.Drifted) == 0
+}
 
 // Compare diffs an approved change set against a fresh one as multisets of
 // rendered rows, so that ordering cannot differ and a duplicate row cannot
@@ -188,13 +219,17 @@ func (d Difference) Empty() bool { return len(d.Extra) == 0 && len(d.Missing) ==
 func Compare(approved, fresh []Row) Difference {
 	counts := make(map[string]int, len(approved)+len(fresh))
 	byKey := make(map[string]Row, len(approved)+len(fresh))
+	approvedByKey := make(map[string][]Row, len(approved))
+	freshByKey := make(map[string][]Row, len(fresh))
 	for _, r := range approved {
 		counts[r.String()]--
 		byKey[r.String()] = r
+		approvedByKey[r.String()] = append(approvedByKey[r.String()], r)
 	}
 	for _, r := range fresh {
 		counts[r.String()]++
 		byKey[r.String()] = r
+		freshByKey[r.String()] = append(freshByKey[r.String()], r)
 	}
 
 	var d Difference
@@ -210,6 +245,23 @@ func Compare(approved, fresh []Row) Difference {
 		}
 		for i := 0; i < -n; i++ {
 			d.Missing = append(d.Missing, byKey[k])
+		}
+
+		// The paired rows under this key: the same change in both plans, so
+		// the values they plan to write are comparable. Paired in order,
+		// which for a repeated key is arbitrary but consistent - and a
+		// repeated key means two changes that agree on address, action AND
+		// live object, which no plan produces.
+		a, f := approvedByKey[k], freshByKey[k]
+		pairs := len(a)
+		if len(f) < pairs {
+			pairs = len(f)
+		}
+		for i := 0; i < pairs; i++ {
+			attrs := CompareValues(a[i].Values, f[i].Values)
+			if len(attrs) > 0 {
+				d.Drifted = append(d.Drifted, ValueDrift{Row: f[i], Attrs: attrs})
+			}
 		}
 	}
 	return d

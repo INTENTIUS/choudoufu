@@ -132,8 +132,12 @@ showing its own checks would have caught it.
   does not declare), and `apply <planfile>` re-reads the live system,
   compares its own fresh plan with the file's, and refuses by name -
   `The approved plan no longer matches the live system` - with exit
-  status 3, naming the row nobody approved. Then the same two commands
-  over the world as it now is, and the reviewed change lands. The BREAK
+  status 3, naming the row nobody approved. Then it refuses a second
+  time for the subtler case: the change sets agree exactly and the
+  configuration was edited after the approval, so the same resource,
+  same action and same live object plan a different value - refused
+  with `after.retention_in_days` named. Then the same two commands over
+  the world as it now is, and the reviewed change lands. The BREAK
   control is the inverse of the usual one: it leaves the world UNMOVED
   and the same file must apply, because a comparison that refuses every
   plan file is not a check.
