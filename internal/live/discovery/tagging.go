@@ -1101,6 +1101,12 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 		noIdentity:   c.importID == "",
 	}
 
+	// GitHub issue #906: this object's marker names a declared address,
+	// which is exactly the condition the next two branches share. The
+	// sighting is filed with the provider configuration that address's
+	// block uses, in scope or out, for [Merge] to read across passes.
+	noteDeclaredSighting(req, decl, res, bindType, escaped, c.importID)
+
 	if entry, ok := decl.entryFor(bindType, escaped); ok {
 		entry.claimants = append(entry.claimants, claim)
 		return diags

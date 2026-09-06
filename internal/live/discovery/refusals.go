@@ -130,6 +130,10 @@ var refusals = []Refusal{
 		What:    "A live resource's tofu-slot tag is not a slot value this run can read.",
 	},
 	{
+		Summary: "Marked resource outside its address's provider configuration",
+		What:    "A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.",
+	},
+	{
 		Summary: "No AWS account ID from the provider",
 		What:    "The account this run is against could not be resolved, so identities embedding the account cannot be computed and marker discovery has to stand in for them.",
 	},

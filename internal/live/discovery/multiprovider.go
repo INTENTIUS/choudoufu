@@ -180,6 +180,14 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 
 	skip := crossProviderOrphanCollisions(estate, passes, res, &diags)
 
+	// GitHub issue #906, and the same reading of live/MARKERS.md the
+	// collision check above rests on, applied one step earlier: an address
+	// whose marked live object only a provider configuration that does NOT
+	// declare it could see is an object this configuration can no longer
+	// reach, and creating its replacement would manufacture exactly the
+	// collision above. See outofscope.go.
+	strandedAcrossProviderConfigs(estate, passes, res, &diags)
+
 	// base holds the merged answer for every resolution that came out of
 	// the configuration (r.Undeclared == false: a needs-discovery instance
 	// or an already-concrete, client-named one - see [Request.ScopeProvider]
@@ -233,6 +241,7 @@ func Merge(estate string, passes []Pass) (*Result, map[string]addrs.AbsProviderC
 		// live objects answering to one import identity. Flattened, region
 		// B's object vouched existence for region A's instance.
 		res.CacheVouchSightings = res.CacheVouchSightings.Union(p.Result.CacheVouchSightings)
+		res.DeclaredSightings = append(res.DeclaredSightings, p.Result.DeclaredSightings...)
 		res.Orphans = append(res.Orphans, p.Result.Orphans...)
 		for _, g := range p.Result.SweepGaps {
 			key := g.TypeName + "\x00" + string(g.Reason)
