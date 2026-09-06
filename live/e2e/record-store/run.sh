@@ -71,11 +71,16 @@ RECORDS_DIR="$COPY/.tofu-records"
 # store, which is why assert_hint_not_a_record below checks the split rather
 # than leaving it assumed.
 count_records() {
-  find "$RECORDS_DIR/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' '
+  find "$RECORDS_DIR/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
 }
 
+# Excludes the same sentinel count_records does (issue #861): the equality
+# assert_hint_not_a_record checks - resources == count_all_store_files -
+# hints - only holds if both sides agree on whether the store's own
+# provisioning sentinel counts as a file, so this exclusion has to track
+# count_records's, not just its own correctness in isolation.
 count_all_store_files() {
-  find "$RECORDS_DIR" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' '
+  find "$RECORDS_DIR" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
 }
 
 # assert_hint_not_a_record proves the namespace split is real rather than

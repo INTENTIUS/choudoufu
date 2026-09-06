@@ -897,7 +897,7 @@ GREEN_LB_EST="$(awsg elbv2 describe-tags --resource-arns "$GREEN_LB_ARN" --query
 log "  ALB $GREEN_LB_ARN carries tofu-address=$GREEN_LB_ADDR tofu-estate=$GREEN_LB_EST - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds instances, including the untaggable types (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
 

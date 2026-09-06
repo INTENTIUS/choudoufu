@@ -478,7 +478,7 @@ GREEN_ROLE_ESTATE="$(awsg iam list-role-tags --role-name "$GREEN_ROLE_NAME" --qu
 log "  $GREEN_ROLE_NAME carries tofu-address=$GREEN_ROLE_ADDR tofu-estate=$GREEN_ROLE_ESTATE - read via the AWS CLI, not choudoufu's own report"
 
 log "=== G3. the record store holds every instance, including the 4 untaggable ones (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "6" ] || fail "expected 6 records under the local record store after the greenfield apply (one per managed instance), found $GREEN_RECORD_FILES"
 log "  6 records persisted, one per managed instance, read directly off the local record store"
 

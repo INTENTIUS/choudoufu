@@ -206,7 +206,7 @@ record_type_counts() {
   for d in "$base"/*; do
     [ -d "$d" ] || continue
     printf '%s %s\n' "$(basename "$d")" \
-      "$(find "$d" -type f ! -name '*.lock' ! -name '*.tmp-*' | wc -l | tr -d ' ')"
+      "$(gauntlet_record_count "$d")"
   done | sort
 }
 
@@ -916,7 +916,7 @@ GF_TD_N="$(awk '$1=="aws_ecs_task_definition"{print $2}' <<< "$GF_EXP_TYPES")"
 [ -n "$GF_TD_N" ] || fail "stock's instance list names no aws_ecs_task_definition - this estate's composition changed and F3's known gap needs re-measuring"
 [ "$GF_UNRECORDED" = "aws_ecs_task_definition $GF_TD_N" ] \
   || { printf 'unrecorded types:\n%s\n' "$GF_UNRECORDED"; fail "the set of instances with no record is not exactly the ${GF_TD_N} aws_ecs_task_definition instance(s) this estate's known gap names - re-measure before trusting either side"; }
-GF_RECORDS="$(find "$GF_REC_BASE" -type f ! -name '*.lock' ! -name '*.tmp-*' | wc -l | tr -d ' ')"
+GF_RECORDS="$(gauntlet_record_count "$GF_REC_BASE")"
 [ "$GF_RECORDS" = "$((EXPECTED - GF_TD_N))" ] \
   || fail "the per-type comparison agreed but the record total is $GF_RECORDS, not $((EXPECTED - GF_TD_N))"
 log "  $GF_RECORDS records persisted, matching stock's instance list type for type in every type but one: aws_ecs_task_definition (${GF_TD_N} instance(s)) gets no record - reported, not endorsed"

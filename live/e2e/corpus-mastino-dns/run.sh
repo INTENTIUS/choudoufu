@@ -792,7 +792,7 @@ GREEN_PROD_EST="$(awsg route53 list-tags-for-resource --resource-type hostedzone
 log "  production zone carries tofu-address=$GREEN_PROD_ADDR tofu-estate=$GREEN_PROD_EST - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds every instance, including all 59 untaggable records (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "$INSTANCES" ] || fail "expected $INSTANCES records under the local record store after the greenfield apply, found $GREEN_RECORD_FILES"
 log "  $GREEN_RECORD_FILES records persisted, one per managed instance, read directly off the local record store"
 
@@ -1039,9 +1039,9 @@ RECORD_DIR="$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record"
 # (== UNTAGGABLE, by property), and the residue-bearing subset is checked
 # separately below by its VALUE (the allow_overwrite attribute), not by a
 # second count of the same directory.
-RECORD_N="$(find "$RECORD_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+RECORD_N="$(gauntlet_record_count "$RECORD_DIR")"
 [ "$RECORD_N" = "$RECORDS_WANT" ] \
-  || { find "$RECORD_DIR" -type f ! -name '*.lock' | head -20
+  || { find "$RECORD_DIR" -type f ! -name '*.lock' ! -name '.store-sentinel' | head -20
        fail "the migrate wrote $RECORD_N record(s) for aws_route53_record, expected $RECORDS_WANT (one per untaggable instance, #364)"; }
 # And the VALUE, not the count: exactly RESIDUE_WANT of them carry a residue
 # block with allow_overwrite = true (the 4 apex NS blocks plus
@@ -1276,7 +1276,7 @@ done
 # apply, so a bug that deleted or emptied these records here would leave the
 # no-op above green and put the estate straight back to #341 on the next
 # plan - which is the shape of failure this whole crossing exists to catch.
-RECORD_AFTER="$(find "$RECORD_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+RECORD_AFTER="$(gauntlet_record_count "$RECORD_DIR")"
 [ "$RECORD_AFTER" = "$RECORDS_WANT" ] \
   || fail "the record count went $RECORDS_WANT -> $RECORD_AFTER across a no-op apply"
 log "  genuine no-op: $BEFORE_Z zones / $BEFORE_R record sets before and after, no state file,"
@@ -1744,7 +1744,7 @@ json.dump(d, open(p, 'w'))
   [ -n "$G_LO_RECORD" ] || fail "no local record file found naming $G_LO_NAME ahead of day2_count"
   G_LO_IMPORT_ID_BEFORE="$(record_import_id "$G_LO_RECORD")"
   [ "$G_LO_IMPORT_ID_BEFORE" = "$G_LO_IDENTITY" ] || fail "the record naming $G_LO_NAME holds import_id=$G_LO_IMPORT_ID_BEFORE ahead of day2_count, expected $G_LO_IDENTITY"
-  RECORD_N_BEFORE_G="$(find "$RECORD_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+  RECORD_N_BEFORE_G="$(gauntlet_record_count "$RECORD_DIR")"
   [ "$RECORD_N_BEFORE_G" = "$RECORDS_WANT" ] || fail "expected $RECORDS_WANT record files ahead of day2_count, found $RECORD_N_BEFORE_G"
   log "  wp-prod-staging[9]=$G_HI_NAME (TTL=$G_HI_TTL_BEFORE, record import_id=$G_HI_IMPORT_ID_BEFORE), sibling wp-prod-staging[0]=$G_LO_NAME (TTL=$G_LO_TTL_BEFORE, import_id=$G_LO_IMPORT_ID_BEFORE) - must survive untouched"
 
@@ -1838,7 +1838,7 @@ json.dump(d, open(p, 'w'))
     [ "$G_LO_TTL_AFTER_UP" = "$G_LO_TTL_BEFORE" ] || fail "wp-prod-staging[0]'s TTL changed across the scale-up: $G_LO_TTL_BEFORE -> $G_LO_TTL_AFTER_UP"
     G_LO_IMPORT_ID_AFTER_UP="$(record_import_id "$G_LO_RECORD")"
     [ "$G_LO_IMPORT_ID_AFTER_UP" = "$G_LO_IMPORT_ID_BEFORE" ] || fail "wp-prod-staging[0]'s record import_id changed across the scale-up: $G_LO_IMPORT_ID_BEFORE -> $G_LO_IMPORT_ID_AFTER_UP"
-    RECORD_N_AFTER_UP_G="$(find "$RECORD_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+    RECORD_N_AFTER_UP_G="$(gauntlet_record_count "$RECORD_DIR")"
     [ "$RECORD_N_AFTER_UP_G" = "$RECORDS_WANT" ] || fail "expected $RECORDS_WANT record files after the scale-down-then-up cycle, found $RECORD_N_AFTER_UP_G"
     log "  $G_HI_NAME recreated (record import_id=$G_HI_IMPORT_ID_AFTER_UP, identical to before - Route 53 hands back no system id for a record set, so realness was proved by absence above, not by a changed id), TTL=$G_HI_TTL_AFTER_UP; wp-prod-staging[0] ($G_LO_NAME) unchanged TTL and import_id throughout the down-then-up cycle - all read via the AWS CLI and the local record store"
 

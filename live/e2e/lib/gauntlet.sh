@@ -96,6 +96,24 @@ gauntlet_end() {
   printf 'GAUNTLET end=1\n'
 }
 
+# gauntlet_record_count <dir>: counts a record store's on-disk record files
+# under <dir> the way every crossing script already counted them by hand -
+# "-type f", skipping the write-lock and in-progress-write files a
+# staterecord.Store leaves beside its records - PLUS one more exclusion:
+# the store's own provisioning sentinel, a single file every store now
+# writes once at the top of its own key namespace and never removes
+# (internal/live/projection/store.go's provisionStoreSentinel, issue #693).
+# The sentinel's on-disk name is ".store-sentinel", mirroring the unexported
+# sentinelKeyName constant in that file - a script cannot import a Go
+# constant, so this is the one place that spelling is allowed to be
+# hand-written a second time; if store.go ever renames it, grep for
+# sentinelKeyName and update the literal here. Before this exclusion
+# existed, a store touched during a run counted one file too many
+# (issue #861).
+gauntlet_record_count() {
+  find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
+}
+
 # gauntlet_stage_from_exit <id> <exit-code> [detail...]
 # Convenience for the common shape "run a check, report pass on 0, fail
 # otherwise" without the script having to branch itself.

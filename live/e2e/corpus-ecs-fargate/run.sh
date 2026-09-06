@@ -1008,7 +1008,7 @@ log "=== G3. the record store holds every instance the current record-writer can
 # recovery path #364 A2 also populates for taggable types) is missing for
 # these two.
 GREEN_RECORD_WANT=$((INSTANCES - 2))
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "$GREEN_RECORD_WANT" ] || fail "expected $GREEN_RECORD_WANT records under the local record store after the greenfield apply ($INSTANCES managed instances minus the 2 aws_ecs_task_definition instances the numeric-identity-component gap above excludes), found $GREEN_RECORD_FILES"
 log "  $GREEN_RECORD_FILES of $INSTANCES records persisted (the 2 aws_ecs_task_definition instances excluded by the numeric-identity-component gap documented above), read directly off the local record store"
 

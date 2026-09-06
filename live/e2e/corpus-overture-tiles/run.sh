@@ -643,7 +643,7 @@ GOT_G_QUEUE_ADDR="$(awsg batch list-tags-for-resource --resource-arn "$GREEN_QUE
 log "  bucket and batch job queue carry their expected tofu-address/tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
 
 log "=== GREENFIELD: 3. the local record store holds at least one record per taggable instance (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted under the local record store"
 
