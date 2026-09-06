@@ -308,7 +308,12 @@ composite-import:
 # registries, the corpus artifact above, and live/wo-sweep.json's residue
 # figures (#126). No provider, no network: all three inputs are committed.
 #
-# Render live/LIMITATIONS.md's per-refusal spans from the refusal registries.
+# Renders three spans: the ranked refusal table, one entry per non-lint
+# refusal, and (#698) the lint roster at the head of "Enforced today", whose
+# fixture column is checked against live/e2e/limits on disk. It refuses to
+# write the document at all when a refusal has no description, when a lint
+# rule's heading has no fixture directory, or when any refusal cites a
+# heading nobody wrote.
 limits:
     go run ./tools/limits-gen
 
