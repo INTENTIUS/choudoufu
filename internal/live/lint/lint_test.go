@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/strict"
@@ -932,6 +933,13 @@ func TestOnlyStateBackendIsWarningSeverity(t *testing.T) {
 // outside the union) held from the first registry-ratified batch through
 // the sixth.
 //
+// Since issue #699 the cohort half of that union is
+// internal/live/cohorts.FixtureTypes - the pinned rosters and their generated
+// supporting resources - rather than a walk of 32 committed directories,
+// because the directories are rendered into the run's own work directory now
+// and no longer live in git. The check is the same one; only where it reads
+// the type names changed.
+//
 // The REMAINDER ratification batch (issue #65) is where that exact count
 // stops holding by design, with the coordinator's own sign-off: the batch's
 // long tail (~90 services, most contributing a handful of types) is ratified
@@ -953,11 +961,12 @@ func TestOnlyStateBackendIsWarningSeverity(t *testing.T) {
 // cohort's README, the same way live/e2e/estates/remainder/README.md does.
 func TestAdmissionTableCoversEstate(t *testing.T) {
 	fixtureTypes := map[string]bool{}
-	for _, dir := range flocitest.FixtureDirs(t) {
-		cfg := loadConfigDir(t, dir)
-		for _, rc := range cfg.Module.ManagedResources {
-			fixtureTypes[rc.Type] = true
-		}
+	cfg := loadConfigDir(t, flocitest.EstateDir(t))
+	for _, rc := range cfg.Module.ManagedResources {
+		fixtureTypes[rc.Type] = true
+	}
+	for _, resourceType := range cohorts.FixtureTypes() {
+		fixtureTypes[resourceType] = true
 	}
 	for resourceType := range fixtureTypes {
 		if !admitted(resourceType, nil, nil) {
