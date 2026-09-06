@@ -307,7 +307,13 @@ func TestMkConfigDir_new(t *testing.T) {
 	}
 
 	mode := int(info.Mode().Perm())
-	expectedMode := 0755
+	// mkConfigDir creates the directory via os.Mkdir(configDir, os.ModePerm),
+	// and the kernel masks that request with the calling process's umask, so
+	// the mode actually on disk is 0777 &^ umask, not a fixed value. Assert
+	// against that computation rather than pinning a single umask (022),
+	// which only held on machines where that happened to be the umask. See
+	// https://github.com/INTENTIUS/choudoufu/issues/895.
+	expectedMode := 0777 &^ currentUmask()
 	// Unix permissions bits are not applicable on Windows. Perm() returns
 	// 0777 regardless of whether readonly or hidden flags are set.
 	if runtime.GOOS == "windows" {
