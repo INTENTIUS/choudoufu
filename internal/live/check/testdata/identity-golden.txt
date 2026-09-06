@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=654 instances=1810
+# shape: dirs=655 instances=1811
 # shape: class CONCRETE=888
-# shape: class NEEDS_DISCOVERY=758
+# shape: class NEEDS_DISCOVERY=759
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=e10fb9c2e61abe66d560b6aeadbd904aa3229077e18b987b711a8cefd1e668c9
+# shape: body-sha256=b2191bc90e6ae697b934226e4bd3d7358e533d3658ab75bd218e1a86a3a34357
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -125,6 +125,7 @@ internal/live/discovery/testdata/moved-rename	aws_subnet.pair["a"]	NEEDS_DISCOVE
 internal/live/discovery/testdata/moved-rename	aws_subnet.pair["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.renamed	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.untouched	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/moved-sweep-double-sighting	aws_iam_instance_profile.renamed	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/propagated-child-marker	aws_instance.main	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/region-change	aws_cloudwatch_log_group.west	CONCRETE	/app/logs	name=/app/logs
 internal/live/discovery/testdata/region-change	aws_kms_key.east	NEEDS_DISCOVERY		
