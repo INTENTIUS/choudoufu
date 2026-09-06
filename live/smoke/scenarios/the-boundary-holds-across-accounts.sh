@@ -222,7 +222,7 @@ explain \
   "dead instance as unchanged. The next -refresh=false plan must name" \
   "aws_cloudwatch_log_group.other_account, and only it, while the home" \
   "account's half keeps being served from the cache."
-cmd "aws --profile other logs delete-log-group ; choudoufu plan -refresh=false"
+cmd "AWS_ACCESS_KEY_ID=$OTHER_ACCT aws logs delete-log-group ; choudoufu plan -refresh=false"
 awsa "$OTHER_ACCT" logs delete-log-group --log-group-name "$LG_NAME" \
   || fail "accounts" "could not delete account $OTHER_ACCT's log group out of band"
 GONE="$(awsa "$OTHER_ACCT" logs describe-log-groups --query "logGroups[?logGroupName=='$LG_NAME'].arn" --output text)"
