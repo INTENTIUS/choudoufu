@@ -1416,7 +1416,7 @@ GREEN_TABLE_EST="$(awsg dynamodb list-tags-of-resource --resource-arn "$GREEN_TA
 log "  table $GREEN_TABLE_ARN carries tofu-address=$GREEN_TABLE_ADDR tofu-estate=$GREEN_TABLE_EST - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds every instance, including the two untaggable/record-backed types (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GF_GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GF_GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "3" ] || fail "expected 3 records under the local record store after the greenfield apply (random_pet, the table, the resource policy), found $GREEN_RECORD_FILES"
 log "  3 records persisted, one per managed instance, read directly off the local record store"
 

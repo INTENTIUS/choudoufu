@@ -203,7 +203,7 @@ count_taint_records() {
   local n=0 f
   while IFS= read -r f; do
     is_tainted "$f" && n=$((n + 1))
-  done < <(find "$PROVISIONED" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null)
+  done < <(find "$PROVISIONED" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null)
   printf '%s' "$n"
 }
 

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -733,6 +734,56 @@ func TestLegacyScriptsOnlyGoDown(t *testing.T) {
 	}
 	if len(legacy) < bound {
 		t.Errorf("only %d legacy scripts remain; lower the bound in this test to %d", len(legacy), len(legacy))
+	}
+}
+
+// sentinelBlindFindPattern matches a crossing script's own copy of the
+// record-count find live/e2e/*/run.sh used to share before issue #861: a
+// find that excludes the store's lock and in-progress-write files but not
+// its provisioning sentinel (internal/live/projection/store.go's
+// sentinelKeyName, ".store-sentinel" on disk). The fix lives once in
+// live/e2e/lib/gauntlet.sh's gauntlet_record_count; a script that still
+// spells the find out by hand (the three that predate the shared protocol:
+// provisioner-taint, record-located, record-store) must at least carry the
+// sentinel exclusion on the same line.
+var sentinelBlindFindPattern = regexp.MustCompile(`-type f ! -name '\*\.lock'`)
+
+// TestNoScriptCopiesTheSentinelBlindFind: issue #861. Every live/e2e/*/run.sh
+// (the glob does not reach live/e2e/lib/gauntlet.sh, which has no run.sh) is
+// scanned line by line; a line that re-derives the lock/tmp exclusion
+// without also excluding the sentinel is a stale copy of the bug the
+// helper fixed, and would count one extra file per record store it
+// touches. Proven red on purpose: reverting any one of this issue's fixes
+// (dropping its "! -name '.store-sentinel'" or its call to
+// gauntlet_record_count) makes this test fail again.
+func TestNoScriptCopiesTheSentinelBlindFind(t *testing.T) {
+	root := testRoot(t)
+	scripts, err := filepath.Glob(filepath.Join(root, "live", "e2e", "*", "run.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scripts) == 0 {
+		t.Fatal("no live/e2e/*/run.sh scripts found - glob is broken")
+	}
+	var violations []string
+	for _, s := range scripts {
+		b, err := os.ReadFile(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rel, err := filepath.Rel(root, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(b), "\n") {
+			if sentinelBlindFindPattern.MatchString(line) && !strings.Contains(line, ".store-sentinel") {
+				violations = append(violations, fmt.Sprintf("%s:%d", rel, i+1))
+			}
+		}
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Errorf("record-count find(s) with no sentinel exclusion (issue #861):\n%s", strings.Join(violations, "\n"))
 	}
 }
 

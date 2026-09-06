@@ -905,7 +905,7 @@ GREEN_MAIN_ESTATE_TAG="$(awsg ec2 describe-tags --filters "Name=resource-id,Valu
 log "  all four named security groups (main/postgresql/consul/app) found by their tofu-address markers; tofu-estate=$GREEN_MAIN_ESTATE_TAG - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART F: 3. the record store holds every instance, including the 9 untaggable ones (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "$INSTANCES" ] || fail "expected $INSTANCES records under the local record store after the greenfield apply (every instance gets one, stamped or not - #364 A2), found $GREEN_RECORD_FILES"
 log "  $INSTANCES records persisted, one per managed instance, read directly off the local record store"
 

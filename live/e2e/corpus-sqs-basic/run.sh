@@ -580,7 +580,7 @@ GREEN_ESTATE_TAG="$(awsg sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --
 log "  all four queues carry their expected tofu-address markers and tofu-estate=$GREEN_ESTATE_TAG - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds every instance, including the two untaggable redrive types (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "6" ] || fail "expected 6 records under the local record store after the greenfield apply (4 tagged queues + 2 untaggable redrive types), found $GREEN_RECORD_FILES"
 log "  6 records persisted, one per managed instance, read directly off the local record store"
 

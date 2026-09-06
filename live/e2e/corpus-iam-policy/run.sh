@@ -488,7 +488,7 @@ GREEN_TAG_EST1="$(awslg iam list-policy-tags --policy-arn "$GREEN_POLICY1_ARN" -
 log "  both policies' tofu-address and tofu-estate=$GREEN_ESTATE verified via the AWS CLI, not through choudoufu's own report"
 
 log "=== PART GREENFIELD 3. the local record store holds one record per instance (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "2" ] || fail "expected 2 records under the local record store after the greenfield apply (one per policy), found $GREEN_RECORD_FILES"
 log "  2 records persisted, one per managed instance, read directly off the local record store"
 

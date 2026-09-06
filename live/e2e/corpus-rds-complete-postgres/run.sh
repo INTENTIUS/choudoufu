@@ -697,7 +697,7 @@ GREEN_SG_LINE="$(awsg ec2 describe-security-groups --filters "Name=tag:tofu-esta
 log "  primary DB instance and security group carry their expected tofu-address/tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
 
 log "=== GREENFIELD: 3. the local record store holds at least one record per taggable instance (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted under the local record store"
 

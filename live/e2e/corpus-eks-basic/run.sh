@@ -2408,7 +2408,7 @@ GREEN_CLUSTER_ESTATE="$(awsg eks list-tags-for-resource --resource-arn "arn:aws:
 log "  $GREEN_CLUSTER_NAME carries tofu-address=$GREEN_CLUSTER_ADDR tofu-estate=$GREEN_CLUSTER_ESTATE - read via the AWS CLI, not choudoufu's own report"
 
 log "=== G3. the record store holds what the current record-writer can (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -ge 1 ] || fail "expected at least one record under the implied local record store after the greenfield apply, found $GREEN_RECORD_FILES"
 log "  $GREEN_RECORD_FILES records persisted under the implied local record store (not asserted against an exact expected count here - see corpus-ecs-fargate's own greenfield stage for the numeric-wire-identity-component gap that makes an exact count estate-specific)"
 

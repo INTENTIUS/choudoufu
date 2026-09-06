@@ -815,7 +815,7 @@ GREEN_LOGGROUP_ADDR="$(awsg logs list-tags-for-resource --resource-arn "$GREEN_L
 log "  all three module-nested markers verified via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds every record-backed instance (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "8" ] || fail "expected 8 records under the local record store after the greenfield apply (3 taggable + random_pet + local_file + null_resource + terraform_data + one for the config-derived aws_iam_role_policy.logs), found $GREEN_RECORD_FILES"
 log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
 

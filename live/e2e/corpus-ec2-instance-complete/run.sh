@@ -599,7 +599,7 @@ GREEN_INSTANCE_EST="$(awsg ec2 describe-tags --filters "Name=resource-id,Values=
 log "  instance $GREEN_INSTANCE_ID carries tofu-address=$GREEN_INSTANCE_ADDR tofu-estate=$GREEN_INSTANCE_EST - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds instances, including the untaggable types (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
 

@@ -328,7 +328,7 @@ GREEN_EST_TAG="$(awsg iam list-policy-tags --policy-arn "$GREEN_POLICY_ARN" --qu
 log "  $GREEN_POLICY_ARN carries tofu-address=$GREEN_ADDR tofu-estate=$GREEN_EST_TAG - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds one record (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN_EST/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN_EST/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "1" ] || fail "expected 1 record under the local record store after the greenfield apply, found $GREEN_RECORD_FILES"
 log "  1 record persisted, read directly off the local record store"
 

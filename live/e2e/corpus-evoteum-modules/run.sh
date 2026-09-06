@@ -616,7 +616,7 @@ GREEN_VPC_ESTATE="$(awsg ec2 describe-vpcs --filters "$(marker_filter 'module.ne
 log "  the greenfield VPC carries tofu-address=$GREEN_VPC_ADDR tofu-estate=$GREEN_VPC_ESTATE - read via the AWS CLI, not choudoufu's own report"
 
 log "=== G3. the record store holds every instance, including the 3 untaggable associations (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "10" ] || fail "expected 10 records under the local record store after the greenfield apply (one per managed instance), found $GREEN_RECORD_FILES"
 log "  10 records persisted, one per managed instance, read directly off the local record store"
 

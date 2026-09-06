@@ -1636,7 +1636,7 @@ GREEN_SQS_EST="$(awsg sqs list-queue-tags --queue-url "$GREEN_SQS_URL" --query "
 log "  sqs queue carries tofu-address=$GREEN_SQS_ADDR tofu-estate=$GREEN_SQS_EST - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds instances, including the untaggable ASGs (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted, read directly off the local record store"
 

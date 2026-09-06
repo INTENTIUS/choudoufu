@@ -268,7 +268,7 @@ log "  3 located records, each holding the id the emulator agrees with"
 # one it would drive a cloud deletion from a stale file. See record.go's
 # own comment on recordKindIdentity.
 > "$WORK/record-ns"
-count_ns() { find "$RECORDS/$1" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null > "$WORK/record-ns" || true
+count_ns() { find "$RECORDS/$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null > "$WORK/record-ns" || true
              wc -l < "$WORK/record-ns" | tr -d ' '; }
 # 4, not 3: GitHub issue #364 unit A2's ruling means aws_vpc.control gets
 # an identity record too now, alongside the three genuinely located

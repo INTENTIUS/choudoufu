@@ -562,7 +562,7 @@ GREEN_USER_ADDR="$(awslg iam list-user-tags --user-name "$USER_NAME" --query "Ta
 log "  bucket $BUCKET_NAME -> tofu-address=$GREEN_BUCKET_ADDR tofu-estate=$GREEN_BUCKET_ESTATE; user $USER_NAME -> tofu-address=$GREEN_USER_ADDR - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD 3. the local record store holds one record per instance, taggable and untaggable alike (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "3" ] || fail "expected 3 records under the local record store after the greenfield apply (bucket, user, inline policy), found $GREEN_RECORD_FILES"
 log "  3 records persisted, one per managed instance including the untaggable inline policy, read directly off the local record store"
 

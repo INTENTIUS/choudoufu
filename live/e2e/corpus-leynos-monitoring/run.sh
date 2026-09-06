@@ -587,7 +587,7 @@ GREEN_S3_EST="$(awsg cloudwatch list-tags-for-resource --resource-arn "$GREEN_S3
 log "  both alarms carry their expected tofu-address markers and tofu-estate=$GREEN_S3_EST - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD: 3. the record store holds every instance, including the untaggable dashboard (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "3" ] || fail "expected 3 records under the local record store after the greenfield apply (2 alarms + the untaggable dashboard), found $GREEN_RECORD_FILES"
 log "  3 records persisted, one per managed instance, read directly off the local record store"
 

@@ -653,7 +653,7 @@ GREEN_ROLE_ADDR="$(awslg iam list-role-tags --role-name "$ROLE_NAME" --query "Ta
 log "  bucket $BUCKET_NAME -> tofu-address=$GREEN_BUCKET_ADDR tofu-estate=$GREEN_BUCKET_ESTATE; role $ROLE_NAME -> tofu-address=$GREEN_ROLE_ADDR - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART GREENFIELD 3. the local record store holds one record per instance, taggable and untaggable alike (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "4" ] || fail "expected 4 records under the local record store after the greenfield apply (bucket, CORS config, role, inline policy), found $GREEN_RECORD_FILES"
 log "  4 records persisted, one per managed instance including the two untaggable ones, read directly off the local record store"
 

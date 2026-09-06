@@ -606,7 +606,7 @@ done
 log "  3 of 4 buckets spot-checked, correct tofu-address and tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
 
 log "=== GREENFIELD: 3. the local record store holds one record per instance (#364 A2: apply writes a record too, not just live-import) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/examples/complete/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/examples/complete/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" -gt 0 ] || fail "expected at least one record under the local record store after the greenfield apply, found none"
 log "  $GREEN_RECORD_FILES records persisted under the local record store"
 

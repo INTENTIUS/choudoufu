@@ -656,7 +656,7 @@ GREEN_ROLE_ADDR="$(awsg iam list-role-tags --role-name "${NAME_PREFIX}-main-flow
 log "  VPC $GREEN_VPC_ID and the flow-logs role both carry their expected tofu-address/tofu-estate markers - read via the AWS CLI, not choudoufu's own report"
 
 log "=== PART F: 3. the record store holds every instance, including the untaggable ones (#364 A2) ==="
-GREEN_RECORD_FILES="$(find "$GREEN/blueprints/landing-zone-basic/.tofu-records/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' ')"
+GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/blueprints/landing-zone-basic/.tofu-records/tofu-records")"
 [ "$GREEN_RECORD_FILES" = "28" ] || fail "expected 28 records under the local record store after the greenfield apply (one per instance, including the untaggable iam_role_policy, account_alias and the 4 route-table associations), found $GREEN_RECORD_FILES"
 log "  28 records persisted, one per managed instance, read directly off the local record store"
 
