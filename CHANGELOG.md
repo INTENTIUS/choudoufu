@@ -4,9 +4,169 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.13.0 (Unreleased)
+## choudoufu v0.14.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.13.0 (2026-09-06)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.13.0.json`](live/history/v0.13.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.12.0.json live/history/v0.13.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+- Emulator: repinned from `ghcr.io/lex00/floci@sha256:c55d74e13e96c8b132056677337dba0084bb0b427cb039be2dbf9a8b7efc0948` to `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`
+
+Unlike v0.12.0, this board was re-measured rather than carried forward: the
+emulator was repinned (PR #862), the whole board was then swept against the
+new pin and read 19/26 with eight regressions filed (PR #876), and every one
+of those was repaired and re-measured back to 26/26 and 27/27 (PRs #886, #893).
+
+ENGINE WORK:
+
+- **One slow call no longer stops the window sliding** (#683, PR #840; #839,
+  PR #860). The read pass's prefetch and the sweep's each used one bounded
+  channel as both the concurrency limit and the backpressure, so an answer
+  that had already landed went on holding a slot until the consuming loop
+  reached it, and a stalled call stopped the launcher outright. Each is now
+  two bounds: an in-flight count the worker releases when its call returns,
+  and a buffer of fetched-but-unconsumed answers the consumer releases.
+  `TOFU_LIVE_READ_PARALLELISM` and `TOFU_LIVE_SWEEP_PARALLELISM` keep their
+  names, defaults and refusals; the buffer follows the width. Both are `Refs`
+  rather than `Closes`, because the share of wall clock is proven only
+  against a fake: floci never throttles, so the emulator cannot produce the
+  straggler.
+
+- **A cache vouch belongs to the pass that saw it** (#745, PR #837).
+  `CacheVouchSightings` was keyed by type and import identity and unioned
+  across every pass. In a multi-region estate mirroring one client-chosen
+  name into two regions, region B's sighting therefore vouched for an object
+  deleted out of band in region A, and the `-refresh=false` plan reported the
+  dead instance unchanged. Sightings now carry the provider configuration
+  their pass listed through and are looked up under it, and the vouch pass
+  skips a type no in-scope block declares.
+
+- **A record-only composite identity binds, and one object can have two
+  names** (#746, PR #851; #855, PR #877; #879, PR #892). The located fallback
+  skipped every record with an empty `ImportID`, which is exactly what a
+  wire-identity composite is written as, so an instance the estate had
+  already recorded went unbound and the plan proposed a second copy of a live
+  object. It now binds from the record's components, never a joined string.
+  Measured against hashicorp/aws 6.59.0 the exposed population is 27 types,
+  three of which reach the fallback, and none carries a sensitive identity
+  attribute. Separately, a type whose wire identity is `family`+`revision`
+  while its documented import string is a whole ARN was recorded only one
+  way, so a replace's tombstone could never be matched against the destroyed
+  object's lingering tag; `LocatedRecord.SecondaryID` now records both, read
+  only to let a claimant leave a collision set.
+
+- **A replace tombstones what it destroyed, and orphan recovery reads the
+  record first** (#670, PR #849; #872, PR #883; #875, PR #891; #881, PR
+  #890). Pruning a superseded claimant on "the record names a different
+  object" could not tell a terminated tag shadow from a second genuinely live
+  object wearing the address's marker. A replace now records the identity it
+  overwrote in the same tombstone member a destroy already writes, bounded at
+  eight per address, and a claimant is pruned only when it matches one. Three
+  orphan-recovery defects the board sweep exposed are fixed alongside it: a
+  declared parent answered only by the record store counted as unheld and
+  withheld its untaggable children (#872), the parent-read legs ran ahead of
+  the record store and minted a child's address from the live object's own
+  name (#875), and an unserved-service type the provider cannot list was
+  routed to the native leg and so never enumerated at all (#881).
+
+- **`plan -out` and `apply <planfile>` are an approval gate** (#878, PR
+  #889). Both were refused under live markers, so the shape a pipeline
+  actually runs in (plan on the pull request, a human approves, apply exactly
+  what was approved) had nothing to hold. Apply now reads the file for its
+  change set and its estate and then drops it, plans live the ordinary way,
+  and compares the two: address, action, the identity of the live object the
+  change was computed against, and the planned values on both sides,
+  canonically rendered, with unknowns excluded and sensitive values compared
+  as a digest. A difference refuses by name, `The approved plan no longer
+  matches the live system` (or the sibling `The approved plan belongs to a
+  different estate`), and exits **3**, which is neither an ordinary failure
+  nor `-detailed-exitcode`'s 2. Claim 15,
+  `live/smoke/scenarios/apply-what-was-approved.sh`, proves it; its `BREAK=1`
+  arm is inverted, because the risk here is a comparison that refuses every
+  plan file rather than one that never fires.
+
+FORK WORK:
+
+- **The emulator is repinned** (#672, PRs #847 and #862; lex00/floci#190 and
+  #191). floci's `CreateSubnet` accepted a CIDR conflicting with an existing
+  subnet in the same VPC, which real EC2 refuses as `InvalidSubnet.Conflict`.
+  `CreateSubnet` carries no idempotency token, so an SDK transport retry
+  created a second live subnet, and that is `corpus-vpc-complete`'s 18-vs-19
+  greenfield flake. floci gained the conflict check, `live/floci-image` moved
+  to `sha256:a39185cc...`, and `live/floci-capabilities.json` was regenerated
+  for the new digest. `plan-budget.json`, `cohort-acceptance.json` and
+  `cohort-triage.json` are recorded as measured against the old pin rather
+  than silently re-measured.
+
+- **`internal/command/e2etest` now gates something** (#755, PRs #836 and
+  #856). `TestStaticPlanVariables` was red on main: `unlock.go` called the
+  stateless guard before parsing variables, so the guard's own config load
+  could not see a `-var` the backend depended on, while the other four
+  guarded commands parse first. A four-day-old fork defect sat behind a
+  package no tier ran, so per the maintainer's 2026-09-05 ruling the package
+  joined the fast tier in both `.github/workflows/ci.yml` and the `justfile`,
+  at a measured 42s and no `TF_ACC`.
+
+- **A nightly that fails says why** (#496, PR #842). Every nightly gauntlet
+  run since 08-21 computed real verdicts and then failed to open the verdicts
+  pull request, with the reason at the bottom of a 300-line log. That step now
+  runs under `continue-on-error` followed by one that emits a `::error`
+  annotation naming the issue and the two likely causes, and `scripts/pickup.sh`
+  prints the workflow's own state and the artifact's last measured date. The
+  org-level Actions permission is still owed and the workflow stays disabled.
+
+- **Published figures carry their provenance** (#679, PR #857). Eleven ranked
+  site figures, `live/SURVEY.md`'s hand-typed provider-wide paragraph, and
+  `live/COVERAGE.md`'s "Admitted" row and "Other providers" section were
+  uncited, stale, or both. `forkdiff-gen`, `readiness-gen` and `survey-gen`
+  grew build stamps, every remaining figure got a commit or a "Stale" stamp,
+  and `TestSiteContentMeasuredFiguresCarryProvenance` fails a number followed
+  by a unit word with no sha, no "Stale" and no anchored link anywhere in its
+  heading section.
+
+- **The terralith ceiling table is re-measured** (#708, PR #841; #838, PR
+  #866). The bench's fixture loader stopped on any module call, so it could
+  not run at all against a `terralith-gen` that has emitted a module-nested
+  bucket since #574; it now resolves a local module source the way
+  `check.LoadOverlay` does. All six tiers then ran against the new pin: 79 to
+  5925 resources, 113 to 7697 API calls, apply settling to about 0.28s per
+  resource from scale=4 on. Peak memory is the one finding that changed shape:
+  the old flat 225-300MB band is real, gradual, sub-linear growth, 1.50x for
+  the harness and 1.59x for floci across a 75x range of resource counts.
+
+- **The record store's sentinel is not a record** (#861, PR #865).
+  `.store-sentinel` sits under every record store's key namespace and was
+  swept up by every crossing script's `find`, so every record-file assertion
+  read one file too many and `corpus-security-group-complete` could not reach
+  `day2_replace` at all. A shared `gauntlet_record_count` helper spells the
+  name once, 24 scripts and 29 call sites route through it, and
+  `TestNoScriptCopiesTheSentinelBlindFind` bans the raw pattern. That guard is
+  what found `corpus-mastino-dns`, which `grep -r` had been skipping as binary.
+
+- **Prose held against code, and denominators against their artifacts**
+  (#658, PR #844; #843, PR #859; #853, PR #884). Five sites stated a rule the
+  code does not enforce or named a remedy that does nothing: the child-module
+  diagnostic refused a `count.index` read the analyzer admits, two projection
+  refusals named a `record_store` block implied since #364, a doc comment
+  cited a file that does not exist, and `live/GAUNTLET.md`'s and
+  `iamref-gen`'s hand-typed totals had drifted from their own artifacts.
+  reach.md's "17 of 180 services" divided by a population including 17
+  services never checked; a new `checked-count` shortcode field renders 17 of
+  157 out of the same filtered slice the named/unnamed split already uses.
+  `live/COVERAGE.md`'s #427 breakdown summed to 77 against a 76-member bucket.
+  Two pages that led with a withdrawn figure before stating the current one
+  were reordered (PRs #798, #800), and claim 14
+  (`plan-cost-tracks-the-estate`) was published: the scenario was fully built,
+  unlisted, and carrying a header number that collides with claim 10 (PR
+  #802).
 
 ## choudoufu v0.12.0 (2026-09-04)
 
