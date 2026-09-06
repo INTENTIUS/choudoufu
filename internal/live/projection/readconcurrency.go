@@ -393,8 +393,7 @@ func (b *builder) startReadPrefetch(ctx context.Context, ws []wanted) *readPrefe
 func (b *builder) startRecordFirstPrefetch(ctx context.Context, resolutions []identity.Resolution) *readPrefetch {
 	ws := make([]wanted, 0, len(resolutions))
 	for _, r := range resolutions {
-		switch r.Class {
-		case identity.ClassRecordBacked, identity.ClassRecordLocated:
+		if classFor(r.Class).ownRecordDoor {
 			continue
 		}
 		rec, _, _, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, r.Addr)
