@@ -162,6 +162,18 @@ set -uo pipefail
 #                 (count_test[0] rather than count_test[1]) to be the one
 #                 destroyed on the way down, which must make day2_count
 #                 report fail. Independent of BREAK and BREAK=replace.
+#   BREAK_APPROVAL
+#                 set to 1 to run plan_approval's own negative control
+#                 instead of the real refusal check (PART P): after the SQS
+#                 queue's Example tag has moved out of band, assert the
+#                 saved plan file APPLIES cleanly - the Break text in
+#                 tools/gauntlet/stages.go for plan_approval is literally
+#                 "Apply the planfile after a mutation and expect success;
+#                 the run must refuse", so this assertion has to fail.
+#                 Independent of BREAK and BREAK_COUNT, and the only one of
+#                 them under which PART P runs at all - the others
+#                 deliberately leave the estate somewhere PART P does not
+#                 describe, and it reports no verdict there.
 #
 # This script is not routed around any real floci gap it hits (no
 # -target, no resource removed from the example): it runs the real module
@@ -799,6 +811,175 @@ else
   [ "$FIXED_VALUE" = "complete" ] || fail "the SQS queue's Example tag is \"$FIXED_VALUE\" after reconverging, not \"complete\""
   log "  reconverged: SQS queue 'complete's Example tag is back to \"complete\""
   gauntlet_stage drift_reconverge pass "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the SQS
+#          queue's Example tag is changed out of band through the AWS CLI,
+#          the same mutation STAGE 5 above already proves this estate's
+#          plan notices - and the apply must refuse: exit 3, the named
+#          summary, the unapproved row printed by address AND by the live
+#          identity it was computed against (aws_sqs_queue's id is its
+#          queue URL), and the reviewed change still not landed when the
+#          live IAM role is read back through the CLI.
+#   P4     nothing has moved (the tag is put back first) and the SAME file
+#          must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is
+# aws_iam_role.ssm's own `tags` argument, a single instance with no count
+# or for_each and nothing but a name reference hanging off it
+# (aws_iam_instance_profile.ssm reads aws_iam_role.ssm.name, which an
+# in-place tag update leaves known, so nothing else joins the change set);
+# the out-of-band move is on aws_sqs_queue.this. Neither is an object a
+# later part of this script captured an id for: PART D holds the security
+# groups behind module.asg_sg, PART E the launch template, PART G a
+# synthetic aws_security_group.count_test.
+#
+# Runs only on a real run. Under this script's other BREAK controls the
+# estate is deliberately left somewhere this part does not describe, so it
+# reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="aws_iam_role.ssm"
+  P_MOVED_ADDR="aws_sqs_queue.this"
+  # local.name is basename(path.cwd) in this example, so the role's name is
+  # the estate directory's own basename - derived, not typed twice.
+  P_ROLE_NAME="$(basename "$ADOPTED")"
+  awsl iam get-role --role-name "$P_ROLE_NAME" >/dev/null 2>&1 \
+    || fail "no live IAM role named $P_ROLE_NAME - aws_iam_role.ssm is not where PART P expects it"
+  P_QUEUE_EXAMPLE="$(awsl sqs list-queue-tags --queue-url "$QUEUE_URL" --query "Tags.Example" --output text)"
+  [ -n "$P_QUEUE_EXAMPLE" ] && [ "$P_QUEUE_EXAMPLE" != "None" ] || fail "the SQS queue carries no Example tag going into PART P"
+  log "  the change under review lands on IAM role $P_ROLE_NAME ($P_REVIEWED_ADDR); the out-of-band move lands on $QUEUE_URL ($P_MOVED_ADDR, Example=\"$P_QUEUE_EXAMPLE\")"
+
+  log "=== P1. the change under review: one argument, on one resource ==="
+  # main.tf passes `tags = local.tags` to a dozen module calls, each of
+  # which fans it out over everything the module declares. Only the two
+  # bare IAM resources take it for themselves, and aws_iam_role.ssm is the
+  # one nothing else in this script reads back, so its two-line
+  # name/tags block is the anchor - specific enough that a moved corpus pin
+  # fails the count assertions below rather than editing something else.
+  [ "$(grep -c '^resource "aws_iam_role" "ssm" {$' "$ADOPTED/main.tf")" = "1" ] \
+    || fail "main.tf no longer declares exactly one aws_iam_role.ssm - the corpus pin has moved"
+  perl -0pi -e 's/(resource "aws_iam_role" "ssm" \{\n  name = local\.name\n)  tags = local\.tags\n/$1  tags = merge(local.tags, { Reviewed = "yes" })\n/s' "$ADOPTED/main.tf"
+  [ "$(grep -c 'Reviewed = "yes"' "$ADOPTED/main.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one merge(local.tags, ...) argument"
+  sed -n '/^resource "aws_iam_role" "ssm" {$/,/^}/p' "$ADOPTED/main.tf" | grep -q 'Reviewed = "yes"' \
+    || fail "the reviewed edit landed outside resource aws_iam_role.ssm"
+  log "  edited one argument: aws_iam_role.ssm's tags now merge in Reviewed = \"yes\""
+
+  P_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -60; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$ADOPTED/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$ADOPTED/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl sqs tag-queue --queue-url "$QUEUE_URL" --tags Example=moved-after-approval >/dev/null
+  P_MOVED_VALUE="$(awsl sqs list-queue-tags --queue-url "$QUEUE_URL" --query "Tags.Example" --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: the queue's Example tag reads \"$P_MOVED_VALUE\""
+  log "  $QUEUE_URL's Example tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -60; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved queue, so asserting over the whole
+  # output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$QUEUE_URL" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $QUEUE_URL, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl iam list-role-tags --role-name "$P_ROLE_NAME" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_REVIEWED_TAG" = "None" ] || [ -z "$P_REVIEWED_TAG" ] \
+    || fail "the refused apply still wrote the reviewed change: IAM role $P_ROLE_NAME carries Reviewed=\"$P_REVIEWED_TAG\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl sqs tag-queue --queue-url "$QUEUE_URL" --tags "Example=$P_QUEUE_EXAMPLE" >/dev/null
+  P_RESTORED="$(awsl sqs list-queue-tags --queue-url "$QUEUE_URL" --query "Tags.Example" --output text)"
+  [ "$P_RESTORED" = "$P_QUEUE_EXAMPLE" ] || fail "the out-of-band move was not undone: the queue's Example tag reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -60; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl iam list-role-tags --role-name "$P_ROLE_NAME" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_LANDED" = "yes" ] \
+    || fail "the approved change did not land: IAM role $P_ROLE_NAME carries Reviewed=\"$P_LANDED\", want \"yes\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and IAM role $P_ROLE_NAME now carries Reviewed=yes, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$ADOPTED/approved.tfplan"
+  perl -0pi -e 's/^  tags = merge\(local\.tags, \{ Reviewed = "yes" \}\)$/  tags = local.tags/m' "$ADOPTED/main.tf"
+  [ "$(grep -c 'Reviewed = "yes"' "$ADOPTED/main.tf")" = "0" ] \
+    || fail "reverting the reviewed edit left a merge(local.tags, ...) argument behind"
+  P_BACK_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -60; fail "the revert apply failed"; }
+  P_GONE="$(awsl iam list-role-tags --role-name "$P_ROLE_NAME" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the reviewed tag is still on IAM role $P_ROLE_NAME after the revert: \"$P_GONE\""
+  P_FINAL_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -60; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (aws_iam_role.ssm's tags gain Reviewed=yes - a single instance whose only dependent reads its name, which an in-place tag update leaves known), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band (the SQS queue's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $QUEUE_URL it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - IAM role $P_ROLE_NAME still carried no Reviewed tag, read back through iam list-role-tags rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the queue's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the role read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
 fi
 
 gauntlet_begin_stage day2_rename
