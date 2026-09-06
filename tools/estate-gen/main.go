@@ -384,11 +384,12 @@ func ownedFiles(cohort string) map[string]bool {
 // configs.LiveSidecarFilename (estate.chdf.hcl) is checked by exact name
 // rather than by suffix, the same way internal/configs' own loader finds
 // it (parser_live_sidecar.go looks for that literal filename, not a
-// pattern) - matching it here is what keeps drift_test.go's diffDirs
-// comparing the sidecar's content instead of silently skipping it the way
-// a suffix-only filter would (issue #291; this is the same
-// filter-narrower-than-the-loader shape a prior audit found in the
-// ownership and drift checks reading only *.tf while the loader also
+// pattern) - matching it here is what keeps drift_test.go's
+// declaredTypesInDir and internal/live/flocitest's
+// TestEstatesHoldsNoConfiguration reading the sidecar's content instead of
+// silently skipping it the way a suffix-only filter would (issue #291; this
+// is the same filter-narrower-than-the-loader shape a prior audit found in
+// the ownership and drift checks reading only *.tf while the loader also
 // accepts *.tf.json and *.tofu).
 func isConfigFile(name string) bool {
 	if name == configs.LiveSidecarFilename {

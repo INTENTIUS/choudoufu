@@ -57,7 +57,7 @@ package main
 // Gated the same way as TestMeasureOverrideRetirements, which this test's
 // setup mirrors: it needs the pinned provider's schema (terraform init,
 // cached) but neither Docker nor the AWS CLI - the gate is this package's
-// existing convention for "regenerates every committed cohort," not a
+// existing convention for "regenerates every cohort in the roster," not a
 // statement that this specific test touches floci.
 
 import (
@@ -68,6 +68,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
@@ -263,62 +264,20 @@ func TestOverrideDoesNotShadowAResolvableReference(t *testing.T) {
 	flocitest.Gate(t, "estate-gen reference-shadow sweep")
 	flocitest.RequireBinary(t, defaultInitBin)
 
-	root, err := repoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
 	schemas, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
 	if err != nil {
 		t.Fatalf("acquiring provider schemas: %v", err)
 	}
 
-	estates := filepath.Join(root, "live", "e2e", "estates")
-	entries, err := os.ReadDir(estates)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The baseline every removal is compared against: each cohort rendered
+	// with typeOverrides intact. Until issue #699 this was the committed
+	// tree; rendering it means the comparison is generator-against-generator
+	// rather than generator-against-a-tree-that-might-already-disagree.
+	baseline, typeCohorts := renderRoster(t, schemas, filepath.Join(t.TempDir(), "baseline"))
 
 	rosters := map[string][]string{}
-	typeCohorts := map[string]map[string]bool{}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		cohort := e.Name()
-		dir := filepath.Join(estates, cohort)
-		if !holdsConfig(t, dir) {
-			continue
-		}
-		types, hasCommand := recordedRegenTypes(t, dir)
-		if !hasCommand {
-			continue
-		}
-		if types == nil {
-			types, err = defaultCohortTypes(root, cohort)
-			if err != nil {
-				t.Fatalf("defaultCohortTypes(%s): %v", cohort, err)
-			}
-		}
-		rosters[cohort] = types
-		err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".tf") {
-				return err
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			for _, m := range resourceBlockRe.FindAllStringSubmatch(string(data), -1) {
-				if typeCohorts[m[1]] == nil {
-					typeCohorts[m[1]] = map[string]bool{}
-				}
-				typeCohorts[m[1]][cohort] = true
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, c := range cohorts.All() {
+		rosters[c.Name] = c.Types
 	}
 
 	haveFmt := false
@@ -366,12 +325,12 @@ func TestOverrideDoesNotShadowAResolvableReference(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			committedDir := filepath.Join(estates, cohort)
-			walkErr := filepath.WalkDir(committedDir, func(cpath string, d os.DirEntry, werr error) error {
+			baselineDir := baseline[cohort]
+			walkErr := filepath.WalkDir(baselineDir, func(cpath string, d os.DirEntry, werr error) error {
 				if werr != nil || d.IsDir() || !isConfigFile(d.Name()) {
 					return werr
 				}
-				rel, rerr := filepath.Rel(committedDir, cpath)
+				rel, rerr := filepath.Rel(baselineDir, cpath)
 				if rerr != nil {
 					return rerr
 				}

@@ -204,6 +204,37 @@ above, not deferred, and `live/SURVEY.md`'s own row for it moves from
 `blocked-emulator` to `wired` alongside `aws_cloudfront_distribution`'s —
 see "Verifying by hand".
 
+## The vpc_region force-fill (moved here from knownDrift, #699)
+
+`tools/estate-gen/drift_test.go` carried a `knownDrift` entry for this cohort
+from issue #292 until issue #699 deleted the committed trees the entry
+compared against. Its finding, preserved because it is unfixed:
+
+`aws_route53_zone_association`'s `vpc_region` is an `OmitIfAbsent` identity
+component. The generator force-fills it with the generic placeholder string:
+
+```
+resource "aws_route53_zone_association" "app" {
+  zone_id    = aws_route53_zone.route53-cloudfront.zone_id
+  vpc_id     = aws_vpc.route53-cloudfront.id
+  vpc_region = "placeholder"
+}
+```
+
+The committed tree omitted that line, because it was rendered before the
+force-fill existed and #294 regenerated only the lambda cohort, which had the
+same drift for `aws_lambda_permission`'s `qualifier`. Confirmed on 2026-08-14
+to reproduce unmodified against the pre-#292 generator, so it is not #292's
+Cloud-component fix: it is `OmitIfAbsent`'s own force-fill rule, still
+unfiled.
+
+Since #699 the rendered cohort is the only cohort there is, so every run
+carries the placeholder. That does not change what the acceptance tier
+records: this cohort already stands at `status=fail phase=apply` in
+`live/cohort-acceptance.json` with `aws_route53_zone_association.app` among
+its `failed_resources`, so the ratchet sees no movement either way. The fix
+belongs in `OmitIfAbsent`'s force-fill rule, not in a per-cohort override.
+
 ## Untaggable types
 
 Eight of the thirty rows above carry no `tags` argument in the AWS
