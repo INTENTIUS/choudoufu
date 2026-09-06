@@ -6,6 +6,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,6 +144,134 @@ func TestReadinessSectionDiffsWhenPresent(t *testing.T) {
 		if !strings.Contains(section, want) {
 			t.Errorf("readiness section missing %q; got:\n%s", want, section)
 		}
+	}
+}
+
+// readinessTypeJSON builds a minimal live/readiness.json blob - real field
+// names from tools/readiness-gen/build.go's Row (`type`, `tier`), the only
+// two readinessTypesLine reads - from a list of (type, tier) pairs.
+func readinessTypeJSON(rows [][2]string) string {
+	var b strings.Builder
+	b.WriteString(`{"types":[`)
+	for i, r := range rows {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, `{"type":%q,"tier":%q,"status":"in-contract"}`, r[0], r[1])
+	}
+	b.WriteString("]}\n")
+	return b.String()
+}
+
+// TestReadinessTypesSectionBoundedAndNamesChangedType is #897's own
+// acceptance test. Before the fix, any change anywhere in `types` made
+// diffReadiness print both entire arrays as one bullet - 51,800 lines /
+// 1,559,007 bytes measured against the real v0.12.0 -> v0.13.0 snapshots.
+// Here a single type moves tier; the rendered section must stay small AND
+// still name the type that moved, by value - a summary that shrinks by
+// hiding which type changed would defeat the point as much as the
+// unbounded render did.
+func TestReadinessTypesSectionBoundedAndNamesChangedType(t *testing.T) {
+	root := initTestRepo(t)
+	old := readinessTypeJSON([][2]string{
+		{"aws_a", "marker-carried"},
+		{"aws_b", "record-carried"},
+		{"aws_c", "declaration-carried"},
+	})
+	newer := readinessTypeJSON([][2]string{
+		{"aws_a", "marker-carried"},
+		{"aws_b", "declaration-carried"}, // the one type that moves
+		{"aws_c", "declaration-carried"},
+	})
+	oldCommit := commitTestFile(t, root, "live/readiness.json", old, "old readiness")
+	newCommit := commitTestFile(t, root, "live/readiness.json", newer, "new readiness")
+
+	oldA := &Artifact{Estates: []EstateResult{{Name: "e", LastRun: &LastRun{Commit: oldCommit, Date: "2026-01-01T00:00:00Z"}}}}
+	newA := &Artifact{Estates: []EstateResult{{Name: "e", LastRun: &LastRun{Commit: newCommit, Date: "2026-01-02T00:00:00Z"}}}}
+
+	section := readinessSection(root, oldA, newA)
+	if section == "" {
+		t.Fatal("expected a Readiness section: aws_b changed tier")
+	}
+
+	// The explicit bound #897 asks for: a changelog entry can carry this,
+	// not a 51,800-line array dump.
+	const maxLines = 6
+	const maxBytes = 400
+	if n := strings.Count(section, "\n"); n > maxLines {
+		t.Errorf("readiness section has %d lines, want <= %d (#897: must never print the whole types array); got:\n%s", n, maxLines, section)
+	}
+	if n := len(section); n > maxBytes {
+		t.Errorf("readiness section is %d bytes, want <= %d (#897); got:\n%s", n, maxBytes, section)
+	}
+	if !strings.Contains(section, "aws_b") {
+		t.Errorf("readiness section does not name the type that changed tier (aws_b); got:\n%s", section)
+	}
+	if !strings.Contains(section, "record-carried") || !strings.Contains(section, "declaration-carried") {
+		t.Errorf("readiness section does not show aws_b's tier movement (record-carried -> declaration-carried); got:\n%s", section)
+	}
+	// aws_a and aws_c did not move tier - they must not be named as movers.
+	if strings.Contains(section, "aws_a ") || strings.Contains(section, "aws_c ") {
+		t.Errorf("readiness section names a type that did not change tier; got:\n%s", section)
+	}
+}
+
+// TestReadinessTypesSectionBoundsNamedMovers proves the "+N more" tail
+// #897 asks for: even when every type in a small artifact moves tier at
+// once, the section names only wantMaxNamedMovers of them and folds the
+// rest into a count, so the section's size never scales with how many
+// types moved. wantMaxNamedMovers is a bound this test asserts, not a
+// reference to notes.go's own maxNamedReadinessMovers constant, so this
+// test still compiles (and fails on the assertion, not on a missing
+// symbol) against a renderer that has not been bounded at all.
+func TestReadinessTypesSectionBoundsNamedMovers(t *testing.T) {
+	const wantMaxNamedMovers = 10
+	root := initTestRepo(t)
+	const n = 25
+	var old, newer [][2]string
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("aws_type_%02d", i)
+		old = append(old, [2]string{name, "marker-carried"})
+		newer = append(newer, [2]string{name, "record-carried"})
+	}
+	oldCommit := commitTestFile(t, root, "live/readiness.json", readinessTypeJSON(old), "old readiness")
+	newCommit := commitTestFile(t, root, "live/readiness.json", readinessTypeJSON(newer), "new readiness")
+
+	oldA := &Artifact{Estates: []EstateResult{{Name: "e", LastRun: &LastRun{Commit: oldCommit, Date: "2026-01-01T00:00:00Z"}}}}
+	newA := &Artifact{Estates: []EstateResult{{Name: "e", LastRun: &LastRun{Commit: newCommit, Date: "2026-01-02T00:00:00Z"}}}}
+
+	section := readinessSection(root, oldA, newA)
+	if !strings.Contains(section, fmt.Sprintf("%d changed tier", n)) {
+		t.Errorf("expected the count %d changed tier in the section; got:\n%s", n, section)
+	}
+	wantMore := n - wantMaxNamedMovers
+	if !strings.Contains(section, fmt.Sprintf("+%d more", wantMore)) {
+		t.Errorf("expected a \"+%d more\" tail bounding the named movers; got:\n%s", wantMore, section)
+	}
+	if got := strings.Count(section, "\n"); got > 6 {
+		t.Errorf("readiness section has %d lines even with %d movers named-and-bounded to one bullet; got:\n%s", got, n, section)
+	}
+}
+
+// TestReadinessSectionOmittedWhenOnlyNonTierFactsChange documents #897's
+// point 4: when nothing about a type's tier moved - only a `facts` field's
+// free text, the shape of a real commit pair in this history
+// (a7e1294459's parent vs itself has no counterpart here, but
+// v0.12.0 -> v0.13.0's own readiness.json differs only in one type's
+// rejected_reason wording) - the section is correctly omitted rather than
+// manufacturing a change to report.
+func TestReadinessSectionOmittedWhenOnlyNonTierFactsChange(t *testing.T) {
+	root := initTestRepo(t)
+	old := `{"types":[{"type":"aws_a","tier":"record-carried","status":"pending-ratification","facts":{"rejected_reason":"old wording"}}]}` + "\n"
+	newer := `{"types":[{"type":"aws_a","tier":"record-carried","status":"pending-ratification","facts":{"rejected_reason":"new wording, ruling renamed"}}]}` + "\n"
+	oldCommit := commitTestFile(t, root, "live/readiness.json", old, "old readiness")
+	newCommit := commitTestFile(t, root, "live/readiness.json", newer, "new readiness")
+
+	oldA := &Artifact{Estates: []EstateResult{{Name: "e", LastRun: &LastRun{Commit: oldCommit, Date: "2026-01-01T00:00:00Z"}}}}
+	newA := &Artifact{Estates: []EstateResult{{Name: "e", LastRun: &LastRun{Commit: newCommit, Date: "2026-01-02T00:00:00Z"}}}}
+
+	if section := readinessSection(root, oldA, newA); section != "" {
+		t.Errorf("expected no Readiness section when no type's tier moved (only free-text facts changed); got:\n%s", section)
 	}
 }
 

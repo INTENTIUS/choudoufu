@@ -13,6 +13,7 @@ import (
 	"io"
 	"os/exec"
 	"sort"
+	"strings"
 )
 
 // notes.go implements `gauntlet notes <old-snapshot.json> <new-snapshot.json>`
@@ -163,14 +164,12 @@ func latestCommit(a *Artifact) string {
 }
 
 // readinessSection renders readiness movement between the two snapshots'
-// commits, or "" when it has nothing honest to say. live/readiness.json
-// does not exist yet as of #422 - this is written for when it does, and
-// degrades to "" (no section, no error) rather than fail while it doesn't:
-// no commit reference (a brand new snapshot with no runs yet), or the file
-// missing at either commit (true today, for every commit), both take this
-// path. The diff itself is schema-agnostic (a shallow key-by-key compare of
-// whatever JSON object is there) on purpose - nothing in this repository
-// has defined live/readiness.json's shape yet, so this does not guess one.
+// commits, or "" when it has nothing honest to say: no commit reference (a
+// brand new snapshot with no runs yet), or live/readiness.json missing at
+// either commit, both take this path. The diff (diffReadiness) is a
+// shallow key-by-key compare for every key except `types`, which
+// tools/readiness-gen (the code that defines the file) gives a specific,
+// bounded render - see readinessTypesLine and #897.
 func readinessSection(root string, oldA, newA *Artifact) string {
 	oldCommit, newCommit := latestCommit(oldA), latestCommit(newA)
 	if oldCommit == "" || newCommit == "" {
@@ -208,8 +207,14 @@ func gitShowFile(root, commit, path string) ([]byte, error) {
 
 // diffReadiness renders a shallow key-by-key diff of two JSON objects: keys
 // added, removed, or whose value's JSON text changed. It has no opinion on
-// what readiness.json's keys mean - that is for the code that defines the
-// file to render more specifically, once it exists.
+// most of readiness.json's keys - that is for the code that defines the
+// file to render more specifically, if a key other than `types` ever also
+// needs it. `types` is the one exception (#897): tools/readiness-gen's own
+// Artifact.Types is a 1699-entry array, essentially the whole file, so the
+// same whole-value render that is fine for every scalar key here would
+// print both arrays in full - 51,800 lines, 1.5 MB, measured against
+// v0.12.0 -> v0.13.0. readinessTypesLine replaces it with a bounded count
+// summary; every other key keeps the render below unchanged.
 func diffReadiness(oldB, newB []byte) (string, error) {
 	var oldM, newM map[string]json.RawMessage
 	if err := json.Unmarshal(oldB, &oldM); err != nil {
@@ -239,6 +244,19 @@ func diffReadiness(oldB, newB []byte) (string, error) {
 	for _, k := range keys {
 		ov, oOk := oldM[k]
 		nv, nOk := newM[k]
+
+		if k == readinessTypesKey {
+			line, err := readinessTypesLine(ov, nv, oOk, nOk)
+			if err != nil {
+				return "", err
+			}
+			if line != "" {
+				buf.WriteString(line)
+				changed = true
+			}
+			continue
+		}
+
 		switch {
 		case !oOk:
 			fmt.Fprintf(&buf, "- `%s` added: %s\n", k, nv)
@@ -255,4 +273,109 @@ func diffReadiness(oldB, newB []byte) (string, error) {
 		return "", nil
 	}
 	return "## Readiness\n\n" + buf.String(), nil
+}
+
+// readinessTypesKey is live/readiness.json's one large top-level key
+// (tools/readiness-gen's Artifact.Types, `json:"types"`) - the array
+// diffReadiness must never render whole (#897).
+const readinessTypesKey = "types"
+
+// maxNamedReadinessMovers bounds how many type names readinessTypesLine
+// lists per category before folding the remainder into a "+N more" tail.
+// This is the fix for #897: without a bound, a release with many tier
+// movements at once reproduces the same unbounded-output problem at a
+// smaller scale.
+const maxNamedReadinessMovers = 10
+
+// readinessTypeRow mirrors the fields of tools/readiness-gen's Row
+// (tools/readiness-gen/build.go) that this diff needs: `type`, the array's
+// identifying key every row is keyed on when the artifact is built, and
+// `tier`, the field HANDOFF.md's "696 of 1699 types can be held only by a
+// record" line is about. It does not import tools/readiness-gen (a
+// separate main package) or depend on Row's other fields (status, facts) -
+// pulling those in would recouple this tool to a schema it does not
+// otherwise read.
+type readinessTypeRow struct {
+	Type string `json:"type"`
+	Tier string `json:"tier"`
+}
+
+// readinessTypesLine renders the `types` key as one bounded bullet: total
+// count, how many changed tier (with named movers), how many were added,
+// how many removed. oOk/nOk false (the key absent from one snapshot - a
+// readiness.json that did not have a `types` array yet) is treated as an
+// empty array on that side, so a freshly-added file still gets a bounded
+// line rather than diffReadiness's default "added: <whole value>" render.
+// Returns "" when the two arrays parse to the same set of (type, tier)
+// pairs - nothing to report.
+func readinessTypesLine(ov, nv json.RawMessage, oOk, nOk bool) (string, error) {
+	if !oOk {
+		ov = json.RawMessage("[]")
+	}
+	if !nOk {
+		nv = json.RawMessage("[]")
+	}
+	var oldRows, newRows []readinessTypeRow
+	if err := json.Unmarshal(ov, &oldRows); err != nil {
+		return "", err
+	}
+	if err := json.Unmarshal(nv, &newRows); err != nil {
+		return "", err
+	}
+
+	oldByType := make(map[string]readinessTypeRow, len(oldRows))
+	for _, r := range oldRows {
+		oldByType[r.Type] = r
+	}
+	newByType := make(map[string]readinessTypeRow, len(newRows))
+	for _, r := range newRows {
+		newByType[r.Type] = r
+	}
+
+	var tierMovers, added, removed []string
+	for _, n := range newRows {
+		o, ok := oldByType[n.Type]
+		switch {
+		case !ok:
+			added = append(added, n.Type)
+		case o.Tier != n.Tier:
+			tierMovers = append(tierMovers, fmt.Sprintf("%s %s->%s", n.Type, o.Tier, n.Tier))
+		}
+	}
+	for _, o := range oldRows {
+		if _, ok := newByType[o.Type]; !ok {
+			removed = append(removed, o.Type)
+		}
+	}
+	if len(tierMovers) == 0 && len(added) == 0 && len(removed) == 0 {
+		return "", nil
+	}
+	sort.Strings(tierMovers)
+	sort.Strings(added)
+	sort.Strings(removed)
+
+	return fmt.Sprintf("- `types`: %d types, %d changed tier%s, %d added, %d removed\n",
+		len(newRows), len(tierMovers), namedTail(tierMovers), len(added), len(removed)), nil
+}
+
+// namedTail renders a bounded " (name, name, ... +N more)" suffix for a
+// sorted slice of names, or "" for an empty slice. The bound -
+// maxNamedReadinessMovers, the whole fix for #897 - means anything past it
+// collapses into a single "+N more" count rather than another name.
+func namedTail(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	shown := names
+	extra := 0
+	if len(shown) > maxNamedReadinessMovers {
+		extra = len(shown) - maxNamedReadinessMovers
+		shown = shown[:maxNamedReadinessMovers]
+	}
+	tail := " (" + strings.Join(shown, ", ")
+	if extra > 0 {
+		tail += fmt.Sprintf(", +%d more", extra)
+	}
+	tail += ")"
+	return tail
 }
