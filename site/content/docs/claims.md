@@ -872,24 +872,29 @@ The steps as they print:
    no record to read, each region has to be listed for markers, and a run
    reporting the same coverage would be a run that never noticed the
    files were gone.
-5. `a region change is a replace, and the half it cannot plan it refuses`
-   - one VPC's `provider` moves from `aws.west` to `aws.east`. That is a
+5. `a region change is a replace: refused by default, permitted by name` -
+   one VPC's `provider` moves from `aws.west` to `aws.east`. That is a
    replace, not a move: no cloud API relocates a VPC between regions, and
    `live-mv` rewrites ownership tags rather than resources. Only half of
    the replace is expressible, because a resource address carries exactly
    one provider configuration in the plan graph - taken from its own block
    - so the destroy of the object left behind in `us-west-2` cannot be
-   planned at that address at all. So the run refuses instead of doing the
-   half it can: the plan names the live VPC, the region it is in, the
-   region its address now points at, and the three things an operator can
-   do about it. Proceeding would leave two live resources carrying this
-   estate's marker for one address, which is what live/MARKERS.md's
-   ownership semantics forbid and what
+   planned at that address at all. The step runs both of the two answers
+   the schema offers for the half that cannot be planned. **By default the
+   run refuses**: the plan names the live VPC, the region it is in, the
+   region its address now points at, and the four things an operator can do
+   about it, one of which is the toggle. Proceeding would leave two live
+   resources carrying this estate's marker for one address, which is what
+   live/MARKERS.md's ownership semantics forbid and what
    `crossProviderOrphanCollisions` already refuses a plan over once both
-   objects exist. The step asserts the refusal names the object and the
-   region, that no create is proposed, that the old object is untouched,
-   and that pointing the block back plans clean:
-   [issue #906](https://github.com/INTENTIUS/choudoufu/issues/906).
+   objects exist. **With `strict { provider_change = "recreate" }` the plan
+   proceeds** - stock OpenTofu's own outcome - and the same finding comes
+   back as a warning naming the object, where it is, and the fact that no
+   plan will ever propose anything for it. The toggle buys the create, not
+   the silence, and in neither mode does anything claim marker discovery
+   will find the old object:
+   [issue #906](https://github.com/INTENTIUS/choudoufu/issues/906) and its
+   maintainer ruling of 2026-09-06.
 6. `teardown` - one destroy removes exactly what the two provider
    configurations hold between them.
 

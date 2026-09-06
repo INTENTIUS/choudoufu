@@ -217,8 +217,9 @@ showing its own checks would have caught it.
   the two honest edges are pinned rather than argued - a region whose
   last declaration is removed drops out of the sweep with its provider
   configuration, and a region change is a replace whose other half no
-  address can express, so it is refused by name rather than half-done
-  (#906). Per-pass request counts come off
+  address can express, so it is refused by name rather than half-done -
+  and permitted, still by name, under
+  `strict { provider_change = "recreate" }` (#906). Per-pass request counts come off
   the wire, from the region each request was signed for. The BREAK
   control points the west provider at the east region and strips the
   surviving object's markers, so the same name in the other region is
