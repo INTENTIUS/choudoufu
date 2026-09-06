@@ -19,18 +19,34 @@
 //
 // # What it generates, and what it does not
 //
-// Two spans, both inside live/LIMITATIONS.md's "Every refusal, enumerated"
-// section, marked the way tools/survey-gen already marks its own (see
-// internal/live/mdspan):
+// Three spans, marked the way tools/survey-gen already marks its own (see
+// internal/live/mdspan). Two sit inside live/LIMITATIONS.md's "Every
+// refusal, enumerated" section:
 //
 //   - refusal-table: every refusal in internal/live/check's AllRefusals,
 //     ranked by how many corpus configurations it blocks, with where it is
 //     documented and which package raises it.
-//   - refusal-entries: a heading and a description per refusal that has no
-//     hand-written entry of its own - the identity, pass-through, stamping
-//     and discovery registries. Their DocsRef points at the heading written
-//     here, which is what closes the loop: internal/live/check's
+//   - refusal-entries: a heading and a description per non-lint refusal.
+//     Most point their DocsRef at the heading written here, which is what
+//     closes the loop: internal/live/check's
 //     TestEveryRefusalDocsRefIsResolvable fails if this has not been run.
+//     The seven whose registry defers to a hand-written entry get a section
+//     that says what they are and then names it, so a What that has drifted
+//     from the prose is visible instead of invisible (#698).
+//
+// The third heads the hand-written half:
+//
+//   - lint-roster: one row per lint rule - the rule, its summary, its
+//     severity, the entry below that documents it, and that entry's fixture
+//     directory under live/e2e/limits. The prose stays hand-written; the
+//     roster of it does not, so a rule with no entry or an entry whose
+//     fixture directory was renamed fails the render (#698).
+//
+// The render fails, writing nothing, when a refusal it would give an entry
+// to has no description, and when a refusal points at a heading in this
+// document that nobody wrote. Both used to be tests over the committed file
+// alone; a generator that will happily write a broken document and leave the
+// finding to CI is one round trip worse than one that refuses.
 //
 // AllRefusals rather than Catalog is deliberate. The corpus ranks the two
 // passes it can run without a cloud; documentation covers all five, and a
@@ -40,7 +56,11 @@
 // The narrative sections stay hand-written, per #110's own scope: the
 // "Enforced today" entries, which carry a Construct / Why banned /
 // Forwarding address / Enforcement treatment per lint rule, are prose nobody
-// should generate. The table links to them.
+// should generate. The table links to them, and the roster indexes them.
+//
+// Measured at #698's commit: 378397 bytes, of which 59.1% were already
+// inside a generated span - this generator's and survey-gen's - and 40.9%
+// hand prose, 109611 bytes of it the "Enforced today" entries.
 //
 // Frequency comes from live/corpus-refusals.json when it is present. A
 // refusal missing from that artifact is rendered as unmeasured rather than
@@ -116,7 +136,19 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	out, err = markers.Replace(limitationsRel, out, spanEntries, renderEntries(catalog, freq, measured))
+	entries, err := renderEntries(catalog, freq, measured)
+	if err != nil {
+		return err
+	}
+	out, err = markers.Replace(limitationsRel, out, spanEntries, entries)
+	if err != nil {
+		return err
+	}
+	roster, err := renderRoster(catalog, root)
+	if err != nil {
+		return err
+	}
+	out, err = markers.Replace(limitationsRel, out, spanRoster, roster)
 	if err != nil {
 		return err
 	}
@@ -127,6 +159,13 @@ func run() error {
 	}
 	out, err = applyResidueSpans(out, sweep)
 	if err != nil {
+		return err
+	}
+
+	// Last, and against the rendered text rather than against what was on
+	// disk: a hand-written entry this run just replaced would otherwise be
+	// checked in the version that still had it.
+	if err := verifyCoverage(catalog, out); err != nil {
 		return err
 	}
 
@@ -313,29 +352,57 @@ func documentedAt(r check.Refusal) string {
 	return strings.Join(quoted, " / ")
 }
 
-// ownsEntry reports whether this generator writes the entry a refusal's
-// DocsRef points at.
+// hasGeneratedEntry reports whether the entries span carries a section for
+// this refusal at all.
 //
-// Two conditions, and the second is not redundant. A refusal is skipped when
-// its DocsRef names anything other than this generator's own heading for it,
-// because that means somebody wrote it a fuller treatment. And every lint
-// rule is skipped outright, because a lint rule's DocsRef can coincide with
-// the heading this generator would write - `unadmitted-type`'s hand-written
-// entry is headed with the rule's own name - and the coincidence produced a
-// second, empty entry for it. Lint rules carry no What at all (their
-// per-issue Detail is the equivalent), so a generated entry for one is a
-// heading with nothing under it.
+// Every refusal except a lint rule's, which is GitHub issue #698's widening.
+// The span used to carry only the refusals whose DocsRef pointed at its own
+// heading, which left seven non-lint refusals - the ones whose registry sets
+// Doc to defer to a hand-written entry - with a What string in code that
+// appeared nowhere in the document. Those seven now get a section that says
+// what they are and then names the fuller treatment, so the enumerated
+// section really does enumerate, and a drifting What is visible.
+//
+// Lint rules stay out, and not only because their prose is hand-written: a
+// lint rule's DocsRef can coincide with the heading this generator would
+// write - `unadmitted-type`'s hand-written entry is headed with the rule's
+// own name - and the coincidence produced a second, empty entry for it. Lint
+// carries no What at all (its per-issue Detail is the equivalent), so a
+// generated entry for a rule is a heading with nothing under it. They are
+// covered by the roster instead; see [spanRoster].
+func hasGeneratedEntry(r check.Refusal) bool { return r.RaisedBy != check.RaisedByLint }
+
+// ownsEntry reports whether this generator's own heading for a refusal is
+// where that refusal's DocsRef points, which is the case for every refusal
+// nobody wrote a fuller treatment for.
 func ownsEntry(r check.Refusal) bool {
-	return r.RaisedBy != check.RaisedByLint && r.DocsRef == generatedRef(r)
+	return hasGeneratedEntry(r) && r.DocsRef == generatedRef(r)
 }
 
-// renderEntries renders one heading per refusal that has no hand-written
-// entry, which is what every such refusal's DocsRef points at.
-func renderEntries(catalog []check.Refusal, freq map[string]frequency, measured bool) string {
+// renderEntries renders one heading per non-lint refusal: what trips it,
+// which pass raises it, how often the corpus saw it, and - for the ones a
+// human wrote a fuller treatment for - where that treatment is.
+//
+// It returns an error rather than rendering a heading with nothing under it.
+// That is GitHub issue #698's first acceptance criterion, and it belongs in
+// the render and not only in a test: a refusal added to a registry with no
+// What is a refusal a user can hit and cannot look up, and `just limits`
+// should refuse to write the document that pretends otherwise. The test that
+// used to be the only check on this (TestEveryGeneratedEntryHasContent) now
+// asserts the render fails rather than asserting the strings are non-empty.
+func renderEntries(catalog []check.Refusal, freq map[string]frequency, measured bool) (string, error) {
 	var b strings.Builder
 	for _, r := range ranked(catalog, freq) {
-		if !ownsEntry(r) {
+		if !hasGeneratedEntry(r) {
 			continue
+		}
+		if strings.TrimSpace(r.What) == "" {
+			return "", fmt.Errorf("%s/%s gets an entry in %s's %s span and has no What, which renders as a heading with nothing under it; give the refusal a description in its registry",
+				r.Layer, r.ID, limitationsRel, spanEntries)
+		}
+		if r.RaisedBy == "" {
+			return "", fmt.Errorf("%s/%s gets an entry in %s's %s span and names no raising package",
+				r.Layer, r.ID, limitationsRel, spanEntries)
 		}
 		fmt.Fprintf(&b, "#### %s\n\n", r.ID)
 		fmt.Fprintf(&b, "**What.** %s\n\n", r.What)
@@ -360,8 +427,62 @@ func renderEntries(catalog []check.Refusal, freq map[string]frequency, measured 
 			fmt.Fprintf(&b, "**How often.** Blocked %s in the measured corpus, at %s.\n\n",
 				plural(f.Configs, "configuration"), plural(f.Sites, "site"))
 		}
+		if !ownsEntry(r) {
+			// A refusal whose registry set Doc: somebody wrote it a fuller
+			// treatment somewhere, and this section's job is to get the
+			// reader there rather than to compete with it.
+			ref, err := docsref.Parse(r.DocsRef)
+			if err != nil {
+				return "", fmt.Errorf("%s/%s: %w", r.Layer, r.ID, err)
+			}
+			fmt.Fprintf(&b, "**Full entry.** `%s`%s - hand-written, and the authority on this refusal.\n\n", ref.Doc, headingSuffix(ref))
+		}
 	}
-	return b.String()
+	return b.String(), nil
+}
+
+// headingSuffix renders the heading half of a parsed reference for prose,
+// or nothing when the reference names a whole document.
+func headingSuffix(ref docsref.Ref) string {
+	if len(ref.Headings) == 0 {
+		return ""
+	}
+	quoted := make([]string, len(ref.Headings))
+	for i, h := range ref.Headings {
+		quoted[i] = `"` + h + `"`
+	}
+	return ", " + strings.Join(quoted, " / ")
+}
+
+// verifyCoverage is GitHub issue #698's first acceptance criterion applied to
+// the half of the catalog this generator does not write entries for: a
+// refusal whose DocsRef sends the reader to a heading in this document that
+// nobody wrote.
+//
+// internal/live/check's TestEveryRefusalDocsRefIsResolvable checks the same
+// thing against the committed file. Checking it here as well is what makes
+// the criterion hold at the moment the document is written rather than at
+// the moment somebody runs the suite: `just limits` on a tree with a new,
+// undocumented lint rule now fails and writes nothing, instead of writing a
+// document that references an entry which does not exist.
+func verifyCoverage(catalog []check.Refusal, rendered string) error {
+	present := docsref.Headings(rendered)
+	for _, r := range catalog {
+		ref, err := docsref.Parse(r.DocsRef)
+		if err != nil {
+			return fmt.Errorf("%s/%s: %w", r.Layer, r.ID, err)
+		}
+		if ref.Doc != limitationsRel {
+			continue
+		}
+		for _, heading := range ref.Headings {
+			if !present[heading] {
+				return fmt.Errorf("%s/%s is documented at %s, %q, and this document has no such heading; write the entry, or point the refusal at the document that explains it",
+					r.Layer, r.ID, limitationsRel, heading)
+			}
+		}
+	}
+	return nil
 }
 
 // generatedRef is the DocsRef a refusal has when this generator owns its
