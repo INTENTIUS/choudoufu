@@ -280,6 +280,27 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 3, Code: 0,
 	},
 
+	// ---- the cohort roster --------------------------------------------
+	"internal/live/cohorts/cohorts.go": {
+		Reason: "the verification cohorts' pinned rosters (issue #699). Every literal is Data: 31 package-level " +
+			"Cohort values, each naming the -types roster tools/estate-gen renders for that cohort and the " +
+			"supporting types the render adds. Code is 0 and structurally has to stay 0 - the package holds no " +
+			"branch, lookup or comparison keyed on a type name, only sorted lists and accessors over them. " +
+			"These 711 literals are not new hand-wiring: they are the fixture inventory that until #699 lived in " +
+			"31 committed live/e2e/estates/*/*.tf files, where this guard could not see them because it parses " +
+			"Go. Deleting the trees moved the same names into Go source and this registry counts them for the " +
+			"first time, which is why typeLiteralDataTotal jumps 454 -> 1165 in one step with Code unchanged. " +
+			"They cannot be derived: the rosters are deliberately PINNED rather than recomputed from the " +
+			"admission table, because a cohort whose roster followed admission growth would gain a resource " +
+			"block as a side effect of ratifying a type in some other batch - the s3 cohort did exactly that " +
+			"once, and a newly-mapped aws_s3control_multi_region_access_point walked into the acceptance tier " +
+			"on a generator defect. Growing a cohort is an edit here, judged by an acceptance run. The Supporting " +
+			"half is measured rather than chosen, and " +
+			"tools/estate-gen's TestGeneratedCohortsMatchTheRecordedRoster holds all 711 to what the generator " +
+			"actually renders, in both directions.",
+		Data: 711, Code: 0,
+	},
+
 	// ---- estate-gen shared machinery ----------------------------------
 	"tools/estate-gen/gen.go": {
 		Reason: "iamRoleRefExpr and planCohort's `supporting[\"aws_iam_role\"]`: every cohort gets one shared IAM role donor, " +
@@ -498,7 +519,17 @@ const (
 	// it - one Code literal, no Data. Five Data literals added (1 devtools +
 	// 4 ecs-eks), two Code literals added (1 ecs-eks + 1 identity), nothing
 	// moved or removed.
-	typeLiteralDataTotal = 454
+	// 454 -> 1165 data, code unchanged at 129, on 2026-09-06 (issue #699):
+	// internal/live/cohorts/cohorts.go registered for the first time, with
+	// all 711 of its literals in Data and none in Code. Nothing moved and
+	// nothing was added by hand - the same 711 type names were already in
+	// the tree, in the 31 committed live/e2e/estates/*/*.tf cohort files
+	// that this guard never saw because it parses Go. #699 deleted those
+	// trees (the cohorts render at run time now) and kept their rosters in
+	// Go, so the names became visible here. Read Code, not Data, for the
+	// signal this file exists to carry: Code is the standing rule's number
+	// and it did not move.
+	typeLiteralDataTotal = 1165
 	typeLiteralCodeTotal = 129
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
