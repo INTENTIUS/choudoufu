@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
 // This file executes GitHub issue #244's half 2. It was written first as a
@@ -274,5 +276,106 @@ func assertNotAnOrphan(t *testing.T, res *Result, importID string) {
 		if o.ImportID == importID {
 			t.Fatalf("%q was proposed for removal:\n%s", importID, res)
 		}
+	}
+}
+
+// TestOwnershipAddress_forceNewReplaceIsNotDisplacement is GitHub issue
+// #885, in the smallest shape that produces it.
+//
+// ONE live bucket exists. It carries aws_s3_bucket.data's marker, it carries
+// the identity the last apply gave it, and the estate's own record for that
+// address names it - which is what [projection.WriteBack] leaves behind on
+// every apply. The configuration has since had its bucket argument changed,
+// so the identity it computes for the same address is a different string.
+// That is a ForceNew replace before it happens, and the plan the same run
+// produces proposes exactly that.
+//
+// Measured on corpus-giantswarm-crossplane's day2_replace, this produced
+// "Live resource displaced from the address it is marked for", asserting
+// that two live resources answered to one address when only one existed.
+func TestOwnershipAddress_forceNewReplaceIsNotDisplacement(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_s3_bucket")
+	// The bucket the last apply created. The configuration now computes
+	// "tofu-stateless-e2e-data" for this address instead.
+	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data-v1", `aws_s3_bucket.data`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_s3_bucket.data`, projection.LocatedRecord{ImportID: "tofu-stateless-e2e-data-v1"})
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true, HintStore: rawStore})
+	assertNoErrors(t, diags)
+
+	for _, p := range res.ProblemsOfKind(ProblemDisplacedMarker) {
+		t.Fatalf("an ordinary ForceNew replace was reported as a displacement:\n%s", p.Detail)
+	}
+	// The safety half, both directions: the object being replaced must not
+	// have become an orphan, and the silence must not have become issue
+	// #692's vouch - the projection reads the object at the identity the
+	// configuration names, which this sighting says nothing about.
+	assertNotAnOrphan(t, res, "tofu-stateless-e2e-data-v1")
+	if res.MarkerVerified()[`aws_s3_bucket.data`] {
+		t.Errorf("a sighting of the object a replace is about to destroy vouched for the address, which would admit whatever sits at the new identity without reading its tags:\n%s", res)
+	}
+}
+
+// TestOwnershipAddress_recordNamingAnotherObjectIsStillDisplacement is the
+// control that bounds the fix above. Same one live object, same identity
+// mismatch - and a record that names a THIRD identity, so the estate's own
+// record agrees this object is not the one the address owns.
+//
+// Without this, "a record exists" rather than "the record names this object"
+// would silence every displacement at any address an apply has ever touched.
+func TestOwnershipAddress_recordNamingAnotherObjectIsStillDisplacement(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_s3_bucket")
+	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data-leftover", `aws_s3_bucket.data`)
+
+	rawStore, seedStore := supersededHintStore(t, estateName)
+	seedCurrentIdentity(t, seedStore, `aws_s3_bucket.data`, projection.LocatedRecord{ImportID: "tofu-stateless-e2e-data-somebody-else"})
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true, HintStore: rawStore})
+	assertNoErrors(t, diags)
+
+	findDisplaced(t, res, "tofu-stateless-e2e-data-leftover")
+	assertNotAnOrphan(t, res, "tofu-stateless-e2e-data-leftover")
+}
+
+// TestOwnershipAddress_displacedDetailDoesNotDescribeThePlan pins the other
+// half of #885: the warning's own text.
+//
+// [displacedProblem] is rendered from a scan, before any plan for the
+// address exists, so it cannot see whether the run proposes something there
+// - and the text it used to carry claimed it did, in the words "Nothing is
+// proposed for this resource: it is not read, not changed and not
+// destroyed". On #885's run that sentence sat directly beneath the same
+// plan's own "must be replaced" line for the same address.
+//
+// Asserted on the rendered detail, because the rendered detail is what an
+// operator reads.
+func TestOwnershipAddress_displacedDetailDoesNotDescribeThePlan(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable("aws_s3_bucket")
+	cloud.own("aws_s3_bucket", "nothing-in-this-configuration-names-this", `aws_s3_bucket.data`)
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
+	assertNoErrors(t, diags)
+
+	detail := findDisplaced(t, res, "nothing-in-this-configuration-names-this").Detail
+	for _, forbidden := range []string{
+		"Nothing is proposed for this resource",
+		"Two different live resources therefore answer to one address",
+	} {
+		if strings.Contains(detail, forbidden) {
+			t.Errorf("the warning claims %q, which this pass cannot know at the point it is built:\n%s", forbidden, detail)
+		}
+	}
+	// What it may say, and must: the claim scoped to the live object it
+	// actually looked at.
+	if !strings.Contains(detail, "This run does nothing to the object named here") {
+		t.Errorf("the warning no longer says what the run does with the object it names:\n%s", detail)
 	}
 }

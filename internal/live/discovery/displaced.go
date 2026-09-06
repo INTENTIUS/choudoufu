@@ -4,11 +4,14 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
 // This file is the discovery half of GitHub issue #244.
@@ -98,6 +101,11 @@ import (
 //     the branch that fires against a provider or emulator whose identity
 //     object carries only "id" - and the branch #244's own tests exercise.
 //   - Anything else: not displaced.
+//   - The estate's own record names this very object as the one the address
+//     owns right now ([recordOwners]). The identities disagree because the
+//     address is about to be replaced, not because a second object holds it.
+//     This one is [verdictIdentityChanging] rather than [verdictOwnObject]:
+//     silent, and not a vouch either. GitHub issue #885.
 //
 // # The fallback's exposure, counted
 //
@@ -134,23 +142,76 @@ import (
 // this estate does not use, an object of another estate, and an untagged
 // object never reach it.
 
-// displacedFrom reports whether c is positively NOT the instance the address
-// it is filed under names, and if so the identity the configuration computes
-// for that instance, for the message.
+// addressVerdict is [declared.displacedFrom]'s answer about one live object
+// wearing a declared address's marker. Three answers rather than two because
+// GitHub issue #885 found a third case, and folding it into either of the
+// existing ones is wrong in a different direction each way: reporting it
+// produces the false warning #885 is about, and treating it as an ordinary
+// confirmation hands out issue #692's vouch - permission to admit the
+// address's object without reading its tags - on the strength of a sighting
+// of a DIFFERENT object than the one the projection will read.
+type addressVerdict int
+
+const (
+	// verdictOwnObject: nothing here contradicts this object being the
+	// instance the address names. Either the identities agree, or nothing
+	// comparable was available (see this file's doc comment). This is the
+	// answer that vouches.
+	verdictOwnObject addressVerdict = iota
+
+	// verdictDisplaced: the configuration computes an identity this object
+	// does not have, and no record says this object is the address's. The
+	// finding [displacedProblem] renders.
+	verdictDisplaced
+
+	// verdictIdentityChanging: the configuration computes an identity this
+	// object does not have, and this estate's own record still names THIS
+	// object as the one the address owns right now. The address is on its
+	// way to a replace and this object is the one being replaced, so there
+	// is nothing to report - and nothing to vouch for either, because the
+	// object the projection reads at that address is the one the
+	// configuration names, which this sighting says nothing about.
+	verdictIdentityChanging
+)
+
+// displacedFrom classifies one live object wearing a declared address's
+// marker, and returns the identity the configuration computes for that
+// address alongside, for the message.
 //
-// The asymmetry is deliberate: it answers "displaced" only on evidence, and
-// answers "not displaced" for every kind of doubt. See this file's doc
-// comment for the five ways it declines to answer.
-func (d *declared) displacedFrom(typeName, escaped string, c claimant) (want string, displaced bool) {
+// The asymmetry is deliberate: it answers [verdictDisplaced] only on
+// evidence, and answers [verdictOwnObject] for every kind of doubt. See this
+// file's doc comment for the six ways it declines to answer.
+func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, c claimant) (want string, verdict addressVerdict) {
 	entry := d.all[typeName][escaped]
 	if entry == nil || entry.ambiguous {
-		return "", false
+		return "", verdictOwnObject
 	}
 	res := entry.res
 	if res.Class != identity.ClassConcrete {
-		return "", false
+		return "", verdictOwnObject
 	}
 
+	want, mismatched := configIdentityMismatch(typeName, res, c)
+	if !mismatched {
+		return "", verdictOwnObject
+	}
+	// GitHub issue #885, and the sixth way this function declines to
+	// report. A mismatch alone does not distinguish the two objects from
+	// the one: see [recordOwners.namesClaimant].
+	if d.records.namesClaimant(ctx, res.Addr, c) {
+		return want, verdictIdentityChanging
+	}
+	return want, verdictDisplaced
+}
+
+// configIdentityMismatch is displacedFrom's comparison proper, split out so
+// that the record's second opinion above reads as the separate question it
+// is: this answers "does the configuration compute a different identity than
+// the one this live object carries", which is true of a displaced object and
+// equally true of an object a ForceNew replace is about to supersede.
+//
+// want is the identity the configuration computes, for the message.
+func configIdentityMismatch(typeName string, res identity.Resolution, c claimant) (want string, mismatched bool) {
 	// The precise path: identity attributes both sides name. Sorted so that
 	// a resolution with two mismatching attributes always reports the same
 	// one - a Go map range here would make the diagnostic nondeterministic.
@@ -201,11 +262,131 @@ func (d *declared) displacedFrom(typeName, escaped string, c claimant) (want str
 	return res.ImportID, true
 }
 
+// recordOwners answers, for one declared address, whether a live object is
+// the object this estate's own record says that address owns RIGHT NOW.
+//
+// # Why displacedFrom needs a second opinion at all (GitHub issue #885)
+//
+// The comparison above sees two strings: the identity the configuration
+// computes for an address, and the identity the cloud attached to the object
+// wearing that address's marker. They disagree in two situations that are
+// indistinguishable from those two strings alone:
+//
+//   - the object is a leftover - a renumbering moved this address's identity
+//     onto a different live object and this one kept the marker. Two objects
+//     answer to one address, and that is #244's finding.
+//   - the address is about to be REPLACED. A ForceNew argument changed, so
+//     the configuration now computes the identity of the object the next
+//     apply will create, while the live object still carries the identity -
+//     and the marker - of the object that apply will destroy. Exactly one
+//     live object exists, the plan for that address is correct, and there is
+//     nothing to report.
+//
+// Measured on corpus-giantswarm-crossplane's day2_replace: an ordinary
+// single-claimant replace of aws_iam_role produced this warning claiming
+// "two different live resources answer to one address" while the same plan,
+// correctly, proposed the replace.
+//
+// # What settles it
+//
+// The foundation-order ruling (#388) item 1 makes the estate's own record
+// authoritative for "which live object does this address own right now", and
+// [projection.WriteBack] writes it on every apply for ordinary taggable
+// instances as well as record-backed ones. So a record naming THIS object is
+// the estate's own statement that this object is the address's, whatever the
+// configuration has since been changed to compute. The mismatch is then a
+// pending change to the address, which the ordinary diff owns, and not a
+// second claimant, which is the only thing this pass reports.
+//
+// A record naming a DIFFERENT object leaves the finding exactly as it was:
+// the record agrees this object is not the address's. So does no record at
+// all, a record that cannot be read, and a store that was never configured -
+// every doubt keeps today's behaviour, which is the asymmetry this file's
+// doc comment describes and the reason a false positive here still costs one
+// warning line.
+//
+// This is [pruneSupersededClaimants]'s record-first discipline over the
+// population that pass cannot reach - a single claimant, at a concrete
+// client-named address - and it shares that pass's comparison
+// ([claimantMatchesRecord]) rather than growing a second one, so #879's
+// SecondaryID and the composite-component path apply here unchanged. No
+// resource type name appears in it.
+type recordOwners struct {
+	store *projection.RecordStore
+	// memo is one entry per address consulted, nil where the store holds no
+	// readable current identity. The reads are lazy and rare by
+	// construction: only a positive identity mismatch asks a question here.
+	memo map[string]*projection.LocatedRecord
+}
+
+// newRecordOwners opens req's record store for [declared.displacedFrom]'s
+// use, or returns nil when the run has no record store - in which case every
+// question below is answered "the record says nothing", the pre-#885
+// behaviour.
+func newRecordOwners(req Request) *recordOwners {
+	if req.HintStore == nil {
+		return nil
+	}
+	prefix := req.KeyPrefix
+	if prefix == "" {
+		prefix = projection.RecordKeyPrefix(req.Estate)
+	}
+	store := projection.NewRecordEnvelopeStore(req.HintStore, prefix)
+	if store == nil {
+		return nil
+	}
+	return &recordOwners{store: store, memo: make(map[string]*projection.LocatedRecord)}
+}
+
+// namesClaimant reports whether the estate's current-identity record for
+// addr names c. False for a nil receiver, an address with no record, a
+// record that cannot be read, and a record naming another object: see this
+// type's doc comment for why every one of those is "not proved, so report".
+func (r *recordOwners) namesClaimant(ctx context.Context, addr addrs.AbsResourceInstance, c claimant) bool {
+	if r == nil || r.store == nil {
+		return false
+	}
+	key := addr.String()
+	rec, consulted := r.memo[key]
+	if !consulted {
+		got, _, _, found, err := r.store.GetIdentity(ctx, addr)
+		if err == nil && found {
+			cp := got
+			rec = &cp
+		}
+		r.memo[key] = rec
+	}
+	if rec == nil {
+		return false
+	}
+	return claimantMatchesRecord(*rec, c)
+}
+
 // displacedProblem is the finding [declared.displacedFrom] produces.
 //
 // It names both identities, because the operator's next question is always
 // "which of these two objects did I mean", and neither string alone answers
 // it. It proposes nothing: see this file's doc comment.
+//
+// # What the text may and may not claim (GitHub issue #885)
+//
+// This function is called from a scan, before any plan for the address
+// exists, so it cannot see what the run proposes for that ADDRESS and must
+// not describe it. The text it used to carry did both: it asserted "two
+// different live resources therefore answer to one address" on evidence that
+// only ever showed one, and it asserted "Nothing is proposed for this
+// resource", which an operator reads as the address and which was false in
+// exactly the case #885 measured - a replace was proposed and applied.
+//
+// So the claims are now scoped to what this pass actually establishes: the
+// live OBJECT in hand is not the one the address's plan will be computed
+// against, and this run binds, reads, changes and destroys nothing of it.
+// Whether a second live object exists at the identity the configuration
+// names is left as the open question it is - [declared.displacedFrom] does
+// not look, and TestOwnershipAddress_displacedObjectNoOtherClaimant is the
+// case where nothing is there at all. What the address itself is planned for
+// is the ordinary diff's answer and is left to the plan output beside this
+// warning.
 func displacedProblem(req Request, typeName, escaped, want string, c claimant) Problem {
 	return Problem{
 		Kind:     ProblemDisplacedMarker,
@@ -213,7 +394,7 @@ func displacedProblem(req Request, typeName, escaped, want string, c claimant) P
 		Marker:   escaped,
 		LiveIDs:  liveIDs(c.importID),
 		Detail: fmt.Sprintf(
-			"A live %s with identity %q carries estate %q and the address %q, but the identity this configuration computes for %s is %q. Two different live resources therefore answer to one address: this one by its marker, and another by the identity the configuration names. That is most often what a renumbering leaves behind - deleting a middle element of a count list moves every later instance's identity down one while the live resources keep the markers they were stamped with. Nothing is proposed for this resource: it is not read, not changed and not destroyed, and it will stay in the account until a human says which resource is which. Use choudoufu live-mv, or a moved block, to say that a resource moved; remove this resource's markers to disown it.",
-			typeName, c.displayID(), req.Estate, escaped, escaped, want),
+			"A live %s with identity %q carries estate %q and the address %q, but the identity this configuration computes for %s is %q, and this estate's own record does not name this object as the one that address owns. This live object is therefore not the one the address is planned against: the plan for %s is computed from the identity the configuration names, which is either a different live resource or nothing yet. That is most often what a renumbering leaves behind - deleting a middle element of a count list moves every later instance's identity down one while the live resources keep the markers they were stamped with. This run does nothing to the object named here: it is bound to no address, it is not read, not changed and not destroyed, and it will stay in the account until a human says which resource is which. Read the plan for %s beside this warning for what that address itself is proposed for. Use choudoufu live-mv, or a moved block, to say that a resource moved; remove this resource's markers to disown it.",
+			typeName, c.displayID(), req.Estate, escaped, escaped, want, escaped, escaped),
 	}
 }

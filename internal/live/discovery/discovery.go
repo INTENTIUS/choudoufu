@@ -1019,6 +1019,14 @@ type declared struct {
 	// computes, and only holding it here can [declared.displacedFrom] tell
 	// the two apart. See [declaredAddress].
 	all map[string]map[string]*declaredAddress
+
+	// records is the estate's own current-identity record, consulted by
+	// [declared.displacedFrom] alone and only when the configuration's
+	// identity and a live object's disagree. It is what tells a ForceNew
+	// replace apart from a genuine displacement (GitHub issue #885); nil
+	// when the run has no record store, which answers every question
+	// "the record says nothing".
+	records *recordOwners
 }
 
 // declaredAddress is one escaped marker value the configuration declares, and
@@ -1248,6 +1256,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		unscanned:    make(map[string]bool),
 		unreadable:   make(map[string]int),
 		all:          make(map[string]map[string]*declaredAddress, len(req.Resolutions)),
+		records:      newRecordOwners(req),
 	}
 
 	// The moved blocks this configuration's markers can follow (GitHub issue
@@ -2347,13 +2356,19 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// whether this object is the instance that address names, or a
 			// second object left carrying its marker (GitHub issue #244).
 			// Reported, never acted on: see displaced.go.
-			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
+			switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, c); verdict {
+			case verdictDisplaced:
 				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
-			} else if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+			case verdictOwnObject:
 				// Issue #692: see Result.VerifiedDeclared - the sighting
 				// vouches for the declared instance instead of being
 				// discarded.
-				res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+				if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+					res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+				}
+			case verdictIdentityChanging:
+				// Issue #885: neither reported nor vouched. See
+				// [verdictIdentityChanging].
 			}
 			continue
 		}
