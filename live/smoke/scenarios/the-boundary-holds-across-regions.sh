@@ -403,7 +403,7 @@ fi
 STILL_VPC="$(awsl --region us-west-2 ec2 describe-vpcs --filters "Name=tag:tofu-address,Values=aws_vpc.west" --query 'Vpcs[0].VpcId' --output text)"
 [ "$STILL_VPC" = "$OLD_VPC" ] \
   || fail "regions" "the us-west-2 object is not where this step left it ($STILL_VPC vs $OLD_VPC) - a refusal must change nothing in the cloud"
-grep -A2 'Marked resource outside its address' <<< "$P_MOVE" | head -4 | evidence
+grep -A6 'Marked resource outside its address' <<< "$P_MOVE" | head -8 | evidence
 echo "and $OLD_VPC is still in us-west-2, untouched: a refusal is loud and reversible" | evidence
 sed_i "$SMOKE_WORK/main.tf" '/resource "aws_vpc" "west"/,/^}/ s/provider   = aws.east/provider   = aws.west/'
 P_UNDO="$(plan_default)" || fail "regions" "the plan after undoing the region change failed"
