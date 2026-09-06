@@ -53,7 +53,7 @@ import (
 // A declared instance with a count or for_each key is left alone entirely -
 // no claimant, no diagnostic - the same restriction
 // internal/live/foreign/classify.go's matchTable holds itself to and for
-// the same reason: [staticArgumentValue] evaluates one expression against
+// the same reason: [staticeval.Argument] evaluates one expression against
 // the module's static scope, which has no per-instance each.key/each.value
 // or count.index binding to evaluate against. Such an instance is left
 // unbound, which a plan reads as "create" - correct for a genuinely new
@@ -127,7 +127,7 @@ func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, type
 	// Index every candidate by its own matched property value. A candidate
 	// whose property is absent, not a string, or empty never matches
 	// anything - the same "cannot read it, so it disqualifies rather than
-	// wildcards" rule [staticArgumentValue] holds the declared side to.
+	// wildcards" rule [staticeval.Argument] holds the declared side to.
 	byValue := make(map[string][]cloudControlCandidate, len(descs))
 	for _, d := range descs {
 		v, ok := propertyPathValue(d.Properties, binding.PropertyPath)

@@ -29,7 +29,7 @@ import (
 //   - count on a module block is admitted (issue #195) under exactly the
 //     same two-part test a resource's own count is already held to: the
 //     count expression itself has to be statically evaluable (the same
-//     var/local/path/terraform/tofu scope [staticCount] and
+//     var/local/path/terraform/tofu scope [staticeval.Count] and
 //     [identity.ChildModuleKeys] hold for_each to), and any count.index in
 //     the module call's own arguments has to be provably injective - the
 //     same [analyzeCountIndexSafety] shape proof [checkCountIndex] applies
