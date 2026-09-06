@@ -1002,7 +1002,7 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 		log.Printf("[DEBUG] stateless/discovery: sweeping %s via the Tagging API (%s), %d resources", typeName, cfnType, len(candidates))
 
 		for _, c := range candidates {
-			diags = diags.Append(fileTaggingCandidate(req, decl, typeName, c, res))
+			diags = diags.Append(fileTaggingCandidate(ctx, req, decl, typeName, c, res))
 		}
 		res.Scans = append(res.Scans, scan)
 	}
@@ -1013,7 +1013,7 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 // fileTaggingCandidate applies the same per-resource marker rules
 // [scanTypeCloudControl] applies to one Cloud Control ListResources result,
 // to one candidate [sweepViaTagging] already joined and grouped by type.
-func fileTaggingCandidate(req Request, decl *declared, typeName string, c taggedCandidate, res *Result) tfdiags.Diagnostics {
+func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, typeName string, c taggedCandidate, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if c.tags[TagEstate] != req.Estate {
@@ -1109,14 +1109,19 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		// GitHub issue #244, half 2 - the same check discovery.go's own scan
 		// loop makes at the same point, for the same reason. See
 		// displaced.go.
-		if want, displaced := decl.displacedFrom(bindType, escaped, claim); displaced {
+		switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, claim); verdict {
+		case verdictDisplaced:
 			return diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, claim)))
-		}
-		if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+		case verdictOwnObject:
 			// Issue #692: see Result.VerifiedDeclared - the sighting
 			// vouches for the declared instance instead of being
 			// discarded.
-			res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+			if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+				res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+			}
+		case verdictIdentityChanging:
+			// Issue #885: neither reported nor vouched. See
+			// [verdictIdentityChanging].
 		}
 		return diags
 	}

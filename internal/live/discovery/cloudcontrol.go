@@ -380,14 +380,20 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			// GitHub issue #244, half 2 - the same check discovery.go's own
 			// scan loop makes at the same point, for the same reason. See
 			// displaced.go.
-			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
+			switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, c); verdict {
+			case verdictDisplaced:
 				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
-			} else if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+			case verdictOwnObject:
 				// Issue #692: the sweep saw this declared instance's own
 				// marker on a live object and nothing contradicts it, so
 				// the sighting vouches for the instance instead of being
 				// discarded - see Result.VerifiedDeclared.
-				res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+				if addr, ok := decl.vouchAddr(bindType, escaped); ok {
+					res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+				}
+			case verdictIdentityChanging:
+				// Issue #885: neither reported nor vouched. See
+				// [verdictIdentityChanging].
 			}
 			continue
 		}

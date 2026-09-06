@@ -657,7 +657,7 @@ func scanTypeMarkerFallback(ctx context.Context, req Request, decl *declared, ty
 	log.Printf("[DEBUG] stateless/discovery: %s has no list route; the estate's tag index found %d resource(s) of it", typeName, len(candidates))
 
 	for _, c := range candidates {
-		diags = diags.Append(fileTaggingCandidate(req, decl, typeName, c, res))
+		diags = diags.Append(fileTaggingCandidate(ctx, req, decl, typeName, c, res))
 	}
 
 	res.Scans = append(res.Scans, TypeScan{
