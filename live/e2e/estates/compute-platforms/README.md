@@ -219,7 +219,7 @@ Lightsail), so `tools/estate-gen`'s default per-service type derivation
 does not apply here; regenerate with the full `-types` list instead:
 
 ```
-go run ./tools/estate-gen -cohort compute-platforms -out live/e2e/estates/compute-platforms \
+go run ./tools/estate-gen -cohort compute-platforms -out /tmp/estate-gen/compute-platforms \
   -types aws_batch_compute_environment,aws_batch_job_definition,aws_batch_job_queue,aws_batch_scheduling_policy,\
 aws_emr_cluster,aws_emr_security_configuration,aws_emr_studio,aws_emrcontainers_virtual_cluster,aws_emrserverless_application,\
 aws_apprunner_auto_scaling_configuration_version,aws_apprunner_observability_configuration,aws_apprunner_service,\

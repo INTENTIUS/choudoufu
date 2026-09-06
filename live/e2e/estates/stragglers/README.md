@@ -17,7 +17,7 @@ per-type identity evidence and the one rejection
 Regenerate with:
 
 ```
-go run ./tools/estate-gen -cohort stragglers -types aws_transfer_certificate,aws_transfer_profile,aws_transfer_web_app,aws_transfer_web_app_customization,aws_transfer_agreement,aws_networkmanager_core_network_policy_attachment,aws_storagegateway_tape_pool,aws_ecr_lifecycle_policy,aws_ecr_pull_through_cache_rule,aws_ecr_pull_time_update_exclusion,aws_ecr_repository_creation_template,aws_ecr_repository_policy -out live/e2e/estates/stragglers
+go run ./tools/estate-gen -cohort stragglers -types aws_transfer_certificate,aws_transfer_profile,aws_transfer_web_app,aws_transfer_web_app_customization,aws_transfer_agreement,aws_networkmanager_core_network_policy_attachment,aws_storagegateway_tape_pool,aws_ecr_lifecycle_policy,aws_ecr_pull_through_cache_rule,aws_ecr_pull_time_update_exclusion,aws_ecr_repository_creation_template,aws_ecr_repository_policy -out /tmp/estate-gen/stragglers
 ```
 
 (`-types` is explicit for the same reason the `devtools`, `data`, `data-movement`,

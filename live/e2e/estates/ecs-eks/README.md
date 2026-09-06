@@ -17,7 +17,7 @@ Regenerate the generator's own output with:
 ```
 go run ./tools/estate-gen -cohort ecs-eks \
   -types aws_appautoscaling_target,aws_ecs_capacity_provider,aws_ecs_cluster_capacity_providers,aws_ecs_daemon,aws_ecs_daemon_task_definition,aws_ecs_service,aws_eks_access_entry,aws_eks_access_policy_association,aws_eks_addon,aws_eks_capability,aws_eks_cluster,aws_eks_fargate_profile,aws_eks_node_group \
-  -out live/e2e/estates/ecs-eks
+  -out /tmp/estate-gen/ecs-eks
 ```
 
 (`aws_appautoscaling_target` and `aws_ecs_service` were added by the 2026-08-15 #175 reversal batch; `aws_ecs_capacity_provider` and `aws_ecs_daemon_task_definition` by the 2026-08-15 #150 veto reversal below. This command supersedes the nine-type one this section originally documented — the coverage map and "Rejected" section below are updated accordingly.)
@@ -243,7 +243,7 @@ before the fold:
   `live/e2e/estates/iam-ecr/iam.tf`'s `aws_iam_role.support` already is.
 
 Regenerating this cohort with `go run ./tools/estate-gen -cohort ecs-eks
--types ... -out live/e2e/estates/ecs-eks` reverts both; re-apply them by
+-types ... -out /tmp/estate-gen/ecs-eks` reverts both; re-apply them by
 hand afterward, or leave `aws_ecs_cluster_capacity_providers.app` pointed at
 a bare string and expect the floci gap above to reproduce on the next live
 verification.
