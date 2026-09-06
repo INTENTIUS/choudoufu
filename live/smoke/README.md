@@ -126,6 +126,17 @@ showing its own checks would have caught it.
   with a clean plan after, where stock demands state surgery. The BREAK
   control renames the code but skips the retag - the plan must propose
   stock's destroy-and-recreate, proving the tag is the identity.
+- **apply-what-was-approved** - *Claim 15: apply exactly what was
+  approved.* A plan is saved with `-out`, the world moves underneath the
+  approval (a marked subnet appears for an address the configuration
+  does not declare), and `apply <planfile>` re-reads the live system,
+  compares its own fresh plan with the file's, and refuses by name -
+  `The approved plan no longer matches the live system` - with exit
+  status 3, naming the row nobody approved. Then the same two commands
+  over the world as it now is, and the reviewed change lands. The BREAK
+  control is the inverse of the usual one: it leaves the world UNMOVED
+  and the same file must apply, because a comparison that refuses every
+  plan file is not a check.
 - **stock-when-you-need-it** - *Claim 8: stock behavior is the
   fallback, whole and exact - and the live backend's cost scales with
   your estate, not your account.*

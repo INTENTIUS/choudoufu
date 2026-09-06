@@ -43,7 +43,14 @@ directly rather than diffing it against stock's more permissive behavior.
 [`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
 so the target is visible before it starts counting toward an estate's clear
 bar. The contract it will enforce is already decided, though, which is why
-it belongs here.
+it belongs here - and since
+[#878](https://github.com/INTENTIUS/choudoufu/issues/878) the mechanism
+behind it exists: `plan -out` and `apply <planfile>` are admitted under a
+live block, the apply re-reads the live system and plans against it, and it
+refuses - `The approved plan no longer matches the live system`, exit
+status 3 - when that fresh plan is not the one the file describes. What is
+still missing is the stage: a crossing script that asserts this per estate,
+which is what flipping `plan_approval` to active would need.
 
 A refusal that isn't written into a stage's own definition this way gets no
 such pass. It is scored as choudoufu refusing where stock proceeds, and that
