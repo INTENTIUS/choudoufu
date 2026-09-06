@@ -15,7 +15,7 @@ passes - an active stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-06T01:27:32Z and 2026-09-06T05:49:39Z. Each row below carries its own `last_run` date; they are not all the same run.
+Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-06T01:27:32Z and 2026-09-06T23:49:04Z. Each row below carries its own `last_run` date; they are not all the same run.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -87,7 +87,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h47m4.6s, but not from one sweep: 10m48s across 1 estate(s) at commit `3977d90784`; 18m10.8s across 3 estate(s) at commit `cb5ae2009f`; 24m52.9s across 4 estate(s) at commit `d72960cdc3`; 1h53m12.9s across 19 estate(s) at commit `eec6fb4282`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
+27 of 27 estates have a recorded run duration, totaling 2h46m59s, but not from one sweep: 10m48s across 1 estate(s) at commit `3977d90784`; 6m59.4s across 1 estate(s) at commit `a7ca11f935`; 18m10.8s across 3 estate(s) at commit `cb5ae2009f`; 24m52.9s across 4 estate(s) at commit `d72960cdc3`; 1h46m7.9s across 18 estate(s) at commit `eec6fb4282`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -106,7 +106,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | 3m9.5s | cold_deploy 25s, migrate 1m5s, test_plan 3s, test_apply 3s, drift_reconverge 5s, day2_rename 10s, day2_remove 7s, day2_count 19s, day2_replace 7s, greenfield 45s |
 | [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | 2m51.8s | cold_deploy 28s, migrate 14s, test_plan 3s, test_apply 5s, drift_reconverge 18s, day2_rename 24s, day2_remove 11s, day2_count 26s, day2_replace 18s, greenfield 25s |
 | [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | 1m33.9s | cold_deploy 18s, migrate 25s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 6s, day2_remove 4s, day2_count 15s, day2_replace 5s, greenfield 13s |
-| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | 7m5s | cold_deploy 1m5s, migrate 1m10s, test_plan 9s, test_apply 3s, drift_reconverge 7s, day2_rename 46s, day2_remove 51s, day2_count 47s, day2_replace 7s, greenfield 1m59s |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | 6m59.4s | cold_deploy 56s, migrate 1m10s, test_plan 9s, test_apply 3s, drift_reconverge 7s, day2_rename 47s, day2_remove 53s, day2_count 48s, day2_replace 6s, greenfield 2m0s |
 | [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | 11m51.2s | cold_deploy 1m49s, migrate 50s, test_plan 8s, test_apply 4s, drift_reconverge 8s, day2_rename 16s, day2_remove 1m31s, day2_count 50s, day2_replace 2m51s, greenfield 3m23s |
 | [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | 8m4.5s | cold_deploy 1m29s, migrate 1m17s, test_plan 4s, test_apply 11s, drift_reconverge 20s, day2_rename 23s, day2_remove 19s, day2_count 56s, day2_replace 21s, greenfield 2m45s |
 | [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | 3m30.6s | cold_deploy 31s, migrate 1m15s, test_plan 4s, test_apply 4s, drift_reconverge 6s, day2_rename 13s, day2_remove 10s, day2_count 29s, day2_replace 11s, greenfield 27s |
