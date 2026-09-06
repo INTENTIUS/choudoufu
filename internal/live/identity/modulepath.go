@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // ModuleInstance is the addrs.ModuleInstance for a node in the static module
@@ -131,13 +132,8 @@ func childModuleForEachElements(ctx context.Context, cfg *configs.Config, subjec
 		return nil, staticEvalDiag(expr.Range(), subject, "no static evaluator is available to evaluate it")
 	}
 
-	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
-			return nil, staticEvalDiag(expr.Range(), subject, fmt.Sprintf("it references %q, which is not knowable from configuration alone", trav.RootName()))
-		}
+	if root, bad := staticeval.FirstDisallowed(expr); bad {
+		return nil, staticEvalDiag(expr.Range(), subject, fmt.Sprintf("it references %q, which is not knowable from configuration alone", root))
 	}
 
 	ident := configs.StaticIdentifier{Module: addrs.RootModule, Subject: subject, DeclRange: expr.Range()}
@@ -386,13 +382,8 @@ func ChildModuleCountKeys(ctx context.Context, mod *configs.Module, subject stri
 		return nil, staticEvalCountDiag(expr.Range(), subject, "no static evaluator is available to evaluate it")
 	}
 
-	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
-			return nil, staticEvalCountDiag(expr.Range(), subject, fmt.Sprintf("it references %q, which is not knowable from configuration alone", trav.RootName()))
-		}
+	if root, bad := staticeval.FirstDisallowed(expr); bad {
+		return nil, staticEvalCountDiag(expr.Range(), subject, fmt.Sprintf("it references %q, which is not knowable from configuration alone", root))
 	}
 
 	ident := configs.StaticIdentifier{Module: addrs.RootModule, Subject: subject, DeclRange: expr.Range()}
