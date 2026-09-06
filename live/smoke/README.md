@@ -238,6 +238,22 @@ showing its own checks would have caught it.
   that same re-plan: the plan must propose one create, named, rather
   than silently reporting no changes.
 
+- **a-shadow-is-not-a-claimant** - *Claim 18: a replaced object's
+  shadow is not a second claimant.* Two ForceNew replaces at one
+  declared address leave two terminated instances still wearing its
+  markers - AWS's own documented lag, read back through the plain CLI -
+  so three objects claim one address. The record settles it: its
+  identity names the live object and its tombstone member is a LIST of
+  the identities this estate's own applies destroyed, capped at eight
+  per address, both asserted by value off the record file. The plan
+  then exits 0, drops exactly those two, names each in a displaced-marker
+  warning that proposes nothing, and binds the address to the third. The
+  BREAK control puts a second genuinely RUNNING instance behind the same
+  markers with no tombstone naming it: the plan must refuse with "Two
+  live resources claiming one address" naming both live ids, because a
+  tombstone is evidence an object is dead and never permission to touch
+  one that is not.
+
 ## Knobs
 
 | Variable | Effect |
