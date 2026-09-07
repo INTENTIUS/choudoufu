@@ -171,7 +171,7 @@ func parentReadSweepType(ctx context.Context, req Request, schemas listclient.Sc
 	}
 	var candidates []parentCandidate
 	for _, r := range res.Resolutions {
-		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
+		if r.Type() != link.Parent || !classTable[r.Class].scopesChildList || r.ImportID == "" {
 			continue
 		}
 		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
@@ -398,7 +398,7 @@ func parentListChildSweepType(ctx context.Context, req Request, schemas listclie
 	declared := declaredChildImportIDs(typeName, res)
 
 	for _, r := range res.Resolutions {
-		if r.Type() != link.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
+		if r.Type() != link.Parent || !classTable[r.Class].scopesChildList || r.ImportID == "" {
 			continue
 		}
 		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {

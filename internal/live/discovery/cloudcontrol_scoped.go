@@ -131,7 +131,7 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 
 	var callFailures []string
 	for _, r := range res.Resolutions {
-		if r.Type() != spec.Parent || r.Class != identity.ClassConcrete || r.ImportID == "" {
+		if r.Type() != spec.Parent || !classTable[r.Class].scopesChildList || r.ImportID == "" {
 			continue
 		}
 		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {

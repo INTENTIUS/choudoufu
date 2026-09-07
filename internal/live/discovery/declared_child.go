@@ -48,7 +48,7 @@ func declaredChildImportIDs(typeName string, res *Result) map[string]bool {
 	}
 	lookup := func(parent addrs.AbsResourceInstance, attr string) (string, bool) {
 		pr, ok := byAddr[parent.String()]
-		if !ok || pr.Class != identity.ClassConcrete {
+		if !ok || !classTable[pr.Class].answersParentLookup {
 			return "", false
 		}
 		if pr.ImportID != "" {
@@ -81,26 +81,8 @@ func declaredChildImportIDs(typeName string, res *Result) map[string]bool {
 // legs' composed form, or false when the resolution cannot name one. See
 // [declaredChildImportIDs] for the three forms.
 func declaredImportID(typeName string, r identity.Resolution, lookup func(addrs.AbsResourceInstance, string) (string, bool)) (string, bool) {
-	switch r.Class {
-	case identity.ClassConcrete:
-		if r.ImportID != "" {
-			return r.ImportID, true
-		}
-		if len(r.IdentityValues) > 0 {
-			return composeImportIDFromComponents(typeName, r.IdentityValues)
-		}
-	case identity.ClassParentDerived:
-		if r.Formula == nil {
-			return "", false
-		}
-		if vals, ok := r.Formula.RenderAttrs(lookup); ok && len(vals) > 0 {
-			if id, ok := composeImportIDFromComponents(typeName, vals); ok {
-				return id, true
-			}
-		}
-		if id, ok := r.Formula.Render(lookup); ok && id != "" {
-			return id, true
-		}
+	if f := classTable[r.Class].declaredImportID; f != nil {
+		return f(typeName, r, lookup)
 	}
 	return "", false
 }

@@ -65,7 +65,7 @@ func foldChildReadSweep(ctx context.Context, req Request, schemas listclient.Sch
 	}
 	lookup := func(parent addrs.AbsResourceInstance, attr string) (string, bool) {
 		pr, ok := byAddr[parent.String()]
-		if !ok || pr.Class != identity.ClassConcrete {
+		if !ok || !classTable[pr.Class].answersParentLookup {
 			return "", false
 		}
 		// A marker-bound resolution's ImportID is the live value a list
@@ -160,17 +160,10 @@ func foldChildReadSweepType(ctx context.Context, req Request, schemas listclient
 // [identity.Formula.RenderAttrs] cannot fully render from what lookup
 // already knows.
 func renderIdentityValues(r identity.Resolution, lookup func(addrs.AbsResourceInstance, string) (string, bool)) (map[string]string, bool) {
-	switch r.Class {
-	case identity.ClassConcrete:
-		if len(r.IdentityValues) == 0 {
-			return nil, false
-		}
-		return r.IdentityValues, true
-	case identity.ClassParentDerived:
-		return r.Formula.RenderAttrs(lookup)
-	default:
-		return nil, false
+	if f := classTable[r.Class].renderIdentityValues; f != nil {
+		return f(r, lookup)
 	}
+	return nil, false
 }
 
 // componentAttrNames is the argument names entry's own Components read, in

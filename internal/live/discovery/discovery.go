@@ -1310,7 +1310,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 	})
 
 	for _, r := range sorted {
-		if r.Class != identity.ClassNeedsDiscovery {
+		if !classTable[r.Class].needsDiscovery {
 			continue
 		}
 		if req.RecordBackedAddrs[r.Addr.String()] {
