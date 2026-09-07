@@ -597,7 +597,7 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	var undeclaredConcrete []identity.Resolution
 	rest := make([]identity.Resolution, 0, len(resolutions))
 	for _, r := range resolutions {
-		if r.Undeclared && r.Class == identity.ClassConcrete {
+		if r.Undeclared && classFor(r.Class).holdUndeclared {
 			undeclaredConcrete = append(undeclaredConcrete, r)
 			continue
 		}
@@ -1013,8 +1013,7 @@ func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.R
 	b.readPrefetch = b.startRecordFirstPrefetch(ctx, resolutions)
 	remaining := make([]identity.Resolution, 0, len(resolutions))
 	for _, r := range resolutions {
-		switch r.Class {
-		case identity.ClassRecordBacked, identity.ClassRecordLocated:
+		if classFor(r.Class).ownRecordDoor {
 			remaining = append(remaining, r)
 			continue
 		}
@@ -1661,21 +1660,13 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 		return sorted[i].Addr.String() < sorted[j].Addr.String()
 	})
 
-	var pending []identity.Resolution
+	var w orderWorkLists
 	for _, r := range sorted {
-		switch r.Class {
-		case identity.ClassConcrete:
-			concrete = append(concrete, r)
-		case identity.ClassParentDerived:
-			pending = append(pending, r)
-		case identity.ClassRecordBacked:
-			recordBacked = append(recordBacked, r)
-		case identity.ClassRecordLocated:
-			located = append(located, r)
-		default:
-			needsDiscovery = append(needsDiscovery, r)
-		}
+		classFor(r.Class).orderWork(&w, r)
 	}
+	concrete, recordBacked, located = w.concrete, w.recordBacked, w.located
+	needsDiscovery = w.needsDiscovery
+	pending := w.pending
 
 	inPending := make(map[string]bool, len(pending))
 	for _, r := range pending {

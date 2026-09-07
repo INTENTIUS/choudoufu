@@ -1469,7 +1469,7 @@ func cacheVouchTypesFor(cache *states.State, resolutions []identity.Resolution) 
 	}
 	types := map[string]bool{}
 	for _, res := range resolutions {
-		if res.Class != identity.ClassConcrete {
+		if !liveClassTable[res.Class].cacheVouch {
 			continue
 		}
 		if t := res.Addr.Resource.Resource.Type; cached[t] {

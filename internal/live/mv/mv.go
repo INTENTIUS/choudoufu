@@ -741,7 +741,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 		))
 	}
 
-	if resolution.Class == identity.ClassRecordLocated {
+	if classTable[resolution.Class].renameMovesRecord {
 		// GitHub issue #270. Both of this function's paths end in a marker
 		// rewrite, and a record-located resource has no marker: what says
 		// which object it is is a key in the estate's record store, keyed
@@ -776,7 +776,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 	}
 	ts, listable := schemas.Get(m.res.TypeName)
 
-	if resolution.Class == identity.ClassNeedsDiscovery {
+	if classTable[resolution.Class].findByListing {
 		m.res.Path = PathList
 		if !listable {
 			if obj, recDiags, tried := m.locateByRecord(ctx); tried {
@@ -1228,7 +1228,7 @@ func (m *mover) materialize(ctx context.Context, resolution identity.Resolution)
 	var diags tfdiags.Diagnostics
 
 	list := []identity.Resolution{resolution}
-	if resolution.Class == identity.ClassParentDerived {
+	if classTable[resolution.Class].materializeWholeList {
 		list = m.req.Resolutions
 	}
 

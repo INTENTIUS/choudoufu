@@ -547,15 +547,8 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 // such an instance not being found is not a rung, it is a real gap, and
 // this function reports nothing rather than mislabeling it.
 func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema) (rung, detail string, ok bool) {
-	switch res.Class {
-	case identity.ClassRecordBacked:
-		return "record",
-			"This instance's identity is the estate's own persisted record, not a cloud object with tags to read - live/MARKERS.md's tier definitions (#417) name this the record-carried tier. It can never appear in this listing.",
-			true
-	case identity.ClassRecordLocated:
-		return "record",
-			"This instance's cloud object carries no ownership marker at all; its identity comes from the estate's record store instead (GitHub issue #270). It can never appear in this listing by its tags.",
-			true
+	if h := liveClassTable[res.Class]; h.lsRung != "" {
+		return h.lsRung, h.lsDetail, true
 	}
 
 	schema, haveSchema := schemas[res.Type()]
