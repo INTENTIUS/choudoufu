@@ -256,6 +256,18 @@ set -uo pipefail
 #                 was destroyed - the assertion must fail. Only reachable
 #                 when BREAK is not 1 and BREAK_REMOVE is not 1, because
 #                 PART G starts from PART E's real, completed removal.
+#   BREAK_APPROVAL
+#                 set to 1 to run plan_approval's own negative control
+#                 instead of the real refusal check (PART P): after the
+#                 world has moved out of band, assert the saved plan file
+#                 APPLIES cleanly - the Break text in tools/gauntlet/
+#                 stages.go for plan_approval is literally "Apply the
+#                 planfile after a mutation and expect success; the run must
+#                 refuse", so this assertion has to fail. Independent of
+#                 every BREAK above, and the only one of them under which
+#                 PART P runs at all - the others deliberately leave the
+#                 estate somewhere PART P does not describe, and it reports
+#                 no verdict there.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 #
@@ -1081,6 +1093,243 @@ log "STAGE 5 (drift and reconverge): PASS"
 log ""
 gauntlet_stage drift_reconverge pass "S3 alarm's alarm_description tampered, exactly 1 object proposed and applied, reconverged to its configured description"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# THE -target QUESTION, settled by measurement rather than by exemption
+# (issue #903's first trap named this estate as the one that might not be
+# able to take this leg at all). Every command in this script is -target
+# scoped because floci does not implement AWS Budgets, so
+# aws_budgets_budget is kept out of the graph - re-confirmed against the
+# image live/floci-image pins on the day this part was written: both
+# `aws budgets describe-budgets` and `aws budgets create-budget` against it
+# return "UnknownOperationException: Unknown operation:
+# AWSBudgetServiceGateway.<Op>", and the health map still lists no budgets
+# service. The scoping is not going away.
+#
+# It does not have to. A live-markers "apply <planfile>" does not replay the
+# file: it plans the live system for itself and compares (apply.go leaves
+# op.PlanFile nil and installs approvalGuard), which means the fresh plan is
+# built from THIS command's own arguments - including its -target set. So
+# the approval artifact and the run that consumes it simply carry the same
+# scope: "${TARGETS[@]}" on the plan -out AND on the apply. Both plans then
+# cover the same three instances, and the comparison is about the live
+# system rather than about which resources each side happened to look at.
+# No exemption, no Go change, no widening of the estate.
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the S3
+#          alarm's alarm_description is changed out of band through the AWS
+#          CLI, the same mutation STAGE 5 above already proves this
+#          estate's plan notices (through the same drift_s3_alarm/
+#          retag_after_drift pair, so lex00/floci#95's tag-wiping
+#          PutMetricAlarm is handled identically) - and the apply must
+#          refuse: exit 3, the named summary, the unapproved row printed by
+#          address AND by the live alarm it was computed against, and the
+#          reviewed change still not landed when the OTHER alarm is read
+#          back through the CLI.
+#   P4     nothing has moved (the description is put back first) and the
+#          SAME file must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is on
+# cf_requests_spike, the out-of-band move is on s3_requests_spike - so the
+# refusal has an EXTRA row to name rather than a values-only disagreement
+# about the same row.
+#
+# WHY THE CLOUDFRONT ALARM'S alarm_description: the reviewed edit has to
+# reach exactly ONE instance, in place, and this estate has three targeted
+# instances. The S3 alarm is this part's own out-of-band object; the
+# dashboard carries no tags argument at all and its identity is re-derived
+# from its own live content (STAGE 3), so editing its body would move the
+# thing later stages read it by. alarm_description is a real, config-owned
+# argument of the alarm resource - the same one STAGE 5 drifts - and it is
+# not ForceNew, unlike alarm_name (PART F's own replace target), so the
+# alarm's live identity is untouched and PART D's rename still starts from
+# the ids it captured.
+#
+# Placed here, between STAGE 5 and PART D, so it starts from the state
+# drift_reconverge leaves (adopted, converged, no state file) and finishes
+# before PART D captures the ids a rename must not disturb.
+#
+# Runs only on a real run. Under any of this script's other BREAK controls
+# the estate is deliberately left somewhere this part does not describe, so
+# it reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="$WANT_CF_ADDR"
+  P_MOVED_ADDR="$WANT_S3_ADDR"
+  P_CF_DESC="Alert on unusual CloudFront request volume"
+  P_S3_DESC="Alert on unusual S3 GET request volume"
+  P_CF_REVIEWED="$P_CF_DESC (reviewed)"
+  # Tied to what STAGE 5 actually measured rather than asserted from
+  # memory: CHANGED_ADDRS is the address this estate's own drift plan
+  # printed for the S3 alarm a few lines above.
+  [ "$CHANGED_ADDRS" = "$P_MOVED_ADDR" ] \
+    || fail "STAGE 5 saw the S3 alarm at [$CHANGED_ADDRS], not $P_MOVED_ADDR - PART P's out-of-band row would be named wrong"
+  log "  under review: $P_REVIEWED_ADDR ($CF_ALARM_ARN); moving out of band: $P_MOVED_ADDR ($S3_ALARM_ARN)"
+
+  # p_put_s3_alarm is drift_s3_alarm plus the one argument that function
+  # deliberately omits: datapoints_to_alarm, which this crossing's own DELTA
+  # (lex00/floci#93, see the header) sets explicitly in config. PutMetricAlarm
+  # is a full replace, so an update that leaves the flag off drops
+  # DatapointsToAlarm from the live alarm and the next plan proposes putting
+  # it back - a SECOND difference nobody asked for. STAGE 5 never notices
+  # because its reconverge apply fixes everything at once; PART P does,
+  # because P4 has to put the live alarm back exactly where the approval
+  # left it and nowhere else. Measured, not assumed: without this argument
+  # P4's apply was refused with the S3 alarm still named as an extra row
+  # even after the description was restored.
+  p_put_s3_alarm() {
+    local desc="$1"
+    awsl cloudwatch put-metric-alarm \
+      --alarm-name "$S3_ALARM_NAME" \
+      --comparison-operator GreaterThanThreshold \
+      --evaluation-periods 1 \
+      --datapoints-to-alarm 1 \
+      --period 3600 \
+      --statistic Sum \
+      --threshold 100000 \
+      --metric-name GetRequests \
+      --namespace AWS/S3 \
+      --dimensions Name=BucketName,Value="$BUCKET_NAME" Name=StorageType,Value=AllStorageTypes \
+      --alarm-description "$desc" \
+      --treat-missing-data ignore >/dev/null
+  }
+
+  log "=== P1. the change under review: one argument, on the CloudFront alarm ==="
+  [ "$(grep -c "alarm_description  = \"$P_CF_DESC\"" "$ESTATE/modules/monitoring/main.tofu")" = "1" ] \
+    || fail "the module no longer carries exactly one CloudFront alarm_description to edit - the corpus pin has moved"
+  # \Q..\E on the PATTERN side only: quotemeta in a replacement would
+  # backslash-escape the reviewed text's own spaces and parentheses into
+  # the config.
+  perl -pi -e "s/^  alarm_description  = \"\Q$P_CF_DESC\E\"\$/  alarm_description  = \"$P_CF_REVIEWED\"/" "$ESTATE/modules/monitoring/main.tofu"
+  [ "$(grep -c "alarm_description  = \"$P_CF_REVIEWED\"" "$ESTATE/modules/monitoring/main.tofu")" = "1" ] \
+    || fail "the reviewed edit did not rewrite the CloudFront alarm's alarm_description"
+  [ "$(grep -c "alarm_description  = \"$P_S3_DESC\"" "$ESTATE/modules/monitoring/main.tofu")" = "1" ] \
+    || fail "the reviewed edit disturbed the S3 alarm's own alarm_description"
+  log "  edited one argument: cf_requests_spike's alarm_description now reads \"$P_CF_REVIEWED\""
+
+  # The approval artifact carries the SAME -target set the run that
+  # consumes it will carry; see this part's own header for why that is the
+  # honest shape here rather than an exemption.
+  P_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color "${TARGETS[@]}" -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$ESTATE/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  [ ! -f "$ESTATE/terraform.tfstate" ] || fail "plan -out wrote a state file"
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ (will be (created|destroyed)|must be replaced)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create, a destroy or a replace; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$ESTATE/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  p_put_s3_alarm "moved-after-approval"
+  retag_after_drift "$S3_ALARM_ARN" "$WANT_S3_ADDR"
+  P_MOVED_VALUE="$(awsl cloudwatch describe-alarms --alarm-names "$S3_ALARM_NAME" --query 'MetricAlarms[0].AlarmDescription' --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $S3_ALARM_NAME's alarm_description reads \"$P_MOVED_VALUE\""
+  log "  $S3_ALARM_NAME's alarm_description changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color "${TARGETS[@]}" approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the S3 alarm, so asserting over the whole
+  # output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$S3_ALARM_NAME" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $S3_ALARM_NAME, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_LIVE="$(awsl cloudwatch describe-alarms --alarm-names "$CF_ALARM_NAME" --query 'MetricAlarms[0].AlarmDescription' --output text)"
+  [ "$P_REVIEWED_LIVE" = "$P_CF_DESC" ] \
+    || fail "the refused apply still wrote the reviewed change: $CF_ALARM_NAME's alarm_description reads \"$P_REVIEWED_LIVE\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  p_put_s3_alarm "$P_S3_DESC"
+  retag_after_drift "$S3_ALARM_ARN" "$WANT_S3_ADDR"
+  P_RESTORED="$(awsl cloudwatch describe-alarms --alarm-names "$S3_ALARM_NAME" --query 'MetricAlarms[0].AlarmDescription' --output text)"
+  [ "$P_RESTORED" = "$P_S3_DESC" ] || fail "the out-of-band move was not undone: $S3_ALARM_NAME's alarm_description reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color "${TARGETS[@]}" approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl cloudwatch describe-alarms --alarm-names "$CF_ALARM_NAME" --query 'MetricAlarms[0].AlarmDescription' --output text)"
+  [ "$P_LANDED" = "$P_CF_REVIEWED" ] \
+    || fail "the approved change did not land: $CF_ALARM_NAME's alarm_description reads \"$P_LANDED\", want \"$P_CF_REVIEWED\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $CF_ALARM_NAME's alarm_description now reads \"$P_LANDED\", read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$ESTATE/approved.tfplan"
+  perl -pi -e "s/^  alarm_description  = \"\Q$P_CF_REVIEWED\E\"\$/  alarm_description  = \"$P_CF_DESC\"/" "$ESTATE/modules/monitoring/main.tofu"
+  [ "$(grep -c "alarm_description  = \"$P_CF_DESC\"" "$ESTATE/modules/monitoring/main.tofu")" = "1" ] \
+    || fail "reverting the reviewed edit did not restore the CloudFront alarm's own alarm_description"
+  P_BACK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color "${TARGETS[@]}" 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+  P_GONE="$(awsl cloudwatch describe-alarms --alarm-names "$CF_ALARM_NAME" --query 'MetricAlarms[0].AlarmDescription' --output text)"
+  [ "$P_GONE" = "$P_CF_DESC" ] \
+    || fail "the reviewed change is still live after the revert: $CF_ALARM_NAME's alarm_description reads \"$P_GONE\""
+  P_FINAL_OUT="$(plan_into 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  P_CF_MARKER="$(awsl cloudwatch list-tags-for-resource --resource-arn "$CF_ALARM_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$P_CF_MARKER" = "$WANT_CF_ADDR" ] \
+    || fail "the CloudFront alarm carries tofu-address=\"$P_CF_MARKER\" after PART P, not $WANT_CF_ADDR - the approval gate disturbed the identity"
+  [ ! -f "$ESTATE/terraform.tfstate" ] || fail "PART P left a state file behind - this estate must never keep local state"
+  log "  reverted; the estate is converged again, the marker is untouched, and PART D starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (cf_requests_spike's alarm_description, a config-owned non-ForceNew argument, gains a \"(reviewed)\" suffix), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band ($S3_ALARM_NAME's alarm_description, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $S3_ALARM_NAME it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $CF_ALARM_NAME's alarm_description still read as configured through the AWS CLI, rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the description put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $CF_ALARM_NAME read back with the reviewed description, so the refusal is earned by the drift and not handed out to every plan file. BOTH the plan -out and the apply carry this crossing's own -target set (aws_budgets_budget stays out of the graph - floci still answers UnknownOperationException for AWSBudgetServiceGateway on the pinned image), which is enough because a live-markers apply plans the live system from its OWN arguments rather than replaying the file: no exemption and no Go change was needed for issue #903's -target trap. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
+fi
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
 # ══════════════════════════════════════════════════════════════════════════

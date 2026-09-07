@@ -112,6 +112,17 @@ set -uo pipefail
 #                     propose nothing for the disputed address - see that
 #                     leg's own comment for why those are two assertions
 #                     and not one.
+#   BREAK_APPROVAL    run plan_approval's own negative control instead of
+#                     the real refusal check (PART P): after the world has
+#                     moved out of band, assert the saved plan file APPLIES
+#                     cleanly - the Break text in tools/gauntlet/stages.go
+#                     for plan_approval is literally "Apply the planfile
+#                     after a mutation and expect success; the run must
+#                     refuse", so this assertion has to fail. Independent of
+#                     every BREAK above, and the only one of them under
+#                     which PART P runs at all - the others deliberately
+#                     leave the estate somewhere PART P does not describe,
+#                     and it reports no verdict there.
 #
 # Exit codes: 0 on a real pass, non-zero on a real failure. Read the
 # `GAUNTLET stage=` verdict lines, never the exit code.
@@ -382,6 +393,24 @@ replace_profile_4() {
     || fail "replace_profile_4 did not add create_before_destroy in $f"
 }
 
+# add_reviewed_tag adds exactly one argument - a Reviewed = "yes" entry in
+# aws_subnet.main's own tags map - to the generated network.tf, and to
+# nothing else. PART P's change under review: one in-place update, on one
+# resource instance. The generated configuration is never hand-edited; this
+# is an edit case of render_config's, the same mechanism rename0, remove2,
+# count1 and replace4 already use, so the revert is just rendering the
+# estate again without it.
+add_reviewed_tag() {
+  local f="$1" t
+  t="$(mktemp)"
+  awk -v want="    Name = \"${PREFIX}-subnet\"" '
+    { print }
+    $0 == want { print "    Reviewed = \"yes\"" }
+  ' "$f" > "$t" && mv "$t" "$f"
+  [ "$(grep -c 'Reviewed = "yes"' "$f")" = "1" ] \
+    || fail "add_reviewed_tag did not add exactly one Reviewed tag to $f - terralith-gen's network.tf has moved"
+}
+
 render_config() {
   local dir="$1"; shift
   mkdir -p "$dir/modules/team_pod"
@@ -417,6 +446,7 @@ render_config() {
           || fail "count1 edit did not rewrite all six count_team count arguments in $dir/iam.tf"
         ;;
       replace4) replace_profile_4 "$dir/iam.tf" ;;
+      reviewp) add_reviewed_tag "$dir/network.tf" ;;
       *) fail "render_config: unknown edit $e" ;;
     esac
   done
@@ -1179,6 +1209,187 @@ STILL_MARKED="$(marker_of_vpc "$ENDPOINT")"
 log "  reconverged: $VPC_ID's Name tag is back to ${PREFIX}-vpc and its tofu-address marker is untouched, both read via the AWS CLI"
 gauntlet_stage drift_reconverge pass "one live object mutated out of band through the AWS CLI; choudoufu's next plan proposed fixing exactly aws_vpc.main and nothing else (0 add, 1 change, 0 destroy), matching stock's own plan for the identical mutation on cold_deploy's own state (B4, taken before any marker existed); the apply changed exactly 1 resource, the Name tag reads back as configured and the tofu-address marker is unchanged"
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the VPC's
+#          own Name tag is changed out of band through the AWS CLI, the
+#          same mutation PART H above already proves this estate's plan
+#          notices AND that stock's own oracle (B4) proposes identically -
+#          and the apply must refuse: exit 3, the named summary, the
+#          unapproved row printed by address AND by the live VPC id it was
+#          computed against, and the reviewed change still not landed when
+#          the subnet's tags are read back through the CLI.
+#   P4     nothing has moved (the tag is put back first) and the SAME file
+#          must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is on
+# aws_subnet.main, the out-of-band move is on aws_vpc.main - so the refusal
+# has an EXTRA row to name rather than a values-only disagreement about the
+# same row.
+#
+# WHY THE SUBNET'S TAGS, and not one of the other 74*SCALE+4 instances: the
+# reviewed edit has to reach exactly ONE instance and must not disturb a
+# live id a later part of this script already captured (issue #903's second
+# trap). Every IAM object this estate generates belongs to a later part -
+# team_0000/0001's profiles are PART I's two renames, team_0002's profile
+# and inline policy are PART J's removal, the six count_team blocks are
+# PART K's scale and team_0004's profile is PART L's forced replace - and
+# aws_vpc.main is this part's own out-of-band object. aws_subnet.main is
+# the one shared, singular, taggable resource left: ecs.tf reads its id for
+# the service's network configuration, which a tags-only update (not
+# ForceNew on aws_subnet) leaves exactly where it was.
+#
+# THE CONFIGURATION IS GENERATED (tools/terralith-gen), so the edit is a
+# render_config edit case - `reviewp`, see add_reviewed_tag above - the
+# same mechanism rename0, remove2, count1 and replace4 already use. Nothing
+# hand-edits a generated file, and P5's revert is just rendering the estate
+# again without that case, which is byte-identical to what PART I would
+# have started from.
+#
+# Placed here, between PART H and PART I, so it starts from the state
+# drift_reconverge leaves (adopted, converged, no state file) and finishes
+# before PART I captures the two live ids a rename must not disturb.
+#
+# Runs only on a real run. Under any of this script's other BREAK controls
+# the estate is deliberately left somewhere this part does not describe, so
+# it reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK_GREENFIELD:-}" ] && [ -z "${BREAK_MIGRATE:-}" ] && [ -z "${BREAK_PLAN:-}" ] \
+   && [ -z "${BREAK_APPLY:-}" ] && [ -z "${BREAK_DRIFT:-}" ] && [ -z "${BREAK_RENAME:-}" ] \
+   && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ] && [ -z "${BREAK_REPLACE:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="aws_subnet.main"
+  P_MOVED_ADDR="aws_vpc.main"
+  # Tied to what PART H actually measured rather than asserted from memory:
+  # DRIFT_ADDRS is the address this estate's own drift plan printed for
+  # $VPC_ID a few lines above.
+  [ "$DRIFT_ADDRS" = "$P_MOVED_ADDR" ] \
+    || fail "PART H saw $VPC_ID at [$DRIFT_ADDRS], not $P_MOVED_ADDR - PART P's out-of-band row would be named wrong"
+  P_SUBNET_ID="$(awsl ec2 describe-subnets --filters "Name=tag:Name,Values=${PREFIX}-subnet" --query 'Subnets[0].SubnetId' --output text)"
+  [ -n "$P_SUBNET_ID" ] && [ "$P_SUBNET_ID" != "None" ] || fail "no live subnet found by its Name tag for the change under review"
+  log "  under review: $P_REVIEWED_ADDR ($P_SUBNET_ID); moving out of band: $P_MOVED_ADDR ($VPC_ID)"
+
+  log "=== P1. the change under review: one argument, on the shared subnet ==="
+  render_config "$ADOPTED" live reviewp
+  [ "$(grep -c 'Reviewed = "yes"' "$ADOPTED/network.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one Reviewed = \"yes\" tag into the rendered network.tf"
+  log "  edited one argument: aws_subnet.main's tags now carry Reviewed = \"yes\""
+
+  P_PLAN_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$ADOPTED/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$P_PLAN_OUT" \
+    || { printf '%s\n' "$P_PLAN_OUT" | tail -12; fail "the approved plan is not exactly one in-place change; this review is one instance"; }
+  P_PLAN_BYTES="$(wc -c < "$ADOPTED/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl ec2 create-tags --resources "$VPC_ID" --tags Key=Name,Value=moved-after-approval >/dev/null \
+    || fail "the out-of-band tag mutation failed"
+  P_MOVED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" --query 'Tags[0].Value' --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $VPC_ID's Name tag reads \"$P_MOVED_VALUE\""
+  log "  $VPC_ID's Name tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the VPC, so asserting over the whole output
+  # would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$VPC_ID" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $VPC_ID, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_SUBNET_ID" "Name=key,Values=Reviewed" --query 'Tags[0].Value' --output text)"
+  [ "$P_REVIEWED_TAG" = "None" ] || [ -z "$P_REVIEWED_TAG" ] \
+    || fail "the refused apply still wrote the reviewed change: $P_SUBNET_ID carries Reviewed=\"$P_REVIEWED_TAG\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl ec2 create-tags --resources "$VPC_ID" --tags "Key=Name,Value=${PREFIX}-vpc" >/dev/null \
+    || fail "restoring the VPC's Name tag failed"
+  P_RESTORED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" --query 'Tags[0].Value' --output text)"
+  [ "$P_RESTORED" = "${PREFIX}-vpc" ] || fail "the out-of-band move was not undone: $VPC_ID's Name tag reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_SUBNET_ID" "Name=key,Values=Reviewed" --query 'Tags[0].Value' --output text)"
+  [ "$P_LANDED" = "yes" ] \
+    || fail "the approved change did not land: $P_SUBNET_ID carries Reviewed=\"$P_LANDED\", want \"yes\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_SUBNET_ID now carries Reviewed=yes, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$ADOPTED/approved.tfplan"
+  render_config "$ADOPTED" live
+  [ "$(grep -c 'Reviewed = "yes"' "$ADOPTED/network.tf")" = "0" ] \
+    || fail "re-rendering the estate did not undo the reviewed edit"
+  P_BACK_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+  P_GONE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_SUBNET_ID" "Name=key,Values=Reviewed" --query 'Tags[0].Value' --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the reviewed tag is still on $P_SUBNET_ID after the revert: \"$P_GONE\""
+  P_FINAL_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+  plan_is_noop "$P_FINAL_OUT" \
+    || { grep -E '^  #' <<< "$P_FINAL_OUT" | head -20; fail "the estate is not converged again after PART P"; }
+  P_STILL_MARKED="$(marker_of_vpc "$ENDPOINT")"
+  [ "$P_STILL_MARKED" = "aws_vpc.main" ] \
+    || fail "the VPC's tofu-address marker reads \"$P_STILL_MARKED\" after PART P, not aws_vpc.main - the approval gate disturbed the identity"
+  log "  reverted; the estate is converged again and PART I starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band ($VPC_ID's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $VPC_ID it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $P_SUBNET_ID still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_SUBNET_ID read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
+fi
 # ══════════════════════════════════════════════════════════════════════════
 # PART I: RENAME (day2_rename)
 # ══════════════════════════════════════════════════════════════════════════
