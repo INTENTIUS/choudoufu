@@ -1076,7 +1076,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		r.view.Policy(statelessPolicyReport(nil, disco, nil, reconcile))
+		r.view.Policy(statelessPolicyReport(nil, disco, reconcile))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
@@ -1212,35 +1212,17 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		disco != nil,
 	))
 
-	// The schemas are read before the plan rather than after it because
-	// stamping needs them: which resource types can carry an ownership marker
-	// is a question only the provider's schema answers.
-	schemas, schemaDiags := core.Schemas(ctx, config, projResult.State)
-	diags = diags.Append(schemaDiags)
-	if schemaDiags.HasErrors() {
+	// The marker writer's estate name, said out loud when there is not one.
+	// Writing the markers themselves is [projection.NodeResolver.AdjustConfigValue]'s
+	// job, per instance, during the plan walk; this is the one thing that
+	// seam cannot say for itself. See [statelessMarkerEstate], and GitHub
+	// issue #644 for what used to be here.
+	diags = diags.Append(statelessMarkerEstate(ctx, config, estate))
+	if diags.HasErrors() {
 		return nil, diags
 	}
 
-	// Marker stamping, by rewriting the configuration the plan is about to
-	// read. A marker conflict is fatal: the configuration claims an ownership
-	// this run cannot honor. So is a resource whose identity the provider
-	// assigns going unstamped - this is the apply path, so an unmarked create
-	// here is a resource lost to every future run. policyUntag carries
-	// declared_tagged = "untag"'s released keys, worked out from the
-	// projection's own policy outcomes now that it has run.
-	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(r.policy))
-	recordBackedBlocks, recordBlocksDiags := recordBackedNeedsDiscoveryBlocks(ctx, recordShrinkStore, resolutions.NeedsDiscovery())
-	diags = diags.Append(recordBlocksDiags)
-	if recordBlocksDiags.HasErrors() {
-		return nil, diags
-	}
-	stampRes, stampDiags := statelessStamp(ctx, config, estate, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag, recordBackedBlocks)
-	diags = diags.Append(stampDiags)
-	if stampDiags.HasErrors() {
-		return nil, diags
-	}
-
-	r.view.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
+	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
 	// applyOrphanPolicy withheld from the sweep because a non-default verb

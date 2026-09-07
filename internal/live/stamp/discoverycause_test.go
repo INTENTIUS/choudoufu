@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // The refusal a marker-only resource gets when nothing could be stamped on it
@@ -26,77 +26,34 @@ import (
 // operator reads is the other one, and that shape of defect has shipped green
 // in this repository three times.
 
-// untaggableSource is one resource of a type testSchemas() gives no tags map,
-// which is the skip that carries 103 of the corpus's 104 sites into this
-// refusal.
-const untaggableSource = `
-resource "aws_route_table_association" "app" {
-  subnet_id      = "subnet-1"
-  route_table_id = "rtb-1"
-}
-`
-
-func stampWithCause(t *testing.T, disco identity.BlockDiscovery) (string, tfdiags.Severity) {
-	t.Helper()
-
-	diags := stampDiagsWithCause(t, disco)
-	if len(diags) != 1 {
-		t.Fatalf("expected exactly one diagnostic, got %d: %s", len(diags), diags.ErrWithWarnings())
-	}
-	return diags[0].Description().Detail, diags[0].Severity()
+// unmarkedSubject is the block address every case below renders against. It
+// is a real untaggable, marker-only shape: aws_route_table_association has
+// no tags argument at all, which is the skip that carried 103 of the
+// corpus's 104 sites into this refusal.
+var unmarkedSubject = addrs.ConfigResource{
+	Resource: addrs.Resource{
+		Mode: addrs.ManagedResourceMode,
+		Type: "aws_route_table_association",
+		Name: "app",
+	},
 }
 
-// stampDiagsWithCause is stampWithCause without the one-diagnostic
-// expectation, for the cause whose whole point is that it produces none.
-func stampDiagsWithCause(t *testing.T, disco identity.BlockDiscovery) tfdiags.Diagnostics {
-	t.Helper()
-
-	cfg := loadSource(t, untaggableSource)
-	_, diags := Stamp(t.Context(), Request{
-		Estate:  "stamp-unit",
-		Config:  cfg,
-		Schemas: testSchemas(),
-		NeedsDiscovery: map[string]identity.BlockDiscovery{
-			"aws_route_table_association.app": disco,
-		},
-	})
-	return diags
-}
-
-// TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused is the one cause that
-// must NOT produce a diagnostic at all, and the reason the test below skips
-// it rather than expecting a sentence for it.
+// detailWithCause is [UnmarkedDiscoveryDetail] for one cause, under the
+// fixed subject above.
 //
-// Every other cause names a resource that can only ever be found by its
-// ownership marker, so applying it unmarked creates something no later run
-// can recognise, and stamping escalates. An instance carrying
-// [identity.DiscoveryUniqueName] is found by a name AWS refuses to issue
-// twice (internal/live/discovery/uniquename.go), marker or no marker.
-// Refusing it would refuse every apply of an untaggable type of that shape -
-// which is to say the whole population issue #272 admitted.
-//
-// The fixture is the same untaggable resource every other case in this file
-// uses, so the ONLY difference between this test and the ones below is the
-// cause. If mustStamp stopped reading the cause, this test goes red on its
-// own.
-func TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused(t *testing.T) {
-	diags := stampDiagsWithCause(t, identity.BlockDiscovery{
-		Cause: identity.DiscoveryUniqueName,
-		Args:  []string{"name"},
-	})
-	if len(diags) != 0 {
-		t.Errorf("a resource bound by its account-unique name raised %d diagnostic(s), want none: %s\n"+
-			"Applying it unmarked is not the unrecoverable mistake this refusal exists to catch - a later run finds it by its name.",
-			len(diags), diags.ErrWithWarnings())
-	}
-
-	// The contrast, in the same fixture: the same block with the ordinary
-	// server-assigned cause IS refused. Without this line the assertion
-	// above would pass just as well against a Stamp that had stopped
-	// refusing anything.
-	if got := stampDiagsWithCause(t, identity.BlockDiscovery{Cause: identity.DiscoveryServerAssigned}); len(got) != 1 {
-		t.Errorf("the same fixture with a server-assigned cause raised %d diagnostic(s), want 1 - this test proves nothing if nothing is refused", len(got))
-	}
+// Until GitHub issue #644 these cases drove the sentence through this
+// package's own HCL-rewriting Stamp, which raised the diagnostic that
+// carried it, and asserted the severity alongside the text. The engine is
+// gone; the sentence is not, and it is still the thing an operator reads.
+// So the wording assertions stay here, on the exported function that
+// produces them, and the severity half - which cause escalates to an error
+// and which stays silent - now belongs to the seam that decides it,
+// internal/live/check's nodeStampUnmarkedApply (nodestamp.go), where
+// stamp_gate_test.go's TestStampGate_UniqueNameCauseIsNotRefused pins the
+// one exemption by rendered finding.
+func detailWithCause(t *testing.T, disco identity.BlockDiscovery) string {
+	t.Helper()
+	return UnmarkedDiscoveryDetail(unmarkedSubject, disco)
 }
 
 // TestUnmarkedDiscoveryDetail_everyCauseIsToldApart is the whole point of
@@ -146,17 +103,8 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 			// lands in the same place.
 			continue
 		}
-		detail, severity := stampWithCause(t, identity.BlockDiscovery{Cause: cause, Args: args[cause]})
+		detail := detailWithCause(t, identity.BlockDiscovery{Cause: cause, Args: args[cause]})
 		details[cause] = detail
-
-		// The severity is not the cause's to change. Every one of these is a
-		// resource with nowhere to write a marker and no identity this run
-		// can compute, and it is unfindable afterwards however it got that
-		// way. A cause that softened this would be handing back a false
-		// "you are fine".
-		if severity != tfdiags.Error {
-			t.Errorf("cause %s produced severity %v, want Error", cause, severity)
-		}
 
 		phrases, known := want[cause]
 		if !known {
@@ -194,13 +142,10 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 // much as the positive one: a component with no such argument must keep the
 // no-step wording rather than invent one.
 func TestUnmarkedDiscoveryDetail_cloudCauseNamesTheArgument(t *testing.T) {
-	withArg, severity := stampWithCause(t, identity.BlockDiscovery{
+	withArg := detailWithCause(t, identity.BlockDiscovery{
 		Cause: identity.DiscoveryCloudUnknown,
 		Args:  []string{string(identity.CloudAccountID), "catalog_id"},
 	})
-	if severity != tfdiags.Error {
-		t.Errorf("naming the argument softened the severity to %v; the resource is still unfindable as written", severity)
-	}
 	for _, phrase := range []string{
 		"AWS account ID",
 		"Setting catalog_id in the resource block",
@@ -213,7 +158,7 @@ func TestUnmarkedDiscoveryDetail_cloudCauseNamesTheArgument(t *testing.T) {
 
 	// The contrast: a bare account segment in the middle of an ARN has no
 	// argument, and the sentence must not pretend otherwise.
-	bare, _ := stampWithCause(t, identity.BlockDiscovery{
+	bare := detailWithCause(t, identity.BlockDiscovery{
 		Cause: identity.DiscoveryCloudUnknown,
 		Args:  []string{string(identity.CloudAccountID)},
 	})
@@ -225,7 +170,7 @@ func TestUnmarkedDiscoveryDetail_cloudCauseNamesTheArgument(t *testing.T) {
 	}
 
 	// Two candidate arguments read as a choice, not as a list to set all of.
-	both, _ := stampWithCause(t, identity.BlockDiscovery{
+	both := detailWithCause(t, identity.BlockDiscovery{
 		Cause: identity.DiscoveryCloudUnknown,
 		Args:  []string{string(identity.CloudRegion), "region", "location"},
 	})
@@ -244,10 +189,7 @@ func TestUnmarkedDiscoveryDetail_cloudCauseNamesTheArgument(t *testing.T) {
 // hard error this mechanism exists to raise into a warning - audit finding
 // C2, reintroduced by a refactor rather than by a decision.
 func TestUnmarkedDiscoveryDetail_zeroCauseStillRefuses(t *testing.T) {
-	detail, severity := stampWithCause(t, identity.BlockDiscovery{})
-	if severity != tfdiags.Error {
-		t.Fatalf("an entry left at the zero BlockDiscovery produced severity %v, want Error", severity)
-	}
+	detail := detailWithCause(t, identity.BlockDiscovery{})
 	if !strings.Contains(detail, "identity the provider assigns at create time") {
 		t.Errorf("the zero cause did not fall back to the generic sentence; got:\n  %s", detail)
 	}
@@ -263,10 +205,7 @@ func TestUnmarkedDiscoveryDetail_missingArgsFallBack(t *testing.T) {
 		identity.DiscoveryNameOmitted,
 		identity.DiscoveryNamePrefix,
 	} {
-		detail, severity := stampWithCause(t, identity.BlockDiscovery{Cause: cause})
-		if severity != tfdiags.Error {
-			t.Errorf("cause %s with no args produced severity %v, want Error", cause, severity)
-		}
+		detail := detailWithCause(t, identity.BlockDiscovery{Cause: cause})
 		if strings.Contains(detail, `""`) || strings.Contains(detail, "  ") {
 			t.Errorf("cause %s with no args rendered a hole:\n  %s", cause, detail)
 		}
@@ -278,7 +217,7 @@ func TestUnmarkedDiscoveryDetail_missingArgsFallBack(t *testing.T) {
 	// A cloud cause whose one argument is present but is not a CloudValue
 	// this package knows: CloudValue.Describe returns the raw string for an
 	// unrecognised value, so the sentence still names something.
-	detail, _ := stampWithCause(t, identity.BlockDiscovery{
+	detail := detailWithCause(t, identity.BlockDiscovery{
 		Cause: identity.DiscoveryCloudUnknown,
 		Args:  []string{"partition"},
 	})

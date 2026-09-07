@@ -17,14 +17,34 @@ import "sort"
 // A refusal an instrument can measure gets found eventually. One it cannot
 // is only ever met by a user in the middle of a migration.
 //
-// The registry is small - seven summaries - and its value is not the size.
-// It is that live/LIMITATIONS.md's generated section can no longer describe
-// only the refusals that happen to be cheap to measure.
+// GitHub issue #644 took the registry from eight entries to three. The five
+// that went were the ones only the HCL-rewriting engine in this package
+// could produce, and the engine is gone:
 //
-// Three of the seven were added after an audit: they reach the user through
-// tfdiags.Sourceless, which the first version of internal/live/refusalscan
-// could not see, so the test guarding this registry passed over them in
-// silence.
+//   - SummaryNoConfig, SummaryNoEstateName, SummaryNoSchemas were guards on
+//     that engine's own Request struct - a nil configuration, an estate name
+//     outside the marker grammar, nil provider schemas. There is no Request
+//     any more. Zero corpus sites at every measurement this project ever
+//     took, because they were caller errors and not configuration shapes.
+//   - SummarySharedBody was a diagnostic about two resource blocks reaching
+//     one *hclsyntax.Body during that rewrite (#280). The node path is
+//     called once per already-concrete addrs.AbsResourceInstance with its
+//     own evaluated value and never rewrites a body at all, so the failure
+//     mode is structurally absent rather than merely unmeasured.
+//   - SummaryMarkerUncheckable said "an ownership tag is already set to an
+//     expression this run cannot evaluate". That was a property of reading
+//     HCL text statically. The node path receives the tag ALREADY
+//     EVALUATED, so an expression it could not read does not exist there;
+//     a value that disagrees is SummaryMarkerConflict below, and one that
+//     agrees is a no-op.
+//
+// The three that stay are the three a run still raises, all of them from
+// outside this package now: internal/live/check's node-path port
+// (nodestamp.go, GitHub issue #454) for the two marker-only summaries, and
+// internal/live/projection's own SummaryMarkerConflict, which carries the
+// identical text by construction so that one registry entry documents both
+// seams. The registry stays here, under RaisedByStamp, because that is the
+// LAYER a reader of live/LIMITATIONS.md is looking the refusal up under.
 
 // Refusal is one thing this package can refuse, keyed by the Summary its
 // diagnostic carries. Same three fields internal/live/identity's registry
@@ -52,48 +72,24 @@ func (r Refusal) DocsRef() string {
 
 // refusals is the registry. Keep it sorted by Summary.
 //
-// The first two describe an ownership tag the configuration already sets by
-// hand, disagreeing with what this run would write or unreadable to it. That
-// is the shape of most stamping trouble: the configuration and the live
-// object each hold an opinion about ownership, and this pass will not
-// silently pick one.
-//
-// The last three are two warnings and the error they become. [stamper.unstampableAt]
-// picks between them on whether the resource can be found any other way, and
-// it swaps the summary along with the severity - so a user who saw the error
-// looks it up under its own heading, not under either warning's.
+// The first describes an ownership tag the configuration already sets by
+// hand to a value other than the one this run resolved: the configuration
+// and the live object each hold an opinion about ownership, and no seam
+// here will silently pick one. The last two are the marker-only pair - a
+// warning for a resource that can still be found another way, and the
+// error it becomes for one that cannot.
 var refusals = []Refusal{
 	{
 		Summary: SummaryMarkerConflict,
 		What:    "The configuration already sets an ownership tag by hand, to a value other than the one this estate's markers require. Overwriting it would move ownership of a live resource without anyone saying so, so the run stops instead.",
 	},
 	{
-		Summary: SummaryMarkerUncheckable,
-		What:    "An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning: a resource that can only be found by its marker gets the error below instead, under its own heading, because [stamper.unstampableAt] swaps the summary as well as the severity.",
-	},
-	{
 		Summary: SummaryNotStamped,
-		What:    "A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration. Also the form a marker-only resource takes when this run could not read its type's schema at all: whether it can carry a marker is then unknown rather than known to be impossible, and an unknown is never reported as the error below. A third case is a type that HAS a settable tags map whose documented vocabulary an ownership marker cannot be spelled in - a key space the provider defines rather than the configuration, or a character set and length the escaped address does not fit. GCP's resource-manager tag bindings are the found example: keys must name TagKey objects that already exist, and on several types the field forces replacement when mutated. A type with no tag surface at all stays silent, because being identified by an argument instead of a marker is ordinary and hundreds of types are; a tag surface that exists and cannot be used is not, so it is said out loud.",
-	},
-	{
-		Summary: SummaryNoConfig,
-		What:    "Stamping was given no configuration to rewrite. A caller error, not a configuration one.",
-	},
-	{
-		Summary: SummaryNoEstateName,
-		What:    "Stamping was given no estate name, or one outside the tofu-estate marker grammar, so there is no value to write into the markers.",
-	},
-	{
-		Summary: SummaryNoSchemas,
-		What:    "Stamping was given no provider schemas, so which types can carry a marker cannot be read. A caller error, not a configuration one.",
-	},
-	{
-		Summary: SummarySharedBody,
-		What:    "Two resources in the configuration reached one HCL body, so the ownership marker written for one of them would be the marker the other carries too. A module source called more than once is parsed once - every call shares the syntax tree - and each call is supposed to get its own body for a resource's arguments; this fires when one did not. It is a defect in how the run loaded the configuration rather than a fault in the configuration, and it is a hard error because a marker shared between two live objects is worse than no marker at all.",
+		What:    "A resource's tags could not be given this estate's ownership markers - most often an untaggable type. Reported as a warning, because the resource is still identifiable from its configuration. Also the form a marker-only resource takes when this run could not read its type's schema at all: whether it can carry a marker is then unknown rather than known to be impossible, and an unknown is never reported as the error below. A third case is a type that HAS a settable tags map whose documented vocabulary an ownership marker cannot be spelled in - a key space the provider defines rather than the configuration, or a character set and length the escaped address does not fit. GCP's resource-manager tag bindings are the found example: keys must name TagKey objects that already exist, and on several types the field forces replacement when mutated. A type with no tag surface at all stays silent, because being identified by an argument instead of a marker is ordinary and hundreds of types are; a tag surface that exists and cannot be used is not, so it is said out loud.",
 	},
 	{
 		Summary: SummaryUnmarkedApply,
-		What:    "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - \"Ownership markers not stamped\" and \"Ownership marker could not be checked\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
+		What:    "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - \"Ownership markers not stamped\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
 	},
 }
 
