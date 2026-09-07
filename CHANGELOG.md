@@ -4,7 +4,40 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.14.0 (Unreleased)
+## choudoufu v0.15.0 (Unreleased)
+
+Nothing recorded yet.
+
+## choudoufu v0.14.0 (2026-09-07)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.14.0.json`](live/history/v0.14.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.13.0.json live/history/v0.14.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The headline counts did not move, but the board was re-measured rather than
+carried forward. Stage 12, plan approval, went from planned to active (#888,
+PR #903), which took both bars to 0/26 and 0/27 until every estate had been
+re-run carrying the new leg; the catch-up landed in PRs #923, #925, #926,
+#927 and #931. All 27 rows now carry a 2026-09-07 run, and `plan_approval`
+reads 27/27 pass where v0.13.0's snapshot read 27/27 `not_run`.
+
+Those 27 rows were measured at 7841ac337f (PR #939), before the stamp and
+`module_prefix` retirement (#644, PR #944) merged, so the board carries
+that change forward unmeasured on 25 estates. It is measured on two: after
+#944, `corpus-eks-basic` reads clear on the runner (Gauntlet run
+34155541362) and on a laptop, and `corpus-rds-complete-postgres` reads clear
+on the runner (run 34148414213). The nightly that would have re-measured
+the rest cannot land its verdicts yet (#948).
+
+Live-certified: `gauntlet live-cert reference-ec2-vpc -target aws` in
+us-east-2 at e6a9698161, all four stages pass (cold_deploy, migrate,
+test_plan, test_apply), 5 objects, under the 5 USD ceiling. The verdict is
+recorded in `live/gauntlet.json`'s `live_cert` row and in the snapshot.
 
 ENGINE WORK:
 
