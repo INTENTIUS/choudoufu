@@ -114,7 +114,7 @@ func TestTombstoneCarriesForwardExistingIdentity(t *testing.T) {
 		t.Fatalf("seeding the current identity: %s", err)
 	}
 
-	if err := store.tombstone(ctx, addr, version); err != nil {
+	if err := store.tombstone(ctx, addr, version, nil); err != nil {
 		t.Fatalf("tombstone: %s", err)
 	}
 
@@ -162,7 +162,7 @@ func TestTombstoneNeverResurrectsAsALiveRecord(t *testing.T) {
 		t.Fatalf("seeding the current identity: %s", err)
 	}
 
-	if err := store.tombstone(ctx, addr, version); err != nil {
+	if err := store.tombstone(ctx, addr, version, nil); err != nil {
 		t.Fatalf("tombstone: %s", err)
 	}
 
@@ -209,7 +209,7 @@ func TestTombstoneWithNoIdentityActsLikeDelete(t *testing.T) {
 		t.Fatalf("seeding a provisioned-only envelope: %s", err)
 	}
 
-	if err := store.tombstone(ctx, addr, version); err != nil {
+	if err := store.tombstone(ctx, addr, version, nil); err != nil {
 		t.Fatalf("tombstone: %s", err)
 	}
 
@@ -237,7 +237,7 @@ func TestTombstoneAccumulatesAcrossSuccessiveDestroys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seeding the first identity: %s", err)
 	}
-	if err := store.tombstone(ctx, addr, v1); err != nil {
+	if err := store.tombstone(ctx, addr, v1, nil); err != nil {
 		t.Fatalf("first tombstone: %s", err)
 	}
 
@@ -254,7 +254,7 @@ func TestTombstoneAccumulatesAcrossSuccessiveDestroys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the version after seeding the second identity: %s", err)
 	}
-	if err := store.tombstone(ctx, addr, v3); err != nil {
+	if err := store.tombstone(ctx, addr, v3, nil); err != nil {
 		t.Fatalf("second tombstone: %s", err)
 	}
 

@@ -23,6 +23,18 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
+// DeposedDestroy is one deposed object a run's plan scheduled a destroy of:
+// [plans.ResourceInstanceChangeSrc]'s Addr and DeposedKey for a change whose
+// action is Delete and whose DeposedKey is not [states.NotDeposed]. GitHub
+// issue #938; see [WriteBackRequest.DestroyedDeposed].
+//
+// It is a slice of pairs rather than a map because
+// [addrs.AbsResourceInstance] is not a valid map key.
+type DeposedDestroy struct {
+	Addr addrs.AbsResourceInstance
+	Key  states.DeposedKey
+}
+
 // WriteBackRequest is what [WriteBack] needs: the store a projection was
 // built against, the versions it read at plan time, and the state an apply
 // finished with.
@@ -80,6 +92,36 @@ type WriteBackRequest struct {
 	// address refuses, which is what it did before the tombstone mechanism
 	// existed. See [supersedeIdentity].
 	ReplacedAddrs []addrs.AbsResourceInstance
+
+	// DestroyedDeposed is every deposed object this run's PLAN scheduled a
+	// destroy of: the address it hangs off and the deposed key it hangs
+	// under. GitHub issue #938.
+	//
+	// It is [ReplacedAddrs]'s companion for the other half of a
+	// create_before_destroy replace, and it exists because the two halves
+	// can land in DIFFERENT applies. The first apply creates the new
+	// object, deposes the old one and then crashes before the destroy
+	// dispatches; issue #901 correctly stops that apply recording anything
+	// as destroyed, because the deposed object is alive. The NEXT apply is
+	// the one that destroys it, and by then the address's recorded identity
+	// has not moved (it named the new object from the crashed apply
+	// onwards), so [identitySuperseded] is false and its plan schedules no
+	// replace, so ReplacedAddrs is empty too. Neither of the two facts
+	// [supersedeIdentity] needs is available, and without this signal an
+	// object this estate's own apply terminated is recorded nowhere at all
+	// - which is the lingering-tag case tombstones exist for (#670), so the
+	// plan after that one refuses the address as a two-claimant collision.
+	//
+	// A destroy is scheduled, not proven, exactly as it is for
+	// ReplacedAddrs - so the write side pairs this with the final state's
+	// own evidence: an entry is written only for a key the record held and
+	// the FINAL STATE no longer carries as deposed. A destroy leg that
+	// failed again leaves the key in ri.Deposed and records nothing, which
+	// is #901's suppression holding at the second apply as well.
+	//
+	// Nil or empty means "this run destroyed no deposed object", the same
+	// fail-toward-refusal direction ReplacedAddrs takes.
+	DestroyedDeposed []DeposedDestroy
 
 	// Schemas resolves a resource type's current schema, needed to decode
 	// FinalState's stored objects before they can be re-encoded as a
@@ -172,6 +214,11 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 
 	seen := make(map[string]bool, len(req.PriorVersions))
 
+	// Issue #938's plan-derived deposed-destroy signal, indexed once per
+	// pass the way issue #854's replace set is - see
+	// [WriteBackRequest.DestroyedDeposed].
+	deposedDestroyed := destroyedDeposedIndex(req.DestroyedDeposed)
+
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
 			if entry.DeposedKey != states.NotDeposed {
@@ -230,6 +277,10 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 				env.Kind = recordKindObject
 				env.Object = of
 				env.Provider = providerString(res.ProviderConfig)
+				// Issue #938, before the diff below deletes the entries it
+				// reads: a deposed object this apply's own plan destroyed
+				// is recorded as destroyed by this estate.
+				tombstoneDestroyedDeposed(env, ri, deposedDestroyed[addr.String()])
 				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig)
 			}); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
@@ -251,7 +302,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 		// record-backed instance's identity concept lives in its Object
 		// member, which tombstone never carries forward) reduces to
 		// exactly the delete this replaced.
-		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version); err != nil {
+		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version, deposedDestroyed[rv.Addr.String()]); err != nil {
 			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
 		}
 	}
@@ -397,6 +448,90 @@ func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, 
 	return false
 }
 
+// destroyedDeposedIndex indexes [WriteBackRequest.DestroyedDeposed] by
+// address, once per write-back, the way replaced indexes ReplacedAddrs.
+// GitHub issue #938.
+func destroyedDeposedIndex(destroys []DeposedDestroy) map[string]map[states.DeposedKey]bool {
+	if len(destroys) == 0 {
+		return nil
+	}
+	out := make(map[string]map[states.DeposedKey]bool, len(destroys))
+	for _, d := range destroys {
+		key := d.Addr.String()
+		if out[key] == nil {
+			out[key] = make(map[states.DeposedKey]bool, 1)
+		}
+		out[key][d.Key] = true
+	}
+	return out
+}
+
+// tombstoneDestroyedDeposed records, as destroyed by this estate, every
+// deposed object THIS apply destroyed: a key the record still holds under
+// env.Deposed, that this run's plan scheduled a destroy of (destroyed), and
+// that the final state no longer carries as deposed. GitHub issue #938.
+//
+// # Why the record's own deposed entry is the identity written
+//
+// The object is gone by the time this runs, so there is nothing left in the
+// final state to render an identity from. What the record holds under that
+// key IS the identity - written by [diffDeposedForWrite] out of the state
+// the crashed apply finished with, through [LocatedRecordFrom], the same
+// renderer every current-object identity in this file goes through. So this
+// reaches every recordable type generically and names none: it copies a
+// payload one writer already produced rather than deriving a second one.
+// A deposed entry carrying no renderable identity ([deposedFields.Identity]
+// nil, which diffDeposedForWrite deliberately still records) writes no
+// entry, through [addTombstoneEntry]'s own empty check - the same
+// "unproven, so stay quiet" direction [deposedMayStillHold] takes.
+//
+// # Why both halves of the condition are required
+//
+// The plan alone says a destroy was SCHEDULED, which is exactly the gap
+// GitHub issue #901 opened this whole seam for: a destroy leg can fail. So
+// the final state is asked whether the object is still there, and a key
+// still in ri.Deposed after the apply is still alive and gets no entry -
+// #901's suppression, holding at the second apply as well as the first.
+//
+// The final state alone is not enough either, and [diffDeposedForWrite]'s
+// own doc comment says why: a key that left ri.Deposed was destroyed by
+// this apply "or by a human working around the estate". Only the plan
+// distinguishes them, and an entry written from the record alone would be
+// the same lie about a live object that #854 removed on the current-identity
+// side.
+//
+// The provider recorded is the deposed entry's OWN Provider, not the
+// envelope's: [deposedFields.Provider] is "the managing provider
+// configuration of the deposed object" and the envelope's top-level one
+// names the CURRENT object's, which after a create_before_destroy replace
+// is a different object.
+//
+// It must be called BEFORE [diffDeposedForWrite], which deletes the entries
+// this reads. Reports how many entries it added.
+func tombstoneDestroyedDeposed(env *recordEnvelope, ri *states.ResourceInstance, destroyed map[states.DeposedKey]bool) int {
+	if env == nil || len(destroyed) == 0 || len(env.Deposed) == 0 {
+		return 0
+	}
+	added := 0
+	for dk, df := range env.Deposed {
+		if df == nil || !destroyed[states.DeposedKey(dk)] {
+			continue
+		}
+		if ri != nil {
+			if _, stillDeposed := ri.Deposed[states.DeposedKey(dk)]; stillDeposed {
+				// The destroy was scheduled and did not happen: the object
+				// is deposed and alive, and recording it as destroyed is
+				// precisely what GitHub issue #901 forbids.
+				continue
+			}
+		}
+		if addTombstoneEntry(env, df.Identity, df.Provider) {
+			added++
+		}
+	}
+	return added
+}
+
 // deposedRecordedDiffers reports whether addr's currently recorded Deposed
 // key set differs from live, the cheap pre-check writeBackRecordEnvelopes
 // uses to decide whether an address needs a write for [diffDeposedForWrite]
@@ -506,6 +641,10 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	for _, a := range req.ReplacedAddrs {
 		replaced[a.String()] = true
 	}
+
+	// Issue #938's plan-derived deposed-destroy signal, indexed the same
+	// way - see [WriteBackRequest.DestroyedDeposed].
+	deposedDestroyed := destroyedDeposedIndex(req.DestroyedDeposed)
 
 	// noProvidersWarned makes the "no provider access to classify residue
 	// with" warning fire once per write-back rather than once per instance
@@ -762,6 +901,19 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				touched = true
 			}
 
+			// ---- a deposed object this apply destroyed (issue #938) ----
+			//
+			// Also a reason on its own, and unlike the pre-check above it
+			// costs no extra read: the signal is the plan's, already in
+			// hand. An address whose plan destroyed a deposed object needs
+			// its envelope rewritten even when nothing about the current
+			// object moved, because that is the pass that must record the
+			// destroyed identity - see [tombstoneDestroyedDeposed].
+			destroyedHere := deposedDestroyed[addr.String()]
+			if len(destroyedHere) > 0 {
+				touched = true
+			}
+
 			if !touched {
 				continue
 			}
@@ -839,6 +991,14 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				case clearProv:
 					env.Provisioned = nil
 				}
+				// Issue #938, before the diff below deletes the entries
+				// it reads: a deposed object this apply's own plan
+				// destroyed is recorded as destroyed by this estate. This
+				// is the second apply of a crashed create_before_destroy
+				// replace, where neither of [supersedeIdentity]'s two
+				// facts holds and the switch above therefore records
+				// nothing.
+				tombstoneDestroyedDeposed(env, ri, destroyedHere)
 				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
 			})
 			if err != nil {
@@ -857,7 +1017,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 		// ordinary taggable or located instance (the "issue #364 unit A2"
 		// identity write, above), so this is where day2_remove's own
 		// stale-tag-after-destroy collision is actually closed.
-		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version); err != nil {
+		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version, deposedDestroyed[rv.Addr.String()]); err != nil {
 			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
 		}
 	}
