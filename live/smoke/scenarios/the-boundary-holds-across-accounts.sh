@@ -119,6 +119,18 @@ plan_full() {
 # to the provider configuration that did it without trusting any counter of
 # ours - the same wire-read attribution claim 16 makes by region.
 requests_as() { grep -oE "Credential=$2/[0-9]{8}/us-east-1/" "$LOGDIR/$1.log" 2>/dev/null | wc -l | tr -d ' '; }
+# tagging_as counts the estate-wide tag-index fetches (choudoufu's OWN
+# Resource Groups Tagging client, not the provider's) that one debug stream
+# shows signed as one account. The client's request line carries
+# signed_as=<access key id> read back off its own Authorization header
+# (GitHub issue #957); "unsigned" is a fetch attributable to no account,
+# which is what every emulator run sent before #957 and what put both
+# passes' tag index in the emulator's default account.
+# grep -c exits 1 on a zero count, which under the harness's pipefail would
+# end the run before the assertion below could say why (the same trap
+# HITS_BIND's own `|| true` guards), and zero is the count this exists to
+# catch.
+tagging_as() { { grep -c "stateless/tagging: HTTP Request Sent: .* signed_as=$2\$" "$LOGDIR/$1.log" 2>/dev/null || true; } | tr -d ' '; }
 
 step "the claim"
 explain \
@@ -206,9 +218,21 @@ REQ_OTHER="$(requests_as bind "$OTHER_ACCT")"
 [ "$REQ_HOME" -gt 0 ] || fail "accounts" "no request was signed as account $HOME_ACCT - the aws.home pass did no work"
 [ "$REQ_OTHER" -gt 0 ] || fail "accounts" "no request was signed as account $OTHER_ACCT - the aws.other_account pass never reached the account it names, and every account claim below would be vacuous"
 HITS_BIND="$(grep -c 'state cache hit' "$LOGDIR/bind.log" || true)"
+# The estate-wide tag index, one fetch per provider configuration, each
+# signed as the account that configuration names (#957). Counted off the
+# client's own request line, the same way the provider's requests are
+# counted above; a fetch signed as nobody is a fetch the emulator files
+# under its default account, whichever block asked for it.
+TAG_HOME="$(tagging_as bind "$HOME_ACCT")"
+TAG_OTHER="$(tagging_as bind "$OTHER_ACCT")"
+TAG_NOBODY="$(tagging_as bind unsigned)"
+[ "$TAG_HOME" -gt 0 ] || fail "accounts" "the estate-wide tag index was never fetched signed as account $HOME_ACCT ($TAG_NOBODY unsigned fetch(es)) - the aws.home sweep ran as nobody, so its answer is the emulator's default account's, not account $HOME_ACCT's (#957)"
+[ "$TAG_OTHER" -gt 0 ] || fail "accounts" "the estate-wide tag index was never fetched signed as account $OTHER_ACCT ($TAG_NOBODY unsigned fetch(es)) - the aws.other_account sweep ran as nobody, so the second account's tag index was never measured (#957)"
+[ "$TAG_NOBODY" -eq 0 ] || fail "accounts" "$TAG_NOBODY tag-index fetch(es) went out unsigned, attributable to no account"
 echo "per-pass requests: aws.home (account $HOME_ACCT) $REQ_HOME, aws.other_account (account $OTHER_ACCT) $REQ_OTHER; $HITS_BIND instance(s) served from the cache" | evidence
+echo "tag-index fetches: $TAG_HOME signed as account $HOME_ACCT, $TAG_OTHER signed as account $OTHER_ACCT, $TAG_NOBODY unsigned" | evidence
 grep -E 'No changes\.' <<< "$P_BIND" | head -1 | evidence
-proof "both provider configurations bound their own half and the estate planned empty, at $REQ_HOME requests signed as account $HOME_ACCT and $REQ_OTHER signed as account $OTHER_ACCT."
+proof "both provider configurations bound their own half and the estate planned empty, at $REQ_HOME requests signed as account $HOME_ACCT and $REQ_OTHER signed as account $OTHER_ACCT, the tag index fetched once as each."
 
 step "2. a delete in one account is seen in that account"
 explain \
@@ -319,7 +343,11 @@ REC_HOME="$(requests_as recover "$HOME_ACCT")"
 REC_OTHER="$(requests_as recover "$OTHER_ACCT")"
 [ "$REC_HOME" -gt 0 ] || fail "accounts" "recovery signed no request as account $HOME_ACCT"
 [ "$REC_OTHER" -gt 0 ] || fail "accounts" "recovery signed no request as account $OTHER_ACCT - the other account was never read, so an empty plan here would be luck, not recovery"
-echo "cache deleted, record store deleted; recovery read both accounts: $REC_HOME request(s) as $HOME_ACCT, $REC_OTHER as $OTHER_ACCT" | evidence
+RTAG_HOME="$(tagging_as recover "$HOME_ACCT")"
+RTAG_OTHER="$(tagging_as recover "$OTHER_ACCT")"
+[ "$RTAG_HOME" -gt 0 ] && [ "$RTAG_OTHER" -gt 0 ] \
+  || fail "accounts" "recovery's tag index was fetched $RTAG_HOME time(s) as account $HOME_ACCT and $RTAG_OTHER as account $OTHER_ACCT; with the record store gone the tag index is the sweep's only evidence, and an account it was not fetched as was not recovered from the cloud (#957)"
+echo "cache deleted, record store deleted; recovery read both accounts: $REC_HOME request(s) as $HOME_ACCT, $REC_OTHER as $OTHER_ACCT; tag index fetched $RTAG_HOME time(s) as $HOME_ACCT, $RTAG_OTHER as $OTHER_ACCT" | evidence
 grep -E 'No changes\.' <<< "$P_REC" | head -1 | evidence
 proof "with nothing local left, both accounts were re-derived from the cloud in one run and the plan proposed nothing - no duplicate create in either account."
 

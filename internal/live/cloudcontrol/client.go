@@ -382,8 +382,15 @@ func (c *Client) callOnce(ctx context.Context, operation string, payload any, ou
 	// pagination - was entirely absent from a TF_LOG capture. Any tool that
 	// counted requests or measured stalls from that capture was therefore
 	// measuring the provider's traffic and calling it the run's.
-	log.Printf("[DEBUG] stateless/%s: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=POST http.url=%s http.request_content_length=%d",
-		c.service, c.serviceLabel(), operation, c.baseURL(), len(body))
+	//
+	// signed_as is the access key id out of the request's own SigV4
+	// credential scope, or "unsigned" (GitHub issue #957): on a
+	// multi-account estate it is what attributes a sweep call to the
+	// provider configuration whose principal made it, read off the wire
+	// rather than off any counter of ours - the same attribution the
+	// provider's own request log gives through its Authorization header.
+	log.Printf("[DEBUG] stateless/%s: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=POST http.url=%s http.request_content_length=%d signed_as=%s",
+		c.service, c.serviceLabel(), operation, c.baseURL(), len(body), signedAs(req))
 
 	started := c.clock()
 	resp, err := c.httpClient.Do(req)

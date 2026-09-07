@@ -2416,6 +2416,26 @@ func (c *statelessTestCloud) provider() providers.Interface {
 			Provider: providers.Schema{Block: &configschema.Block{
 				Attributes: map[string]*configschema.Attribute{
 					"region": {Type: cty.String, Optional: true},
+					// The AWS provider's own ways of naming a principal,
+					// so a fixture can put two provider configurations in
+					// two accounts and the sweep clients can be checked
+					// for signing as each (GitHub issue #957).
+					"access_key": {Type: cty.String, Optional: true},
+					"secret_key": {Type: cty.String, Optional: true},
+					"token":      {Type: cty.String, Optional: true},
+					"profile":    {Type: cty.String, Optional: true},
+				},
+				BlockTypes: map[string]*configschema.NestedBlock{
+					"assume_role": {
+						Nesting: configschema.NestingList,
+						Block: configschema.Block{
+							Attributes: map[string]*configschema.Attribute{
+								"role_arn":     {Type: cty.String, Optional: true},
+								"session_name": {Type: cty.String, Optional: true},
+								"external_id":  {Type: cty.String, Optional: true},
+							},
+						},
+					},
 				},
 			}},
 			ResourceTypes:     statelessTestIdentitySchemas(),

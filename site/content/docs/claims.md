@@ -1144,7 +1144,10 @@ The steps as they print:
    its own, server-assigned, and one record store beside the module
    holds both accounts' instances. Then a `-refresh=false` plan is empty
    and the work is attributed per account by the credential each request
-   was signed with, read off the wire.
+   was signed with, read off the wire. The estate-wide tag index is
+   counted the same way, off this fork's own client's request line: one
+   fetch signed as each account and none unsigned, so the second
+   account's sweep is measured rather than assumed (#957).
 2. `a delete in one account is seen in that account` - the log group in
    account `111111111111` is deleted with the AWS CLI. The identical
    name in account `000000000000` - same name, same region, same

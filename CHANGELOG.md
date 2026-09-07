@@ -8,6 +8,32 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 FORK WORK:
 
+- **The estate-wide sweep signs as each provider configuration's
+  principal** (#957). The Cloud Control and Tagging clients the sweep
+  builds for a provider configuration were built with no credentials at
+  all, so region was the only thing read out of a provider block for
+  them, and against an endpoint override they were never signed. On a
+  two-account estate (claim 19) the tag index was therefore fetched once
+  per pass as the same nobody, and the emulator, which resolves the
+  calling account from the access key id on the wire, filed both fetches
+  under its default account; the per-provider plugin legs covered for it,
+  so the board stayed green and the second account's sweep was simply
+  never measured. The sweep clients now resolve the block's own principal
+  the way the provider does - static `access_key`/`secret_key`/`token`,
+  then `profile`, with an `assume_role` block layered on either or on the
+  default chain, all deferred to first use - and sign with it even against
+  an endpoint override when the block names one, so the account travels
+  on the wire. A block that names nothing keeps the old behaviour. The
+  client's own `HTTP Request Sent` line gains `signed_as=<access key id>`
+  (or `unsigned`), read back off the request's Authorization header, and
+  claim 19 counts the tag-index fetches per account off it: one signed as
+  each account and none unsigned, in both the bind and the recovery
+  steps. Proven red against the v0.14.0 binary, which fails that step
+  with "the estate-wide tag index was never fetched signed as account
+  000000000000", and by a fake-backed command test whose two provider
+  configurations must produce two `GetResources` calls signed as two
+  different key ids ("[unsigned]" before the change).
+
 - **`live-plan -json` carries the content match** (#962). A declared
   resource whose identity the server assigns, an `aws_vpc` say, is an
   omission (`NEEDS_DISCOVERY`) in the document, and the live object the
