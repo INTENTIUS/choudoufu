@@ -1023,6 +1023,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// that narrow case. Neither one is wrong about what happened; nothing
 	// is silently dropped.
 	if jsonRequested {
+		adoptable, swept := livePlanAdoptable(statelessForeignReport(classified, disco))
 		statelessView.Document(views.LivePlanDocument{
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
@@ -1030,6 +1031,8 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Bound:            boundReport,
 			Omissions:        oms,
 			Unowned:          unownedItems,
+			Adoptable:        adoptable,
+			Swept:            swept,
 			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
 		})
 	} else {
@@ -2163,6 +2166,33 @@ func statelessDiscoveryPassProviders(sweep, needs []addrs.AbsProviderConfig) []a
 		seen[addr.String()] = addr
 	}
 	return sortedProviderConfigs(seen)
+}
+
+// livePlanAdoptable is [views.LivePlanDocument.Adoptable] and .Swept, read
+// off the same foreign report the human "Adoptable" and "Foreign
+// resources" sections render (GitHub issue #962). Both slices are non-nil
+// so the document prints `[]` rather than `null` for an empty section, the
+// way Bound, Omissions and Unowned already do.
+func livePlanAdoptable(rep views.StatelessForeign) ([]views.LivePlanAdoptable, []string) {
+	adoptable := make([]views.LivePlanAdoptable, 0, len(rep.Candidates))
+	for _, c := range rep.Candidates {
+		matched := make([]views.LivePlanMatchedArgument, 0, len(c.Matched))
+		for _, m := range c.Matched {
+			matched = append(matched, views.LivePlanMatchedArgument{Attribute: m.Key, Value: m.Value})
+		}
+		adoptable = append(adoptable, views.LivePlanAdoptable{
+			Addr:          c.Addr,
+			TypeName:      c.TypeName,
+			LiveID:        c.LiveID,
+			Matched:       matched,
+			MarkerEstate:  c.MarkerEstate,
+			MarkerAddress: c.MarkerAddress,
+			AdoptCommand:  c.Hint,
+		})
+	}
+	swept := make([]string, 0, len(rep.Swept))
+	swept = append(swept, rep.Swept...)
+	return adoptable, swept
 }
 
 // statelessForeignReport converts the classification into the view's wire

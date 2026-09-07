@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -2682,6 +2683,124 @@ func TestLivePlan_targetScopesTheStatelessPipeline(t *testing.T) {
 // ---------------------------------------------------------------------------
 // GitHub issue #894: the document on a configuration that names its estate
 // ---------------------------------------------------------------------------
+
+// TestLivePlan_jsonDocumentCarriesTheContentMatch is GitHub issue #962,
+// filed by INTENTIUS/chant's terraform lexicon against the v0.14.0 binary:
+// a declared aws_vpc whose identity the server assigns is an omission
+// (NEEDS_DISCOVERY) and the sweep's content match for it - the row the
+// -adoption-only human render prints under "Adoptable" - appeared nowhere
+// in the -json document, so the one consumer that reads the document had
+// no row to propose a claim from. The fixture is
+// TestLivePlan_bindCandidateIsOfferedNotTaken's: an unmarked VPC at the
+// declared CIDR, which the human run above matches by content.
+//
+// Asserted on the raw JSON rather than the Go struct so that the run
+// against the pre-#962 document fails on "no adoptable section" instead of
+// failing to compile: a document with no such key is exactly what v0.14.0
+// printed.
+func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan"), td)
+	t.Chdir(td)
+	// The route the issue measured: the account-inventory question asked
+	// through the environment on an ordinary plan, beside -json. It is also
+	// what fills the document's "swept" list; without it the fake cloud
+	// below still matches the VPC (its list ignores the estate filter, where
+	// the real sweep honours it), but no type is listed in full and swept
+	// stays empty, which is the document saying "this run did not ask".
+	t.Setenv(collectUnclaimedEnvVar, "1")
+
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	})
+	cloud.list("aws_vpc", "vpc-unmarked", "", nil,
+		map[string]string{"cidr_block": "10.42.0.0/16"})
+
+	// The human run first, so the document is checked against what the
+	// text says rather than against itself.
+	human, doneHuman := newLivePlanCommand(t, cloud)
+	if code := human.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"}); code != 2 {
+		t.Fatalf("human-mode exit code %d, want 2", code)
+	}
+	humanOut := doneHuman(t).Stdout()
+	if !strings.Contains(humanOut, "Adoptable: 1 live resource matches a declared resource") ||
+		!strings.Contains(humanOut, "matched on: cidr_block=10.42.0.0/16") {
+		t.Fatalf("the human run does not offer the content match this test is about, so the document check below proves nothing:\n%s", humanOut)
+	}
+
+	jsonCmd, doneJSON := newLivePlanCommand(t, cloud)
+	if code := jsonCmd.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode", "-json"}); code != 2 {
+		t.Fatalf("-json exit code %d, want 2", code)
+	}
+	raw := doneJSON(t).Stdout()
+
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("-json's stdout does not parse as one JSON document: %s\n%s", err, raw)
+	}
+	rawAdoptable, ok := doc["adoptable"]
+	if !ok {
+		t.Fatalf("the document has no \"adoptable\" section: the content match the human run offers is dropped on the -json route (#962). Keys: %v\n%s", keysOf(doc), raw)
+	}
+	var adoptable []views.LivePlanAdoptable
+	if err := json.Unmarshal(rawAdoptable, &adoptable); err != nil {
+		t.Fatalf("adoptable does not decode: %s\n%s", err, raw)
+	}
+	if len(adoptable) != 1 {
+		t.Fatalf("adoptable has %d rows, want 1 (matching the human run's \"1 live resource\"): %s", len(adoptable), rawAdoptable)
+	}
+	got := adoptable[0]
+	if got.Addr != "aws_vpc.main" || got.TypeName != "aws_vpc" || got.LiveID != "vpc-unmarked" {
+		t.Errorf("adoptable[0] = %+v, want aws_vpc.main / aws_vpc / vpc-unmarked", got)
+	}
+	if len(got.Matched) != 1 || got.Matched[0].Attribute != "cidr_block" || got.Matched[0].Value != "10.42.0.0/16" {
+		t.Errorf("adoptable[0].matched = %+v, want exactly cidr_block=10.42.0.0/16, the argument the human run printed after \"matched on:\"", got.Matched)
+	}
+	if got.MarkerEstate != "stateless-unit" || got.MarkerAddress != "aws_vpc.main" {
+		t.Errorf("adoptable[0] markers = %q/%q, want stateless-unit/aws_vpc.main - the two values a consumer writes to adopt", got.MarkerEstate, got.MarkerAddress)
+	}
+	if !strings.Contains(got.AdoptCommand, "aws ec2 create-tags --resources 'vpc-unmarked'") {
+		t.Errorf("adoptable[0].adopt_command = %q, want the same create-tags command the human run prints", got.AdoptCommand)
+	}
+
+	// The section that tells an empty adoptable list apart from a run that
+	// never asked: the VPC type was listed in full, so it is named.
+	var swept []string
+	if err := json.Unmarshal(doc["swept"], &swept); err != nil {
+		t.Fatalf("swept does not decode (or is missing): %s\n%s", err, raw)
+	}
+	found := false
+	for _, ty := range swept {
+		if ty == "aws_vpc" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("swept = %v, want it to name aws_vpc, the type the sweep listed in full to find the match", swept)
+	}
+
+	// The match is not also an unowned row: that section is for objects
+	// read at a DECLARED identity, and a VPC declares none.
+	var unowned []views.StatelessUnowned
+	if err := json.Unmarshal(doc["unowned"], &unowned); err != nil {
+		t.Fatalf("unowned does not decode: %s", err)
+	}
+	for _, u := range unowned {
+		if u.Addr == "aws_vpc.main" {
+			t.Errorf("the content match is also listed under unowned; the two sections are meant to be disjoint: %+v", u)
+		}
+	}
+}
+
+func keysOf(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
 
 // TestLivePlan_jsonDocumentReachesADeclaredEstate is GitHub issue #894's
 // first half. Before it, GitHub issue #788's document was reachable only

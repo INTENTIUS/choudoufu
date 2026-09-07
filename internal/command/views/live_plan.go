@@ -565,6 +565,33 @@ type LivePlanDocument struct {
 	// section already renders as prose ([StatelessUnowned]).
 	Unowned []StatelessUnowned `json:"unowned"`
 
+	// Adoptable is every live resource the estate-wide sweep matched to a
+	// declared instance BY CONTENT - the identity-bearing arguments agree
+	// exactly, and the object carries no marker for this estate - the
+	// same rows the human-readable "Adoptable" section renders
+	// ([StatelessBindCandidate]). GitHub issue #962: a declared aws_vpc
+	// whose identity the server assigns lands in Omissions as
+	// NEEDS_DISCOVERY, and until this field existed the document had no
+	// row for the live VPC the sweep had already matched to it, while the
+	// -adoption-only human render did. The two sections are disjoint on
+	// purpose: Unowned is a live object read at an identity the
+	// configuration DECLARES; Adoptable is one the sweep FOUND for a
+	// declaration that declares no identity at all.
+	//
+	// Empty on any run that did not ask the account-inventory question
+	// (an ordinary plan without TOFU_LIVE_COLLECT_UNCLAIMED, see
+	// collectUnclaimedSetting), which is why Swept below travels with it.
+	Adoptable []LivePlanAdoptable `json:"adoptable"`
+
+	// Swept is every resource type the estate-wide sweep listed in full
+	// on this run - the same list the human-readable "Foreign resources"
+	// section counts. A consumer reads an empty Adoptable against it: no
+	// rows with the declared type in Swept means the sweep looked and
+	// found no match; no rows with Swept empty means this run did not
+	// look, and "choudoufu plan -adoption-only" or
+	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is how to ask.
+	Swept []string `json:"swept"`
+
 	// Diagnostics is every warning and error this run raised outside the
 	// three sections above - a state file present but not consulted, a
 	// provider version skew warning, and so on. It exists so that -json
@@ -578,6 +605,46 @@ type LivePlanDocument struct {
 	// have a home in Omissions or Unowned above and never reach a bare
 	// diagnostic at all.
 	Diagnostics []LivePlanDiagnostic `json:"diagnostics,omitempty"`
+}
+
+// LivePlanAdoptable is one content-matched live resource in
+// [LivePlanDocument.Adoptable]: [StatelessBindCandidate] in the wire form
+// INTENTIUS/chant's terraform lexicon reads (chant #2168), which is why the
+// field names follow [StatelessUnowned]'s rather than the Go type's - a
+// consumer that already handles an unowned row handles this one with the
+// same code, plus the match.
+type LivePlanAdoptable struct {
+	// Addr is the declared instance the live resource matched.
+	Addr string `json:"addr"`
+
+	// TypeName and LiveID are the resource type and the identity the live
+	// resource was found with - what "adopt with" below writes the two
+	// markers onto.
+	TypeName string `json:"type"`
+	LiveID   string `json:"identity"`
+
+	// Matched are the identity-bearing arguments the live resource and the
+	// declared instance agreed on exactly, in the order the matcher
+	// compared them - the "matched on:" line of the human render.
+	Matched []LivePlanMatchedArgument `json:"matched"`
+
+	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
+	// values that adopt the resource, the same pair [StatelessUnowned]
+	// carries under the same names.
+	MarkerEstate  string `json:"adopt_tofu_estate"`
+	MarkerAddress string `json:"adopt_tofu_address"`
+
+	// AdoptCommand is the one-line AWS CLI command that writes those two
+	// tags, exactly as the human render prints it after "adopt with:",
+	// empty for a type stateless mode has no command for. Informational: a
+	// consumer that writes markers itself uses the two fields above.
+	AdoptCommand string `json:"adopt_command,omitempty"`
+}
+
+// LivePlanMatchedArgument is one argument a content match rested on.
+type LivePlanMatchedArgument struct {
+	Attribute string `json:"attribute"`
+	Value     string `json:"value"`
 }
 
 // LivePlanDiagnostic is one warning or error a live-plan -json run raised,
