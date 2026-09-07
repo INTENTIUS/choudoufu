@@ -704,13 +704,34 @@ func TestSupersededClaimant_theGuardsCanFail(t *testing.T) {
 		{
 			// The crash window: the other claimant is a LIVE deposed
 			// object, so nothing is pruned and nothing is reported - the
-			// set is left for matchDeposedClaimant. Deposed WINS over a
-			// tombstone naming the same object, because a live object
-			// awaiting destruction is the one the next apply must act on.
+			// set is left for matchDeposedClaimant. With no tombstone in
+			// play this case is the ordinary "nothing records it as
+			// destroyed" exit; the case below is the one that pins the
+			// ORDER of the two legs.
 			name:     "a recorded deposed claimant is kept, not pruned",
 			rec:      projection.LocatedRecord{ImportID: "vpc-new"},
 			deposed:  map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
 			wantKept: []string{"vpc-old", "vpc-new"}, wantReports: 0,
+		},
+		{
+			// The ordering itself, by value: ONE object that is both
+			// deposed and tombstoned. Deposed wins, because a live object
+			// awaiting destruction is the one the next apply must act on.
+			//
+			// GitHub issue #901 is that the write side really did produce
+			// this record - a create_before_destroy replace whose destroy
+			// leg failed leaves the old object deposed and alive, and the
+			// planned action is CreateThenDelete either way, so #854's
+			// gate admitted it and a tombstone was written for a live
+			// object. That write is fixed, and this leg stays: a record
+			// written by an estate running an older build, a hand-edited
+			// one, or any future writer can still present this shape, and
+			// what the ordering costs when it is wrong is one refusal.
+			name:       "a deposed claimant is kept even when a tombstone names it",
+			rec:        projection.LocatedRecord{ImportID: "vpc-new"},
+			deposed:    map[string]projection.DeposedRecord{"deadbeef": {ImportID: "vpc-old"}},
+			tombstones: []string{"vpc-old"},
+			wantKept:   []string{"vpc-old", "vpc-new"}, wantReports: 0,
 		},
 		{
 			// A deposed record naming an object neither claimant is

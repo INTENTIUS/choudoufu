@@ -1318,6 +1318,14 @@ func identitySuperseded(env *recordEnvelope, next *identityPayload) bool {
 // DeleteThenCreate or CreateThenDelete. There is no fallback to the record
 // alone: an address the plan says nothing about records nothing.
 //
+// The third is GitHub issue #901, and it is the gap the second leaves: a
+// plan verb says a destroy was SCHEDULED. A create_before_destroy replace
+// whose destroy leg FAILED plans CreateThenDelete, satisfies both facts
+// above, and finishes with the old object deposed and alive. So the caller
+// asks the final state's own deposed objects too (writeback.go's
+// deposedMayStillHold), and an identity one of them may still be gets no
+// entry.
+//
 // What the entry is for is unchanged from #670: the destroyed object's own
 // tags stay readable through the tagging API for a time after it is gone,
 // and the next plan cannot otherwise tell that lingering tag from a second,

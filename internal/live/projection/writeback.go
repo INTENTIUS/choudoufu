@@ -343,6 +343,60 @@ func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schem
 	return true
 }
 
+// deposedMayStillHold reports whether addr's final state carries a deposed
+// object this pass cannot rule out being the identity p names - GitHub
+// issue #901, and [supersedeIdentity]'s third fact.
+//
+// [identitySuperseded] says the record's identity moved and
+// [WriteBackRequest.ReplacedAddrs] says a replace is why, and a
+// create_before_destroy replace satisfies both while its destroy leg is
+// still outstanding: the create commits, the old object is deposed, the
+// destroy fails, and the planned action was CreateThenDelete throughout. So
+// the old object is superseded at the address and ALIVE in the cloud, which
+// is precisely what a tombstone must never be written about.
+//
+// It reads ri.Deposed - the same map [diffDeposedForWrite] reads one
+// closure later, through the same [LocatedRecordFrom] every identity writer
+// in this file uses, so this reaches every recordable type generically
+// rather than naming one - and answers on [tombstoneKey], the key the entry
+// would have been written under and the key
+// discovery's claimantMatchesAnyTombstone would later match a live claimant
+// against. Comparing on that key rather than on the payload keeps the two
+// sides asking one question.
+//
+// A deposed object whose identity cannot be rendered at all (an object
+// missing a component, or a decode failure) answers TRUE, not false: it MAY
+// be the superseded identity, and "writing no entry is the strictly louder
+// direction" is [supersedeIdentity]'s own rule for exactly this kind of
+// doubt. What suppressing costs is a refusal the next plan makes anyway, on
+// that deposed object's own account.
+func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, typeName string, p *identityPayload) bool {
+	key := tombstoneKey(p)
+	if ri == nil || key == "" {
+		return false
+	}
+	for _, obj := range ri.Deposed {
+		if obj == nil {
+			continue
+		}
+		if schema == nil || schema.Block == nil {
+			return true
+		}
+		decoded, err := obj.Decode(schema.Block.ImpliedType())
+		if err != nil {
+			return true
+		}
+		rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value)
+		if !ok {
+			return true
+		}
+		if tombstoneKey(identityPayloadFrom(rec)) == key {
+			return true
+		}
+	}
+	return false
+}
+
 // deposedRecordedDiffers reports whether addr's currently recorded Deposed
 // key set differs from live, the cheap pre-check writeBackRecordEnvelopes
 // uses to decide whether an address needs a write for [diffDeposedForWrite]
@@ -748,12 +802,23 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// type carries a recordable identity at all, which is a
 				// fact about this run's provider access, not about the
 				// object.
-				if setIdentity != nil && identitySuperseded(env, setIdentity) {
-					if wasReplaced {
-						supersedeIdentity(env, setIdentity)
-					} else {
-						log.Printf("[INFO] projection: %s now records a different object (%s) than it did before this apply, and this run's plan scheduled no replace for it - an import, a live-mv onto an address that already held a record, or a create with the old object deliberately forgotten. The object the record named before is NOT recorded as destroyed, so a live resource still wearing this address's marker is refused as a collision rather than reported as a superseded one", addr, tombstoneKey(setIdentity))
-					}
+				//
+				// GitHub issue #901 added the second half. A replace's
+				// plan verb says a destroy was SCHEDULED, not that it
+				// ran: a create_before_destroy replace whose destroy leg
+				// failed leaves the old object deposed and alive, and the
+				// planned action was CreateThenDelete either way. So the
+				// final state's own deposed objects are asked whether the
+				// identity being superseded is one of them - see
+				// [deposedMayStillHold].
+				switch {
+				case setIdentity == nil || !identitySuperseded(env, setIdentity):
+				case !wasReplaced:
+					log.Printf("[INFO] projection: %s now records a different object (%s) than it did before this apply, and this run's plan scheduled no replace for it - an import, a live-mv onto an address that already held a record, or a create with the old object deliberately forgotten. The object the record named before is NOT recorded as destroyed, so a live resource still wearing this address's marker is refused as a collision rather than reported as a superseded one", addr, tombstoneKey(setIdentity))
+				case deposedMayStillHold(ri, schemaPtr, typeName, env.Identity):
+					log.Printf("[INFO] projection: %s was replaced by this apply, but its final state still carries a deposed object that may be the object the record named before (%s) - a create_before_destroy replace whose destroy leg did not complete. That object is NOT recorded as destroyed, because it is alive and the next apply's job is to destroy it", addr, tombstoneKey(env.Identity))
+				default:
+					supersedeIdentity(env, setIdentity)
 				}
 				env.Provider = providerString(res.ProviderConfig)
 				switch {
