@@ -179,9 +179,12 @@ corpus init_bin="terraform":
 # upstream or need a running provider, so re-running one is a deliberate act
 # with a pin bump behind it,
 # not something a routine regeneration should trigger as a side effect.
-# estate-gen is out for the same reason plus its own: it regenerates committed
-# fixtures whose acceptance verdicts are a ratchet, and it carries a separate
-# provider pin (#137).
+# estate-gen is out for the same reason plus its own: it needs a running
+# provider for the schema read, and it carries a separate provider pin (#137).
+# It also has nothing to regenerate in the tree any more - since #699 the
+# cohorts render into the run's own work directory
+# (`go run ./tools/estate-gen -all -out <dir>`) and the roster it renders from
+# is internal/live/cohorts.
 # ---------------------------------------------------------------------------
 
 # Regenerate every derived artifact, in dependency order (#133). No network.

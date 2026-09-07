@@ -44,6 +44,13 @@ var guardedPackages = []string{
 	"approval",
 	"check",
 	"cloudcontrol",
+	// The verification cohorts' pinned rosters (issue #699): 31 cohort
+	// names, each with the -types list tools/estate-gen renders and the
+	// supporting types that render adds, plus sorted accessors over them.
+	// Strings and []string end to end - it imports no cty at all - so like
+	// "onboard" and "docrefs" it is held to zero rather than deferred: it
+	// has nothing to defer.
+	"cohorts",
 	"dataread",
 	"discovery",
 	// Issue #256 item 8's godoc citation sweep: parses Go source with

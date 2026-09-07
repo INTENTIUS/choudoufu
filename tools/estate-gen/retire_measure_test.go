@@ -10,82 +10,76 @@ package main
 // deleted once the batch lands.
 //
 // For every type in typeOverrides it deletes the entry in-process,
-// regenerates every cohort whose committed tree renders that type, and
-// classifies the diff. A type is retirable when every differing line is
-// either its own "# overrides:" provenance comment or its own GENERATED.md
-// provenance row - the byte-identical bar HANDOFF.md records.
+// regenerates every cohort that renders that type, and classifies the diff
+// against a baseline rendered with the override still in place. A type is
+// retirable when every differing line is either its own "# overrides:"
+// provenance comment or its own GENERATED.md provenance row - the
+// byte-identical bar HANDOFF.md records.
+//
+// The baseline used to be the committed cohort tree. Issue #699 deleted it,
+// so the baseline is rendered too: same generator, same rosters, one extra
+// pass over the roster before the measurement starts. That is strictly more
+// honest than the old shape, which compared a modified generator against a
+// tree the unmodified generator might already have disagreed with - exactly
+// the confound knownDrift existed to paper over.
 
 import (
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
-var resourceBlockRe = regexp.MustCompile(`(?m)^resource "(aws_[a-z0-9_]+)"`)
+// renderRoster renders every cohort in the roster into dest/<cohort> with
+// whatever typeOverrides currently holds, and returns cohort -> directory
+// plus type -> the cohorts that render it. Both measurement harnesses in this
+// package need the same two things, and both used to get them by walking the
+// committed tree.
+func renderRoster(t *testing.T, schemas providers.GetProviderSchemaResponse, dest string) (map[string]string, map[string]map[string]bool) {
+	t.Helper()
 
-// TestRegenerateAllCohorts rewrites every cohort with a recorded command in
-// place, exactly as the recorded command would. Gated the same way as the
-// measurement; used for the bulk regeneration after a seed-rule change.
-func TestRegenerateAllCohorts(t *testing.T) {
-	if os.Getenv("ESTATE_REGEN_ALL") != "1" {
-		t.Skip("bulk regeneration; set ESTATE_REGEN_ALL=1")
+	haveFmt := false
+	if _, err := exec.LookPath(defaultFmtBin); err == nil {
+		haveFmt = true
 	}
-	flocitest.Gate(t, "estate-gen bulk regeneration")
-	flocitest.RequireBinary(t, defaultInitBin)
 
-	root, err := repoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	schemas, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
-	if err != nil {
-		t.Fatalf("acquiring provider schemas: %v", err)
-	}
-	estates := filepath.Join(root, "live", "e2e", "estates")
-	entries, err := os.ReadDir(estates)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		cohort := e.Name()
-		dir := filepath.Join(estates, cohort)
-		if !holdsConfig(t, dir) {
-			continue
-		}
-		types, hasCommand := recordedRegenTypes(t, dir)
-		if !hasCommand {
-			continue
-		}
-		if types == nil {
-			types, err = defaultCohortTypes(root, cohort)
-			if err != nil {
-				t.Fatalf("defaultCohortTypes(%s): %v", cohort, err)
-			}
-		}
-		g, err := planCohort(cohort, schemas, types)
+	dirs := map[string]string{}
+	typeCohorts := map[string]map[string]bool{}
+	for _, c := range cohorts.All() {
+		out := filepath.Join(dest, c.Name)
+		g, err := planCohort(c.Name, schemas, c.Types)
 		if err != nil {
-			t.Fatalf("planCohort(%s): %v", cohort, err)
+			t.Fatalf("planCohort(%s): %v", c.Name, err)
 		}
-		if err := writeCohort(dir, cohort, types, g, false, nil); err != nil {
-			t.Fatalf("writeCohort(%s): %v", cohort, err)
+		if err := writeCohort(out, c.Name, c.Types, g, false, nil); err != nil {
+			t.Fatalf("writeCohort(%s): %v", c.Name, err)
 		}
-		if _, err := exec.LookPath(defaultFmtBin); err == nil {
-			if err := formatWithBinary(defaultFmtBin, dir, runCombined); err != nil {
-				t.Fatalf("formatting %s: %v", cohort, err)
+		if haveFmt {
+			if err := formatWithBinary(defaultFmtBin, out, runCombined); err != nil {
+				t.Fatalf("formatting %s: %v", c.Name, err)
 			}
 		}
-		t.Logf("%s regenerated", cohort)
+		dirs[c.Name] = out
+
+		declared, err := declaredTypesInDir(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for typ := range declared {
+			if typeCohorts[typ] == nil {
+				typeCohorts[typ] = map[string]bool{}
+			}
+			typeCohorts[typ][c.Name] = true
+		}
 	}
+	return dirs, typeCohorts
 }
 
 func TestMeasureOverrideRetirements(t *testing.T) {
@@ -104,56 +98,15 @@ func TestMeasureOverrideRetirements(t *testing.T) {
 		t.Fatalf("acquiring provider schemas: %v", err)
 	}
 
-	estates := filepath.Join(root, "live", "e2e", "estates")
-	entries, err := os.ReadDir(estates)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The baseline: every cohort rendered with typeOverrides intact. type ->
+	// the cohorts that RENDER it comes off that render rather than off the
+	// rosters, so supporting renders count too - a roster alone would miss
+	// the shared aws_iam_role.
+	baseline, typeCohorts := renderRoster(t, schemas, filepath.Join(t.TempDir(), "baseline"))
 
-	// cohort -> recorded roster, and type -> cohorts that RENDER it (from
-	// the committed .tf, so supporting renders count too - a roster alone
-	// would miss the shared aws_iam_role).
 	rosters := map[string][]string{}
-	typeCohorts := map[string]map[string]bool{}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		cohort := e.Name()
-		dir := filepath.Join(estates, cohort)
-		if !holdsConfig(t, dir) {
-			continue
-		}
-		types, hasCommand := recordedRegenTypes(t, dir)
-		if !hasCommand {
-			continue
-		}
-		if types == nil {
-			types, err = defaultCohortTypes(root, cohort)
-			if err != nil {
-				t.Fatalf("defaultCohortTypes(%s): %v", cohort, err)
-			}
-		}
-		rosters[cohort] = types
-		err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".tf") {
-				return err
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			for _, m := range resourceBlockRe.FindAllStringSubmatch(string(data), -1) {
-				if typeCohorts[m[1]] == nil {
-					typeCohorts[m[1]] = map[string]bool{}
-				}
-				typeCohorts[m[1]][cohort] = true
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, c := range cohorts.All() {
+		rosters[c.Name] = c.Types
 	}
 
 	haveFmt := false
@@ -200,7 +153,7 @@ func TestMeasureOverrideRetirements(t *testing.T) {
 		sort.Strings(cohorts)
 		res := result{Type: typ, Cohorts: cohorts}
 		if len(cohorts) == 0 {
-			res.Detail = "no committed cohort renders this type"
+			res.Detail = "no cohort renders this type"
 			results = append(results, res)
 			continue
 		}
@@ -215,7 +168,7 @@ func TestMeasureOverrideRetirements(t *testing.T) {
 				res.Detail = cohort + ": regeneration failed: " + err.Error()
 				break
 			}
-			if detail := classifyDiff(t, filepath.Join(estates, cohort), out, typ); detail != "" {
+			if detail := classifyDiff(t, baseline[cohort], out, typ); detail != "" {
 				res.Retirable = false
 				res.Detail = cohort + ": " + detail
 				break
@@ -246,8 +199,8 @@ func TestMeasureOverrideRetirements(t *testing.T) {
 	t.Logf("measured %d override types: %d retirable, report at %s", len(results), retirable, outPath)
 }
 
-// classifyDiff returns "" when the regenerated tree matches the committed
-// one apart from typ's own provenance surface: a 1:1 change of a
+// classifyDiff returns "" when the regenerated tree matches the baseline
+// render apart from typ's own provenance surface: a 1:1 change of a
 // "# overrides:" comment line, or a 1:1 change of typ's GENERATED.md table
 // row. Anything else - added lines, removed lines, a changed argument, a
 // change on another type's row - is a reason not to retire.
@@ -288,7 +241,7 @@ func classifyDiff(t *testing.T, committed, generated, typ string) string {
 			return name + ": only in the regeneration"
 		}
 		if errB != nil {
-			return name + ": only in the committed tree"
+			return name + ": only in the baseline render"
 		}
 		if string(a) == string(b) {
 			continue

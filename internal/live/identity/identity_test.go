@@ -20,6 +20,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -639,9 +640,13 @@ func TestStaticModuleTraversal(t *testing.T) {
 // per-cohort verification estate under live/e2e/estates (#48, phase 3 of
 // #38's decision), and a type a fixture uses without the table covering it
 // is the kind of drift that shows up later as a mystery NEEDS_DISCOVERY.
-// The universe is read straight off the fixtures rather than pinned as a
-// hardcoded count, so a new estates/<cohort> directory extends it with no
-// test-file edits.
+// The universe is the demo estate's own configuration plus every type the
+// cohort roster declares - internal/live/cohorts.FixtureTypes, each cohort's
+// pinned -types roster and the supporting resources the generator adds on top
+// of it. Until issue #699 it was read off 32 committed directories under
+// live/e2e/estates with a walker; those trees are generated at run time now
+// and the roster is what stayed committed, so a new cohort still extends this
+// universe with no edit to this file.
 //
 // Through the sixth registry-ratified batch this was a two-way equality:
 // every admitted type traced back to some fixture's own use of it, table ==
@@ -657,11 +662,12 @@ func TestStaticModuleTraversal(t *testing.T) {
 // floor, not an equality.
 func TestTableCoversFixtureTypes(t *testing.T) {
 	used := make(map[string]bool)
-	for _, dir := range flocitest.FixtureDirs(t) {
-		cfg := loadConfig(t, dir, nil)
-		for _, rc := range cfg.Module.ManagedResources {
-			used[rc.Type] = true
-		}
+	cfg := loadConfig(t, flocitest.EstateDir(t), nil)
+	for _, rc := range cfg.Module.ManagedResources {
+		used[rc.Type] = true
+	}
+	for _, typeName := range cohorts.FixtureTypes() {
+		used[typeName] = true
 	}
 	for typeName := range used {
 		if _, ok := LookupType(typeName); !ok {

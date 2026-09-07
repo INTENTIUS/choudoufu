@@ -13,7 +13,7 @@ schema and `internal/live/identity/table.go`'s identity table. Regenerate
 with:
 
 ```
-go run ./tools/estate-gen -cohort streaming -types aws_mq_broker,aws_mq_configuration,aws_msk_cluster,aws_msk_configuration,aws_msk_serverless_cluster,aws_mskconnect_connector,aws_mskconnect_custom_plugin,aws_mskconnect_worker_configuration,aws_appflow_connector_profile,aws_appflow_flow,aws_appsync_graphql_api,aws_pipes_pipe,aws_scheduler_schedule_group -out live/e2e/estates/streaming
+go run ./tools/estate-gen -cohort streaming -types aws_mq_broker,aws_mq_configuration,aws_msk_cluster,aws_msk_configuration,aws_msk_serverless_cluster,aws_mskconnect_connector,aws_mskconnect_custom_plugin,aws_mskconnect_worker_configuration,aws_appflow_connector_profile,aws_appflow_flow,aws_appsync_graphql_api,aws_pipes_pipe,aws_scheduler_schedule_group -out /tmp/estate-gen/streaming
 ```
 
 (`-types` is explicit because this cohort spans seven CFN services — AmazonMQ,

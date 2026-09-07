@@ -33,11 +33,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 )
 
 // defaultImage is the emulator every test in this tier runs against:
@@ -194,49 +195,46 @@ func ImportFixtureDir(t *testing.T) string {
 	return fixtureDir(t, filepath.Join("live", "e2e", "import-fixture"))
 }
 
-// EstatesDir returns the path of the per-cohort verification estates
-// directory, live/e2e/estates: one subdirectory per ratification batch,
-// exercised only in the gated tier (#48, phase 3 of #38). Unlike EstateDir,
-// a missing directory here is not a fixture error - CohortDirs treats it as
-// an empty cohort set rather than failing the test.
-func EstatesDir(t *testing.T) string {
+// GenerateCohorts renders every verification cohort in the committed roster
+// (internal/live/cohorts) into a fresh temporary directory and returns the
+// paths of the rendered trees, sorted by cohort name.
+//
+// The cohorts used to be committed under live/e2e/estates and read back with
+// os.ReadDir. Issue #699 retired that: they were generator output kept in
+// git, each one accumulating an ignored .terraform/ in every working copy.
+// They are rendered at run time now, the way live/e2e/terralith-scale/run.sh
+// renders its estate with tools/terralith-gen before it applies anything, and
+// live/e2e/estates holds only the hand-written notes.
+//
+// This shells out to `go run ./tools/estate-gen -all`, which downloads the
+// pinned provider and reads its schema, so it belongs in a gated test: pass
+// through [Gate] and [RequireBinary] for "go" and the init binary first. The
+// directory is t.TempDir(), so the rendered trees and anything a caller
+// copies into them are gone when the test ends.
+func GenerateCohorts(t *testing.T) []string {
 	t.Helper()
-	return filepath.Join(RepoRoot(t), "live", "e2e", "estates")
-}
 
-// CohortDirs returns the path of every per-cohort verification estate under
-// live/e2e/estates, sorted. Adding a estates/<cohort> directory picks it up
-// here with no test-file edits, which is the union pin's whole point.
-func CohortDirs(t *testing.T) []string {
-	t.Helper()
-
-	entries, err := os.ReadDir(EstatesDir(t))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		t.Fatalf("reading the per-cohort estates directory: %v", err)
+	out := filepath.Join(t.TempDir(), "cohorts")
+	cmd := exec.Command("go", "run", "./tools/estate-gen", "-all", "-out", out)
+	cmd.Dir = RepoRoot(t)
+	// The same env -u PWD every go invocation in this repository uses: a
+	// stale PWD from the harness makes `go run` resolve ./tools against the
+	// wrong directory.
+	cmd.Env = append(os.Environ(), "PWD="+cmd.Dir)
+	if combined, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("rendering the cohorts with tools/estate-gen -all: %v\n%s", err, combined)
 	}
 
-	var dirs []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	want := cohorts.Names()
+	dirs := make([]string, 0, len(want))
+	for _, name := range want {
+		dir := filepath.Join(out, name)
+		if _, err := os.Stat(dir); err != nil {
+			t.Fatalf("estate-gen -all reported success but did not render %s: %v", name, err)
 		}
-		dirs = append(dirs, filepath.Join(EstatesDir(t), entry.Name()))
+		dirs = append(dirs, dir)
 	}
-	sort.Strings(dirs)
 	return dirs
-}
-
-// FixtureDirs returns the demo estate plus every per-cohort verification
-// estate under live/e2e/estates - the union a table-equals-fixture pin now
-// covers, generalized from table == estate to table == union(estate,
-// estates/*) (#48). The demo estate is always first and always present;
-// cohorts follow in sorted order.
-func FixtureDirs(t *testing.T) []string {
-	t.Helper()
-	return append([]string{EstateDir(t)}, CohortDirs(t)...)
 }
 
 func fixtureDir(t *testing.T, rel string) string {

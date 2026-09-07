@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
@@ -55,6 +56,16 @@ const (
 // third check (#539) fails this test regardless of status if any cohort's
 // resource count fell below what was committed - see enforceRatchet's doc
 // comment for why that has to be just as hard a failure as the first one.
+//
+// The cohorts are rendered, not read. Until issue #699 they were 32 committed
+// directories under live/e2e/estates that this test globbed for *.tf; they
+// are generator output, so they are now generated into this run's own
+// temporary directory by tools/estate-gen -all, applied there, and thrown
+// away - the model live/e2e/terralith-scale/run.sh already used for
+// tools/terralith-gen. That is also what makes this test the thing that
+// proves the generator: a cohort that renders but cannot apply now fails
+// here, where before a stale committed copy could apply while the generator's
+// own output no longer did.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/acceptance -run TestCohortAcceptance -v -timeout 6h
 func TestCohortAcceptance(t *testing.T) {
@@ -104,21 +115,35 @@ func TestCohortAcceptance(t *testing.T) {
 	t.Logf("wrote %s: %d pass, %d fail of %d cohorts", artifactRel, art.Totals.Pass, art.Totals.Fail, art.Totals.Cohorts)
 }
 
-// cohortFixtures is CohortDirs minus the directories with no .tf files
-// (live/e2e/estates/example holds only a README).
+// cohortFixtures renders every cohort in the committed roster and returns
+// the directories, in roster order.
+//
+// It used to be CohortDirs minus the directories with no .tf files, because
+// live/e2e/estates/example held only a README. There is no such filter to
+// apply any more: the roster (internal/live/cohorts) names the 31 cohorts
+// that render configuration, and example was never one of them.
+//
+// The rendering is one estate-gen invocation for the whole set rather than 31,
+// because acquiring the provider schema - terraform init plus a plugin launch
+// - is minutes and rendering a cohort is under a tenth of a second.
 func cohortFixtures(t *testing.T) []string {
 	t.Helper()
-	var out []string
-	for _, dir := range flocitest.CohortDirs(t) {
+	dirs := flocitest.GenerateCohorts(t)
+	if len(dirs) != len(cohorts.Names()) {
+		t.Fatalf("rendered %d cohorts, want the roster's %d", len(dirs), len(cohorts.Names()))
+	}
+	for _, dir := range dirs {
 		matches, err := filepath.Glob(filepath.Join(dir, "*.tf"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(matches) > 0 {
-			out = append(out, dir)
+		if len(matches) == 0 {
+			// A cohort that rendered nothing would otherwise be applied as
+			// an empty directory, replan clean, and be recorded as a pass.
+			t.Fatalf("%s rendered no configuration", filepath.Base(dir))
 		}
 	}
-	return out
+	return dirs
 }
 
 // runCohort takes one cohort through the whole round trip and returns its
