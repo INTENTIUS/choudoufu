@@ -23,9 +23,8 @@ import (
 //
 // The two arguments are ignored rather than checked: Context.Schemas has
 // already resolved provider ambiguity away by the time this package sees it,
-// and every resource [stamp.Stamp] asks about is a managed resource by
-// construction ([moduleResources] in that package walks mod.ManagedResources
-// only), so a lookup by type name alone answers exactly what a
+// and every resource either asks about is a managed resource by
+// construction, so a lookup by type name alone answers exactly what a
 // provider-and-mode-aware lookup would.
 type flatSchemas map[string]providers.Schema
 
@@ -39,17 +38,18 @@ func (s flatSchemas) ResourceTypeConfig(_ addrs.Provider, _ addrs.ResourceMode, 
 
 // syntheticStampEstate is the estate name [estateForStamp] writes when the
 // configuration itself declares none. It satisfies [discovery.ValidEstateName]
-// so [stamp.Stamp] runs past its own "no estate name" guard, and it is
-// chosen to be unmistakably not a name a real deployment would already carry.
+// so [nodeStampMarkerConflicts]' resolver has an estate to resolve against,
+// and it is chosen to be unmistakably not a name a real deployment would
+// already carry.
 //
-// Its value never changes what a stamp finding means. [stamp.Stamp]'s
+// Its value never changes what a stamp finding means. The
 // severity-bearing refusals - "Ownership markers not stamped" (a resource
 // that could not be given a marker) and "Unmarked apply of a marker-only
 // resource" (the same thing on an instance nothing but its marker can ever
 // find again) - come from whether a resource's type is taggable and whether
-// its identity is server-assigned, neither of which reads req.Estate at all
-// (see stamper.mustStamp and stamper.unstampableAt). The one refusal that DOES
-// compare against req.Estate's actual value, "Ownership marker conflict", only
+// its identity is server-assigned, neither of which reads the estate name at
+// all (see [nodeStampUnmarkedApply]). The one refusal that DOES
+// compare against the estate name's actual value, "Ownership marker conflict", only
 // fires when the configuration already hardcodes a *different* literal
 // tofu-estate value for the same resource - and when that is true,
 // [declaredEstateNames] finds it and [estateForStamp] uses it instead of this
@@ -106,10 +106,9 @@ func declaredEstateNames(ctx context.Context, cfg *configs.Config) []string {
 //
 // It says nothing about provider schemas, deliberately. GitHub issue #230's
 // invariant - a type whose own schema this run could not read is UNKNOWN,
-// never refused - lives in [stamp.SkipReason.Unknown] and is applied by
-// stamp.Stamp itself, so every caller gets it: this instrument, "choudoufu
-// live-plan", and anything that folds a [stamp.Result] into diagnostics of
-// its own. The first fix for #230 filtered this map by schema presence
+// never refused - is applied by whoever reads this map against a schema,
+// which since GitHub issue #644 is [nodeStampUnmarkedApply]'s !hasSchema
+// arm and nothing else. The first fix for #230 filtered this map by schema presence
 // instead, which held here and nowhere else, and it compared a different
 // predicate from the one stamp applies (a key present in the map, versus a
 // non-nil schema Block), so an entry carrying a schema with no block would

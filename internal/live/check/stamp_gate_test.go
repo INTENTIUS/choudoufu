@@ -72,7 +72,8 @@ func TestStampGate_UnknownSchemaIsNotRefused(t *testing.T) {
 
 // assertStampUnknownWarning finds the "taggability unknown" warning stamping
 // raises for a needs-discovery resource whose type schema this run has not
-// got. See [stamp.SkipReason.Unknown].
+// got. This was stamp.SkipReason.Unknown before GitHub issue #644; the
+// node port keeps the rule in nodeStampUnmarkedApply's !hasSchema arm.
 func assertStampUnknownWarning(t *testing.T, report Report, typeName string) {
 	t.Helper()
 
@@ -91,7 +92,7 @@ func assertStampUnknownWarning(t *testing.T, report Report, typeName string) {
 
 // TestStampGate_NoSchemasAtAllIsNotRefused is the zero-schema case the old
 // gate (len(actx.Schemas) > 0) handled by never calling stamp.Stamp at all.
-// The gate is gone in both its forms now - [stamp.SkipReason.Unknown] holds
+// The gate is gone in both its forms now - the unknown-schema rule holds
 // the invariant inside stamp.Stamp instead - so this pins that a run with no
 // schemas whatsoever still produces no fabricated stamp refusal, and still
 // says out loud what it could not check.

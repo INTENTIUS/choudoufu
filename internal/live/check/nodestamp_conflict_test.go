@@ -44,7 +44,7 @@ func awsInstanceTaggableSchema() providers.Schema {
 // TestNodeStampMarkerConflict_hardcodedEstateDisagrees is GitHub issue
 // #454's pin on [nodeStampMarkerConflicts]: a resource that hardcodes its
 // own tofu-estate tag to a value this run would not write must still be
-// refused, exactly as [stamp.Stamp]'s verify/verifyValue pair always
+// refused, exactly as the retired HCL rewrite's verify/verifyValue pair always
 // refused it - now via [projection.NodeResolver.AdjustConfigValue]
 // (GitHub issue #451) instead of a second, bespoke comparison.
 //

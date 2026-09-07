@@ -41,17 +41,20 @@ const (
 	// LayerStamp is internal/live/stamp, which rewrites resource bodies to
 	// carry ownership markers.
 	//
-	// Run here since GitHub issue #224: [stamp.Stamp] takes req.Config,
-	// req.Schemas, req.Estate and req.NeedsDiscovery and touches no live
-	// provider handle anywhere in its signature or body (req.Slots is the
-	// one live-derived input, and it degrades safely to "write no tofu-slot
-	// tag" when absent - see stamp.go's own doc comment). Its refusals
-	// compare the configuration's own tag values, or the taggability of the
-	// provider's schema, against what a run would compute; neither reads a
-	// live object. The doc comment this replaced said the opposite - "what a
-	// live object already carries" - which was false for all four of the
-	// refusals a corpus run can actually trip, and is exactly the kind of
-	// false load-bearing claim this repository has been burned by before.
+	// Run here since GitHub issue #224, because the question is offline:
+	// its refusals compare the configuration's own tag values, or the
+	// taggability of the provider's schema, against what a run would
+	// compute, and neither reads a live object. The doc comment this
+	// replaced said the opposite - "what a live object already carries" -
+	// which was false for every refusal a corpus run can actually trip,
+	// and is exactly the kind of false load-bearing claim this repository
+	// has been burned by before.
+	//
+	// What computes it here is [nodeStampDiagnostics] (nodestamp.go),
+	// GitHub issue #454's port onto the node path's own primitives. Before
+	// that port this section called internal/live/stamp's HCL-rewrite
+	// engine directly; GitHub issue #644 deleted that engine, and the
+	// package now holds only this layer's refusal registry.
 	LayerStamp Layer = "stamp"
 
 	// LayerDiscovery is internal/live/discovery, which lists live objects
