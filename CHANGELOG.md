@@ -6,7 +6,31 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 ## choudoufu v0.15.0 (Unreleased)
 
-Nothing recorded yet.
+FORK WORK:
+
+- **`live-plan -json` carries the content match** (#962). A declared
+  resource whose identity the server assigns, an `aws_vpc` say, is an
+  omission (`NEEDS_DISCOVERY`) in the document, and the live object the
+  estate-wide sweep matched to it by content - the row the `-adoption-only`
+  human render prints under "Adoptable", with the arguments it matched on
+  and the two marker values that adopt it - appeared nowhere in the
+  document. INTENTIUS/chant's terraform lexicon, which proposes claims
+  straight off the document, measured that on the v0.14.0 binary against
+  the pinned emulator and found no way to the row: `-adoption-only` is
+  refused beside `-json`, and `TOFU_LIVE_COLLECT_UNCLAIMED=1` ran the sweep
+  and dropped its answer. The document now has two more top-level sections.
+  `adoptable` is one row per content match: `addr`, `type`, `identity`,
+  `matched` (a list of `attribute`/`value` pairs, the "matched on:" line),
+  `adopt_tofu_estate`, `adopt_tofu_address`, and the same `adopt_command`
+  the human render prints. `swept` names every resource type the sweep
+  listed in full, so an empty `adoptable` reads as "looked and found
+  nothing" when the declared type is in `swept` and as "this run did not
+  ask" when `swept` is empty; the run asks under `-adoption-only` or
+  `TOFU_LIVE_COLLECT_UNCLAIMED=1`, as before. `unowned` is unchanged and
+  disjoint from it: an object read at an identity the configuration
+  declares, against one the sweep found for a declaration that declares
+  none. `TestLivePlanDocument_topLevelShapeIsPinned` pins the new shape by
+  value; chant #2168 is the consumer told.
 
 ## choudoufu v0.14.0 (2026-09-07)
 

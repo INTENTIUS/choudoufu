@@ -259,6 +259,18 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 				MarkerAddress: "aws_s3_bucket.data",
 			},
 		},
+		Adoptable: []LivePlanAdoptable{
+			{
+				Addr:          "aws_vpc.adoptable",
+				TypeName:      "aws_vpc",
+				LiveID:        "vpc-997b17c0",
+				Matched:       []LivePlanMatchedArgument{{Attribute: "cidr_block", Value: "10.77.0.0/16"}},
+				MarkerEstate:  "dev",
+				MarkerAddress: "aws_vpc.adoptable",
+				AdoptCommand:  "aws ec2 create-tags --resources 'vpc-997b17c0' --tags 'Key=tofu-estate,Value=dev' 'Key=tofu-address,Value=aws_vpc.adoptable'",
+			},
+		},
+		Swept: []string{"aws_vpc"},
 		Diagnostics: []LivePlanDiagnostic{
 			{Severity: "warning", Summary: "State file present but not consulted", Detail: "it was left untouched"},
 		},
@@ -296,6 +308,25 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
       "adopt_tofu_estate": "dev",
       "adopt_tofu_address": "aws_s3_bucket.data"
     }
+  ],
+  "adoptable": [
+    {
+      "addr": "aws_vpc.adoptable",
+      "type": "aws_vpc",
+      "identity": "vpc-997b17c0",
+      "matched": [
+        {
+          "attribute": "cidr_block",
+          "value": "10.77.0.0/16"
+        }
+      ],
+      "adopt_tofu_estate": "dev",
+      "adopt_tofu_address": "aws_vpc.adoptable",
+      "adopt_command": "aws ec2 create-tags --resources 'vpc-997b17c0' --tags 'Key=tofu-estate,Value=dev' 'Key=tofu-address,Value=aws_vpc.adoptable'"
+    }
+  ],
+  "swept": [
+    "aws_vpc"
   ],
   "diagnostics": [
     {
