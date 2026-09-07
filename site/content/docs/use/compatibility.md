@@ -222,12 +222,12 @@ render happen to differ; a module has no identity schema of its own to
 narrow the check with, so any unprovable shape anywhere in the call's
 arguments refuses it.
 
-Stamping keeps up. A call with exactly one instance is stamped with that
-instance's key. Since
-[#378](https://github.com/INTENTIUS/choudoufu/issues/378) a call with more
-than one is stamped through `tofu.marker_module_prefix`, the same mechanism a
-`for_each`'d call already used. `module.sites[0]` and `module.sites[1]`
-render their own addresses out of the one shared body.
+Stamping keeps up, and since
+[#644](https://github.com/INTENTIUS/choudoufu/issues/644) it needs no
+special case for a keyed call at all: markers are written per instance,
+during the plan walk, from the instance's own address. `module.sites[0]`
+and `module.sites[1]` carry their own addresses because they are two
+instances with two addresses, not because anything rendered a template.
 
 A resource inside a `for_each`'d module needs its own marker built by hand
 from the module's own key; see [How to write markers inside a for_each'd

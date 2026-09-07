@@ -84,19 +84,20 @@ call expanded with a statically-evaluable `count` contributes an integer one
 real VPC, not an illustration - it is the marker
 `live/e2e/limits/child-module/counted` carries.
 
-Both keyed forms are stamped automatically, since issue #378. A module
-call's several instances share exactly one `*hclsyntax.Body` for the
-resource's `tags` argument, so no literal is the right `tofu-address` for
-all of them; stamping writes a template over `tofu.marker_module_prefix`
-instead, which evaluates to the module INSTANCE's own escaped path, and
-each instance renders its own address out of the one shared body
-(`internal/live/markers`, `ModulePrefixAttr`). That symbol is a stamping
-mechanism and not part of this format: the tag value AWS ends up holding is
-an ordinary escaped address either way, which is the whole point of it. A
-resource that writes `tofu-address` by hand inside a keyed module call
-keeps its own value, untouched and unverified - `live/LIMITATIONS.md`
-records that under "keyed module", and the concept page's "Modules" section
-has the idiom.
+Both keyed forms are stamped automatically, since issue #378. The mechanism
+changed under issue #644 and the format did not: #378 wrote a template over
+`tofu.marker_module_prefix` into the one `*hclsyntax.Body` a module call's
+several instances share, because that was the only way a configuration
+rewrite could produce a different address per instance. The marker writer
+is now `internal/live/projection`'s `NodeResolver.AdjustConfigValue`, which
+is handed one concrete instance and its already-evaluated configuration
+value, so it writes the escaped instance address as a plain string and the
+evaluator symbol is gone. What AWS ends up holding is an ordinary escaped
+address either way, which is the point. A resource that writes
+`tofu-address` by hand inside a keyed module call keeps its own value,
+verified against what this run resolved and never overwritten -
+`live/LIMITATIONS.md` records that under "keyed module", and the concept
+page's "Modules" section has the idiom.
 
 What is refused is narrower than any form of this grammar, and it is about
 the expression rather than the segment. A module call whose `count` or

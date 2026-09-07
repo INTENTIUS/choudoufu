@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=624 instances=1107
-# shape: class CONCRETE=607
+# shape: dirs=623 instances=1106
+# shape: class CONCRETE=606
 # shape: class NEEDS_DISCOVERY=411
 # shape: class PARENT_DERIVED=62
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=5f65f9027034044b66bba229aeb930e87dc5c9e485be5e3b43db76359ba773ca
+# shape: body-sha256=43fa85942598680871c3dfd6b783f2c9a85d1bde5ac92eeaf13563df1f0bc153
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -1097,7 +1097,6 @@ live/e2e/limits/null-resource	null_resource.trigger	RECORD_BACKED
 live/e2e/limits/overlong-address	aws_s3_bucket.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	CONCRETE	tofu-stateless-limits-overlong-address	bucket=tofu-stateless-limits-overlong-address
 live/e2e/limits/random-password	random_password.db	RECORD_BACKED		
 live/e2e/limits/remote-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-remote-exec	bucket=tofu-stateless-limits-remote-exec
-live/e2e/limits/reserved-symbol	aws_s3_bucket.reserved	CONCRETE	tofu-stateless-limits-reserved-symbol	bucket=tofu-stateless-limits-reserved-symbol
 live/e2e/limits/terraform-data	terraform_data.trigger	RECORD_BACKED		
 live/e2e/limits/time-sleep	time_sleep.wait	RECORD_BACKED		
 live/e2e/limits/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	limits-undeclared-provider-alias	bucket=limits-undeclared-provider-alias

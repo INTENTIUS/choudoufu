@@ -82,7 +82,6 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `receipt-leaf` | Nothing may reference a receipt's attributes | error | live/RECEIPTS.md, "Guard 4. The leaf rule" | none |
 | `receipt-secret` | Receipt inputs reference secrets by pointer, never by value | error | live/RECEIPTS.md, "Secrets discipline" | none |
 | `receipt-value` | A receipt's value is a hash or a constant, and its type is never SecureString | error | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" | none |
-| `reserved-symbol` | This symbol is reserved for the ownership marker scheme | error | "reserved-symbol" | `live/e2e/limits/reserved-symbol/` |
 | `state-backend` | State backends are not available under live resource markers | warning | "backend-block" / "cloud-block" | `live/e2e/limits/backend-block/`, `live/e2e/limits/cloud-block/` |
 | `strict-marker-repair` | Marker repair setting is not one this build implements | error | "strict-marker-repair" | `live/e2e/limits/strict-marker-repair/` |
 | `strict-markers` | Markers selection cannot be read as a selection | error | "strict-markers" | `live/e2e/limits/strict-markers/` |
@@ -93,7 +92,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**28 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 25 of the 28 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**27 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 24 of the 27 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1269,49 +1268,6 @@ measured once per statically evaluable key under the same boundary as
 index when the count is statically evaluable. Fixture at
 `live/e2e/limits/overlong-address/`.
 
-### reserved-symbol
-
-**Construct.** A configuration referencing `tofu.marker_module_prefix` (or
-its `terraform.marker_module_prefix` spelling - the language binds one map
-of attributes to both roots, so the two are the same symbol).
-
-**Why banned.** It is the one evaluator symbol this fork adds, and it
-belongs to the ownership marker scheme rather than to the configuration
-language. Its value is the escaped module path of the module *instance*
-being evaluated, and `internal/live/stamp` writes it into a resource's
-`tofu-address` for a resource declared inside a module call with more than
-one instance - the case where no literal in the one shared configuration
-body is right for every instance (issue #378, and "A resource inside a
-keyed module is stamped through the module-prefix symbol" under
-"Behavioral limits" below). Three reasons it stays the tool's: a marker
-built from it by hand is composed with something this pass did not compute
-and therefore does not verify, and a marker that does not match the address
-is one discovery will never find; its value is deliberately undefined
-during static evaluation, where the module instance is not known, so an
-expression reading it would work during plan and fail during identity
-resolution; and a configuration depending on it would not run on stock
-OpenTofu at all, which is the opposite of what this fork promises.
-
-**Forwarding address.** Remove the reference. If you are writing a
-`tofu-address` by hand inside a keyed module - which is still supported and
-still trusted as written - build it from a variable the module call passes
-through from its own `each.key`, the pattern
-`live/e2e/estate-module-keyed/` carries.
-
-**Enforcement.** `RuleReservedSymbol`,
-`internal/live/lint/reserved_symbol.go` (`checkReservedSymbols`). It scans
-every expression reachable from a module's decoded constructs - resource,
-data and ephemeral bodies including nested blocks, module call bodies,
-provider blocks, locals, outputs, `import` blocks, checks, and each of their
-`count`/`for_each` meta-arguments - for a traversal naming the symbol under
-either root. What this fork writes never reaches it: stamping synthesizes
-its expression in memory, in a later pass than lint, and never serializes it
-back to a file. It reads native syntax only, so a `.tf.json` configuration
-could read the symbol without this rule saying so - a bounded gap, since
-stamping declines a JSON body outright and the static evaluator still
-refuses the symbol wherever no module instance was threaded in. Fixture at
-`live/e2e/limits/reserved-symbol/`.
-
 ### ignore-changes
 
 **Construct.** `lifecycle { ignore_changes = all }`, or an `ignore_changes`
@@ -2426,8 +2382,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Invalid value for input variable | error | `internal/configs` | "Invalid value for input variable" |
 | 0 | 0 | identity | Iteration over non-iterable value | error | `hcl` | "Iteration over non-iterable value" |
 | 0 | 0 | identity | Iteration over null value | error | `hcl` | "Iteration over null value" |
-| - | - | identity | Marker module prefix in static context | error | `internal/configs` | "Marker module prefix in static context" |
-| - | - | identity | Marker module prefix in the root module | error | `internal/configs` | "Marker module prefix in the root module" |
 | 0 | 0 | identity | Missing map element | error | `hcl` | "Missing map element" |
 | 0 | 0 | identity | No configuration to resolve | error | `internal/live/identity` | "No configuration to resolve" |
 | 0 | 0 | identity | No configuration to scan | error | `internal/live/identity` | "No configuration to scan" |
@@ -2475,7 +2429,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | receipt-leaf | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 4. The leaf rule" |
 | 0 | 0 | lint | receipt-secret | error | `internal/live/lint` | live/RECEIPTS.md, "Secrets discipline" |
 | 0 | 0 | lint | receipt-value | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
-| - | - | lint | reserved-symbol | error | `internal/live/lint` | "reserved-symbol" |
 | 0 | 0 | lint | state-backend | warning | `internal/live/lint` | "backend-block" / "cloud-block" |
 | - | - | lint | strict-marker-repair | error | `internal/live/lint` | "strict-marker-repair" |
 | - | - | lint | strict-markers | error | `internal/live/lint` | "strict-markers" |
@@ -2531,15 +2484,10 @@ refused, and each says so in its own entry.
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
-| 0 | 0 | stamp | No configuration to stamp | error | `internal/live/stamp` | "No configuration to stamp" |
-| 0 | 0 | stamp | No estate name to stamp with | error | `internal/live/stamp` | "No estate name to stamp with" |
-| 0 | 0 | stamp | No provider schemas for marker stamping | error | `internal/live/stamp` | "No provider schemas for marker stamping" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
-| 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
-| 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**223 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**215 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2605,7 +2553,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unmarked apply of a marker-only resource
 
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
@@ -3397,22 +3345,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
-#### Marker module prefix in static context
-
-**What.** tofu.marker_module_prefix is evaluated without a module instance threaded in. It is this fork's own symbol, written into a resource's marker tags for a resource declared inside a module call with more than one instance (issue #378), and every instance of such a call shares one static evaluator - so answering here would answer for the wrong instance. A configuration cannot reach this by hand: internal/live/lint refuses one that names the symbol.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Not measured: absent from the corpus artifact this was generated against.
-
-#### Marker module prefix in the root module
-
-**What.** tofu.marker_module_prefix is evaluated for the root module instance, which has no module path and therefore no marker prefix. Like its sibling above, this is unreachable from a configuration a user wrote.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Not measured: absent from the corpus artifact this was generated against.
-
 #### Missing map element
 
 **What.** A map is indexed with a key it does not contain.
@@ -4081,30 +4013,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
-#### No configuration to stamp
-
-**What.** Stamping was given no configuration to rewrite. A caller error, not a configuration one.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### No estate name to stamp with
-
-**What.** Stamping was given no estate name, or one outside the tofu-estate marker grammar, so there is no value to write into the markers.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### No provider schemas for marker stamping
-
-**What.** Stamping was given no provider schemas, so which types can carry a marker cannot be read. A caller error, not a configuration one.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
 #### Ownership marker conflict
 
 **What.** The configuration already sets an ownership tag by hand, to a value other than the one this estate's markers require. Overwriting it would move ownership of a live resource without anyone saying so, so the run stops instead.
@@ -4113,25 +4021,9 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
-#### Ownership marker could not be checked
-
-**What.** An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning: a resource that can only be found by its marker gets the error below instead, under its own heading, because [stamper.unstampableAt] swaps the summary as well as the severity.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
 #### Ownership markers not stamped
 
-**What.** A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration. Also the form a marker-only resource takes when this run could not read its type's schema at all: whether it can carry a marker is then unknown rather than known to be impossible, and an unknown is never reported as the error below. A third case is a type that HAS a settable tags map whose documented vocabulary an ownership marker cannot be spelled in - a key space the provider defines rather than the configuration, or a character set and length the escaped address does not fit. GCP's resource-manager tag bindings are the found example: keys must name TagKey objects that already exist, and on several types the field forces replacement when mutated. A type with no tag surface at all stays silent, because being identified by an argument instead of a marker is ordinary and hundreds of types are; a tag surface that exists and cannot be used is not, so it is said out loud.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### Two resources share one configuration body
-
-**What.** Two resources in the configuration reached one HCL body, so the ownership marker written for one of them would be the marker the other carries too. A module source called more than once is parsed once - every call shares the syntax tree - and each call is supposed to get its own body for a resource's arguments; this fires when one did not. It is a defect in how the run loaded the configuration rather than a fault in the configuration, and it is a hard error because a marker shared between two live objects is worse than no marker at all.
+**What.** A resource's tags could not be given this estate's ownership markers - most often an untaggable type. Reported as a warning, because the resource is still identifiable from its configuration. Also the form a marker-only resource takes when this run could not read its type's schema at all: whether it can carry a marker is then unknown rather than known to be impossible, and an unknown is never reported as the error below. A third case is a type that HAS a settable tags map whose documented vocabulary an ownership marker cannot be spelled in - a key space the provider defines rather than the configuration, or a character set and length the escaped address does not fit. GCP's resource-manager tag bindings are the found example: keys must name TagKey objects that already exist, and on several types the field forces replacement when mutated. A type with no tag surface at all stays silent, because being identified by an argument instead of a marker is ordinary and hundreds of types are; a tag surface that exists and cannot be used is not, so it is said out loud.
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
@@ -4196,115 +4088,53 @@ as a destroy, is asserted in `internal/live/lifecycle/exactness_test.go`.
 The unadmitted half holds by construction: `internal/live/discovery`
 builds the sweep universe from `identity.AdmittedTypes()`.)
 
-**A resource inside a keyed module is stamped through the module-prefix
-symbol, and a hand-written marker there is still trusted as written.**
-A module call that sets `count` or `for_each` gives its several instances
-one HCL body for the resource's `tags` argument, so no single *literal*
-`tofu-address` is correct for all of them. Until issue #378, that ended the
-matter: such a resource was left alone with the `SkipModuleKeyed` reason
-(`MODULE_KEYED`), and a plan's desired tag set for it therefore carried no
+**A resource inside a keyed module gets its own address per instance, and a
+hand-written marker there is still the operator's.** A module call that sets
+`count` or `for_each` gives its several instances one HCL body for the
+resource's `tags` argument, so no single *literal* `tofu-address` is correct
+for all of them. Until issue #378, that ended the matter: such a resource
+was left alone, and a plan's desired tag set for it therefore carried no
 marker at all - which the ordinary tags diff renders as a DELETION of the
-marker `live-import` had genuinely written, the defect #378 was filed for.
+marker `live-import` had genuinely written.
 
-The literal is now an interpolation. `tofu.marker_module_prefix`
-(`internal/live/markers`, `ModulePrefixAttr`) evaluates to the module
-INSTANCE's own escaped path, so stamping writes
-
-```
-tofu-address = "${tofu.marker_module_prefix}.aws_cloudwatch_log_group.this:${count.index}"
-```
-
-into the one shared body, and each instance of the call renders its own
-address - `module.container_definition:fluent-bit.aws_cloudwatch_log_group.this:0`
-and `module.container_definition:al2023....` from the same three lines. The
-symbol carries every step of the path, so nesting and `count`'d calls work
-the same way `for_each`'d ones do. It is reserved: a configuration that
-names it is refused (see "reserved-symbol" above), because a marker built
-from it by hand is one this pass does not verify, and because its value is
-deliberately undefined wherever the module instance is not known -
-`internal/configs`' static evaluator refuses it unless a caller threaded
-one in, rather than answering with an empty prefix that would render a
-silently wrong marker.
+#378 answered it by making the literal an interpolation: the configuration
+rewrite wrote a template over `tofu.marker_module_prefix`, an evaluator
+symbol this fork added to the language for that one reader, and each
+instance of the call rendered its own address out of the one shared body.
+That symbol, the lint rule reserving it, and the rewrite that wrote it are
+all retired as of issue #644. The marker writer is now
+`internal/live/projection`'s `NodeResolver.AdjustConfigValue`, called once
+per concrete `addrs.AbsResourceInstance` with that instance's already
+evaluated configuration value, so the address it writes is
+`module.container_definition["fluent-bit"].aws_cloudwatch_log_group.this[0]`
+escaped - a plain string it has in hand - with no template, no shared body
+and no evaluator symbol anywhere in the path. Nesting, `count`'d calls and
+`for_each`'d calls are all the same case to it, because the instance
+address already carries every step of the path.
 
 **A hand-written marker there is still the operator's.** A resource that
-already writes `tofu-address` as a literal key in its own `tags` - in an
-object constructor, or in an object a `merge()` takes - is untouched and
-reported as `SkipModuleKeyedTrusted`, exactly as before. This pass has
-never overwritten a hand-written marker value and does not start here, and
-the `each.key`-threaded-through-a-variable idiom
+already writes `tofu-address` in its own `tags` is untouched: the node
+writer verifies an existing marker against what this run resolved and
+refuses on disagreement ("Ownership marker conflict") rather than
+overwriting it, which is the same rule the configuration rewrite followed.
+The `each.key`-threaded-through-a-variable idiom
 (`live/e2e/estate-module-keyed/` is the fixture, crossed live against the
 emulator by `internal/live/lifecycle/module_keyed_live_test.go`) keeps
-working unchanged and unverified. The evidence is the SHAPE of the expression, never an
-evaluation of it (issue #379): a value that *does* evaluate statically
-inside a keyed module call is worse evidence rather than better, because
-one that is the same for every module instance is the same `tofu-address`
-for every module instance, which is a wrong marker rather than a missing
-one.
+working unchanged.
 
-**What issue #379 still refuses.** #379 found that "declares a `tags`
-argument" was being read as "declares a marker", so `tags = var.tags` - what
-most published child modules write - claimed hand-stamping and silenced the
-must-stamp error for a resource whose instances can only ever be found by
-their ownership marker. Every shape it named except one is now stamped
-rather than refused: the marker is written, so there is nothing left to
-refuse. The one that remains is a body writing `tofu-address` by hand and
-*not* `tofu-estate`, on a type that needs discovery. This pass will not
-touch the hand-written address, and marker discovery lists an estate by
-`tofu-estate` before it binds an instance by `tofu-address`, so that
-instance would be applied with an address nothing looks for. It gets the
-same must-stamp error, wording and severity as a resource with no `tags`
-argument at all.
-
-**Continuation tags are not written under a keyed module call.** The module
-half's LENGTH is not knowable where the split would have to be decided, and
-an underestimate would truncate a marker rather than carry it, so a keyed
-resource carries its address in one tag and an address whose knowable half
-already overflows a single tag value is refused at stamp time rather than
-split. `RuleOverlongAddress` (see "overlong-address" above) is the wider
-continuation-budget ceiling above that narrower single-tag one.
-(`internal/live/stamp/stamp.go`, `addressExpr`'s keyed branch,
-`moduleKeyedHandWritten`, `collectVisibleTagKeys`, `moduleKeyedUnchunkable`
-and `chunkCount`; `internal/live/stamp/modulekeyed_prefix_test.go` and
-`modulekeyed_untrusted_test.go` pin them by value.)
-
-**A `count`'d module call is stamped when it has exactly one instance, and
-refused when it has more.** `count` on a module block is answered
-differently from `for_each`, and the difference is not a preference: a
-`for_each`'d call has a supported hand-written idiom, and a `count`'d call
-does not. `RuleChildModule` refuses a module call whose own arguments read
+**A `count`'d module call needs no special case any more.** `count` on a
+module block used to be answered differently from `for_each`, because the
+configuration rewrite had to resolve the call's `count` itself before it
+could know which instance a shared body was being written for: a `count` of
+exactly 1 was stamped with that instance's key, a `count` of 0 was not
+walked, and anything above 1 was keyed. None of that survives the seam
+change - the plan walk has already expanded the call by the time
+`AdjustConfigValue` is asked about an instance, so `module.sites[0]` and
+`module.sites[1]` are simply two instances with two addresses.
+`RuleChildModule` still refuses a module call whose own arguments read
 `count.index` in a shape it cannot prove injective (see "child-module"
-above), and even where it admits one - a bare `count.index`, a template, an
-arithmetic offset - nothing downstream reads that value back out: stamping
-never looks for a hand-written marker inside a `count`'d call the way it
-does for a `for_each`'d one. Nothing but the stamping pass can produce a
-correct address there. So stamping resolves the call's `count` itself, with
-`identity.ChildModuleCountKeys` - the same evaluation identity resolution
-uses to decide the call's instances exist at all - and takes one of three
-paths. A `count` of exactly 1 is stamped with that instance's key, so the
-marker on `live/e2e/limits/child-module/counted`'s VPC reads
-`module.counted[0].aws_vpc.main`, which is the address identity resolution
-computes for it; this is also the `count = var.enabled ? 1 : 0` idiom's on
-branch. A `count` of 0 has no instances, so the module's resources are not
-walked at all and nothing is stamped or reported - the same reading
-`resolver.walkModule` gives it by recursing once per instance key. Anything
-else - a `count` above 1, or one this pass cannot evaluate - is keyed, and
-since issue #378 that is a marker rather than a refusal: it is stamped
-through `tofu.marker_module_prefix` exactly as a `for_each`'d call is, so
-`module.sites[0]` and `module.sites[1]` render their own addresses out of
-the one shared body. The asymmetry this paragraph describes has therefore
-narrowed to what it was always really about - a `count`'d call has no
-hand-written idiom, because `RuleChildModule` refuses a call whose own
-arguments read `count.index`, so nothing but the stamping pass can produce
-a correct address there. Now the stamping pass can.
-
-Before this, stamping read only a module call's `for_each` and qualified
-every resource under a `count`'d call with the UNKEYED module path. A
-`count = 1` module therefore carried `module.counted.aws_vpc.main`, an
-address discovery never looks for; a `count = 3` module put one literal
-address onto three real cloud objects, which is GitHub issue #280's defect
-by a third route. Both are wrong markers rather than missing ones.
-(`internal/live/stamp/stamp.go`, `childExpansion` and `markerBase`;
-`internal/live/stamp/modulecontext_test.go`.)
+above), which is a separate rule about identity resolution and is
+unaffected.
 
 **A multi-configuration estate's adoption hint may name the wrong region.**
 Marker discovery itself is per provider configuration. `statelessDiscover`

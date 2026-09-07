@@ -234,7 +234,6 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkManagedResources(ctx, cfg, path, schemas, signal, recordStoreConfigured, secrets, markersRecord, issues)
 	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
-	checkReservedSymbols(mod, path, issues)
 	checkReceiptLeafRule(mod, path, issues)
 	checkReceiptValueRule(mod, path, issues)
 	checkReceiptSecretRule(mod, path, issues)
