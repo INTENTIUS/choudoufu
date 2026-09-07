@@ -14,7 +14,7 @@ import "sort"
 // table row ([DefaultTable]) already does. tools/row-gen/schemafirst.go
 // makes the identical comparison offline, over live/import-grammar.json's
 // identity_schema_required list instead of a real schema, to decide what to
-// MEASURE (live/rowgen-convergence.json's schema_reproduces bucket) rather
+// MEASURE (live/schema-precedence.json) rather
 // than what to prefer - the two never disagree about the RULE, only about
 // where the schema's required-attribute evidence comes from.
 //

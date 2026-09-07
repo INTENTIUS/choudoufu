@@ -13,14 +13,29 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// This file is rowgen-convergence's measurement half: for every type -emit
-// admits, it regenerates
-// row-gen's own fresh proposal (the same classifyAll pipeline -service
-// output uses) and diffs it against the ratified entry on the four fields
-// the ratification batches actually correct - ServerAssigned, Components,
-// ImportSyntax and IdentityAttrs - so the gap between what row-gen proposes
-// today and what a human batch ends up writing down is a number, not a
-// batch report's prose.
+// This file is row-gen's comparison half: for every type -emit admits, it
+// regenerates row-gen's own fresh proposal (the same classifyAll pipeline
+// -service output uses) and diffs it against the ratified entry on the four
+// fields the ratification batches actually correct - ServerAssigned,
+// Components, ImportSyntax and IdentityAttrs - so the gap between what
+// row-gen proposes today and what a human batch ends up writing down is a
+// number, not a batch report's prose.
+//
+// The result is used two ways and reported one: -emit's #132 gate refuses
+// an emitted row the classifier does not reproduce and annotations.json
+// does not rule, -propose groups the verdicts by rule class, and
+// -mismatches (mismatches.go) writes the per-row ledger
+// live/rowgen-mismatches.json that internal/live/harness's two rowgen
+// entries measure.
+//
+// What this file no longer computes, as of issue #695: an adopted-unchanged
+// ratio, per-service or overall. That number - "how often does the
+// classifier already agree with the human" - is on record as not predicting
+// onboarding success, three sessions in a row read it as coverage, and it
+// had no consumer left but a report section quoting it. The verdicts stayed
+// because a gate and a ledger read them; the ratio went with the artifact
+// that carried it, live/rowgen-convergence.json, which #695 deleted. What
+// measures onboarding is issue #102 and live/corpus-refusals.json.
 //
 // "Diff" is deliberately not "any byte differs." ImportSyntax is, by
 // TypeIdentity's own doc comment, "documentation only: Components is what
@@ -33,27 +48,30 @@ import (
 // and only a proposal that DID claim a value and got it wrong counts. What
 // remains after both softenings - ServerAssigned disagreeing, Components
 // disagreeing, or a claimed IdentityAttrs value disagreeing - is what this
-// file calls a genuine mismatch, and it is what the ratchet test in
-// convergence_test.go gates on.
+// file calls a genuine mismatch, and it is what -emit's gate and the
+// harness entry both act on.
 
-// convergenceRow is one admitted type's comparison result.
-type convergenceRow struct {
-	TFType  string `json:"tf_type"`
-	Service string `json:"service"`
+// comparisonRow is one admitted type's comparison result. It is in-memory
+// only: live/rowgen-mismatches.json records the three fields its readers
+// actually need (mismatches.go's mismatchRow), and everything else here
+// exists to reach Matched or to explain it to whoever is reading a report.
+type comparisonRow struct {
+	TFType  string
+	Service string
 
-	ProposedBucket string `json:"proposed_bucket"`
-	ProposedRule   string `json:"proposed_rule"`
+	ProposedBucket string
+	ProposedRule   string
 
 	// Genuine field-level disagreements: ServerAssigned, Components and a
 	// claimed IdentityAttrs value. Empty means row-gen's fresh proposal is
 	// functionally identical to the ratified entry.
-	MismatchClasses []string `json:"mismatch_classes,omitempty"`
+	MismatchClasses []string
 
-	// Soft/cosmetic disagreements, recorded for the four-field diff the
-	// task asks for but never gated on: ImportSyntax wording, and
-	// IdentityAttrs when row-gen simply proposed none at all (issue #44's
-	// declared non-goal, not a wrong guess).
-	CosmeticNotes []string `json:"cosmetic_notes,omitempty"`
+	// Soft/cosmetic disagreements, recorded for the four-field diff but
+	// never gated on: ImportSyntax wording, and IdentityAttrs when row-gen
+	// simply proposed none at all (issue #44's declared non-goal, not a
+	// wrong guess).
+	CosmeticNotes []string
 
 	// ScrapeGap is set when a mismatch's likely cause is
 	// live/import-grammar.json's own scrape missing evidence a fuller read
@@ -64,95 +82,33 @@ type convergenceRow struct {
 	// annotation regardless, so this flag no longer decides whether a row
 	// is ruled - it stays the measure of WHICH rulings are extractor debt
 	// rather than ratification judgments.
-	ScrapeGap bool `json:"scrape_gap,omitempty"`
+	ScrapeGap bool
 
-	Matched    bool   `json:"matched"`
-	Annotated  bool   `json:"annotated"`
-	Annotation string `json:"annotation_reason,omitempty"`
+	Matched    bool
+	Annotated  bool
+	Annotation string
 }
 
-// convergenceSummary is the headline counts the tool's report output and
-// the ratchet test both read.
-type convergenceSummary struct {
-	AdmittedTotal         int     `json:"admitted_total"`
-	Compared              int     `json:"compared"`
-	NotInMappedSet        int     `json:"not_in_mapped_set"`
-	AdoptedUnchanged      int     `json:"adopted_unchanged"`
-	AdoptedUnchangedPct   float64 `json:"adopted_unchanged_pct"`
-	GenuineMismatches     int     `json:"genuine_mismatches"`
-	Annotated             int     `json:"annotated"`
-	UnannotatedMismatches int     `json:"unannotated_mismatches"`
-	ScrapeGapMismatches   int     `json:"scrape_gap_mismatches"`
+// comparison is [buildComparison]'s whole result: the per-row verdicts and
+// the counts over them.
+type comparison struct {
+	// AdmittedTotal is every row -emit would write; Compared is the subset
+	// a fresh proposal exists for. NotInMappedSet is the rest - no evidence
+	// path reaches the type, so there is nothing to compare - which -emit's
+	// gate holds to the same annotation bar separately.
+	AdmittedTotal  int
+	Compared       int
+	NotInMappedSet int
+
+	GenuineMismatches     int
+	Annotated             int
+	UnannotatedMismatches int
+	ScrapeGapMismatches   int
+
+	Rows []comparisonRow
 }
 
-// serviceSummary is convergenceSummary's per-CFN-service breakdown - the
-// closest mechanical proxy this repo has for "per batch": ratification
-// batches are themselves scoped and named by CFN service (table.go's own
-// section comments: "Cohort estate: live/e2e/estates/data-movement",
-// "VPC Lattice, the corrected majority", ...), and row-gen's own report
-// already batches every proposal by CFN service (renderReport), so this
-// reuses that grouping rather than hand-building a batch roster nothing in
-// the pinned sources carries.
-type serviceSummary struct {
-	Compared            int     `json:"compared"`
-	AdoptedUnchanged    int     `json:"adopted_unchanged"`
-	AdoptedUnchangedPct float64 `json:"adopted_unchanged_pct"`
-}
-
-// convergenceArtifact is live/rowgen-convergence.json's whole shape.
-type convergenceArtifact struct {
-	GeneratedBy string                    `json:"generated_by"`
-	Summary     convergenceSummary        `json:"summary"`
-	ByService   map[string]serviceSummary `json:"by_service"`
-
-	// SchemaReproduces is ruling 2 of the foundation-order ruling (#388)
-	// (#387): issue #387's own measurement, over every config-identified
-	// ratified row the provider also serves an identity schema for - does
-	// [identity.SynthesizeTypeIdentity] say the same thing the row does?
-	// This is measurement only: nothing here removes a row from
-	// tools/row-gen/ratified.json or from the emitted table
-	// ([buildConvergence]'s own Types/Summary are computed over the emitted
-	// rows exactly as before and never consult this field). What acts on
-	// the measurement is the runtime precedence inversion in
-	// internal/live/identity/resolve.go's lookupType and
-	// internal/live/lint's admitted() - see schemafirst.go's own doc
-	// comment for why the ledger shrink itself waits for #388.
-	SchemaReproduces schemaReproducesBucket `json:"schema_reproduces"`
-
-	// EvidenceOnlySchema is issue #428's own measurement: the same
-	// schema-first idea, one admission step earlier, over
-	// bucketEvidenceOnly - a type with no ratified row at all - rather than
-	// over an already-ratified one. Unlike SchemaReproduces, this ONE DOES
-	// act: evidenceschema.go's applySchemaFirstArgName reclassifies a
-	// Covered row to bucketClientNamed before -service's report or
-	// live/rowgen-buckets.json are ever built, which is safe here in a way
-	// it was not for SchemaReproduces's population (see evidenceschema.go's
-	// own doc comment for why: nothing in tools/row-gen/ratified.json or
-	// DefaultTable moves either way). This field is the resulting count,
-	// not a proposal to act on later.
-	EvidenceOnlySchema evidenceOnlySchemaBucket `json:"evidence_only_schema"`
-
-	Types []convergenceRow `json:"types"`
-}
-
-// schemaReproducesBucket is [convergenceArtifact.SchemaReproduces]'s shape:
-// every config-identified ratified type with a provider identity schema
-// (HasIdentitySchema, live/import-grammar.json's identity_schema_required),
-// partitioned into Reproduced (schemafirst.go's own same-name comparison
-// agrees with the row) and NotReproduced (it does not, labelled by shape -
-// see schemafirst.go's notReproducedClass). ReproducedCount +
-// NotReproducedCount == HasIdentitySchema always.
-type schemaReproducesBucket struct {
-	HasIdentitySchema int `json:"has_identity_schema"`
-
-	Reproduced      []string `json:"reproduced"`
-	ReproducedCount int      `json:"reproduced_count"`
-
-	NotReproduced      []notReproducedEntry `json:"not_reproduced"`
-	NotReproducedCount int                  `json:"not_reproduced_count"`
-}
-
-// buildConvergence runs the comparison over emitted - every row -emit would
+// buildComparison runs the comparison over emitted - every row -emit would
 // write, from [emittedRows] - using proposals (a fresh classifyAll run) and
 // annotations (the per-type rulings tools/row-gen/annotations.json records).
 //
@@ -166,14 +122,11 @@ type schemaReproducesBucket struct {
 // compared at all, so matched came back false and the operator was made to
 // write an annotation for a row the classifier may well agree with.
 //
-// summary.admitted_total keeps its meaning across the change, and that is
-// deliberate: internal/live/harness's rowgen-annotation-ledger entry uses it
-// as a denominator whose stated job is to make un-admitting a type visible.
-// [emittedRows]' key set is the same 892 types the committed table holds, so
-// the artifact is byte-identical - but it now counts what -emit admits
-// rather than what -emit last wrote, which is the number that denominator
-// was always reaching for.
-func buildConvergence(emitted map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation) convergenceArtifact {
+// AdmittedTotal keeps its meaning across that change, and that is
+// deliberate: internal/live/harness's rowgen-annotation-rulings entry uses
+// it as a denominator whose stated job is to make un-admitting a type
+// visible.
+func buildComparison(emitted map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation) comparison {
 	byType := indexByType(proposals)
 
 	admitted := make([]string, 0, len(emitted))
@@ -182,71 +135,46 @@ func buildConvergence(emitted map[string]identity.TypeIdentity, proposals []prop
 	}
 	sort.Strings(admitted)
 
-	art := convergenceArtifact{
-		GeneratedBy: "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
-		ByService:   map[string]serviceSummary{},
-	}
-	art.Summary.AdmittedTotal = len(admitted)
-
-	svcCompared := map[string]int{}
-	svcMatched := map[string]int{}
+	c := comparison{AdmittedTotal: len(admitted)}
 
 	for _, tf := range admitted {
 		ratified := emitted[tf]
 		p, ok := byType[tf]
 		if !ok {
-			art.Summary.NotInMappedSet++
+			c.NotInMappedSet++
 			continue
 		}
-		art.Summary.Compared++
+		c.Compared++
 
 		row := compareOne(p, ratified)
 		if ann, ok := annotations[tf]; ok {
 			row.Annotated = true
 			row.Annotation = ann.Reason
 		}
-		art.Types = append(art.Types, row)
+		c.Rows = append(c.Rows, row)
 
-		svcCompared[row.Service]++
 		if row.Matched {
-			art.Summary.AdoptedUnchanged++
-			svcMatched[row.Service]++
+			continue
+		}
+		c.GenuineMismatches++
+		if row.Annotated {
+			c.Annotated++
 		} else {
-			art.Summary.GenuineMismatches++
-			if row.Annotated {
-				art.Summary.Annotated++
-			} else {
-				art.Summary.UnannotatedMismatches++
-			}
-			if row.ScrapeGap {
-				art.Summary.ScrapeGapMismatches++
-			}
+			c.UnannotatedMismatches++
+		}
+		if row.ScrapeGap {
+			c.ScrapeGapMismatches++
 		}
 	}
 
-	if art.Summary.Compared > 0 {
-		art.Summary.AdoptedUnchangedPct = round2(100 * float64(art.Summary.AdoptedUnchanged) / float64(art.Summary.Compared))
-	}
-	for svc, n := range svcCompared {
-		s := serviceSummary{Compared: n, AdoptedUnchanged: svcMatched[svc]}
-		if n > 0 {
-			s.AdoptedUnchangedPct = round2(100 * float64(svcMatched[svc]) / float64(n))
-		}
-		art.ByService[svc] = s
-	}
-
-	return art
-}
-
-func round2(f float64) float64 {
-	return float64(int(f*100+0.5)) / 100
+	return c
 }
 
 // compareOne is the per-type field comparison: builds row-gen's fresh
 // proposal's claim on the four fields (proposedFields), the ratified
 // entry's own values, and classifies the disagreement.
-func compareOne(p proposal, ratified identity.TypeIdentity) convergenceRow {
-	row := convergenceRow{
+func compareOne(p proposal, ratified identity.TypeIdentity) comparisonRow {
+	row := comparisonRow{
 		TFType:         p.TFType,
 		Service:        p.Service,
 		ProposedBucket: string(p.Bucket),

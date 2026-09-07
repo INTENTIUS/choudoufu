@@ -14,7 +14,7 @@ import (
 
 // TestBucketsArtifactMatchesCommitted recomputes the bucket counts from the
 // committed evidence artifacts and holds live/rowgen-buckets.json to them -
-// the external-source drift pattern TestConvergenceArtifactMatchesCommitted
+// the external-source drift pattern TestMismatchLedgerMatchesCommitted
 // uses, so a classifier change that moves a bucket cannot leave the artifact
 // (and the COVERAGE.md span rendered from it) silently stale.
 func TestBucketsArtifactMatchesCommitted(t *testing.T) {

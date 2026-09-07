@@ -24,21 +24,24 @@ Four steps, each a tool this repository already ships on its own:
 2. `readiness-gen` rebuilds `live/readiness.json`
    ([the four-tier partition]({{< relref "resource-tiers" >}})) from the new
    survey.
-3. `row-gen -convergence` rebuilds `live/rowgen-convergence.json`, measuring
-   the classifier against every already-ratified row at the new schemas.
+3. `row-gen -mismatches` rebuilds `live/rowgen-mismatches.json`, measuring
+   the classifier against every already-ratified row at the new schemas, and
+   `row-gen -schema-precedence` rebuilds `live/schema-precedence.json`,
+   re-deciding whether the provider's own identity schema still reproduces
+   each of those rows.
 4. `provider-bump-report` reads what changed and prints it.
 
 Nothing here touches `internal/live/pins.AWSProviderVersion`,
 `tools/row-gen/ratified.json`, or `internal/live/identity.DefaultTable`.
 Regenerating leaves the working tree with whatever the new release actually
-changed - `git diff` on the four files above shows it directly - and
+changed - `git diff` on the five files above shows it directly - and
 `live/pins_drift_test.go` stays red on those files until a human bumps the
 pin constant too. Committing the bump is a second, deliberate act.
 
 ## Reading the report
 
 `provider-bump-report` compares the artifacts as committed at `HEAD` against
-the same three files on disk after the three regeneration steps, in four
+the same four files on disk after the regeneration steps, in five
 sections:
 
 - **Types.** Resource types the new release added or removed from
@@ -48,9 +51,14 @@ sections:
   [the resource-tier lookup]({{< relref "resource-tiers" >}}) actually feels.
 - **Schema-precedence (issue #387).** Whether the provider's own identity
   schema still agrees with each ratified row it can be checked against -
-  `live/rowgen-convergence.json`'s `schema_reproduces` bucket. A type that
-  stops reproducing is worth a second look before the next ratification
-  batch trusts the schema over the ledger.
+  `live/schema-precedence.json`. A type that stops reproducing is worth a
+  second look before the next ratification batch trusts the schema over the
+  ledger, and it is a change in what a live run does: `internal/live/identity`
+  makes the same comparison at resolution time.
+- **Classifier mismatches.** How many ratified rows row-gen's own classifier
+  reproduces, from `live/rowgen-mismatches.json`. Not a coverage metric, and
+  deliberately not a ratio: the only line to act on is a mismatch that is
+  newly *unruled*, meaning a row nobody has looked at.
 - **Golden identity table.** Runs
   `internal/live/check`'s `TestIdentityGolden`, the 1,700-plus-line pinned
   regression file HANDOFF.md's enforced-guards table names. A version-only
@@ -79,7 +87,8 @@ correct, with no need to reach a hypothetical newer release to find out.
 
 1. Run `just provider-bump <version>` and read the report.
 2. `git diff live/survey.json live/survey-full.json live/readiness.json
-   live/rowgen-convergence.json` for the raw shape of what moved.
+   live/rowgen-mismatches.json live/schema-precedence.json` for the raw shape
+   of what moved.
 3. If any tier or status moved for a type already in
    `identity.DefaultTable`, or the golden section reports `MOVED`, treat it
    like any other regression: read why before deciding whether the new

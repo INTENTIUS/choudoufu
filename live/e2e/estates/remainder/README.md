@@ -281,7 +281,7 @@ bucket stay refused - for them there is nowhere to write a marker at all,
 and `tools/row-gen/rejected.json` now says so in those words.
 
 All five are reproduced by row-gen's own fresh classifier
-(`live/rowgen-convergence.json`: `matched`, no mismatch classes), so
+(`live/rowgen-mismatches.json`: `matched`), so
 nothing here is a hand-written row standing in for a derivation. Four
 needed no generator change at all. The fifth,
 `aws_vpc_ipam_pool_cidr_allocation`, needed one in

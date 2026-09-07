@@ -55,7 +55,7 @@ func TestCrossCheckRefusesThePhantomECSServiceArn(t *testing.T) {
 }
 
 // TestCrossCheckSparesAnIncompleteArgumentReference is the false positive the
-// first version of this check shipped, caught by the convergence artifact.
+// first version of this check shipped, caught by the mismatch ledger.
 //
 // aws_s3control_multi_region_access_point's scraped Argument Reference has
 // three entries and does not include "name" - while its Identity Schema says

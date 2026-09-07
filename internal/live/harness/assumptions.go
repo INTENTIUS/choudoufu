@@ -467,7 +467,7 @@ func corpusArtifactCurrency() Assumption {
 // quoted. Each must be traceable to a commit.
 var datedArtifacts = []string{
 	CorpusJSON,
-	ConvergenceJSON,
+	MismatchesJSON,
 	MappingJSON,
 	SurveyFullJSON,
 	"live/cohort-acceptance.json",

@@ -7,7 +7,6 @@ package main
 
 import (
 	"fmt"
-	"sort"
 )
 
 // This file is issue #428's row-gen change: "let the schema name the
@@ -68,8 +67,8 @@ import (
 // Path==client-named - the same strict judgment
 // identity.SynthesizeTypeIdentity's own single-attribute branch would make
 // at runtime, computed offline once by survey-gen instead of per-run.
-// Consulting Path here is exactly [buildEvidenceOnlySchemaBucket]'s own
-// reason for existing rather than a bare Identity != nil check: reading
+// Consulting Path here rather than making a bare Identity != nil check
+// is deliberate: reading
 // "identity schema present" as "the schema names an argument" would
 // misclassify a server-assigned type whose required_for_import happens to
 // be a single Computed attribute as client-named, the false positive
@@ -125,53 +124,15 @@ import (
 // on its own. Running last means a Covered row here is one every other
 // evidence source in this file already had a turn on and still left
 // bucketEvidenceOnly - genuinely new coverage, not a relabeling.
-// [buildEvidenceOnlySchemaBucket]
-// is the companion measurement, live/rowgen-convergence.json's
-// evidence_only_schema field, computed by runConvergence over the SAME
-// already-mutated proposals slice - it reads the mutation's own provenance
-// marker (argSourceIdentitySchemaEvidenceOnly) for Covered rather than
-// re-running the classifier a second time, so the artifact can never
-// disagree with what the mutating pass actually did.
 //
 // Measured at 1eeda7c026 (this branch's base): rowgen-buckets.json's
 // evidence_only count was 314 before this pass; live/survey-full.json
 // named 479 types with an identity schema at provider v6.59.0. Re-run
-// `go run ./tools/row-gen -convergence` and read evidence_only_schema
-// rather than trusting either figure literally - both artifacts have moved
-// under concurrent work all session, the way this file's own sibling
-// (schemafirst.go) already warns its own count will.
-
-// evidenceOnlySchemaBucket is live/rowgen-convergence.json's
-// evidence_only_schema field: issue #428's whole measurement, partitioning
-// every bucketEvidenceOnly type that also carries a provider identity
-// schema into Covered (this pass promoted it to bucketClientNamed) and
-// NotCovered (the schema exists but does not, by itself, name a pastable
-// argument - see [schemaGapClass]). NoIdentitySchema is the count of
-// bucketEvidenceOnly types the survey serves no identity schema for at
-// all - #428's own "remainder", ledgered outside this artifact (see
-// tools/row-gen/evidence-schema-gap.json).
-type evidenceOnlySchemaBucket struct {
-	EvidenceOnlyTotal int `json:"evidence_only_total"`
-
-	HasIdentitySchema int `json:"has_identity_schema"`
-
-	Covered      []string `json:"covered"`
-	CoveredCount int      `json:"covered_count"`
-
-	NotCovered      []evidenceOnlySchemaGapEntry `json:"not_covered"`
-	NotCoveredCount int                          `json:"not_covered_count"`
-
-	NoIdentitySchemaCount int `json:"no_identity_schema_count"`
-}
-
-// evidenceOnlySchemaGapEntry is one NotCovered candidate: a
-// bucketEvidenceOnly type with a provider identity schema this pass still
-// declines to source an argument from, and the class of reason - see
-// [schemaGapClass].
-type evidenceOnlySchemaGapEntry struct {
-	Type  string `json:"type"`
-	Class string `json:"class"`
-}
+// `go run ./tools/row-gen -evidence-gap` and read
+// tools/row-gen/evidence-schema-gap.json rather than trusting either figure
+// literally - both artifacts have moved under concurrent work all session,
+// the way this file's own sibling (schemafirst.go) already warns its own
+// count will.
 
 // applySchemaFirstArgName is classifyAll's issue #428 pass, mutating
 // proposals in place. See this file's own doc comment for the population,
@@ -233,43 +194,5 @@ func schemaGapClass(s surveyEntry) string {
 		return "ops-excluded"
 	default:
 		return "other"
-	}
-}
-
-// buildEvidenceOnlySchemaBucket is live/rowgen-convergence.json's
-// evidence_only_schema field, computed by runConvergence over proposals
-// AFTER applySchemaFirstArgName has already mutated them (loadProposals
-// runs classifyAll, which runs the mutation) - see this file's own doc
-// comment for why that ordering is deliberate rather than a second,
-// possibly-disagreeing recomputation.
-func buildEvidenceOnlySchemaBucket(proposals []proposal, survey map[string]surveyEntry) evidenceOnlySchemaBucket {
-	var covered []string
-	var notCovered []evidenceOnlySchemaGapEntry
-	noSchema := 0
-
-	for _, p := range proposals {
-		switch {
-		case p.Bucket == bucketClientNamed && p.ArgSource == argSourceIdentitySchemaEvidenceOnly:
-			covered = append(covered, p.TFType)
-		case p.Bucket == bucketEvidenceOnly:
-			s, ok := survey[p.TFType]
-			if !ok || s.Identity == nil {
-				noSchema++
-				continue
-			}
-			notCovered = append(notCovered, evidenceOnlySchemaGapEntry{Type: p.TFType, Class: schemaGapClass(s)})
-		}
-	}
-	sort.Strings(covered)
-	sort.Slice(notCovered, func(i, j int) bool { return notCovered[i].Type < notCovered[j].Type })
-
-	return evidenceOnlySchemaBucket{
-		EvidenceOnlyTotal:     len(covered) + len(notCovered) + noSchema,
-		HasIdentitySchema:     len(covered) + len(notCovered),
-		Covered:               covered,
-		CoveredCount:          len(covered),
-		NotCovered:            notCovered,
-		NotCoveredCount:       len(notCovered),
-		NoIdentitySchemaCount: noSchema,
 	}
 }

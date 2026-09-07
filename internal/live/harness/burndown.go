@@ -293,29 +293,29 @@ func rowgenUnannotatedMismatches() Entry {
 			"counts the ones that do not.",
 		Bound:      0,
 		Direction:  AtMost,
-		Measured:   ConvergenceJSON + " summary.unannotated_mismatches",
+		Measured:   MismatchesJSON + " summary.unannotated_mismatches",
 		Against:    AnnotationsJSON,
 		AgainstWhy: "The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.",
-		Instrument: "the committed convergence artifact plus the committed ledger, both read as JSON. " +
-			"Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift " +
+		Instrument: "the committed mismatch artifact plus the committed ledger, both read as JSON. " +
+			"Not a regeneration - tools/row-gen's TestMismatchLedgerMatchesCommitted is the drift " +
 			"half.",
 		BlindSpots: []string{
 			"This is generator-autonomy debt and not user-visible coverage. tools/row-gen/emit.go:41 " +
 				"copies every field of a ratified row verbatim, so a mismatch changes nothing a user " +
-				"experiences. adopted_unchanged from the same artifact is not coverage either and must " +
-				"not be quoted as such.",
-			"It compares only the mapped set. The types in summary.not_in_mapped_set have no proposal " +
-				"to compare at all and are outside this number - the -emit gate holds them to the same " +
-				"bar separately.",
+				"experiences. Issue #695 deleted the adopted-unchanged ratio this artifact's predecessor " +
+				"led with, for exactly that reason: it was read as coverage three sessions running.",
+			"It compares only the mapped set. The admitted types with no fresh proposal at all - " +
+				"admitted_total minus compared - are outside this number; the -emit gate holds them to " +
+				"the same bar separately.",
 		},
 		Denominator: &Denominator{
-			Name:  ConvergenceJSON + " summary.compared",
+			Name:  MismatchesJSON + " summary.compared",
 			Floor: 800,
 			Why: "A mismatch count falls when the compared set shrinks. The compared set is the admitted " +
 				"types the mapping reaches, so a loadMapping filter or an un-admission lowers this " +
 				"count without any extractor improving.",
 			Measure: func(r *Repo) (int, error) {
-				c, err := r.Convergence()
+				c, err := r.Mismatches()
 				if err != nil {
 					return 0, err
 				}
@@ -331,7 +331,7 @@ func rowgenUnannotatedMismatches() Entry {
 				"is either a regression or an unruled admission.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
-			c, err := r.Convergence()
+			c, err := r.Mismatches()
 			if err != nil {
 				return Reading{}, err
 			}
@@ -359,14 +359,14 @@ func rowgenUnannotatedMismatches() Entry {
 				return Reading{}, fmt.Errorf(
 					"%s has %d unmatched rows but its own summary.genuine_mismatches says %d; the header "+
 						"and the body disagree, so neither can be quoted",
-					ConvergenceJSON, len(mismatched), c.Summary.GenuineMismatches)
+					MismatchesJSON, len(mismatched), c.Summary.GenuineMismatches)
 			}
 			if len(unruled) != c.Summary.UnannotatedMismatches {
 				return Reading{}, fmt.Errorf(
 					"%s has %d unmatched rows with no ruling in %s but its own "+
 						"summary.unannotated_mismatches says %d; the artifact is counting rulings the "+
 						"ledger does not carry",
-					ConvergenceJSON, len(unruled), AnnotationsJSON, c.Summary.UnannotatedMismatches)
+					MismatchesJSON, len(unruled), AnnotationsJSON, c.Summary.UnannotatedMismatches)
 			}
 			return Reading{
 				Value:      len(unruled),
@@ -388,9 +388,9 @@ func rowgenAnnotationRulings() Entry {
 		Bound:      151,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
-		Against:    ConvergenceJSON,
-		AgainstWhy: "Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.",
-		Instrument: "the committed ledger read as JSON, cross-checked against the committed convergence " +
+		Against:    MismatchesJSON,
+		AgainstWhy: "Every ruling has to name a type the mismatch artifact compared, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.",
+		Instrument: "the committed ledger read as JSON, cross-checked against the committed mismatch " +
 			"artifact's type list.",
 		BlindSpots: []string{
 			"Size is not quality. A ruling whose Exit names no reachable fix counts the same as one that " +
@@ -398,13 +398,13 @@ func rowgenAnnotationRulings() Entry {
 			"Like the mismatch count, this is generator-autonomy debt. It ranks no user-visible work.",
 		},
 		Denominator: &Denominator{
-			Name:  ConvergenceJSON + " summary.admitted_total",
+			Name:  MismatchesJSON + " summary.admitted_total",
 			Floor: 850,
 			Why: "The cheapest way to delete a ruling is to un-admit the type it names, which moves the " +
 				"type into tools/row-gen/rejected.json and lowers this count while removing support. " +
 				"Pinning the admitted total makes that trade visible.",
 			Measure: func(r *Repo) (int, error) {
-				c, err := r.Convergence()
+				c, err := r.Mismatches()
 				if err != nil {
 					return 0, err
 				}
@@ -583,7 +583,7 @@ func rowgenAnnotationRulings() Entry {
 			if err != nil {
 				return Reading{}, err
 			}
-			c, err := r.Convergence()
+			c, err := r.Mismatches()
 			if err != nil {
 				return Reading{}, err
 			}
@@ -603,12 +603,12 @@ func rowgenAnnotationRulings() Entry {
 				return Reading{}, fmt.Errorf(
 					"%d ruling(s) in %s name a type neither %s compares nor the admission table carries, "+
 						"so nothing can ever retire them: %s",
-					len(orphaned), AnnotationsJSON, ConvergenceJSON, strings.Join(orphaned, " "))
+					len(orphaned), AnnotationsJSON, MismatchesJSON, strings.Join(orphaned, " "))
 			}
 			return Reading{
 				Value:      len(a.Rulings),
 				Population: SortedKeys(a.Rulings),
-				Note: fmt.Sprintf("every ruling names one of the %d types the convergence artifact carries, over %d admitted types",
+				Note: fmt.Sprintf("every ruling names one of the %d types the mismatch artifact carries, over %d admitted types",
 					len(known), c.Summary.AdmittedTotal),
 			}, nil
 		},

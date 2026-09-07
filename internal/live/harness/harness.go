@@ -356,7 +356,7 @@ func ValidateBurndown(entries []Entry) []error {
 }
 
 // Repo is a checkout, plus a one-shot cache for each artifact a measurement
-// reads. Several entries read live/rowgen-convergence.json and
+// reads. Several entries read live/rowgen-mismatches.json and
 // live/survey-full.json; parsing each once keeps the whole sweep well under
 // a second.
 type Repo struct {
