@@ -41,7 +41,7 @@ fault and requires the run to succeed.
 | Apply exactly what was approved | `just smoke apply-what-was-approved` | 4 min |
 | The boundary holds across provider configurations | `just smoke the-boundary-holds-across-regions` | 2 min |
 | A record-only composite identity survives cache loss without a duplicate create | `just smoke record-only-survives-cache-loss` | 2 min |
-| A replaced object's shadow is not a second claimant | `just smoke a-shadow-is-not-a-claimant` | 2 min |
+| A replaced object's shadow is not a second claimant | `just smoke a-shadow-is-not-a-claimant` | 3 min |
 | The boundary holds across accounts | `just smoke the-boundary-holds-across-accounts` | 2 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
@@ -1031,9 +1031,11 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
   just smoke a-shadow-is-not-a-claimant
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke a-shadow-is-not-a-claimant and report the "caught"
-line: it puts a second genuinely running instance behind the same address
-marker, and the plan must refuse rather than prune it.
+BREAK=1 just smoke a-shadow-is-not-a-claimant and report both "caught"
+lines: it puts a second genuinely running instance behind the same address
+marker, and the plan must refuse rather than prune it; then it patches the
+record to call a running, deposed object destroyed, and the read must
+refuse that.
 ```
 
 The steps as they print:
@@ -1058,15 +1060,30 @@ The steps as they print:
    address to the third.
 6. `the honest boundary` - what a tombstone authorises, which is one
    claimant leaving a collision set and nothing else.
-7. `teardown` - the estate destroyed.
+7. `a failed destroy leg writes no tombstone` - the other half of the
+   write side. A role that may do everything except
+   `ec2:TerminateInstances` is created and its fence confirmed with the
+   plain CLI first. Under that role, with `create_before_destroy` on, a
+   third replace creates the new instance and the platform refuses to
+   terminate the old one, so the apply exits non-zero. The CLI reports the
+   old instance `running`; the record file names the new one as
+   `identity.import_id`, the old one under `deposed`, and the old one
+   nowhere under `tombstone`, while step 4's two entries are still there.
+   The next plan carries the deposed object to its destroy rather than
+   pruning it. Nothing destroyed it, so nothing says it was.
+8. `teardown` - the estate destroyed, the deposed object with it.
 
-The `BREAK=1` run creates a second, genuinely running instance carrying the
-same estate and address markers as the survivor, with nothing recorded as
-having destroyed it. The plan must exit non-zero with `Two live resources
-claiming one address`, naming both live ids. This is the arm that makes the
-claim load-bearing: the same shape used to be waved through with a warning
-and exit 0, and a mechanism that quiets a dead object's marker is only safe
-if it still refuses a live one.
+The `BREAK=1` run has two arms. At step 5 it creates a second, genuinely
+running instance carrying the same estate and address markers as the
+survivor, with nothing recorded as having destroyed it. The plan must exit
+non-zero with `Two live resources claiming one address`, naming both live
+ids. This is the arm that makes the claim load-bearing: the same shape used
+to be waved through with a warning and exit 0, and a mechanism that quiets
+a dead object's marker is only safe if it still refuses a live one. At step
+7 it patches the record by hand to list the running, deposed instance under
+`tombstone`, the entry the write side produced before #901, and the read
+must catch it: an assertion that only ever reads an empty list is not
+load-bearing.
 
 ## Claim 19: the boundary holds across accounts
 
