@@ -38,7 +38,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
-	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -508,15 +507,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// uses, independently. Constructed here, before tofu.NewContext, for
 	// the same reason: this is the last point coreOpts can still be
 	// mutated.
-	var resolver *projection.NodeResolver
+	//
+	// GitHub issue #388's stamp half rides the same object but, since
+	// GitHub issue #644, NOT the same flag: the HCL-rewriting stamp that
+	// used to write markers for an opted-out run is gone, so gating the
+	// adjuster would leave that run with no marker writer at all. See
+	// live_mode.go's identical wiring for the whole argument, and
+	// [projection.NodeResolver.AdjustConfigValue]'s own doc comment for why
+	// one resolver serves both interfaces.
+	resolver := &projection.NodeResolver{}
+	coreOpts.ConfigValueAdjuster = resolver
 	if nodeResolveEnabled() {
-		resolver = &projection.NodeResolver{}
 		coreOpts.ResourceIdentityResolver = resolver
-		// GitHub issue #388's stamp half rides the same object and the same
-		// flag - see live_mode.go's identical wiring and
-		// [projection.NodeResolver.AdjustConfigValue]'s own doc comment for
-		// why one resolver serves both interfaces.
-		coreOpts.ConfigValueAdjuster = resolver
 	}
 
 	// Built here rather than just before the plan, where it used to be,
@@ -591,12 +593,20 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// A first pass that refuses is no longer fatal on its own: see
 	// [statelessResolve] for the second pass and the bound on it.
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
-	if resolver != nil {
+	if nodeResolveEnabled() {
 		// #364 unit B's landing note (item 3), mirrored from
 		// live_mode.go's PriorState: a per-instance static refusal
 		// becomes a warning under the flag, and the instance - still
 		// absent from resolutions - reaches the node resolver instead of
 		// aborting the run. See identity.DowngradeForNodeResolution.
+		//
+		// Gated on the FLAG, not on resolver != nil. Since GitHub issue
+		// #644 the resolver is built for every run, because it is also
+		// the marker writer, so a nil check here would downgrade a fatal
+		// static refusal on the opt-out path - where nothing downstream
+		// resolves the instance at all and the run would plan a create
+		// over an object it could not identify. live_mode.go's own copy
+		// reads r.nodeResolve for the same reason.
 		idDiags = identity.DowngradeForNodeResolution(idDiags)
 	}
 	diags = diags.Append(idDiags)
@@ -671,13 +681,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	// GitHub issue #388's plan-node seam, edge 3: the same record-store
 	// wrapper recordStoreForReads is built above, unconditionally now, so
-	// this is a reuse rather than a second construction. Gated on
-	// resolver != nil (the migration flag) rather than just on hintStore
-	// being non-nil: a flag-off run must see a byte-identical marker-sweep
-	// demand no matter what the record store holds, so this stays nil
-	// whenever the flag itself is off.
+	// this is a reuse rather than a second construction. Gated on the
+	// migration flag rather than just on hintStore being non-nil: a
+	// flag-off run must see a byte-identical marker-sweep demand no matter
+	// what the record store holds, so this stays nil whenever the flag
+	// itself is off. Read from [nodeResolveEnabled] rather than from
+	// resolver != nil since GitHub issue #644, which made the resolver
+	// unconditional because it is also the marker writer.
 	var recordShrinkStore *projection.RecordStore
-	if resolver != nil {
+	if nodeResolveEnabled() {
 		recordShrinkStore = recordStoreForReads
 	}
 
@@ -716,14 +728,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// few lines up - which is the ordinary case for this flag-only form
 	// and simply means step (a) never has anything to find); merged is
 	// the marker sweep's own resolutions, snapshotted into an index.
-	if resolver != nil {
+	{
 		resolver.RecordStore = recordShrinkStore
 		resolver.MarkerIndex = projection.NewMarkerIndex(merged)
 		resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
-		// GitHub issue #388's stamp half: the same estate name and
-		// markers-record selection statelessStamp is about to hand
-		// stamp.Request below, and the same disco.SlotTable() its Slots
-		// field reads (disco.SlotTable handles a nil disco already).
+		// GitHub issue #388's stamp half: the estate name and the
+		// markers-record selection the node writer stamps with, plus the
+		// slot table discovery worked out (disco.SlotTable handles a nil
+		// disco already).
 		resolver.Estate = estate
 		resolver.Selection = identity.SelectionFor(config)
 		resolver.Slots = disco.SlotTable()
@@ -740,7 +752,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		statelessView.Policy(statelessPolicyReport(nil, disco, nil, reconcile))
+		statelessView.Policy(statelessPolicyReport(nil, disco, reconcile))
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
@@ -853,9 +865,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// function. See that field's own doc comment for why leaving it unset
 	// would let the node adopt a client-named resource this run does not
 	// own.
-	if resolver != nil {
-		resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
-	}
+	resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
 
 	// classified and foreignReq are kept in outer scope, past the section
 	// they were computed for: the lookalike guard below needs the same
@@ -925,28 +935,17 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
-	// Marker stamping, before the plan runs, because it works by rewriting
-	// the configuration the plan is about to read. A marker conflict is fatal:
-	// the configuration claims an ownership this run cannot honor, and
-	// planning past it would act on a resource whose owner is in dispute. So
-	// is a resource that only its marker could ever find going unstamped,
-	// which is why the resolutions travel into the pass. policyUntag carries
-	// declared_tagged = "untag"'s released keys, worked out from the
-	// projection's own policy outcomes now that it has run.
-	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(pol))
-	recordBackedBlocks, recordBlocksDiags := recordBackedNeedsDiscoveryBlocks(ctx, recordShrinkStore, resolutions.NeedsDiscovery())
-	diags = diags.Append(recordBlocksDiags)
-	if recordBlocksDiags.HasErrors() {
-		diags = diags.Append(provs.close(ctx))
-		return 1, false, diags
-	}
-	stampRes, stampDiags := statelessStamp(ctx, config, estateFlag, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag, recordBackedBlocks)
-	diags = diags.Append(stampDiags)
-	if stampDiags.HasErrors() {
+	// The marker writer's estate name, said out loud when there is not one.
+	// Writing the markers themselves is [projection.NodeResolver.AdjustConfigValue]'s
+	// job, per instance, during the plan walk below; this is the one thing
+	// that seam cannot say for itself. See [statelessMarkerEstate], and
+	// GitHub issue #644 for what used to be here.
+	diags = diags.Append(statelessMarkerEstate(ctx, config, estateFlag))
+	if diags.HasErrors() {
 		return 1, false, diags
 	}
 
-	statelessView.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
+	statelessView.Policy(statelessPolicyReport(projResult, disco, reconcile))
 
 	// GitHub issue #348: evaluate the configuration's root-level `output`
 	// blocks against the projection now, in place, the same way a real
@@ -1137,46 +1136,6 @@ func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, n
 		out[r.Addr.String()] = deposed
 	}
 	return out
-}
-
-// recordBackedNeedsDiscoveryBlocks reduces
-// [statelessRecordBackedNeedsDiscoveryAddrs]'s own per-INSTANCE record
-// check to block granularity, for [statelessStampGaps]' escalation gate:
-// [stamp.Skip.Addr] and [identity.BlockDiscovery] are both keyed by
-// [addrs.ConfigResource] (the resource block, module-qualified, with no
-// instance key), never by the instance a record is written for. A block is
-// exempt from "this resource cannot be found again" only when EVERY one of
-// its instances that needs discovery already has a usable identity in the
-// record store - a for_each block half migrated, some instances recorded
-// and others not, still has to escalate for the ones that are not.
-//
-// store is nil under the same two conditions
-// [statelessRecordBackedNeedsDiscoveryAddrs] documents (no record store
-// opened, or the migration flag off), and this returns (nil, nil)
-// immediately in that case, which is what keeps a flag-off run's stamp-gap
-// diagnostics byte-identical: a nil map's lookup is always false, so
-// [statelessStampGaps] escalates exactly as it did before this existed.
-func recordBackedNeedsDiscoveryBlocks(ctx context.Context, store *projection.RecordStore, needs []identity.Resolution) (map[string]bool, tfdiags.Diagnostics) {
-	recordBacked, diags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, store, needs)
-	if store == nil || len(needs) == 0 {
-		return nil, diags
-	}
-	total := make(map[string]int, len(needs))
-	covered := make(map[string]int, len(needs))
-	for _, r := range needs {
-		key := r.Addr.ConfigResource().String()
-		total[key]++
-		if recordBacked[r.Addr.String()] {
-			covered[key]++
-		}
-	}
-	out := make(map[string]bool, len(total))
-	for key, n := range total {
-		if covered[key] == n {
-			out[key] = true
-		}
-	}
-	return out, diags
 }
 
 // statelessDiscover runs the marker discovery pass, wide enough to see the
@@ -1933,229 +1892,75 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 	return "", found, diags
 }
 
-// statelessStamp injects this estate's ownership markers into every taggable
-// resource that does not already declare them, so that the plan below shows
-// the tags being added and an apply of it would write them.
+// statelessMarkerEstate resolves the estate name the run's marker writer
+// will stamp with, and says out loud when there is not one.
 //
-// It runs after the estate-name derivation and after discovery on purpose:
-// stamping rewrites resource bodies, and the derivation reads tofu-estate
-// values back out of those same bodies. Deriving from a configuration this
-// function had already stamped would be the tool reading its own handwriting
-// and calling it the author's.
+// GitHub issue #644 is what is left of this function. It used to be
+// statelessStamp: it called internal/live/stamp, which injected the two
+// ownership marker tags by rewriting each resource's own HCL body, and it
+// re-read that pass's report for resources it had silently failed to mark.
+// That engine is gone. The marker writer is
+// [projection.NodeResolver.AdjustConfigValue], wired in as
+// tofu.ConfigValueAdjuster, which is handed one concrete instance's
+// already-evaluated configuration value and writes the two tags into it -
+// no HCL rewrite, no per-instance template, and no second implementation
+// of "which resources can carry a marker".
 //
-// With no estate name there is nothing to stamp with, and this is a warning
-// rather than an error - the same graceful degradation discovery makes. A
-// configuration that has never used markers still plans; it just does not
-// gain them, and the warning says what to pass.
-// slotTable is the slot each count instance carries, as discovery worked it
-// out from the live set. It is nil when discovery did not run or found no
-// count blocks, which is what tells the stamping pass to write no tofu-slot
-// tags: a slot is a fact about the live estate, and a run that did not read
-// the live estate has no business inventing one.
+// What did NOT move to that seam is this: the resolver needs an estate
+// name, and a run that has none has to be told so once, in words that say
+// which of the three ways it got there. AdjustConfigValue's own Estate ==
+// "" branch writes nothing and stays silent precisely because this
+// function has already spoken (see that method's doc comment). So this
+// runs unconditionally, before the plan walk reaches the first instance,
+// exactly where the stamping pass used to.
 //
-// needsDiscovery names the resource blocks whose instances can only be found
-// by their ownership marker. It travels in because the severity of "this
-// resource did not get its markers" depends on it: a bucket named by its own
-// configuration survives being unmarked, and a subnet does not - it becomes a
-// resource no later run can see, and every later plan proposes creating
-// another one. See [stamp.Request.NeedsDiscovery].
+// It still runs after the estate-name derivation for the reason the
+// rewrite made load-bearing and that has not gone away: the derivation
+// reads tofu-estate values out of the configuration, and a marker writer
+// that had already put some there would be the tool reading its own
+// handwriting and calling it the author's. The node path never writes into
+// the configuration at all, so the ordering is now merely correct rather
+// than critical.
 //
-// The pass's result comes back rather than being dropped on the floor: what a
-// run stamped, and what it did not, is the record of whether the estate's
-// ownership is intact after this plan, and a caller that cannot see it cannot
-// check anything about it (audit finding C2).
-//
-// recordBackedBlocks is [recordBackedNeedsDiscoveryBlocks]'s result, or nil
-// for a flag-off run - see that function's own doc comment for what it
-// means and why [statelessStampGaps] is where it has to apply.
-//
-// GitHub issue #451: with [nodeResolveEnabled] true (the default since
-// #388's own flip), this whole pass - the HCL rewrite in
-// internal/live/stamp - does not run at all, and this function returns nil
-// with no diagnostic, the same nil [stamp.Result] every caller already
-// tolerates from the no-estate-name branch below. The node path
-// (internal/live/projection.NodeResolver.AdjustConfigValue, wired in as
-// tofu.ConfigValueAdjuster) writes the same two tags per instance, and as
-// of this issue also carries the marker-conflict refusal and the #380
-// ignore_changes protection this pass used to be the only source of - see
-// nodestamp.go and nodestamp_ignorechanges.go. This is the redo of the
-// gate the branch live/retire-stamp-gate (sha bb4299bc1e) attempted and
-// reverted: that attempt gated this pass with neither capability ported
-// yet, and TestLivePlan_markerConflictIsFatal and
-// TestLivePlan_markersRecordPreservesExistingMarker (plus its
-// _NodeResolve twin) failed. Both are green with the gate in place now.
-func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]identity.BlockDiscovery, policyUntag map[string]string, recordBackedBlocks map[string]bool) (*stamp.Result, tfdiags.Diagnostics) {
+// With no estate name this is a warning rather than an error - the same
+// graceful degradation discovery makes. A configuration that has never
+// used markers still plans; it just does not gain them, and the warning
+// says what to pass.
+func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFlag string) tfdiags.Diagnostics {
 	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
-	if diags.HasErrors() {
-		return nil, diags
-	}
-
-	if estate == "" {
-		switch {
-		case len(declared) == 0:
-			return nil, diags.Append(tfdiags.Sourceless(
-				tfdiags.Warning,
-				"Ownership markers not stamped",
-				fmt.Sprintf(
-					"This run has no estate name, so the %s and %s tags from live/MARKERS.md were not added to the resources that do not already carry them: nothing in the configuration stamps a tofu-estate tag with a value readable from configuration alone, and no -estate=<name> was given. Resources this configuration creates or updates will carry no ownership marker, which means a later run cannot find them by marker and will report them as foreign. Pass -estate=<name> to stamp them.",
-					discovery.TagEstate, discovery.TagAddress,
-				),
-			))
-		case len(declared) == 1:
-			return nil, diags.Append(tfdiags.Sourceless(
-				tfdiags.Warning,
-				"Ownership markers not stamped",
-				fmt.Sprintf(
-					"The configuration stamps %s = %q, which does not match the marker grammar in live/MARKERS.md, so this run has no estate name to stamp missing markers with. Pass -estate=<name> to name the estate explicitly.",
-					discovery.TagEstate, declared[0],
-				),
-			))
-		default:
-			return nil, diags.Append(tfdiags.Sourceless(
-				tfdiags.Warning,
-				"Ownership markers not stamped",
-				fmt.Sprintf(
-					"Resources in this configuration stamp %s with %s. An estate is the unit of ownership and a run covers exactly one, so which of these to stamp the unmarked resources with is not something this command will pick. Pass -estate=<name> to say which.",
-					discovery.TagEstate, strings.Join(quoteAll(declared), " and "),
-				),
-			))
-		}
-	}
-
-	if nodeResolveEnabled() {
-		// GitHub issue #451: the plan-node seam's own marker-conflict
-		// detection and #380's ignore_changes protection
-		// (internal/live/projection/nodestamp.go and
-		// nodestamp_ignorechanges.go) now cover what this pass's HCL
-		// rewrite used to, on the node path - see the revert this redoes,
-		// issuecomment-5406571644 on #388, for why a blanket gate here was
-		// not safe until those two capabilities existed. Both writer paths
-		// (this one and NodeResolver.AdjustConfigValue) still agree on the
-		// two marker keys they write, so nothing downstream that reads
-		// res's tags needs to change - there is simply no res on this
-		// path, exactly as the no-estate-name branch above already
-		// produces nil, and every caller already tolerates that.
-		return nil, diags
-	}
-
-	res, stampDiags := stamp.Stamp(ctx, stamp.Request{
-		Estate:             estate,
-		Config:             config,
-		Schemas:            schemas,
-		Slots:              slotTable,
-		NeedsDiscovery:     needsDiscovery,
-		PolicyUntag:        policyUntag,
-		RecordBackedBlocks: recordBackedBlocks,
-	})
-	diags = diags.Append(stampDiags)
-	return res, diags.Append(statelessStampGaps(res, needsDiscovery, recordBackedBlocks))
-}
-
-// statelessStampGaps re-checks the stamping pass's own report against the
-// instances that can only be found by their marker.
-//
-// The pass already refuses to leave one of those unstamped, so this finds
-// nothing in a working build - which is the point of it. The bug this fixes
-// was not a missing rule but a discarded result: nothing downstream ever
-// looked at what stamping did, so a resource silently skipped stayed silently
-// skipped all the way into the cloud (audit finding C2). One reader of the
-// report, checking the one property that matters, is what makes that
-// impossible to reintroduce quietly.
-//
-// recordBackedBlocks is [recordBackedNeedsDiscoveryBlocks]'s result: a
-// block this run would otherwise escalate, but whose every needs-discovery
-// instance already has a usable identity in the estate's record store
-// (GitHub issue #364's write half - liveimport and write-back record an
-// untaggable instance's identity the same way a taggable one's marker
-// covers it). Such a block is not "lost to every future run" the way this
-// function's whole warning describes: the record is exactly the other way
-// to find it again, so escalating on top of it would refuse an estate
-// #364 already made safe. nil for a flag-off run - see that function's own
-// doc comment for why, and why this stays a no-op (a nil map's lookup is
-// always false) whenever it is.
-func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.BlockDiscovery, recordBackedBlocks map[string]bool) tfdiags.Diagnostics {
-	var diags tfdiags.Diagnostics
-	if res == nil || len(needsDiscovery) == 0 {
+	if diags.HasErrors() || estate != "" {
 		return diags
 	}
-	for _, skip := range res.Skipped {
-		// SkipModuleKeyedTrusted is exempt for the same reason
-		// SkipAlreadyStamped is: the resource HAS its markers. It is inside a
-		// for_each'd module and declares its own tags argument, which is the
-		// hand-stamped idiom live/LIMITATIONS.md documents, and stamping
-		// deliberately leaves it alone rather than failing to write anything.
-		// Treating it as a gap tells an operator their marker is missing
-		// while it sits in the file above the error. See #111.
-		//
-		// That exemption is only as sound as the reason it trusts, and until
-		// GitHub issue #379 it was not sound at all for the population reached
-		// here: this loop runs over resources that can ONLY be found by their
-		// marker, and stamping reported MODULE_KEYED_TRUSTED for any of them
-		// that merely SET a tags argument - `tags = var.tags` included - so a
-		// server-assigned resource about to be created with no marker on it
-		// was exempted by name. [stamp.SkipModuleKeyedTrusted] now requires
-		// tofu-address to be written as a literal key in the body before it
-		// claims the marker as the operator's, and GitHub issue #378 narrowed
-		// it further in the other direction: a keyed-module resource that
-		// declares no tofu-address is now STAMPED, through the module-prefix
-		// symbol, rather than skipped at all. So the population reaching this
-		// exemption is exactly the one that really does carry a hand-written
-		// marker. Do not re-derive either check in this function: one
-		// decision, in the pass that read the body, is the shape #111 taught.
-		//
-		// [stamp.SkipReason.Unknown] is exempt for a different reason, and
-		// it is GitHub issue #230's: that skip records that this run could
-		// not READ the type's schema, so whether the resource can carry a
-		// marker at all is unknown. Reporting an unknown as "applying this
-		// would create a resource this configuration can never find again"
-		// states a fact nothing established. tofu.Schemas can come back
-		// without a given type in three ordinary ways - a provider release
-		// that predates the type, two providers serving one type name (which
-		// statelessProviders.resourceSchemas drops rather than resolves), a
-		// partial acquisition - and each one fails the run later with a
-		// message that names the real problem.
-		//
-		// disco.Cause.BindsByName() is exempt for the reason
-		// [stamp.stamper.mustStamp] already exempts it from the ERROR this
-		// same skip would otherwise escalate to at stamp time: an untaggable
-		// instance whose name AWS itself refuses to issue twice is found by
-		// that name, marker or no marker (see [identity.DiscoveryUniqueName]).
-		// This function re-derives severity from res.Skipped independently of
-		// mustStamp's own verdict, and until this check existed it did not
-		// consult BindsByName at all - so every unique-name type (
-		// aws_cloudfront_cache_policy and siblings, issue #274) failed here
-		// on its very first apply, unconditionally, before discovery ever
-		// got a chance to bind it. mustStamp got this right from the start;
-		// this reader had silently regressed the same population it exists
-		// to protect.
-		disco, marked := needsDiscovery[skip.Addr.String()]
-		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !marked || disco.Cause.BindsByName() || recordBackedBlocks[skip.Addr.String()] {
-			continue
-		}
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Unstamped marker-only resource",
+
+	switch {
+	case len(declared) == 0:
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Ownership markers not stamped",
 			fmt.Sprintf(
-				"Marker stamping reported %s for %s: %s %s",
-				skip.Reason, skip.Addr, skip.Detail, stamp.UnmarkedDiscoveryDetail(skip.Addr, disco)),
+				"This run has no estate name, so the %s and %s tags from live/MARKERS.md were not added to the resources that do not already carry them: nothing in the configuration stamps a tofu-estate tag with a value readable from configuration alone, and no -estate=<name> was given. Resources this configuration creates or updates will carry no ownership marker, which means a later run cannot find them by marker and will report them as foreign. Pass -estate=<name> to stamp them.",
+				discovery.TagEstate, discovery.TagAddress,
+			),
+		))
+	case len(declared) == 1:
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Ownership markers not stamped",
+			fmt.Sprintf(
+				"The configuration stamps %s = %q, which does not match the marker grammar in live/MARKERS.md, so this run has no estate name to stamp missing markers with. Pass -estate=<name> to name the estate explicitly.",
+				discovery.TagEstate, declared[0],
+			),
+		))
+	default:
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Ownership markers not stamped",
+			fmt.Sprintf(
+				"Resources in this configuration stamp %s with %s. An estate is the unit of ownership and a run covers exactly one, so which of these to stamp the unmarked resources with is not something this command will pick. Pass -estate=<name> to say which.",
+				discovery.TagEstate, strings.Join(quoteAll(declared), " and "),
+			),
 		))
 	}
-	return diags
-}
-
-// statelessNeedsDiscovery is the set of resource blocks whose instances can
-// only be found by their ownership marker, keyed by module-qualified block
-// address, taken from identity resolution rather than from what discovery
-// managed to bind: an instance discovery found is still one that nothing but
-// its marker could have found.
-func statelessNeedsDiscovery(resolutions *identity.Result) map[string]identity.BlockDiscovery {
-	// The keying this needs - .Config(), not the keyed
-	// [addrs.AbsResourceInstance] resolution walks - and the reason it is
-	// load-bearing are both in
-	// [identity.Result.DiscoveryCausesByBlock]'s own doc comment, along with
-	// #111, the bug that came of this package and internal/live/check each
-	// keeping their own copy of it.
-	return resolutions.DiscoveryCausesByBlock()
 }
 
 // statelessUndiscoveredNote names what a run without discovery leaves

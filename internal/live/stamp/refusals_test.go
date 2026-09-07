@@ -16,9 +16,16 @@ import (
 //
 // It parses this package's own non-test source and requires every diagnostic
 // Summary it finds to be in the registry, and every registry entry to be
-// produced somewhere. Two of the four summaries reach hcl.Diagnostic through
-// a parameter rather than as a literal field, which is why they are declared
-// as Summary-prefixed constants; see refusals.go.
+// produced somewhere.
+//
+// Since GitHub issue #644 retired the HCL-rewriting engine, this package
+// raises no diagnostic of its own at all: the three registry entries are
+// produced by internal/live/check's node-path port and by
+// internal/live/projection, and the scan's job here is the other direction
+// - that no summary literal creeps back into this package outside the
+// registry. [refusalscan.Params.Registered] is satisfied by the constants
+// in summaries.go, which is why they stay constants rather than becoming
+// literals at their raising sites.
 func TestRefusalsRegistered(t *testing.T) {
 	summaries := make([]string, 0, len(refusals))
 	whats := map[string]string{}
@@ -31,9 +38,5 @@ func TestRefusalsRegistered(t *testing.T) {
 		SkipFile:   "refusals.go",
 		Registered: summaries,
 		What:       whats,
-		// unstampableAt takes its summary as a parameter; every caller
-		// passes one of the constants above, and those are what the scan
-		// records.
-		DynamicSites: []string{"unstampableAt"},
 	})
 }

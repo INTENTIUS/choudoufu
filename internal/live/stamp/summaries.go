@@ -14,23 +14,14 @@ package stamp
 
 // The summaries themselves, as constants.
 //
-// Two of the four reach hcl.Diagnostic through [stamper.unstampableAt]'s
-// summary parameter rather than as a literal field, which is invisible to
-// any scanner reading the diagnostic literals. internal/live/identity hit
-// the same problem with schema_verify.go and settled on this convention: a
-// Summary-prefixed package constant, which [TestRefusalsRegistered] finds
-// wherever it is used.
+// GitHub issue #644 retired five of the eight. What is left is what a run
+// can still produce now that the marker writer is
+// [projection.NodeResolver.AdjustConfigValue] rather than an HCL rewrite;
+// each is raised outside this package, which is why they are constants
+// here rather than literals at the raising site. See refusals.go for the
+// per-entry account of what went and why.
 const (
-	SummaryMarkerConflict    = "Ownership marker conflict"
-	SummaryMarkerUncheckable = "Ownership marker could not be checked"
-	SummaryNotStamped        = "Ownership markers not stamped"
-	SummaryUnmarkedApply     = "Unmarked apply of a marker-only resource"
-	SummarySharedBody        = "Two resources share one configuration body"
-
-	// The three caller errors, raised through tfdiags.Sourceless. They were
-	// invisible to the first version of the scanner, which read diagnostic
-	// literals only; an audit counted them.
-	SummaryNoEstateName = "No estate name to stamp with"
-	SummaryNoConfig     = "No configuration to stamp"
-	SummaryNoSchemas    = "No provider schemas for marker stamping"
+	SummaryMarkerConflict = "Ownership marker conflict"
+	SummaryNotStamped     = "Ownership markers not stamped"
+	SummaryUnmarkedApply  = "Unmarked apply of a marker-only resource"
 )

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=624 instances=1107
-# shape: class CONCRETE=607
-# shape: class NEEDS_DISCOVERY=411
+# shape: dirs=624 instances=1108
+# shape: class CONCRETE=606
+# shape: class NEEDS_DISCOVERY=413
 # shape: class PARENT_DERIVED=62
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=5f65f9027034044b66bba229aeb930e87dc5c9e485be5e3b43db76359ba773ca
+# shape: body-sha256=5f18de0819e3e8acacd9e567584e2f190a41f6a5edf9386c2574afe5dbae3adf
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -24,6 +24,8 @@ internal/live/check/testdata/managed-result-foreach-unset-var	aws_acm_certificat
 internal/live/check/testdata/managed-result-foreach-var-key	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
+internal/live/check/testdata/stamp-uniquename-exempt	aws_cloudfront_cache_policy.exempt	NEEDS_DISCOVERY		
+internal/live/check/testdata/stamp-uniquename-exempt	aws_cloudfront_cache_policy.refused	NEEDS_DISCOVERY		
 internal/live/check/testdata/strict-markers-record	aws_ebs_volume.selected	NEEDS_DISCOVERY		
 internal/live/check/testdata/strict-markers-record	aws_vpc.unselected	NEEDS_DISCOVERY		
 internal/live/check/testdata/strict-markers-unrecordable	aws_vpc.main	NEEDS_DISCOVERY		
@@ -1097,7 +1099,6 @@ live/e2e/limits/null-resource	null_resource.trigger	RECORD_BACKED
 live/e2e/limits/overlong-address	aws_s3_bucket.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	CONCRETE	tofu-stateless-limits-overlong-address	bucket=tofu-stateless-limits-overlong-address
 live/e2e/limits/random-password	random_password.db	RECORD_BACKED		
 live/e2e/limits/remote-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-remote-exec	bucket=tofu-stateless-limits-remote-exec
-live/e2e/limits/reserved-symbol	aws_s3_bucket.reserved	CONCRETE	tofu-stateless-limits-reserved-symbol	bucket=tofu-stateless-limits-reserved-symbol
 live/e2e/limits/terraform-data	terraform_data.trigger	RECORD_BACKED		
 live/e2e/limits/time-sleep	time_sleep.wait	RECORD_BACKED		
 live/e2e/limits/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	limits-undeclared-provider-alias	bucket=limits-undeclared-provider-alias

@@ -159,7 +159,8 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// Issue #224's stamp pass, GitHub issue #454's port: this offline
 	// instrument runs LayerStamp from the node-resolve path's own
 	// primitives ([nodeStampDiagnostics], nodestamp.go) rather than
-	// [stamp.Stamp] - the maintainer's ruling on #454 requires this port,
+	// stamp.Stamp, the HCL-rewrite engine GitHub issue #644 has since
+	// deleted - the maintainer's ruling on #454 requires this port,
 	// demonstrated to report the same thing, before #452 may delete
 	// stamp.Stamp's HCL rewrite. See nodestamp.go's own doc comment for
 	// what is and is not reproduced, and why. This runs right after the

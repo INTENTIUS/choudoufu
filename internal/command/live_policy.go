@@ -17,7 +17,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/live/untag"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -183,45 +182,23 @@ func statelessPolicyTagKey(pol *policy.Policy) string {
 	return pol.TagKey
 }
 
-// statelessPolicyUntagMap turns the declared-quadrant policy outcomes a
-// projection recorded into the block-address-to-tag-key map
-// [stamp.Request.PolicyUntag] needs: every instance whose verb was
-// [policy.Untag], keyed by its resource block's address (stamping works at
-// block granularity - see [stamp.Request.PolicyUntag]'s own doc comment for
-// why).
-//
-// The key is built as [addrs.ConfigResource], module-qualified, to match
-// the address stamping's own PolicyUntag lookup uses (see
-// internal/live/stamp's markerObject caller): 59b's static-module
-// traversal means a declared_tagged instance's block can be inside a
-// module, and collapsing that to the bare resource address the way a
-// root-only build once could would either miscount two same-named blocks
-// in different modules as one, or simply never match stamp's own key at
-// all.
-func statelessPolicyUntagMap(outcomes []projection.PolicyOutcome, tagKey string) map[string]string {
-	if len(outcomes) == 0 {
-		return nil
-	}
-	out := make(map[string]string)
-	for _, o := range outcomes {
-		if o.Verb != policy.Untag {
-			continue
-		}
-		cr := addrs.ConfigResource{Module: o.Addr.Module.Module(), Resource: o.Addr.Resource.Resource}
-		out[cr.String()] = tagKey
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
 // statelessPolicyReport assembles GitHub issue #67's policy report for the
 // stateless plan view, from every stage that touched a non-default verb:
 // the projection's declared-quadrant outcomes, discovery's withheld
-// undeclared_tagged orphans, marker stamping's released tag keys, and the
-// scoped reconciliation pass's roster.
-func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, stampRes *stamp.Result, rec *discovery.ReconcileResult) views.StatelessPolicyReport {
+// undeclared_tagged orphans, and the scoped reconciliation pass's roster.
+//
+// A fourth source used to feed it: internal/live/stamp's report of which
+// tag keys a declared_tagged = "untag" verb had made it withhold, which
+// reached [views.StatelessPolicyReport.Untagged]. That suppression lived
+// only in the HCL-rewriting stamp, and it stopped happening on 2026-08-25
+// when CHOUDOUFU_NODE_RESOLVE defaulted on and the node-path writer -
+// which has no equivalent of stamp.Request.PolicyUntag - took over; GitHub
+// issue #644 deleted the unreachable implementation. The view's Untagged
+// section is therefore empty on every run and has been for a fortnight.
+// Porting the verb to [projection.NodeResolver.AdjustConfigValue] is real
+// work with its own decisions (a per-instance withhold, not a per-block
+// one) and is not this issue's.
+func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, rec *discovery.ReconcileResult) views.StatelessPolicyReport {
 	var rep views.StatelessPolicyReport
 
 	if projResult != nil {
@@ -247,16 +224,6 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 				Marker:      o.Normalized,
 				Verb:        string(o.PolicyVerb),
 				Withheld:    o.Withheld,
-			})
-		}
-	}
-
-	if stampRes != nil {
-		for _, u := range stampRes.Untagged {
-			rep.Untagged = append(rep.Untagged, views.StatelessUntagged{
-				Addr:         u.Addr.String(),
-				Key:          u.Key,
-				EstateMarker: u.EstateMarker,
 			})
 		}
 	}

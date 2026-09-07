@@ -23,15 +23,16 @@ import (
 )
 
 // GitHub issue #454. Until this file existed, [Analyze]'s LayerStamp
-// section called [stamp.Stamp] directly - the HCL-rewrite engine
-// GitHub issue #452 wants to delete - because it was the only offline
-// instrument that could answer LayerStamp's question at all. The
-// maintainer's ruling on #454 makes that the blocker: #452 may not delete
-// stamp.Stamp's HCL rewrite until this report has a node-resolve-path
-// equivalent demonstrated to report the SAME THING, not merely to run.
+// section called stamp.Stamp directly - the HCL-rewrite engine - because
+// it was the only offline instrument that could answer LayerStamp's
+// question at all. The maintainer's ruling on #454 made that the blocker:
+// the rewrite could not be deleted until this report had a
+// node-resolve-path equivalent demonstrated to report the SAME THING, not
+// merely to run. GitHub issue #644 deleted it on that basis, so this file
+// is now the only implementation of either question.
 //
-// This file is that equivalent. It answers the same two questions
-// [stamp.Stamp] did, from the same evidence [Analyze] already has in hand
+// It answers the same two questions the rewrite did, from the same
+// evidence [Analyze] already has in hand
 // (result, the identity resolution; and actx.Schemas, the provider
 // schemas), using the node path's own primitives instead of a second,
 // bespoke HCL-rewrite implementation:
@@ -49,14 +50,16 @@ import (
 //
 // # What is deliberately NOT reproduced, and why each is safe to drop
 //
-// [stamp.Refusals] lists eight summaries. Two of them - the marker-only
-// escalation above, plus its warning-severity cousin (no schema, or a
-// schema whose tags vocabulary itself refuses a marker) - are ported here.
-// The other six:
+// [stamp.Refusals] listed eight summaries when this port was written.
+// Two of them - the marker-only escalation above, plus its
+// warning-severity cousin (no schema, or a schema whose tags vocabulary
+// itself refuses a marker) - are ported here. The other six are not, and
+// GitHub issue #644 retired five of those from the registry on the
+// strength of this analysis:
 //
 //   - SummaryNoConfig, SummaryNoEstateName, SummaryNoSchemas: caller-error
-//     guards on [stamp.Request] itself (nil config, an invalid estate
-//     name, nil schemas). [Analyze] already guarantees all three before
+//     guards on the rewrite's own Request struct (nil config, an invalid
+//     estate name, nil schemas). [Analyze] already guarantees all three before
 //     it would ever reach this file - cfg is checked non-nil above,
 //     [estateForStamp] never returns a value [discovery.ValidEstateName]
 //     rejects, and flatSchemas(actx.Schemas) is never a nil INTERFACE
@@ -72,7 +75,7 @@ import (
 //     so this failure mode is not merely unmeasured here, it is
 //     structurally impossible under the node model. Zero sites in the
 //     corpus, and zero is the only value this refusal could ever produce
-//     once stamp.Stamp's text-rewrite is gone.
+//     once the text-rewrite is gone - which it now is.
 //   - The "tags argument exists but this pass's WRITE mechanism cannot
 //     append to it" half of SummaryNotStamped (a merge() call this pass
 //     cannot parse, an expression neither readable nor mergeable as HCL
@@ -102,8 +105,9 @@ import (
 // conflicting marker.
 
 // nodeStampDiagnostics is [Analyze]'s LayerStamp section, computed from the
-// node-resolve path's own primitives instead of [stamp.Stamp]. See this
-// file's own doc comment for what is and is not reproduced.
+// node-resolve path's own primitives rather than from a second, bespoke
+// HCL-rewrite implementation. See this file's own doc comment for what is
+// and is not reproduced.
 //
 // result is the identity resolution [Analyze] already computed; nil is
 // handled by the caller (Analyze only reaches this once result != nil).
@@ -120,8 +124,8 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 	return diags
 }
 
-// nodeStampUnmarkedApply is [stamp.Stamp]'s marker-only escalation
-// (stamp.go's mustStamp/unstampableAt pair), ported: for every resource
+// nodeStampUnmarkedApply is the retired rewrite's marker-only escalation
+// (its mustStamp/unstampableAt pair), ported: for every resource
 // block whose instances can only ever be found by their ownership marker
 // ([identity.Result.DiscoveryCausesByBlock]), can this run's node path
 // ([projection.NodeResolver.AdjustConfigValue]) actually write one?
@@ -246,8 +250,8 @@ func lookupResourceBlock(cfg *configs.Config, addr addrs.ConfigResource) (*confi
 	return rc, rc.DeclRange, true
 }
 
-// nodeStampMarkerConflicts is [stamp.Stamp]'s verify/verifyValue pair,
-// ported to reuse [projection.NodeResolver.AdjustConfigValue] - the same
+// nodeStampMarkerConflicts is the retired rewrite's verify/verifyValue
+// pair, ported to reuse [projection.NodeResolver.AdjustConfigValue] - the same
 // function the online node path calls per instance (GitHub issue #451) -
 // rather than re-deriving the comparison against a second implementation.
 //

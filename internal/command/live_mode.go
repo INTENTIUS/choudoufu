@@ -252,22 +252,34 @@ func statelessBegin(
 	// run with the opt-out is unaffected byte for byte by anything this
 	// seam does.
 	//
-	// ConfigValueAdjuster rides the same object and the same flag - GitHub
-	// issue #388's stamp half, [projection.NodeResolver.AdjustConfigValue] -
-	// for the reason that method's own doc comment gives: one resolver
-	// serves both tofu.ResourceIdentityResolver and tofu.ConfigValueAdjuster
-	// so the two seams can never read a different estate name or a
-	// different markers-record selection from each other. The nil contract
-	// for THIS field is proven the identical way
-	// (TestContext2Plan_resourceIdentityResolverNilContract also pins
-	// ConfigValueAdjuster nil/unset; see this package's own
-	// TestStatelessBegin_nodeResolveFlagOff for the live-side half of that
-	// proof).
+	// ConfigValueAdjuster rides the same object - GitHub issue #388's stamp
+	// half, [projection.NodeResolver.AdjustConfigValue] - for the reason
+	// that method's own doc comment gives: one resolver serves both
+	// tofu.ResourceIdentityResolver and tofu.ConfigValueAdjuster so the two
+	// seams can never read a different estate name or a different
+	// markers-record selection from each other.
+	//
+	// It does NOT ride the same flag, as of GitHub issue #644. Until then,
+	// CHOUDOUFU_NODE_RESOLVE=0 selected the static identity path AND the
+	// HCL-rewriting stamp in internal/live/stamp, so an opted-out run still
+	// had a marker writer. #644 deleted that engine. Leaving the adjuster
+	// behind the flag would therefore have made the opt-out a run that
+	// writes NO ownership markers at all - every created resource
+	// unmarked, silently, which is the failure HANDOFF's safety rule is
+	// about pointed at the write side. So the marker writer is now
+	// unconditional and the flag governs only what it always named:
+	// whether identity RESOLUTION goes through the node
+	// ([nodeResolveEnabled], and runner.nodeResolve below).
+	//
+	// Populating the resolver unconditionally is safe for the same reason:
+	// the fields the identity path reads (RecordStore, MarkerIndex,
+	// NoSourceCreate, Unowned) are only ever read from
+	// ResolveResourceIdentity, which an opted-out run never installs.
+	runner.resolver = &projection.NodeResolver{}
+	local.ContextOpts.ConfigValueAdjuster = runner.resolver
 	if nodeResolveEnabled() {
 		runner.nodeResolve = true
-		runner.resolver = &projection.NodeResolver{}
 		local.ContextOpts.ResourceIdentityResolver = runner.resolver
-		local.ContextOpts.ConfigValueAdjuster = runner.resolver
 	}
 
 	// The manager's Lock is already a no-op, so this is redundant on purpose.
@@ -1044,10 +1056,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// exist - r.recordStore (open or nil a few lines above) and the
 	// marker sweep's own resolutions, snapshotted into an address-keyed
 	// index because the sweep itself has already finished by the time
-	// anything calls the resolver. r.resolver is nil whenever
-	// r.nodeResolve is false, so this whole block is a no-op for every run
-	// that has not opted into the migration flag.
-	if r.nodeResolve {
+	// anything calls the resolver. Since GitHub issue #644 the resolver is
+	// built for every run, because it is the marker writer as well as the
+	// identity resolver (see statelessBegin), so this block is
+	// unconditional too: an opted-out run needs Estate, Selection and
+	// Slots to stamp with, and the three identity fields it does not need
+	// are read only from a method it never installs.
+	{
 		r.resolver.RecordStore = r.recordStore
 		r.resolver.MarkerIndex = projection.NewMarkerIndex(merged)
 		r.resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
@@ -1076,7 +1091,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		r.view.Policy(statelessPolicyReport(nil, disco, nil, reconcile))
+		r.view.Policy(statelessPolicyReport(nil, disco, reconcile))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
@@ -1174,9 +1189,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// function. See that field's own doc comment for why leaving it unset
 	// would let the node adopt a client-named resource this run does not
 	// own.
-	if r.nodeResolve {
-		r.resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
-	}
+	r.resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
 
 	var classified *foreign.Result
 	if disco != nil {
@@ -1212,35 +1225,17 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		disco != nil,
 	))
 
-	// The schemas are read before the plan rather than after it because
-	// stamping needs them: which resource types can carry an ownership marker
-	// is a question only the provider's schema answers.
-	schemas, schemaDiags := core.Schemas(ctx, config, projResult.State)
-	diags = diags.Append(schemaDiags)
-	if schemaDiags.HasErrors() {
+	// The marker writer's estate name, said out loud when there is not one.
+	// Writing the markers themselves is [projection.NodeResolver.AdjustConfigValue]'s
+	// job, per instance, during the plan walk; this is the one thing that
+	// seam cannot say for itself. See [statelessMarkerEstate], and GitHub
+	// issue #644 for what used to be here.
+	diags = diags.Append(statelessMarkerEstate(ctx, config, estate))
+	if diags.HasErrors() {
 		return nil, diags
 	}
 
-	// Marker stamping, by rewriting the configuration the plan is about to
-	// read. A marker conflict is fatal: the configuration claims an ownership
-	// this run cannot honor. So is a resource whose identity the provider
-	// assigns going unstamped - this is the apply path, so an unmarked create
-	// here is a resource lost to every future run. policyUntag carries
-	// declared_tagged = "untag"'s released keys, worked out from the
-	// projection's own policy outcomes now that it has run.
-	policyUntag := statelessPolicyUntagMap(projResult.Policy, statelessPolicyTagKey(r.policy))
-	recordBackedBlocks, recordBlocksDiags := recordBackedNeedsDiscoveryBlocks(ctx, recordShrinkStore, resolutions.NeedsDiscovery())
-	diags = diags.Append(recordBlocksDiags)
-	if recordBlocksDiags.HasErrors() {
-		return nil, diags
-	}
-	stampRes, stampDiags := statelessStamp(ctx, config, estate, schemas, disco.SlotTable(), statelessNeedsDiscovery(resolutions), policyUntag, recordBackedBlocks)
-	diags = diags.Append(stampDiags)
-	if stampDiags.HasErrors() {
-		return nil, diags
-	}
-
-	r.view.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
+	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
 	// applyOrphanPolicy withheld from the sweep because a non-default verb
