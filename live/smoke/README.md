@@ -249,12 +249,17 @@ showing its own checks would have caught it.
   the identities this estate's own applies destroyed, capped at eight
   per address, both asserted by value off the record file. The plan
   then exits 0, drops exactly those two, names each in a displaced-marker
-  warning that proposes nothing, and binds the address to the third. The
-  BREAK control puts a second genuinely RUNNING instance behind the same
-  markers with no tombstone naming it: the plan must refuse with "Two
-  live resources claiming one address" naming both live ids, because a
-  tombstone is evidence an object is dead and never permission to touch
-  one that is not.
+  warning that proposes nothing, and binds the address to the third. Then
+  a create_before_destroy replace under a role the platform denies
+  ec2:TerminateInstances leaves the old instance running and deposed, and
+  the record names it under deposed and nowhere under tombstone (#901):
+  nothing destroyed it, so nothing says it was. The BREAK control puts a
+  second genuinely RUNNING instance behind the same markers with no
+  tombstone naming it: the plan must refuse with "Two live resources
+  claiming one address" naming both live ids, because a tombstone is
+  evidence an object is dead and never permission to touch one that is
+  not; and then patches the record to call the deposed, running object
+  destroyed, which the read must catch.
 
 - **the-boundary-holds-across-accounts** - *Claim 19: the boundary holds
   across accounts.* Claim 16's estate with the other axis swapped: two
