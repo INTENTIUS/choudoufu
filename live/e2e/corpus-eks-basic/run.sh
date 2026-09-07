@@ -1943,7 +1943,23 @@ EOF
   F_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_security_group/$(record_key "$F_ADDR")"
 
   log "=== F0. capture the live security group and its record ahead of the forced replace ==="
-  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  if [ ! -f "$F_RECORD" ]; then
+    # Failure-path diagnostic (the first CI run to reach this stage, issue
+    # #946's proof run 34148499982, failed here while the same commit passes
+    # on a laptop): print what the store actually holds, with owner and
+    # mode, and every key decoded, so the next occurrence names the record
+    # that IS there instead of only the one that is not. The store is
+    # written by choudoufu inside the toolbox container, as whatever user
+    # docker runs it as, and read here on the host.
+    log "  expected: $F_RECORD"
+    log "  host user: $(id -u):$(id -g) ($(id -un)); store tree with owner:mode:"
+    find "$ADOPTED/.tofu-records" -maxdepth 4 -exec stat -c '    %U:%G %a %n' {} \; 2>/dev/null | head -60 | while IFS= read -r line; do log "$line"; done
+    log "  record keys decoded (type/address):"
+    find "$ADOPTED/.tofu-records/tofu-records/$ESTATE" -mindepth 2 -maxdepth 2 -type f 2>/dev/null | while IFS= read -r f; do
+      log "    $(basename "$(dirname "$f")")/$(basename "$f" | tr '_-' '/+' | base64 -d 2>/dev/null || echo '<undecodable>')"
+    done
+    fail "no local record file found for $F_ADDR ahead of day2_replace"
+  fi
   F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
   [ "$F_OLD_IMPORT_ID" = "$SG2_ID_D" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $SG2_ID_D"
   F_OLD_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG2_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
