@@ -187,7 +187,7 @@ func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, 
 		return "", verdictOwnObject
 	}
 	res := entry.res
-	if res.Class != identity.ClassConcrete {
+	if !classTable[res.Class].comparableIdentity {
 		return "", verdictOwnObject
 	}
 

@@ -218,7 +218,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 			base[key] = r
 			return
 		}
-		if existing.Class != identity.ClassConcrete && r.Class == identity.ClassConcrete {
+		if !classTable[existing.Class].boundResolution && classTable[r.Class].boundResolution {
 			base[key] = r
 		}
 	}
