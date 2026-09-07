@@ -53,6 +53,49 @@ whether a construct is usable.
 
 ## Enforced today
 
+The roster below is generated from `internal/live/lint`'s own rule table and
+from the fixture tree, by `tools/limits-gen` (`just limits`). The entries
+under it are hand-written and stay that way - what a construct is, why it is
+banned, where to put it instead and how the refusal is enforced is prose
+nobody should generate - but the index of them is not, so a rule that arrives
+with no entry, or an entry whose fixture directory has been renamed out from
+under it, fails the render instead of going unnoticed (GitHub issue #698).
+
+<!-- limits-gen:begin lint-roster -->
+| Rule | Summary | Severity | Documented at | Fixture |
+|---|---|---|---|---|
+| `child-live-config` | Live configuration in a child module is not consulted | error | "child-live-config" | `live/e2e/limits/child-live-config/` |
+| `child-module` | This module call cannot be expanded under live resource markers | error | "child-module" | `live/e2e/limits/child-module/` |
+| `count-index` | count.index is not available in resource arguments | error | "count-index-in-tag" | `live/e2e/limits/count-index-in-tag/` |
+| `for-each-key` | for_each key is outside the marker character set | error | "foreach-invalid-key" | `live/e2e/limits/foreach-invalid-key/` |
+| `ignore-changes` | Ownership markers would be ignored | error | "ignore-changes" | `live/e2e/limits/ignore-changes/` |
+| `logical-resource` | Logical resource is not admitted | error | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" | `live/e2e/limits/null-resource/`, `live/e2e/limits/terraform-data/`, `live/e2e/limits/local-file/`, `live/e2e/limits/random-password/`, `live/e2e/limits/time-sleep/` |
+| `markerless-type` | Resource type has nowhere to write an ownership marker | error | "markerless-type" | `live/e2e/limits/markerless-type/` |
+| `module-provider-block` | Provider block in a child module needs count, for_each, enabled or depends_on removed from its call chain | error | "module-provider-block" | `live/e2e/limits/module-provider-block/` |
+| `module-providers` | Module provider mapping is not honoured | error | "module-providers" | `live/e2e/limits/module-providers/` |
+| `moved-block` | moved blocks are not available under live resource markers | error | "moved-block" | `live/e2e/limits/moved-block/` |
+| `overlong-address` | Resource address does not fit in a marker | error | "overlong-address" | `live/e2e/limits/overlong-address/` |
+| `policy-scope` | Delete quadrant has no scope block | error | "policy-scope" | `live/e2e/limits/policy-scope/` |
+| `policy-threshold` | Policy threshold is not a positive number | error | "policy-threshold" | `live/e2e/limits/policy-threshold/` |
+| `policy-verb` | Policy verb is not valid for its quadrant | error | "policy-verb" | `live/e2e/limits/policy-verb/` |
+| `provisioner` | Provisioners are not available under live resource markers | error | "local-exec" / "remote-exec" | `live/e2e/limits/local-exec/`, `live/e2e/limits/remote-exec/` |
+| `receipt-leaf` | Nothing may reference a receipt's attributes | error | live/RECEIPTS.md, "Guard 4. The leaf rule" | none |
+| `receipt-secret` | Receipt inputs reference secrets by pointer, never by value | error | live/RECEIPTS.md, "Secrets discipline" | none |
+| `receipt-value` | A receipt's value is a hash or a constant, and its type is never SecureString | error | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" | none |
+| `reserved-symbol` | This symbol is reserved for the ownership marker scheme | error | "reserved-symbol" | `live/e2e/limits/reserved-symbol/` |
+| `state-backend` | State backends are not available under live resource markers | warning | "backend-block" / "cloud-block" | `live/e2e/limits/backend-block/`, `live/e2e/limits/cloud-block/` |
+| `strict-marker-repair` | Marker repair setting is not one this build implements | error | "strict-marker-repair" | `live/e2e/limits/strict-marker-repair/` |
+| `strict-markers` | Markers selection cannot be read as a selection | error | "strict-markers" | `live/e2e/limits/strict-markers/` |
+| `strict-markers-unrecordable` | Markers selection reaches a type no record can identify | error | "strict-markers-unrecordable" | `live/e2e/limits/strict-markers-unrecordable/` |
+| `strict-no-source-create` | No-source-create setting is not one this fork's schema defines | error | "strict-no-source-create" | `live/e2e/limits/strict-no-source-create/` |
+| `strict-provider-change` | Provider-change setting is not one this fork's schema defines | error | "strict-provider-change" | `live/e2e/limits/strict-provider-change/` |
+| `strict-secrets` | Secrets setting is not one this fork's schema defines | error | "strict-secrets" | `live/e2e/limits/strict-secrets/` |
+| `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
+| `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
+
+**28 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 25 of the 28 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+<!-- limits-gen:end lint-roster -->
+
 ### local-exec
 
 **Construct.** `provisioner "local-exec"` on a resource, in an estate whose
@@ -2656,6 +2699,26 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 1 configuration in the measured corpus, at 4 sites.
 
+#### Resource type outside the live-markers subset
+
+**What.** The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 1 site.
+
+**Full entry.** `live/LIMITATIONS.md`, "unadmitted-type" - hand-written, and the authority on this refusal.
+
+#### Two resources with the same identity
+
+**What.** Two resource blocks resolve to one identity, so one live object would have two owners.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 1 site.
+
+**Full entry.** `live/LIMITATIONS.md`, "duplicate-identity" - hand-written, and the authority on this refusal.
+
 #### Cross-stack outputs unavailable
 
 **What.** A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, at read time, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.
@@ -2695,6 +2758,16 @@ reserved for the limits wing's fixture directories, and
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Address too long to carry an ownership marker
+
+**What.** A resource instance's address, escaped for a tag value, is longer than the tofu-address tag and its continuations can hold, so no live object can carry it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+**Full entry.** `live/LIMITATIONS.md`, "overlong-address" - hand-written, and the authority on this refusal.
 
 #### Cannot list the record store
 
@@ -2824,6 +2897,16 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Marked resource abandoned by a provider configuration change
+
+**What.** The same situation the refusal above names, under `strict { provider_change = "recreate" }`: the operator has said in the configuration that the old provider configuration's object is to be left behind. A warning, and the only notice there will ever be - the object stays live, keeps this estate's markers, and no plan will propose anything for it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+**Full entry.** `live/LIMITATIONS.md`, "strict-provider-change" - hand-written, and the authority on this refusal.
+
 #### Marked resource outside its address's provider configuration
 
 **What.** A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.
@@ -2951,6 +3034,16 @@ reserved for the limits wing's fixture directories, and
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unscoped account reconciliation refused
+
+**What.** Account reconciliation was asked to run with no scope narrowing what it may reach. Refused here as well as at lint time, so a caller that skipped lint does not get an account-wide purge.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+**Full entry.** `live/LIMITATIONS.md`, "policy-scope" - hand-written, and the authority on this refusal.
 
 #### Ambiguous attribute key
 
@@ -3456,6 +3549,16 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Secret-generating resource refused
+
+**What.** A record-backed type whose schema carries secret material (identity.TypeIdentity.SecretMaterial) is named by a configuration whose live block sets strict { secrets = "refuse" }. The record holding such a type's whole prior state would hold the secret in clear, which that setting is the instruction not to do. internal/live/lint refuses the configuration first; this is the same question asked again at the layer that acts.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+**Full entry.** `live/LIMITATIONS.md`, "strict-secrets" - hand-written, and the authority on this refusal.
+
 #### Sensitive count expression
 
 **What.** A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.
@@ -3583,6 +3686,16 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### for_each key cannot be recorded as a marker
+
+**What.** A for_each key contains a character the tofu-address marker cannot carry.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+**Full entry.** `live/MARKERS.md`, "Ownership semantics" - hand-written, and the authority on this refusal.
 
 #### for_each over a resource that is not keyed
 
