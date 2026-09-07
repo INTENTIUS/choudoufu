@@ -379,7 +379,10 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		noteDeclaredSighting(req, decl, res, bindType, escaped, importID)
 
 		if entry, ok := decl.entryFor(bindType, escaped); ok {
-			entry.claimants = append(entry.claimants, c)
+			// [declaredEntry.addClaimant], not a bare append: this leg and
+			// the estate-wide tag sweep can both enumerate one declared type
+			// in the same pass, and they then see the same live object.
+			entry.addClaimant(c)
 			continue
 		}
 		if decl.declares(bindType, escaped) {

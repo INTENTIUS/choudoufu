@@ -2348,9 +2348,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		noteDeclaredSighting(req, decl, res, bindType, escaped, importID)
 
 		if entry, ok := decl.entryFor(bindType, escaped); ok {
-			if !claimantAlreadyPresent(entry.claimants, c) {
-				entry.claimants = append(entry.claimants, c)
-			}
+			entry.addClaimant(c)
 			continue
 		}
 		if decl.declares(bindType, escaped) {
@@ -3014,6 +3012,44 @@ func claimantAlreadyPresent(cs []claimant, c claimant) bool {
 		}
 	}
 	return false
+}
+
+// addClaimant files one live sighting on this entry, once. It is
+// [claimantAlreadyPresent] promoted to the one place every enumeration leg
+// goes through, because the guard is a property of the ENTRY - "the set of
+// distinct live objects claiming this address" - and not of whichever leg
+// happened to look.
+//
+// Three legs file claimants for a declared address and only one of them
+// carried the check: [Discover]'s own scan loop. The other two
+// (scanTypeCloudControl and the estate-wide sweepViaTagging) appended
+// unconditionally, so a declared instance that BOTH a config-driven scan and
+// the estate-wide sweep enumerate in one pass collected the same live object
+// twice. Two claimants is the input [collisionProblem] reads as two live
+// resources racing for one address, so the run refused with the one object's
+// own import identity printed twice as both sides of the collision - the
+// symptom claimantAlreadyPresent's own doc comment already describes for the
+// overlapping-list-call case, arriving here by a different route.
+//
+// The route is #692 and #881 together, and it names no type: [sweepTypes]
+// puts a DECLARED type back into the sweep universe when its service is one
+// the Resource Groups Tagging API does not index, and [arnJoinReaches] sends
+// such a type to the tagging leg whenever the provider serves no native list
+// resource for it. A type in that state is scanned by the config-driven leg
+// (because it is declared) and swept by the tagging leg (because it is in
+// the universe), and both see the same live object whenever the account
+// really does return it. That is a property of the routing, so any type
+// satisfying it takes this path; corpus-overture-tiles' day2_rename found it
+// on an instance profile whose identity the provider mints from name_prefix.
+//
+// Deduplication is by import identity, which is what "the same live object"
+// means for every admitted type: a claimant with no identity is never
+// deduplicated against anything, exactly as claimantAlreadyPresent has it.
+func (e *declaredEntry) addClaimant(c claimant) {
+	if claimantAlreadyPresent(e.claimants, c) {
+		return
+	}
+	e.claimants = append(e.claimants, c)
 }
 
 // orphanAlreadyPresent is [claimantAlreadyPresent]'s own check, applied to
