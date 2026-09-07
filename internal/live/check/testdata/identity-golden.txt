@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=623 instances=1106
+# shape: dirs=624 instances=1108
 # shape: class CONCRETE=606
-# shape: class NEEDS_DISCOVERY=411
+# shape: class NEEDS_DISCOVERY=413
 # shape: class PARENT_DERIVED=62
 # shape: class RECORD_BACKED=27
-# shape: body-sha256=43fa85942598680871c3dfd6b783f2c9a85d1bde5ac92eeaf13563df1f0bc153
+# shape: body-sha256=5f18de0819e3e8acacd9e567584e2f190a41f6a5edf9386c2574afe5dbae3adf
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -24,6 +24,8 @@ internal/live/check/testdata/managed-result-foreach-unset-var	aws_acm_certificat
 internal/live/check/testdata/managed-result-foreach-var-key	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
+internal/live/check/testdata/stamp-uniquename-exempt	aws_cloudfront_cache_policy.exempt	NEEDS_DISCOVERY		
+internal/live/check/testdata/stamp-uniquename-exempt	aws_cloudfront_cache_policy.refused	NEEDS_DISCOVERY		
 internal/live/check/testdata/strict-markers-record	aws_ebs_volume.selected	NEEDS_DISCOVERY		
 internal/live/check/testdata/strict-markers-record	aws_vpc.unselected	NEEDS_DISCOVERY		
 internal/live/check/testdata/strict-markers-unrecordable	aws_vpc.main	NEEDS_DISCOVERY		

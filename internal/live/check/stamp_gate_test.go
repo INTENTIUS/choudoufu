@@ -298,3 +298,87 @@ func classesOf(report Report) map[identity.Class]int {
 	}
 	return out
 }
+
+// TestStampGate_UniqueNameCauseIsExemptFromTheUnmarkedApplyRefusal is the
+// one exemption in [nodeStampUnmarkedApply], pinned by rendered finding.
+//
+// A resource whose instances can only be found by their ownership marker is
+// refused when its type has nowhere to write one: applying it unmarked
+// creates a live object no later run can recognise. One cause is exempt.
+// [identity.DiscoveryUniqueName] means AWS itself refuses to issue the name
+// this configuration states twice ([identity.DiscoveryCause.BindsByName],
+// internal/live/discovery/uniquename.go), so the object is findable in a
+// listing with no marker at all, and refusing it would refuse every apply of
+// the whole population GitHub issue #272 admitted.
+//
+// The guard moved here under GitHub issue #644. It used to be
+// internal/live/stamp's TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused,
+// which drove the HCL-rewriting engine's mustStamp/unstampableAt pair; that
+// engine is deleted, and this file's nodeStampUnmarkedApply is the only
+// place the exemption is implemented now. The wording half of that test -
+// one sentence per cause, asserted on the rendered string - stayed in
+// internal/live/stamp/discoverycause_test.go against
+// [stamp.UnmarkedDiscoveryDetail], which also survived.
+//
+// The negative control is in the same fixture and the same run, which is
+// what makes this a test rather than an observation: the two resources are
+// both untaggable, both server-assigned, both CloudFront, and both given a
+// schema with no tags attribute below. The ONLY thing that differs is the
+// cause resolution assigns, so a nodeStampUnmarkedApply that had stopped
+// reading the cause fails on the first assertion, and one that had stopped
+// refusing anything at all fails on the second.
+func TestStampGate_UniqueNameCauseIsExemptFromTheUnmarkedApplyRefusal(t *testing.T) {
+	noTags := func(names ...string) providers.Schema {
+		attrs := map[string]*configschema.Attribute{
+			"id": {Type: cty.String, Computed: true},
+		}
+		for _, n := range names {
+			attrs[n] = &configschema.Attribute{Type: cty.String, Optional: true, Computed: true}
+		}
+		// Deliberately no "tags" and no "tags_all" on either type: the real
+		// schemas have none, which is what puts both blocks in front of the
+		// refusal this test is about.
+		return providers.Schema{Block: &configschema.Block{Attributes: attrs}}
+	}
+	schemas := map[string]providers.Schema{
+		"aws_cloudfront_cache_policy": noTags("name"),
+	}
+
+	report := Dir(t.Context(), filepath.Join("testdata", "stamp-uniquename-exempt"), Context{Schemas: schemas})
+	if !report.Readable() {
+		t.Fatalf("fixture did not load: %s", report.Load.Diags.Error())
+	}
+
+	// Sites, not findings: both resources land under one refusal ID, so a
+	// count of findings cannot tell "one of the two" from "both".
+	var refused []string
+	for _, f := range append(append([]Finding{}, report.Findings...), report.Warnings...) {
+		if f.Layer != LayerStamp || f.ID != stamp.SummaryUnmarkedApply {
+			continue
+		}
+		for _, site := range f.Sites {
+			refused = append(refused, site.Detail)
+		}
+	}
+
+	var sawExempt, sawRefused bool
+	for _, detail := range refused {
+		if strings.Contains(detail, "aws_cloudfront_cache_policy.exempt") {
+			sawExempt = true
+		}
+		if strings.Contains(detail, "aws_cloudfront_cache_policy.refused") {
+			sawRefused = true
+		}
+	}
+
+	if sawExempt {
+		t.Errorf("aws_cloudfront_cache_policy.exempt was refused as an unmarked marker-only apply. "+
+			"Its cause is UNIQUE_NAME: AWS will not issue that name twice, so a later run finds it by name with no marker, "+
+			"and refusing it refuses every apply of the population issue #272 admitted. Sites: %v", refused)
+	}
+	if !sawRefused {
+		t.Errorf("aws_cloudfront_cache_policy.refused was NOT refused, so this test proves nothing about the exemption: "+
+			"with nothing refused, the assertion above passes against a pass that has stopped refusing anything at all. Sites: %v\nall findings: %v",
+			refused, findingIDs(report))
+	}
+}
