@@ -6,6 +6,218 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 ## choudoufu v0.14.0 (Unreleased)
 
+ENGINE WORK:
+
+- **A tombstone records only what this estate's own apply destroyed** (#854,
+  PR #900; #908, PR #913; #901, PR #920; #938, PR #943). v0.13.0's replace
+  tombstone was written from one fact about the record: its identity changed
+  at an address the final state still has. An `import` block pointing an
+  address at a second live object, a `live-mv` onto an address that already
+  held a record, and a `lifecycle.destroy = false` create all produce that
+  same fact and destroy nothing, so a displaced object still wearing the old
+  marker was pruned as "destroyed by an earlier apply of this estate" while
+  it was running. The signal now comes from the plan: `StatelessRun.WriteBack`
+  is handed the addresses whose action is `DeleteThenCreate` or
+  `CreateThenDelete`, an entry is written only when the plan names the
+  address and the identity moved, and import and live-mv write nothing, so a
+  displaced live object is refused as a collision rather than described as
+  destroyed. The superseded-claimant detail now says which cases write an
+  entry and which do not.
+
+  That plumbing shipped inert. `replacedInstances(plan)` was evaluated after
+  `Core.Apply` had drained the applied changes out of `plan.Changes`, so the
+  replace set reaching the write side was empty on every real run
+  (`BEFORE-APPLY replacedInstances=[aws_instance.web]`, then `AFTER-APPLY
+  replacedInstances=[]`), no replace recorded a tombstone, and one ForceNew
+  replace blocked the estate on its next plan. The set is now read before the
+  apply goroutine starts, and `TestWriteBackSeesTheReplaceSetAfterApply`
+  observes the value the call site actually passes after a real apply rather
+  than the function against a synthetic plan nothing drains.
+
+  Two shapes on the deposed path were then settled. A `create_before_destroy`
+  replace whose destroy leg fails leaves the old object deposed and alive
+  while the plan still says `CreateThenDelete`; the write side now asks the
+  address's final state whether the superseded identity may still be one of
+  its deposed objects and writes no entry when it may. The recovery apply
+  that later destroys that deposed object schedules a deposed destroy, not a
+  replace, so neither fact held and the identity this estate terminated was
+  recorded nowhere; its lingering tags then made it a second claimant, and
+  `reference-ec2-vpc`'s `day2_crash` refused with `Two live resources
+  claiming one address`. `WriteBack` now also takes the plan's deposed-key
+  `Delete`s and writes the entry once the key has left the final state's
+  deposed set. `day2_crash` moved from `verdict=fail` (`the post-recovery
+  plan exited 1`) to `verdict=pass` with the other twelve stages unchanged.
+  `pruneSupersededEntry`'s deposed-over-tombstone ordering stays as the
+  compatibility leg for records an older build wrote, and is now pinned by a
+  case that sets both for one object.
+
+- **An ordinary ForceNew replace is not a displaced marker** (#885, PR #902).
+  `displacedFrom` compared the identity the configuration computes for a
+  declared address against the one the cloud attached to the live object
+  wearing that address's marker, and reported any mismatch as `Live resource
+  displaced from the address it is marked for`. Those two strings also differ
+  in the plan before a ForceNew replace, so on
+  `corpus-giantswarm-crossplane`'s `day2_replace` the warning asserted "Two
+  different live resources therefore answer to one address" with exactly one
+  role in the account, and "Nothing is proposed for this resource" directly
+  beneath the same plan's own `must be replaced` line. The estate's own
+  current-identity record now tells the two apart: a record naming this
+  object is the estate's statement that the address still owns it, and the
+  mismatch is a pending change the ordinary diff owns. That verdict is silent
+  and hands out no cache vouch. A record naming a different object, no
+  record, an unreadable record and no record store at all warn exactly as
+  before, and the `BREAK=replace` control still refuses by name. The
+  warning's detail no longer describes the plan, which a scan cannot see;
+  `TestOwnershipAddress_forceNewReplaceIsNotDisplacement` and
+  `TestOwnershipAddress_displacedDetailDoesNotDescribeThePlan` were both red
+  against the old sources.
+
+- **A multi-provider estate keeps the tag-index vouch for client-named
+  instances** (#905, PR #912). `discovery.Merge` concatenated every other
+  field a pass produces and dropped `VerifiedDeclared`, #692's vouch for a
+  CONCRETE declared instance. `MarkerVerified()` is built from it, so in any
+  estate with more than one provider configuration the `-refresh=false`
+  state-cache hit could never fire for a client-named instance;
+  needs-discovery instances were unaffected because their vouch rides
+  `Bindings`. A straight append is sound because a declared address belongs
+  to exactly one resource block and so to one provider configuration, and a
+  repeated entry from a global service's sweep collapses in the address-keyed
+  map. Measured on claim 16's two-region estate against the pinned emulator:
+  with the fix reverted, 2 of 5 instances were served from the cache and
+  per-pass requests read `aws.east (us-east-1) 43, aws.west (us-west-2) 15`;
+  restored, all 5 hit and the requests read `26` and `13`. The scenario's
+  step 2 now asserts the CONCRETE log group's cache hit beside the VPC's.
+
+- **A region change refuses instead of abandoning the old region's marked
+  object** (#906, PR #914). Repointing a block from `aws.west` to `aws.east`
+  planned the create in us-east-1 and said nothing about the VPC still in
+  us-west-2 carrying `tofu-estate` and `tofu-address` for that address, and
+  the coverage line beside the create promised "Marker discovery will find
+  it", which cannot come true because discovery for that address now lists
+  the region the object is not in. The sighting classifiers now file which
+  provider configuration saw a marked object, and `Merge` refuses every
+  address whose object was sighted only by configurations that do not declare
+  it, with `Marked resource outside its address's provider configuration`,
+  naming the object, both regions and three remedies. An object also sighted
+  by its own pass (an account-global list such as IAM or S3) is untouched,
+  and a single-provider estate cannot produce the finding. Per the 2026-09-06
+  ruling the refusal sits behind a fourth `strict` toggle, `provider_change =
+  "refuse" | "recreate"`, pinnable at `"refuse"`; under `"recreate"` the plan
+  proceeds as stock does and warns, `Marked resource abandoned by a provider
+  configuration change`, while the coverage line reads "Marker discovery will
+  NOT find it". Claim 16's step 5 now asserts the refusal by value, and
+  `TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders`, which had asserted
+  the abandoning create since #283, is split into a refusing default arm and a
+  `"recreate"` arm carrying its original assertions.
+
+- **One live object seen by two enumeration legs is one claimant** (#928, PR
+  #935). Three legs file claimants on a declared instance and only
+  `Discover`'s own scan loop deduplicated; the Cloud Control scan and the
+  estate-wide tagging sweep appended unconditionally. A declared type in a
+  service the Resource Groups Tagging API does not index (#692) and that the
+  provider cannot list natively (#881) is scanned by both, so
+  `corpus-overture-tiles`'s `day2_rename` refused a moved block with `Two
+  live resources claiming one address` and printed the one instance
+  profile's identity twice as both sides of the collision. The guard now
+  lives on the entry as `addClaimant`, keyed by import identity, and all
+  three legs go through it; a claimant with no identity is never
+  deduplicated. Measured against hashicorp/aws 6.59.0 the exact routing
+  reaches 2 admitted types today (`aws_iam_instance_profile` and
+  `aws_iam_service_linked_role`) and the guard covers all 1027
+  cloud-observable admitted types.
+  `TestTwoDifferentLiveObjectsAcrossTheTwoLegsStillCollide` is the control:
+  two different objects at one address still refuse and the refusal still
+  names both. The stage reads `verdict=pass` with 0 add, 0 destroy and 16 tag
+  rewrites; the board already recorded the row clear, and it is now true.
+
+- **The HCL-rewriting stamp and `module_prefix` are retired** (#644, PR
+  #944). `internal/live/stamp` still carried the pass that wrote markers by
+  rewriting configuration bodies, dead on the default path since
+  `CHOUDOUFU_NODE_RESOLVE` defaulted on (#451, 2026-08-25), and
+  `${tofu.marker_module_prefix}` existed for that rewrite alone, because
+  several instances of one module call share one `*hclsyntax.Body`. The
+  ruling on #644 was to delete rather than split: `stamp.go` (2633 lines),
+  `perinstance.go`, `sharedbody.go` and the 21 test files that drove them go,
+  along with `markers.ModulePrefix*`, the `GetTerraformAttr` arms in
+  `internal/configs/static_scope.go` and `internal/tofu/evaluate.go`,
+  `StaticEvaluator.WithModuleInstance`, lint's `RuleReservedSymbol` and its
+  fixture. The package goes from 15,758 lines across 62 files to 5,593 across
+  39; the branch is 929 insertions and 12,109 deletions over 59 files. The
+  static evaluator stays, as HANDOFF item 3 says it must.
+
+  Five of LayerStamp's eight refusals retire with the mechanism that raised
+  them; `Ownership marker conflict`, `Ownership markers not stamped` and
+  `Unmarked apply of a marker-only resource` stay, and `live/LIMITATIONS.md`
+  goes from 223 refusals to 215 and 28 lint rules to 27. The deletion forced
+  one fix: with the rewrite gone, `CHOUDOUFU_NODE_RESOLVE=0` would have run
+  with no marker writer at all and created every resource unmarked, silently.
+  `NodeResolver` is now installed as `tofu.ConfigValueAdjuster` on every run
+  and the flag governs only identity resolution; `TestLivePlan_identityFatal`
+  caught the one call site that had used the resolver's presence as a stand-in
+  for the flag. Two things this removes are named rather than dropped:
+  `declared_tagged = "untag"`'s marker suppression, inert since 08-25 and
+  still without a node-path port (`live_policy.go` carries the note), and the
+  plan-time `Unstamped marker-only resource` error, which `live-check` still
+  reports offline at the same 55 sites.
+
+  The refusal registry was re-measured with `refusal-probe -schemas
+  -allow-partial-corpus` before and after, per entry: 8247 sites, 4632
+  instances, 193 blocked over 228 corpus entries, and not one of the 27
+  entries moved. The issue's older baseline (10363, 4912, 203) does not
+  reproduce because the corpus manifest has moved since, which is why the new
+  baseline was taken on the unmodified tree first. The eight registry entries
+  deleted here measured zero sites before the change. The core-set gauntlet
+  was not re-run for this change; the board line is whatever the release
+  re-measure records.
+
+- **One config-subset evaluator, in `internal/live/staticeval`** (#826, PR
+  #934). Six packages each carried their own copy of the "what can be
+  evaluated statically" subset: identity's `evalPure` and `isSymbolic`,
+  lint's `staticCount` and `staticForEachKeys`, dataread's `staticEvalExpr`,
+  discovery's `staticArgumentValue` and foreign's `staticString`, about 290
+  lines together, with nothing in the tree comparing what they accepted, and
+  two doc comments arguing for the copies on import-cycle grounds. The new
+  package imports nothing under `internal/live` itself (`markerkey` and
+  `markers` arrive only through `configs`, checked with `go list -deps`), so
+  no consumer can cycle back into it. It exports `Allowed`, `Evaluable`,
+  `FirstDisallowed`, `Evaluate`, `EvaluateOK`, `Scoped`, `Count`,
+  `ForEachKeys` and `Argument`; all six copies and five more instances of the
+  same five-root switch inside identity now call it, with each behavioural
+  difference kept explicit rather than averaged away. `Allowed` (the five
+  roots the static scope answers) and `Evaluable` (those plus `count`,
+  `module`, `data`, `self`) stay two predicates because only identity's
+  symbolic check wants the second, and one refusal sentence in discovery
+  gains an "a" so foreign's stays byte-identical.
+
+  The identity golden did not move: 1810 rendered identities across 654
+  configuration directories. The allowlist is pinned by value and the recover
+  was proved load-bearing by deleting it and watching the test process crash.
+  One finding is left as its own change: `Argument` has no recover because
+  neither copy it replaced had one, so discovery's content match and
+  foreign's classification can still crash on an ancestor's `each.key`
+  reaching through a `local.*`, where lint, dataread and identity degrade to
+  a refusal. stamp's five copies were not migrated; they died with #644.
+
+- **Every package that branches on `identity.Class` has a handler table and
+  an exhaustiveness guard** (#810, PRs #932 and #937). Adding a class was a
+  change across 34 non-test files that nothing failed loudly on; the gauntlet
+  found the misses. `internal/live/identity/classes.go` now exports
+  `AllClasses()` and `ClassTableGaps`, with `TestAllClassesMatchesTheConstBlock`
+  parsing `identity.go`'s const block so the list cannot drift from the
+  declarations. Each consuming package has a `classes.go`
+  (`internal/command`'s is `live_classes.go`) holding one
+  `map[identity.Class]handler` with a field per decision and the old branch
+  bodies moved verbatim: projection (4 sites), command (5), mv (3),
+  liveimport (1) and discovery (12 comparisons at 10 sites across 7 files),
+  each with a `TestClassTableIsTotal` that was proved red by deleting a row.
+  Fallbacks are each site's own: where a site compared for equality against
+  one named class, a plain map index with the zero handler is the old answer;
+  projection's `classFor` keeps the needs-discovery fallback that
+  `orderWork`'s `default:` arm used to supply. Not converted, and measured
+  with a `go/ast` scan rather than grep: lint's three sites are `lint.Class`,
+  #73's logical-type axis, and `tools/refusal-probe/schemas.go` holds one
+  comparison outside the named packages. The identity golden did not move.
+
 FORK WORK:
 
 - **`live/rowgen-convergence.json` is retired** (#695). Its headline,
@@ -17,9 +229,9 @@ FORK WORK:
   #387 measurement it had absorbed is `live/schema-precedence.json`
   (`row-gen -schema-precedence`); both are value-identical to what the old
   artifact recorded. The ratio, the per-service breakdown of the same ratio,
-  and five per-row fields nothing read are gone. `live/artifact_readers_test.go`
-  is the new guard: no generator under `tools/` may write a committed
-  artifact nothing outside it reads.
+  and seven per-row fields nothing read are gone.
+  `live/artifact_readers_test.go` is the new guard: no generator under
+  `tools/` may write a committed artifact nothing outside it reads.
 
 - **`live-plan -json` is reachable on a configuration that declares its own
   estate** (#894). `#788`'s document could be produced only through
@@ -30,12 +242,308 @@ FORK WORK:
   same pipeline and byte-identically to the `-estate` form. `-estate` beside
   a declared estate is still refused; an `apply -json` still has no document
   and still says so.
+
 - **`-json` keeps stdout to the document** (#894). The plan graph's own UI
   hooks wrote to stdout, so a configuration with a data source printed
   `data.x.y: Reading...` ahead of the document and piping stdout into a
   parser failed. Progress and diagnostics now go to stderr, as stock `plan
   -json` does. `live-check -json` was checked for the same defect and does
   not have it.
+
+- **Stage 12, plan approval, is active and measured on every estate** (#888
+  and #903; PRs #904, #923, #925, #926, #927, #931, #936 and #939). The
+  stage's `Proves` line had described #878's mechanism since before that
+  mechanism existed, and it was `Headline: true`, but `live/gauntlet.json`
+  read `plan_approval: not_run` on all 27 rows: the behaviour a consumer gates
+  on (INTENTIUS/chant#2081) was proved by one smoke scenario on one fixture
+  and by unit tests, which is evidence for the mechanism and not for the
+  board. Every `live/e2e/<estate>/run.sh` now carries a `PART P` leg between
+  `drift_reconverge` and the day-2 parts: edit exactly one argument reaching
+  exactly one instance, `plan -out=approved.tfplan` asserting the change set
+  is that instance alone, move the world out of band on a different object
+  through the AWS CLI (each estate's own `drift_reconverge` mutation, lifted),
+  `apply approved.tfplan` asserting exit 3, the refusal by name, the extra row
+  by address and by the live identity it was computed against, and, read back
+  through the CLI, that the reviewed change did not land; then put the world
+  back and apply the same file, which must succeed. `BREAK_APPROVAL=1` runs
+  the stage's recorded Break line literally and must fail, and did on all 27.
+
+  The leg landed on `corpus-giantswarm-crossplane` and `corpus-iam-policy`
+  first, then on the other 25 estates in five batches, then one line in
+  `tools/gauntlet/stages.go` flipped the status, and a re-measure of all 27
+  estates at `-parallel 4` (44m11s) wrote the rows. The flip alone took both
+  bars to zero, because no row had been re-measured since the leg was
+  written; the number the re-measure produced is in the board movement
+  section. Writing 27 legs taught a few things now recorded in the scripts: a
+  resource with a dependent data source cannot carry the reviewed edit (the
+  bucket policy joins the change set), `corpus-leynos-monitoring`'s `-target`
+  scoping needs no exemption because `apply <planfile>` re-plans from the
+  apply's own arguments, an `aws_db_instance`'s identity is its
+  `DbiResourceId` and a Route 53 record's carries no trailing dot.
+
+  The re-measure exposed one regression, `reference-ec2-vpc`'s `day2_crash`
+  (a planned stage, so neither bar moved): #920 stopped tombstoning a deposed
+  object whose destroy had not run, and nothing wrote the tombstone when that
+  destroy finally did, so the next plan refused with `Two live resources
+  claiming one address`. It was left in the artifact as measured rather than
+  signed off in `live/gauntlet/regressions.json`, and fixed separately (#938).
+
+- **The boundary holds across provider configurations, measured on two
+  regions and then on two accounts** (#845, PR #909; #907, PR #921). No smoke
+  claim ran a second provider configuration, so the first real multi-region
+  defect (#745, fixed in PR #837) was proven by fake-backed unit tests only
+  and the questions a two-region estate raises had no answer anyone could
+  run. Claim 16, `just smoke the-boundary-holds-across-regions`, declares
+  `aws.east` and `aws.west` under one `tofu-estate` marker and one record
+  store, with a log group of the same name in each region. It reads both
+  objects back with the AWS CLI, plans empty, and prints the per-pass request
+  count off the SigV4 credential scope (43 for us-east-1, 15 for us-west-2)
+  alongside the listing count per type: the mirrored type listed once per
+  region, the east-only account-global bucket once across both passes.
+  Deleting the west log group out of band produces a plan that names
+  `aws_cloudwatch_log_group.west` and nothing else while east's instances
+  stay served from the cache; deleting the cache and the record store yields
+  an identical change set with a different coverage report. Two answers are
+  pinned as they are: the unit of the sweep is the provider configuration,
+  so dropping a region's last declaration drops the region from the sweep
+  and its marked objects sit there with `No changes.`, and a region change
+  is a replace whose old object is left behind (#906, filed). `BREAK=1`
+  strips the surviving object's markers and points `aws.west` at us-east-1,
+  which makes the deleted instance read `state cache hit ... ownership
+  record-attested` for an object that no longer exists, and step 2 fails on
+  that line. 48s measured against a 2 min budget. Writing it also found
+  #905: `discovery.Merge` drops `VerifiedDeclared`, so the tag index's vouch
+  is empty for every concrete instance in any multi-provider estate.
+
+  The cross-account leg was the one question the region scenario asserted by
+  construction. floci turns out to present two account ids, either by
+  reading a 12-digit access key id as the account or through `assume-role`,
+  and its stores are partitioned by account, so claim 19, `just smoke
+  the-boundary-holds-across-accounts`, measures the same estate with
+  `aws.home` and `aws.other_account` in one region: 13 requests signed as
+  each account, a delete in account 111111111111 planned as one create there
+  and nothing in 000000000000, and an empty plan after losing the cache and
+  the record store. Its `BREAK=1` swaps the second alias's credential for
+  the home account's and catches the same silent unchanged read on the
+  account axis. 32s. Two things were left for the maintainer: EC2 in the
+  emulator stamps every object's `OwnerId` with the default account
+  (lex00/floci#196), and the sweep's own tagging and Cloud Control clients
+  are built from the process environment's credentials for every provider
+  configuration, so the estate-wide tag index is fetched from one account.
+
+- **A record-only identity survives cache loss, and losing the record itself
+  proposes exactly one create** (#852, PR #910). PR #851's located-fallback
+  fix for a wire-composite identity was proven against fakes only. Claim 17,
+  `just smoke record-only-survives-cache-loss`, applies an `aws_iam_group`
+  and an `aws_iam_group_policy` with no `name` argument, so the policy's
+  two-part identity is assigned by the provider and no tag, listing or
+  configuration expression carries it; the scenario prints the recorded
+  group and policy name by value, wipes the cache and `.terraform`, and
+  requires `No changes.` together with a `GetGroupPolicy` read in the debug
+  log that used exactly the recorded pair. `BREAK=1` also deletes the
+  identity record before that re-plan and must see `Plan: 1 to add` naming
+  `aws_iam_group_policy.app`. The resource is not one of the 27 types PR
+  #851 named, and the claims page says why: the three that reach the wire
+  fallback are not implemented by the pinned emulator, and the other 24
+  carry ratified identity rows that rebuild the same identity from
+  configuration with or without a record, measured by applying
+  `aws_lb_target_group_attachment` and re-planning with its record deleted.
+
+- **A replaced object's shadow is pruned by tombstone, a live duplicate
+  refuses, and a refused destroy writes no tombstone** (#850, PR #911; #919,
+  PR #942). PR #849's tombstone mechanism had fake-backed tests only, and
+  before it the live-duplicate case warned and exited 0, so a control
+  written against the old behaviour would have passed while proving
+  nothing. Claim 18, `just smoke a-shadow-is-not-a-claimant`, replaces an
+  `aws_instance` twice through a ForceNew `subnet_id`, reads each terminated
+  instance back with the CLI still wearing `tofu-estate` and `tofu-address`,
+  and asserts by value that the record's `tombstone` is a list holding both
+  destroyed ids under the live `import_id`. The next plan exits 0 with both
+  dead identities in `Live resource displaced from the address it is marked
+  for` warnings that propose nothing. `BREAK=1` manufactures a second
+  running instance carrying the survivor's markers with nothing recorded as
+  having destroyed it, and the plan must refuse with `Two live resources
+  claiming one address` naming both ids. Writing the scenario found that no
+  replace on merged main recorded a tombstone at all: `backend_apply.go`
+  read `replacedInstances(plan)` after `Core.Apply` had drained the changes
+  (#908, fixed by PR #913).
+
+  Step 7 covers the write-side change from #901: a `create_before_destroy`
+  replace whose destroy leg fails must not record the deposed object as
+  destroyed. Of the two mechanisms the issue proposed, only an IAM deny of
+  `ec2:TerminateInstances` under `FLOCI_IAM_ENFORCEMENT=true` works on the
+  pinned image (`disable_api_termination` is accepted and ignored), so the
+  step proves the fence on a throwaway instance first, then applies a third
+  replace under a `no-terminate` role. The apply exits non-zero with the
+  replacement created, the CLI lists both instances `running`, the record
+  names the old one under `deposed[]` and not under `tombstone[]`, and the
+  next plan proposes `aws_instance.web (deposed object ...) will be
+  destroyed` rather than pruning it. `BREAK=1` now runs both arms on one
+  estate; the second patches the record to list the running deposed
+  instance as a tombstone, which is what the pre-#901 write side produced,
+  and the read must refuse it. The table's budget is 3 min.
+
+- **The head-of-line fixes are measured on real AWS** (#867, PR #917). #683
+  and #839 split the read pass's and the sweep's single bounded channel into
+  an in-flight bound and a buffered-answers bound, proven against fakes,
+  with the real-AWS number owed. Three steady-state plans of the 745-instance
+  terralith in us-east-2 on provider 6.59.0 span 50.0s to 57.1s with 6% to
+  20% idle and a largest stall of 4.68s; three stock plans of the same
+  estate in the same session read 0% to 42% idle with a largest stall of
+  8.04s. In #683's session the fork idled 49% to 56% against stock's 20%,
+  and the comparison that survives is the fork's share next to stock's in
+  one session, since an account does not throttle the same way twice. Every
+  one of the nineteen stalls on both sides ends in a `retrying request`
+  line, and all nine of the fork's read-pass stalls fall in the last quarter
+  of their run, which is the shape the split predicts. The sweep showed two
+  throttled list calls across three runs, 1.23s and 1.51s, and this estate
+  cannot test `DefaultSweepBufferFactor = 10`: 32 of its swept types are
+  answered by one estate-filtered `GetResources` and only three take the
+  per-type list path, so a factor of one would have produced the identical
+  run. The doc comment cites the negative result and names the estate shape
+  that would test it.
+
+  The instrument had to be recovered first, because #683's
+  `live/wallclock-trace` branch no longer exists. It is now
+  `live/live-cert/wallclock-gaps.py`, with two corrections: the gap window
+  is closed on the right, since the SDK's retry line lands in the same
+  millisecond as the request that ends the stall and the old bound dropped
+  it (12 of 12 of #683's own gaps are retry-closed, where it had read 6 of
+  12), and stalls are attributed by `tf_rpc` rather than by the clock,
+  because the sweep's client-side-filtered `aws_iam_policy` listing is still
+  arriving at t=24s. `terralith-scale.sh` gains `WALLCLOCK_TRACE=1`, and
+  `site/content/docs/model/plan-cost.md` gains a stamped "What the split was
+  worth, measured" subsection in place of the sentence saying read-side
+  throttling had never been measured: 43 to 46 throttled requests per
+  steady-state plan at width ten, every one retried and answered. The
+  live-cert harness's `ssm` record store cannot open against real AWS
+  because its `key_prefix` starts with `/` (#916, filed); the run used
+  `RECORD_STORE_BACKEND=local`, which is what #683 used.
+
+- **`gauntlet notes` no longer prints `readiness.json`'s whole types array**
+  (#897, PR #899). The release procedure at the top of this file points at
+  `go run ./tools/gauntlet notes`, and for v0.12.0 to v0.13.0 that command
+  produced 51,800 lines and 1,559,007 bytes, of which the board movement was
+  the first 17. `diffReadiness` was a shallow key compare written before
+  `live/readiness.json` existed, and the file's top level is one `types` key
+  holding 1699 entries, so any change to any type rendered both arrays as a
+  single bullet. The `types` key is now diffed by each entry's `type`
+  against its `tier` and rendered as one bounded line, with named movers
+  capped at 10 and a `+N more` tail; the other top-level keys keep the
+  before-and-after render. The same pair now produces 16 lines and 381
+  bytes, and because the only difference between those two snapshots is
+  `aws_wafv2_api_key`'s `rejected_reason` wording, the Readiness section is
+  omitted rather than invented. Three tests in `tools/gauntlet/notes_test.go`
+  hold the size bound and the omission, each proved red against the old
+  code.
+
+- **`live/LIMITATIONS.md`'s refusal sections are rendered from
+  `check.AllRefusals()`** (#698, PR #924). Hand-typed refusal prose is the
+  class the repository keeps catching stale. Measured before the change, the
+  document was 378397 bytes with 59.1% inside a generated span, and of the
+  catalog's 223 refusals 188 had a generated entry and 35 did not: the 28
+  lint rules and 7 non-lint refusals that defer to a hand-written entry.
+  `tools/limits-gen`, which has owned the `refusal-table` and
+  `refusal-entries` spans since #110, now writes a third span,
+  `lint-roster`, at the head of "Enforced today" with one row per rule, its
+  severity, the entry that documents it and that entry's fixture directory
+  under `live/e2e/limits/` (25 of 28; the three receipt rules are specified
+  in `live/RECEIPTS.md`), and the entries span widens from 188 to all 195
+  non-lint refusals, the 7 deferring ones getting a section that names the
+  fuller hand-written entry. The render itself now refuses and writes
+  nothing when a refusal it would give an entry to has no description, when
+  a lint rule's heading has no fixture directory, or when a refusal cites a
+  heading nobody wrote; each was proved red by breaking the tree, and a
+  hand edit inside a span still fails `TestSpansAreCurrent`. `just limits`
+  regenerates it and is idempotent. The page grows to 388039 bytes rather
+  than shrinking, because the roster and the widened entries are new
+  content; the shrink the issue asks for arrives when the 28 lint rules'
+  prose moves into their doc strings, which is a doc-string change left for
+  the maintainer, and the #613 unmigrate guard is still outside the registry
+  and so uncovered.
+
+- **The `ssm` and `s3` record stores applied `key_prefix` twice** (#916, PR
+  #918). `newRecordStore` handed the prefix to the backend as its own
+  namespace, and every key it was then asked for already began with it, so
+  against real AWS `record_store "ssm" { key_prefix = "chdf916probe/e1" }`
+  wrote `/chdf916probe/e1/chdf916probe/e1/.store-sentinel`, `s3` did the
+  same, and the default derived from the estate landed at
+  `/tofu-records/<estate>/tofu-records/<estate>/...`. Nothing inside the
+  package could see it, because both halves of every round trip went through
+  the doubled name and agreed with each other. What broke was everything
+  outside it: an operator's IAM policy, `aws ssm get-parameters-by-path`, the
+  reference page's example and the live-cert harness's own teardown, all of
+  which name the prefix once. The backends are now built with no prefix of
+  their own, `NewSSMStore` no longer turns an empty prefix into `"/"` (which
+  rendered a `//<key>` name real SSM rejects), and
+  `TestRecordStoreRendersTheKeyPrefixExactlyOnce` asserts the rendered name
+  against a literal rather than through a round trip. The `local` backend,
+  whose `path` is a directory, was never affected. The harness's `key_prefix`
+  loses the leading `/` that #688 refuses, so `TARGET=aws` live-cert can open
+  its store again. Every probe resource was deleted and verified gone.
+
+- **`TestMkConfigDir_new` asserts the mode `mkConfigDir` actually promises**
+  (#895, PR #898). `mkConfigDir` creates the directory with `os.ModePerm`,
+  which the kernel masks with the process's umask, and the test asserted
+  `0755`, true only under `umask 022`. On a developer machine with `umask
+  077` `scripts/ci-gate.sh` read red on an unmodified checkout (`Expected
+  mode: 0755, but got: 0700`), which is how it surfaced while gating the
+  v0.13.0 release. Nothing in the tree reads that directory expecting a fixed
+  mode and the code is upstream's unchanged shape, so the test now computes
+  `0777 &^ currentUmask()`, with the helper split by build tag the way
+  `signal_unix.go` and `signal_windows.go` already are. It was proven
+  load-bearing by changing `mkConfigDir`'s base mode to `0700` under `umask
+  022`, where the old assertion would have passed by coincidence, and
+  watching it fail.
+
+- **estate-gen cohorts render at run time; the committed cohorts retire**
+  (#699, PR #929). `live/e2e/estates` held 32 committed estate-gen cohorts,
+  generator output kept in git: every working copy grew an ignored
+  `.terraform/` in each of the 31 rendered directories, `.gitignore` carried
+  an exception block to manage exactly that, and a regeneration was a
+  213-file diff nobody read. `tools/terralith-gen` had already chosen the
+  other model. `internal/live/cohorts` now holds the 31-entry roster (each
+  cohort's pinned `-types` list and the supporting types the generator adds),
+  `tools/estate-gen -all` renders the whole roster into `-out/<cohort>`
+  sharing one schema acquisition (all 31 in 13 seconds; `-out` is required
+  now, since the old default would re-create the deleted tree), and
+  `flocitest.GenerateCohorts` shells out to it into `t.TempDir()`. The 32
+  `README.md` files stay: 9161 lines of hand-written ratification evidence
+  and emulator findings that a dozen files cite by path. The
+  `live/e2e/estates/*` glob leaves `live/corpus-manifest.json`, which is the
+  writer that put `.terraform/modules` there in the first place.
+
+  A full render was diffed against the committed tree before anything was
+  deleted: 30 of 31 cohorts byte-identical, and `route53-cloudfront` one line
+  apart (`vpc_region = "placeholder"`, a generator force-fill the committed
+  copy predated), so that is generator drift and the ruling moved to the
+  cohort's README. The identity golden lost 704 rows and changed none: 1810
+  identities across 654 directories to 1106 across 623, every removed row
+  under `live/e2e/estates/`. The cost is said in the pin's own note: the
+  cohorts' rendered identities are no longer pinned by value anywhere, and
+  what covers them is the acceptance tier's apply-and-replan over freshly
+  rendered trees. `TestEstatesHoldsNoConfiguration` and
+  `TestGeneratedCohortsMatchTheRecordedRoster` are the new guards, both
+  proved red. Left for a follow-up: `tools/estate-gen/files.go` still writes
+  the old `-out` path into each rendered `GENERATED.md`, and
+  `live/fork-surface.json` and `live/cohort-triage.json` still name the
+  deleted files until their own generators next run.
+
+- **`corpus-fetch` is guarded against reaching an estate-gen cohort** (#940,
+  PR #941). Right after #699 merged, worktrees still showed 31 untracked
+  `live/e2e/estates/*/.terraform/` entries, and the issue read that as
+  `just corpus-fetch` still writing there. Measured, the writer was already
+  gone: #699 had removed the glob, and `corpus-fetch`'s module pass writes
+  `.terraform/modules/modules.json` only into directories `Manifest.Resolve`
+  returns. The stray directories were written by a `corpus-fetch` run in a
+  worktree created before #699 and survived the rebase onto it, and the
+  primary checkout's copies date from August. What this adds is the guard
+  the issue asked for: `TestManifestReachesNoEstateGenCohort` in
+  `tools/corpus-fetch` resolves the real manifest against a temp root where
+  every roster cohort holds a `main.tf`, so a glob cannot hide behind
+  `Resolve`'s empty-directory skip; re-adding the old glob fails it naming 32
+  directories. A worktree still carrying the leftovers clears them with
+  `git clean -fd -- live/e2e/estates`.
 
 ## choudoufu v0.13.0 (2026-09-06)
 
