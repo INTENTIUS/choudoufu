@@ -147,6 +147,18 @@ set -uo pipefail
 #                 the other BREAK flags and only reachable when BREAK is not
 #                 "rename" and BREAK_REMOVE is not 1, because PART G starts
 #                 from PART E's real, completed removal.
+#   BREAK_APPROVAL
+#                 set to 1 to run plan_approval's own negative control
+#                 instead of the real refusal check (PART P): after the
+#                 world has moved out of band, assert the saved plan file
+#                 APPLIES cleanly - the Break text in
+#                 tools/gauntlet/stages.go for plan_approval is literally
+#                 "Apply the planfile after a mutation and expect success;
+#                 the run must refuse", so this assertion has to fail.
+#                 Independent of every BREAK above, and the only one of them
+#                 under which PART P runs at all - the others deliberately
+#                 leave the estate somewhere PART P does not describe, and
+#                 it reports no verdict there.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -937,6 +949,183 @@ log ""
 log "STAGE 5 (drift and reconverge): PASS"
 gauntlet_stage drift_reconverge pass "the plan proposed fixing $N_CHANGED object(s) after the out-of-band tag mutation: $CHANGED_ADDRS"
 log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the IoT-data S3 bucket's
+#          hm_team tag is changed out of band through the AWS CLI, the same
+#          mutation STAGE 5 above already proves this estate's plan notices
+#          - and the apply must refuse: exit 3, the named summary, the
+#          unapproved row printed by address AND by the live object it was
+#          computed against, and the reviewed change still not landed when
+#          the hm-production S3 bucket is read back through the CLI.
+#   P4     nothing has moved (the tag is put back first) and the SAME file
+#          must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is on
+# the hm-production S3 bucket, the out-of-band move is on the IoT-data S3 bucket - so the refusal
+# has an EXTRA row to name rather than a values-only disagreement about the
+# same row.
+#
+# The reviewed edit is an in-place tag update, never a create or a destroy:
+# every later part of this script (D's two renames, F's forced replace, E's
+# removal, G's count) re-reads its own objects by their tofu-address marker
+# AFTER this part reverts, and a replaced instance would hand them a live id
+# minted here rather than by the leg that is supposed to mint it.
+#
+# Runs only on a real run. Under any of this script's other BREAK controls
+# the estate is deliberately left somewhere this part does not describe, so
+# it reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_GREEN:-}" ] \
+   && [ -z "${BREAK_COUNT:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="$WANT_PROD_ADDR"
+  P_MOVED_ADDR="$WANT_IOT_ADDR"
+
+  log "=== P1. the change under review: one argument of this crossing's own root wiring ==="
+  # common_tags is the module's OWN documented variable, and inside
+  # hm_production_bucket it reaches exactly one taggable resource
+  # ($WANT_PROD_ADDR) - the module's other object, where it has one, is an
+  # untaggable inline policy that common_tags never reaches. Merging one key
+  # into it is an in-place update of exactly one instance and leaves every
+  # other module in this root alone, the IoT-data S3 bucket included.
+  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "3" ] \
+    || fail "main.tofu no longer carries exactly 3 \"common_tags = local.common_tags\" module arguments - this crossing's own root wiring has moved"
+  perl -0pi -e 's/(module "hm_production_bucket" \{\n(?:[^\n]*\n)*?  common_tags\s+= )local\.common_tags/$1 . "merge(local.common_tags, { Reviewed = \"yes\" })"/e' "$ESTATE/main.tofu"
+  [ "$(grep -c 'Reviewed = "yes"' "$ESTATE/main.tofu")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one merge(local.common_tags, ...) argument"
+  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "2" ] \
+    || fail "the reviewed edit changed more than one of the 3 \"common_tags = local.common_tags\" module arguments"
+  log "  edited one argument: hm_production_bucket's common_tags now merge in Reviewed = \"yes\""
+
+  P_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$ESTATE/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ will be (created|destroyed)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create or a destroy; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$ESTATE/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  # Captured, not spelled out: P4 puts back exactly the tag set the bucket
+  # carried when the approval was taken, markers included.
+  P_TAGS_BEFORE="$(awsl s3api get-bucket-tagging --bucket "$IOT_BUCKET_NAME" --output json)"
+  grep -q '"hm_team"' <<< "$P_TAGS_BEFORE" || fail "$IOT_BUCKET_NAME's tag set does not carry hm_team before PART P's own move"
+  awsl s3api put-bucket-tagging --bucket "$IOT_BUCKET_NAME" --tagging '{
+    "TagSet": [
+      {"Key": "hm_environment", "Value": "production"},
+      {"Key": "hm_team", "Value": "moved-after-approval"},
+      {"Key": "hm_managed_by", "Value": "opentofu"},
+      {"Key": "hm_resource_name", "Value": "'"$IOT_BUCKET_NAME"'"},
+      {"Key": "tofu-address", "Value": "'"$P_MOVED_ADDR"'"},
+      {"Key": "tofu-estate", "Value": "'"$ESTATE_NAME"'"}
+    ]
+  }'
+  P_MOVED_VALUE="$(awsl s3api get-bucket-tagging --bucket "$IOT_BUCKET_NAME" --query "TagSet[?Key=='hm_team'].Value | [0]" --output text)"
+  [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $IOT_BUCKET_NAME's hm_team tag reads \"$P_MOVED_VALUE\""
+  log "  $IOT_BUCKET_NAME's hm_team tag changed out of band to \"moved-after-approval\" - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved bucket, so asserting over the whole
+  # output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$IOT_BUCKET_NAME" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $IOT_BUCKET_NAME, the live object the change was computed against"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_TAG="$(awsl s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_REVIEWED_TAG" = "None" ] || [ -z "$P_REVIEWED_TAG" ] \
+    || fail "the refused apply still wrote the reviewed change: $PROD_BUCKET_NAME carries Reviewed=\"$P_REVIEWED_TAG\""
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl s3api put-bucket-tagging --bucket "$IOT_BUCKET_NAME" --tagging "$P_TAGS_BEFORE"
+  P_RESTORED="$(awsl s3api get-bucket-tagging --bucket "$IOT_BUCKET_NAME" --query "TagSet[?Key=='hm_team'].Value | [0]" --output text)"
+  [ "$P_RESTORED" = "hongbomiao" ] || fail "the out-of-band move was not undone: $IOT_BUCKET_NAME's hm_team tag reads \"$P_RESTORED\""
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_LANDED" = "yes" ] \
+    || fail "the approved change did not land: $PROD_BUCKET_NAME carries Reviewed=\"$P_LANDED\", want \"yes\""
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $PROD_BUCKET_NAME now carries Reviewed=yes, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$ESTATE/approved.tfplan"
+  perl -0pi -e 's/merge\(local\.common_tags, \{ Reviewed = "yes" \}\)/local.common_tags/' "$ESTATE/main.tofu"
+  [ "$(grep -c 'Reviewed = "yes"' "$ESTATE/main.tofu")" = "0" ] \
+    || fail "reverting the reviewed edit did not remove the Reviewed key"
+  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "3" ] \
+    || fail "reverting the reviewed edit did not restore all 3 \"common_tags = local.common_tags\" arguments"
+  P_BACK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+  [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+  P_GONE="$(awsl s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='Reviewed'].Value | [0]" --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the reviewed tag is still on $PROD_BUCKET_NAME after the revert: \"$P_GONE\""
+  P_FINAL_OUT="$(plan_into 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ will be' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (hm_production_bucket's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR; the world then moved out of band ($IOT_BUCKET_NAME's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $IOT_BUCKET_NAME it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $PROD_BUCKET_NAME still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $PROD_BUCKET_NAME read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
+fi
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, live/GAUNTLET.md #6)
