@@ -256,6 +256,26 @@ showing its own checks would have caught it.
   tombstone is evidence an object is dead and never permission to touch
   one that is not.
 
+- **the-boundary-holds-across-accounts** - *Claim 19: the boundary holds
+  across accounts.* Claim 16's estate with the other axis swapped: two
+  AWS accounts, one region, one `tofu-estate` marker and one record
+  store. The same client-chosen name is declared in both accounts and
+  the two objects are told apart by account alone - `sts:GetCallerIdentity`
+  answers with a different id under each credential, each object is
+  invisible to the other account's own listing, and the emulator refuses
+  the second create outright when both blocks are pointed at one
+  account. Deleting the other account's object names that account's
+  instance and only that one while the home account stays served from
+  cache (the #745 defect across the account axis), losing the state
+  cache and the whole record store still replans empty in both accounts
+  at once, and one destroy empties both. Per-account request counts come
+  off the wire, from the credential each request was signed with - the
+  account id IS the access key id here. The BREAK control swaps the
+  second provider's credential for the first account's and strips the
+  surviving object's markers, so the same name in the other account is
+  the only live evidence for the deleted instance - the plan reports it
+  unchanged and the run must fail on that line.
+
 ## Knobs
 
 | Variable | Effect |
