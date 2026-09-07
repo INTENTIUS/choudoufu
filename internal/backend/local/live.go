@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -135,7 +136,15 @@ type StatelessRun interface {
 	// what actually ran, and that must surface loudly rather than
 	// silently, the same philosophy live/MARKERS.md's marker-collision
 	// handling already uses.
-	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance) tfdiags.Diagnostics
+	// deposedDestroys is the same signal for the OTHER half of a
+	// create_before_destroy replace: every deposed object THIS RUN'S PLAN
+	// scheduled a destroy of. GitHub issue #938. When a replace's destroy
+	// leg crashes, the create and the destroy land in different applies,
+	// and the second one moves no recorded identity and schedules no
+	// replace - so `replaced` above is empty for it and the object it
+	// really did terminate would otherwise be recorded nowhere. See
+	// [projection.WriteBackRequest.DestroyedDeposed].
+	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics
 
 	// AfterApply runs whatever this run still owes the live system once a
 	// real apply has finished changing it, and reports what it did as

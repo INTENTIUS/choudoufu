@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/backend"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -101,6 +102,7 @@ type replaceRecordingStateless struct {
 	mu              sync.Mutex
 	writeBackCalled bool
 	gotReplaced     []addrs.AbsResourceInstance
+	gotDeposed      []projection.DeposedDestroy
 	finalState      *states.State
 }
 
@@ -113,11 +115,12 @@ func (s *replaceRecordingStateless) PriorState(_ context.Context, _ *configs.Con
 func (s *replaceRecordingStateless) RootOutputData() map[string]cty.Value      { return nil }
 func (s *replaceRecordingStateless) RecordedRootOutputs() map[string]cty.Value { return nil }
 
-func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance) tfdiags.Diagnostics {
+func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeBackCalled = true
 	s.gotReplaced = replaced
+	s.gotDeposed = deposedDestroys
 	s.finalState = finalState
 	return nil
 }

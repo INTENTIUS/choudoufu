@@ -1269,7 +1269,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // anything it does see: the record-side evidence it holds ("the identity
 // changed") is exactly the evidence that cannot tell a replace from an
 // import or a live-mv, which is the defect #854 fixes.
-func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance) tfdiags.Diagnostics {
+func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// Issue #275's residue classifier is the one write-back half that needs
@@ -1300,6 +1300,13 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		// passed straight through: this runner has no plan of its own and
 		// must not invent one.
 		ReplacedAddrs: replaced,
+
+		// Issue #938's companion signal, derived by the caller from the
+		// same plan and passed straight through for the same reason: the
+		// apply that closes a crashed create_before_destroy replace moves
+		// no recorded identity and schedules no replace, so this is the
+		// only evidence it destroyed anything.
+		DestroyedDeposed: deposedDestroys,
 
 		// Issues #270 and #353's halves both need Config: the located half
 		// asks the `markers "record"` selection, and the provisioned half

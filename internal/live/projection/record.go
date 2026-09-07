@@ -1243,13 +1243,20 @@ func (s *RecordStore) delete(ctx context.Context, addr addrs.AbsResourceInstance
 // the envelope being replaced here means the provider that managed the
 // object being destroyed - there is no fresher answer available once the
 // address has already left the final state.
-func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInstance, expectedVersion string) error {
+func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInstance, expectedVersion string, destroyedDeposed map[states.DeposedKey]bool) error {
 	if s == nil {
 		return nil
 	}
 	_, err := s.mergeEnvelope(ctx, addr, expectedVersion, func(env *recordEnvelope) {
 		identity := env.Identity
 		providerAddr := env.Provider
+		// GitHub issue #938, before env.Deposed is dropped below: this
+		// address left the final state carrying deposed objects its own
+		// plan scheduled destroys for, so those identities are destroyed
+		// by this estate too and are recorded the same way the current
+		// one is. nil ri: the address has no final state to check
+		// against, and that is the point - there is nothing left of it.
+		tombstoneDestroyedDeposed(env, nil, destroyedDeposed)
 		env.Identity = nil
 		env.Object = nil
 		env.Residue = nil

@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/backend"
 	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/logging"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
@@ -81,6 +82,45 @@ func replacedInstances(plan *plans.Plan) []addrs.AbsResourceInstance {
 		if change != nil && change.Action.IsReplace() {
 			out = append(out, change.Addr)
 		}
+	}
+	return out
+}
+
+// destroyedDeposedInstances is every DEPOSED object plan scheduled a destroy
+// of: a change carrying a [states.DeposedKey] other than
+// [states.NotDeposed], whose action is [plans.Delete].
+//
+// GitHub issue #938, and it is [replacedInstances]'s companion for the other
+// half of a create_before_destroy replace. When the replace's destroy leg
+// crashes, the two halves land in different applies: the first creates the
+// new object and deposes the old one (and, since issue #901, correctly
+// records nothing as destroyed, because the deposed object is alive), and
+// the SECOND destroys the deposed object. That second apply's plan schedules
+// no replace and moves no recorded identity, so neither fact
+// [projection.supersedeIdentity] needs is available to it - this is the only
+// place the destroy it really did perform is written down.
+//
+// Deposed-key changes are exactly what [replacedInstances] excludes and says
+// so: a change carrying a DeposedKey is a Delete of an already-deposed
+// object, never a replace. The two functions therefore partition the plan's
+// destroy evidence rather than overlapping on it.
+//
+// A nil plan yields nil, which the write side reads as "this run destroyed
+// no deposed object" and records nothing for - the direction that refuses
+// rather than the direction that prunes.
+func destroyedDeposedInstances(plan *plans.Plan) []projection.DeposedDestroy {
+	if plan == nil || plan.Changes == nil {
+		return nil
+	}
+	var out []projection.DeposedDestroy
+	for _, change := range plan.Changes.Resources {
+		if change == nil || change.DeposedKey == states.NotDeposed {
+			continue
+		}
+		if change.Action != plans.Delete {
+			continue
+		}
+		out = append(out, projection.DeposedDestroy{Addr: change.Addr, Key: change.DeposedKey})
 	}
 	return out
 }
@@ -361,6 +401,9 @@ func (b *Local) opApply(
 	// the exact symptom #670 was opened for. Do not move this line below
 	// the goroutine.
 	replacedAddrs := replacedInstances(plan)
+	// Issue #938's other half, read HERE for the identical reason: a
+	// deposed destroy is drained out of plan.Changes as it applies too.
+	deposedDestroys := destroyedDeposedInstances(plan)
 
 	// Set up our hook for continuous state updates
 	stateHook.StateMgr = opState
@@ -417,7 +460,7 @@ func (b *Local) opApply(
 	// resource failed still deserves its record, so the next plan does not
 	// propose creating it again.
 	if b.Stateless != nil {
-		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs)
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys)
 		diags = diags.Append(wbDiags)
 		if wbDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)
