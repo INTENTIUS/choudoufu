@@ -438,6 +438,18 @@ set -uo pipefail
 #                Independent of BREAK and BREAK_GREENFIELD, and only
 #                reachable when BREAK is not 1, because day2_remove starts
 #                from day2_rename's real, completed rename.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P, between STAGE 5
+#                and PART F): after the world has moved out of band, assert
+#                the saved plan file APPLIES cleanly - the Break text in
+#                tools/gauntlet/stages.go for plan_approval is literally
+#                "Apply the planfile after a mutation and expect success;
+#                the run must refuse", so this assertion has to fail.
+#                Independent of every BREAK above, and the only one of them
+#                under which PART P runs at all - the others deliberately
+#                leave the estate somewhere PART P does not describe, and it
+#                reports no verdict there.
 #   BREAK_COUNT  set to 1 to run day2_count's own negative control instead
 #                of the real checks: after the real scale-down plan, assert
 #                the WRONG instance (count_test[0] rather than count_test[1])
@@ -1772,6 +1784,192 @@ if [ "$CHANGED_N" -eq 0 ]; then
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this[0] proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI"
   gauntlet_end_stage
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12,
+  # issue #903)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # The pipeline shape CI has always run: plan on the pull request, a human
+  # approves, apply exactly what was approved. The artifact that crosses
+  # that gate is the plan file, and under live markers it is an APPROVAL
+  # rather than an instruction - "apply <planfile>" re-reads the live
+  # system, plans against what it finds now, and compares that fresh plan
+  # with the file's, refusing by name and with exit 3 when the two
+  # disagree (issue #878, internal/command/live_approval.go).
+  #
+  # Both arms run on every real run, because only the pair is evidence:
+  #
+  #   P2/P3  the world MOVES between the approval and the apply - the main
+  #          security group is tagged DriftProbe out of band through the
+  #          AWS CLI, STAGE 5 above's own proven mutation - and the apply
+  #          must refuse: exit 3, the named summary, the unapproved row
+  #          printed by address AND by the live security group id it was
+  #          computed against, and the reviewed change still not landed
+  #          when the app security group's tags are read back through the
+  #          CLI.
+  #   P4     nothing has moved (the DriftProbe tag is deleted first) and
+  #          the SAME file must APPLY. This is the inverted control that
+  #          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+  #          comparison which refuses unconditionally is not a check, so
+  #          P3's refusal is only worth something if the identical artifact
+  #          goes through when the world is where the approval left it.
+  #
+  # The two instances are deliberately disjoint, and on two different live
+  # security groups - the change under review is the standalone
+  # aws_security_group.app (its own `tags` argument, the one line in this
+  # example written as "tags        = local.tags", gains one merged entry),
+  # the out-of-band move is module.security_group.aws_security_group.this[0]
+  # - so the refusal has an EXTRA row to name, about a different object,
+  # rather than a values-only disagreement about the same row.
+  #
+  # WHY aws_security_group.app, against issue #903's own two traps: `tags`
+  # is in-place on aws_security_group (`name` and `description` are both
+  # ForceNew, which is exactly what PART F below uses to force a replace),
+  # and app has no rule children of its own - nothing in the module cascade
+  # hangs off it, so one argument is one row. Two later parts DO touch it -
+  # PART D renames it through live-mv, and F/D read live ids captured
+  # before this point - so P5 reverts the edit, re-applies and replans
+  # empty before any of them start, and the edit never moves an id: the
+  # group is updated in place and keeps the same GroupId throughout,
+  # asserted below.
+  #
+  # Runs only on a real run. Under any of this script's BREAK controls the
+  # estate is deliberately left somewhere this part does not describe, so
+  # it reports no verdict at all and the runner records the stage as
+  # not_run, never as a pass.
+  if [ -z "${BREAK:-}" ] && [ -z "${BREAK_GREENFIELD:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+    gauntlet_begin_stage plan_approval
+    log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+    P_REVIEWED_ADDR="aws_security_group.app"
+    P_MOVED_ADDR="module.security_group.aws_security_group.this[0]"
+    P_APP_SG_ID="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.app"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+    [ -n "$P_APP_SG_ID" ] && [ "$P_APP_SG_ID" != "None" ] \
+      || fail "no live security group found by its tofu-address marker (aws_security_group.app)"
+    [ "$P_APP_SG_ID" != "$MAIN_SG_ID" ] \
+      || fail "the reviewed object and the moved object are the same security group ($P_APP_SG_ID); this leg would prove nothing"
+    log "  reviewed object $P_APP_SG_ID ($P_REVIEWED_ADDR), moved object $MAIN_SG_ID ($P_MOVED_ADDR)"
+
+    log "=== P1. the change under review: one argument, on one security group ==="
+    # aws_security_group.app is the only resource in this example whose
+    # tags argument is written with that alignment, so the anchor reaches
+    # exactly one block - asserted, not assumed.
+    [ "$(grep -c '^  tags        = local\.tags$' "$ADOPTED_EST/main.tf")" = "1" ] \
+      || fail "main.tf no longer carries exactly one \"tags        = local.tags\" argument - the corpus pin has moved"
+    perl -0pi -e 's/^  tags        = local\.tags$/  tags        = merge(local.tags, { Reviewed = "yes" })/m' "$ADOPTED_EST/main.tf"
+    [ "$(grep -c 'Reviewed = "yes"' "$ADOPTED_EST/main.tf")" = "1" ] \
+      || fail "the reviewed edit did not write exactly one merge(local.tags, ...) argument"
+    [ "$(grep -c '^  tags        = local\.tags$' "$ADOPTED_EST/main.tf")" = "0" ] \
+      || fail "the reviewed edit did not replace the aws_security_group.app tags argument"
+    log "  edited one argument: aws_security_group.app's tags now merge in Reviewed = \"yes\""
+
+    P_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+    [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+    [ -f "$ADOPTED_EST/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+    P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+    [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+      || { grep -E '^  # .+ will be' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+    if grep -qE '^  # .+ (will be (created|destroyed)|must be replaced)' <<< "$P_PLAN_OUT"; then
+      grep -E '^  # .+ will be|^  # .+ must be replaced' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create, a destroy or a replace; this review is one in-place update"
+    fi
+    P_PLAN_BYTES="$(wc -c < "$ADOPTED_EST/approved.tfplan" | tr -d ' ')"
+    log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+    log "=== P2. the world moves between the approval and the apply ==="
+    P_DRIFT_VALUE="moved-after-approval-$$"
+    awsl ec2 create-tags --resources "$MAIN_SG_ID" --tags "Key=DriftProbe,Value=$P_DRIFT_VALUE" >/dev/null \
+      || fail "the out-of-band move (create-tags on $MAIN_SG_ID) failed"
+    P_MOVED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$MAIN_SG_ID" "Name=key,Values=DriftProbe" --query 'Tags[0].Value' --output text)"
+    [ "$P_MOVED_VALUE" = "$P_DRIFT_VALUE" ] || fail "the out-of-band move did not take: $MAIN_SG_ID's DriftProbe tag reads \"$P_MOVED_VALUE\""
+    log "  $MAIN_SG_ID tagged DriftProbe=$P_DRIFT_VALUE out of band - after the approval, before the apply, through the AWS CLI"
+
+    log "=== P3. apply the approved plan against a world that moved ==="
+    P_GATE_RC=0
+    P_GATE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+    if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+      # stages.go's own Break line for plan_approval, executed literally:
+      # "Apply the planfile after a mutation and expect success; the run
+      # must refuse." Expecting success here is the defect this stage
+      # exists to catch, so this assertion has to fail.
+      [ "$P_GATE_RC" = "0" ] \
+        || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+      log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+    fi
+    [ "$P_GATE_RC" = "3" ] \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+    grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+    # Everything from the refusal's own summary line onward. The fresh plan
+    # printed above it also names the moved instance, so asserting over the
+    # whole output would pass on a refusal that named nothing at all.
+    P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+    grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+    grep -qF "$P_MOVED_ADDR" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+    # The row is "<address>  <action>  <identity>": this asserts the live
+    # security group the unapproved change was computed against, not just
+    # its address.
+    P_MOVED_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
+    grep -qF "$MAIN_SG_ID" <<< "$P_MOVED_ROW" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal's row for $P_MOVED_ADDR (\"$P_MOVED_ROW\") does not carry $MAIN_SG_ID, the live object the change was computed against"; }
+    grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+    if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+      printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+    fi
+    # Not "no Apply complete line" alone: read the live object the approval
+    # was about and confirm the reviewed change did not land.
+    P_REVIEWED_TAG_N="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_APP_SG_ID" "Name=key,Values=Reviewed" --query 'length(Tags)' --output text)"
+    [ "$P_REVIEWED_TAG_N" = "0" ] \
+      || fail "the refused apply still wrote the reviewed change: $P_APP_SG_ID carries a Reviewed tag"
+    printf '%s\n' "$P_REFUSAL" | head -12
+    log "  refused by name, exit $P_GATE_RC, nothing applied - and the row it names is exactly the change that appeared after the approval"
+
+    log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+    awsl ec2 delete-tags --resources "$MAIN_SG_ID" --tags "Key=DriftProbe" >/dev/null \
+      || fail "undoing the out-of-band move failed"
+    P_RESTORED_N="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$MAIN_SG_ID" "Name=key,Values=DriftProbe" --query 'length(Tags)' --output text)"
+    [ "$P_RESTORED_N" = "0" ] || fail "the out-of-band move was not undone: $MAIN_SG_ID still carries a DriftProbe tag"
+    P_OK_RC=0
+    P_OK_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+    [ "$P_OK_RC" = "0" ] \
+      || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+      || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+    P_LANDED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_APP_SG_ID" "Name=key,Values=Reviewed" --query 'Tags[0].Value' --output text)"
+    [ "$P_LANDED" = "yes" ] \
+      || fail "the approved change did not land: $P_APP_SG_ID carries Reviewed=\"$P_LANDED\", want \"yes\""
+    log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $P_APP_SG_ID now carries Reviewed=yes, read via the AWS CLI"
+
+    log "=== P5. put the estate back where the rest of this script expects it ==="
+    rm -f "$ADOPTED_EST/approved.tfplan"
+    perl -0pi -e 's/^  tags        = merge\(local\.tags, \{ Reviewed = "yes" \}\)$/  tags        = local.tags/m' "$ADOPTED_EST/main.tf"
+    [ "$(grep -c '^  tags        = local\.tags$' "$ADOPTED_EST/main.tf")" = "1" ] \
+      || fail "reverting the reviewed edit did not restore aws_security_group.app's \"tags        = local.tags\" argument"
+    P_BACK_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
+    [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
+    P_GONE_N="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$P_APP_SG_ID" "Name=key,Values=Reviewed" --query 'length(Tags)' --output text)"
+    [ "$P_GONE_N" = "0" ] || fail "the Reviewed tag is still on $P_APP_SG_ID after the revert"
+    # The whole leg was in-place: the app security group must still be the
+    # same live object PART D will rename.
+    P_APP_SG_ID_AFTER="$(awsl ec2 describe-security-groups --filters '[{"Name":"tag:tofu-address","Values":["aws_security_group.app"]}]' --query "SecurityGroups[0].GroupId" --output text)"
+    [ "$P_APP_SG_ID_AFTER" = "$P_APP_SG_ID" ] \
+      || fail "aws_security_group.app is now $P_APP_SG_ID_AFTER, not $P_APP_SG_ID - PART P moved a live id a later part depends on"
+    P_FINAL_OUT="$(plan_into 2>&1)"; P_FINAL_RC=$?
+    [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert live-plan exited $P_FINAL_RC"; }
+    if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)$' <<< "$P_FINAL_OUT"; then
+      grep -E '^  # .+ will be|^  # .+ must be replaced' <<< "$P_FINAL_OUT"
+      fail "the estate is not converged again after PART P"
+    fi
+    log "  reverted; the estate is converged again and PART F starts from where it would have"
+
+    log ""
+    log "PART P (plan, review, apply): PASS"
+    gauntlet_stage plan_approval pass "one argument edited (aws_security_group.app's tags merge in Reviewed=yes; the standalone app SG has no rule children, so one argument is one row), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is one update on $P_REVIEWED_ADDR ($P_APP_SG_ID); the world then moved out of band (a DriftProbe tag on $MAIN_SG_ID through the AWS CLI, never through choudoufu - STAGE 5's own proven mutation, on a DIFFERENT instance and a DIFFERENT live security group from the one under review) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both $P_MOVED_ADDR and the live $MAIN_SG_ID it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - describe-tags on $P_APP_SG_ID still returned no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the DriftProbe tag deleted and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and $P_APP_SG_ID read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied, the app SG confirmed to be the same GroupId it started as, and the estate replanned empty, so PART F starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+    log ""
+  fi
 
   # ══════════════════════════════════════════════════════════════════════
   # PART F: REPLACE (day2_replace, active - live/GAUNTLET.md #9)
