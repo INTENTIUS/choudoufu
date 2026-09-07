@@ -126,7 +126,7 @@ Oracle: Stock `apply -destroy` on the same estate leaves the same empty account.
 
 Break: Leave one resource; the assertion that the estate is empty must fail.
 
-### 12. Plan, review, apply (`plan_approval`, planned)
+### 12. Plan, review, apply (`plan_approval`, active)
 
 Proves: `plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.
 

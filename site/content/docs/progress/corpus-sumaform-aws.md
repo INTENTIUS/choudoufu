@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replace with create_before_destroy | pass | 1m12s | choudoufu: changing module.server's image input (ubuntu2204 -> ubuntu2404, both real, both in floci's seeded AMI catalog) proposed exactly one instance replace at the same declared address, cascading into the volume attachment (instance_id is ForceNew there too) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated via the AWS CLI and the new instance is confirmed running the new image; the local record store's record at the same address now names the new instance's id, not the terminated one (i-5720faebfefe13c10 -> i-c9ddad8b40018244e); the next plan proposes no resource action; BREAK=replace confirms this section's own record check discriminates (a deliberately-wrong expectation against the same real record fails, rather than vacuously passing). Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. A manufactured live-object collision (the shape ec2-instance-complete's and corpus-sqs-basic's own BREAK=replace controls report) has no tag surface to be detected from on this markers=record instance and is not exercised here - verified directly that an untagged extra instance is simply invisible to this plan, correctly, not incorrectly. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 2m22s | 11 resources from nothing (7 tag-stamped, 2 recorded via markers = record, 2 untaggable/derived - route_table_association and volume_attachment), replan empty, stock oracle in its own namespace matches on vpc cidr, security-group rule counts and the instance's ami+type |
 | Strict profile (not a headline stage) | not run |  |  |
 

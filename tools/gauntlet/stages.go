@@ -117,7 +117,7 @@ func Stages() []Stage {
 			Break:  "Leave one resource; the assertion that the estate is empty must fail.",
 		},
 		{
-			ID: "plan_approval", Order: 12, Title: "Plan, review, apply", Status: StatusPlanned, Headline: true,
+			ID: "plan_approval", Order: 12, Title: "Plan, review, apply", Status: StatusActive, Headline: true,
 			Proves: "`plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.",
 			Oracle: "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
 			Break:  "Apply the planfile after a mutation and expect success; the run must refuse.",

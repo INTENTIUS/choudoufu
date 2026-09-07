@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replace with create_before_destroy | pass | 7s | choudoufu: changing module.vpc.aws_iam_role.flow_logs_renamed's ForceNew name argument proposed a forced replace at the same declared address (Plan: 3 to add, 0 to change, 3 to destroy., cascading into the flow log's iam_role_arn and the inline role policy, both keyed to the role at creation time with no update path), applied cleanly; the old role is confirmed gone via the AWS CLI (NoSuchEntity) and the new role (xancloud-dev-main-flow-logs-role-v2) carries the marker; the local record store's record at the same address now names the new object's name, not the destroyed one (xancloud-dev-main-flow-logs-role -> xancloud-dev-main-flow-logs-role-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (REPLACE-ORACLE) also proposes replacing the role at the same address (Plan: 3 to add, 0 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 38s | 28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on $ENDPOINT matches on tagged-object count (21), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias |
 | Strict profile (not a headline stage) | not run |  |  |
 
