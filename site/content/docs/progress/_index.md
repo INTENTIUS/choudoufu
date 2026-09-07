@@ -15,7 +15,7 @@ passes - an active stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-06T01:27:32Z and 2026-09-06T23:49:04Z. Each row below carries its own `last_run` date; they are not all the same run.
+Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-07T03:00:49Z and 2026-09-07T03:06:04Z. Each row below carries its own `last_run` date; they are not all the same run.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -57,67 +57,67 @@ answer is and how each check is proven non-vacuous, is
 
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | no | pass pass pass pass pass pass pass pass pass not run pass pass |
-| [terralith-scale]({{< relref "terralith-scale" >}}) | core | reference | no | pass pass pass pass pass pass pass pass pass not run pass not run |
-| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | no | pass pass pass pass pass pass pass pass pass not run pass not run |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass pass pass |
+| [terralith-scale]({{< relref "terralith-scale" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h46m59s, but not from one sweep: 10m48s across 1 estate(s) at commit `3977d90784`; 6m59.4s across 1 estate(s) at commit `a7ca11f935`; 18m10.8s across 3 estate(s) at commit `cb5ae2009f`; 24m52.9s across 4 estate(s) at commit `d72960cdc3`; 1h46m7.9s across 18 estate(s) at commit `eec6fb4282`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
+27 of 27 estates have a recorded run duration, totaling 2h43m25.1s at commit `70e2722fa4`.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | 7m33.8s | cold_deploy 1m44s, migrate 1m7s, test_plan 4s, test_apply 5s, drift_reconverge 38s, day2_rename 17s, day2_remove 23s, day2_count 1m4s, day2_replace 33s, greenfield 1m38s |
-| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | 6m57.3s | cold_deploy 1m45s, migrate 1m21s, test_plan 4s, test_apply 5s, drift_reconverge 8s, day2_rename 18s, day2_remove 21s, day2_count 57s, day2_replace 18s, greenfield 1m39s |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 4m2.5s | cold_deploy 35s, migrate 1m30s, test_plan 2s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 6s, day2_count 31s, day2_replace 13s, greenfield 45s |
-| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | 7m2.7s | cold_deploy 1m18s, migrate 30s, test_plan 5s, test_apply 4s, drift_reconverge 6s, day2_rename 17s, day2_remove 30s, day2_count 2m11s, day2_replace 50s, greenfield 1m11s |
-| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | 10m48s | cold_deploy 1m45s, migrate 1m26s, test_plan 29s, test_apply 5s, drift_reconverge 12s, day2_rename 59s, day2_remove 20s, day2_count 2m2s, day2_replace 25s, greenfield 3m4s |
-| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | 14m4.9s | cold_deploy 1m35s, migrate 1m59s, test_plan 17s, test_apply 21s, drift_reconverge 39s, day2_rename 1m17s, day2_remove 1m1s, day2_count 3m20s, day2_replace 1m0s, greenfield 2m34s |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | 2m26.6s | cold_deploy 29s, migrate 36s, test_plan 3s, test_apply 3s, drift_reconverge 4s, day2_rename 10s, day2_remove 7s, day2_count 14s, day2_replace 13s, greenfield 27s |
-| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | 2m42.7s | cold_deploy 39s, migrate 24s, test_plan 4s, test_apply 4s, drift_reconverge 5s, day2_rename 11s, day2_remove 7s, day2_count 39s, day2_replace 10s, greenfield 20s |
-| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | 3m28.6s | cold_deploy 27s, migrate 18s, test_plan 2s, test_apply 3s, drift_reconverge 5s, day2_rename 9s, day2_remove 7s, day2_count 43s, day2_replace 6s, greenfield 1m28s |
-| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | 3m41s | cold_deploy 55s, migrate 45s, test_plan 4s, test_apply 4s, drift_reconverge 7s, day2_rename 10s, day2_remove 9s, day2_count 23s, day2_replace 9s, greenfield 55s |
-| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | 3m30.7s | cold_deploy 33s, migrate 43s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 15s, day2_remove 8s, day2_count 24s, day2_replace 12s, greenfield 1m3s |
-| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | 2m57.6s | cold_deploy 28s, migrate 18s, test_plan 3s, test_apply 3s, drift_reconverge 5s, day2_rename 9s, day2_remove 8s, day2_count 42s, day2_replace 7s, greenfield 55s |
-| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | 3m9.5s | cold_deploy 25s, migrate 1m5s, test_plan 3s, test_apply 3s, drift_reconverge 5s, day2_rename 10s, day2_remove 7s, day2_count 19s, day2_replace 7s, greenfield 45s |
-| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | 2m51.8s | cold_deploy 28s, migrate 14s, test_plan 3s, test_apply 5s, drift_reconverge 18s, day2_rename 24s, day2_remove 11s, day2_count 26s, day2_replace 18s, greenfield 25s |
-| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | 1m33.9s | cold_deploy 18s, migrate 25s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 6s, day2_remove 4s, day2_count 15s, day2_replace 5s, greenfield 13s |
-| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | 6m59.4s | cold_deploy 56s, migrate 1m10s, test_plan 9s, test_apply 3s, drift_reconverge 7s, day2_rename 47s, day2_remove 53s, day2_count 48s, day2_replace 6s, greenfield 2m0s |
-| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | 11m51.2s | cold_deploy 1m49s, migrate 50s, test_plan 8s, test_apply 4s, drift_reconverge 8s, day2_rename 16s, day2_remove 1m31s, day2_count 50s, day2_replace 2m51s, greenfield 3m23s |
-| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | 8m4.5s | cold_deploy 1m29s, migrate 1m17s, test_plan 4s, test_apply 11s, drift_reconverge 20s, day2_rename 23s, day2_remove 19s, day2_count 56s, day2_replace 21s, greenfield 2m45s |
-| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | 3m30.6s | cold_deploy 31s, migrate 1m15s, test_plan 4s, test_apply 4s, drift_reconverge 6s, day2_rename 13s, day2_remove 10s, day2_count 29s, day2_replace 11s, greenfield 27s |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | 8m10.4s | cold_deploy 1m25s, migrate 40s, test_plan 5s, test_apply 14s, drift_reconverge 22s, day2_rename 18s, day2_remove 28s, day2_count 53s, day2_replace 1m10s, greenfield 2m35s |
-| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | 10m36.1s | cold_deploy 1m10s, migrate 2m1s, test_plan 2s, test_apply 3s, drift_reconverge 5s, day2_rename 10s, day2_remove 50s, day2_count 1m54s, day2_replace 1m14s, greenfield 3m7s |
-| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | 9m49.4s | cold_deploy 1m28s, migrate 3m19s, test_plan 11s, test_apply 11s, drift_reconverge 22s, day2_rename 41s, day2_remove 23s, day2_count 2m2s, day2_replace 1m12s, greenfield 2m22s |
-| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | 4m49.3s | cold_deploy 34s, migrate 1m34s, test_plan 4s, test_apply 4s, drift_reconverge 7s, day2_rename 13s, day2_remove 21s, day2_count 1m32s, day2_replace 20s, greenfield 55s |
-| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m26.9s | cold_deploy 42s, migrate 49s, test_plan 3s, test_apply 3s, drift_reconverge 8s, day2_rename 10s, day2_remove 18s, day2_count 29s, day2_replace 7s, greenfield 38s |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m20.4s | cold_deploy 1m41s, migrate 52s, test_plan 2s, test_apply 3s, drift_reconverge 4s, day2_rename 9s, day2_remove 6s, day2_count 17s, day2_replace 27s, greenfield 3s, strict 2s |
-| [terralith-scale]({{< relref "terralith-scale" >}}) | 7m7.8s | cold_deploy 2m47s, migrate 47s, test_plan 4s, test_apply 6s, drift_reconverge 39s, day2_rename 22s, day2_remove 11s, day2_count 28s, day2_replace 19s, greenfield 1m25s, strict - |
-| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 11m21.4s | cold_deploy 2m30s, migrate 55s, test_plan 7s, test_apply 10s, drift_reconverge 29s, day2_rename 26s, day2_remove 32s, day2_count 1m9s, day2_replace 55s, greenfield 4m8s |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | 7m16.2s | cold_deploy 1m28s, migrate 1m5s, test_plan 4s, test_apply 5s, drift_reconverge 39s, day2_rename 16s, day2_remove 22s, day2_count 48s, day2_replace 32s, plan_approval 22s, greenfield 1m35s |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | 6m52.6s | cold_deploy 1m27s, migrate 1m17s, test_plan 4s, test_apply 4s, drift_reconverge 10s, day2_rename 17s, day2_remove 20s, day2_count 55s, day2_replace 18s, plan_approval 21s, greenfield 1m39s |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 4m3.8s | cold_deploy 23s, migrate 1m31s, test_plan 2s, test_apply 2s, drift_reconverge 6s, day2_rename 11s, day2_remove 6s, day2_count 31s, day2_replace 13s, plan_approval 13s, greenfield 46s |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | 6m38.5s | cold_deploy 56s, migrate 30s, test_plan 5s, test_apply 4s, drift_reconverge 6s, day2_rename 14s, day2_remove 28s, day2_count 2m7s, day2_replace 50s, plan_approval 17s, greenfield 1m1s |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | 9m10.4s | cold_deploy 1m22s, migrate 1m18s, test_plan 28s, test_apply 5s, drift_reconverge 11s, day2_rename 52s, day2_remove 15s, day2_count 1m4s, day2_replace 16s, plan_approval 27s, greenfield 2m52s |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | 15m20.1s | cold_deploy 1m23s, migrate 1m33s, test_plan 17s, test_apply 22s, drift_reconverge 41s, day2_rename 1m13s, day2_remove 1m2s, day2_count 3m34s, day2_replace 58s, plan_approval 1m40s, greenfield 2m35s |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | 2m22.4s | cold_deploy 12s, migrate 39s, test_plan 3s, test_apply 2s, drift_reconverge 6s, day2_rename 10s, day2_remove 6s, day2_count 13s, day2_replace 13s, plan_approval 12s, greenfield 26s |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | 1m53.3s | cold_deploy 5s, migrate 23s, test_plan 2s, test_apply 3s, drift_reconverge 4s, day2_rename 10s, day2_remove 5s, day2_count 31s, day2_replace 7s, plan_approval 11s, greenfield 12s |
+| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | 3m18.2s | cold_deploy 15s, migrate 17s, test_plan 3s, test_apply 2s, drift_reconverge 5s, day2_rename 8s, day2_remove 7s, day2_count 45s, day2_replace 7s, plan_approval 11s, greenfield 1m18s |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | 2m57.5s | cold_deploy 16s, migrate 37s, test_plan 3s, test_apply 3s, drift_reconverge 6s, day2_rename 10s, day2_remove 9s, day2_count 24s, day2_replace 8s, plan_approval 14s, greenfield 48s |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | 3m34.6s | cold_deploy 20s, migrate 52s, test_plan 4s, test_apply 3s, drift_reconverge 5s, day2_rename 14s, day2_remove 7s, day2_count 24s, day2_replace 12s, plan_approval 15s, greenfield 58s |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | 2m46.1s | cold_deploy 17s, migrate 19s, test_plan 2s, test_apply 3s, drift_reconverge 5s, day2_rename 9s, day2_remove 7s, day2_count 40s, day2_replace 7s, plan_approval 12s, greenfield 45s |
+| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | 3m11.2s | cold_deploy 15s, migrate 1m3s, test_plan 3s, test_apply 2s, drift_reconverge 5s, day2_rename 9s, day2_remove 6s, day2_count 19s, day2_replace 8s, plan_approval 19s, greenfield 41s |
+| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | 2m53.6s | cold_deploy 13s, migrate 14s, test_plan 2s, test_apply 5s, drift_reconverge 19s, day2_rename 25s, day2_remove 11s, day2_count 28s, day2_replace 18s, plan_approval 15s, greenfield 24s |
+| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | 1m30s | cold_deploy 5s, migrate 25s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 6s, day2_remove 5s, day2_count 15s, day2_replace 5s, plan_approval 9s, greenfield 11s |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | 7m23s | cold_deploy 56s, migrate 1m15s, test_plan 10s, test_apply 3s, drift_reconverge 8s, day2_rename 47s, day2_remove 52s, day2_count 51s, day2_replace 7s, plan_approval 13s, greenfield 2m0s |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | 12m10s | cold_deploy 1m44s, migrate 52s, test_plan 9s, test_apply 5s, drift_reconverge 8s, day2_rename 17s, day2_remove 1m31s, day2_count 50s, day2_replace 2m50s, plan_approval 20s, greenfield 3m23s |
+| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | 8m31s | cold_deploy 1m13s, migrate 1m21s, test_plan 4s, test_apply 11s, drift_reconverge 20s, day2_rename 22s, day2_remove 20s, day2_count 56s, day2_replace 20s, plan_approval 35s, greenfield 2m49s |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | 3m38.7s | cold_deploy 18s, migrate 1m14s, test_plan 5s, test_apply 4s, drift_reconverge 7s, day2_rename 14s, day2_remove 11s, day2_count 30s, day2_replace 11s, plan_approval 18s, greenfield 26s |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | 8m22.7s | cold_deploy 1m10s, migrate 41s, test_plan 5s, test_apply 13s, drift_reconverge 21s, day2_rename 15s, day2_remove 24s, day2_count 50s, day2_replace 1m8s, plan_approval 45s, greenfield 2m31s |
+| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | 10m32.2s | cold_deploy 57s, migrate 2m0s, test_plan 3s, test_apply 2s, drift_reconverge 5s, day2_rename 9s, day2_remove 49s, day2_count 1m55s, day2_replace 1m14s, plan_approval 13s, greenfield 3m5s |
+| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | 10m26.9s | cold_deploy 1m15s, migrate 3m16s, test_plan 12s, test_apply 11s, drift_reconverge 21s, day2_rename 40s, day2_remove 23s, day2_count 2m3s, day2_replace 1m11s, plan_approval 54s, greenfield 2m25s |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | 4m58.1s | cold_deploy 24s, migrate 1m36s, test_plan 3s, test_apply 4s, drift_reconverge 7s, day2_rename 13s, day2_remove 20s, day2_count 1m33s, day2_replace 20s, plan_approval 18s, greenfield 56s |
+| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m29.8s | cold_deploy 32s, migrate 48s, test_plan 3s, test_apply 3s, drift_reconverge 7s, day2_rename 11s, day2_remove 18s, day2_count 29s, day2_replace 7s, plan_approval 13s, greenfield 39s |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m7.5s | cold_deploy 1m27s, migrate 51s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 8s, day2_remove 5s, day2_count 17s, day2_replace 26s, plan_approval 11s, greenfield 3s, strict 2s |
+| [terralith-scale]({{< relref "terralith-scale" >}}) | 5m42.1s | cold_deploy 2m4s, migrate 43s, test_plan 4s, test_apply 5s, drift_reconverge 33s, day2_rename 18s, day2_remove 7s, day2_count 18s, day2_replace 12s, plan_approval 13s, greenfield 1m5s, strict - |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 10m14.6s | cold_deploy 1m55s, migrate 43s, test_plan 5s, test_apply 8s, drift_reconverge 28s, day2_rename 20s, day2_remove 30s, day2_count 57s, day2_replace 46s, plan_approval 28s, greenfield 3m54s |
 
 ## Live-AWS certification
 
