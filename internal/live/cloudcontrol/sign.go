@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -107,4 +108,24 @@ func (c *Client) regionOrDefault() string {
 		return c.region
 	}
 	return defaultRegion
+}
+
+// signedAs reports the access key id a signed request's credential scope
+// opens with ("AWS4-HMAC-SHA256 Credential=<key id>/<date>/..."), or
+// "unsigned" for a request that carries only [applyRegionScope]'s
+// placeholder or no Authorization header at all. Read back from the header
+// the signer wrote, never from the provider, so it says what went on the
+// wire.
+func signedAs(req *http.Request) string {
+	const prefix = "AWS4-HMAC-SHA256 Credential="
+	auth := req.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, prefix) {
+		return "unsigned"
+	}
+	scope := strings.TrimPrefix(auth, prefix)
+	keyID, _, _ := strings.Cut(scope, "/")
+	if keyID == "" || keyID == "unsigned" {
+		return "unsigned"
+	}
+	return keyID
 }

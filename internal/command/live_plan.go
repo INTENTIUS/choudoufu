@@ -1566,19 +1566,32 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 			))
 		} else {
 			req.Roster = roster
-			req.CloudControl = cloudcontrol.New(cloudcontrol.Config{
-				Endpoint: ep,
-				Region:   provs.region(providerAddr),
-			})
+			// Both clients sign as THIS provider configuration's principal
+			// (GitHub issue #957): the block's static keys, profile or
+			// assume_role, the same identity the plugin leg already runs
+			// as, so a two-account estate fetches its tag index once per
+			// account rather than twice as the process environment. When
+			// the block names a principal the request is signed even
+			// against an endpoint override: the emulator verifies no
+			// signature, but it resolves the calling account from the
+			// access key id in the credential scope, and an unsigned
+			// request lands in its default account whatever the block
+			// said. A block that names nothing keeps the old behaviour -
+			// the default chain, unsigned against an override.
+			sweepCreds, explicit := provs.credentials(providerAddr, ep)
+			sweepCfg := cloudcontrol.Config{
+				Endpoint:             ep,
+				Region:               provs.region(providerAddr),
+				Credentials:          sweepCreds,
+				SignEndpointOverride: explicit,
+			}
+			req.CloudControl = cloudcontrol.New(sweepCfg)
 			// The tagging sweep (issue #51) rides the same gate (#128): one
 			// estate-filtered GetResources call replaces the sweep's
 			// per-type listing. Absence of either client falls back to the
 			// pre-#51 per-type sweep, so the gate's off state is unchanged
 			// behavior, same as the Cloud Control fallback above.
-			req.Tagging = cloudcontrol.NewTagging(cloudcontrol.Config{
-				Endpoint: ep,
-				Region:   provs.region(providerAddr),
-			})
+			req.Tagging = cloudcontrol.NewTagging(sweepCfg)
 			// TaggingSweep is on for every endpoint, real AWS and
 			// emulator alike.
 			//
