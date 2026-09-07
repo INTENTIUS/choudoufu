@@ -440,6 +440,17 @@ set -uo pipefail
 #                hold, so the stage reports fail - which is what proves G2's
 #                real assertion is load-bearing. Independent of BREAK,
 #                BREAK_RENAME and BREAK_REMOVE.
+#   BREAK_APPROVAL
+#                set to 1 to run plan_approval's own negative control
+#                instead of the real refusal check (PART P): after the world
+#                has moved out of band, assert the saved plan file APPLIES
+#                cleanly - the Break text in tools/gauntlet/stages.go for
+#                plan_approval is literally "Apply the planfile after a
+#                mutation and expect success; the run must refuse", so this
+#                assertion has to fail. Independent of every BREAK above,
+#                and the only one of them under which PART P runs at all -
+#                the others deliberately leave the estate somewhere PART P
+#                does not describe, and it reports no verdict there.
 #
 # Exit codes: 0 on a real pass of every stage this script currently
 # exercises (stages 1 through 4; stage 5 is not yet written), non-zero on a
@@ -1510,6 +1521,184 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The pipeline shape CI has always run: plan on the pull request, a human
+# approves, apply exactly what was approved. The artifact that crosses that
+# gate is the plan file, and under live markers it is an APPROVAL rather
+# than an instruction - "apply <planfile>" re-reads the live system, plans
+# against what it finds now, and compares that fresh plan with the file's,
+# refusing by name and with exit 3 when the two disagree (issue #878,
+# internal/command/live_approval.go).
+#
+# Both arms run on every real run, because only the pair is evidence:
+#
+#   P2/P3  the world MOVES between the approval and the apply - the Lambda
+#          function's memory_size is changed out of band through the AWS
+#          CLI, the SAME mutation STAGE 5 above already proves this estate's
+#          plan notices and scopes to one object - and the apply must
+#          refuse: exit 3, the named summary, the unapproved row printed by
+#          address AND by the live identity it was computed against, and the
+#          reviewed change still not landed when the live log group is read
+#          back through the CLI.
+#   P4     nothing has moved (memory_size is put back first) and the SAME
+#          file must APPLY. This is the inverted control that
+#          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+#          comparison which refuses unconditionally is not a check, so P3's
+#          refusal is only worth something if the identical artifact goes
+#          through when the world is where the approval left it.
+#
+# The two objects are deliberately disjoint - the change under review is one
+# in-place retention_in_days update on module.lambda_function's log group,
+# the out-of-band move is on the FUNCTION - so the refusal has an EXTRA row
+# to name rather than a values-only disagreement about the same row
+# (approvalMismatchDetail's Drifted branch). The reviewed argument is chosen
+# to be in-place and to reach exactly one instance: the module call carries
+# no tags argument at all, and every tags-shaped knob it does have
+# propagates to three children at once, while cloudwatch_logs_retention_in_days
+# lands on aws_cloudwatch_log_group.lambda[0] and nowhere else. It is not a
+# create or a destroy, so no later part's captured id moves under it - PART
+# F below replaces the same log group by NAME and captures its own ids
+# after this part has already put the retention back.
+#
+# Runs only on a real run. Under any of this script's other BREAK controls
+# the estate is deliberately left somewhere this part does not describe, so
+# it reports no verdict at all and the runner records the stage as not_run,
+# never as a pass.
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_RENAME:-}" ] && [ -z "${BREAK_REMOVE:-}" ] \
+   && [ -z "${BREAK_COUNT:-}" ] && [ -z "${BREAK_COLLISION:-}" ] \
+   && [ -z "${BREAK_DEPENDENCY:-}" ] && [ -z "${BREAK_PLAN:-}" ]; then
+  gauntlet_begin_stage plan_approval
+  log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+  P_REVIEWED_ADDR="module.lambda_function.aws_cloudwatch_log_group.lambda[0]"
+  P_MOVED_ADDR="module.lambda_function.aws_lambda_function.this[0]"
+
+  log "=== P1. the change under review: one argument, reaching one instance ==="
+  [ "$(grep -c '^  publish = true$' "$EST/main.tf")" = "1" ] \
+    || fail "main.tf no longer carries exactly one \"publish = true\" module argument - the corpus pin has moved"
+  perl -0pi -e 's/^  publish = true$/  publish = true\n  cloudwatch_logs_retention_in_days = 14/m' "$EST/main.tf"
+  [ "$(grep -c '^  cloudwatch_logs_retention_in_days = 14$' "$EST/main.tf")" = "1" ] \
+    || fail "the reviewed edit did not write exactly one cloudwatch_logs_retention_in_days argument"
+  log "  edited one argument: module.lambda_function's cloudwatch_logs_retention_in_days is now 14 (was unset)"
+
+  P_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+  [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+  [ -f "$EST/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+  P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+    || { grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+  if grep -qE '^  # .+ (will be (created|destroyed)|must be replaced)' <<< "$P_PLAN_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create, a destroy or a replace; this review is one in-place update"
+  fi
+  P_PLAN_BYTES="$(wc -c < "$EST/approved.tfplan" | tr -d ' ')"
+  log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+  log "=== P2. the world moves between the approval and the apply ==="
+  awsl lambda update-function-configuration --function-name "$FN_NAME" --memory-size 256 >/dev/null \
+    || fail "the out-of-band memory_size move could not be made through the AWS CLI"
+  P_MOVE_STATUS=""
+  for _ in $(seq 1 30); do
+    P_MOVE_STATUS="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query LastUpdateStatus --output text 2>/dev/null)"
+    [ "$P_MOVE_STATUS" = "Successful" ] && break
+    sleep 1
+  done
+  [ "$P_MOVE_STATUS" = "Successful" ] || fail "the out-of-band memory_size update never reached LastUpdateStatus=Successful (last seen: $P_MOVE_STATUS)"
+  P_MOVED_VALUE="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query MemorySize --output text)"
+  [ "$P_MOVED_VALUE" = "256" ] || fail "the out-of-band move did not take: $FN_NAME's memory_size reads $P_MOVED_VALUE"
+  log "  $FN_NAME's memory_size changed out of band to 256 (config says 128) - after the approval, before the apply, through the AWS CLI"
+
+  log "=== P3. apply the approved plan against a world that moved ==="
+  P_GATE_RC=0
+  P_GATE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+  if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+    # stages.go's own Break line for plan_approval, executed literally:
+    # "Apply the planfile after a mutation and expect success; the run must
+    # refuse." Expecting success here is the defect this stage exists to
+    # catch, so this assertion has to fail.
+    [ "$P_GATE_RC" = "0" ] \
+      || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+    log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+  fi
+  [ "$P_GATE_RC" = "3" ] \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+  grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+    || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+  # Everything from the refusal's own summary line onward. The fresh plan
+  # printed above it also names the moved function, so asserting over the
+  # whole output would pass on a refusal that named nothing at all.
+  P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+  grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+  P_EXTRA_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
+  [ -n "$P_EXTRA_ROW" ] \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+  grep -qF "$FN_NAME" <<< "$P_EXTRA_ROW" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not the live identity it was computed against: the row reads \"$P_EXTRA_ROW\", which does not carry $FN_NAME"; }
+  grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+    || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+  if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+    printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+  fi
+  # Not "no Apply complete line" alone: read the live object the approval
+  # was about and confirm the reviewed change did not land.
+  P_REVIEWED_RETENTION="$(awsl logs describe-log-groups --log-group-name-prefix "/aws/lambda/${FN_NAME}" --query 'logGroups[0].retentionInDays' --output text)"
+  [ "$P_REVIEWED_RETENTION" = "None" ] || [ -z "$P_REVIEWED_RETENTION" ] \
+    || fail "the refused apply still wrote the reviewed change: /aws/lambda/${FN_NAME} carries retentionInDays=$P_REVIEWED_RETENTION"
+  printf '%s\n' "$P_REFUSAL" | head -12
+  log "  refused by name, exit $P_GATE_RC, nothing applied - the row it names is \"$P_EXTRA_ROW\", exactly the change that appeared after the approval"
+
+  log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+  awsl lambda update-function-configuration --function-name "$FN_NAME" --memory-size 128 >/dev/null \
+    || fail "the out-of-band move could not be undone through the AWS CLI"
+  P_BACK_STATUS=""
+  for _ in $(seq 1 30); do
+    P_BACK_STATUS="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query LastUpdateStatus --output text 2>/dev/null)"
+    [ "$P_BACK_STATUS" = "Successful" ] && break
+    sleep 1
+  done
+  [ "$P_BACK_STATUS" = "Successful" ] || fail "putting memory_size back never reached LastUpdateStatus=Successful (last seen: $P_BACK_STATUS)"
+  P_RESTORED="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query MemorySize --output text)"
+  [ "$P_RESTORED" = "128" ] || fail "the out-of-band move was not undone: $FN_NAME's memory_size reads $P_RESTORED"
+  P_OK_RC=0
+  P_OK_OUT="$(cd "$EST" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+  [ "$P_OK_RC" = "0" ] \
+    || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+    || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+  P_LANDED="$(awsl logs describe-log-groups --log-group-name-prefix "/aws/lambda/${FN_NAME}" --query 'logGroups[0].retentionInDays' --output text)"
+  [ "$P_LANDED" = "14" ] \
+    || fail "the approved change did not land: /aws/lambda/${FN_NAME} carries retentionInDays=$P_LANDED, want 14"
+  log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and /aws/lambda/${FN_NAME} now carries retentionInDays=14, read via the AWS CLI"
+
+  log "=== P5. put the estate back where the rest of this script expects it ==="
+  rm -f "$EST/approved.tfplan"
+  perl -0pi -e 's/^  cloudwatch_logs_retention_in_days = 14\n//m' "$EST/main.tf"
+  [ "$(grep -c 'cloudwatch_logs_retention_in_days' "$EST/main.tf")" = "0" ] \
+    || fail "reverting the reviewed edit did not remove the cloudwatch_logs_retention_in_days argument"
+  P_REVERT_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_REVERT_RC=$?
+  [ "$P_REVERT_RC" -eq 0 ] || { printf '%s\n' "$P_REVERT_OUT" | tail -40; fail "the revert apply failed"; }
+  P_GONE="$(awsl logs describe-log-groups --log-group-name-prefix "/aws/lambda/${FN_NAME}" --query 'logGroups[0].retentionInDays' --output text)"
+  [ "$P_GONE" = "None" ] || [ -z "$P_GONE" ] \
+    || fail "the reviewed retention is still set on /aws/lambda/${FN_NAME} after the revert: $P_GONE"
+  P_KEPT_MEMORY="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query MemorySize --output text)"
+  [ "$P_KEPT_MEMORY" = "128" ] || fail "$FN_NAME's memory_size is $P_KEPT_MEMORY after PART P, not the configured 128"
+  P_FINAL_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+  [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+  if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$P_FINAL_OUT"; then
+    grep -E '^  # .+ (will be|must be)' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+  fi
+  [ ! -f "$EST/terraform.tfstate" ] || fail "PART P left a state file behind"
+  log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+  log ""
+  log "PART P (plan, review, apply): PASS"
+  gauntlet_stage plan_approval pass "one argument edited (module.lambda_function's cloudwatch_logs_retention_in_days, unset -> 14, which reaches $P_REVIEWED_ADDR and nothing else - the module call carries no tags argument and every tags-shaped knob it has would reach three children at once), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is that one in-place update; the world then moved out of band ($FN_NAME's memory_size 128->256, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming the extra row as \"$P_EXTRA_ROW\" - both $P_MOVED_ADDR and the live identity it was computed against - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - /aws/lambda/${FN_NAME} still carried no retentionInDays, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with memory_size put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the log group read back with retentionInDays=14, so the refusal is earned by the drift and not handed out to every plan file. Reverted and reconverged in P5 (retention unset again, memory_size still 128, next plan proposes no resource action, no state file left behind) so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+  log ""
 fi
 
 # ══════════════════════════════════════════════════════════════════════════

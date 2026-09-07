@@ -309,6 +309,18 @@ set -uo pipefail
 #                 the WRONG instance (count_test[0] rather than
 #                 count_test[1]) was destroyed. The Break text in
 #                 tools/gauntlet/stages.go for day2_count, verbatim.
+#   BREAK_APPROVAL
+#                 set to 1 to run plan_approval's own negative control
+#                 instead of the real refusal check (PART P): after the
+#                 world has moved out of band, assert the saved plan file
+#                 APPLIES cleanly - the Break text in
+#                 tools/gauntlet/stages.go for plan_approval is literally
+#                 "Apply the planfile after a mutation and expect success;
+#                 the run must refuse", so this assertion has to fail.
+#                 Independent of every BREAK above, and the only one of them
+#                 under which PART P runs at all - the others deliberately
+#                 leave the estate somewhere PART P does not describe, and
+#                 it reports no verdict there.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -1479,6 +1491,178 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   log ""
   gauntlet_stage drift_reconverge pass "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # PART P: PLAN, REVIEW, APPLY (plan_approval, live/GAUNTLET.md #12, issue #903)
+  # ══════════════════════════════════════════════════════════════════════════
+  #
+  # The pipeline shape CI has always run: plan on the pull request, a human
+  # approves, apply exactly what was approved. The artifact that crosses that
+  # gate is the plan file, and under live markers it is an APPROVAL rather
+  # than an instruction - "apply <planfile>" re-reads the live system, plans
+  # against what it finds now, and compares that fresh plan with the file's,
+  # refusing by name and with exit 3 when the two disagree (issue #878,
+  # internal/command/live_approval.go).
+  #
+  # Both arms run on every real run, because only the pair is evidence:
+  #
+  #   P2/P3  the world MOVES between the approval and the apply - the VPC's
+  #          own Name tag is changed out of band through the AWS CLI, the
+  #          SAME mutation STAGE 5 above already proves this estate's plan
+  #          notices and scopes to one object - and the apply must refuse:
+  #          exit 3, the named summary, the unapproved row printed by address
+  #          AND by the live VPC id it was computed against, and the reviewed
+  #          change still not landed when the bucket's CORS rules are read
+  #          back through the CLI.
+  #   P4     nothing has moved (the Name tag is put back first) and the SAME
+  #          file must APPLY. This is the inverted control that
+  #          live/smoke/scenarios/apply-what-was-approved.sh reasons out: a
+  #          comparison which refuses unconditionally is not a check, so P3's
+  #          refusal is only worth something if the identical artifact goes
+  #          through when the world is where the approval left it.
+  #
+  # The two objects are deliberately disjoint - the change under review is
+  # one in-place cors_rule update on the bucket's CORS configuration, the
+  # out-of-band move is on the VPC - so the refusal has an EXTRA row to name
+  # rather than a values-only disagreement about the same row
+  # (approvalMismatchDetail's Drifted branch). cors_allowed_origins is the
+  # reviewed argument because it is the only root knob that lands on exactly
+  # ONE of this estate's 26 instances and lands in place: `tags` reaches all
+  # 16 taggable children at once, name_overrides and the launch template are
+  # ForceNew, and the create_* toggles are creates and destroys. Nothing
+  # later in this script reads aws_s3_bucket_cors_configuration.tiles[0] by
+  # id, and an in-place update moves no id anyway, so PART D's own 16-address
+  # capture and PART F's log-group ids are untouched.
+  #
+  # Runs only on a real run. Under any of this script's other BREAK controls
+  # the estate is deliberately left somewhere this part does not describe, so
+  # it reports no verdict at all and the runner records the stage as not_run,
+  # never as a pass. (BREAK_STAGE5 is already excluded: this whole block sits
+  # inside stage 5's own real-run branch.)
+  if [ -z "${BREAK:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+    gauntlet_begin_stage plan_approval
+    log ""
+    log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
+
+    P_REVIEWED_ADDR="module.overture_tiles.aws_s3_bucket_cors_configuration.tiles[0]"
+    P_MOVED_ADDR="module.overture_tiles.aws_vpc.batch[0]"
+    P_NEW_ORIGIN="https://tiles.example.invalid"
+
+    log "=== P1. the change under review: one argument, reaching one instance ==="
+    [ "$(grep -c '^  cors_allowed_origins  = \["\*"\]$' "$ESTATE/main.tf")" = "1" ] \
+      || fail "main.tf no longer carries exactly one cors_allowed_origins argument - this script's own write_root has moved"
+    perl -0pi -e "s{^  cors_allowed_origins  = \\[\"\\*\"\\]\$}{  cors_allowed_origins  = [\"$P_NEW_ORIGIN\"]}m" "$ESTATE/main.tf"
+    [ "$(grep -c "^  cors_allowed_origins  = \[\"$P_NEW_ORIGIN\"\]\$" "$ESTATE/main.tf")" = "1" ] \
+      || fail "the reviewed edit did not write exactly one cors_allowed_origins argument"
+    log "  edited one argument: module.overture_tiles's cors_allowed_origins is now [\"$P_NEW_ORIGIN\"] (was [\"*\"])"
+
+    P_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
+    [ "$P_PLAN_RC" -eq 0 ] || { printf '%s\n' "$P_PLAN_OUT" | tail -40; fail "plan -out exited $P_PLAN_RC"; }
+    [ -f "$ESTATE/approved.tfplan" ] || { printf '%s\n' "$P_PLAN_OUT" | tail -20; fail "plan -out wrote no file"; }
+    P_APPROVED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$P_PLAN_OUT" | awk '{print $2}' | sort -u)"
+    [ "$P_APPROVED_ADDRS" = "$P_REVIEWED_ADDR" ] \
+      || { grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan is about [$P_APPROVED_ADDRS], not $P_REVIEWED_ADDR alone"; }
+    if grep -qE '^  # .+ (will be (created|destroyed)|must be replaced)' <<< "$P_PLAN_OUT"; then
+      grep -E '^  # .+ (will be|must be)' <<< "$P_PLAN_OUT"; fail "the approved plan proposes a create, a destroy or a replace; this review is one in-place update"
+    fi
+    P_PLAN_BYTES="$(wc -c < "$ESTATE/approved.tfplan" | tr -d ' ')"
+    log "  approved.tfplan written ($P_PLAN_BYTES bytes of stock-format plan file); the approval is exactly one update, on $P_REVIEWED_ADDR"
+
+    log "=== P2. the world moves between the approval and the apply ==="
+    awsl ec2 create-tags --resources "$VPC_ID" --tags Key=Name,Value=moved-after-approval >/dev/null \
+      || fail "the out-of-band Name-tag move could not be made through the AWS CLI"
+    P_MOVED_VALUE="$(awsl ec2 describe-tags \
+      --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+      --query "Tags[0].Value" --output text)"
+    [ "$P_MOVED_VALUE" = "moved-after-approval" ] || fail "the out-of-band move did not take: $VPC_ID's Name tag reads \"$P_MOVED_VALUE\""
+    log "  $VPC_ID's Name tag changed out of band to \"moved-after-approval\" (config says $VPC_NAME_TAG) - after the approval, before the apply, through the AWS CLI"
+
+    log "=== P3. apply the approved plan against a world that moved ==="
+    P_GATE_RC=0
+    P_GATE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_GATE_RC=$?
+    if [ "${BREAK_APPROVAL:-}" = "1" ]; then
+      # stages.go's own Break line for plan_approval, executed literally:
+      # "Apply the planfile after a mutation and expect success; the run must
+      # refuse." Expecting success here is the defect this stage exists to
+      # catch, so this assertion has to fail.
+      [ "$P_GATE_RC" = "0" ] \
+        || fail "BREAK_APPROVAL=1: the apply of a plan file approved before the world moved exited $P_GATE_RC, not 0 - the refusal is load-bearing and this expectation is the defect stage 12 catches"
+      log "  BREAK_APPROVAL=1: the apply exited 0 with the world moved - stage 12 is NOT load-bearing"
+    fi
+    [ "$P_GATE_RC" = "3" ] \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply exited $P_GATE_RC, want 3 - a plan file whose approval no longer covers the run must refuse with its own status"; }
+    grep -q "The approved plan no longer matches the live system" <<< "$P_GATE_OUT" \
+      || { printf '%s\n' "$P_GATE_OUT" | tail -40; fail "the apply stopped, but not with the named refusal"; }
+    # Everything from the refusal's own summary line onward. The fresh plan
+    # printed above it also names the moved VPC, so asserting over the whole
+    # output would pass on a refusal that named nothing at all.
+    P_REFUSAL="$(sed -n '/The approved plan no longer matches the live system/,$p' <<< "$P_GATE_OUT")"
+    grep -qF "This apply would do, and the approved plan does not include:" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not classify the difference as a change nobody approved"; }
+    P_EXTRA_ROW="$(grep -F "$P_MOVED_ADDR" <<< "$P_REFUSAL" | head -1)"
+    [ -n "$P_EXTRA_ROW" ] \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not name $P_MOVED_ADDR, the change nobody approved"; }
+    grep -qF "$VPC_ID" <<< "$P_EXTRA_ROW" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal names the address but not $VPC_ID, the live object the change was computed against: the row reads \"$P_EXTRA_ROW\""; }
+    grep -qF "Exit status 3" <<< "$P_REFUSAL" \
+      || { printf '%s\n' "$P_REFUSAL"; fail "the refusal does not tell a pipeline what its exit status means"; }
+    if grep -q "Apply complete!" <<< "$P_GATE_OUT"; then
+      printf '%s\n' "$P_GATE_OUT" | tail -20; fail "the apply ran anyway after refusing"
+    fi
+    # Not "no Apply complete line" alone: read the live object the approval
+    # was about and confirm the reviewed change did not land.
+    P_REVIEWED_ORIGIN="$(awsl s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins[0]' --output text)"
+    [ "$P_REVIEWED_ORIGIN" = "*" ] \
+      || fail "the refused apply still wrote the reviewed change: $BUCKET_NAME's first CORS allowed origin reads \"$P_REVIEWED_ORIGIN\", want the pre-approval \"*\""
+    printf '%s\n' "$P_REFUSAL" | head -12
+    log "  refused by name, exit $P_GATE_RC, nothing applied - the row it names is \"$P_EXTRA_ROW\", exactly the change that appeared after the approval"
+
+    log "=== P4. the inverted control: put the world back, apply the SAME file ==="
+    awsl ec2 create-tags --resources "$VPC_ID" --tags "Key=Name,Value=$VPC_NAME_TAG" >/dev/null \
+      || fail "the out-of-band move could not be undone through the AWS CLI"
+    P_RESTORED="$(awsl ec2 describe-tags \
+      --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+      --query "Tags[0].Value" --output text)"
+    [ "$P_RESTORED" = "$VPC_NAME_TAG" ] || fail "the out-of-band move was not undone: $VPC_ID's Name tag reads \"$P_RESTORED\""
+    P_OK_RC=0
+    P_OK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || P_OK_RC=$?
+    [ "$P_OK_RC" = "0" ] \
+      || { printf '%s\n' "$P_OK_OUT" | tail -40; fail "the same plan file was refused (exit $P_OK_RC) over a world that had not moved - a comparison that refuses unconditionally is not a check"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_OK_OUT" \
+      || { grep -E 'Apply complete' <<< "$P_OK_OUT"; fail "the approved apply did not change exactly the one reviewed resource"; }
+    P_LANDED="$(awsl s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins[0]' --output text)"
+    [ "$P_LANDED" = "$P_NEW_ORIGIN" ] \
+      || fail "the approved change did not land: $BUCKET_NAME's first CORS allowed origin reads \"$P_LANDED\", want \"$P_NEW_ORIGIN\""
+    log "  the identical artifact applied (0 added, 1 changed, 0 destroyed) and $BUCKET_NAME's CORS rule now allows $P_NEW_ORIGIN, read via the AWS CLI"
+
+    log "=== P5. put the estate back where the rest of this script expects it ==="
+    rm -f "$ESTATE/approved.tfplan"
+    perl -0pi -e "s{^  cors_allowed_origins  = \\[\"$P_NEW_ORIGIN\"\\]\$}{  cors_allowed_origins  = [\"*\"]}m" "$ESTATE/main.tf"
+    [ "$(grep -c '^  cors_allowed_origins  = \["\*"\]$' "$ESTATE/main.tf")" = "1" ] \
+      || fail "reverting the reviewed edit did not restore cors_allowed_origins = [\"*\"]"
+    P_REVERT_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_REVERT_RC=$?
+    [ "$P_REVERT_RC" -eq 0 ] || { printf '%s\n' "$P_REVERT_OUT" | tail -40; fail "the revert apply failed"; }
+    grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$P_REVERT_OUT" \
+      || { grep -E 'Apply complete' <<< "$P_REVERT_OUT"; fail "the revert apply did not change exactly the one reviewed resource back"; }
+    P_GONE="$(awsl s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins[0]' --output text)"
+    [ "$P_GONE" = "*" ] || fail "$BUCKET_NAME's CORS rule still reads \"$P_GONE\" after the revert, not \"*\""
+    P_KEPT_NAME="$(awsl ec2 describe-tags \
+      --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+      --query "Tags[0].Value" --output text)"
+    [ "$P_KEPT_NAME" = "$VPC_NAME_TAG" ] || fail "$VPC_ID's Name tag is \"$P_KEPT_NAME\" after PART P, not the configured $VPC_NAME_TAG"
+    P_FINAL_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color 2>&1)"; P_FINAL_RC=$?
+    [ "$P_FINAL_RC" -eq 0 ] || { printf '%s\n' "$P_FINAL_OUT" | tail -40; fail "the post-revert plan exited $P_FINAL_RC"; }
+    if grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$P_FINAL_OUT"; then
+      grep -E '^  # .+ (will be|must be)' <<< "$P_FINAL_OUT"; fail "the estate is not converged again after PART P"
+    fi
+    [ ! -f "$ESTATE/terraform.tfstate" ] || fail "PART P left a state file behind"
+    log "  reverted; the estate is converged again and PART D starts from where it would have"
+
+    log ""
+    log "PART P (plan, review, apply): PASS"
+    gauntlet_stage plan_approval pass "one argument edited (module.overture_tiles's cors_allowed_origins, [\"*\"] -> [\"$P_NEW_ORIGIN\"], which reaches $P_REVIEWED_ADDR and nothing else - it is the only root knob of this 26-instance estate that lands on exactly one instance IN PLACE, since \`tags\` reaches all 16 taggable children at once, name_overrides and the launch template are ForceNew, and the create_* toggles are creates and destroys), \"plan -out=approved.tfplan\" wrote a $P_PLAN_BYTES-byte stock-format plan file whose whole change set is that one in-place update; the world then moved out of band ($VPC_ID's Name tag -> moved-after-approval, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming the extra row as \"$P_EXTRA_ROW\" - both $P_MOVED_ADDR and the live $VPC_ID it was computed against - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - $BUCKET_NAME's CORS rule still read \"*\" through s3api get-bucket-cors rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the Name tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the CORS rule read back as $P_NEW_ORIGIN, so the refusal is earned by the drift and not handed out to every plan file. Reverted and reconverged in P5 (CORS back to \"*\", VPC Name tag still $VPC_NAME_TAG, next plan proposes no resource action, no state file left behind) so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+    log ""
+  fi
 
   # ══════════════════════════════════════════════════════════════════════════
   # PART D: RENAME (day2_rename, active - live/GAUNTLET.md #6)
