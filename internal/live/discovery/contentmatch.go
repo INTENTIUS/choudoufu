@@ -11,13 +11,11 @@ import (
 	"log"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -55,7 +53,7 @@ import (
 // A declared instance with a count or for_each key is left alone entirely -
 // no claimant, no diagnostic - the same restriction
 // internal/live/foreign/classify.go's matchTable holds itself to and for
-// the same reason: [staticArgumentValue] evaluates one expression against
+// the same reason: [staticeval.Argument] evaluates one expression against
 // the module's static scope, which has no per-instance each.key/each.value
 // or count.index binding to evaluate against. Such an instance is left
 // unbound, which a plan reads as "create" - correct for a genuinely new
@@ -129,7 +127,7 @@ func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, type
 	// Index every candidate by its own matched property value. A candidate
 	// whose property is absent, not a string, or empty never matches
 	// anything - the same "cannot read it, so it disqualifies rather than
-	// wildcards" rule [staticArgumentValue] holds the declared side to.
+	// wildcards" rule [staticeval.Argument] holds the declared side to.
 	byValue := make(map[string][]cloudControlCandidate, len(descs))
 	for _, d := range descs {
 		v, ok := propertyPathValue(d.Properties, binding.PropertyPath)
@@ -153,7 +151,7 @@ func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, type
 			continue // discovery already refuses a resolutions/configuration mismatch before this runs
 		}
 
-		val, why := staticArgumentValue(ctx, req.Config.Module, rc, binding.Argument)
+		val, why := staticeval.Argument(ctx, req.Config.Module, rc, binding.Argument)
 		if why != "" {
 			log.Printf("[DEBUG] stateless/discovery: %s cannot be content-matched: %s", entry.res.Addr, why)
 			continue
@@ -280,66 +278,4 @@ func propertyPathValue(props map[string]any, path []string) (string, bool) {
 		return "", false
 	}
 	return s, true
-}
-
-// staticArgumentValue reads one top-level argument of a declared resource
-// as configuration gives it, through the module's static evaluator -
-// constants, variables, locals and functions, the same subset identity
-// resolution admits. It is internal/live/foreign/classify.go's own
-// staticString, copied rather than imported: that package already imports
-// this one (for content matching's OWN never-auto-bind half), so importing
-// it back here would be a cycle, and the two packages read the evaluator
-// for related but distinct reasons - foreign's never binds, this one only
-// ever runs for a type [identity.ContentMatchTypes] has already proven safe
-// to bind on.
-//
-// The second return is empty on success and a reason on failure; a value
-// this cannot read never becomes a wildcard, it disqualifies the instance
-// from matching entirely (see [scanTypeContentMatch]'s "not found yet"
-// handling, which is exactly what a disqualified instance also gets).
-func staticArgumentValue(ctx context.Context, mod *configs.Module, rc *configs.Resource, name string) (string, string) {
-	content, _, hclDiags := rc.Config.PartialContent(&hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: name}},
-	})
-	if hclDiags.HasErrors() {
-		return "", fmt.Sprintf("its %s argument could not be read from configuration", name)
-	}
-	attr, ok := content.Attributes[name]
-	if !ok {
-		return "", fmt.Sprintf("it sets no %s argument, and that is the argument content match would have to be made on", name)
-	}
-
-	for _, trav := range attr.Expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Statically evaluable.
-		default:
-			return "", fmt.Sprintf(
-				"its %s argument refers to %s, which is not known until the run is under way, so there is no configuration value to compare against",
-				name, trav.RootName())
-		}
-	}
-
-	if mod.StaticEvaluator == nil {
-		return "", fmt.Sprintf("its %s argument could not be evaluated: the configuration carries no static evaluator", name)
-	}
-	val, evalDiags := mod.StaticEvaluator.Evaluate(ctx, attr.Expr, configs.StaticIdentifier{
-		Module:    addrs.RootModule,
-		Subject:   fmt.Sprintf("%s.%s", rc.Addr(), name),
-		DeclRange: attr.Range,
-	})
-	if evalDiags.HasErrors() {
-		return "", fmt.Sprintf("its %s argument could not be evaluated from configuration alone", name)
-	}
-	if val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
-		return "", fmt.Sprintf("its %s argument is not a plain known value", name)
-	}
-	str, err := convert.Convert(val, cty.String)
-	if err != nil {
-		return "", fmt.Sprintf("its %s argument is not usable as a string", name)
-	}
-	if str.AsString() == "" {
-		return "", fmt.Sprintf("its %s argument is empty, which matches nothing", name)
-	}
-	return str.AsString(), ""
 }

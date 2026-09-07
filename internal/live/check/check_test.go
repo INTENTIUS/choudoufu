@@ -156,6 +156,14 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// path at all.
 		"statefulcost": true,
 		"staterecord":  true,
+		// The shared config-subset evaluator (#826): the allowlist, the
+		// recover-wrapped evaluation, the count/for_each key derivation and
+		// the select-by-path argument read, in one leaf under identity,
+		// lint, dataread, discovery and foreign. It refuses nothing of its
+		// own - it answers "yes, and here is the value" or "no", and every
+		// refusal a user reads is worded by one of those five callers,
+		// each already a classified layer.
+		"staticeval": true,
 		// GitHub issue #365's strict-profile vocabulary: a setting type,
 		// the valid set, the default, and which settings a build
 		// implements. It refuses nothing itself - internal/live/lint does,

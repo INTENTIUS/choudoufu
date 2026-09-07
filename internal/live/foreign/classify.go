@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	residue "github.com/intentius/choudoufu/live"
 )
@@ -369,7 +369,7 @@ func (c *classifier) buildSlots(ctx context.Context) {
 
 		s := &slot{addr: addr}
 		for _, name := range attrs {
-			v, why := staticString(ctx, c.req.Config.Module, rc, name)
+			v, why := staticeval.Argument(ctx, c.req.Config.Module, rc, name)
 			if why != "" {
 				s.why = why
 				break
@@ -725,59 +725,6 @@ func liveString(obj cty.Value, attr string) (string, bool) {
 		return "", false
 	}
 	return s.AsString(), true
-}
-
-// staticString reads one argument of a declared resource as configuration
-// gives it, through the module's static evaluator - constants, variables,
-// locals and functions, the same subset identity resolution admits. The
-// second return is empty on success and a reason on failure; a value this
-// package cannot read is never a wildcard, it disqualifies the instance from
-// matching entirely.
-func staticString(ctx context.Context, mod *configs.Module, rc *configs.Resource, name string) (string, string) {
-	content, _, diags := rc.Config.PartialContent(&hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: name}},
-	})
-	if diags.HasErrors() {
-		return "", fmt.Sprintf("its %s argument could not be read from configuration", name)
-	}
-	attr, ok := content.Attributes[name]
-	if !ok {
-		return "", fmt.Sprintf("it sets no %s argument, and that is the argument a content match would have to be made on", name)
-	}
-
-	for _, trav := range attr.Expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Statically evaluable.
-		default:
-			return "", fmt.Sprintf(
-				"its %s argument refers to %s, which is not known until the run is under way, so there is no configuration value to compare against",
-				name, trav.RootName())
-		}
-	}
-
-	if mod.StaticEvaluator == nil {
-		return "", fmt.Sprintf("its %s argument could not be evaluated: the configuration carries no static evaluator", name)
-	}
-	val, evalDiags := mod.StaticEvaluator.Evaluate(ctx, attr.Expr, configs.StaticIdentifier{
-		Module:    addrs.RootModule,
-		Subject:   fmt.Sprintf("%s.%s", rc.Addr(), name),
-		DeclRange: attr.Range,
-	})
-	if evalDiags.HasErrors() {
-		return "", fmt.Sprintf("its %s argument could not be evaluated from configuration alone", name)
-	}
-	if val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
-		return "", fmt.Sprintf("its %s argument is not a plain known value", name)
-	}
-	str, err := convert.Convert(val, cty.String)
-	if err != nil {
-		return "", fmt.Sprintf("its %s argument is not usable as a string", name)
-	}
-	if str.AsString() == "" {
-		return "", fmt.Sprintf("its %s argument is empty, which matches nothing", name)
-	}
-	return str.AsString(), ""
 }
 
 // adoptionHint is the one-line command that adopts a live resource: stamp

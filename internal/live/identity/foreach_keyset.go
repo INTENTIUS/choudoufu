@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // staticForEachKeyNames reports the instance keys a for_each expression
@@ -572,10 +573,7 @@ func evalForExprClause(ctx context.Context, mod *configs.Module, subject string,
 		if _, bound := vars[trav.RootName()]; bound {
 			continue
 		}
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
+		if !staticeval.Allowed(trav.RootName()) {
 			return cty.NilVal, false
 		}
 		travs = append(travs, trav)
@@ -1097,13 +1095,8 @@ func staticKeyString(ctx context.Context, mod *configs.Module, subject string, e
 // whole expression and a second one about a fragment of it would read as a
 // second problem.
 func staticSubValue(ctx context.Context, mod *configs.Module, subject string, expr hcl.Expression) (cty.Value, bool) {
-	for _, trav := range expr.Variables() {
-		switch trav.RootName() {
-		case "var", "local", "path", "terraform", "tofu":
-			// Evaluable in a static scope.
-		default:
-			return cty.NilVal, false
-		}
+	if !staticeval.AllowedExpr(expr) {
+		return cty.NilVal, false
 	}
 	ident := configs.StaticIdentifier{Module: addrs.RootModule, Subject: subject, DeclRange: expr.Range()}
 	val, diags := mod.StaticEvaluator.Pure().Evaluate(ctx, expr, ident)
