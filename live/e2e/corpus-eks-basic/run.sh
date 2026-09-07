@@ -556,8 +556,21 @@ fail() {
 gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
+# Every container below runs as the HOST user, not as root. This script is
+# the one crossing script that execs choudoufu (and the stock oracle) inside
+# containers with $WORK bind-mounted, and everything they write lands on the
+# host owned by whoever the container ran as. On a Linux runner that is
+# root: choudoufu's record store came back `root:root 700`, the runner user
+# could not stat inside it, day2_replace's F0 read "no local record file
+# found" for a record that was there, and the script's own cleanup printed
+# a page of `rm: Permission denied`. Docker Desktop on a Mac maps ownership
+# to the host user, which is why no laptop run ever saw it. HOME is pointed
+# at a directory under $WORK because a bare uid has no passwd entry in the
+# toolbox and choudoufu, terraform and git all want a writable home.
+AS_HOST_USER=(--user "$(id -u):$(id -g)" -e HOME=/work/.home)
+
 terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
     -v "$WORK:/work" -w "/work/$PLAIN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -566,7 +579,7 @@ terraform_run() {
 
 tofu_run() {
   local rel="$1"; shift
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
     -v "$WORK:/work" -w "/work/$rel" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -579,7 +592,7 @@ tofu_run() {
 # $NET every real-mode k3s/EC2-simulation sibling container also needs)
 # instead of the main one.
 green_tofu_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
     -v "$WORK:/work" -w "/work/$GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_GREEN_NAME}:4566" \
@@ -587,7 +600,7 @@ green_tofu_run() {
 }
 
 oracle_green_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_ORACLE_NAME}:4566" \
@@ -679,6 +692,7 @@ else
   log "  built linux/amd64 $WORK/bin/choudoufu"
 fi
 chmod +x "$WORK/bin/choudoufu"
+mkdir -p "$WORK/.home"
 
 docker network create "$NET" >/dev/null || fail "docker network create failed"
 
@@ -1943,7 +1957,23 @@ EOF
   F_RECORD="$ADOPTED/.tofu-records/tofu-records/$ESTATE/aws_security_group/$(record_key "$F_ADDR")"
 
   log "=== F0. capture the live security group and its record ahead of the forced replace ==="
-  [ -f "$F_RECORD" ] || fail "no local record file found for $F_ADDR ahead of day2_replace"
+  if [ ! -f "$F_RECORD" ]; then
+    # Failure-path diagnostic (the first CI run to reach this stage, issue
+    # #946's proof run 34148499982, failed here while the same commit passes
+    # on a laptop): print what the store actually holds, with owner and
+    # mode, and every key decoded, so the next occurrence names the record
+    # that IS there instead of only the one that is not. The store is
+    # written by choudoufu inside the toolbox container, as whatever user
+    # docker runs it as, and read here on the host.
+    log "  expected: $F_RECORD"
+    log "  host user: $(id -u):$(id -g) ($(id -un)); store tree with owner:mode:"
+    find "$ADOPTED/.tofu-records" -maxdepth 4 -exec stat -c '    %U:%G %a %n' {} \; 2>/dev/null | head -60 | while IFS= read -r line; do log "$line"; done
+    log "  record keys decoded (type/address):"
+    find "$ADOPTED/.tofu-records/tofu-records/$ESTATE" -mindepth 2 -maxdepth 2 -type f 2>/dev/null | while IFS= read -r f; do
+      log "    $(basename "$(dirname "$f")")/$(basename "$f" | tr '_-' '/+' | base64 -d 2>/dev/null || echo '<undecodable>')"
+    done
+    fail "no local record file found for $F_ADDR ahead of day2_replace"
+  fi
   F_OLD_IMPORT_ID="$(record_import_id "$F_RECORD")"
   [ "$F_OLD_IMPORT_ID" = "$SG2_ID_D" ] || fail "the record for $F_ADDR names $F_OLD_IMPORT_ID ahead of day2_replace, not $SG2_ID_D"
   F_OLD_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$SG2_ID_D" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
