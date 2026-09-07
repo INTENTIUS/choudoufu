@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replace with create_before_destroy | pass | 9s | choudoufu: changing labelbox_service_account_name proposed exactly one role replace at module.labelbox_iam_role_renamed's declared address, cascading into its untaggable inline policy (also replaced, role and name are both ForceNew there) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old role is confirmed terminated (NoSuchEntity) and the new role carries the marker, both via the AWS CLI; the local record store's records at the same addresses now name the new role's import_id and the new role:name pair, not the destroyed ones (role LabelboxRole-hm-labelbox -> LabelboxRole-hm-labelbox-v2; policy LabelboxRole-hm-labelbox:LabelboxRoleS3Policy-hm-labelbox -> LabelboxRole-hm-labelbox-v2:LabelboxRoleS3Policy-hm-labelbox-v2) - the same untaggable-identity path this estate's greenfield fix resolves for a from-nothing apply, now proven under a real replace; the next plan proposes no resource action. Scope notes: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names (module lifecycle blocks are rejected by OpenTofu core, and the vendored module stays byte-identical to the pinned commit throughout - see this section's own header); and a manufactured live-object collision (this stage's own Break text) goes undetected by an ordinary plan for this resource shape, confirmed by instrumenting discovery.bind() directly - a fully record-backed type's declared population is excluded from that function's per-type claimant sweep, a real finding this unit records rather than fixes (identity-path change, HANDOFF's stop-and-report territory); BREAK_REPLACE instead proves this section's own plan-shape assertion is load-bearing. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 55s | 4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
 | Strict profile (not a headline stage) | not run |  |  |
 

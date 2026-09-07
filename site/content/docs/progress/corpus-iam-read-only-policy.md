@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 7s | choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-cb1412a333b8859faa022fa5d1) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0f29efba6ef044410ac1522988) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-cb1412a333b8859faa022fa5d1 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0f29efba6ef044410ac1522988); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 45s | 1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document) |
 | Strict profile (not a headline stage) | not run |  |  |
 

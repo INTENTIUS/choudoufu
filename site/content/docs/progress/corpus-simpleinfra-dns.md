@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 1m10s | choudoufu: changing module.areweasyncyet_rs's ForceNew domain argument proposed exactly one zone replace at the same declared address, cascading into its one A record - 2 to add, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old zone (ZGL45ZHYYL0082N) is confirmed gone and the new zone (Z0ABC41F7VX38G5) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new zone, not the destroyed one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 2m35s | 35 instances from nothing (7 zones, 28 records), all 7 markers verified via the AWS CLI, replan empty, stock oracle in its own namespace matches structurally on all 7 zones (28 records) |
 | Strict profile (not a headline stage) | not run |  |  |
 

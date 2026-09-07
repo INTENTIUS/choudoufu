@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 7s | choudoufu: changing module.iam_policy_renamed2's ForceNew name_prefix argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old policy (arn:aws:iam::000000000000:policy/example-246b74803ee893de43f27cac43) is confirmed gone and the new policy (arn:aws:iam::000000000000:policy/example-v2-0f747c1a618bb2900d8fde9713) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's ARN, not the destroyed one (arn:aws:iam::000000000000:policy/example-246b74803ee893de43f27cac43 -> arn:aws:iam::000000000000:policy/example-v2-0f747c1a618bb2900d8fde9713); the next plan proposes no resource action; stock oracle on cold_deploy's own state (STAGE 1.5.6) also proposes exactly one replace at the same address (plan only, not applied). Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. BREAK=replace's manufactured marker collision IS now reported for this type (GitHub issue #411, fixed): 'Indistinguishable instances without per-instance markers' - GitHub issue #409, layered on top of #411's own fix, is why this is not corpus-sqs-basic's 'Two live resources claiming one slot' text despite the same shape - see PART F's own header and its BREAK=replace branch. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 55s | 2 resources from nothing (both aws_iam_policy), markers verified via the AWS CLI, 2 records in the local record store (#364 A2), replan empty both with and without the local record store, both policies' documents and paths match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
 | Strict profile (not a headline stage) | not run |  |  |
 

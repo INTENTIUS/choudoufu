@@ -10,7 +10,7 @@ Source: <https://github.com/datacite/mastino.git> at `4d8c1f1bebd91e73195017ce44
 
 Set: growing. Lane: published-deployment.
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Set: growing. Lane: published-deployment.
 | Replace with create_before_destroy | pass | 55s | choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object (ZFNTJ9UTHQDEAEU_status2.datacite.org_CNAME) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one (ZFNTJ9UTHQDEAEU_status.datacite.org_CNAME -> ZFNTJ9UTHQDEAEU_status2.datacite.org_CNAME); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 4m8s | 63 resources from nothing (4 tagged zones + 59 untaggable records), the production zone's marker verified via the AWS CLI, 63 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches on zone count (4) and total record-set count (63) |
 | Strict profile (not a headline stage) | not run |  |  |
 

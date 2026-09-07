@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 20s | choudoufu: changing customer_gateways["IP1"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-c1ef80761a5322b97) is confirmed gone/deleted and the new gateway (cgw-bf793a3d862648297) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here). |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 55s | 62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence |
 | Strict profile (not a headline stage) | not run |  |  |
 

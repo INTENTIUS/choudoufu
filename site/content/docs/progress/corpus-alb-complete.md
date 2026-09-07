@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 33s | choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-c13744b209879be03) is confirmed terminated and the new instance (i-574774864b2064b60) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-c13744b209879be03 -> i-574774864b2064b60); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one address", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 1m38s | 80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 50 objects carry the estate tag |
 | Strict profile (not a headline stage) | not run |  |  |
 

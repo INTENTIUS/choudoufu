@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replace with create_before_destroy | pass | 13s | choudoufu: changing module.sessions_table_renamed's ForceNew table_name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old table (arn:aws:dynamodb:us-west-2:000000000000:table/evtx-development-sessions) is confirmed gone and the new table (evtx-development-sessions-v2) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new table's name, not the destroyed one (evtx-development-sessions -> evtx-development-sessions-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 27s | 10 resources from nothing (1 vpc, 3 subnets, 1 igw, 1 route table, 3 untaggable associations, 1 dynamodb table), VPC marker verified via the AWS CLI, 10 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on vpc/subnets/igw/route-table/dynamodb-table |
 | Strict profile (not a headline stage) | not run |  |  |
 

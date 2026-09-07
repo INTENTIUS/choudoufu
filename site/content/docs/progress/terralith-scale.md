@@ -10,7 +10,7 @@ Set: core. Lane: reference.
 
 Why it is in the core set: the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Why it is in the core set: the one estate shaped like the thing the product is F
 | Replace with create_before_destroy | pass | 19s | changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 1m25s | choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence |
 | Strict profile (not a headline stage) | not run | - | this crossing script does not exercise the strict toggles: strict is Headline:false in tools/gauntlet/stages.go so it moves neither bar, and a toggle-by-toggle refusal fixture is a separate unit from the crossing this script exists to be. live/e2e/reference-ec2-vpc/run.sh's PART G is the pattern for the estate that does carry one |
 

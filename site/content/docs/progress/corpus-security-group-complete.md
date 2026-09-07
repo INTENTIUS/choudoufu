@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 11s | choudoufu: changing module.security_group's ForceNew name argument proposed exactly one SG replace at the same declared address, cascading into its 7 ingress rules, 1 egress rule and 1 rules_exclusive enforcer (all replaced) - 10 to add, 10 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old SG (sg-b281cdf25f7c3e452) is confirmed gone and the new SG (sg-74ab044e1dc941d6e) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new SG, not the destroyed one; the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly ("Indistinguishable instances without per-instance markers", naming both live security groups) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 27s | 67 resources from nothing, all markers verified via the AWS CLI, 67 records in the local record store (#364 A2), replan empty, 6 tagged security groups (4 named + 2 default adopters) and every named one's rule shape matches $PLAIN_EST's own stage-1 apply object by object, tags stripped |
 | Strict profile (not a headline stage) | not run |  |  |
 

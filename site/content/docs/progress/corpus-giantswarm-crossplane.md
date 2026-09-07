@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replace with create_before_destroy | pass | 10s | choudoufu: changing module.crossplane_final's ForceNew installation_name argument proposed a 6 add / 0 change / 6 destroy cascade with the role and the managed policy each explicitly named 'must be replaced' at their same declared addresses, applied cleanly; the old role (giantswarm-gsprereqs-crossplane) is confirmed gone and the new role (giantswarm-gsprereqs-v2-crossplane) carries the marker, both via the AWS CLI; the local record store's record at the role's address now names the new role, not the destroyed one (giantswarm-gsprereqs-crossplane -> giantswarm-gsprereqs-v2-crossplane); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes an equal add/destroy cascade (>=2) with role and policy both replaced at the same addresses (plan only, not applied - it shares floci's account with $ESTATE); BREAK=replace confirms a manufactured marker collision is reported loudly (a named 'Live resource displaced from the address it is marked for' warning, the scalar-resource shape) rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 20s | 6 resources from nothing (role, managed policy, 4 untaggable), role marker verified via the AWS CLI, 6 records in the local record store (#364 A2, one per managed instance), replan empty, stock oracle in its own namespace matches structurally on the role and the managed policy |
 | Strict profile (not a headline stage) | not run |  |  |
 

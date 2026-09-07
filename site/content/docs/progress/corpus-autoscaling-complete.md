@@ -12,7 +12,7 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Replace with create_before_destroy | pass | 18s | choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address (Plan: 3 to add, 2 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-c37bb9262afc41e48) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-05ed298dde97955f0 -> sg-c37bb9262afc41e48); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 2 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly ("Two live resources claiming one slot") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on this branch, GitHub issue #412: propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard; see this section's own header comment for the fix and eks-basic's/ecs-fargate's matching ones in this same unit, which independently hit the identical shape and were not re-run for #412. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 1m39s | 68 resources from nothing, matching stock's own cold-deploy count (68); the sqs queue's markers verified via the AWS CLI; 68 records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; 41 objects carry the estate tag |
 | Strict profile (not a headline stage) | not run |  |  |
 

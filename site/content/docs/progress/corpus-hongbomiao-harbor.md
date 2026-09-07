@@ -12,7 +12,7 @@ Set: core. Lane: opentofu-native.
 
 Why it is in the core set: a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
@@ -27,7 +27,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Replace with create_before_destroy | pass | 6s | choudoufu: changing the s3_bucket_name argument feeding module.harbor_iam_user_renamed's inline policy proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly, with the user itself completely untouched; the old inline policy (S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor) is confirmed gone from hongbomiao-harbor-crossing-hm-harbor-user and the new one (S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor-policy-v2) exists in its place, both via the AWS CLI; the local record store's record at the same address now names the new composite identity, not the destroyed one (hongbomiao-harbor-crossing-hm-harbor-user:S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor -> hongbomiao-harbor-crossing-hm-harbor-user:S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor-policy-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) confirms both that aws_iam_user's own name argument is NOT ForceNew (updated in-place, not replaced - the reason this section targets the inline policy instead of the user) and that the inline policy itself IS force-replaced the same way. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_iam_user_policy is untaggable and resolved structurally, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape. |
 | Crash between create and destroy (planned) | not run |  |  |
 | Teardown (planned) | not run |  |  |
-| Plan, review, apply (planned) | not run |  |  |
+| Plan, review, apply | not run |  |  |
 | Greenfield apply | pass | 1m28s | 3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared |
 | Strict profile (not a headline stage) | not run |  |  |
 
