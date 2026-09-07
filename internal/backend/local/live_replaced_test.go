@@ -264,3 +264,129 @@ func TestWriteBackSeesTheReplaceSetAfterApply(t *testing.T) {
 			"refuses the estate over the replaced object's own corpse.", gotStr, want)
 	}
 }
+
+// TestWriteBackSeesTheDeposedDestroySetAfterApply is
+// TestWriteBackSeesTheReplaceSetAfterApply's twin for GitHub issue #938's
+// signal: what [StatelessRun.WriteBack] is actually handed on a real apply
+// - real plan, real graph walk - that destroys a deposed object.
+//
+// The prior state is the shape a crashed create_before_destroy replace
+// leaves: the current object the create committed, and the old object still
+// deposed beside it. The configuration matches the current object, so the
+// only change this plan has is the deposed destroy - which is the point,
+// since it means an empty set here cannot be blamed on anything else.
+//
+// What it does NOT prove, and the twin above does, is #908's drain. Measured
+// on this fixture rather than assumed: with the set computed at the WriteBack
+// call site instead - the shape #908 was - this test still passes, because
+// the apply-side deposed node does not call writeChange(nil, key) the way
+// NodeApplyableResourceInstance does for a current object, so a deposed
+// Delete survives lr.Core.Apply in plan.Changes. The computation is placed
+// beside replacedInstances(plan) anyway, because "the plan's own evidence is
+// read while the plan still has it" is the rule #908 cost a night to learn
+// and one that holds whether or not each particular node happens to drain.
+//
+// It fails if the signal stops being plumbed, if the filter stops matching a
+// deposed Delete, or if the key or address it carries is wrong - the set is
+// asserted by rendered value, not by length.
+func TestWriteBackSeesTheDeposedDestroySetAfterApply(t *testing.T) {
+	b := TestLocal(t)
+
+	p := TestLocalProvider(t, b, "test", applyFixtureSchema())
+	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{
+			PlannedState:   req.ProposedNewState,
+			PlannedPrivate: req.PriorPrivate,
+		}
+	}
+	p.ApplyResourceChangeFn = func(req providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
+		return providers.ApplyResourceChangeResponse{NewState: req.PlannedState}
+	}
+
+	addr, addrDiags := addrs.ParseAbsResourceInstanceStr("test_instance.foo")
+	if addrDiags.HasErrors() {
+		t.Fatalf("parsing the fixture's address: %s", addrDiags.Err())
+	}
+	providerAddr := addrs.AbsProviderConfig{
+		Provider: addrs.NewDefaultProvider("test"),
+		Module:   addrs.RootModule,
+	}
+
+	const deposedKey = states.DeposedKey("deadbeef")
+	prior := states.BuildState(func(ss *states.SyncState) {
+		ss.SetResourceInstanceCurrent(
+			addr,
+			&states.ResourceInstanceObjectSrc{
+				Status:    states.ObjectReady,
+				AttrsJSON: []byte(`{"id":"new","ami":"bar"}`),
+			},
+			providerAddr,
+			addrs.NoKey,
+		)
+		ss.SetResourceInstanceDeposed(
+			addr,
+			deposedKey,
+			&states.ResourceInstanceObjectSrc{
+				Status:    states.ObjectReady,
+				AttrsJSON: []byte(`{"id":"old","ami":"bar"}`),
+			},
+			providerAddr,
+			addrs.NoKey,
+		)
+	})
+
+	stateless := &replaceRecordingStateless{
+		mgr:   statemgr.NewFullFake(statemgr.NewTransientInMemory(nil), prior.DeepCopy()),
+		prior: prior,
+	}
+	b.Stateless = stateless
+
+	op, done := testOperationApply(t, "./testdata/apply")
+	op.PlanRefresh = false
+
+	run, err := b.Operation(context.Background(), op)
+	if err != nil {
+		t.Fatalf("starting the apply: %s", err)
+	}
+	<-run.Done()
+
+	output := done(t)
+	if run.Result != backend.OperationSuccess {
+		t.Fatalf("the apply failed, so this test measured nothing:\nstdout:\n%s\nstderr:\n%s", output.Stdout(), output.Stderr())
+	}
+
+	stateless.mu.Lock()
+	called, got, final := stateless.writeBackCalled, stateless.gotDeposed, stateless.finalState
+	stateless.mu.Unlock()
+
+	if !called {
+		t.Fatal("WriteBack was never called, so this test measured nothing about the deposed-destroy set")
+	}
+
+	// The apply really did destroy the deposed object. Asserted against the
+	// final state by value, so a run that quietly planned nothing at all
+	// cannot pass the check below by having produced no destroy to see.
+	if final == nil {
+		t.Fatal("WriteBack was handed a nil final state")
+	}
+	is := final.ResourceInstance(addr)
+	if is == nil {
+		t.Fatalf("%s is not in the final state at all; this apply did not do what the test needs", addr)
+	}
+	if _, stillThere := is.Deposed[deposedKey]; stillThere {
+		t.Fatalf("the deposed object is still in the final state, so no destroy happened and the assertion below proves nothing:\n%s", output.Stdout())
+	}
+
+	var gotStr []string
+	for _, d := range got {
+		gotStr = append(gotStr, fmt.Sprintf("%s %s", d.Addr, d.Key))
+	}
+	want := []string{fmt.Sprintf("test_instance.foo %s", deposedKey)}
+	if fmt.Sprint(gotStr) != fmt.Sprint(want) {
+		t.Errorf("WriteBack was handed the deposed-destroy set %v, want %v.\n"+
+			"This is GitHub issue #938's only evidence that a destroy happened: the apply that closes a crashed "+
+			"create_before_destroy replace moves no recorded identity and schedules no replace, so with nothing here "+
+			"the object it terminated is recorded nowhere and the next plan refuses the estate over that object's "+
+			"own lingering tag.", gotStr, want)
+	}
+}
