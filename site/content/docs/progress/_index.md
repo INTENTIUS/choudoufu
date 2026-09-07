@@ -15,7 +15,7 @@ passes - an active stage not marked "no" in the Headline column below.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-07T03:00:49Z and 2026-09-07T03:06:04Z. Each row below carries its own `last_run` date; they are not all the same run.
+Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded between 2026-09-07T03:00:49Z and 2026-09-07T03:58:02Z. Each row below carries its own `last_run` date; they are not all the same run.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -87,7 +87,7 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h43m25.1s at commit `70e2722fa4`.
+27 of 27 estates have a recorded run duration, totaling 2h43m31.8s, but not from one sweep: 2h39m17.6s across 26 estate(s) at commit `70e2722fa4`; 4m14.2s across 1 estate(s) at commit `f6b0554ffb`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
@@ -115,7 +115,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | 10m26.9s | cold_deploy 1m15s, migrate 3m16s, test_plan 12s, test_apply 11s, drift_reconverge 21s, day2_rename 40s, day2_remove 23s, day2_count 2m3s, day2_replace 1m11s, plan_approval 54s, greenfield 2m25s |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | 4m58.1s | cold_deploy 24s, migrate 1m36s, test_plan 3s, test_apply 4s, drift_reconverge 7s, day2_rename 13s, day2_remove 20s, day2_count 1m33s, day2_replace 20s, plan_approval 18s, greenfield 56s |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m29.8s | cold_deploy 32s, migrate 48s, test_plan 3s, test_apply 3s, drift_reconverge 7s, day2_rename 11s, day2_remove 18s, day2_count 29s, day2_replace 7s, plan_approval 13s, greenfield 39s |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m7.5s | cold_deploy 1m27s, migrate 51s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 8s, day2_remove 5s, day2_count 17s, day2_replace 26s, plan_approval 11s, greenfield 3s, strict 2s |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m14.2s | cold_deploy 1m28s, migrate 51s, test_plan 2s, test_apply 2s, drift_reconverge 5s, day2_rename 8s, day2_remove 6s, day2_count 16s, day2_replace 26s, plan_approval 10s, greenfield 3s, strict 2s |
 | [terralith-scale]({{< relref "terralith-scale" >}}) | 5m42.1s | cold_deploy 2m4s, migrate 43s, test_plan 4s, test_apply 5s, drift_reconverge 33s, day2_rename 18s, day2_remove 7s, day2_count 18s, day2_replace 12s, plan_approval 13s, greenfield 1m5s, strict - |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 10m14.6s | cold_deploy 1m55s, migrate 43s, test_plan 5s, test_apply 8s, drift_reconverge 28s, day2_rename 20s, day2_remove 30s, day2_count 57s, day2_replace 46s, plan_approval 28s, greenfield 3m54s |
 
