@@ -632,11 +632,45 @@ is_elf64_amd64() {
   [ "${hdr:36:4}" = "3e00" ] || return 1
 }
 
-if [ -n "${TOFU_BIN:-}" ] && is_elf64_amd64 "${TOFU_BIN:-}"; then
+# has_pt_interp <path>: true when the ELF64 object at <path> carries a
+# PT_INTERP program header, i.e. it is dynamically linked and asks the
+# kernel for a loader. The toolbox is alpine, which has no glibc loader, so a
+# glibc-linked binary that passes is_elf64_amd64 still dies at exec - and the
+# kernel reports THAT as `exec /work/bin/choudoufu: no such file or
+# directory`, naming the binary rather than the loader it could not find.
+# Exactly that happened on the first CI run after #496's repair (issue
+# #946): the runner's default `go build` has cgo on, so its binary is
+# glibc-linked, the class/machine check above waved it through, and migrate
+# failed on CI while passing on every laptop, where the darwin host binary
+# fails the check and the static rebuild below runs instead.
+#
+# Read from the ELF64 header: e_phoff at byte 32 (8 bytes), e_phentsize at
+# byte 54 (2), e_phnum at byte 56 (2), all little-endian; each program
+# header's p_type is its first 4 bytes, and PT_INTERP is 3.
+has_pt_interp() {
+  local f="$1" hdr phoff phentsize phnum i ptype
+  hdr="$(od -An -tx1 -j32 -N26 "$f" 2>/dev/null | tr -d ' \n')"
+  [ "${#hdr}" = 52 ] || return 1
+  phoff=$((16#${hdr:14:2}${hdr:12:2}${hdr:10:2}${hdr:8:2}${hdr:6:2}${hdr:4:2}${hdr:2:2}${hdr:0:2}))
+  phentsize=$((16#${hdr:46:2}${hdr:44:2}))
+  phnum=$((16#${hdr:50:2}${hdr:48:2}))
+  [ "$phentsize" -ge 4 ] && [ "$phnum" -gt 0 ] && [ "$phnum" -lt 1024 ] || return 1
+  i=0
+  while [ "$i" -lt "$phnum" ]; do
+    ptype="$(od -An -tx1 -j$((phoff + i * phentsize)) -N4 "$f" 2>/dev/null | tr -d ' \n')"
+    [ "$ptype" = "03000000" ] && return 0
+    i=$((i + 1))
+  done
+  return 1
+}
+
+if [ -n "${TOFU_BIN:-}" ] && is_elf64_amd64 "${TOFU_BIN:-}" && ! has_pt_interp "${TOFU_BIN:-}"; then
   cp "$TOFU_BIN" "$WORK/bin/choudoufu"
-  log "  using TOFU_BIN=$TOFU_BIN (verified ELF64 x86-64)"
+  log "  using TOFU_BIN=$TOFU_BIN (verified ELF64 x86-64, statically linked)"
 else
-  if [ -n "${TOFU_BIN:-}" ]; then
+  if [ -n "${TOFU_BIN:-}" ] && is_elf64_amd64 "${TOFU_BIN:-}"; then
+    log "  TOFU_BIN=$TOFU_BIN is ELF64 x86-64 but dynamically linked (PT_INTERP present); the alpine toolbox has no glibc loader, so building a static linux/amd64 one instead (#946)"
+  elif [ -n "${TOFU_BIN:-}" ]; then
     log "  TOFU_BIN=$TOFU_BIN is not an ELF64 x86-64 binary; building a linux/amd64 one instead"
     log "  (this script execs choudoufu inside --platform linux/amd64 containers whatever the host is)"
   fi

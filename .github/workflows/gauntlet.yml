@@ -88,7 +88,14 @@ jobs:
       - name: Materialise the corpus
         run: go run ./tools/corpus-fetch
       - name: Build choudoufu
-        run: go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
+        # CGO_ENABLED=0 on purpose (issue #946): with cgo on, the ubuntu
+        # runner links the binary against glibc, and corpus-eks-basic execs
+        # it inside an alpine toolbox container where no glibc loader exists
+        # - the kernel then reports the binary itself as "no such file or
+        # directory" and that estate's migrate stage fails on every CI run
+        # while passing on every laptop. choudoufu needs no cgo; a static
+        # binary runs on the host and in the container alike.
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
       - name: Run the gauntlet
         # `|| true` here is deliberate, not a swallow of an infra failure:
         # `gauntlet run` exits 1 whenever any estate script exits nonzero or
