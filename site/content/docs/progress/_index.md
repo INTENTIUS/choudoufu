@@ -131,7 +131,7 @@ together.
 
 | Estate | Target | Region | Clear | Date | Ceiling |
 |---|---|---|---|---|---|
-| reference-ec2-vpc | aws | us-east-2 | yes | 2026-08-30T02:40:17Z | $5.00 |
+| reference-ec2-vpc | aws | us-east-2 | yes | 2026-09-07T20:29:57Z | $5.00 |
 | terralith-scale | aws | us-east-2 | yes | 2026-08-31T03:20:33Z | $15.00 |
 
 
