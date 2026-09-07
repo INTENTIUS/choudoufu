@@ -550,13 +550,20 @@ func TestStatelessBegin_nodeResolveDefaultOn(t *testing.T) {
 // TestStatelessBegin_nodeResolveOptOut is
 // TestStatelessBegin_nodeResolveDefaultOn's opposite: CHOUDOUFU_NODE_RESOLVE=0
 // is the opt-out the default flip left in place (nodeResolveEnabled's own
-// doc comment), and it must still produce the pre-flip nil contract -
-// r.resolver never constructed, so neither ContextOpts field is ever
-// touched (TestContext2Plan_resourceIdentityResolverNilContract pins the
-// engine side of what a nil-nil ContextOpts does to a plan). Proves the
-// static path the retirement in HANDOFF.md foundation item 3 has not
-// happened yet is still genuinely selectable, not merely documented as
-// selectable.
+// doc comment), and it must still select the static identity path - which
+// is what the flag has always named and all it names now.
+//
+// What it must NOT do, as of GitHub issue #644, is turn the marker WRITER
+// off with it. Before #644 the opt-out selected internal/live/stamp's HCL
+// rewrite instead, so an opted-out run still stamped; that engine is
+// deleted, so leaving ConfigValueAdjuster nil here would make the opt-out
+// a run that creates every resource with no ownership marker at all -
+// silently, and unrecoverably for anything a marker is the only handle on.
+// So the resolver IS constructed, and this test pins both halves: the
+// identity path is off (nodeResolve false, and statelessBegin therefore
+// never sets ContextOpts.ResourceIdentityResolver - the engine side of a
+// nil resolver is TestContext2Plan_resourceIdentityResolverNilContract),
+// while the writer is on.
 func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
 	t.Setenv("CHOUDOUFU_NODE_RESOLVE", "0")
 
@@ -583,8 +590,16 @@ func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
 	if captured.nodeResolve {
 		t.Error("nodeResolve is true with CHOUDOUFU_NODE_RESOLVE=0")
 	}
-	if captured.resolver != nil {
-		t.Errorf("resolver was constructed with the opt-out set: %#v (this is the one object both ResourceIdentityResolver and ConfigValueAdjuster are set from, so a non-nil resolver here means one of them may have been touched)", captured.resolver)
+	if captured.resolver == nil {
+		t.Fatal("no resolver was constructed with the opt-out set; since GitHub issue #644 it is the run's only marker writer, and an opted-out run with none creates every resource unmarked")
+	}
+	// The writer half, by value rather than by presence: an opted-out run
+	// has to reach AdjustConfigValue with an estate name to stamp with,
+	// because that method writes nothing at all when Estate is empty. A
+	// resolver constructed and left unpopulated would satisfy the nil
+	// check above and stamp exactly as little as no resolver at all.
+	if captured.resolver.Estate == "" {
+		t.Error("the resolver was constructed but never given an estate name, so AdjustConfigValue writes no markers: the opt-out is still an unstamped run")
 	}
 }
 

@@ -507,15 +507,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// uses, independently. Constructed here, before tofu.NewContext, for
 	// the same reason: this is the last point coreOpts can still be
 	// mutated.
-	var resolver *projection.NodeResolver
+	//
+	// GitHub issue #388's stamp half rides the same object but, since
+	// GitHub issue #644, NOT the same flag: the HCL-rewriting stamp that
+	// used to write markers for an opted-out run is gone, so gating the
+	// adjuster would leave that run with no marker writer at all. See
+	// live_mode.go's identical wiring for the whole argument, and
+	// [projection.NodeResolver.AdjustConfigValue]'s own doc comment for why
+	// one resolver serves both interfaces.
+	resolver := &projection.NodeResolver{}
+	coreOpts.ConfigValueAdjuster = resolver
 	if nodeResolveEnabled() {
-		resolver = &projection.NodeResolver{}
 		coreOpts.ResourceIdentityResolver = resolver
-		// GitHub issue #388's stamp half rides the same object and the same
-		// flag - see live_mode.go's identical wiring and
-		// [projection.NodeResolver.AdjustConfigValue]'s own doc comment for
-		// why one resolver serves both interfaces.
-		coreOpts.ConfigValueAdjuster = resolver
 	}
 
 	// Built here rather than just before the plan, where it used to be,
@@ -590,12 +593,20 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// A first pass that refuses is no longer fatal on its own: see
 	// [statelessResolve] for the second pass and the bound on it.
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
-	if resolver != nil {
+	if nodeResolveEnabled() {
 		// #364 unit B's landing note (item 3), mirrored from
 		// live_mode.go's PriorState: a per-instance static refusal
 		// becomes a warning under the flag, and the instance - still
 		// absent from resolutions - reaches the node resolver instead of
 		// aborting the run. See identity.DowngradeForNodeResolution.
+		//
+		// Gated on the FLAG, not on resolver != nil. Since GitHub issue
+		// #644 the resolver is built for every run, because it is also
+		// the marker writer, so a nil check here would downgrade a fatal
+		// static refusal on the opt-out path - where nothing downstream
+		// resolves the instance at all and the run would plan a create
+		// over an object it could not identify. live_mode.go's own copy
+		// reads r.nodeResolve for the same reason.
 		idDiags = identity.DowngradeForNodeResolution(idDiags)
 	}
 	diags = diags.Append(idDiags)
@@ -670,13 +681,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	// GitHub issue #388's plan-node seam, edge 3: the same record-store
 	// wrapper recordStoreForReads is built above, unconditionally now, so
-	// this is a reuse rather than a second construction. Gated on
-	// resolver != nil (the migration flag) rather than just on hintStore
-	// being non-nil: a flag-off run must see a byte-identical marker-sweep
-	// demand no matter what the record store holds, so this stays nil
-	// whenever the flag itself is off.
+	// this is a reuse rather than a second construction. Gated on the
+	// migration flag rather than just on hintStore being non-nil: a
+	// flag-off run must see a byte-identical marker-sweep demand no matter
+	// what the record store holds, so this stays nil whenever the flag
+	// itself is off. Read from [nodeResolveEnabled] rather than from
+	// resolver != nil since GitHub issue #644, which made the resolver
+	// unconditional because it is also the marker writer.
 	var recordShrinkStore *projection.RecordStore
-	if resolver != nil {
+	if nodeResolveEnabled() {
 		recordShrinkStore = recordStoreForReads
 	}
 
@@ -715,14 +728,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// few lines up - which is the ordinary case for this flag-only form
 	// and simply means step (a) never has anything to find); merged is
 	// the marker sweep's own resolutions, snapshotted into an index.
-	if resolver != nil {
+	{
 		resolver.RecordStore = recordShrinkStore
 		resolver.MarkerIndex = projection.NewMarkerIndex(merged)
 		resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
-		// GitHub issue #388's stamp half: the same estate name and
-		// markers-record selection statelessStamp is about to hand
-		// stamp.Request below, and the same disco.SlotTable() its Slots
-		// field reads (disco.SlotTable handles a nil disco already).
+		// GitHub issue #388's stamp half: the estate name and the
+		// markers-record selection the node writer stamps with, plus the
+		// slot table discovery worked out (disco.SlotTable handles a nil
+		// disco already).
 		resolver.Estate = estate
 		resolver.Selection = identity.SelectionFor(config)
 		resolver.Slots = disco.SlotTable()
@@ -852,9 +865,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// function. See that field's own doc comment for why leaving it unset
 	// would let the node adopt a client-named resource this run does not
 	// own.
-	if resolver != nil {
-		resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
-	}
+	resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
 
 	// classified and foreignReq are kept in outer scope, past the section
 	// they were computed for: the lookalike guard below needs the same
