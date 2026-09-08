@@ -384,6 +384,27 @@ type liveCheckDocument struct {
 	Blocked  bool   `json:"blocked"`
 	ExitCode int    `json:"exit_code"`
 
+	// Schemas is GitHub issue #966's answer to "what was this computed
+	// from": [SchemaSourceProvider] when the provider's own schemas backed
+	// the rungs below, [SchemaSourceBuiltin] when internal/live/check's
+	// rungForType fell back to the built-in admission table because the
+	// directory was never initialized.
+	//
+	// It is a document-level field rather than a third rung value, which
+	// the issue also allowed. A rung is a fact about the resource TYPE
+	// (rungForType's own doc comment), and "we could not read this type's
+	// schema" is a fact about the RUN - it is true of every instance at
+	// once, and no instance is ever unknown while another is known. Folding
+	// it into the rung would also have widened an enum three shipped
+	// readers already switch on (behold, site/content/docs/use/resource-
+	// tiers.md's tier names, tools/readiness-gen's TierDeclarationCarried),
+	// where adding a top-level key breaks none of them.
+	//
+	// No omitempty: the un-initialized case is the one #966 was filed
+	// about, so it is exactly the case that must not render as an absent
+	// key.
+	Schemas string `json:"schemas"`
+
 	Instances  []LiveCheckInstance  `json:"instances"`
 	References []LiveCheckReference `json:"references"`
 
@@ -433,6 +454,7 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Estate:     rep.Estate,
 		Blocked:    rep.Blocked,
 		ExitCode:   exitCode,
+		Schemas:    schemaSource(rep.Schemas),
 		Instances:  rep.InstanceRoster,
 		References: rep.References,
 		Checked:    rep.Checked,

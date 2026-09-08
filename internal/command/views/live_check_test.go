@@ -458,3 +458,121 @@ func TestJSONCarriesTheSameCheckedStagesAsText(t *testing.T) {
 		}
 	}
 }
+
+// GitHub issue #966. The rungs in this document are computed from provider
+// schemas when there are any and from the built-in admission table when
+// there are not (internal/live/check's rungForType), and the two answers
+// are the same shape, the same keys and the same exit code - so a scripted
+// reader could not tell the accurate answer from the degraded one. The
+// document now says which it got.
+
+// TestJSONSaysWhetherProviderSchemasBackedTheRungs asserts the field by
+// VALUE in both directions, because the whole point of #966 is that the
+// two runs are otherwise indistinguishable on the wire: a test that only
+// checked the key was present would pass on a field hard-coded to either
+// string.
+func TestJSONSaysWhetherProviderSchemasBackedTheRungs(t *testing.T) {
+	withSchemas := decodeLiveCheckDocument(t, renderLiveCheckJSON(t, LiveCheckReport{Dir: ".", Schemas: true}))
+	if withSchemas.Schemas != "provider" {
+		t.Errorf("schemas = %q for a run that had provider schemas, want \"provider\"", withSchemas.Schemas)
+	}
+
+	withoutSchemas := decodeLiveCheckDocument(t, renderLiveCheckJSON(t, LiveCheckReport{Dir: ".", Schemas: false}))
+	if withoutSchemas.Schemas != "builtin" {
+		t.Errorf("schemas = %q for a run with no provider schemas, want \"builtin\"", withoutSchemas.Schemas)
+	}
+}
+
+// TestJSONSchemasIsNeverOmitted: "schemas" carries no omitempty, so the
+// un-initialised case - the one #966 was filed about, and the one where the
+// field matters most - cannot render as an absent key that a reader would
+// have to guess about.
+func TestJSONSchemasIsNeverOmitted(t *testing.T) {
+	out := renderLiveCheckJSON(t, LiveCheckReport{Dir: "."})
+	if !strings.Contains(out, `"schemas": "builtin"`) {
+		t.Errorf("a report with no provider schemas did not print schemas=builtin:\n%s", out)
+	}
+}
+
+// TestLiveCheckDocument_topLevelShapeIsPinned pins this document by VALUE,
+// for the reason [TestLivePlanDocument_topLevelShapeIsPinned] pins that
+// one: it is somebody else's wire format. behold (INTENTIUS/behold#366,
+// which filed #966) parses it and does not recompile when this struct
+// does, so a renamed json tag, a reordered field, or an omitempty added or
+// dropped is invisible to a test that reads doc.Instances[0].Rung and
+// breaks that reader.
+//
+// If a field is deliberately added, this test fails and the fix is to
+// update `want` below AND to say in the pull request which consumers were
+// told. Do not update it to make a red run green.
+func TestLiveCheckDocument_topLevelShapeIsPinned(t *testing.T) {
+	// Every field populated, the omitempty ones included, so this pins
+	// what a full document looks like rather than what an empty one does.
+	out := renderLiveCheckJSON(t, LiveCheckReport{
+		Dir:     "/srv/estate",
+		Estate:  "dev",
+		Blocked: true,
+		Schemas: true,
+		InstanceRoster: []LiveCheckInstance{
+			{Address: "aws_s3_bucket.data", Type: "aws_s3_bucket", Rung: "tag-governable"},
+			{
+				Address: "aws_iam_role_policy.inline", Type: "aws_iam_role_policy",
+				Rung: "declaration-carried", Refused: true,
+				Rule: "Non-static identity argument", Reason: "reads a value this run cannot prove statically",
+			},
+		},
+		References: []LiveCheckReference{
+			{From: "data.aws_vpc.network", Estate: "network", Address: "aws_vpc.main", ReadBy: []string{"aws_subnet.app"}},
+		},
+		Checked:   []string{"lint", "identity"},
+		Partial:   []string{"projection (2 of 27 refusals; the rest need a cloud)"},
+		Unchecked: []string{"discovery"},
+	})
+
+	const want = `{
+  "dir": "/srv/estate",
+  "estate": "dev",
+  "blocked": true,
+  "exit_code": 1,
+  "schemas": "provider",
+  "instances": [
+    {
+      "address": "aws_s3_bucket.data",
+      "type": "aws_s3_bucket",
+      "rung": "tag-governable"
+    },
+    {
+      "address": "aws_iam_role_policy.inline",
+      "type": "aws_iam_role_policy",
+      "rung": "declaration-carried",
+      "refused": true,
+      "rule": "Non-static identity argument",
+      "reason": "reads a value this run cannot prove statically"
+    }
+  ],
+  "references": [
+    {
+      "from": "data.aws_vpc.network",
+      "estate": "network",
+      "address": "aws_vpc.main",
+      "read_by": [
+        "aws_subnet.app"
+      ]
+    }
+  ],
+  "checked": [
+    "lint",
+    "identity"
+  ],
+  "partial": [
+    "projection (2 of 27 refusals; the rest need a cloud)"
+  ],
+  "unchecked": [
+    "discovery"
+  ]
+}
+`
+	if out != want {
+		t.Errorf("the live-check -json document changed shape.\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+}
