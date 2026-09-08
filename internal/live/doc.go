@@ -71,14 +71,25 @@
 // # Count
 //
 // count survives stateless mode as cardinality over a fungible set rather
-// than as a positional index. Each instance carries a tofu-slot marker: a
-// stable, opaque identifier assigned once at creation and never reused.
-// Binding N declared instances against M live, owned instances is set
-// matching, not index matching: a deficit creates new slots, a surplus
-// deletes the highest slots. Nothing about identity depends on
-// count.index, which is why count.index is banned from identity-bearing
-// resource arguments while the count = var.enabled ? 1 : 0 idiom keeps
-// working unchanged.
+// than as a positional index. Each instance of such a set carries a
+// tofu-slot marker: a stable, opaque identifier assigned once at creation
+// and never reused. Binding N declared instances against M live, owned
+// instances is set matching, not index matching: a deficit creates new
+// slots, a surplus deletes the highest slots.
+//
+// A count block is a fungible set only when the configuration does not
+// itself say which live resource is which instance. lint admits
+// count.index in an identity-bearing argument where it can prove each
+// instance renders a distinct, scale-down-stable value (see
+// internal/live/lint's analyzeCountIndexSafety), and a block that names
+// its members that way resolves identity.ClassConcrete per instance:
+// discovery never indexes it as a count set, no slot is minted, and its
+// instances carry tofu-estate and tofu-address alone. See live/MARKERS.md,
+// "Which count instances carry one" - and GitHub issue #969, which is what
+// reading the old wording here and in the spec ("each instance carries a
+// tofu-slot marker") led an operator to expect. The count = var.enabled ?
+// 1 : 0 idiom keeps working unchanged, and is one of the shapes that
+// carries no slot.
 //
 // # Where the phases land
 //

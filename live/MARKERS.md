@@ -23,12 +23,13 @@ resource tags, stamped on every taggable resource the mode manages.
 | `tofu-estate` | The estate that owns the resource. | Every managed resource. |
 | `tofu-address` | The resource's canonical config address, or its first chunk. | Every managed resource. |
 | `tofu-address-2`, `tofu-address-3`, `tofu-address-4` | The rest of `tofu-address`, in order, when it does not fit in one tag. | Only a resource whose escaped address is longer than one tag value. |
-| `tofu-slot` | A stable, opaque cardinality slot. | `count` instances only. |
+| `tofu-slot` | A stable, opaque cardinality slot. | `count` instances of a set whose members the configuration does not itself tell apart. |
 
 A resource carrying `tofu-estate` and `tofu-address` is fully identified by
 an estate and a place within that estate's configuration. `tofu-slot` is
 additional information layered on top for resources that come from a
-`count` block. It does not replace `tofu-address`, which still carries the
+`count` block, and only for some of those - see "Which count instances
+carry one" below. It does not replace `tofu-address`, which still carries the
 full indexed address (see below). `tofu-address-2` through `tofu-address-4`
 are additional information of a different kind: they do not stand on their
 own, and exist only to carry the rest of a `tofu-address` value one tag
@@ -424,9 +425,41 @@ escaped values and those two are the same string.
 
 ## `tofu-slot`
 
-Present only on resources that come from a `count` block. An opaque, stable
-identifier for one member of a fungible set, assigned when the instance is
-created.
+Present only on resources that come from a `count` block, and not on all of
+those. An opaque, stable identifier for one member of a fungible set,
+assigned when the instance is created.
+
+### Which count instances carry one
+
+A slot answers exactly one question: which live resource is instance k of a
+set whose members are interchangeable. Not every `count` block declares such
+a set. Where the configuration itself names each instance - a log group whose
+`name` is `"/svc/${count.index}"`, a bucket whose `bucket` argument is built
+from the index, a `count = var.enabled ? 1 : 0` block with a fixed name - the
+live resource that is instance k is the one the configuration names, there is
+nothing left for a slot to decide, and no slot is written. Those instances
+carry `tofu-estate` and `tofu-address` (and its continuation tags, if the
+address needs them) and no `tofu-slot`, on the first apply and on every
+apply after it. This is the common case rather than an edge case: over half
+of the `count` instances this fork's own fixtures resolve are of that kind.
+
+A slot is written when the configuration does NOT settle which live resource
+is which: the instance's identity is not computable from the configuration
+(a server-assigned id, a generated name), so the set is genuinely fungible
+and the marker is the only record of which member is which.
+
+The distinction is a property of the block, not of one instance, and it is
+all-or-nothing: every member of a set carries a slot, or no member does. A
+reader never has to know which kind of block it is looking at, and never has
+to consult a configuration to find out - it reads the set. Slots present:
+bind by slot, per the rules below. Slots absent: bind by `tofu-address`, the
+index in each member's address being what says which instance it is, which
+is the rule that applied before slots existed and is still correct for a set
+whose members the configuration names. A set carrying slots on some members
+and not others is neither, and is an error rather than a guess (LIMITATIONS,
+"Partial slot markers on a count set"). A missing slot on one member of an
+otherwise slotted set is therefore never to be read as "this kind of block
+does not carry slots".
 
 Reuse is bounded, not absolute (amended, spec v1). A marker-managed estate
 has no registry and no side channel. The only record of a slot is the tag
