@@ -416,15 +416,20 @@ regenerating writes no gitlab tree at all, that the file is tracked and carries 
 generated banner (and that nothing in `package.json` or `generate.ts` names gitlab, so
 the day the generator does emit it, the guard fails and names itself as the thing that
 has to move), that the one job is the one Op that generator can express, gated on both
-halves of its schedule rule, and that its install is pinned by version and checksum the
-same way the generated ones are.
+halves of its schedule rule, that its install is pinned by version and checksum the
+same way the generated ones are, and that its `CHANT_FORGE` is a value `src/forge.ts`
+accepts - read out of `FORGES` rather than repeated as a literal, because a value that
+list does not carry makes `chant run` throw at module load on every scheduled run.
 
 All of them were proven red before they were trusted green: a hand-edited workflow, a
 deleted one, a `CHANT_FORGE` pointing at the wrong forge, a checksum check replaced by
 `cat`, a sixth Op with no workflow, a generator input committed after the workflows,
 and on the GitLab side an untracked file, a deleted one, a `DO NOT EDIT` banner, a
 second job running `live-apply`, a dropped selector, and a `generate.ts` taught to
-write a gitlab tree.
+write a gitlab tree. #807 added five more: a `CHANT_FORGE` no forge list accepts (both
+guards, which is how the third value was proven necessary before it was written), a
+generator input edited without regenerating, a recorded hash altered by hand, a stamp
+removed from git, and a new file under `src/` the stamp does not record.
 
 ## Pinning
 
