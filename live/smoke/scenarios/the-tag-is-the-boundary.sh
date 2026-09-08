@@ -105,6 +105,12 @@ tags_of() {
     --query 'Reservations[].Instances[].[Tags[?Key==`Name`]|[0].Value,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-address`]|[0].Value]' \
     --output text
 }
+# id_of prints the live instance id for the ownership address $1, so a
+# plain CLI call can name a resource with no choudoufu in the loop at all.
+id_of() {
+  awsl ec2 describe-instances --filters "Name=tag:tofu-address,Values=$1" \
+    --query 'Reservations[].Instances[].InstanceId' --output text
+}
 # settle waits until the tagging index the sweep reads reflects a tag write
 # (the #756 lesson): $1 is the estate to look under, $2 the address expected.
 settle() { local i; for i in $(seq 1 30); do
@@ -133,11 +139,14 @@ explain \
   "own policy engine evaluates per resource. So a role can be fenced to" \
   "half an estate by a condition on the ownership tag, and a carve, one" \
   "half moving into an estate of its own, is a governed write rather" \
-  "than an edit nobody can refuse. Two roles share one estate here. Each" \
-  "converges its half and is denied on the other's, by AWS. Then Alice" \
-  "carves her half out and Bob's attempt at the same carve is denied." \
-  "Where there was one estate there are two, with no state split, and" \
-  "every step of it was something a policy could say no to."
+  "than an edit nobody can refuse. That fence binds the credential, not" \
+  "the binary: a plain AWS CLI call under the same session is refused or" \
+  "let through by the identical condition, with no choudoufu anywhere in" \
+  "the call. Two roles share one estate here. Each converges its half and" \
+  "is denied on the other's, by AWS. Then Alice carves her half out and" \
+  "Bob's attempt at the same carve is denied. Where there was one estate" \
+  "there are two, with no state split, and every step of it was" \
+  "something a policy could say no to."
 
 step "1. the platform stands one estate up, two halves in it"
 explain \
@@ -189,6 +198,22 @@ if [ "${BREAK:-0}" = "1" ]; then
   tags_of "module.data.aws_instance.database" | evidence
   [ "$(tags_of 'module.data.aws_instance.database' | awk '{print $1}')" = "database-v2" ] || fail "boundary" "BREAK: Bob's write did not land"
   proof "caught - with the condition gone, Bob wrote Alice's half. The condition on the tag was the whole boundary, and it can be taken down as well as put up."
+
+  step "BREAK control (cont'd) - the tool-less write goes through too, with no choudoufu in the call"
+  explain \
+    "The same claim, without the tool. If dropping Bob's conditions also" \
+    "lets a plain AWS CLI call through with no choudoufu anywhere in the" \
+    "process, then step 6's refusal above measured the condition, not a" \
+    "check this tool happens to run before it calls the API. It must" \
+    "succeed too."
+  DB_ID="$(id_of 'module.data.aws_instance.database')" || fail "boundary" "BREAK: could not read the database's instance id"
+  cmd "aws ec2 create-tags --resources $DB_ID --tags Key=Name,Value=database-hijacked   # no choudoufu, as bob, condition dropped"
+  OUT="$(as_role bob awsl ec2 create-tags --resources "$DB_ID" --tags 'Key=Name,Value=database-hijacked' 2>&1)" || fail "boundary" "BREAK: with no condition, Bob's tool-less write on Alice's half was still refused: $OUT"
+  denied "$OUT" && fail "boundary" "BREAK: the tool-less write succeeded but the output still carries a refusal: $OUT"
+  [ "$(tags_of 'module.data.aws_instance.database' | awk '{print $1}')" = "database-hijacked" ] || fail "boundary" "BREAK: Bob's tool-less write did not land"
+  tags_of "module.data.aws_instance.database" | evidence
+  proof "caught - with the condition gone, the plain AWS CLI wrote Alice's half with no choudoufu anywhere in the call. The condition was the whole boundary, for the tool and for a script alike."
+
   ( cd "$APP" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   exit 0
 fi
@@ -231,7 +256,58 @@ tags_of "module.net.aws_instance.gateway" | evidence
 [ "$(tags_of 'module.net.aws_instance.gateway' | awk '{print $1}')" = "gateway-v2" ] || fail "boundary" "Bob's write did not land"
 proof "one estate with two halves and two roles, and every write went to the role the tag says it belongs to."
 
-step "6. the carve begins with a git move, and Bob's attempt at the retag is denied"
+step "6. Bob, tool-less, is refused on Alice's half - by AWS, with no choudoufu in the call path"
+explain \
+  "Every write so far went through choudoufu. The fence is IAM, not the" \
+  "binary, so under Bob's session, with nothing of this tool anywhere in" \
+  "the call, a plain aws ec2 create-tags against the database" \
+  "(module.data.*, Alice's half) must be refused, and so must a plain" \
+  "aws ec2 terminate-instances against the same instance. What is fenced" \
+  "is exactly ec2:CreateTags, ec2:DeleteTags and ec2:TerminateInstances" \
+  "on resources tagged for module.data.* under Bob's own grant - not" \
+  "every action on that half, and not resources outside this estate; the" \
+  "condition names what it governs and nothing wider."
+DB_ID="$(id_of 'module.data.aws_instance.database')" || fail "boundary" "could not read the database's instance id"
+cmd "aws ec2 create-tags --resources $DB_ID --tags Key=Name,Value=database-hijacked   # no choudoufu, as bob"
+OUT="$(as_role bob awsl ec2 create-tags --resources "$DB_ID" --tags 'Key=Name,Value=database-hijacked' 2>&1 || true)"
+denied "$OUT" || fail "boundary" "Bob's tool-less create-tags on Alice's half was not refused by the platform: $OUT"
+refusal_line "$OUT" | evidence
+[ "$(tags_of 'module.data.aws_instance.database' | awk '{print $1}')" = "database-v2" ] || fail "boundary" "the database's Name changed despite the refusal"
+cmd "aws ec2 terminate-instances --instance-ids $DB_ID   # no choudoufu, as bob"
+OUT="$(as_role bob awsl ec2 terminate-instances --instance-ids "$DB_ID" 2>&1 || true)"
+denied "$OUT" || fail "boundary" "Bob's tool-less terminate-instances on Alice's half was not refused by the platform: $OUT"
+refusal_line "$OUT" | evidence
+STATE="$(awsl ec2 describe-instances --instance-ids "$DB_ID" --query 'Reservations[].Instances[].State.Name' --output text)"
+[ "$STATE" = "running" ] || fail "boundary" "the database was terminated despite the refusal (state: $STATE)"
+proof "two plain AWS CLI calls, no choudoufu anywhere in the process, both refused by the same condition that fences choudoufu's own writes. The fence binds the credential, not the tool."
+
+step "7. Bob's own half, tool-less, and the platform lets it through - the next plan sees it"
+explain \
+  "The same condition that refused step 6 permits what it names on what" \
+  "Bob owns. A plain aws ec2 create-tags on the gateway (module.net.*," \
+  "Bob's half) needs no choudoufu to succeed, and nothing about it is" \
+  "hidden from the tool afterward: the next choudoufu plan reads live" \
+  "tags, not a log of who wrote them, so it sees the drift and proposes" \
+  "reconciling it with what the configuration still declares."
+GW_ID="$(id_of 'module.net.aws_instance.gateway')" || fail "boundary" "could not read the gateway's instance id"
+cmd "aws ec2 create-tags --resources $GW_ID --tags Key=Name,Value=gateway-cli   # no choudoufu, as bob"
+as_role bob awsl ec2 create-tags --resources "$GW_ID" --tags 'Key=Name,Value=gateway-cli' >/dev/null \
+  || fail "boundary" "Bob's tool-less create-tags on his own half was refused"
+[ "$(tags_of 'module.net.aws_instance.gateway' | awk '{print $1}')" = "gateway-cli" ] || fail "boundary" "Bob's permitted write did not land"
+tags_of "module.net.aws_instance.gateway" | evidence
+cmd "choudoufu plan   # in app/, as bob"
+OUT="$(cd "$APP" && as_role bob chdf plan -input=false -no-color 2>&1)" || fail "boundary" "Bob's plan after his own tool-less write failed: $(grep -E 'Error|AccessDenied|not authorized' <<< "$OUT" | head -3)"
+printf '%s\n' "$OUT" > "$LOGS/bob-toolless.plan"
+grep -q "No changes." <<< "$OUT" && fail "boundary" "the next plan reported No changes. after Bob's tool-less write (full plan in $LOGS/bob-toolless.plan)"
+grep -qF "gateway-cli" <<< "$OUT" || fail "boundary" "the next plan did not surface Bob's tool-less write (full plan in $LOGS/bob-toolless.plan): $(grep -E '^Plan:|~ ' <<< "$OUT" | head -5)"
+grep -E '~ |gateway-cli' <<< "$OUT" | head -4 | evidence
+proof "a write that never touched choudoufu is still visible to it: the plan reads live tags, names gateway-cli, and proposes reconciling it with what the configuration declares. What the fence permits is not hidden from the tool."
+cmd "choudoufu apply -auto-approve   # in app/, as bob - reconciling his own tool-less write"
+( cd "$APP" && as_role bob chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "Bob could not reconcile his own tool-less write"
+[ "$(tags_of 'module.net.aws_instance.gateway' | awk '{print $1}')" = "gateway-v2" ] || fail "boundary" "the reconciling apply did not restore gateway-v2"
+proof "reconciled, still under Bob's own role. The estate is clean again before the carve begins."
+
+step "8. the carve begins with a git move, and Bob's attempt at the retag is denied"
 explain \
   "The data module moves from app's configuration into a new root, data," \
   "the way any split starts. The ownership write that completes it is" \
@@ -258,7 +334,7 @@ refusal_line "$OUT" | evidence
 [ "$(tags_of 'module.data.aws_instance.database' | awk '{print $2}')" = "app" ] || fail "boundary" "the database left the estate despite the refusal"
 proof "the carve itself was refused, per resource, by the account. A state mv has no such moment; nothing evaluates it."
 
-step "7. Alice completes the carve: one governed tag write"
+step "9. Alice completes the carve: one governed tag write"
 explain \
   "Same command, Alice's session. Her grant may create into data and" \
   "the request carries tofu-estate=data, so the retag goes through. The" \
@@ -270,7 +346,7 @@ tags_of "module.data.aws_instance.database" | evidence
 [ "$(tags_of 'module.data.aws_instance.database' | awk '{print $2}')" = "data" ] || fail "boundary" "the database does not carry tofu-estate=data after Alice's move"
 proof "tofu-estate=data, written by the one role a policy lets write it. Where there was one estate there are two, and no state was split."
 
-step "8. both estates plan clean, each under its own role"
+step "10. both estates plan clean, each under its own role"
 explain \
   "Alice plans data; Bob plans app. Each reads only its own estate and" \
   "finds nothing to do. The record app kept for the database is not" \
@@ -285,14 +361,17 @@ for spec in "alice $DATA data" "bob $APP app"; do
 done
 proof "No changes, twice, each under the role that owns the estate. The boundary moved with a tag write, and both sides agree where it is."
 
-step "9. teardown - each estate by its own destroy"
+step "11. teardown - each estate by its own destroy"
 ( cd "$DATA" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "teardown of data failed"
 ( cd "$APP"  && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "teardown of app failed"
 proof "both estates are gone, each through its own configuration."
 
 echo "  What you watched: two roles share one estate and are fenced to their"
 echo "  halves by a condition on the ownership tag, refused by AWS when they"
-echo "  reach across; then one of them carves her half into a new estate with"
-echo "  a single governed tag write that the other role's attempt at could not"
+echo "  reach across - and that fence held with no choudoufu anywhere in the"
+echo "  call, refusing a tool-less plain AWS CLI write on the wrong half and"
+echo "  letting one through on the right half, still visible to the next"
+echo "  plan. Then one of them carves her half into a new estate with a"
+echo "  single governed tag write that the other role's attempt at could not"
 echo "  make. In stock every one of those moves is a state edit, and nothing"
 echo "  in the account can say no to a state edit or knows it happened."

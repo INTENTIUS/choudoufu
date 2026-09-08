@@ -211,12 +211,18 @@ showing its own checks would have caught it.
   Ownership is a tag, so the cloud's own policy engine governs who may
   act on what, per resource. Two roles share one estate, each fenced to
   its half by a condition on the ownership tag; each converges its half
-  and is refused on the other's by AWS. Then one role carves her half
-  into a new estate with a single `live-mv -from-estate` tag write, the
-  other role's attempt at the same move is refused, and both estates
-  plan clean under their own roles. Runs with the emulator's IAM
-  enforcement on. The BREAK control drops the conditions from one role's
-  grant, and the cross-half refusal must vanish.
+  and is refused on the other's by AWS. The fence binds the credential,
+  not the binary: with no choudoufu anywhere in the call, a plain AWS CLI
+  write and a plain destructive call against the other role's half are
+  both refused by the identical condition, and a plain CLI write the role
+  is permitted to make lands with no choudoufu involved and is still
+  surfaced by the next plan. Then one role carves her half into a new
+  estate with a single `live-mv -from-estate` tag write, the other role's
+  attempt at the same move is refused, and both estates plan clean under
+  their own roles. Runs with the emulator's IAM enforcement on. The BREAK
+  control drops the conditions from one role's grant, and both the
+  cross-half refusal through choudoufu and the tool-less cross-half
+  refusal must vanish.
 
 - **the-boundary-holds-across-regions** - *Claim 16: the boundary holds
   across provider configurations.* One estate spans two aliased

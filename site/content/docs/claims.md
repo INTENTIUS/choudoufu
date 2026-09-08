@@ -20,7 +20,11 @@ and passes only by catching it. A test that cannot
 fail proves nothing, so every claim ships with its failure demonstrated.
 Claim 15 inverts the control rather than dropping it: its risk is a
 refusal that fires unconditionally, so its `BREAK=1` run removes the
-fault and requires the run to succeed.
+fault and requires the run to succeed. Claim 20 is the one claim on this
+page with no scenario and no `BREAK=1` control: it cites measurements
+already published elsewhere in this repository rather than proving
+itself fresh, and it says so rather than reading like the other
+nineteen.
 
 | Claim | Scenario | ~time |
 |---|---|---|
@@ -43,6 +47,7 @@ fault and requires the run to succeed.
 | A record-only composite identity survives cache loss without a duplicate create | `just smoke record-only-survives-cache-loss` | 2 min |
 | A replaced object's shadow is not a second claimant | `just smoke a-shadow-is-not-a-claimant` | 3 min |
 | The boundary holds across accounts | `just smoke the-boundary-holds-across-accounts` | 2 min |
+| Scale, cited rather than re-run | *(no scenario - evidence-cited, see claim 20)* | — |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
@@ -656,11 +661,24 @@ because the cloud never sees it, and nothing in the account records it.
 Under choudoufu ownership is a tag on the resource, and a tag write is an
 API call the cloud's own policy engine evaluates per resource. A role can
 be fenced to half an estate by a condition on the ownership tag, with the
-grant `live/MARKERS.md` publishes under "Granting an estate". A carve, one
-half moving into an estate of its own, is then a governed write the
-platform can refuse. The scenario turns the emulator's IAM enforcement on
-for its run; the harness's own key stays privileged, and only the two
-roles the scenario creates and assumes are governed.
+grant `live/MARKERS.md` publishes under "Granting an estate". That fence
+binds the credential, not the binary: the same condition governs a plain
+AWS CLI call with no choudoufu anywhere in the process, exactly as it
+governs choudoufu's own writes, and what it lets through is not hidden
+from the tool either - the next plan reads live tags, not a log of who
+wrote them. A carve, one half moving into an estate of its own, is then a
+governed write the platform can refuse. The scenario turns the emulator's
+IAM enforcement on for its run; the harness's own key stays privileged,
+and only the two roles the scenario creates and assumes are governed.
+
+The boundary this claim proves is narrow, and it is worth stating exactly
+that way. The grant fences three actions by name -
+`ec2:CreateTags`, `ec2:DeleteTags` and `ec2:TerminateInstances` - on
+resources carrying the ownership tag's value for the caller's half. It
+says nothing about any other action, and nothing about a resource this
+estate does not own. Read it as "this condition governs the actions it
+names, on the resources that carry the tag it names," never as a claim
+that IAM fences every write a tool-less actor could make.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
@@ -671,10 +689,12 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
   just smoke the-tag-is-the-boundary
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke the-tag-is-the-boundary and report the "caught"
-line: it drops the conditions from Bob's grant, and Bob's write on
-Alice's half must go through, which proves the condition and not the
-credentials was the boundary.
+BREAK=1 just smoke the-tag-is-the-boundary and report both "caught"
+lines: the first drops the conditions from Bob's grant, and Bob's write
+on Alice's half through choudoufu must go through, which proves the
+condition and not the credentials was the boundary; the second repeats
+that with no choudoufu in the call at all, a plain AWS CLI write, and it
+must go through too.
 ```
 
 The steps as they print:
@@ -691,20 +711,36 @@ The steps as they print:
    kind of change on the gateway. The provider's CreateTags comes back
    403 and the gateway is untouched.
 5. `Bob converges the same change` - his session, his half.
-6. `the carve begins with a git move, and Bob's attempt at the retag is
+6. `Bob, tool-less, is refused on Alice's half - by AWS, with no
+   choudoufu in the call path` - under Bob's session, with nothing of
+   this tool anywhere in the process, a plain `aws ec2 create-tags` and a
+   plain `aws ec2 terminate-instances` against the database both come
+   back refused. The same condition that governs choudoufu's own writes
+   governs a script's.
+7. `Bob's own half, tool-less, and the platform lets it through - the
+   next plan sees it` - the identical plain CLI call against the
+   gateway, Bob's own half, lands with no choudoufu involved, and the
+   next `choudoufu plan` names the drift and proposes reconciling it -
+   nothing the fence permits is invisible to the tool. Bob then
+   reconciles it with an ordinary apply.
+8. `the carve begins with a git move, and Bob's attempt at the retag is
    denied` - the data module moves to a new root, and Bob's
    `live-mv -from-estate=app` is refused by the platform before anything
    moves.
-7. `Alice completes the carve: one governed tag write` - the same
+9. `Alice completes the carve: one governed tag write` - the same
    command under Alice's session, and tofu-estate becomes data.
-8. `both estates plan clean, each under its own role` - No changes in
+10. `both estates plan clean, each under its own role` - No changes in
    data under Alice and in app under Bob.
-9. `teardown - each estate by its own destroy`.
+11. `teardown - each estate by its own destroy`.
 
 The `BREAK=1` run replaces Bob's grant with the same reach and no
 conditions, then has Bob change a tag on Alice's half. The write must go
 through. If the platform still refused, something other than the
-condition was the boundary and the claim would prove nothing.
+condition was the boundary and the claim would prove nothing. It then
+repeats the write with no choudoufu at all - a plain `aws ec2 create-tags`
+under Bob's session - and that must go through too, or step 6's refusal
+above would have measured a check this tool runs before calling the API
+rather than the condition itself.
 
 One emulator note. Real EC2 refuses with `UnauthorizedOperation`; the
 emulator refuses with a 403 whose body the EC2 SDK cannot parse, so the
@@ -1240,6 +1276,91 @@ cache then serves the deleted instance - `state cache hit for
 aws_cloudwatch_log_group.other_account, listed live this run, ownership
 record-attested` - the plan reports it unchanged, and the scenario fails
 on exactly that line.
+
+## Claim 20: scale, cited rather than re-run
+
+Every claim above runs a scenario against the pinned emulator, at a scale a
+reader can stand up in a couple of minutes. None of them speaks to whether
+the design holds at the scale a real estate actually reaches, because that
+is not something a laptop and a Docker container can measure honestly. It
+has been measured, on real AWS, and published on
+[what you pay, and when]({{< relref "/docs/what-you-pay" >}}) and
+[what a plan costs]({{< relref "/docs/model/plan-cost" >}}) - just never
+carried onto this page. This claim carries it here, cited rather than
+re-measured for the purpose, and draws the line around exactly what it does
+and does not say.
+
+**A 745-resource estate migrates in one pass, with a single state file
+behind it.** Real AWS, `us-east-2`, recorded in
+[`live/gauntlet.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/gauntlet.json)'s
+`live_cert` block at commit `1d06e1d177`: stock `terraform` applied 745
+resources holding its own state file; `choudoufu live-import -approve`
+verified 335 of the 745 and stamped every one it verified, and left the
+other 410 alone because they compose their identity from an already-stamped
+parent and need no marker of their own - nobody typed one by hand. The
+post-migration plan came back empty and the no-op apply changed nothing.
+One estate, one state file, one migration pass, at a scale most terraliths
+never reach.
+
+**Provider call counts hold at parity with stock, or under it, at that
+scale.** The same real account, both sides planning a no-change estate -
+[what you pay, and when]({{< relref "/docs/what-you-pay#planning-an-adopted-estate" >}})'s
+"same comparison on real AWS" table:
+
+| Resources | stock | choudoufu | Difference | Commit |
+|---|---|---|---|---|
+| 79 | 149 | 155 | +6 (+4.0%) | `d359210978` |
+| 745, session 1 | 1416 | 1413 | -3 (-0.2%) | `d359210978` |
+| 745, session 2 | 1449 | 1404 | -45 (-3.1%) | `02885d2fd6` |
+
+At 79 resources choudoufu costs six more requests than stock. At 745, in two
+separate real-AWS sessions, it costs fewer. The comparison does not worsen
+as the estate grows; at this one scale it inverts.
+
+**The sweep that makes migration and recovery possible is shaped by the
+provider's admission table, not by the size of the account it runs
+against.** [What a plan costs]({{< relref "/docs/model/plan-cost#the-two-terms" >}})'s
+own reproduction, no cloud and no emulator, commit `5d55f4aa9f`:
+
+```
+go test ./internal/live/discovery/ -run TestSweepUniversePartitionIsMostlyNative
+sweep universe=1027 tagging_leg=35 native_leg=992
+```
+
+That bounds the sweep's shape - one call per admitted type, not one call per
+object the account holds. Whether the account's own object count could
+still leak in through the one per-object refinement call the native leg
+makes was a real, named risk
+([#622](https://github.com/INTENTIUS/choudoufu/issues/622)), until it was
+measured directly: on a real, populated account of its own - 24 IAM roles,
+5 buckets, 2 hosted zones, 11 active ECS task definitions, none of them
+this estate's - at commit `eb1d145dc5`, that call fired **zero** times, at
+a small scale and at ten times it, on the first plan and the steady-state
+one alike. For a terralith shaped like the ones this repository generates,
+the sweep is O(admitted types) - not O(account objects), the shape a state
+file forces onto every adoption everywhere else.
+
+**What this claim does not say.** It says nothing about incremental plan
+time within one already-adopted state; the day-2 call counts on
+[what you pay, and when]({{< relref "/docs/what-you-pay#planning-an-adopted-estate" >}})
+and [what a plan costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}})
+are their own, separately measured figures, and this claim does not restate
+them as if they were part of it. And the seconds comparison - how long a
+plan takes on the wall clock, never how many requests it issues - stays
+exactly where
+[what you pay, and when]({{< relref "/docs/what-you-pay#wall-clock-withdrawn-because-the-comparison-was-not-like-for-like" >}})
+leaves it: withdrawn, because the sessions that produced one compared a
+cached plan against an uncached one. This claim will not restate a number
+its own source page has already taken back; re-measure it there; this page
+will follow once that page does.
+
+This is the one claim on this page with no smoke scenario and no `BREAK=1`
+control, and it says so rather than reading like the other nineteen. There
+is nothing here to run: the evidence is the cited pages and the cited
+commits, and a reader who wants to challenge this claim should challenge
+those - `site/content/docs/what-you-pay.md`,
+`site/content/docs/model/plan-cost.md`, and issue #622 - rather than look
+for a scenario that does not exist.
 
 ## Reading a run
 
