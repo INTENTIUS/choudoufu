@@ -214,12 +214,34 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 //
 // A warning rather than an error: the type plans and applies correctly, and
 // refusing it would withdraw coverage this fork went out of its way to add.
+//
+// The condition is "no row in [DefaultTable]", not "a synthesized entry was
+// used" (GitHub issue #980). [resolver.lookupType] memoizes a non-nil entry
+// on two paths, and only the first is what the sentence above describes:
+// the type has no row, or the type has one that the provider's identity
+// schema reproduces, so the synthesized entry is used in its place (ruling
+// 2 of the foundation-order ruling, #387, [preferSynthesized]). The second
+// leaves the table untouched, so the sweep lists the type exactly as it
+// always did, and warning about it said something false about every
+// ordinary type on the path every run takes - aws_iam_role and
+// aws_cloudwatch_log_group among them, both of which the same run's own
+// -json document reports as swept.
+//
+// Which types the sweep can list is therefore asked of [DefaultTable]
+// itself rather than tracked alongside the memo, because that is the same
+// table discovery draws its universe from ([AdmittedTypes] is its keys):
+// asking it directly is what makes this warning and the sweep unable to
+// disagree, whatever else later learns to write a memo here.
 func (r *resolver) warnUnsweepableTypes() {
 	names := make([]string, 0, len(r.synth))
 	for typeName, entry := range r.synth {
-		if entry != nil {
-			names = append(names, typeName)
+		if entry == nil {
+			continue
 		}
+		if _, hasRow := LookupType(typeName); hasRow {
+			continue
+		}
+		names = append(names, typeName)
 	}
 	sort.Strings(names)
 
