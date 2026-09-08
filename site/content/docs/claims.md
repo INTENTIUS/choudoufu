@@ -484,14 +484,18 @@ losing an object costs a read, never a wrong plan.
 
 A `count` block declares a set, and stock tools treat it as a list:
 instance 2 is whatever sits at index 2. Shrinking the count renumbers
-the tail and rebuilds it. Choudoufu names each member with a `tofu-slot`
-marker instead, a stable id minted once and never reused. The lint
-boundary forbids any argument from reading `count.index`. The index is where a
-member sits today; the slot is what it is. So a pool of three scales to
-two by removing exactly one member and rebuilding nothing, and the
-survivors keep their live ids. Strip the slot from one member where no
-local record names it, and the set has two rules for naming its members,
-so the run refuses rather than guess.
+the tail and rebuilds it. Where the members are genuinely interchangeable
+- nothing in the configuration says which live resource is which -
+choudoufu names each one with a `tofu-slot` marker instead, a stable id
+minted once and never reused. The lint boundary admits `count.index` in an
+identity-bearing argument only where it can prove every instance renders a
+distinct value, and a block that does name its members that way needs no
+slot: the configuration already says which is which. For the fungible kind,
+the index is where a member sits today; the slot is what it is. So a pool
+of three scales to two by removing exactly one member and rebuilding
+nothing, and the survivors keep their live ids. Strip the slot from one
+member where no local record names it, and the set has two rules for
+naming its members, so the run refuses rather than guess.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
