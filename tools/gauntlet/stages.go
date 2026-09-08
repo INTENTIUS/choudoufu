@@ -31,15 +31,33 @@ package main
 // past what the stage's own docs claim). For a headline stage, flipping
 // Status to active is still the deliberate change that lowers the bars
 // until estates catch up.
+//
+// Tier1Gated is a third, independent axis (#999): whether a headline
+// stage's activation evidence is a tier-1 fixture (live/behaviors.json,
+// #522's ruling) rather than 26 hand-written per-estate sections. #491 and
+// #643 retired the sweep model that used to supply those sections, so an
+// estate with no section for such a stage is not evidence the estate
+// fails it - it is evidence the estate has never been asked to run it.
+// isClearAgainst (artifact.go) treats a "not_run" verdict on a
+// Tier1Gated stage as neutral rather than as a miss: an estate that never
+// exercises it stays clear. A genuine "fail" still fails it, and a genuine
+// per-estate "pass" - reference-ec2-vpc's day2_crash, a survivor of the
+// retired sweep model - still counts, exactly as it would for any other
+// headline stage. This is the maintainer's ruling on #999 (option 2 over
+// "tier-1 stages never gate clear" - chosen specifically so a real,
+// already-recorded pass like that one keeps counting instead of being
+// discarded). Every other headline stage (Tier1Gated: false) is unaffected:
+// a "not_run" on it still breaks clear, exactly as it always has.
 type Stage struct {
-	ID       string `json:"id"`
-	Order    int    `json:"order"`
-	Title    string `json:"title"`
-	Status   string `json:"status"`   // "active" or "planned"
-	Headline bool   `json:"headline"` // counts toward the two bars and toward `next`, once active
-	Proves   string `json:"proves"`
-	Oracle   string `json:"oracle"`
-	Break    string `json:"break"`
+	ID         string `json:"id"`
+	Order      int    `json:"order"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`      // "active" or "planned"
+	Headline   bool   `json:"headline"`    // counts toward the two bars and toward `next`, once active
+	Tier1Gated bool   `json:"tier1_gated"` // "not_run" is neutral for `clear`, not a miss; "fail" still fails it (#999)
+	Proves     string `json:"proves"`
+	Oracle     string `json:"oracle"`
+	Break      string `json:"break"`
 }
 
 const (

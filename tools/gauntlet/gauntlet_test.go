@@ -598,8 +598,34 @@ func TestClearNeedsEveryHeadlineStage(t *testing.T) {
 			cp[k] = v
 		}
 		cp[s.ID] = VerdictNotRun
-		if isClear(cp) {
+		got := isClear(cp)
+		if s.Tier1Gated {
+			// #999: a tier1-gated headline stage activates on fixture
+			// evidence, not on 26 hand-written per-estate sections, so an
+			// estate that never exercised it is not run - not failing -
+			// and stays clear.
+			if !got {
+				t.Errorf("not_run on tier1-gated headline stage %q should still be clear", s.ID)
+			}
+			continue
+		}
+		if got {
 			t.Errorf("not_run on headline stage %q should not be clear", s.ID)
+		}
+	}
+	// A genuine fail on a tier1-gated headline stage must still break clear
+	// - the fixture gates activation, never correctness (#999).
+	for _, s := range HeadlineStages() {
+		if !s.Tier1Gated {
+			continue
+		}
+		cp := map[string]string{}
+		for k, v := range all {
+			cp[k] = v
+		}
+		cp[s.ID] = VerdictFail
+		if isClear(cp) {
+			t.Errorf("fail on tier1-gated headline stage %q should not be clear", s.ID)
 		}
 	}
 	for _, s := range Stages() {
@@ -671,6 +697,43 @@ func TestNonHeadlineActiveStageDoesNotGateOrGetPicked(t *testing.T) {
 	}
 	if len(units) != 1 || units[0].Estate != headlineFails.Name || units[0].Stage != headlineStage.ID {
 		t.Errorf("expected exactly one unit, %s/%s, got %+v", headlineFails.Name, headlineStage.ID, units)
+	}
+}
+
+// TestTier1GatedNotRunIsNeutral is the guard for #999: isClearAgainst must
+// treat "not_run" as neutral only on a stage explicitly marked Tier1Gated,
+// a genuine "fail" on that same stage must still break clear (the fixture
+// gates activation, not correctness), and an ordinary headline stage - not
+// marked Tier1Gated - must keep breaking clear on "not_run" exactly as it
+// always has. That last assertion is the guard against this change quietly
+// weakening the whole board: it would still catch a regression that widened
+// the neutrality past stages that actually opted into it. Built from a
+// synthetic two-stage list, independent of which real stages carry the
+// field today (day2_crash, day2_teardown), so it survives either of those
+// being retired or gaining real per-estate evidence later.
+func TestTier1GatedNotRunIsNeutral(t *testing.T) {
+	ordinary := Stage{ID: "h1", Order: 1, Title: "Ordinary headline stage", Status: StatusActive, Headline: true}
+	gated := Stage{ID: "g1", Order: 2, Title: "Tier-1-gated headline stage", Status: StatusActive, Headline: true, Tier1Gated: true}
+	headline := []Stage{ordinary, gated}
+
+	allPass := map[string]string{ordinary.ID: VerdictPass, gated.ID: VerdictPass}
+	if !isClearAgainst(headline, allPass) {
+		t.Fatal("all pass should be clear")
+	}
+
+	notRunGated := map[string]string{ordinary.ID: VerdictPass, gated.ID: VerdictNotRun}
+	if !isClearAgainst(headline, notRunGated) {
+		t.Error("not_run on a tier1-gated stage must still be clear")
+	}
+
+	failGated := map[string]string{ordinary.ID: VerdictPass, gated.ID: VerdictFail}
+	if isClearAgainst(headline, failGated) {
+		t.Error("a genuine fail on a tier1-gated stage must still break clear")
+	}
+
+	notRunOrdinary := map[string]string{ordinary.ID: VerdictNotRun, gated.ID: VerdictPass}
+	if isClearAgainst(headline, notRunOrdinary) {
+		t.Error("not_run on an ordinary (non-tier1-gated) headline stage must still break clear")
 	}
 }
 

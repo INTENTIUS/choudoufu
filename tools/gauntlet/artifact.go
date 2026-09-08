@@ -380,11 +380,24 @@ func isClear(stages map[string]string) bool {
 // Split out so a test can pin the headline-exemption behavior against a
 // synthetic stage list, independent of which real stage in Stages() happens
 // to be both active and non-headline today (gauntlet_test.go).
+//
+// A stage marked Tier1Gated (#999) activates on tier-1 fixture evidence
+// rather than on 26 hand-written per-estate sections, so an estate that has
+// never been asked to run it - "not_run" - is not a miss on that estate; it
+// is neutral, and the estate can still be clear. A genuine "fail" on a
+// Tier1Gated stage still breaks clear: the fixture gates activation, never
+// correctness. Every other headline stage is unaffected - "not_run" on it
+// still breaks clear exactly as it always has.
 func isClearAgainst(headline []Stage, stages map[string]string) bool {
 	for _, s := range headline {
-		if stages[s.ID] != VerdictPass {
-			return false
+		v := stages[s.ID]
+		if v == VerdictPass {
+			continue
 		}
+		if s.Tier1Gated && v != VerdictFail {
+			continue
+		}
+		return false
 	}
 	return true
 }
