@@ -361,6 +361,30 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 // evidence (see the day2RemoveFixtures block below) but does not meet
 // that bar - only test_plan does - so BehaviorsProven(committed
 // live/behaviors.json) is 1, not 2.
+//
+// destroy-teardown -> day2_teardown (#804, following #557's already-built,
+// already-passing fixture and #522's ruling that activation is gated on
+// tier-1 fixtures rather than 26 hand-written estate sections): one
+// fixture alone covers all three mandatory shapes (count, for_each,
+// module-nested - aws_vpc.pool, aws_subnet.edge, module.extra's
+// aws_vpc.inner), but only one identity kind (server-minted). day2_teardown
+// is identity-touching (its Proves text: "...leaves nothing marked" has to
+// know which live objects it owns to sweep them), so it hits the same
+// "mapped and passing, but not the ruling's full representative set"
+// ceiling day2_remove already sits at - BehaviorsProven(committed
+// live/behaviors.json) stays 1, not 2.
+//
+// day2_teardown's Status (stages.go) stays StatusPlanned even though #804
+// authorized flipping it: a real render with Status flipped to StatusActive
+// tanks core clear from 27/27 to 0/27, because isClearAgainst
+// (artifact.go) requires every active+headline stage to read a literal
+// per-estate VerdictPass, and #522's ruling never actually changed that
+// function - it only said per-estate sections should not be REQUIRED, not
+// that isClear was updated to stop requiring them. Until isClearAgainst (or
+// its estate-row inputs) is taught that a tier-1-only stage does not need a
+// per-estate section to count as passing for that estate, flipping this
+// specific stage regresses the board the same way #480 did. See #804's PR
+// body for the exact numbers and the follow-up this blocks on.
 func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 	root := repoRootForTest(t)
 	bi, err := LoadBehaviorIndex(root)
@@ -384,6 +408,7 @@ func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 		"repeated-module":        "test_plan",
 		"tagging-sweep":          "day2_remove",
 		"record-store":           "day2_remove",
+		"destroy-teardown":       "day2_teardown",
 	}
 	unmapped := []string{"dataread-projection", "provisioner-taint"}
 
@@ -478,12 +503,40 @@ func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 		t.Fatal("day2_remove's mapped fixtures now meet the ruling's shape+identity-kind coverage bar - that is good news (the gap closed), but this test's own commentary above is now stale and must be rewritten, not left claiming a gap that no longer exists")
 	}
 
+	// day2_teardown (#804): the single mapped fixture, destroy-teardown,
+	// covers all three mandatory shapes in one script (count, for_each,
+	// module-nested - see its own resource_block) but only one of the
+	// three named identity kinds (server-minted; no deterministic- or
+	// none-identity teardown fixture exists yet). day2_teardown is
+	// identity-touching (identityTouchingStages above), so the missing
+	// two kinds keep it off the "proven" list even though it is genuinely
+	// mapped and genuinely passing. Its Status (stages.go) stays
+	// StatusPlanned - see the doc comment above this function for why the
+	// flip itself is blocked, independent of this coverage gap.
+	var day2TeardownFixtures []BehaviorFixture
+	for _, f := range bi.Fixtures {
+		if f.Stage == "day2_teardown" {
+			day2TeardownFixtures = append(day2TeardownFixtures, f)
+		}
+	}
+	if len(day2TeardownFixtures) == 0 {
+		t.Fatal("day2_teardown has no mapped fixtures; the mapping above is stale")
+	}
+	for _, f := range day2TeardownFixtures {
+		if f.LastRun == nil || f.LastRun.Verdict != VerdictPass {
+			t.Fatalf("day2_teardown's fixture %q is not passing; the mapping above no longer describes genuine, passing evidence", f.ID)
+		}
+	}
+	if meetsShapeAndIdentityCoverage("day2_teardown", day2TeardownFixtures) {
+		t.Fatal("day2_teardown's mapped fixtures now meet the ruling's shape+identity-kind coverage bar - that is good news (the gap closed), but this test's own commentary above is now stale and must be rewritten, not left claiming a gap that no longer exists")
+	}
+
 	proven, total := BehaviorsProven(bi)
 	if total != len(Stages()) {
 		t.Fatalf("BehaviorsProven total = %d, want %d", total, len(Stages()))
 	}
 	if proven != 1 {
-		t.Fatalf("BehaviorsProven(committed live/behaviors.json) = %d, want 1 (test_plan only - day2_remove is mapped with genuine, passing evidence but does not meet the ruling's shape+identity-kind coverage bar) - if a fixture's last_run now fails, or the mapping or coverage changed, update this pin deliberately rather than silencing it", proven)
+		t.Fatalf("BehaviorsProven(committed live/behaviors.json) = %d, want 1 (test_plan only - day2_remove and day2_teardown are both mapped with genuine, passing evidence but neither meets the ruling's shape+identity-kind coverage bar) - if a fixture's last_run now fails, or the mapping or coverage changed, update this pin deliberately rather than silencing it", proven)
 	}
 }
 
