@@ -907,6 +907,15 @@ ENGINE WORK:
   declared roster and cross-estate references for check, the
   bound/omissions/unowned breakdown for plan) beside their existing
   human-readable report.
+- **`live-mv -json`** (#791): the move as one JSON document -- the live
+  resource, the address and marker on each side, the followers that move
+  without a write of their own, and `found_by` as the admission path's own
+  `LIST` or `IDENTITY`. Printed on a refusal as well as a success, with the
+  refusal's stable code beside its prose, so a preview or a receipt reader
+  has one parse target rather than a reconstruction of the human report's
+  rows. (Recorded here after the release: it shipped in `e4e897de8c`,
+  `ce79fbf43b`, `7072d2cab3` and `dc3e48487c` and this section named the
+  other three of the four.)
 
 FORK WORK:
 

@@ -65,12 +65,34 @@ def init(cfg: config.Config, estate: str) -> None:
     guard.chdf(cfg, "init", "-input=false", "-no-color", cwd=str(cfg.workdir(estate)))
 
 
+# The file every apply here approves and then applies. One name per estate
+# working directory, overwritten each time: it is an artifact of the apply
+# that is about to happen, not a record to keep.
+PLANFILE = "approved.tfplan"
+
+
 def apply(cfg: config.Config, estate: str) -> None:
-    """Apply an estate — destructive, fenced to its workdir under the run tree,
-    and recorded so teardown will find it."""
+    """Apply an estate through the approval gate: ``plan -out`` writes the
+    plan file, and ``apply <planfile>`` applies exactly that file.
+
+    Not ``apply -auto-approve``. v0.14.0 turned plan approval from planned to
+    active and re-measured every estate carrying this leg (live/GAUNTLET.md
+    stage 12), and it is the shape a reviewed change actually takes: the plan
+    a human read is the artifact the apply consumes, and an apply whose live
+    system moved since that file was written refuses at exit 3 rather than
+    doing something the reader never approved. An example anyone copies should
+    show the shape the engine measures.
+
+    The plan is a read and the apply is destructive, so the confirmation lands
+    on the apply, after the plan a reader can look at - which is the order the
+    gate is for.
+    """
+    workdir = str(cfg.workdir(estate))
+    guard.chdf(cfg, "plan", "-input=false", "-no-color", f"-out={PLANFILE}",
+               cwd=workdir, label=f"{estate} plan -out")
     guard.chdf(
-        cfg, "apply", "-auto-approve", "-input=false", "-no-color",
-        cwd=str(cfg.workdir(estate)), destructive=True,
+        cfg, "apply", "-input=false", "-no-color", PLANFILE,
+        cwd=workdir, destructive=True,
     )
     record_estate(cfg, estate)
 

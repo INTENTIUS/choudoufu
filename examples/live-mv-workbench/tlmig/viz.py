@@ -140,6 +140,7 @@ class RunState:
     previews: list[dict] = dataclasses.field(default_factory=list)   # events.preview, one per planned move
     record_store: dict = dataclasses.field(default_factory=dict)     # {estate: [address,...]} from .tofu-records, from the receipt event
     cloudtrail_available: bool | None = None   # None = no receipt phase seen yet; False = ran against an emulator
+    references: list[dict] = dataclasses.field(default_factory=list)  # events.reference, one per cross-estate edge
 
     @property
     def active_phase(self) -> Phase | None:
@@ -307,6 +308,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     verdicts: list[dict] = []
     notes: list[tuple[str, str]] = []
     previews: list[dict] = []
+    references: list[dict] = []
     record_store: dict = {}
     cloudtrail_available: bool | None = None
     seen = 0
@@ -476,6 +478,14 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
                 ledger.append(LedgerRow(_parse_ts(e.get("time") or e.get("eventTime")), phase_name, who,
                                         f"CloudTrail {call} {tagtxt}", target,
                                         err or "recorded", not err, True))
+        elif kind == "reference":
+            # A cross-estate edge live-check reported. Keyed by the data
+            # source and the estate that declares it, so re-reading an
+            # estate replaces its edges rather than doubling them.
+            body = {k: v for k, v in ev.items() if k not in ("ts", "run_id", "kind")}
+            key = (body.get("in_estate"), body.get("source"))
+            references[:] = [r for r in references if (r.get("in_estate"), r.get("source")) != key]
+            references.append(body)
         elif kind == "note":
             notes.append((phase_name, str(ev.get("text", ""))))
         elif kind == "preview":
@@ -504,7 +514,20 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         for e in (pv.get("from_estate"), pv.get("to_estate")):
             if e and e not in estates:
                 estates.append(e)
-    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available)
+    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available, references)
+
+
+def _approval_payoff(state: RunState) -> str:
+    """The approval gate's own sentence, appended to Verify's payoff when the
+    run walked it. Read off the verdict the gate emitted, never invented: no
+    verdict, no sentence."""
+    v = next((x for x in state.verdicts if x.get("name") == "plan-approval"), None)
+    if v is None:
+        return ""
+    if v.get("ok"):
+        return (" And the approved plan file held: the world moved out of band, `apply approved.tfplan` "
+                "refused at exit 3 naming what moved, and once the world was put back the identical file applied.")
+    return " The approval gate did NOT hold on this run; read its lines in the ledger."
 
 
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:
@@ -1004,8 +1027,10 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
         slow = next((x for x in after.measures if x.refresh and x.estate == mono), None)
         if slow and slow.requests:
             ratio = slow.requests / max(m.requests, 1)
-            return f"{m.requests} requests against the monolith's {slow.requests}: {ratio:.1f}x fewer, with {m.cache_hits or 0} served from cache. Cost tracks the estate."
-        return f"{m.requests} requests with {m.cache_hits or 0} served from cache."
+            line = f"{m.requests} requests against the monolith's {slow.requests}: {ratio:.1f}x fewer, with {m.cache_hits or 0} served from cache. Cost tracks the estate."
+        else:
+            line = f"{m.requests} requests with {m.cache_hits or 0} served from cache."
+        return line + _approval_payoff(after)
     if name == "decompose":
         held = [e for e in teams if counts.get(e)]
         if held:

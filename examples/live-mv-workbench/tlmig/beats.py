@@ -34,11 +34,16 @@ def preflight(cfg: config.Config) -> None:
 # seed - stand up (or adopt) the estates the plan will move between
 # --------------------------------------------------------------------------
 
-def _demo_carve_doc(cfg: config.Config) -> dict:
+def _demo_carve_doc(cfg: config.Config, references: list | None = None) -> dict:
     """The demo's carve plan: every team's taggable resource leaves the
     monolith for that team's estate. It is the decompose move set, and it is
     previewable straight after seed because the resources are all still in the
-    monolith and each team's destination config is written by seed."""
+    monolith and each team's destination config is written by seed.
+
+    ``references`` are the cross-estate edges live-check reported for the
+    estates this plan touches; given them, each move also carries what the
+    move costs on the other side of the boundary. Omitted, the plan is
+    unpriced rather than priced at zero."""
     moves, estates = [], []
     for team in config.TEAMS:
         dest = cfg.estate(team)
@@ -46,6 +51,8 @@ def _demo_carve_doc(cfg: config.Config) -> dict:
             moves.append({"address": addr, "from": cfg.monolith_estate, "to": dest})
         if dest not in estates:
             estates.append(dest)
+    if references:
+        carve.price(moves, references)
     return {"from": cfg.monolith_estate, "estates": estates, "moves": moves, "rules": []}
 
 
@@ -82,9 +89,15 @@ def seed(cfg: config.Config, *, demo: bool = False, config_dir: str | None = Non
             est = cfg.estate(team)
             env.write_config(cfg, est, fixture.team_hcl(cfg, team))
             env.init(cfg, est)
-        carve.save(cfg.run_dir, _demo_carve_doc(cfg))
+        # What each estate reads across the boundary, once per estate, so the
+        # carve plan can price a move rather than only count it.
+        refs = govern.read_references(cfg, [cfg.monolith_estate, *(cfg.estate(t) for t in config.TEAMS)])
+        doc = _demo_carve_doc(cfg, refs)
+        carve.save(cfg.run_dir, doc)
         govern.read_inventory(cfg, cfg.monolith_estate)
         ui.ok(f"demo seed up; carve plan at {carve.path(cfg.run_dir)}")
+        for line in carve.describe(doc):
+            ui.say(line)
 
 
 # --------------------------------------------------------------------------
@@ -225,12 +238,37 @@ def _guard(cfg: config.Config) -> None:
         ui.err("the carve did NOT leave a clean handover - see the lines above")
 
 
+def _approval(cfg: config.Config) -> None:
+    """live/GAUNTLET.md stage 12, on this run's own resources.
+
+    The rest of this phase proves the split left nothing behind. This proves
+    the other thing a reader copying the example needs to see: that a change
+    is approved as a plan file and applied as that file, and that the apply
+    refuses when the live system moved under it. v0.14.0 turned this stage
+    from planned to active and re-measured all 27 estates carrying it; an
+    example whose applies did not walk it was demonstrating a contract the
+    engine no longer measures.
+    """
+    ui.say(
+        "One more thing a state file cannot do. The change below is approved "
+        "as a plan file. Then the world moves out of band - the AWS CLI, not "
+        "choudoufu - and the same file is applied: it refuses at exit 3 and "
+        "names what moved. Put the world back and the identical file applies."
+    )
+    team = config.DEST_TEAM
+    govern.approval_gate(
+        cfg, cfg.estate(team), f"{team.replace('-', '_')}_0",
+        f"/{cfg.prefix}/{team}/svc-0",
+    )
+
+
 def verify(cfg: config.Config) -> None:
-    """Prove the moves: one estate plans at cache speed, and the carve left
-    nothing behind."""
+    """Prove the moves: one estate plans at cache speed, the carve left
+    nothing behind, and the approval gate holds."""
     with events.phase(cfg, "verify", title="plan one estate fast, prove the handover clean"):
         _fast_plan(cfg)
         _guard(cfg)
+        _approval(cfg)
 
 
 # --------------------------------------------------------------------------

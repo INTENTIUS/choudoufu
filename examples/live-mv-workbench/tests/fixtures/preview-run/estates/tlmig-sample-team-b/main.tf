@@ -49,3 +49,25 @@ resource "aws_cloudwatch_log_group" "team_b_2" {
   name              = "/tlmig-sample/team-b/svc-2"
   retention_in_days = 1
 }
+
+# ---- read across the estate boundary ----
+# live/OUTPUTS.md's pattern, which replaces the banned terraform_remote_state:
+# a data source filtered on the producer's two marker tags. This is what
+# `choudoufu live-check -json` reports as references[], with read_by naming
+# aws_subnet.app below - and what the planner prices, because moving
+# aws_vpc.main out of tlmig-sample-team-a means rewriting this filter.
+data "aws_vpc" "team_a_network" {
+  filter {
+    name   = "tag:tofu-estate"
+    values = ["tlmig-sample-team-a"]
+  }
+  filter {
+    name   = "tag:tofu-address"
+    values = ["aws_vpc.main"]
+  }
+}
+
+resource "aws_subnet" "app" {
+  vpc_id     = data.aws_vpc.team_a_network.id
+  cidr_block = "10.77.1.0/24"
+}

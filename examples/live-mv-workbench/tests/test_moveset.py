@@ -1,9 +1,13 @@
-"""The move set, the dry-run preview parser, and the guard over an arbitrary
-carve. All pure: the dry-run text is the exact block
-internal/command/views/live_mv.go renders ("  %-14s %s" rows, the
-"Would move ... Nothing was written (-dry-run)" headline), and the refusal is
-the tfdiags "Error:" shape, so the parser is pinned to real bytes, not a
-paraphrase."""
+"""The move set, the preview parser, and the guard over an arbitrary carve.
+
+All pure. The preview's source is the document ``live-mv -json`` prints, and
+the fixtures below are that document field for field
+(views.StatelessMvJSONReport): ``resource``/``from``/``to``, ``found_by`` as
+mv.Path's own "LIST" or "IDENTITY", ``followers`` omitted rather than empty
+when there are none, and ``refusal`` carrying mv.RefusalCode's stable code
+beside the prose. The text block is still here as the fallback parser's
+fixture - the exact rows internal/command/views/live_mv.go renders - so both
+paths are pinned to real bytes, not a paraphrase."""
 
 from __future__ import annotations
 
@@ -31,6 +35,28 @@ def dry_run_block(frm: str, to: str, addr: str, rtype: str = "aws_iam_policy", l
         "\n"
         "Rerun without -dry-run to write it. Everything above was read from the live system; nothing was changed.\n"
     )
+
+
+# The document -json prints, field for field. Written from
+# views.StatelessMvJSONReport's own JSON tags, not from the parser.
+def json_report(frm: str, to: str, addr: str, new_addr: str | None = None,
+                rtype: str = "aws_iam_policy", live_id: str = "arn:aws:iam::354867293429:policy/p",
+                followers: list | None = None, found_by: str = "LIST") -> dict:
+    new_addr = new_addr or addr
+    doc = {
+        "resource": {"type": rtype, "live_id": live_id},
+        "from": {"estate": frm, "address": addr, "marker": addr},
+        "to": {"estate": to, "address": new_addr, "marker": new_addr},
+        "dry_run": True,
+        "written": False,
+        "verified": False,
+        "found_by": found_by,
+    }
+    # omitted entirely, never [], when there are none - the document's own
+    # convention, which the parser has to read as "none" rather than "unknown"
+    if followers:
+        doc["followers"] = followers
+    return doc
 
 
 # A tfdiags refusal, as live-mv prints one and exits nonzero.
@@ -129,6 +155,111 @@ class ParseDryRun(unittest.TestCase):
         # the move still names the address even though no block was printed
         self.assertEqual(pv.address, "aws_iam_policy.team_a")
         self.assertEqual(pv.as_event()["refusal"]["summary"], "Address not declared in this estate")
+
+
+class ParseJSONReport(unittest.TestCase):
+    """The document is what the preview reads now. Every field below is
+    views.StatelessMvJSONReport's own JSON name, and the vocabulary is the
+    document's: found_by is "LIST", never the sentence the human report wraps
+    it in and never the workbench's old invented "tagging"."""
+
+    def test_a_cross_estate_dry_run_yields_both_tag_writes_and_the_document_vocabulary(self):
+        move = moveset.CarveMove("aws_iam_role.team_a", "tl-mono", "tl-team-a",
+                                 children=("carve.json's guess",))
+        pv = moveset.parse_preview(json.dumps(json_report(
+            frm="tl-mono", to="tl-team-a", addr="aws_iam_role.team_a",
+            rtype="aws_iam_role", live_id="arn:aws:iam::354867293429:role/r",
+            followers=[{"address": "aws_iam_role_policy.team_a_inline", "type": "aws_iam_role_policy"}],
+        )), move=move)
+        self.assertTrue(pv.ok)
+        self.assertFalse(pv.written)
+        self.assertTrue(pv.dry_run)
+        self.assertEqual(pv.found_by, "LIST")
+        self.assertEqual(pv.from_estate, "tl-mono")
+        self.assertEqual(pv.to_estate, "tl-team-a")
+        self.assertEqual(pv.type, "aws_iam_role")
+        self.assertEqual(pv.live_id, "arn:aws:iam::354867293429:role/r")
+        self.assertEqual(
+            [(t.key, t.frm, t.to) for t in pv.tag_writes],
+            [("tofu-estate", "tl-mono", "tl-team-a"),
+             ("tofu-address", "aws_iam_role.team_a", "aws_iam_role.team_a")],
+        )
+        # followers[] is the engine's answer, not carve.json's informational one
+        self.assertEqual(pv.children, ("aws_iam_role_policy.team_a_inline",))
+
+    def test_no_followers_key_on_a_found_resource_means_none_not_carve_jsons_guess(self):
+        move = moveset.CarveMove("aws_iam_policy.team_a", "tl-mono", "tl-team-a",
+                                 children=("carve.json's guess",))
+        doc = json_report(frm="tl-mono", to="tl-team-a", addr="aws_iam_policy.team_a")
+        self.assertNotIn("followers", doc)
+        pv = moveset.parse_preview(json.dumps(doc), move=move)
+        self.assertEqual(pv.children, ())
+
+    def test_a_rename_within_one_estate_writes_only_the_address_tag(self):
+        doc = json_report(frm="tl-team-a", to="tl-team-a", addr="aws_iam_policy.old",
+                          new_addr="aws_iam_policy.new")
+        pv = moveset.parse_preview(json.dumps(doc))
+        self.assertEqual([t.key for t in pv.tag_writes], ["tofu-address"])
+        self.assertEqual(pv.old_address, "aws_iam_policy.old")
+        self.assertEqual(pv.address, "aws_iam_policy.new")
+
+    def test_a_refusal_carries_the_stable_code_and_leaves_the_writes_empty(self):
+        move = moveset.CarveMove("aws_iam_policy.team_a", "tl-mono", "tl-team-a")
+        # A refusal before the resource was found: the engine has the two
+        # addresses it was given and nothing else, which is what res == nil
+        # renders (internal/command/live_mv.go's liveMvJSONReport).
+        doc = {"from": {"address": "aws_iam_policy.team_a"},
+               "to": {"address": "aws_iam_policy.team_a"},
+               "dry_run": True, "written": False, "verified": False,
+               "refusal": {"code": "destination_not_declared",
+                           "summary": "Address not declared in this estate",
+                           "detail": "aws_iam_policy.team_a is not declared in estate tl-team-a."}}
+        pv = moveset.parse_preview(json.dumps(doc), move=move)
+        self.assertFalse(pv.ok)
+        self.assertEqual(pv.refusal.code, "destination_not_declared")
+        self.assertEqual(pv.refusal.summary, "Address not declared in this estate")
+        self.assertEqual(pv.tag_writes, ())
+        self.assertEqual(pv.found_by, "")
+        # the move still names the estates the plan asked for
+        self.assertEqual((pv.from_estate, pv.to_estate), ("tl-mono", "tl-team-a"))
+        self.assertEqual(pv.as_event()["refusal"]["code"], "destination_not_declared")
+
+    def test_a_refusal_outside_the_five_shapes_has_an_empty_code_not_a_missing_refusal(self):
+        doc = {"from": {"address": "a"}, "to": {"address": "a"}, "dry_run": True,
+               "refusal": {"summary": "Provider error", "detail": "the provider said no"}}
+        pv = moveset.parse_preview(json.dumps(doc))
+        self.assertFalse(pv.ok)
+        self.assertEqual(pv.refusal.code, "")
+        self.assertEqual(pv.refusal.summary, "Provider error")
+
+    def test_a_document_is_found_past_a_stderr_warning(self):
+        """govern hands the parser stdout and stderr concatenated, so a
+        warning printed beside the document must not hide it."""
+        doc = json_report(frm="mono", to="team-a", addr="aws_iam_role.r")
+        text = json.dumps(doc, indent=2) + "\n\nWarning: Configuration still naming the old address\n"
+        pv = moveset.parse_preview(text)
+        self.assertEqual(pv.found_by, "LIST")
+        self.assertEqual(pv.to_estate, "team-a")
+
+    def test_output_with_no_document_falls_back_to_the_text_parser(self):
+        """The one path that prints no document: a command line -json never
+        reached. The labelled rows still parse, so the preview degrades rather
+        than losing the move."""
+        pv = moveset.parse_preview(dry_run_block("tl-mono", "tl-team-a", "aws_iam_policy.team_a"))
+        self.assertEqual(pv.to_estate, "tl-team-a")
+        self.assertEqual([t.key for t in pv.tag_writes], ["tofu-estate", "tofu-address"])
+        # the human report's found by is a sentence; the document's is a value
+        self.assertNotIn(pv.found_by, ("LIST", "IDENTITY"))
+
+    def test_as_event_carries_the_document_fields(self):
+        pv = moveset.parse_preview(json.dumps(json_report(frm="mono", to="team-a", addr="aws_iam_role.r")))
+        ev = pv.as_event()
+        self.assertEqual(ev["found_by"], "LIST")
+        self.assertIs(ev["verified"], False)
+        self.assertIs(ev["dry_run"], True)
+        self.assertEqual(ev["tag_writes"][0], {"key": "tofu-estate", "from": "mono", "to": "team-a"})
+        # round-trips through JSON the way the event feed writes it
+        self.assertEqual(json.loads(json.dumps(ev))["found_by"], "LIST")
 
 
 class SetVerdict(unittest.TestCase):
