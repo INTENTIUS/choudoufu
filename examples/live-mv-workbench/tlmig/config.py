@@ -10,9 +10,13 @@ Three values are load-bearing for safety:
 * ACCOUNT_ID, empty by default, optionally pins the one account this example
   may touch.
 * CHOUDOUFU_VERSION pins the release the numbers were measured against.
-* RESOURCE_PREFIX is stamped on every resource the run creates and is the
-  fence every destructive call checks: teardown deletes only names that
-  start with it, and the guard refuses to destroy anything that does not.
+* RESOURCE_PREFIX is this example's own naming convention - fixture.py builds
+  every resource name out of it - and it is the fence every destructive call
+  checks: teardown deletes only names that start with it, and the guard
+  refuses to destroy anything that does not. It is not something choudoufu
+  writes, and it has nothing to do with the marker tags or with the
+  module_prefix evaluator symbol v0.15.0 retired (#644): the fence reads the
+  name the example chose, so it holds whatever the engine does with markers.
 """
 
 from __future__ import annotations
@@ -80,7 +84,8 @@ class Config:
     def prefix(self) -> str:
         """The name prefix every created resource carries, e.g.
         ``tlmig-9f3a1c``. This is the string the destructive fence matches
-        on, so it is deliberately unique per run."""
+        on, so it is deliberately unique per run. The example puts it there
+        (see :mod:`tlmig.fixture`); no choudoufu feature does."""
         return f"{RESOURCE_PREFIX}-{self.run_id}"
 
     def estate(self, team: str) -> str:

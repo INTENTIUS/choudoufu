@@ -517,6 +517,19 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available, references)
 
 
+def _approval_payoff(state: RunState) -> str:
+    """The approval gate's own sentence, appended to Verify's payoff when the
+    run walked it. Read off the verdict the gate emitted, never invented: no
+    verdict, no sentence."""
+    v = next((x for x in state.verdicts if x.get("name") == "plan-approval"), None)
+    if v is None:
+        return ""
+    if v.get("ok"):
+        return (" And the approved plan file held: the world moved out of band, `apply approved.tfplan` "
+                "refused at exit 3 naming what moved, and once the world was put back the identical file applied.")
+    return " The approval gate did NOT hold on this run; read its lines in the ledger."
+
+
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:
     """Event index just after each phase's end, for one-cell-per-phase replay."""
     path = pathlib.Path(run_dir) / "events.jsonl"
@@ -1014,8 +1027,10 @@ def payoff(name: str, after: RunState, before: RunState | None = None) -> str:
         slow = next((x for x in after.measures if x.refresh and x.estate == mono), None)
         if slow and slow.requests:
             ratio = slow.requests / max(m.requests, 1)
-            return f"{m.requests} requests against the monolith's {slow.requests}: {ratio:.1f}x fewer, with {m.cache_hits or 0} served from cache. Cost tracks the estate."
-        return f"{m.requests} requests with {m.cache_hits or 0} served from cache."
+            line = f"{m.requests} requests against the monolith's {slow.requests}: {ratio:.1f}x fewer, with {m.cache_hits or 0} served from cache. Cost tracks the estate."
+        else:
+            line = f"{m.requests} requests with {m.cache_hits or 0} served from cache."
+        return line + _approval_payoff(after)
     if name == "decompose":
         held = [e for e in teams if counts.get(e)]
         if held:

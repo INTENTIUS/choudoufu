@@ -109,7 +109,7 @@ def _():
         "plan": "The split, planned: each team takes its own estate. Preview it next.",
         "preview": "Dry-run the three-way split. Nothing is written; see the tag writes each would make.",
         "move": "Two moves, live: the three-way split, then team-a folds into team-b -- a second retag beyond what Preview showed. No state file is touched or locked either way.",
-        "verify": "Prove it. Each estate plans clean, on its own, at the same moment.",
+        "verify": "Prove it. Each estate plans clean, on its own, at the same moment -- then a change is approved as a plan file, the world moves out of band, and the same file refuses.",
         "receipt": "The proof. The account's own log of every tag write, beside the tool's own record.",
         "teardown": "Clean up. Destroy what this run made; the account is listed to confirm it is empty.",
     }

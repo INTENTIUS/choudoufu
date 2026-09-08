@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import pathlib
 
-from . import carve, config, events, guard, measure, moveset, ui, verify
+from . import approval, carve, config, env, events, guard, measure, moveset, ui, verify
 
 
 def plan_verdict(cfg: config.Config, estate: str) -> verify.PlanVerdict:
@@ -124,6 +124,92 @@ def read_carve_set(cfg: config.Config, carve_path: str | pathlib.Path) -> movese
     else:
         ui.err("the carve left something behind; see the reads above")
     return verdict
+
+
+def approval_gate(cfg: config.Config, estate: str, name: str, log_group: str,
+                  *, approved: int = 3, drift: int = 5, restore: int = 1) -> approval.GateVerdict:
+    """Walk live/GAUNTLET.md stage 12 on this run's own resources, and grade it.
+
+    One log group the seed already made is the subject, because it is free,
+    reversible and readable back out of the account. The walk:
+
+    1. edit the estate's config so ``retention_in_days`` becomes ``approved``,
+       and ``plan -out`` that change into a plan file;
+    2. move the world out of band - ``aws logs put-retention-policy`` to
+       ``drift``, through the AWS CLI, never through choudoufu, so nothing
+       choudoufu wrote explains the mismatch;
+    3. ``apply <planfile>``, which must refuse: exit 3, the engine's own
+       summary, and the moved address named;
+    4. put the world back and apply the IDENTICAL file, which must succeed -
+       the inverted control, without which a gate that refused everything
+       would grade green;
+    5. read the retention back out of the account, because "Apply complete!"
+       is the tool's own report and this verdict does not take it.
+
+    The applies here are not fenced through :func:`guard.chdf`'s destructive
+    path with a confirmation each: this is one composite act the caller has
+    already confirmed, and every command still runs inside the estate's own
+    working directory under this run's tree, and every AWS write names a log
+    group carrying this run's prefix.
+    """
+    workdir = cfg.workdir(estate)
+    main = workdir / "main.tf"
+    ui.rule(f"approval gate: plan -out, then apply the file, on {estate}")
+
+    original = main.read_text()
+    main.write_text(approval.set_retention(original, name, approved))
+    address = f"aws_cloudwatch_log_group.{name}"
+
+    plan_res = guard.chdf(cfg, "plan", "-input=false", "-no-color", f"-out={env.PLANFILE}",
+                          cwd=str(workdir), capture=True, check=False, label=f"{estate} plan -out")
+    planfile = approval.saved_planfile(plan_res.stdout)
+    planfile_bytes = (workdir / planfile).stat().st_size if planfile and (workdir / planfile).exists() else 0
+
+    # The world moves, through the AWS CLI. put-retention-policy is a write on
+    # a log group this run created and named, so it goes through the prefix
+    # fence like every other write this example makes.
+    _set_retention_live(cfg, log_group, drift)
+    drifted = guard.chdf(cfg, "apply", "-input=false", "-no-color", planfile or env.PLANFILE,
+                         cwd=str(workdir), capture=True, check=False, label=f"{estate} apply (world moved)")
+    drifted_text = drifted.stdout + "\n" + drifted.stderr
+
+    # ... and back, so the same file can be applied unchanged.
+    _set_retention_live(cfg, log_group, restore)
+    restored = guard.chdf(cfg, "apply", "-input=false", "-no-color", planfile or env.PLANFILE,
+                          cwd=str(workdir), capture=True, check=False, label=f"{estate} apply (world put back)")
+
+    live = guard.aws(cfg, "logs", "describe-log-groups", "--region", cfg.region,
+                     "--log-group-name-prefix", log_group,
+                     "--query", "logGroups[0].retentionInDays", "--output", "text", check=False)
+
+    verdict = approval.GateVerdict(
+        estate=estate, address=address, planfile=planfile, planfile_bytes=planfile_bytes,
+        drifted_exit=drifted.returncode,
+        drifted_refused=approval.refused(drifted_text, drifted.returncode),
+        drifted_named=approval.refused(drifted_text, drifted.returncode, address=address),
+        restored_exit=restored.returncode,
+        restored_counts=approval.applied_counts(restored.stdout),
+        approved_value=str(approved),
+        live_value=live.stdout.strip() if live.ok else "",
+    )
+    for line in verdict.lines():
+        ui.say(line)
+    events.verdict(cfg, "plan-approval", verdict, ok=verdict.ok, lines=verdict.lines())
+    if verdict.ok:
+        ui.ok("the approved plan file refused a world that had moved, and applied one that had not")
+    else:
+        ui.err("the approval gate did not hold; see the lines above")
+    return verdict
+
+
+def _set_retention_live(cfg: config.Config, log_group: str, days: int) -> None:
+    """Move the world out of band. A write, so it names the resource for the
+    run-prefix fence; the fence matches on the name, and this run's log groups
+    are named /<prefix>/<team>/svc-N."""
+    guard.assert_owned_name(cfg, log_group.lstrip("/"))
+    guard.aws(cfg, "logs", "put-retention-policy", "--region", cfg.region,
+              "--log-group-name", log_group, "--retention-in-days", str(days),
+              label="move the world out of band (AWS CLI, not choudoufu)")
 
 
 def read_references(cfg: config.Config, estates: list[str] | tuple[str, ...]) -> list[carve.Reference]:

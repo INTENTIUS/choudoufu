@@ -7,8 +7,15 @@ example choudoufu users copy when their monolith is the one to split.
 
 Pinned to one choudoufu release and one account, both named in
 `tlmig/config.py` and asserted by preflight before a single call reaches AWS;
-every resource a run creates carries the run's prefix, and nothing
-destructive runs outside it.
+every resource a run creates is *named* with the run's prefix, and nothing
+destructive runs outside it. The prefix is this example's own naming
+convention - `tlmig/fixture.py` builds every name out of it - not something
+choudoufu writes, which is why the fence held unchanged through v0.15.0's
+retirement of the stamp and `module_prefix` (#644): `guard.assert_owned_name`
+matches the name a destructive call names, and `tlmig/sweep.py` reads IAM and
+CloudWatch Logs back by that same name prefix, independently of any marker
+tag. The tag-based reads in the sweep are a second list beside it, not the
+fence.
 
 ## The live demo (no account needed)
 
@@ -85,7 +92,7 @@ change.
 | 3 | plan | none; the page writes `carve.json` | which address goes to which estate, as a table filled by rules |
 | 4 | preview | `preview` (when the CLI has it) | every planned move as a dry run, and the map as it would stand |
 | 5 | move | `move` (was `decompose`+`carve`) | the boundary moves by retag: one tag write per resource, no state split; reads `carve.json` once the executor lands |
-| 6 | verify | `fast-plan`, `guard` (`verify` when the CLI has it) | plan cost after the split, and both sides plan clean at once |
+| 6 | verify | `fast-plan`, `guard` (`verify` when the CLI has it) | plan cost after the split, both sides plan clean at once, and the approval gate walked |
 | 7 | receipt | `receipt` | this run's tag writes read back from CloudTrail |
 | 8 | teardown | `teardown` | demo seeds only: every estate destroyed, then the account listed |
 
@@ -133,6 +140,7 @@ The phases, in story order:
 | fast-plan | one team's plan from its cache | the request count beside the monolith's and the emulator's reference |
 | carve | a role moves between teams with one tag write | its inline policy and attachment follow the parent's live tag, unwritten |
 | guard | four reads, one verdict | the light turns green: kept children, both estates plan clean |
+| approval | `plan -out`, the world moves, `apply <planfile>` | exit 3 and the mismatch named; the identical file applies once the world is put back |
 | receipt | the account's own record | CloudTrail rows, refusals as `Client.UnauthorizedOperation` against the session refused |
 | teardown | each estate destroyed through its own config | the account listed, not trusted: nothing with this run's prefix remains |
 
@@ -217,6 +225,38 @@ engine's own rule - one rewrite per reader
 price says "3 moves" rather than claiming zero. The demo's own fixture
 carries one: `tlmig-sample-team-b` reads `tlmig-sample-team-a`'s
 `aws_vpc.main` by its markers, and `aws_subnet.app` reads that.
+
+## Plan, review, apply
+
+Every apply here goes through the approval gate: `plan -out=approved.tfplan`
+writes the plan a reader reads, and `apply approved.tfplan` applies exactly
+that file. Not `apply -auto-approve`. v0.14.0 turned plan approval from
+planned to active (`live/GAUNTLET.md` stage 12) and re-measured all 27
+estates carrying the leg, and an example anyone copies should show the shape
+the engine measures.
+
+The verify phase then walks the whole leg on the run's own resources and
+grades it, because the half that matters is the refusal:
+
+1. a change is approved - one log group's `retention_in_days`, edited and
+   planned into `approved.tfplan`;
+2. the world moves out of band - `aws logs put-retention-policy`, through the
+   AWS CLI, never through choudoufu, so nothing choudoufu wrote explains the
+   mismatch;
+3. `apply approved.tfplan` refuses: exit 3, "The approved plan no longer
+   matches the live system", and the moved address named. All three, because
+   an exit code alone is not a verdict and a message alone is not something a
+   pipeline can branch on;
+4. the world is put back and the **identical** file applies - the inverted
+   control, without which a gate that refused every plan file would grade
+   green;
+5. the retention is read back out of the account, because "Apply complete!"
+   is the tool's own report and this verdict does not take it.
+
+`tlmig/approval.py` grades it and is pure; `govern.approval_gate` runs it.
+`tests/test_approval.py` runs stage 12's own Break line ("apply the planfile
+after a mutation and expect success; the run must refuse") and asserts the
+verdict turns red.
 
 ## What the receipt proves
 

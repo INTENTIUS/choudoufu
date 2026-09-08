@@ -64,5 +64,45 @@ class GuardFeedTest(unittest.TestCase):
         self.assertEqual([e["label"] for e in events.read(self.cfg)], ["first", "second"])
 
 
+class TheRunPrefixFence(unittest.TestCase):
+    """What the fence actually checks, verified rather than assumed.
+
+    v0.15.0 retired the stamp and the module_prefix evaluator symbol (#644,
+    PR #944), and the README leans on the run-prefix discipline for the
+    destructive fence, so it is worth pinning what that discipline is made
+    of: the NAME a destructive call names, and nothing else. Not a marker
+    tag, not anything choudoufu writes.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cfg = config.Config(run_id="9f3a1c", run_dir=pathlib.Path(self.tmp.name) / "run", binary="choudoufu")
+
+    def test_a_name_carrying_this_runs_prefix_passes(self):
+        guard.assert_owned_name(self.cfg, "tlmig-9f3a1c-team-a-role")
+
+    def test_another_runs_resource_is_refused_however_it_is_marked(self):
+        """Same example, same markers, different run. The fence has to refuse
+        it, and does so on the name alone - it never reads a tag."""
+        with self.assertRaises(guard.GuardError) as cm:
+            guard.assert_owned_name(self.cfg, "tlmig-0b0b0b-team-a-role")
+        self.assertIn("tlmig-9f3a1c", str(cm.exception))
+
+    def test_a_destructive_aws_call_without_a_named_target_is_refused(self):
+        with self.assertRaises(guard.GuardError):
+            guard.aws(self.cfg, "iam", "delete-role", "--role-name", "x", destructive=True)
+
+    def test_a_destructive_choudoufu_command_outside_the_run_tree_is_refused(self):
+        with self.assertRaises(guard.GuardError):
+            guard._assert_in_run(self.cfg, str(pathlib.Path(self.tmp.name)))
+        with self.assertRaises(guard.GuardError):
+            guard._assert_in_run(self.cfg, None)
+        # inside the run tree is fine
+        wd = self.cfg.workdir("e")
+        wd.mkdir(parents=True)
+        guard._assert_in_run(self.cfg, str(wd))
+
+
 if __name__ == "__main__":
     unittest.main()
