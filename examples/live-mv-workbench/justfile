@@ -1,6 +1,11 @@
 # live-mv demo — two containers, one command. `just` lists everything.
 set shell := ["bash", "-euo", "pipefail", "-c"]
-compose := "docker compose -f compose/docker-compose.yml"
+# -p names the compose project explicitly. Without it the project name is the
+# compose file's own directory, "compose", which every other repository with a
+# compose/ directory also claims: `just up` then reconciles this stack against
+# whatever that project already holds and recreates its containers. Naming it
+# keeps the demo's floci to itself.
+compose := "docker compose -p live-mv-demo -f compose/docker-compose.yml"
 # The release version this example is measured against, read from the one
 # place it is declared (tlmig/config.py) so the image's default pin cannot
 # drift from it silently.

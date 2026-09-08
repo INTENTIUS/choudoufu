@@ -37,7 +37,7 @@ ACCOUNT_ID = ""
 # `choudoufu version` reports exactly this fork tag: a drifted binary would
 # quietly change the measured numbers, which for a demo is worse than an
 # error, so it is treated as one.
-CHOUDOUFU_VERSION = "v0.10.1"
+CHOUDOUFU_VERSION = "v0.15.0"
 
 REGION = "us-east-1"
 

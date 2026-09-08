@@ -13,7 +13,7 @@ ARG BUILD_MODE=release
 # Asset names and the download shape mirror tlmig/localbuild.py's
 # fetch_release(), which does the same thing for a host-side run.
 FROM debian:bookworm-slim AS build-release
-ARG CHOUDOUFU_VERSION=v0.10.1
+ARG CHOUDOUFU_VERSION=v0.15.0
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 RUN ARCH="$(dpkg --print-architecture)" \
