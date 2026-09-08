@@ -1,0 +1,7 @@
+node_modules/
+.chant/
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/chant.tfplan
+terraform/.tofu-records/
+terraform/live-plan-*.json

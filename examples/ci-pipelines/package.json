@@ -1,0 +1,20 @@
+{
+  "name": "choudoufu-example-ci-pipelines",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The choudoufu CI pipelines, generated from chant Ops: observe on the pull request, adopt and apply behind their gates, sweep the account on a cron.",
+  "scripts": {
+    "generate": "npm run generate:github && npm run generate:forgejo",
+    "generate:github": "CHANT_FORGE=github node --import tsx generate.ts",
+    "generate:forgejo": "CHANT_FORGE=forgejo node --import tsx generate.ts",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@intentius/chant": "0.59.0",
+    "@intentius/chant-lexicon-terraform": "0.59.0",
+    "@intentius/chant-lexicon-forgejo": "0.59.0",
+    "@intentius/chant-lexicon-github": "0.59.0",
+    "tsx": "4.20.6"
+  }
+}
