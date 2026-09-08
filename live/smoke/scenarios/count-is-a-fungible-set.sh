@@ -1,5 +1,5 @@
 # count-is-a-fungible-set
-# CLAIM 11 - A count pool is a fungible set: slot markers hold it together, so it scales down by removing one member and rebuilding nothing; a count block the configuration NAMES is the other kind and carries no slot at all; stripping a slot that belongs makes the run refuse rather than guess, and stamping one that does not fails the read. ~3 min.
+# CLAIM 11 - A count pool is a fungible set: slot markers hold it together, so it scales down by removing one member and rebuilding nothing; a count block the configuration NAMES is the other kind and carries no slot at all; stripping a slot that belongs makes the run refuse rather than guess, and stamping one that does not fails the read. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/count"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
