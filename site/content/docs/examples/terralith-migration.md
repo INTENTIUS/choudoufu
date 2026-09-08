@@ -117,7 +117,8 @@ config instead of the built-in demo.)
 
 **survey** plans the whole monolith with a full refresh. This is the cost a
 terralith pays on every plan: one provider request per resource read, for every
-resource in the account. On the sample fixture it is around 56 requests.
+resource in the account. On the demo fixture it is 56 requests, in
+[the recorded run](#where-these-numbers-come-from).
 
 **preview** dry-runs every planned move (`live-mv -dry-run` per resource) and
 writes nothing; a refusal here is a finding, not a failure, and names what to
@@ -149,8 +150,8 @@ Team-a's configuration is left declaring nothing.
 **verify** plans one team's estate with `-refresh=false` -- because that
 estate's resources are recorded and unchanged, the plan serves them from the
 cache instead of reading each one, so it makes far fewer requests than the
-monolith did (around 29 against the monolith's 56 on the sample fixture, a
-cache that costs reads, never results, if it is ever lost) -- then proves the
+monolith did (7 against the monolith's 56 on the demo fixture, 8.0x fewer, on
+a cache that costs reads, never results, if it is ever lost) -- then proves the
 carve left nothing behind, reading from neutral sources rather than
 choudoufu's own report of itself:
 
@@ -189,13 +190,26 @@ Reads are not fenced or confirmed, because they are how the governance guard
 gathers its evidence and gating them would slow the demo without making it
 safer.
 
-## The reproducible receipt
+## Where these numbers come from
 
-The request counts above are real, and they vary from run to run. The figures
-the write-up quotes come from the claim smokes running against the emulator,
-which anyone can reproduce with `just smoke`. The `receipt` phase reads those
-and shows them beside the live numbers, labelled as the receipt, so the two are
-never confused for each other.
+The request counts above are one recorded run, not an average: commit
+`60d0cdf63f`, choudoufu v0.15.0, against floci
+`sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`
+(the digest `live/floci-image` pins), on 2026-09-08, by `just up` and then
+`tlmig all --auto` in the demo container. The example's own
+[README](https://github.com/INTENTIUS/choudoufu/blob/main/examples/live-mv-workbench/README.md)
+records the same run phase by phase. A run on a different pin is a different
+run: re-measure rather than carry these forward.
+
+Your own live run will not print these exact figures, because your account
+holds resources this fixture does not. What travels between runs is the
+shape -- the full-refresh plan pays a read per resource, and the
+`-refresh=false` plan pays only for what it cannot serve from the cache.
+
+The `receipt` phase keeps the two kinds of number apart. If a saved
+`carve-by-retag` smoke log is in the run directory, receipt prints that
+emulator run's counts beside the live ones and labels them as the receipt,
+so a reader is never left guessing which account a figure came from.
 
 ## Scripts you could write
 
