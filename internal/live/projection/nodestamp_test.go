@@ -348,3 +348,111 @@ func TestNodeResolver_AdjustConfigValue_preservesMarkOnTagsValue(t *testing.T) {
 		}
 	}
 }
+
+// TestNodeResolver_AdjustConfigValue_untagReleasesGovernedKey is GitHub
+// issue #949's port of GitHub issue #67's declared_tagged = "untag" verb to
+// the node writer: internal/live/stamp's retired Stamp (see stamp.go's
+// Request.PolicyUntag doc comment, before its GitHub issue #644 deletion)
+// left a governed instance's released key out of what it wrote entirely -
+// "the desired tags lack it" - rather than writing it and letting a later
+// pass remove it. [NodeResolver.PolicyUntag] is this file's per-instance
+// equivalent (addr.String(), not the block address the HCL rewriter had to
+// use because one body served every count/for_each instance): an instance
+// named there has the one key policy.Policy.TagKey names left unstamped,
+// every other marker asserted exactly as it would be otherwise.
+func TestNodeResolver_AdjustConfigValue_untagReleasesGovernedKey(t *testing.T) {
+	addr := locatedTestAddr(t, markersRecordTestType, "main")
+	resolver := &NodeResolver{
+		Estate: "test-estate",
+		PolicyUntag: map[string]string{
+			addr.String(): markers.TagEstate,
+		},
+	}
+
+	got, diags := resolver.AdjustConfigValue(context.Background(), addr, nodeStampTestConfig(cty.NullVal(cty.Map(cty.String))), markersRecordTypeSchema())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+
+	tags := requireTags(t, got)
+	want := map[string]string{
+		markers.TagAddress: markersRecordTestType + ".main",
+	}
+	if len(tags) != len(want) {
+		t.Fatalf("tags = %v, want %v (tofu-estate must be released, not merely absent from a longer map)", tags, want)
+	}
+	for k, v := range want {
+		if tags[k] != v {
+			t.Errorf("tags[%q] = %q, want %q", k, tags[k], v)
+		}
+	}
+	if got, ok := tags[markers.TagEstate]; ok {
+		t.Errorf("tofu-estate = %q, want it released (absent) under declared_tagged = \"untag\"", got)
+	}
+}
+
+// TestNodeResolver_AdjustConfigValue_untagKeepsHandWrittenValue mirrors
+// internal/live/stamp's SkipUntagHandWritten rule (stamp.go): "this pass
+// never overwrites a hand-written marker value anywhere else, and untag is
+// not an exception ... the release does not happen this run." A governed
+// key the configuration already hardcodes is left exactly as authored -
+// no overwrite to the run's own value, and no marker-conflict diagnostic,
+// because the ordinary conflict check exists to protect a marker this pass
+// itself asserts, and an untag-released key is not one of those this run.
+func TestNodeResolver_AdjustConfigValue_untagKeepsHandWrittenValue(t *testing.T) {
+	addr := locatedTestAddr(t, markersRecordTestType, "main")
+	resolver := &NodeResolver{
+		Estate: "test-estate",
+		PolicyUntag: map[string]string{
+			addr.String(): markers.TagEstate,
+		},
+	}
+
+	existing := cty.MapVal(map[string]cty.Value{markers.TagEstate: cty.StringVal("some-other-estate")})
+	got, diags := resolver.AdjustConfigValue(context.Background(), addr, nodeStampTestConfig(existing), markersRecordTypeSchema())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics (a released key's hand-written value must not raise a marker conflict): %s", diags.Err())
+	}
+
+	tags := requireTags(t, got)
+	if tags[markers.TagEstate] != "some-other-estate" {
+		t.Errorf("tofu-estate = %q, want the hand-written value left untouched", tags[markers.TagEstate])
+	}
+	if tags[markers.TagAddress] != markersRecordTestType+".main" {
+		t.Errorf("tofu-address = %q, want %q (untag governs only the estate key here)", tags[markers.TagAddress], markersRecordTestType+".main")
+	}
+}
+
+// TestNodeResolver_AdjustConfigValue_untagUngovernedInstanceUnaffected
+// proves the map is read per-instance, not per-block: two instances of the
+// same resource block, only one named in PolicyUntag, and only that one's
+// key is released.
+func TestNodeResolver_AdjustConfigValue_untagUngovernedInstanceUnaffected(t *testing.T) {
+	governed := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: markersRecordTestType, Name: "pool"}.
+		Instance(addrs.IntKey(0)).Absolute(addrs.RootModuleInstance)
+	ungoverned := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: markersRecordTestType, Name: "pool"}.
+		Instance(addrs.IntKey(1)).Absolute(addrs.RootModuleInstance)
+
+	resolver := &NodeResolver{
+		Estate: "test-estate",
+		PolicyUntag: map[string]string{
+			governed.String(): markers.TagEstate,
+		},
+	}
+
+	got, diags := resolver.AdjustConfigValue(context.Background(), governed, nodeStampTestConfig(cty.NullVal(cty.Map(cty.String))), markersRecordTypeSchema())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if _, ok := requireTags(t, got)[markers.TagEstate]; ok {
+		t.Fatalf("governed instance still carries tofu-estate: %v", requireTags(t, got))
+	}
+
+	got2, diags2 := resolver.AdjustConfigValue(context.Background(), ungoverned, nodeStampTestConfig(cty.NullVal(cty.Map(cty.String))), markersRecordTypeSchema())
+	if diags2.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags2.Err())
+	}
+	if tags2 := requireTags(t, got2); tags2[markers.TagEstate] != "test-estate" {
+		t.Errorf("ungoverned instance's tofu-estate = %q, want %q (untag must not leak to a sibling instance)", tags2[markers.TagEstate], "test-estate")
+	}
+}

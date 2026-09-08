@@ -867,6 +867,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// own.
 	resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
 
+	// GitHub issue #949: internal/live/stamp.Request.PolicyUntag's node-path
+	// port, set here for the identical reason Unowned two lines up is. See
+	// live_mode.go's own identical call for the fuller comment and
+	// nodeResolverUntagMap's doc comment for what it builds.
+	resolver.PolicyUntag = nodeResolverUntagMap(projResult.Policy, statelessPolicyTagKey(pol))
+
 	// classified and foreignReq are kept in outer scope, past the section
 	// they were computed for: the lookalike guard below needs the same
 	// classification and the same request (for its region and endpoint) once

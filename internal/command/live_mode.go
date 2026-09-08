@@ -345,6 +345,41 @@ func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
 	return out
 }
 
+// nodeResolverUntagMap builds a [projection.NodeResolver.PolicyUntag] map
+// from a completed projection's own [projection.Result.Policy] outcomes,
+// keyed by [addrs.AbsResourceInstance.String] - the shared helper both
+// statelessBegin (live_mode.go) and LivePlanCommand's "-estate" form
+// (live_plan.go) call once projResult exists, mirroring
+// [nodeResolverUnownedSet] immediately above.
+//
+// Every outcome in the list already reached checkOwnership's declared,
+// tagged branch (ownership.go), so a policy.Untag verb here is always
+// GitHub issue #67's declared_tagged = "untag" - the quadrant #949 ports -
+// never the undeclared_tagged reading the same verb carries for a sweep
+// orphan, which reaches the live system through
+// internal/command's statelessUntagTargets/AfterApply instead and was never
+// something a resource block's own configuration could stamp in the first
+// place. tagKey is the single key the run's policy names for every governed
+// instance - [policy.Policy.TagKey], resolved once by
+// [statelessPolicyTagKey] - not a per-outcome value, because one Policy has
+// exactly one TagKey for the whole run.
+func nodeResolverUntagMap(outcomes []projection.PolicyOutcome, tagKey string) map[string]string {
+	if len(outcomes) == 0 || tagKey == "" {
+		return nil
+	}
+	var out map[string]string
+	for _, o := range outcomes {
+		if o.Verb != policy.Untag {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, len(outcomes))
+		}
+		out[o.Addr.String()] = tagKey
+	}
+	return out
+}
+
 // testStatelessRunner, when set, is handed every runner as it is built. It
 // exists so that a test can assert about the state manager afterwards - in
 // particular that PersistState was called and still wrote nothing, which is
@@ -1190,6 +1225,15 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// would let the node adopt a client-named resource this run does not
 	// own.
 	r.resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
+
+	// GitHub issue #949: internal/live/stamp.Request.PolicyUntag's node-path
+	// port. Set here for the identical reason Unowned two lines up is - the
+	// declared_tagged = "untag" outcomes live in projResult.Policy, which
+	// this pass's own checkOwnership only just finished populating - see
+	// [projection.NodeResolver.PolicyUntag]'s own doc comment for what a
+	// governed instance's key gets and internal/command's
+	// nodeResolverUntagMap for how the map is built.
+	r.resolver.PolicyUntag = nodeResolverUntagMap(projResult.Policy, statelessPolicyTagKey(r.policy))
 
 	var classified *foreign.Result
 	if disco != nil {

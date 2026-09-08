@@ -134,6 +134,39 @@ type NodeResolver struct {
 	// on and those tests' -estate form actually exercised this path for
 	// the first time.
 	Unowned map[string]bool
+
+	// PolicyUntag names the declared instances GitHub issue #67's
+	// declared_tagged = "untag" verb governs, keyed by
+	// [addrs.AbsResourceInstance.String] (not the escaped form [Slots]
+	// uses), each mapped to the one policy tag key that verb releases -
+	// [policy.Policy.TagKey], almost always [markers.TagEstate]. It is
+	// internal/live/stamp.Request.PolicyUntag's node-path equivalent
+	// (GitHub issue #949, porting what GitHub issue #644 left behind when
+	// the HCL rewriter retired), populated the same "once projection.
+	// BuildWith has run" way [Unowned] above is, from the same
+	// [Result.Policy] outcomes - see internal/command's
+	// nodeResolverUntagMap.
+	//
+	// Granularity is the INSTANCE here, not the resource block the HCL
+	// path was stuck with: [Result.Policy]'s outcomes are already
+	// per-[addrs.AbsResourceInstance] (checkOwnership, ownership.go), so
+	// there is no shared-body reason to coarsen to the block the way
+	// stamp.Request.PolicyUntag's own doc comment explains its map had
+	// to. A count or for_each block with only some instances governed
+	// releases the key on exactly those instances and none of their
+	// siblings.
+	//
+	// A key named here is left OUT of what [NodeResolver.stampedTags]
+	// writes - not asserted and not overwritten - so the object's desired
+	// tags simply lack it (an ordinary "~ tags" plan, or nothing to
+	// rewrite at all when the key was never present to begin with). A
+	// value the configuration already hardcodes for that key is left
+	// exactly as authored, conflict check and all: see stampedTags for
+	// the detail, and internal/live/stamp's own SkipUntagHandWritten for
+	// the HCL path's identical rule ("this pass never overwrites a
+	// hand-written marker value anywhere else, and untag is not an
+	// exception").
+	PolicyUntag map[string]string
 }
 
 // NewMarkerIndex builds a [NodeResolver.MarkerIndex] from a discovery

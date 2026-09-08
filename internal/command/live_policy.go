@@ -191,13 +191,18 @@ func statelessPolicyTagKey(pol *policy.Policy) string {
 // tag keys a declared_tagged = "untag" verb had made it withhold, which
 // reached [views.StatelessPolicyReport.Untagged]. That suppression lived
 // only in the HCL-rewriting stamp, and it stopped happening on 2026-08-25
-// when CHOUDOUFU_NODE_RESOLVE defaulted on and the node-path writer -
-// which has no equivalent of stamp.Request.PolicyUntag - took over; GitHub
-// issue #644 deleted the unreachable implementation. The view's Untagged
-// section is therefore empty on every run and has been for a fortnight.
-// Porting the verb to [projection.NodeResolver.AdjustConfigValue] is real
-// work with its own decisions (a per-instance withhold, not a per-block
-// one) and is not this issue's.
+// when CHOUDOUFU_NODE_RESOLVE defaulted on and the node-path writer took
+// over with no equivalent of stamp.Request.PolicyUntag; GitHub issue #644
+// deleted the unreachable implementation. GitHub issue #949 ported the
+// suppression itself to [projection.NodeResolver.PolicyUntag]
+// (nodeResolverUntagMap, populated in live_mode.go/live_plan.go) - a
+// governed instance's key is genuinely left out of what a plan writes
+// again - but did not restore this specific report section: the view's
+// Untagged list still renders empty, because nothing downstream of
+// AdjustConfigValue collects which instances it actually released a key
+// for the way stamp.Result.Untagged used to. That is a reporting gap, not
+// a behavioral one; projResult.Policy's Declared section below still shows
+// every declared_tagged = "untag" instance and its verb.
 func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, rec *discovery.ReconcileResult) views.StatelessPolicyReport {
 	var rep views.StatelessPolicyReport
 
