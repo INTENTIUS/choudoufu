@@ -84,12 +84,34 @@ number or fact from that phase's own log, never invented.
 | 3 | Survey | one plan of the whole monolith, the request count that's about to come down |
 | 4 | Preview | dry-runs the three-way split; the map ghosts the plan, nothing is written |
 | 5 | Move | two acts, the three-way split then a second retag folding one team into another; point out this is live proof ownership moves by tag alone, even across an unrelated boundary |
-| 6 | Verify | both estates plan clean, at the same moment, proving nothing was left half-owned |
+| 6 | Verify | two things: the approval gate, then the carve. Both estates plan clean at the end, proving nothing was left half-owned. Slow down here, see below |
 | 7 | Receipt | reads the account's own log of every tag write back; against floci this reports that CloudTrail isn't emulated there, which is expected, not a failure |
 | 8 | Teardown | destroys everything this run made, then lists the account rather than trusting the tool's own report |
 
 If a step's cue mentions a refusal or "findings," the tool is working as
 designed. Say so and keep going.
+
+Verify is the one worth narrating, because it is the phase that tries to
+fail. Every apply in this demo runs `plan -out=approved.tfplan` and then
+`apply approved.tfplan`, never `apply -auto-approve`, so what someone
+confirms is a file they could have read. Verify then attacks that file on
+the run's own resources:
+
+1. it approves a change - one log group's `retention_in_days`, planned into
+   `approved.tfplan`;
+2. it moves the world out from under the file with `aws logs
+   put-retention-policy`, the AWS CLI, never choudoufu, so nothing
+   choudoufu wrote can explain the mismatch;
+3. it applies the approved file, and the file must be refused: exit 3, and
+   the moved resource named;
+4. it puts the world back and applies the *identical* file, which must
+   succeed. This is the half that matters - a gate that refused everything
+   would look just as green as one that works;
+5. it reads the retention back out of the account, because "Apply
+   complete!" is the tool's own report of itself.
+
+Read the refusal out loud when it appears. It is the phase passing, not
+breaking.
 
 ## 6. Reset and finish
 
