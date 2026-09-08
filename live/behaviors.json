@@ -150,7 +150,15 @@
         "aws-cli",
         "terraform"
       ],
-      "default_port": 4743
+      "default_port": 4743,
+      "stage": "day2_teardown",
+      "last_run": {
+        "commit": "503e4eeeda5ed86650d98c9b972e3d20d6b18904",
+        "date": "2026-09-08T18:21:51Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 37.8
+      }
     },
     {
       "id": "lambda-residue",
