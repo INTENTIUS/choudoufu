@@ -61,12 +61,12 @@ orgs:
         # ── The production environment ─────────────────────────────────────
         #
         # READ examples/pipeline-governance/README.md, "What the environment
-        # does not do", before trusting this block. warden creates the
-        # environment and its reviewer, and a GitHub environment gates a job
-        # only when that job declares `environment: production` - which the
-        # generated live-apply.yml does not, because chant's
-        # generateOpsPipeline emits no `environment:` key. Until it does, the
-        # approval of record is the chant gate above.
+        # does", before trusting this block. warden creates the environment
+        # and its reviewer, and a GitHub environment gates a job only when
+        # that job declares `environment: production` - which the generated
+        # live-apply.yml now does (chant #2264). It stacks on top of the
+        # chant gate above rather than replacing it: `chant approve` on
+        # chant/lifecycle is still the approval of record.
         environments:
           - name: production
             preventSelfReview: true
