@@ -7,8 +7,17 @@ reads the same file. Rules are how rows were filled and are informational
 to the executor; ``moves`` is what it acts on.
 
     {"from": "<source estate>", "estates": ["<dest>", ...],
-     "moves": [{"address": "<tofu-address>", "from": "<its estate now>", "to": "<dest>", "new_address": "<optional>"}],
+     "moves": [{"address": "<tofu-address>", "from": "<its estate now>", "to": "<dest>", "new_address": "<optional>",
+                "rewrites": <int>, "data_sources": ["data.<type>.<name>", ...], "read_by": ["<address>", ...]}],
      "rules": [{"match": "module"|"prefix"|"type"|"name", "value": "...", "to": "<dest>"}]}
+
+A move is not free on the other side of an estate boundary. Where another
+estate reads this one through the cross-estate data-source pattern
+(live/OUTPUTS.md's replacement for the banned terraform_remote_state), moving
+the producer means rewriting that data source's ``tag:tofu-estate`` filter.
+``live-check -json`` reports those edges as ``references[]``, and the last
+three fields above are what the planner makes of them - see
+:func:`references_from_check` and :func:`price`.
 
 Rules in text, one per line, the way the page takes them:
 
@@ -79,11 +88,96 @@ def destination(address: str, rtype: str, rules: list[Rule], override: str | Non
     return dest
 
 
+@dataclasses.dataclass(frozen=True)
+class Reference:
+    """One cross-estate edge, as ``live-check -json``'s ``references[]``
+    reports it: a data source in ``in_estate`` whose filters name the producer
+    instance ``address`` in estate ``estate``, and the resources in that same
+    configuration that read the data source.
+
+    ``source`` is the document's ``from`` - the consuming data source's own
+    address - renamed here because ``from`` is a reserved word and because
+    this planner already uses "from" for the estate a move leaves.
+    """
+
+    source: str
+    estate: str
+    address: str
+    read_by: tuple[str, ...] = ()
+    in_estate: str = ""
+
+    @property
+    def cost(self) -> int:
+        """The rewrite cost of moving :attr:`address` out of :attr:`estate`.
+
+        internal/live/check/references.go states the rule this counts:
+        "a move of Address costs one data-source filter rewrite per entry
+        here" - one per reader. A data source nothing reads yet still appears
+        in :attr:`Move.data_sources` and prices at zero, which is the engine's
+        own arithmetic, not a rounding of it.
+        """
+        return len(self.read_by)
+
+
+def references_from_check(doc: dict, in_estate: str = "") -> list[Reference]:
+    """The references in one ``live-check -json`` document. ``in_estate``
+    defaults to the document's own ``estate``, which is the estate whose
+    configuration declares these data sources."""
+    if not isinstance(doc, dict):
+        raise ValueError("a live-check -json document is a JSON object")
+    where = in_estate or doc.get("estate", "") or ""
+    out = []
+    for r in doc.get("references") or []:
+        if not isinstance(r, dict):
+            continue
+        out.append(Reference(
+            source=r.get("from", ""),
+            estate=r.get("estate", ""),
+            address=r.get("address", ""),
+            read_by=tuple(r.get("read_by") or ()),
+            in_estate=where,
+        ))
+    return out
+
+
+def rewrites_for(address: str, current: str, references: list[Reference]) -> list[Reference]:
+    """The references a move of ``address`` out of estate ``current``
+    invalidates: every data source whose two filters name that estate and that
+    address. A reference naming the estate and no address (the pattern permits
+    ``tag:tofu-estate`` alone) matches nothing here on purpose - it does not
+    say which instance it reads, so the planner will not guess that this move
+    is the one that breaks it."""
+    return [r for r in references if r.estate == current and r.address and r.address == address]
+
+
+def price(moves: list[dict], references: list[Reference]) -> list[dict]:
+    """Each move with its rewrite cost attached, in place. Returns the same
+    list so a caller can chain it onto :func:`plan`'s ``moves``."""
+    for m in moves:
+        hit = rewrites_for(m["address"], m["from"], references)
+        m["rewrites"] = sum(r.cost for r in hit)
+        m["data_sources"] = [r.source for r in hit]
+        m["read_by"] = sorted({addr for r in hit for addr in r.read_by})
+    return moves
+
+
+def total_rewrites(doc: dict) -> int:
+    """The plan's whole rewrite cost: what a reader has to edit by hand after
+    the tags are written."""
+    return sum(int(m.get("rewrites", 0)) for m in doc.get("moves", []))
+
+
 def plan(source: str, resources: list[tuple[str, str, str]], rules: list[Rule],
-         overrides: dict[str, str] | None = None) -> dict:
+         overrides: dict[str, str] | None = None,
+         references: list[Reference] | None = None) -> dict:
     """The carve plan for ``resources`` as (address, type, current estate):
     only rows whose destination differs from where they are become moves.
-    Untaggable children are never moves; they follow their parent."""
+    Untaggable children are never moves; they follow their parent.
+
+    ``references`` are the cross-estate edges ``live-check -json`` reported for
+    the estates involved. Given them, every move also carries what it costs on
+    the other side of the boundary: the data sources whose filters name it and
+    the resources that read them."""
     overrides = overrides or {}
     moves, estates = [], []
     for address, rtype, current in resources:
@@ -95,6 +189,8 @@ def plan(source: str, resources: list[tuple[str, str, str]], rules: list[Rule],
         moves.append({"address": address, "from": current, "to": dest})
         if dest not in estates:
             estates.append(dest)
+    if references:
+        price(moves, references)
     return {"from": source, "estates": estates, "moves": moves,
             "rules": [dataclasses.asdict(r) for r in rules]}
 
@@ -116,11 +212,18 @@ def load(run_dir: str | pathlib.Path) -> dict | None:
 
 
 def describe(doc: dict) -> list[str]:
-    """One line per destination: what moves there."""
+    """One line per destination: what moves there, and what that costs on the
+    other side of the boundary. A plan priced against no references reads the
+    way it always did - "3 moves" - because a plan the planner could not price
+    must not claim a cost of zero."""
     out = []
     for est in doc.get("estates", []):
-        addrs = [m["address"] for m in doc.get("moves", []) if m["to"] == est]
-        out.append(f"{est}: {len(addrs)} moves ({', '.join(addrs[:4])}{', ...' if len(addrs) > 4 else ''})")
+        rows = [m for m in doc.get("moves", []) if m["to"] == est]
+        addrs = [m["address"] for m in rows]
+        cost = sum(int(m.get("rewrites", 0)) for m in rows)
+        priced = any("rewrites" in m for m in rows)
+        tail = f", {cost} filter rewrite{'' if cost == 1 else 's'}" if priced else ""
+        out.append(f"{est}: {len(addrs)} moves{tail} ({', '.join(addrs[:4])}{', ...' if len(addrs) > 4 else ''})")
     if not out:
         out.append("no moves: every row keeps its estate")
     return out

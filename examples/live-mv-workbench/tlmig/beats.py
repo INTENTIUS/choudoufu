@@ -34,11 +34,16 @@ def preflight(cfg: config.Config) -> None:
 # seed - stand up (or adopt) the estates the plan will move between
 # --------------------------------------------------------------------------
 
-def _demo_carve_doc(cfg: config.Config) -> dict:
+def _demo_carve_doc(cfg: config.Config, references: list | None = None) -> dict:
     """The demo's carve plan: every team's taggable resource leaves the
     monolith for that team's estate. It is the decompose move set, and it is
     previewable straight after seed because the resources are all still in the
-    monolith and each team's destination config is written by seed."""
+    monolith and each team's destination config is written by seed.
+
+    ``references`` are the cross-estate edges live-check reported for the
+    estates this plan touches; given them, each move also carries what the
+    move costs on the other side of the boundary. Omitted, the plan is
+    unpriced rather than priced at zero."""
     moves, estates = [], []
     for team in config.TEAMS:
         dest = cfg.estate(team)
@@ -46,6 +51,8 @@ def _demo_carve_doc(cfg: config.Config) -> dict:
             moves.append({"address": addr, "from": cfg.monolith_estate, "to": dest})
         if dest not in estates:
             estates.append(dest)
+    if references:
+        carve.price(moves, references)
     return {"from": cfg.monolith_estate, "estates": estates, "moves": moves, "rules": []}
 
 
@@ -82,9 +89,15 @@ def seed(cfg: config.Config, *, demo: bool = False, config_dir: str | None = Non
             est = cfg.estate(team)
             env.write_config(cfg, est, fixture.team_hcl(cfg, team))
             env.init(cfg, est)
-        carve.save(cfg.run_dir, _demo_carve_doc(cfg))
+        # What each estate reads across the boundary, once per estate, so the
+        # carve plan can price a move rather than only count it.
+        refs = govern.read_references(cfg, [cfg.monolith_estate, *(cfg.estate(t) for t in config.TEAMS)])
+        doc = _demo_carve_doc(cfg, refs)
+        carve.save(cfg.run_dir, doc)
         govern.read_inventory(cfg, cfg.monolith_estate)
         ui.ok(f"demo seed up; carve plan at {carve.path(cfg.run_dir)}")
+        for line in carve.describe(doc):
+            ui.say(line)
 
 
 # --------------------------------------------------------------------------

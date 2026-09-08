@@ -13,9 +13,10 @@ them. The source estate's plan, which must be "No changes." with no
 
 from __future__ import annotations
 
+import json
 import pathlib
 
-from . import config, events, guard, measure, moveset, ui, verify
+from . import carve, config, events, guard, measure, moveset, ui, verify
 
 
 def plan_verdict(cfg: config.Config, estate: str) -> verify.PlanVerdict:
@@ -123,6 +124,37 @@ def read_carve_set(cfg: config.Config, carve_path: str | pathlib.Path) -> movese
     else:
         ui.err("the carve left something behind; see the reads above")
     return verdict
+
+
+def read_references(cfg: config.Config, estates: list[str] | tuple[str, ...]) -> list[carve.Reference]:
+    """Every cross-estate edge the given estates declare, read once per estate
+    through ``live-check -json``.
+
+    This is the planner's cost input. live-check makes no cloud call - it
+    parses the configuration - so it is a read in the fence's sense and needs
+    no confirmation; check=False because an estate whose check reports
+    findings still reports its references, and a planner that refused to price
+    a move because some unrelated instance was refused would be worse than one
+    that priced it.
+    """
+    out: list[carve.Reference] = []
+    for estate in estates:
+        workdir = cfg.workdir(estate)
+        if not workdir.exists():
+            continue
+        res = guard.chdf(cfg, "live-check", "-json", "-no-color",
+                         cwd=str(workdir), capture=True, check=False,
+                         label=f"{estate} references")
+        try:
+            doc = json.loads(res.stdout)
+        except json.JSONDecodeError:
+            ui.warn(f"{estate}: live-check -json printed no document; its references are not priced")
+            continue
+        refs = carve.references_from_check(doc, in_estate=estate)
+        for r in refs:
+            events.reference(cfg, r)
+        out.extend(refs)
+    return out
 
 
 def preview_carve(cfg: config.Config, carve_path: str | pathlib.Path) -> list[moveset.MovePreview]:

@@ -492,18 +492,27 @@ def _(bid, carve, demo_move, get_inventory, live, mo, re, rows_btn, rules_ta, ru
     plan_rows = [{"address": _r.address, "type": _r.type, "estate": _r.estate, "to": carve.destination(_r.address, _r.type, rules), "children": _children.get(_r.address, 0)}
                  for _r in sorted((x for x in _state.resources.values() if x.parent is None and not x.gone and x.estate), key=lambda x: (x.estate, x.address))]
     editor = mo.ui.data_editor(plan_rows, editable_columns=["to"], pagination=False) if plan_rows else None
-    return editor, is_demo, plan_rows, rule_problems, rules, run_prefix
+    # The cross-estate edges live-check reported for this run, off the feed
+    # rather than out of a fresh read, so the page prices a plan the same way
+    # in replay as it does live. An older run carries none and the plan is
+    # shown unpriced.
+    plan_refs = [carve.Reference(source=_x.get("source", ""), estate=_x.get("estate", ""),
+                                 address=_x.get("address", ""), read_by=tuple(_x.get("read_by") or ()),
+                                 in_estate=_x.get("in_estate", ""))
+                 for _x in _state.references]
+    return editor, is_demo, plan_refs, plan_rows, rule_problems, rules, run_prefix
 
 
 @app.cell
-def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_rows, rows_btn, rule_problems, rules, rules_ta, run_dir, run_prefix, save_btn, section, st):
+def _(bid, carve, demo_move, editor, is_demo, live, mo, plan_refs, plan_rows, rows_btn, rule_problems, rules, rules_ta, run_dir, run_prefix, save_btn, section, st):
     # The plan as the table stands: rows whose destination differs from
     # their estate are the moves; "keep" or the same estate is not a move.
     _edited = editor.value if editor is not None else []
     _overrides = {f"{plan_rows[_i]['estate']}:{plan_rows[_i]['address']}": str(_row.get("to") or carve.KEEP) for _i, _row in enumerate(_edited) if _i < len(plan_rows)}
     _sources = sorted({_r["estate"] for _r in plan_rows if _overrides.get(f"{_r['estate']}:{_r['address']}", _r["to"]) not in (carve.KEEP, _r["estate"], "")})
     _from = _sources[0] if len(_sources) == 1 else ",".join(_sources)
-    plan_doc = carve.plan(_from, [(_r["address"], _r["type"], _r["estate"]) for _r in plan_rows], rules, _overrides)
+    plan_doc = carve.plan(_from, [(_r["address"], _r["type"], _r["estate"]) for _r in plan_rows], rules, _overrides,
+                          references=plan_refs)
     _saved = ""
     if (live or bid) and st.once("carve.json", save_btn.value):
         _p = carve.save(run_dir, plan_doc)

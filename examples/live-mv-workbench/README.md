@@ -203,6 +203,21 @@ resource.
 proves later rules win, an override wins over rules, and a row already in
 its destination is not a move.
 
+A move is not free on the other side of an estate boundary. Where another
+estate reads this one through the cross-estate data-source pattern
+(`live/OUTPUTS.md`'s replacement for the banned `terraform_remote_state`),
+moving the producer means rewriting that data source's `tag:tofu-estate`
+filter by hand. `live-check -json` reports those edges as `references[]`,
+one per data source, each naming the producer estate and instance its
+filters match and the resources that read it; the plan phase reads one
+document per estate and prices every row from it, so the planner says
+"3 moves, 2 filter rewrites" rather than "3 moves". The count is the
+engine's own rule - one rewrite per reader
+(`internal/live/check/references.go`) - and a plan the planner could not
+price says "3 moves" rather than claiming zero. The demo's own fixture
+carries one: `tlmig-sample-team-b` reads `tlmig-sample-team-a`'s
+`aws_vpc.main` by its markers, and `aws_subnet.app` reads that.
+
 ## What the receipt proves
 
 In stock Terraform and OpenTofu, who owns a resource is a line in a state

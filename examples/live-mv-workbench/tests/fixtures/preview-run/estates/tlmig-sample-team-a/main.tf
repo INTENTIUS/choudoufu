@@ -49,3 +49,10 @@ resource "aws_cloudwatch_log_group" "team_a_2" {
   name              = "/tlmig-sample/team-a/svc-2"
   retention_in_days = 1
 }
+
+# The producer half of the cross-estate read below. team-b reaches this VPC
+# by its markers, so moving it out of this estate is not free: see the data
+# source in tlmig-sample-team-b.
+resource "aws_vpc" "main" {
+  cidr_block = "10.77.0.0/16"
+}

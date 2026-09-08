@@ -140,6 +140,7 @@ class RunState:
     previews: list[dict] = dataclasses.field(default_factory=list)   # events.preview, one per planned move
     record_store: dict = dataclasses.field(default_factory=dict)     # {estate: [address,...]} from .tofu-records, from the receipt event
     cloudtrail_available: bool | None = None   # None = no receipt phase seen yet; False = ran against an emulator
+    references: list[dict] = dataclasses.field(default_factory=list)  # events.reference, one per cross-estate edge
 
     @property
     def active_phase(self) -> Phase | None:
@@ -307,6 +308,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
     verdicts: list[dict] = []
     notes: list[tuple[str, str]] = []
     previews: list[dict] = []
+    references: list[dict] = []
     record_store: dict = {}
     cloudtrail_available: bool | None = None
     seen = 0
@@ -476,6 +478,14 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
                 ledger.append(LedgerRow(_parse_ts(e.get("time") or e.get("eventTime")), phase_name, who,
                                         f"CloudTrail {call} {tagtxt}", target,
                                         err or "recorded", not err, True))
+        elif kind == "reference":
+            # A cross-estate edge live-check reported. Keyed by the data
+            # source and the estate that declares it, so re-reading an
+            # estate replaces its edges rather than doubling them.
+            body = {k: v for k, v in ev.items() if k not in ("ts", "run_id", "kind")}
+            key = (body.get("in_estate"), body.get("source"))
+            references[:] = [r for r in references if (r.get("in_estate"), r.get("source")) != key]
+            references.append(body)
         elif kind == "note":
             notes.append((phase_name, str(ev.get("text", ""))))
         elif kind == "preview":
@@ -504,7 +514,7 @@ def load_run(run_dir: str | pathlib.Path, upto: int | None = None) -> RunState:
         for e in (pv.get("from_estate"), pv.get("to_estate")):
             if e and e not in estates:
                 estates.append(e)
-    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available)
+    return RunState(run_id, prefix, region, ordered, resources, estates, ledger, measures, verdicts, notes, seen, last_ts, previews, record_store, cloudtrail_available, references)
 
 
 def phase_boundaries(run_dir: str | pathlib.Path) -> dict[str, int]:

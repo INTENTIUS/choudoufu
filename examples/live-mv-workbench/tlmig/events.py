@@ -22,7 +22,9 @@ the visuals side:
 - ``measure``: ``label``, ``estate``, ``requests``, ``cache_hits``,
   ``refresh``, ``seconds`` and ``reference``, the emulator's numbers beside.
 - ``receipt``: the reproducible receipt as :mod:`receipt` writes it.
-- ``preview``: one planned move as ``live-mv -dry-run`` reported it, from
+- ``reference``: one cross-estate data-source edge from ``live-check -json``,
+  the planner's rewrite-cost input.
+- ``preview``: one planned move as ``live-mv -json -dry-run`` reported it, from
   :mod:`moveset`: the tag writes, the children that follow and any refusal,
   so the page draws the map as it would stand without parsing the terminal.
 - ``note``: ``text`` the visual should echo.
@@ -99,6 +101,16 @@ def fact(cfg: config.Config, label: str, value: Any) -> None:
     """One placeable fact, such as ``fact(cfg, "role:tlmig-1-team-a-role",
     "tlmig-1-team-b")`` after a move."""
     emit(cfg, "fact", label=label, value=value)
+
+
+def reference(cfg: config.Config, ref: Any) -> dict[str, Any]:
+    """One cross-estate edge as ``live-check -json`` reported it
+    (:class:`tlmig.carve.Reference`): which data source, in which estate,
+    reads which instance of which other estate, and what reads the data
+    source. This is the planner's cost input, on the feed so the page prices
+    a plan the same way in replay as it does live."""
+    return emit(cfg, "reference", source=ref.source, estate=ref.estate,
+                address=ref.address, read_by=list(ref.read_by), in_estate=ref.in_estate)
 
 
 def cmd(
