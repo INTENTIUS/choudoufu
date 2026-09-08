@@ -17,8 +17,8 @@ small, self-contained project you can clone and run.
 `examples/ci-pipelines/` is a worked example of a different shape: the CI a
 choudoufu estate needs, as one chant project whose five Ops
 (`live-check`, `live-plan`, `live-apply`, `live-adopt`, `live-discover`)
-generate the GitHub and Forgejo workflows checked in beside them, under a
-guard that regenerating leaves the tree clean.
+generate the GitHub, Forgejo and GitLab pipelines checked in beside them,
+under a guard that regenerating leaves the tree clean.
 [Running an estate from CI]({{< relref "/docs/use/cicd" >}}) is what those
 jobs do and what each forge gets; its own
 [README](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md)

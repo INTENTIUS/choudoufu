@@ -56,28 +56,41 @@ a value because a pipeline pointed at the wrong region is an incident and a
 region is not account-specific. The credentials themselves are presence-only:
 the three role ARNs on GitHub, the static key pair on Forgejo.
 
-## What the environment does not do
+## What the environment does
 
 The GitHub policy declares a `production` environment with a required reviewer,
 `preventSelfReview`, and a deployment branch policy limited to protected
-branches. Today that reviewer gates nothing.
+branches. It gates `live-apply` now.
 
 A GitHub environment's protection rules bind a job only when the job declares
-`environment: production`, and chant's `generateOpsPipeline` emits no
-`environment:` key, which `examples/ci-pipelines/src/live-apply.op.ts` already
-says in its own header. So the environment exists, warden keeps it in the state
-the policy declares, and no job references it. The gate that stops an apply
-today is chant's, which is why both policies protect `chant/lifecycle`.
+`environment: production`, and chant's `generateOpsPipeline` used to emit no
+`environment:` key at all - the gap this section used to describe. chant #2264
+gave `ScheduledOpSpec` an `environment` option, `examples/ci-pipelines/generate.ts`'s
+`live-apply` spec now sets `environment: { name: "production" }`, and the
+generated `github/.github/workflows/live-apply.yml` carries the key. warden
+keeps the environment and its reviewer in the state the policy declares, the
+job references it, and the two now agree: `live/pipeline_governance_test.go`'s
+`TestPipelineGovernanceEnvironmentGates` reads both sides and fails if a
+rename or a regeneration ever lets them drift apart again.
 
-Three ways forward, none of them taken here: add the key to the checked-in
-workflow by hand and re-add it after every regeneration; teach chant's
-generator an `environment` option, which is the real fix and a chant unit; or
-drop the environment from the policy. It is declared rather than dropped
-because the day the key appears, the environment has to already exist with its
-reviewer, and because a reviewer on an environment is the shape a GitHub
-reviewer expects to find. `live/pipeline_governance_test.go` carries a tripwire
-that fails the day a regenerated `live-apply.yml` carries the key, naming this
-section as the thing to rewrite.
+This stacks on chant's own gate rather than replacing it. `chant approve
+live-apply approve-live-apply` writes the approval of record as a commit on
+`chant/lifecycle`, which both policies still protect, and a run that reaches
+its gate with no resolution stops there regardless of what the forge-side
+reviewer does. The environment reviewer is the earlier of the two stops: it
+holds the job before any step runs, where chant's gate holds the run after it
+has already started and read the live system.
+
+GitLab's own generator maps the same `environment` option to its own
+`environment:` key (chant #2268), and `gitlab/scheduled-ops.gitlab-ci.yml`'s
+`live-apply` job carries it too - `TestPipelineGovernanceEnvironmentGates`
+checks that side as well. This project ships no GitLab governance policy
+(see "Anything on GitLab" below), so nothing here provisions the GitLab
+protected-environment approval rule the key would need to mean anything on
+that forge yet; the job says which environment it deploys to, and that is as
+far as this repository goes today. Forgejo Actions has no environments at
+all, so its dialect drops the key and says so in a header comment on the
+generated file, and `chant/lifecycle` stays the only gate there.
 
 ## Where Forgejo differs, and why
 
@@ -152,14 +165,20 @@ that exits 0. Holding the workflows to their generator is
 role ARN variables exist. What those roles may do in AWS is an IAM policy, and
 `examples/ci-pipelines`' README has the table of what each of the three needs.
 
-**Anything on GitLab.** `examples/ci-pipelines/gitlab/.gitlab-ci.yml` is
-`live-discover` alone, hand-written, because chant's gitlab Op generator
-refuses the `pull_request` and `push` event models by name. Neither of the two
-things these policies exist to lock is there to lock: no job runs on a merge
-request, and no job applies. What a
-[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy could still
-assert is that the sweep's project CI/CD variables exist, which is worth its
-own file the day someone runs that pipeline for real.
+**Anything on GitLab.** chant #2268 taught the gitlab Op generator
+`pull_request`/`push` triggers and a merge-request-note posting mode, so
+`examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml` is generated now
+and carries all five jobs, `live-apply` behind its own `environment:
+production` key included - the premise "no job runs on a merge request, and
+no job applies" this paragraph used to state is no longer true. What is still
+true is that nothing here locks any of it: there is no
+[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy in this
+example, so no required merge-request check, no protected `chant/lifecycle`
+rule and no protected-environment approval on GitLab's own `production`
+object exist anywhere but in the job's own YAML. A GitLab policy is worth its
+own file the day someone runs this pipeline for real; until then, treat the
+generated GitLab jobs the way you would an ungoverned copy of the GitHub or
+Forgejo ones.
 
 **Anything about `staging`.** The `live-adopt` job runs on a push to `staging`
 and writes marker tags after its gate. Neither policy protects that branch;

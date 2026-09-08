@@ -3,8 +3,9 @@
  *
  *   CHANT_FORGE=github  node --import tsx generate.ts
  *   CHANT_FORGE=forgejo node --import tsx generate.ts
+ *   CHANT_FORGE=gitlab  node --import tsx generate.ts
  *
- * or `npm run generate`, which runs both. The forge comes from the
+ * or `npm run generate`, which runs all three. The forge comes from the
  * environment rather than from an argument because `src/forge.ts` reads it at
  * module load, and the Op files read `src/forge.ts`: one process can only
  * build the Ops one way, since a second `import()` of the same file is served
@@ -25,11 +26,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateOpsPipeline } from "@intentius/chant/op";
 import type { ComponentPipelineOptions, ScheduledOpSpec } from "@intentius/chant/lexicon";
-import { forge, type Forge } from "./src/forge";
+import { forge, discoverFindingMode, planFindingMode, type Forge } from "./src/forge";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 
-/** Where the two generated trees land. Overridable so a test can generate into a scratch directory and diff. */
+/** Where the three generated trees land. Overridable so a test can generate into a scratch directory and diff. */
 const outDir = resolve(process.env.CHANT_PIPELINE_OUT_DIR ?? projectDir);
 
 /**
@@ -56,13 +57,15 @@ const INSTALL_CHOUDOUFU =
   `tar -xzf /tmp/${CHOUDOUFU_ASSET} -C /usr/local/bin choudoufu && choudoufu version`;
 
 /**
- * `gh`, for the two GitHub jobs whose finding mode posts something.
+ * `gh`, for the two GitHub jobs whose finding mode shells out to it.
  *
- * chant's posting modes are all the `reconcilePr` activity, which shells to
- * `gh`. A GitHub-hosted runner carries it; the job runs inside a container
- * image, which does not. So the two Ops that post install it, and the three
- * that do not, do not - which is a per-Op `setup` entry rather than a
- * generator-wide `beforeScript` line for exactly that reason.
+ * `issue` is always `gh issue create`, and `comment` is `gh` only on GitHub -
+ * on GitLab the same finding mode goes over a plain `fetch` to GitLab's own
+ * REST API (chant #2268), so a GitLab job never needs this install line. A
+ * GitHub-hosted runner carries `gh`; the job here runs inside a container
+ * image, which does not. So only the GitHub jobs whose mode needs it install
+ * it - a per-Op `setup` entry rather than a generator-wide `beforeScript`
+ * line for exactly that reason.
  */
 const GH_VERSION = "2.100.0";
 const GH_SHA256 = "e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be";
@@ -82,19 +85,41 @@ const INSTALL_GH =
 const IMAGE = "node:22";
 
 /**
- * AWS on GitHub: the run mints an OIDC token, the action exchanges it for
- * credentials that expire with the job, and the repository stores no
- * long-lived key. `role-to-assume` reads a repository *variable*, because a
- * role ARN is not a secret - it is an account number and a role name - so a
- * fork of this example needs variables set and no secret at all.
+ * AWS by OIDC: the run mints a short-lived identity token, something exchanges
+ * it for role credentials that expire with the job, and the repository stores
+ * no long-lived key. Three roles, not one, which is why `setup` is a per-Op
+ * option: the pull-request and scheduled halves only read, and only the two
+ * push jobs should ever hold a role that can write. Set each role's trust
+ * policy to this repository, and the write roles additionally to the ref
+ * their push trigger fires on.
  *
- * Three roles, not one, which is why `setup` is a per-Op option: the
- * pull-request and scheduled halves only read, and only the two push jobs
- * should ever hold a role that can write. Set each role's trust policy to
- * this repository, and the write roles additionally to the ref their push
- * trigger fires on.
+ * The shape of the exchange is per forge, because `setup` steps are (#2242):
+ * GitHub gets a `uses:` marketplace action, which GitLab CI has no dialect
+ * for at all. GitLab's own OIDC surface is a job-level `id_tokens:`
+ * declaration - `permissions: OIDC` below maps to it (chant #2257) - which
+ * lands the JWT in the `$CHANT_ID_TOKEN` job variable rather than a file, so
+ * the `{ run }` branch writes it to one and points the two environment
+ * variables every AWS SDK's own "web identity" credential provider already
+ * reads at that file: no `aws` CLI, no hand-rolled STS call, no signature -
+ * `AssumeRoleWithWebIdentity` is the one STS action that takes no SigV4
+ * signing, by design, since the token itself is the credential being
+ * exchanged. Forgejo gets neither branch: its dialect drops `permissions:`
+ * and `environment:` outright (no OIDC token, no environment object), so
+ * `assumeRole` is never called for it and its jobs fall back to the static
+ * key pair in `options()` below - unverified, same as it always was.
  */
 function assumeRole(roleVariable: string): NonNullable<ScheduledOpSpec["setup"]> {
+  if (forge === "gitlab") {
+    return [
+      {
+        run:
+          `echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && ` +
+          `export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && ` +
+          `export AWS_ROLE_ARN="$${roleVariable}" && ` +
+          `export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"`,
+      },
+    ];
+  }
   return [
     {
       uses: "aws-actions/configure-aws-credentials@v6",
@@ -119,6 +144,16 @@ const OIDC: ScheduledOpSpec["permissions"] = { "id-token": "write" };
  */
 function specs(): ScheduledOpSpec[] {
   const github = forge === "github";
+  // GitLab's Op generator now expresses pull_request/push triggers and a
+  // per-job id_tokens declaration (chant #2268, #2257), so its jobs get the
+  // same per-Op role and OIDC wiring GitHub's do - only the *shape* of the
+  // setup step differs, in assumeRole() above. Forgejo has neither surface
+  // (no OIDC token, no environment object), so it keeps the flat static key
+  // in options() below, unverified as it always was.
+  const oidcForge = github || forge === "gitlab";
+  // `gh` is a GitHub-only dependency: GitLab's own "comment" mode needs no
+  // install (see INSTALL_GH's comment above), and forgejo never gets here.
+  const ghSetup = github ? [{ run: INSTALL_GH }] : [];
   return [
     {
       // No credentials of any kind: `live-check` makes no cloud calls, reads
@@ -130,27 +165,43 @@ function specs(): ScheduledOpSpec[] {
     {
       name: "live-plan",
       trigger: { kind: "pull_request", branches: ["main"] },
-      findingMode: github ? "comment" : "report",
-      ...(github ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), { run: INSTALL_GH }], permissions: OIDC } : {}),
+      // "comment" now generates for GitLab too (chant #2268's merge-request
+      // note activity); Forgejo has no posting activity at all, so it stays
+      // "report". See ./src/forge.ts for the reasoning behind this value.
+      findingMode: planFindingMode,
+      ...(oidcForge
+        ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), ...ghSetup], permissions: OIDC }
+        : {}),
     },
     {
       name: "live-adopt",
       trigger: { kind: "push", branches: ["staging"] },
       findingMode: "report",
-      ...(github ? { setup: assumeRole("CHOUDOUFU_ADOPT_ROLE_ARN"), permissions: OIDC } : {}),
+      ...(oidcForge ? { setup: assumeRole("CHOUDOUFU_ADOPT_ROLE_ARN"), permissions: OIDC } : {}),
     },
     {
       name: "live-apply",
       trigger: { kind: "push", branches: ["main"] },
       findingMode: "report",
-      ...(github ? { setup: assumeRole("CHOUDOUFU_APPLY_ROLE_ARN"), permissions: OIDC } : {}),
+      // Binds the job to the forge's own deployment-environment reviewer
+      // (chant #2264/#2257) - GitHub and GitLab both express it; Forgejo has
+      // no environments at all and its dialect drops the key with a header
+      // note rather than silently losing the gate. See live-apply.op.ts and
+      // examples/pipeline-governance/github/governance.yml for what the
+      // reviewer adds on top of chant's own gate below.
+      environment: { name: "production" },
+      ...(oidcForge ? { setup: assumeRole("CHOUDOUFU_APPLY_ROLE_ARN"), permissions: OIDC } : {}),
     },
     {
       // No `trigger` and no `schedule`: this Op declares its own cron, and
       // `generateOpsPipeline` copies it onto the spec before rendering.
       name: "live-discover",
-      findingMode: github ? "issue" : "report",
-      ...(github ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), { run: INSTALL_GH }], permissions: OIDC } : {}),
+      // "issue" only on GitHub; GitLab's own "comment" path needs a merge
+      // request a cron job never has. See ./src/forge.ts.
+      findingMode: discoverFindingMode,
+      ...(oidcForge
+        ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), ...ghSetup], permissions: OIDC }
+        : {}),
     },
   ];
 }
@@ -163,14 +214,20 @@ function specs(): ScheduledOpSpec[] {
  * choudoufu. `runCommand` goes through `npx` because `chant` is a dependency
  * of the project rather than something on the image.
  *
- * `variables` becomes the workflow's top-level `env:`. On GitHub that is the
- * forge marker, the region and nothing else - the credentials are minted per
- * job by the setup step. On Forgejo it is also the credentials themselves,
- * because no OIDC path off Forgejo to AWS is verified anywhere in this
- * organization; that is stated in the README rather than dressed up.
+ * `variables` becomes the workflow's top-level `env:` (GitHub, Forgejo) or
+ * top-level `variables:` (GitLab - every job's environment already carries a
+ * GitLab CI/CD variable, which is why the credentials below are not repeated
+ * there the way they are for Forgejo). On GitHub and GitLab that is the forge
+ * marker, the region and nothing else - the credentials are minted per job by
+ * the setup step (`assumeRole`, above). Forgejo's dialect drops
+ * `permissions:` and has no `id_tokens:` equivalent at all, so its jobs carry
+ * the credentials themselves; no OIDC path off Forgejo to AWS is verified
+ * anywhere in this organization, and the README says so rather than dressing
+ * it up.
  */
 function options(): ComponentPipelineOptions {
-  const region = "${{ vars.AWS_REGION }}";
+  const gitlab = forge === "gitlab";
+  const region = gitlab ? "$AWS_REGION" : "${{ vars.AWS_REGION }}";
   return {
     image: IMAGE,
     runCommand: ["npx", "chant", "run", "{name}"],
@@ -178,9 +235,14 @@ function options(): ComponentPipelineOptions {
     variables: {
       CHANT_FORGE: forge,
       // The provider reads `var.aws_region`; choudoufu's own tagging-API
-      // sweep reads the SDK's `AWS_REGION`. One repository variable, so the
-      // two can never disagree.
-      AWS_REGION: region,
+      // sweep reads the SDK's `AWS_REGION`. On GitHub and Forgejo that value
+      // is a repository variable this file has to alias into both names, so
+      // the two can never disagree. On GitLab, AWS_REGION is already a
+      // project CI/CD variable in every job's own environment - restating it
+      // here would set it to the literal string "$AWS_REGION" before the
+      // pipeline's own variable substitution has anything to resolve it
+      // against, so only the Terraform-side alias is declared.
+      ...(gitlab ? {} : { AWS_REGION: region }),
       TF_VAR_aws_region: region,
       ...(forge === "forgejo"
         ? {
@@ -195,18 +257,22 @@ function options(): ComponentPipelineOptions {
 /**
  * Where each forge wants its workflow files, relative to a repository root.
  *
- * This is the generated half of `FORGES`, and it is deliberately the shorter
- * list. A forge can be one this project builds Ops for without being one this
- * project generates a tree for: where chant's Op generator for that forge
- * cannot express these Ops, the pipeline is hand-written and committed as it
- * is, and `main` below refuses to generate for it by name rather than writing
- * something over it. The build still has to know the forge - the hand-written
- * job runs `chant run`, which loads `src/forge.ts` the same way a generated
- * one does.
+ * All three forges land here since chant #2268 taught the gitlab Op
+ * generator `pull_request`/`push` triggers - GitLab's own generator returns
+ * one file for every job rather than one file per Op (its trigger is
+ * job-scoped rather than workflow-scoped, so there is nothing to split), and
+ * `main` below writes whatever `result.files` names without caring how many
+ * there are. `Partial` is kept rather than tightened to `Record`: a forge
+ * whose Op generator refuses one of this project's Ops again in some future
+ * chant version has somewhere to fall back to (drop it from this map and
+ * hand-write the pipeline the way GitLab's was written before #2268), and
+ * `main` refuses to generate for a forge missing here by name rather than
+ * silently writing nothing.
  */
 const WORKFLOW_DIR: Partial<Record<Forge, string>> = {
   github: join("github", ".github", "workflows"),
   forgejo: join("forgejo", ".forgejo", "workflows"),
+  gitlab: join("gitlab"),
 };
 
 /**
@@ -282,12 +348,24 @@ async function stampBody(): Promise<string> {
 /**
  * The banner every generated file carries. It names the command that rewrites
  * the file, so a reader who found the workflow first has somewhere to go.
+ *
+ * GitHub and Forgejo emit one file per Op, named after it, so the third line
+ * names that one Op's source. GitLab emits every Op's job into the one file
+ * (its trigger is job-scoped rather than workflow-scoped, so there is nothing
+ * to split into separate files), and that file's own name carries no Op name
+ * to derive a source path from - so the third line names the whole directory
+ * instead, and the generated header inside the file (chant's own, not this
+ * banner) names each job's Op, cron or trigger, and finding mode individually.
  */
 function banner(name: string): string {
+  const opLine =
+    forge === "gitlab"
+      ? "# Each job below runs the Op its own name is: examples/ci-pipelines/src/<job>.op.ts."
+      : `# The Op this job runs is examples/ci-pipelines/src/${name.replace(/\.ya?ml$/, "")}.op.ts.`;
   return [
     `# ${name} - generated by examples/ci-pipelines/generate.ts. DO NOT EDIT.`,
     `# Regenerate with: CHANT_FORGE=${forge} npm run generate`,
-    `# The Op this job runs is examples/ci-pipelines/src/${name.replace(/\.ya?ml$/, "")}.op.ts.`,
+    opLine,
     "",
     "",
   ].join("\n");
@@ -298,8 +376,7 @@ async function main(): Promise<void> {
   if (!workflowDir) {
     throw new Error(
       `${forge} is a forge this project builds Ops for, but not one this generator emits a tree for: ` +
-        `chant's Op generator for it cannot express these Ops, so its pipeline is hand-written and committed ` +
-        `as it stands. Generate for ${Object.keys(WORKFLOW_DIR).join(" or ")}.`,
+        `chant's Op generator for it cannot express these Ops. Generate for ${Object.keys(WORKFLOW_DIR).join(" or ")}.`,
     );
   }
 

@@ -16,11 +16,15 @@
  * re-running the workflow walks through the gate and applies. That is the
  * approval of record, and it is the one a reviewer can audit after the fact.
  *
- * A forge-side environment reviewer (GitHub's `environment:` protection
- * rules) stacks on top of it and is not generated here: `generateOpsPipeline`
- * emits no `environment:` key, so a repository that wants that second gate
- * adds it to the checked-in workflow and re-adds it when the file is
- * regenerated.
+ * A forge-side environment reviewer stacks on top of it, and now generates:
+ * `generate.ts`'s `live-apply` spec carries `environment: { name: "production" }`
+ * (chant #2264), naming the same environment
+ * `examples/pipeline-governance/github/governance.yml` declares a reviewer
+ * on - see that policy and its README for what the reviewer adds on top of
+ * the chant gate below. GitLab's generator maps the same option to its own
+ * `environment:` key; Forgejo Actions has no environments at all, so its
+ * dialect drops the key and says so in a header comment on the generated
+ * file rather than silently dropping the gate the option exists for.
  *
  * ## What the approval covers
  *

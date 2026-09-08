@@ -78,7 +78,7 @@ shape survives it.
 |---|---|---|---|
 | GitHub | generated | a pull-request comment, edited in place by the next push | OIDC, no stored key |
 | Forgejo | generated | the run's own log and step summary | a static key from repository secrets, unverified |
-| GitLab | hand-written, cron only | the scheduled pipeline's own log | a static key from CI variables, unverified |
+| GitLab | generated | a merge-request note, edited in place by the next push | OIDC, no stored key, unverified |
 
 **GitHub** gets all five jobs with everything on. Both CI-native triggers
 fire, `permissions:` is computed per job at least privilege, and
@@ -102,14 +102,25 @@ report mode instead. Credentials there are `AWS_ACCESS_KEY_ID` and
 variables become the workflow's top-level `env:`, `live-check` sees a key it
 does not need.
 
-**GitLab** gets `live-discover` alone, hand-written at
-[`examples/ci-pipelines/gitlab/.gitlab-ci.yml`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/gitlab/.gitlab-ci.yml),
-on a project-level Pipeline Schedule. It is hand-written because chant's
-gitlab Op generator refuses, by name, the three things the other four jobs
-need: a `pull_request` or `push` event model (a GitLab schedule is a
-project-level cron object rather than an event), a setup step spelled `uses:`
-(GitLab CI has `script` and nothing else), and an additive `permissions` map.
-The sweep needs none of them, which is why it is the one job that survives.
+**GitLab** gets all five jobs too, generated into one combined file at
+[`examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml) -
+one document rather than one file per Op, because a GitLab trigger lives on
+the job's own `rules:` rather than on the file's `on:`, so there is nothing
+to split into separate files. `live-plan` posts a merge-request note over a
+plain REST call rather than shelling to `gh`; `live-apply` deploys to the
+`production` environment the way GitHub's does; `live-discover` still only
+reports, because its cron trigger carries no merge request for a note to
+land on. GitLab CI has no `uses:` step, so a role assumption there is a
+shell script that writes the job's `id_tokens:` JWT to a file and points
+the two environment variables every AWS SDK's own "web identity" credential
+provider already reads at it, rather than a marketplace action - and for the
+same reason there is no gated-apply notice job, which would need a forge API
+call this dialect has no shape for. `live-adopt` and `live-apply` still run
+with `--gated-exit 0`, so a gated run is a green pipeline, and its pending
+gate lands as a downloadable artifact rather than a step summary, which
+GitLab has none of. This crossed over in chant #2268; earlier the generator
+refused every `pull_request`/`push` trigger and the `comment` finding mode by
+name, which is why GitLab used to get `live-discover` alone, hand-written.
 
 ## Governance
 
@@ -137,21 +148,32 @@ workflows are the ones the Ops generate" a checked statement rather than a
 convention.
 
 The approval of record is chant's gate, not the forge's. A forge-side
-environment reviewer stacks on top of it and is not generated: a repository
-that wants that second gate adds it to the checked-in workflow, and re-adds it
-whenever the file is regenerated.
+environment reviewer stacks on top of it: `live-apply`'s spec now carries an
+`environment: { name: "production" }` option, so the generated GitHub and
+GitLab jobs both declare `environment:`, and the github policy's `production`
+reviewer gates the job rather than nothing. Forgejo Actions has no
+environments at all, so its dialect drops the key and says so in a header
+comment on the generated file.
 
 ## What is not there yet
 
-**GitLab beyond the sweep.** Pull-request and push triggers for the gitlab Op
-generator, and a merge-request note activity to post a plan with, are chant's
-to add rather than this repository's. They are sub-issue (e) of
-[#807](https://github.com/INTENTIUS/choudoufu/issues/807). Until they land,
-GitLab runs the scheduled sweep, and a merge request there gets no plan.
+**A GitLab governance policy.** `examples/pipeline-governance` holds policies
+for `github` and `forgejo` only. GitLab's own Op generator now expresses all
+five triggers (chant #2268), so its pipeline runs real merge-request and push
+jobs the way GitHub's and Forgejo's do - but nothing requires its checks,
+protects `chant/lifecycle` there, or provisions the `production`
+protected-environment approval rule its `live-apply` job now names. A
+[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy is worth
+its own file the day someone runs this pipeline for real.
 
 **AWS auth off GitHub.** OIDC to AWS is proven on GitHub Actions and nowhere
-else in this organization. Neither the Forgejo workflows nor the GitLab
-pipeline has a verified OIDC path, so both ship with a static key and say so.
-Treat them as the shape to copy rather than the credential model to keep: a
+else in this organization. GitLab's role assumption follows the same shape
+GitHub's does - a job-level identity token exchanged for role credentials -
+over GitLab's own `id_tokens:` surface rather than a marketplace action, but
+nothing here has run it against a real GitLab instance and a real AWS IAM
+OIDC identity provider. The Forgejo workflows have no OIDC surface to reach
+for at all: Forgejo Actions drops both `permissions:` and `id_tokens:`, so
+they ship with a static key and say so. Treat the GitLab shape as unverified
+and the Forgejo one as the credential model to replace outright: a
 long-lived key that can change an estate is worth replacing with whatever
 short-lived credential your runner can already mint.

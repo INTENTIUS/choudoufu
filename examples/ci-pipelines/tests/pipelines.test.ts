@@ -29,6 +29,16 @@ const FORGE_DIR = {
 
 type Forge = keyof typeof FORGE_DIR;
 
+/**
+ * GitLab is not in `FORGE_DIR`: its trigger is job-scoped rather than
+ * workflow-scoped (see generate-op-pipeline.ts's module doc in the gitlab
+ * lexicon), so `generateOpsPipeline` returns one combined file with every
+ * job as a top-level key, not one file per Op with `on:`/`jobs:`/`env:`
+ * structure the way GitHub and Forgejo do. Its own `describe` block below
+ * parses that shape directly rather than forcing it through `Workflow`.
+ */
+const GITLAB_FILE = join(exampleDir, "gitlab", "scheduled-ops.gitlab-ci.yml");
+
 /** The five Ops, which are also the five job names. */
 const OPS = ["live-adopt", "live-apply", "live-check", "live-discover", "live-plan"] as const;
 
@@ -329,5 +339,170 @@ describe("forgejo gets the same pipeline minus what its runner cannot do", () =>
       schedule: [{ cron: "0 6 * * *" }],
       workflow_dispatch: {},
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GitLab: one combined file, one job per Op, no on:/jobs:/permissions: at all.
+// ---------------------------------------------------------------------------
+
+interface GitlabJob {
+  stage?: string;
+  image?: string;
+  resource_group?: string;
+  id_tokens?: Record<string, { aud: string }>;
+  environment?: { name: string; url?: string };
+  variables?: Record<string, string>;
+  rules?: { if: string }[];
+  script?: string[];
+  artifacts?: { when: string; paths: string[]; expire_in: string };
+}
+
+function gitlabDoc(): Record<string, unknown> {
+  return parseYAML(readFileSync(GITLAB_FILE, "utf8")) as unknown as Record<string, unknown>;
+}
+
+function gitlabJob(op: string): GitlabJob {
+  const job = gitlabDoc()[op];
+  assert.ok(job, `gitlab: no job named ${op}`);
+  return job as GitlabJob;
+}
+
+describe("gitlab: one job per Op, in the one file the generator emits", () => {
+  it("is exactly the five Ops, plus stages: and variables:", () => {
+    const doc = gitlabDoc();
+    const jobs = Object.keys(doc).filter((key) => !["stages", "variables"].includes(key));
+    assert.deepEqual(jobs.sort(), [...OPS].sort());
+  });
+
+  it("builds every job's Ops with CHANT_FORGE: gitlab", () => {
+    assert.equal((gitlabDoc().variables as Record<string, string>).CHANT_FORGE, "gitlab");
+  });
+
+  for (const op of OPS) {
+    it(`${op}: installs a pinned choudoufu before it runs the Op`, () => {
+      const script = gitlabJob(op).script ?? [];
+      const install = script.find((line) => line.includes("choudoufu_v"));
+      assert.ok(install, `${op}: no choudoufu install line`);
+      assert.match(install, /releases\/download\/v0\.15\.0\/choudoufu_v0\.15\.0_linux_amd64\.tar\.gz/);
+      assert.match(install, /sha256sum -c -/);
+      assert.match(install, /[0-9a-f]{64}/);
+      assert.ok(!install.includes("latest"), "the install must not float");
+      assert.ok(
+        script.some((line) => line.includes(`npx chant run ${op}`)),
+        `${op}: does not run its own Op`,
+      );
+    });
+  }
+});
+
+describe("gitlab: live-check reaches for no credential of its own", () => {
+  it("no id_tokens, no role variable, no AWS_ROLE_ARN export", () => {
+    const job = gitlabJob("live-check");
+    assert.equal(job.id_tokens, undefined, "no OIDC token");
+    const script = (job.script ?? []).join("\n");
+    assert.ok(!script.includes("ROLE_ARN"), "no role arn");
+    assert.ok(!script.includes("AWS_WEB_IDENTITY_TOKEN_FILE"), "no web-identity exchange");
+  });
+
+  it("and runs init first, which is what makes the answer accurate", () => {
+    const opSource = readFileSync(join(exampleDir, "src", "live-check.op.ts"), "utf8");
+    assert.match(opSource, /phase\("Init", \[terraformInit\(ROOT\)\]\)/);
+  });
+});
+
+describe("gitlab: live-plan posts a merge-request note, over OIDC, with no gh install", () => {
+  it("triggers on a merge request targeting main", () => {
+    assert.deepEqual(gitlabJob("live-plan").rules, [
+      { if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"' },
+    ]);
+  });
+
+  it("declares an id_tokens: entry for the plan role's OIDC exchange", () => {
+    assert.deepEqual(gitlabJob("live-plan").id_tokens, { CHANT_ID_TOKEN: { aud: "$CI_SERVER_URL" } });
+  });
+
+  it("assumes the plan role by writing the JWT to a file and exporting AWS_ROLE_ARN", () => {
+    const script = gitlabJob("live-plan").script!.join("\n");
+    assert.match(script, /AWS_WEB_IDENTITY_TOKEN_FILE="\$CI_PROJECT_DIR\/\.chant-id-token\.jwt"/);
+    assert.match(script, /AWS_ROLE_ARN="\$CHOUDOUFU_PLAN_ROLE_ARN"/);
+  });
+
+  it("installs no gh: chant's GitLab comment mode is a plain REST call, not a shell-out", () => {
+    const script = gitlabJob("live-plan").script!.join("\n");
+    assert.ok(!script.includes("cli/cli/releases"), "no gh install");
+  });
+
+  it("the two write roles are not the role the merge-request job assumes", () => {
+    const roleOf = (op: string) => {
+      const m = gitlabJob(op).script!.join("\n").match(/AWS_ROLE_ARN="\$(\w+)"/);
+      return m?.[1];
+    };
+    assert.equal(roleOf("live-apply"), "CHOUDOUFU_APPLY_ROLE_ARN");
+    assert.equal(roleOf("live-adopt"), "CHOUDOUFU_ADOPT_ROLE_ARN");
+    assert.notEqual(roleOf("live-apply"), roleOf("live-plan"));
+    assert.notEqual(roleOf("live-adopt"), roleOf("live-plan"));
+  });
+});
+
+describe("gitlab: the push half applies behind a gate without painting the pipeline red", () => {
+  it("live-apply triggers on a push to main; live-adopt on a push to staging", () => {
+    assert.deepEqual(gitlabJob("live-apply").rules, [
+      { if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"' },
+    ]);
+    assert.deepEqual(gitlabJob("live-adopt").rules, [
+      { if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "staging"' },
+    ]);
+  });
+
+  it("live-apply is bound to the production environment", () => {
+    assert.deepEqual(gitlabJob("live-apply").environment, { name: "production" });
+  });
+
+  it("no other job declares an environment: GitLab protects one job, not the pipeline", () => {
+    for (const op of OPS) {
+      if (op === "live-apply") continue;
+      assert.equal(gitlabJob(op).environment, undefined, op);
+    }
+  });
+
+  for (const op of ["live-apply", "live-adopt"]) {
+    it(`${op} maps only the gated outcome to success, and writes the pending gate to an artifact`, () => {
+      const job = gitlabJob(op);
+      const run = job.script!.find((line) => line.includes(`chant run ${op}`));
+      assert.ok(run, "the job runs the Op");
+      assert.match(run, /--gated-exit 0/);
+      assert.equal(job.variables?.CHANT_GATE_SUMMARY, `chant-gate-${op}.md`);
+      assert.deepEqual(job.artifacts, {
+        when: "always",
+        paths: [`chant-gate-${op}.md`],
+        expire_in: "30 days",
+      });
+    });
+  }
+});
+
+describe("gitlab: the sweep runs on the cron the Op declares, and only reports", () => {
+  it("live-discover is gated to a Pipeline Schedule, not to a branch or merge-request event", () => {
+    assert.deepEqual(gitlabJob("live-discover").rules, [
+      { if: '$CI_PIPELINE_SOURCE == "schedule" && $CHANT_SCHEDULED_OP == "live-discover"' },
+    ]);
+  });
+
+  it("carries no findingMode-comment machinery: report needs no merge request to post on", () => {
+    // Asserted the same way GitHub's live-discover is asserted to be
+    // "issue"-mode by its own permissions in the section above: here it is
+    // the absence of a merge-request rule and the absence of a gh install,
+    // since a cron job's finding mode is "report" wherever it is not GitHub.
+    const script = gitlabJob("live-discover").script!.join("\n");
+    assert.ok(!script.includes("cli/cli/releases"), "no gh install");
+  });
+});
+
+describe("gitlab: no job's setup step is a GitHub Actions marketplace action", () => {
+  it("every script line is a shell command, never a uses:", () => {
+    for (const op of OPS) {
+      assert.ok(!("uses" in gitlabJob(op)), `${op}: gitlab has no uses: step shape`);
+    }
   });
 });
