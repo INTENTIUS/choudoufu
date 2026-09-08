@@ -1,5 +1,5 @@
 # count-is-a-fungible-set
-# CLAIM 11 - A count pool is a fungible set: slot markers hold it together, so it scales down by removing one member and rebuilding nothing - and stripping the slots makes the run refuse rather than guess. ~2 min.
+# CLAIM 11 - A count pool is a fungible set: slot markers hold it together, so it scales down by removing one member and rebuilding nothing; a count block the configuration NAMES is the other kind and carries no slot at all; stripping a slot that belongs makes the run refuse rather than guess, and stamping one that does not fails the read. ~3 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/count"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -21,14 +21,54 @@ settle() { local want="$1" i; for i in $(seq 1 20); do
     --query 'ResourceTagMappingList[].Tags' --output text 2>/dev/null | grep -q "$want"; then return 0; fi
   sleep 1; done; return 0; }
 
+# The step-5 read (#976) goes through the plain AWS CLI and nothing else:
+# describe-log-groups to find a group, list-tags-for-resource to read its
+# whole tag set. Real AWS returns a log group arn with a trailing ":*" and
+# floci returns it without, so the suffix is stripped either way.
+lg_arn() { awsl logs describe-log-groups --log-group-name-prefix "$1" \
+  --query "logGroups[?logGroupName=='$1']|[0].arn" --output text; }
+lg_keys() { awsl logs list-tags-for-resource --resource-arn "${1%:\*}" \
+  --query 'keys(tags)' --output text | tr '\t' ' ' | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//'; }
+lg_tag() { awsl logs list-tags-for-resource --resource-arn "${1%:\*}" \
+  --query "tags.\"$2\"" --output text; }
+
+# named_tag_check is step 5's assertion about the count block the
+# configuration NAMES: the whole tag key set by literal value, then
+# tofu-estate and tofu-address by value. It is a function because BOTH arms
+# run THIS code - the ordinary arm expects it to hold, and the BREAK_SLOT
+# arm expects the identical check to catch a slot stamped out of band. A
+# mirrored copy in the break arm would prove nothing about this one. On a
+# mismatch it prints the reason and returns non-zero.
+named_tag_check() {
+  local i arn keys
+  for i in 0 1; do
+    arn="$(lg_arn "/svc/$i")"
+    if [ -z "$arn" ] || [ "$arn" = "None" ]; then
+      echo "/svc/$i is not there at all - the named count member was never created"; return 1
+    fi
+    keys="$(lg_keys "$arn")"
+    if [ "$keys" != "purpose tofu-address tofu-estate" ]; then
+      echo "/svc/$i carries tag keys [$keys], not exactly [purpose tofu-address tofu-estate] - the configuration names this instance, so nothing is left for a slot to decide and it must carry no tofu-slot at all; the name_prefix log groups beside it, read through the identical call, do carry one"
+      return 1
+    fi
+    if [ "$(lg_tag "$arn" tofu-estate)" != "stateless-e2e-block" ]; then
+      echo "/svc/$i does not carry tofu-estate=stateless-e2e-block"; return 1
+    fi
+    if [ "$(lg_tag "$arn" tofu-address)" != "aws_cloudwatch_log_group.named:$i" ]; then
+      echo "/svc/$i does not carry tofu-address=aws_cloudwatch_log_group.named:$i - the index in the address is what says which instance it is when there is no slot"; return 1
+    fi
+  done
+  return 0
+}
+
 stack_up
 export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "the claim"
 explain \
-  "A count pool is a fungible SET. Its members are interchangeable: the" \
-  "lint boundary forbids any argument from reading count.index, so" \
+  "A count pool is a fungible SET when nothing in the configuration says" \
+  "which live resource is which. Its members are then interchangeable:" \
   "nothing about instance 2 distinguishes it from instance 0. The" \
   "positional index aws_eip.pool[1] is where a member sits, not what it" \
   "is. What it is, is a tofu-slot marker: a stable id minted once and" \
@@ -36,7 +76,10 @@ explain \
   "Shrinking the pool therefore removes one member and rebuilds nothing," \
   "where stock renumbers and recreates the tail. Strip a slot where no" \
   "local record vouches for the member, and the set has two rules for" \
-  "naming its members, so the run refuses rather than guess."
+  "naming its members, so the run refuses rather than guess. A count" \
+  "block whose members the configuration itself NAMES is the other kind" \
+  "and carries no slot at all; step 5 reads both kinds back off the" \
+  "cloud with the plain AWS CLI."
 
 step "1. stand up a pool of three"
 cmd "choudoufu apply -auto-approve"
@@ -114,11 +157,101 @@ STILL="$(pool | awk -v a="$MID" '$1==a{print $1}')"
 pool | evidence
 proof "$MID is still here. Its seat moved and its identity did not - the whole difference between a slot and a subscript."
 
-step "5. teardown"
+step "5. both kinds of count instance, read back with the plain AWS CLI"
+explain \
+  "Not every count block declares a fungible set, and which kind it is" \
+  "is visible in the tags. Two count blocks of the SAME type go up side" \
+  "by side, differing in exactly one property. One names its members -" \
+  "name = \"/svc/\${count.index}\", the shape lint admits because every" \
+  "instance renders a distinct name - so the configuration already says" \
+  "which live resource is which, nothing is left for a slot to decide," \
+  "and none is written: that member binds by tofu-address, the index in" \
+  "the address being what says which instance it is. The other leaves" \
+  "the name to the provider (name_prefix), so nothing in the" \
+  "configuration tells its members apart and the slot is the only thing" \
+  "that does. Every tag is read back off the live log groups with the" \
+  "plain AWS CLI, no choudoufu in the read, through the identical call -" \
+  "so a tofu-slot coming back missing on one pair cannot be a broken" \
+  "query when the same query answers on the pair beside it."
+cmd "choudoufu apply -auto-approve ; aws logs list-tags-for-resource --resource-arn <each log group>"
+cat > "$SMOKE_WORK/named.tf" <<'TFEOF'
+resource "aws_cloudwatch_log_group" "named" {
+  count = 2
+
+  # The configuration itself names each member, so instance k is the log
+  # group called /svc/k and can be nothing else. The purpose tag is here so
+  # the assertion below is a whole-key-set comparison and not a subset
+  # check: a set with an extra tag in it still has to match exactly.
+  name = "/svc/${count.index}"
+  tags = { purpose = "count-member" }
+}
+
+resource "aws_cloudwatch_log_group" "fungible" {
+  count = 2
+
+  # The same type, one property different: the provider mints the name, so
+  # nothing in the configuration says which of these two is instance 0.
+  name_prefix = "/svc-pool-"
+}
+TFEOF
+( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "count" "the two-kinds apply failed"
+
+FUNG=""
+for LG in $(awsl logs describe-log-groups --log-group-name-prefix "/svc-pool-" --query 'logGroups[].logGroupName' --output text); do
+  LGA="$(lg_arn "$LG")"
+  LGK="$(lg_keys "$LGA")"
+  [ "$LGK" = "tofu-address tofu-estate tofu-slot" ] || fail "count" "$LG carries tag keys [$LGK], not exactly [tofu-address tofu-estate tofu-slot] - nothing in the configuration names this member, so a slot is the only thing that can say which instance it is"
+  FUNG="$FUNG$(lg_tag "$LGA" tofu-address)=$(lg_tag "$LGA" tofu-slot)
+"
+done
+FUNG="$(printf '%s' "$FUNG" | sort | tr '\n' ' ' | sed 's/ $//')"
+[ "$FUNG" = "aws_cloudwatch_log_group.fungible:0=0 aws_cloudwatch_log_group.fungible:1=1" ] || fail "count" "the name_prefix pair reads [$FUNG], not slots 0 and 1 off the two live log groups"
+echo "name_prefix pair (nothing names them): $FUNG" | evidence
+
+if [ "${BREAK_SLOT:-0}" = "1" ]; then
+  step "BREAK_SLOT control - stamp a tofu-slot onto the named member; the absence assertion must catch it"
+  explain \
+    "This claim's other control (BREAK=1) strips a slot that belongs." \
+    "This one is its mirror, because the assertion it tests is an" \
+    "ABSENCE: the only corruption that can test an absence is a tag that" \
+    "should not be there. tofu-slot=0 is stamped onto /svc/0 out of band" \
+    "with the AWS CLI, and then the IDENTICAL check runs - the same" \
+    "function, not a mirrored copy of it. If it still passes, it was" \
+    "reading nothing."
+  cmd "aws logs tag-resource --resource-arn <.../log-group:/svc/0> --tags tofu-slot=0"
+  A0="$(lg_arn "/svc/0")"
+  awsl logs tag-resource --resource-arn "${A0%:\*}" --tags tofu-slot=0 >/dev/null 2>&1 \
+    || awsl logs tag-log-group --log-group-name "/svc/0" --tags tofu-slot=0 >/dev/null 2>&1 \
+    || fail "count" "BREAK_SLOT: could not stamp a slot out of band"
+  # No settle wait here: this reads the log group's own tags with
+  # list-tags-for-resource, not the tagging index a plan sweeps, so there
+  # is no lagging index to race (the #756 lesson is about the index).
+  [ "$(lg_keys "$A0")" = "purpose tofu-address tofu-estate tofu-slot" ] \
+    || fail "count" "BREAK_SLOT: the out-of-band stamp did not land, so the check below would pass for the wrong reason"
+  if REASON="$(named_tag_check)"; then
+    fail "count" "BREAK_SLOT: /svc/0 carries a tofu-slot it must not and the check passed anyway - it asserts nothing"
+  fi
+  echo "$REASON" | evidence
+  proof "caught - the absence is asserted by literal value, so a slot that should not be there fails the very check that passes without it."
+else
+  if ! REASON="$(named_tag_check)"; then
+    fail "count" "$REASON"
+  fi
+  echo "named pair: /svc/0 and /svc/1 carry [purpose tofu-address tofu-estate] - tofu-estate and tofu-address by value, and no tofu-slot" | evidence
+  P2="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "count" "the replan over both kinds failed: $P2"
+  grep -q "No changes" <<< "$P2" || fail "count" "the replan over both kinds was not empty, so one of the two kinds did not bind: $P2"
+  proof "one type, two kinds of set: the named pair binds by tofu-address carrying no slot, the name_prefix pair binds by slots 0 and 1, and the next plan is empty, so both bound."
+fi
+
+step "6. teardown"
 ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "count" "teardown failed"
 proof "the pool is gone."
 
 echo "  What you watched: a count pool shrink by removing one member and"
 echo "  keeping the rest as the exact same live objects, because a stable"
 echo "  slot marker names each member of a fungible set. Stock renumbers"
-echo "  and rebuilds the tail; here the tail does not exist."
+echo "  and rebuilds the tail; here the tail does not exist. And then the"
+echo "  boundary of that: two count blocks of one type, read back through"
+echo "  one AWS CLI call - the one whose members the configuration names"
+echo "  carries tofu-estate and tofu-address and no slot, the one whose"
+echo "  names the provider mints carries slots 0 and 1, and both bind."
