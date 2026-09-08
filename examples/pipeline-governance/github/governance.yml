@@ -1,0 +1,104 @@
+# github-warden policy for a repository that runs examples/ci-pipelines'
+# GitHub workflows. Copy it to .github/governance.yml in that repository,
+# change the two placeholder names and the reviewer id, then dry-run it:
+#
+#   npx @intentius/github-warden reconcile \
+#     --config .github/governance.yml --token-env GH_TOKEN --mode dry-run
+#
+# Every name below that looks like a job name is one: the five Ops in
+# examples/ci-pipelines/src are the five job names, and live/pipeline_governance_test.go
+# reads both this file and the generated workflows and fails when they disagree.
+#
+# warden is selective by omission: it manages only what is declared here, and
+# with no `owned:` declaration it creates and updates but never deletes. Both
+# defaults are deliberate for a starter - this policy is meant to be dropped
+# into a repository that already has other things in it.
+
+orgs:
+  my-org: # your GitHub org login
+
+    repos:
+      my-estate-repo: # the repository holding the chant project and the estate
+
+        # ── The pull request cannot merge until choudoufu has answered ──────
+        #
+        # These two contexts are the two jobs that run on a pull request to
+        # main, and a GitHub Actions check run is named after its job, so the
+        # context is the bare job name. live-check refuses a configuration
+        # choudoufu cannot run under live markers at all; live-plan reads the
+        # live system and posts the plan as a comment. Neither can change
+        # anything - one makes no cloud call, the other only ever plans.
+        #
+        # live-apply, live-adopt and live-discover are deliberately NOT here.
+        # They never run on a pull request, so requiring them would leave every
+        # pull request pending forever.
+        branchProtection:
+          - pattern: main
+            requirePullRequestReviews: true
+            requiredApprovingReviewCount: 1
+            dismissStaleReviews: true
+            requireStatusChecks: true
+            requiredStatusCheckContexts:
+              - live-check
+              - live-plan
+            requireBranchesToBeUpToDate: true
+            allowForcePushes: false
+            allowDeletions: false
+
+          # ── Who may approve an apply ────────────────────────────────────
+          #
+          # chant's gate is a fact on a ledger, and `chant approve` writes
+          # that fact as a commit on the chant/lifecycle branch. So the
+          # people who can push to this branch are the people who can let an
+          # apply through, whatever the environment below says. Protecting it
+          # makes an approval a reviewed pull request rather than a push.
+          - pattern: chant/lifecycle
+            requirePullRequestReviews: true
+            requiredApprovingReviewCount: 1
+            allowForcePushes: false
+            allowDeletions: false
+
+        # ── The production environment ─────────────────────────────────────
+        #
+        # READ examples/pipeline-governance/README.md, "What the environment
+        # does not do", before trusting this block. warden creates the
+        # environment and its reviewer, and a GitHub environment gates a job
+        # only when that job declares `environment: production` - which the
+        # generated live-apply.yml does not, because chant's
+        # generateOpsPipeline emits no `environment:` key. Until it does, the
+        # approval of record is the chant gate above.
+        environments:
+          - name: production
+            preventSelfReview: true
+            reviewers:
+              # A numeric id, not a slug. Replace it:
+              #   gh api /orgs/my-org/teams/infra --jq .id
+              # Left as 0 on purpose - GitHub rejects it, so an unedited
+              # policy fails loudly instead of creating an ungated environment.
+              - type: Team
+                id: 0
+            deploymentBranchPolicy:
+              protectedBranches: true
+
+        # ── The credentials the workflows read ─────────────────────────────
+        #
+        # Every one of these is a repository VARIABLE rather than a secret,
+        # because on GitHub there is no stored credential to protect: the jobs
+        # mint an OIDC token and exchange it for credentials that expire with
+        # the job, and a role ARN is an account number and a role name.
+        #
+        # The three role ARNs carry no `value`, which is warden's presence-only
+        # form: it asserts the variable exists and refuses to invent one,
+        # naming it, so a repository missing the apply role fails here rather
+        # than at 3am in a run that then cannot authenticate.
+        #
+        # AWS_REGION does carry a value, because a pipeline pointed at the
+        # wrong region is an incident and a region is not account-specific.
+        # A declared value is reconciled fully: warden puts it back if someone
+        # edits it in the UI.
+        variables:
+          - name: AWS_REGION
+            value: us-east-1
+          - name: CHOUDOUFU_PLAN_ROLE_ARN
+          - name: CHOUDOUFU_ADOPT_ROLE_ARN
+          - name: CHOUDOUFU_APPLY_ROLE_ARN

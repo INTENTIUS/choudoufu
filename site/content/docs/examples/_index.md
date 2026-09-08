@@ -23,3 +23,11 @@ guard that regenerating leaves the tree clean.
 jobs do and what each forge gets; its own
 [README](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md)
 is the walkthrough for running it.
+
+`examples/pipeline-governance/` is the other half of it: one warden policy per
+forge that requires `live-check` and `live-plan` on a pull request, puts an
+apply behind a reviewer, and declares the credentials those workflows read,
+written against the job names the generator emits and guarded by a test that
+fails when the two disagree. Its
+[README](https://github.com/INTENTIUS/choudoufu/blob/main/examples/pipeline-governance/README.md)
+covers what each policy locks and the one thing it cannot check.

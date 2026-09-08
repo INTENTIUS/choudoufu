@@ -116,9 +116,9 @@ The sweep needs none of them, which is why it is the one job that survives.
 [`examples/pipeline-governance`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance)
 holds one policy per forge, `github` and `forgejo`, written against the job
 names above. `live-check` and `live-plan` are required checks before a pull
-request can merge. The branches the two writing jobs trigger on are
-protected, and the apply's credential is required to be present without its
-value being read. A policy that requires a job name is only as good as the
+request can merge. `main` is protected, and so is `chant/lifecycle`, where
+`chant approve` writes the approval that lets an apply through; the apply's
+credential is required to be present without its value being read. A policy that requires a job name is only as good as the
 guarantee that the job named still does what the policy assumes, which is why
 the two halves ship together.
 
