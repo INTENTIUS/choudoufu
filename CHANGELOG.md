@@ -4,7 +4,34 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.15.0 (Unreleased)
+## choudoufu v0.16.0 (Unreleased)
+
+Nothing recorded yet.
+
+## choudoufu v0.15.0 (2026-09-08)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.15.0.json`](live/history/v0.15.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.14.0.json live/history/v0.15.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+The board is carried forward from v0.14.0 unchanged: its 27 rows still
+date from PR #939 at 7841ac337f, before the stamp retirement (#644, PR
+#944) and before the two fixes below merged. Since v0.14.0 the stamp
+retirement is measured clear on `corpus-eks-basic` (Gauntlet runs
+34155541362 and a local run) and `corpus-rds-complete-postgres` (run
+34148414213) only; nothing has re-measured the rest, because the nightly's
+verdicts PR still cannot land (#948). This release exists to ship #962 to
+its consumer, not to move the board.
+
+Live-certified: `gauntlet live-cert reference-ec2-vpc -target aws` in
+us-east-2 at 4d72968cdb, all four stages pass (cold_deploy, migrate,
+test_plan, test_apply), 5 objects, under the 5 USD ceiling. The verdict is
+recorded in `live/gauntlet.json`'s `live_cert` row and in the snapshot.
 
 FORK WORK:
 
