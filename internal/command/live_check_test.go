@@ -87,6 +87,7 @@ type liveCheckJSONDoc struct {
 	Estate   string `json:"estate"`
 	Blocked  bool   `json:"blocked"`
 	ExitCode int    `json:"exit_code"`
+	Schemas  string `json:"schemas"`
 
 	Instances []struct {
 		Address string `json:"address"`
@@ -235,5 +236,39 @@ func TestLiveCheckJSON_AgreesWithTextOnInstanceCount(t *testing.T) {
 	if !strings.Contains(textOut.Stdout(), wantSubstr) {
 		t.Errorf("text report does not say %q, but the JSON roster carries %d resolved instance(s):\ntext:\n%s\njson:\n%s",
 			wantSubstr, resolved, textOut.Stdout(), jsonOut.Stdout())
+	}
+}
+
+// TestLiveCheckJSON_UninitializedDirectorySaysBuiltin is GitHub issue
+// #966's own repro, run through the command rather than the view: this
+// package's tests never install a provider plugin, so every directory they
+// check is the un-initialized case the issue is about, and the rungs below
+// come from internal/live/check's built-in admission table.
+//
+// Asserted by value, and asserted alongside a declaration-carried rung,
+// because the issue's complaint is precisely that those two facts arrive
+// together and only one of them was on the wire: without the schemas field
+// a reader cannot tell "this type carries no tags argument" from "nobody
+// read this type's schema".
+func TestLiveCheckJSON_UninitializedDirectorySaysBuiltin(t *testing.T) {
+	c, done := newLiveCheckCommand(t)
+	c.Run([]string{"-json", "../../live/e2e/estate"})
+	out := done(t)
+
+	var doc liveCheckJSONDoc
+	if err := json.Unmarshal([]byte(out.Stdout()), &doc); err != nil {
+		t.Fatalf("stdout is not valid JSON: %s\nstdout:\n%s", err, out.Stdout())
+	}
+	if doc.Schemas != "builtin" {
+		t.Errorf("schemas = %q for a directory with no .terraform, want \"builtin\"", doc.Schemas)
+	}
+	var declarationCarried int
+	for _, inst := range doc.Instances {
+		if inst.Rung == "declaration-carried" {
+			declarationCarried++
+		}
+	}
+	if declarationCarried == 0 {
+		t.Errorf("no instance read as declaration-carried, so this run does not exercise the ambiguity #966 is about")
 	}
 }
