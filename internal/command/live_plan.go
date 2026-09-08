@@ -2534,10 +2534,36 @@ func statelessBoundReport(res *projection.Result, merged []identity.Resolution, 
 			// one of the "declared instance"s bound[] is defined over.
 			continue
 		}
+		// GitHub issue #967: the identity comes from the PROJECTION, not
+		// from the resolution that fed it. r.ImportID is what the
+		// pre-projection resolver had settled before anything read the
+		// live system, and three of the four admission paths this
+		// function classifies have nothing there: a record-located
+		// instance's id lives in the record store, a parent-derived
+		// one's only exists once its parents are materialized, and a
+		// needs-discovery one the marker sweep failed to bind keeps its
+		// empty ClassNeedsDiscovery resolution even when GitHub issue
+		// #364's record-first read materializes it anyway. Every one of
+		// those still bound to a real live object, and the row that
+		// omitted its identity was the one shape a reader most needs it
+		// on - see [projection.Result.BoundIdentity].
+		//
+		// r.ImportID stays as the fallback rather than being dropped:
+		// for a ClassConcrete resolution the two agree by construction,
+		// and if a future materialization route ever lands an instance
+		// in Materialized without recording what it bound to, saying
+		// what the resolver settled is better than saying nothing. It
+		// is never a DIFFERENT object - the projection refuses to
+		// materialize an instance at an identity it did not verify - so
+		// this can go stale, never wrong.
+		boundIdentity, recorded := res.BoundIdentity(addr)
+		if !recorded {
+			boundIdentity = r.ImportID
+		}
 		item := views.LivePlanBound{
 			Addr:           key,
 			TypeName:       addr.Resource.Resource.Type,
-			Identity:       r.ImportID,
+			Identity:       boundIdentity,
 			IdentityValues: r.IdentityValues,
 		}
 		switch {

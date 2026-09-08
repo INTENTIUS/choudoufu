@@ -447,6 +447,20 @@ const (
 	// estate-wide marker sweep (internal/live/discovery): the live object
 	// carried this estate's tofu-estate/tofu-address tags, and that is how
 	// the plan found it. This is the tag-governed path IAM can condition on.
+	//
+	// More precisely, it means the sweep is what this instance was WAITING
+	// on: [statelessBoundReport in package command] classifies by the
+	// pre-sweep identity.ClassNeedsDiscovery set, which is the only thing
+	// left once binding has rewritten the resolution. An instance the
+	// sweep did not manage to bind - a real account's tag index lags a
+	// write by minutes - can still be materialized from its record by
+	// GitHub issue #364's record-first read and reach a reader here. The
+	// [LivePlanBound.Identity] such a row carries is the record's, and
+	// names the same live object either way; only the provenance this
+	// value states is approximate. GitHub issue #967 found it while
+	// fixing the identity and deliberately did not move it: narrowing
+	// this value is a change to what an existing key MEANS, which needs
+	// its own issue and its own word with the consumers.
 	LivePlanBoundMarker LivePlanBoundSource = "marker"
 
 	// LivePlanBoundRecord means this instance's identity came from the
@@ -488,13 +502,28 @@ type LivePlanBound struct {
 	// TypeName is the resource type.
 	TypeName string `json:"type"`
 
-	// Identity is the import ID this instance bound to - an ARN, a
+	// Identity is the live id this instance bound to - an ARN, a
 	// server-assigned ID, or whatever join the type's own identity
 	// convention produces (live/MARKERS.md and the identity table govern
-	// the shape; this is whatever [identity.Resolution.ImportID] holds).
-	// Empty only for a class this package does not expect to reach here
-	// (every path [LivePlanBoundSource] documents populates it).
-	Identity string `json:"identity,omitempty"`
+	// the shape). It is whatever the projection actually matched on:
+	// [projection.Result.BoundIdentity], not the pre-projection
+	// [identity.Resolution.ImportID], which for three of the four
+	// [LivePlanBoundSource] paths is empty at the moment the row is built.
+	//
+	// ALWAYS PRESENT on the wire since GitHub issue #967, including as ""
+	// - no omitempty, deliberately. It used to be omitted whenever it was
+	// empty, which made the one row shape that was FOUND by its live
+	// identity (a marker-bound instance) the one shape that could not
+	// state it, and left a reader joining on Addr instead. behold pairs a
+	// bound row with the live-ls item carrying the same id, so a key that
+	// comes and goes with the tag index's freshness is worse for it than
+	// a key that is sometimes "".
+	//
+	// Empty for exactly one shape: a record-backed instance (GitHub issue
+	// #73, identity.ClassRecordBacked), whose values live in the estate's
+	// record store and which has no cloud object for an id to name. Never
+	// invented for one - a row with no live id says so.
+	Identity string `json:"identity"`
 
 	// IdentityValues is the identity broken out one component at a time -
 	// [identity.Resolution.IdentityValues] - when the resolver kept that

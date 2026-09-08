@@ -227,6 +227,22 @@ func TestStatelessPlan_lookalikesSectionEmpty(t *testing.T) {
 // If a field is deliberately added, this test fails and the fix is to
 // update `want` below AND to say in the pull request which consumers were
 // told. Do not update it to make a red run green.
+//
+// GitHub issue #967 moved it once, additively: "identity" lost its
+// omitempty, so it is on the wire for every bound row. The second bound
+// entry below is what pins that - a row with no live id at all still
+// renders the key, as "". Restore the omitempty and this test goes red on
+// that row alone, which is the check being load-bearing.
+//
+// The shape it models is a record-backed instance
+// (identity.ClassRecordBacked, GitHub issue #73): its values live in the
+// estate's record store and it names no cloud object, so there is no live
+// id to state. No run produces one today - lint's RuleLogicalResource
+// refuses a record-admitted type before resolution runs, per
+// [identity.ClassRecordBacked]'s own doc comment - which is precisely why
+// it is pinned HERE, by hand, rather than left to a command-level test: a
+// consumer's parser must not start depending on the key's presence being
+// the same thing as the estate having no record-backed resources in it.
 func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
 	v := NewStatelessPlanJSON(NewView(streams))
@@ -245,6 +261,11 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 				Identity:       "vpc-42",
 				IdentityValues: map[string]string{"id": "vpc-42"},
 				Source:         LivePlanBoundMarker,
+			},
+			{
+				Addr:     "random_pet.suffix",
+				TypeName: "random_pet",
+				Source:   LivePlanBoundRecord,
 			},
 		},
 		Omissions: []StatelessOmission{
@@ -291,6 +312,12 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
         "id": "vpc-42"
       },
       "source": "marker"
+    },
+    {
+      "addr": "random_pet.suffix",
+      "type": "random_pet",
+      "identity": "",
+      "source": "record"
     }
   ],
   "omissions": [
