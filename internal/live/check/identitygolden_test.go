@@ -302,6 +302,9 @@ func TestIdentityGoldenCohortsAreDeterministic(t *testing.T) {
 		return
 	}
 
+	// Every difference is one of these two, since equal-length slices whose
+	// every element matches rejoin to equal strings: there is no third case
+	// to fall through to.
 	linesA, linesB := strings.Split(a, "\n"), strings.Split(b, "\n")
 	if len(linesA) != len(linesB) {
 		t.Fatalf("two renders of the same roster resolved a different number of instances: %d and %d.\n"+
@@ -315,7 +318,6 @@ func TestIdentityGoldenCohortsAreDeterministic(t *testing.T) {
 				i+1, linesA[i], linesB[i])
 		}
 	}
-	t.Fatal("the two renders differ but no row does; the ordering moved rather than any value")
 }
 
 // identityGoldenCompareFixturesOnly is the opted-out path: the committed half
