@@ -37,6 +37,46 @@ FORK WORK:
   is back to parsing the human line. `terraform_version` keeps its name
   and its meaning, so anything written against stock still reads it.
 
+- **Every `live-plan -json` `bound[]` row carries the live identity it was
+  matched on** (#967). The row's `identity` was read off the
+  pre-projection `identity.Resolution`, which holds one only for the
+  paths that settle an identity before anything reads the live system. So
+  a marker-bound row - the one shape that was FOUND by its live identity -
+  arrived as `{addr, type, source}` with no identity at all, and a reader
+  (behold, chant #2104) joining a plan row to a `live-ls` item fell back
+  to `addr`. Two other shapes were affected the same way: a
+  parent-derived row, whose formula only renders once its parents are
+  materialized, arrived with `identity_values` and no `identity`; and a
+  record-located one, whose id lives in the record store by design. The
+  id now comes from the projection - what the build actually imported and
+  read back, recorded per address in `builder.materialize` and read
+  through `projection.Result.BoundIdentity` - so `identity` is populated
+  wherever a live object was bound, whichever admission path found it.
+  `identity_values` is unchanged, and no other key moves.
+
+  `identity` is now ALWAYS on the wire: it lost its `omitempty`, so a row
+  with no live id renders `"identity": ""` rather than dropping the key.
+  Exactly one materialize path has no live id - a record-backed instance
+  (#73, `identity.ClassRecordBacked`), whose values ARE the record and
+  which names no cloud object - and it says so rather than inventing one.
+  Lint refuses that class today, so no run produces such a row yet;
+  `TestLivePlanDocument_topLevelShapeIsPinned` carries one by hand so a
+  consumer cannot come to read the key's presence as a fact about the
+  estate. Proven red first: a fake-backed command test with one row per
+  reachable source (`derived`, `marker`, `record`) asserting each identity
+  by literal value fails on both the marker and the record row before the
+  fix; `cache` is unreachable from this pipeline, which never sets
+  `projection.Options.StateCache`.
+
+  One thing found and deliberately not moved: `source` is classified from
+  the PRE-sweep needs-discovery set, so an instance the estate-wide sweep
+  failed to bind - a real account's tag index lags a write by minutes -
+  is reported as `marker` even when #364's record-first read is what
+  materialized it. The identity such a row carries is the record's and
+  names the same live object; only the provenance is approximate.
+  Narrowing `source` changes what an existing key means and wants its own
+  issue.
+
 ## choudoufu v0.15.0 (2026-09-08)
 
 Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.15.0.json`](live/history/v0.15.0.json).
