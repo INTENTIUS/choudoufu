@@ -29,6 +29,39 @@ type Result struct {
 	// evidence about the run, not part of the projection. Issue #685.
 	cacheHits int
 
+	// boundIdentities is the live identity each materialized instance was
+	// actually bound to, keyed by address string - GitHub issue #967.
+	// Unexported with a [Result.BoundIdentity] accessor for the same reason
+	// cacheHits is: it is evidence about the run rather than part of the
+	// projection, and nothing here may become a second source of truth for
+	// an identity a plan acts on.
+	//
+	// It exists because the pre-projection [identity.Resolution] is not
+	// that evidence for every admission path. A ClassConcrete resolution
+	// carries its own ImportID and this map agrees with it exactly; a
+	// ClassParentDerived one carries a formula whose rendered value only
+	// exists once its parents are materialized; a ClassRecordLocated one
+	// carries neither, because its identity lives in the record store
+	// [builder.materializeLocated] reads; and a ClassNeedsDiscovery one the
+	// marker sweep failed to bind carries neither either, yet is still
+	// materialized when GitHub issue #364's record-first read finds its
+	// record. The last three are the row shapes issue #967 observed
+	// arriving at a reader with no identity at all.
+	//
+	// The value is [traceImportID]'s own canonical string - the import ID
+	// this build actually asked the provider for, or the identity composed
+	// from the object it read back for a type with no single import-ID
+	// string - so a composite-identity instance is described here rather
+	// than skipped.
+	//
+	// An instance materialized with no live identity of any kind has no
+	// entry: [builder.materializeRecord]'s record-backed instances (GitHub
+	// issue #73, identity.ClassRecordBacked) hold their values in the
+	// record and have no cloud object for an identity to name. Absent
+	// rather than empty-string, so a reader can tell "no identity exists"
+	// from "the identity is the empty string".
+	boundIdentities map[string]string
+
 	// State is the projection: an in-memory prior state holding one object
 	// per instance that was materialized. It is never nil, and is never
 	// written anywhere by this package.

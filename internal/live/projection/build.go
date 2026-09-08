@@ -357,6 +357,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 
 	res := &Result{
 		cacheHits:        b.cacheHits,
+		boundIdentities:  b.boundIdentities,
 		State:            b.state,
 		Materialized:     b.materialized,
 		Omitted:          b.omissionList,
@@ -383,6 +384,21 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 // nothing the estate sweep verified.
 func (r *Result) CacheHits() int { return r.cacheHits }
 
+// BoundIdentity reports the live identity addr was actually bound to in
+// this build, and whether there was one at all - GitHub issue #967. See
+// [Result.boundIdentities] for what the string is and for the one
+// materialized shape that has none.
+//
+// A caller reporting what a run bound reads this rather than the
+// pre-projection [identity.Resolution] it fed in: the resolution is the
+// question, and this is the answer, and for a record-located, a
+// parent-derived or a record-first-materialized instance the two are not
+// the same value.
+func (r *Result) BoundIdentity(addr addrs.AbsResourceInstance) (string, bool) {
+	id, ok := r.boundIdentities[addr.String()]
+	return id, ok
+}
+
 // newBuilder is the one place a builder is constructed, shared by
 // [buildFrom] and by [ReadInstances] so that a narrow read talks to
 // providers through exactly the same cache, the same identity check and the
@@ -408,6 +424,7 @@ func newBuilder(ctx context.Context, cfg *configs.Config, provs Providers, opts 
 		depsByType:           make(map[string][]addrs.ConfigResource),
 		envelopeVersionAddrs: make(map[string]bool),
 		materializedIdentity: make(map[string]bool),
+		boundIdentities:      make(map[string]string),
 		// The `moved` blocks this configuration's markers may follow (GitHub
 		// issue #198), computed once for the whole projection because
 		// [builder.checkOwnership] asks about them per instance. A
@@ -453,6 +470,15 @@ type builder struct {
 	// at all), and this is what lets the second part tell "a genuine
 	// removal" from "the same object, claimed twice."
 	materializedIdentity map[string]bool
+
+	// boundIdentities is [Result.boundIdentities]'s own map, filled in
+	// [builder.materialize] beside materializedIdentity above and from the
+	// same computed string. Keyed by ADDRESS, not by type-and-identity:
+	// the question it answers is "what did this instance bind to", which
+	// is one answer per address, where materializedIdentity's is "has any
+	// instance of this type claimed this object", which is one answer per
+	// object. GitHub issue #967.
+	boundIdentities map[string]string
 
 	// recordVersions is the version read at plan time for every
 	// record-backed instance whose record actually existed - GitHub issue
@@ -2350,6 +2376,15 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	dedupID := traceImportID(typeName, importID, obj.Value)
 	if dedupID != "" {
 		b.materializedIdentity[typeName+"\x00"+dedupID] = true
+		// GitHub issue #967: the same string, recorded per address, is
+		// what a reporting caller means by "the identity this instance
+		// bound to". Every route into this function has settled its
+		// import identity by here - the concrete/derived ones from the
+		// resolution, [builder.materializeLocated] from the located
+		// record, [builder.materializeFromRecord] from #364's
+		// record-first read - so this is the one place that sees all of
+		// them.
+		b.boundIdentities[addr.String()] = dedupID
 	}
 	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, dedupID)
 	return true
