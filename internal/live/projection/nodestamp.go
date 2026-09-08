@@ -241,15 +241,43 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 	// for the sibling pass this ports - the message text is matched
 	// deliberately, so an operator sees the same sentence whichever path
 	// found the conflict.
-	diags = diags.Append(markerConflictDiag(addr, elems, markers.TagEstate, n.Estate))
-	diags = diags.Append(markerConflictDiag(addr, elems, markers.TagAddress, address))
+	//
+	// GitHub issue #949: a key [NodeResolver.PolicyUntag] releases for
+	// THIS instance is skipped here entirely, on both sides of the "if
+	// diags.HasErrors()" split below - no conflict check, and no write.
+	// That is deliberate, not merely "do not overwrite": the ordinary
+	// conflict check exists to protect a marker this pass itself is
+	// about to assert, and a released key is precisely the one this run
+	// is NOT asserting, so a hand-written value under it disagreeing with
+	// n.Estate is not a conflict this pass has any standing to raise -
+	// internal/live/stamp's retired Stamp reached the identical verdict
+	// (SkipUntagHandWritten, stamp.go) by skipping its own verify/
+	// verifyConflict call the same way. untagKey is compared against the
+	// three constant marker keys, never a resource type, so this reaches
+	// every taggable admitted type identically; a policy naming some
+	// other tag key (TagKey defaults to markers.TagEstate but a
+	// configuration may set its own) simply never equals any of the
+	// three and changes nothing here, same as stamp.Stamp's own untagged
+	// loop over its fixed marker list.
+	untagKey := n.PolicyUntag[addr.String()]
+
+	if untagKey != markers.TagEstate {
+		diags = diags.Append(markerConflictDiag(addr, elems, markers.TagEstate, n.Estate))
+	}
+	if untagKey != markers.TagAddress {
+		diags = diags.Append(markerConflictDiag(addr, elems, markers.TagAddress, address))
+	}
 	if diags.HasErrors() {
 		return tagsVal.WithMarks(tagsMarks), diags
 	}
 
-	elems[markers.TagEstate] = cty.StringVal(n.Estate)
-	elems[markers.TagAddress] = cty.StringVal(address)
-	if slot, ok := n.Slots[address]; ok {
+	if untagKey != markers.TagEstate {
+		elems[markers.TagEstate] = cty.StringVal(n.Estate)
+	}
+	if untagKey != markers.TagAddress {
+		elems[markers.TagAddress] = cty.StringVal(address)
+	}
+	if slot, ok := n.Slots[address]; ok && untagKey != markers.TagSlot {
 		elems[markers.TagSlot] = cty.StringVal(slot)
 	}
 
