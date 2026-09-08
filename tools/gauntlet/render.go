@@ -138,6 +138,12 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("(`strict` today) can be active, and pass or fail per estate, without ever")
 	w("moving either bar.")
 	w("")
+	w("A headline stage marked \"tier-1 gated\" below (#999) activates on tier-1")
+	w("fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 26")
+	w("hand-written per-estate sections: an estate that has never been asked to")
+	w("run it reads `not_run` and stays clear, while a genuine `fail` on it still")
+	w("breaks clear, exactly as any other headline stage.")
+	w("")
 	w("Core is a pinned population that can reach 100%%. The rule for membership is")
 	w("in \"The core set\" below; a core estate carries its reason in the manifest.")
 	w("")
@@ -151,6 +157,8 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 		label := s.Status
 		if !s.Headline {
 			label += ", not part of the headline bars"
+		} else if s.Tier1Gated {
+			label += ", tier-1 gated: not_run does not gate clear"
 		}
 		w("### %d. %s (`%s`, %s)", s.Order, s.Title, s.ID, label)
 		w("")
@@ -632,7 +640,10 @@ func renderProgressIndex(a *Artifact) string {
 	w("asking. An estate is a real OpenTofu or Terraform configuration, pinned by")
 	w("commit, run through every active stage below side by side with stock")
 	w("OpenTofu against the pinned emulator. It is clear when every headline stage")
-	w("passes - an active stage not marked \"no\" in the Headline column below.")
+	w("passes - an active stage not marked \"no\" in the Headline column below. A")
+	w("stage marked \"tier-1 gated\" activates on a fast fixture rather than on")
+	w("per-estate sections (#999): an estate that has never run it stays clear,")
+	w("but a genuine fail on it still breaks clear.")
 	w("")
 	w("{{< gauntlet-bars >}}")
 	w("")
@@ -655,6 +666,8 @@ func renderProgressIndex(a *Artifact) string {
 		headline := "yes"
 		if !s.Headline {
 			headline = "no"
+		} else if s.Tier1Gated {
+			headline = "yes (tier-1 gated)"
 		}
 		w("| %d | %s | %s | %s | %s |", s.Order, s.Title, s.Status, headline, mdCell(firstSentence(s.Proves)))
 	}

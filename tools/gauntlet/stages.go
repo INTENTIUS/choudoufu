@@ -123,13 +123,13 @@ func Stages() []Stage {
 			Break:  "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
 		},
 		{
-			ID: "day2_crash", Order: 10, Title: "Crash between create and destroy", Status: StatusPlanned, Headline: true,
+			ID: "day2_crash", Order: 10, Title: "Crash between create and destroy", Status: StatusActive, Headline: true, Tier1Gated: true,
 			Proves: "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
 			Oracle: "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
 			Break:  "Interrupt and then assert nothing is proposed; the assertion must fail.",
 		},
 		{
-			ID: "day2_teardown", Order: 11, Title: "Teardown", Status: StatusPlanned, Headline: true,
+			ID: "day2_teardown", Order: 11, Title: "Teardown", Status: StatusActive, Headline: true, Tier1Gated: true,
 			Proves: "`choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.",
 			Oracle: "Stock `apply -destroy` on the same estate leaves the same empty account.",
 			Break:  "Leave one resource; the assertion that the estate is empty must fail.",

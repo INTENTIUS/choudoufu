@@ -11,7 +11,10 @@ across real-world configurations, which is the question a customer is
 asking. An estate is a real OpenTofu or Terraform configuration, pinned by
 commit, run through every active stage below side by side with stock
 OpenTofu against the pinned emulator. It is clear when every headline stage
-passes - an active stage not marked "no" in the Headline column below.
+passes - an active stage not marked "no" in the Headline column below. A
+stage marked "tier-1 gated" activates on a fast fixture rather than on
+per-estate sections (#999): an estate that has never run it stays clear,
+but a genuine fail on it still breaks clear.
 
 {{< gauntlet-bars >}}
 
@@ -39,8 +42,8 @@ have a fast signal for contributors.
 | 7 | Remove a block | active | yes | Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay. |
 | 8 | Change count | active | yes | Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity. |
 | 9 | Replace with create_before_destroy | active | yes | A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision. |
-| 10 | Crash between create and destroy | planned | yes | A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound. |
-| 11 | Teardown | planned | yes | `choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked. |
+| 10 | Crash between create and destroy | active | yes (tier-1 gated) | A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound. |
+| 11 | Teardown | active | yes (tier-1 gated) | `choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked. |
 | 12 | Plan, review, apply | active | yes | `plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has. |
 | 13 | Greenfield apply | active | yes | Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers. |
 | 14 | Strict profile | active | no | With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else. |
@@ -57,33 +60,33 @@ answer is and how each check is proven non-vacuous, is
 
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass pass pass |
-| [terralith-scale]({{< relref "terralith-scale" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
-| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass pass pass not run |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-ecs-fargate]({{< relref "corpus-ecs-fargate" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-eks-basic]({{< relref "corpus-eks-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-evoteum-modules]({{< relref "corpus-evoteum-modules" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-giantswarm-crossplane]({{< relref "corpus-giantswarm-crossplane" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-hongbomiao-harbor]({{< relref "corpus-hongbomiao-harbor" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-hongbomiao-labelbox]({{< relref "corpus-hongbomiao-labelbox" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-hongbomiao-storage]({{< relref "corpus-hongbomiao-storage" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-iam-policy]({{< relref "corpus-iam-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-iam-read-only-policy]({{< relref "corpus-iam-read-only-policy" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-lambda-simple]({{< relref "corpus-lambda-simple" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-leynos-monitoring]({{< relref "corpus-leynos-monitoring" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-overture-tiles]({{< relref "corpus-overture-tiles" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-rds-complete-postgres]({{< relref "corpus-rds-complete-postgres" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-s3-bucket-complete]({{< relref "corpus-s3-bucket-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-security-group-complete]({{< relref "corpus-security-group-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass pass not run pass pass pass |
+| [terralith-scale]({{< relref "terralith-scale" >}}) | core | reference | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
+| [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 
 ## Run time
 
@@ -115,7 +118,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | 10m26.9s | cold_deploy 1m15s, migrate 3m16s, test_plan 12s, test_apply 11s, drift_reconverge 21s, day2_rename 40s, day2_remove 23s, day2_count 2m3s, day2_replace 1m11s, plan_approval 54s, greenfield 2m25s |
 | [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | 4m58.1s | cold_deploy 24s, migrate 1m36s, test_plan 3s, test_apply 4s, drift_reconverge 7s, day2_rename 13s, day2_remove 20s, day2_count 1m33s, day2_replace 20s, plan_approval 18s, greenfield 56s |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | 3m29.8s | cold_deploy 32s, migrate 48s, test_plan 3s, test_apply 3s, drift_reconverge 7s, day2_rename 11s, day2_remove 18s, day2_count 29s, day2_replace 7s, plan_approval 13s, greenfield 39s |
-| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m14.2s | cold_deploy 1m28s, migrate 51s, test_plan 2s, test_apply 2s, drift_reconverge 5s, day2_rename 8s, day2_remove 6s, day2_count 16s, day2_replace 26s, plan_approval 10s, greenfield 3s, strict 2s |
+| [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | 4m14.2s | cold_deploy 1m28s, migrate 51s, test_plan 2s, test_apply 2s, drift_reconverge 5s, day2_rename 8s, day2_remove 6s, day2_count 16s, day2_replace 26s, day2_crash 35s, plan_approval 10s, greenfield 3s, strict 2s |
 | [terralith-scale]({{< relref "terralith-scale" >}}) | 5m42.1s | cold_deploy 2m4s, migrate 43s, test_plan 4s, test_apply 5s, drift_reconverge 33s, day2_rename 18s, day2_remove 7s, day2_count 18s, day2_replace 12s, plan_approval 13s, greenfield 1m5s, strict - |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | 10m14.6s | cold_deploy 1m55s, migrate 43s, test_plan 5s, test_apply 8s, drift_reconverge 28s, day2_rename 20s, day2_remove 30s, day2_count 57s, day2_replace 46s, plan_approval 28s, greenfield 3m54s |
 

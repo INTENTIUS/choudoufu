@@ -29,6 +29,12 @@ change that lowers the bars until estates catch up; a non-headline stage
 (`strict` today) can be active, and pass or fail per estate, without ever
 moving either bar.
 
+A headline stage marked "tier-1 gated" below (#999) activates on tier-1
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 26
+hand-written per-estate sections: an estate that has never been asked to
+run it reads `not_run` and stays clear, while a genuine `fail` on it still
+breaks clear, exactly as any other headline stage.
+
 Core is a pinned population that can reach 100%. The rule for membership is
 in "The core set" below; a core estate carries its reason in the manifest.
 
@@ -110,7 +116,7 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
-### 10. Crash between create and destroy (`day2_crash`, planned)
+### 10. Crash between create and destroy (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
 
 Proves: A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.
 
@@ -118,7 +124,7 @@ Oracle: Stock records the old object as deposed and destroys it on the next appl
 
 Break: Interrupt and then assert nothing is proposed; the assertion must fail.
 
-### 11. Teardown (`day2_teardown`, planned)
+### 11. Teardown (`day2_teardown`, active, tier-1 gated: not_run does not gate clear)
 
 Proves: `choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.
 
