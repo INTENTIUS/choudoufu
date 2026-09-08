@@ -126,21 +126,29 @@ def read_carve_set(cfg: config.Config, carve_path: str | pathlib.Path) -> movese
 
 
 def preview_carve(cfg: config.Config, carve_path: str | pathlib.Path) -> list[moveset.MovePreview]:
-    """The write-free preview: run ``live-mv -dry-run`` for every move in the
-    set, in its destination working directory, and emit one preview event per
-    move carrying the tag writes it would make and any refusal it raised.
+    """The write-free preview: run ``live-mv -json -dry-run`` for every move in
+    the set, in its destination working directory, and emit one preview event
+    per move carrying the tag writes it would make and any refusal it raised.
     Nothing is written; -dry-run makes every check and stops. check=False so a
-    refusal's nonzero exit is read as the diagnostic it is, not raised."""
+    refusal's nonzero exit is read as the diagnostic it is, not raised.
+
+    -json, not the human report: the document is printed on a refusal as well
+    as a success, so a refused preview and a passed one come back through one
+    parser, and its ``found_by`` is the engine's own "LIST"/"IDENTITY" rather
+    than a sentence this module would have to read back into a value.
+    Warnings land on stderr under -json so they cannot corrupt the document;
+    both streams are still concatenated here, because a failure with no
+    document at all has to stay legible."""
     cs = moveset.load_carve(pathlib.Path(carve_path).read_text())
     ui.rule(f"preview: {len(cs.moves)} move(s), nothing written")
     previews = []
     for m in cs.moves:
         res = guard.chdf(
-            cfg, "live-mv", "-dry-run", "-no-color",
+            cfg, "live-mv", "-json", "-dry-run", "-no-color",
             "-from-estate", m.from_estate, m.address, m.target,
             cwd=str(cfg.workdir(m.to_estate)), capture=True, check=False,
         )
-        pv = moveset.parse_dry_run(res.stdout + ("\n" + res.stderr if res.stderr else ""), move=m)
+        pv = moveset.parse_preview(res.stdout + ("\n" + res.stderr if res.stderr else ""), move=m)
         if pv.refusal is not None:
             ui.kv(f"preview {m.address}", f"REFUSED: {pv.refusal.summary}", False)
         else:

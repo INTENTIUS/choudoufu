@@ -190,9 +190,15 @@ children are a count on their parent's row and follow it. Saving writes
 ```
 
 The move phase reads `moves`; `rules` records how the rows were filled.
-The preview button runs every move as `live-mv -dry-run` and the page draws
-the map as it would stand once the passed moves are written. The projection
-is the page's arithmetic over the dry-run reports, not a choudoufu feature.
+The preview button runs every move as `live-mv -json -dry-run` and the page
+draws the map as it would stand once the passed moves are written. The
+projection is the page's arithmetic over the dry runs' own documents, not a
+choudoufu feature; the documents are, and the page reads them rather than
+reconstructing a move from the human report's rows, which is the reason
+`-json` exists. A refusal prints a document too, so a refused preview and a
+passed one arrive through the same parser, and `found_by` reads `LIST` or
+`IDENTITY` - the engine's own value for which admission rule found the
+resource.
 `tlmig/carve.py` holds the rules and the file format; `tests/test_carve.py`
 proves later rules win, an override wins over rules, and a row already in
 its destination is not a move.

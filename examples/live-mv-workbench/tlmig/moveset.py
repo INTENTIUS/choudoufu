@@ -120,8 +120,22 @@ def load_carve(text: str) -> CarveSet:
 
 
 # --------------------------------------------------------------------------
-# The dry-run preview (live-mv -dry-run)
+# The dry-run preview (live-mv -json -dry-run)
 # --------------------------------------------------------------------------
+#
+# The preview reads the document -json prints, not the labelled rows the
+# human report renders. internal/command/views/live_mv.go names this
+# workbench's old reconstruction as the reason -json exists (GitHub issue
+# #791), and the document is the better source on three counts: it is printed
+# on a refusal as well as a success, so a refused preview needs no second
+# parser; it carries the refusal's stable code beside the prose; and its
+# ``found_by`` is mv.Path's own value, "LIST" or "IDENTITY", rather than the
+# sentence the human report wraps it in.
+#
+# The text parser below stays as the fallback for the one path that prints no
+# document: a command line -json never reached, which live-mv answers with the
+# usage text before the report is rendered at all.
+
 
 @dataclasses.dataclass(frozen=True)
 class TagWrite:
@@ -132,15 +146,24 @@ class TagWrite:
 
 @dataclasses.dataclass(frozen=True)
 class Refusal:
+    """A refusal as the document reports one. ``code`` is
+    mv.RefusalCode's own stable value where the refusal is one of the five
+    named shapes, and empty otherwise - which is the document's own
+    convention, not a loss of information: ``summary`` and ``detail`` are
+    always set."""
+
     summary: str
     detail: str
+    code: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
 class MovePreview:
-    """One move as ``live-mv -dry-run`` reported it, or the refusal it raised.
-    ``written`` is always False for a dry run; it is a field so the same shape
-    can carry a real write if a caller ever previews after the fact."""
+    """One move as ``live-mv -json -dry-run`` reported it, or the refusal it
+    raised. ``written`` is always False for a dry run; it is a field so the
+    same shape can carry a real write if a caller ever previews after the
+    fact, and ``verified`` beside it is the document's own second fact: the
+    write returned no error, and the marker was read back."""
 
     address: str
     old_address: str
@@ -153,6 +176,9 @@ class MovePreview:
     children: tuple[str, ...]
     written: bool
     refusal: Refusal | None
+    display_name: str = ""
+    verified: bool = False
+    dry_run: bool = True
 
     @property
     def ok(self) -> bool:
@@ -160,9 +186,9 @@ class MovePreview:
 
     def as_event(self) -> dict[str, Any]:
         """The flat shape the visuals side accepts: ``from``/``to`` on each
-        tag write, ``refusal`` null or ``{summary, detail}``. Built by hand so
-        the reserved word ``from`` is a real key, which a dataclass field
-        cannot be."""
+        tag write, ``refusal`` null or ``{summary, detail, code}``. Built by
+        hand so the reserved word ``from`` is a real key, which a dataclass
+        field cannot be."""
         return {
             "address": self.address,
             "old_address": self.old_address,
@@ -170,11 +196,15 @@ class MovePreview:
             "to_estate": self.to_estate,
             "type": self.type,
             "live_id": self.live_id,
+            "display_name": self.display_name,
             "found_by": self.found_by,
             "tag_writes": [{"key": t.key, "from": t.frm, "to": t.to} for t in self.tag_writes],
             "children": list(self.children),
             "written": self.written,
-            "refusal": None if self.refusal is None else {"summary": self.refusal.summary, "detail": self.refusal.detail},
+            "verified": self.verified,
+            "dry_run": self.dry_run,
+            "refusal": None if self.refusal is None else {
+                "summary": self.refusal.summary, "detail": self.refusal.detail, "code": self.refusal.code},
         }
 
 
@@ -241,6 +271,121 @@ def parse_dry_run(text: str, move: CarveMove | None = None) -> MovePreview:
         written="Nothing was written" not in text and refusal is None and "cloud write" in text,
         refusal=refusal,
     )
+
+
+# The document -json prints is one JSON value on stdout. Warnings go to
+# stderr under -json precisely so they cannot corrupt it
+# (internal/command/live_mv.go's own comment), but govern hands us both
+# streams concatenated so a hard failure is still legible, so the document
+# has to be found in the text rather than assumed to be all of it.
+#
+# Keys only this document has, used to tell it from a JSON object that
+# happened to appear inside a diagnostic's prose.
+_DOC_KEYS = frozenset({"from", "to", "resource", "refusal", "dry_run", "written", "found_by"})
+
+
+def find_document(text: str) -> dict | None:
+    """The JSON document in ``text``, or None when there is not one.
+
+    Scans for a decodable object rather than matching a layout, because the
+    engine's own rendering (MarshalIndent) and a test's compact one are the
+    same document. Returns None rather than raising on text that carries no
+    document: the caller's fallback is the labelled-row parser, and that is
+    exactly the case that wants it."""
+    dec = json.JSONDecoder()
+    at = text.find("{")
+    while at != -1:
+        try:
+            doc, _ = dec.raw_decode(text, at)
+        except json.JSONDecodeError:
+            doc = None
+        if isinstance(doc, dict) and _DOC_KEYS & doc.keys():
+            return doc
+        at = text.find("{", at + 1)
+    return None
+
+
+def parse_json_report(doc: dict, move: CarveMove | None = None) -> MovePreview:
+    """Read one ``live-mv -json`` document into a :class:`MovePreview`.
+
+    The mapping is the document's, field for field
+    (views.StatelessMvJSONReport): ``resource`` is the live object,
+    ``from``/``to`` are the two endpoints, and ``found_by`` is "LIST" or
+    "IDENTITY". The two tag writes are derived rather than transcribed,
+    because the document reports endpoints and not writes: the tofu-estate
+    write exists exactly when the two endpoints name different estates, and
+    the tofu-address write is the two ``marker`` values, which are the escaped
+    tag values and not the addresses beside them.
+
+    ``move`` supplies fallbacks for the one case the document leaves empty: a
+    refusal raised before the live resource was ever found, where the engine
+    has nothing but the two addresses it was given.
+    """
+    resource = doc.get("resource") or {}
+    frm = doc.get("from") or {}
+    to = doc.get("to") or {}
+
+    ref = doc.get("refusal")
+    refusal = None
+    if isinstance(ref, dict):
+        refusal = Refusal(summary=ref.get("summary", ""), detail=ref.get("detail", ""), code=ref.get("code", ""))
+
+    from_estate = frm.get("estate") or (move.from_estate if move else "")
+    to_estate = to.get("estate") or (move.to_estate if move else "")
+
+    # Derived from the document's own endpoints, never from the carve.json
+    # fallback above: a preview may report a tag write only where the engine
+    # reported the endpoints it would write between. A refusal raised before
+    # the live resource was found leaves both empty, and the preview then
+    # says no writes - which is the truth - while still naming the estates
+    # the plan asked for.
+    tag_writes = []
+    if frm.get("estate") and to.get("estate") and frm["estate"] != to["estate"]:
+        tag_writes.append(TagWrite(key="tofu-estate", frm=frm["estate"], to=to["estate"]))
+    old_marker, new_marker = frm.get("marker", ""), to.get("marker", "")
+    if old_marker or new_marker:
+        tag_writes.append(TagWrite(key="tofu-address", frm=old_marker, to=new_marker))
+
+    # followers[] is the document's own answer to "what moves with it and is
+    # never written". It is omitted, not empty, when there are none, so an
+    # absent key on a run that found the resource means none - carve.json's
+    # informational children are the fallback only when the document never
+    # got as far as a resource.
+    followers = doc.get("followers")
+    if isinstance(followers, list):
+        children = tuple(f.get("address", "") for f in followers if isinstance(f, dict))
+    elif resource.get("type") or doc.get("found_by"):
+        children = ()
+    else:
+        children = move.children if move is not None else ()
+
+    return MovePreview(
+        address=to.get("address") or (move.target if move else ""),
+        old_address=frm.get("address") or (move.address if move else ""),
+        from_estate=from_estate,
+        to_estate=to_estate,
+        type=resource.get("type", ""),
+        live_id=resource.get("live_id", ""),
+        display_name=resource.get("display_name", ""),
+        found_by=doc.get("found_by", ""),
+        tag_writes=tuple(tag_writes),
+        children=children,
+        written=bool(doc.get("written")),
+        verified=bool(doc.get("verified")),
+        dry_run=bool(doc.get("dry_run")),
+        refusal=refusal,
+    )
+
+
+def parse_preview(text: str, move: CarveMove | None = None) -> MovePreview:
+    """One ``live-mv`` run's output as a preview. The document when there is
+    one, the labelled rows when there is not - the second only reachable when
+    -json never rendered at all (a command line the parser rejected, which
+    live-mv answers with usage text)."""
+    doc = find_document(text)
+    if doc is not None:
+        return parse_json_report(doc, move=move)
+    return parse_dry_run(text, move=move)
 
 
 # --------------------------------------------------------------------------

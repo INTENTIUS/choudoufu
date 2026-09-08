@@ -21,17 +21,40 @@ def _result(stdout: str, rc: int = 0, stderr: str = "") -> guard.Result:
     return guard.Result(argv=["fake"], returncode=rc, stdout=stdout, stderr=stderr, seconds=0.0)
 
 
-def _dry_run(frm: str, to: str, addr: str) -> str:
-    return (
-        "\nWould move one live resource into this estate. Nothing was written (-dry-run).\n\n"
-        f"  from estate    {frm}\n  to estate      {to}\n"
-        f'  tofu-estate    "{frm}" -> "{to}"\n'
-        f"  resource type  aws_iam_policy\n  live ID        arn:aws:iam::354867293429:policy/{addr}\n"
-        f"  old address    {addr}\n  new address    {addr}\n"
-        f'  tofu-address   "{addr}" -> "{addr}"\n'
-        "  found by       listing every aws_iam_policy and reading its ownership markers\n\n"
-        "Rerun without -dry-run to write it.\n"
-    )
+def _dry_run(frm: str, to: str, addr: str, followers: list | None = None) -> str:
+    """The document `live-mv -json -dry-run` prints for one cross-estate move,
+    MarshalIndent'd the way views.StatelessMvJSONHuman renders it."""
+    doc = {
+        "resource": {"type": "aws_iam_policy", "live_id": f"arn:aws:iam::354867293429:policy/{addr}"},
+        "from": {"estate": frm, "address": addr, "marker": addr},
+        "to": {"estate": to, "address": addr, "marker": addr},
+        "dry_run": True, "written": False, "verified": False, "found_by": "LIST",
+    }
+    if followers:
+        doc["followers"] = followers
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def _refusal_doc(frm: str, to: str, addr: str, summary: str, detail: str, code: str = "") -> str:
+    """The document a refused run prints: -json renders one on every path past
+    argument parsing, so a refusal needs no second parser. res is nil on every
+    refusal path in internal/command/live_mv.go, so the endpoints carry the two
+    addresses the command line named and no estate at all."""
+    doc = {"from": {"address": addr}, "to": {"address": addr},
+           "dry_run": True, "written": False, "verified": False,
+           "refusal": {"summary": summary, "detail": detail}}
+    if code:
+        doc["refusal"]["code"] = code
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def _mv_args(a: tuple) -> tuple[str, str, str]:
+    """(from-estate, old address, new address) out of a live-mv argv, read by
+    flag rather than by position so adding one does not silently shift them."""
+    args = list(a)
+    frm = args[args.index("-from-estate") + 1]
+    positional = [x for i, x in enumerate(args) if not x.startswith("-") and args[i - 1] != "-from-estate"]
+    return frm, positional[1], positional[2]
 
 
 class CarveSetHarness(unittest.TestCase):
@@ -99,11 +122,28 @@ class CarveSetHarness(unittest.TestCase):
         self.assertFalse(v.all_clean)
         self.assertTrue(v.all_landed)
 
+    def test_preview_asks_for_the_document(self):
+        """-json, not the human report: the reconstruction the workbench used
+        to do is what internal/command/views/live_mv.go names as the reason
+        -json exists (#791)."""
+        seen = []
+        def fake_chdf(cfg, *a, **kw):
+            seen.append(list(a))
+            frm, old, new = _mv_args(a)
+            return _result(_dry_run(frm, "team-a", old))
+        with mock.patch.object(guard, "chdf", fake_chdf):
+            govern.preview_carve(self.cfg, self.carve)
+        for argv in seen:
+            self.assertEqual(argv[0], "live-mv")
+            self.assertIn("-json", argv)
+            self.assertIn("-dry-run", argv)
+
     def test_preview_emits_one_event_per_move_with_the_tag_writes(self):
         def fake_chdf(cfg, *a, **kw):
-            # a = ("live-mv","-dry-run","-no-color","-from-estate",frm,addr,addr)
-            frm, addr = a[4], a[5]
-            return _result(_dry_run(frm, "team-a", addr))
+            frm, old, new = _mv_args(a)
+            followers = [{"address": "aws_iam_role_policy.team_a_inline", "type": "aws_iam_role_policy"}] \
+                if old == "aws_iam_role.team_a" else None
+            return _result(_dry_run(frm, "team-a", old, followers=followers))
         with mock.patch.object(guard, "chdf", fake_chdf):
             previews = govern.preview_carve(self.cfg, self.carve)
         self.assertEqual(len(previews), 2)
@@ -113,20 +153,33 @@ class CarveSetHarness(unittest.TestCase):
         first = pv[0]
         self.assertEqual(first["tag_writes"][0], {"key": "tofu-estate", "from": "mono", "to": "team-a"})
         self.assertIsNone(first["refusal"])
+        self.assertEqual(first["found_by"], "LIST")
         self.assertIn("aws_iam_role_policy.team_a_inline", first["children"])
 
     def test_preview_captures_a_refusal_and_marks_it_not_ok(self):
-        refusal = "\nError: Address not declared in this estate\n\n  aws_iam_policy.team_a is not declared in estate team-a.\n"
         def fake_chdf(cfg, *a, **kw):
-            return _result("", rc=1, stderr=refusal) if a[5] == "aws_iam_policy.team_a" else _result(_dry_run(a[4], "team-a", a[5]))
+            frm, old, new = _mv_args(a)
+            if old == "aws_iam_policy.team_a":
+                # a refusal still prints its document, and exits nonzero
+                return _result(_refusal_doc(frm, "team-a", old,
+                                            "Address not declared in this estate",
+                                            "aws_iam_policy.team_a is not declared in estate team-a.",
+                                            code="destination_not_declared"), rc=1)
+            return _result(_dry_run(frm, "team-a", old))
         with mock.patch.object(guard, "chdf", fake_chdf):
             previews = govern.preview_carve(self.cfg, self.carve)
         refused = [p for p in previews if not p.ok]
         self.assertEqual([p.address for p in refused], ["aws_iam_policy.team_a"])
         self.assertEqual(refused[0].refusal.summary, "Address not declared in this estate")
+        self.assertEqual(refused[0].refusal.code, "destination_not_declared")
+        # the refused move claims no tag write: the document reported no
+        # endpoints to write between, and the plan's own estates are not a
+        # licence to invent one
+        self.assertEqual(refused[0].tag_writes, ())
         ev = {e["address"]: e["refusal"] for e in events.read(self.cfg) if e["kind"] == "preview"}
         self.assertIsNone(ev["aws_iam_role.team_a"])
         self.assertEqual(ev["aws_iam_policy.team_a"]["summary"], "Address not declared in this estate")
+        self.assertEqual(ev["aws_iam_policy.team_a"]["code"], "destination_not_declared")
 
 
 if __name__ == "__main__":
