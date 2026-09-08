@@ -32,7 +32,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Strict profile (not a headline stage) | not run |  |  |
 
 Last run at commit `70e2722fa4` on 2026-09-07T03:00:49Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`. Total run time 6m38.5s.
-Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.
+Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.
 
 ## Reproduce it
 
