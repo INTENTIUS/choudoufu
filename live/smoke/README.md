@@ -172,13 +172,26 @@ showing its own checks would have caught it.
   resource out of band and the plan surfaces it, never serving a gone
   object from cache.
 - **count-is-a-fungible-set** - *Claim 11: a count pool is a fungible
-  set.* A `count` block's members are interchangeable, so each one is
-  named by a `tofu-slot` marker rather than by its index. Scaling a pool
+  set.* Where nothing in the configuration says which live resource is
+  which, a `count` block's members are interchangeable and a `tofu-slot`
+  marker is what names each one rather than its index. Scaling a pool
   of three down to two removes exactly one member and creates nothing.
   The middle survivor stays the same live object, where stock would
-  renumber and rebuild the tail. The BREAK control deletes the local
-  record, then strips one member's slot, and the plan must refuse the
-  half-slotted set by name rather than bind the odd member by a guess.
+  renumber and rebuild the tail. Then the boundary of the claim, on one
+  type and one AWS CLI call: two `count` blocks of
+  `aws_cloudwatch_log_group` differing in one property - one names its
+  members (`name = "/svc/${count.index}"`), the other leaves the name to
+  the provider (`name_prefix`) - and every tag read back off the live
+  groups as a whole key set, the named pair carrying `tofu-estate` and
+  `tofu-address` and no `tofu-slot` while the pair beside it carries
+  slots `0` and `1`, with the next plan empty so both kinds bind (#969,
+  #976). Two BREAK controls, one per direction: `BREAK=1` deletes the
+  local record then strips one member's slot, and the plan must refuse
+  the half-slotted set by name rather than bind the odd member by a
+  guess; `BREAK_SLOT=1` stamps a `tofu-slot` onto a member the
+  configuration names, where none belongs, and the same tag read that
+  passes in the ordinary run must fail on it - an absence can only be
+  tested by a tag that should not be there.
 
 - **carve-by-retag** - *Claim 12: carve by retag.* Needs Go. The pinned
   stock oracle stands up terralith-gen's scale-1 terralith (79 resources,
@@ -292,6 +305,7 @@ showing its own checks would have caught it.
 | `OPENTOFU_IMAGE=...` | override the stock oracle (default: `live/oracle-versions.json`'s tofu) |
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
+| `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
 
 choudoufu builds from source by default and supports pinning; floci is
 always the pinned image, never built here - that split is deliberate
