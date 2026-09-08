@@ -14,7 +14,10 @@
  * What it cannot see: it runs under node, with this example's dependencies
  * installed. choudoufu's Go CI has neither, so `live/ci_pipelines_test.go` is
  * the backstop that runs there; read its doc comment for what that one proves
- * and what it does not.
+ * and what it does not. `generated-from.json` is what carries a piece of this
+ * proof across: the run records a SHA256 per generator input, and the Go side
+ * re-hashes them, which is how a machine with no node can tell a regenerated
+ * tree from a stale one even when an input change moves no emitted byte.
  *
  * The third tree, `gitlab/`, is the exception this file also has to state,
  * because "regenerate and diff" is the wrong question there: chant's gitlab Op
@@ -94,6 +97,20 @@ describe("the checked-in workflows are current", () => {
       }
     });
   }
+
+  // The stamp is what carries this proof to a machine that cannot run the
+  // generator: live/ci_pipelines_test.go re-hashes the inputs and compares.
+  // Here it is checked the same way a workflow is - regenerate, diff - so a
+  // committed stamp that no run would write fails on the node side too.
+  it("and the stamp records the inputs today's run reads", () => {
+    generate("github", scratch);
+    assert.equal(
+      readFileSync(join(exampleDir, "generated-from.json"), "utf8"),
+      readFileSync(join(scratch, "generated-from.json"), "utf8"),
+      "generated-from.json is not what generate.ts writes today, so the checked-in workflows were produced " +
+        "from an input state that is no longer on disk. Run `npm run generate` and commit the result.",
+    );
+  });
 });
 
 /**

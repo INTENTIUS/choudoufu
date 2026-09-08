@@ -6,6 +6,10 @@
 package residue
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,17 +42,20 @@ import (
 //     the whole two-forge arrangement rests on;
 //   - the choudoufu install every job runs is pinned to a version and a
 //     checksum rather than floating;
+//   - the generator has been run since the inputs last changed, by re-hashing
+//     those inputs and comparing against the stamp generate.ts writes;
 //   - and, when git history is deep enough to answer, no generator input was
 //     committed after the workflows it generates.
 //
 // What it cannot see, stated so nobody reads a green run here as more than it
-// is: with no node available it never regenerates, so it proves correspondence
-// and ordering, not equality. A hand-edit to a workflow committed in the SAME
-// commit as the source change it pretends to reflect is invisible to the
-// ordering check by construction, and invisible to the correspondence checks
-// unless it touches a banner, a CHANT_FORGE or the install line.
-// TestCIPipelineWorkflowsRegenerate closes that gap on any machine that has
-// run `npm install` in the example.
+// is: with no node available it never regenerates, so it proves correspondence,
+// input state and ordering, not equality. A hand-edit to a workflow committed
+// in the SAME commit as the source change it pretends to reflect is invisible
+// to the ordering check by construction, and invisible to the correspondence
+// checks unless it touches a banner, a CHANT_FORGE or the install line - the
+// stamp catches an input that moved without the generator running, not a
+// generated file edited after it ran. TestCIPipelineWorkflowsRegenerate closes
+// that last gap on any machine that has run `npm install` in the example.
 //
 // The example's third tree, `gitlab/`, is not generated at all: chant's gitlab
 // Op generator is cron-only and refuses four of the five Ops by name, so the
@@ -249,8 +256,131 @@ func TestCIPipelineInstallIsPinned(t *testing.T) {
 
 // ciPipelineGeneratorInputs is everything a regeneration reads, relative to
 // the example directory. package-lock.json is here because the chant version
-// it pins is what emits the YAML.
+// it pins is what emits the YAML. generate.ts holds the same list in
+// GENERATOR_INPUTS, and TestCIPipelineStampRecordsItsInputs fails when the two
+// disagree.
 var ciPipelineGeneratorInputs = []string{"generate.ts", "chant.config.ts", "src", "package.json", "package-lock.json"}
+
+// ciPipelineStampFile is what generate.ts writes at the end of every run: the
+// state of the inputs it just read, one SHA256 per file.
+//
+// It is what makes the currency question answerable where node is not
+// installed. Without it the only signal here is commit order, and commit order
+// has a false answer built into it: an input change that moves no output byte
+// leaves nothing to commit, so the ordering check below reports stale forever
+// and its own remedy - regenerate and commit the result - produces no commit.
+// #807's third forge value is exactly that change; `src/forge.ts` grew a value
+// neither generated forge reads.
+const ciPipelineStampFile = "generated-from.json"
+
+// ciPipelineStamp is the stamp's shape. Only `inputs` is load-bearing; `note`
+// is there for whoever opens the file first.
+type ciPipelineStamp struct {
+	Note   []string          `json:"note"`
+	Inputs map[string]string `json:"inputs"`
+}
+
+// ciPipelineInputHashes hashes every generator input the way the stamp keys
+// them: relative to the example directory, slash-separated.
+func ciPipelineInputHashes(t *testing.T) map[string]string {
+	t.Helper()
+
+	hashes := make(map[string]string)
+	for _, entry := range ciPipelineGeneratorInputs {
+		root := filepath.Join(ciPipelinesDir, entry)
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			body, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			rel, relErr := filepath.Rel(ciPipelinesDir, path)
+			if relErr != nil {
+				return relErr
+			}
+			hashes[filepath.ToSlash(rel)] = fmt.Sprintf("%x", sha256.Sum256(body))
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("hashing the generator input %s: %v", entry, err)
+		}
+	}
+
+	// A walk that reached nothing would let every comparison below pass over
+	// an empty set.
+	if len(hashes) < len(ciPipelineGeneratorInputs) {
+		t.Fatalf("hashed %d files for %d generator inputs (%v); this walk is not reaching the tree it covers",
+			len(hashes), len(ciPipelineGeneratorInputs), ciPipelineGeneratorInputs)
+	}
+	return hashes
+}
+
+// TestCIPipelineStampRecordsItsInputs holds that the generator has been run
+// since the inputs last changed, by content rather than by commit order.
+//
+// This is the check the ordering one below cannot make without node: it re-does
+// the hashing generate.ts did and compares. A source change with no
+// regeneration fails here even when the two land in the same commit, which is
+// the blind spot TestCIPipelineWorkflowsAreNotStale documents; and an input
+// change that moves no emitted byte passes here for the right reason, having
+// moved the stamp.
+//
+// What it still cannot see: whether the emitted YAML is what those inputs
+// produce. Only running the generator answers that, which is
+// TestCIPipelineWorkflowsRegenerate and the example's own `npm test`.
+func TestCIPipelineStampRecordsItsInputs(t *testing.T) {
+	if tracked := gitLines(t, "ls-files", "--", ciPipelineStampFile); len(tracked) != 1 {
+		t.Fatalf("git tracks %v for %s; the stamp is how a machine with no node reads the currency of the "+
+			"generated workflows, so it has to be committed with them", tracked, ciPipelineStampFile)
+	}
+
+	path := filepath.Join(ciPipelinesDir, ciPipelineStampFile)
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	var stamp ciPipelineStamp
+	if err := json.Unmarshal(body, &stamp); err != nil {
+		t.Fatalf("%s is not readable as JSON (%v); it is written by generate.ts, so run `npm run generate` in %s "+
+			"rather than repairing it by hand", ciPipelineStampFile, err, ciPipelinesDir)
+	}
+	if len(stamp.Inputs) == 0 {
+		t.Fatalf("%s records no inputs, so it can hold nothing; run `npm run generate` in %s",
+			ciPipelineStampFile, ciPipelinesDir)
+	}
+
+	hashes := ciPipelineInputHashes(t)
+
+	for input, want := range hashes {
+		got, recorded := stamp.Inputs[input]
+		if !recorded {
+			t.Errorf("%s is a generator input, and %s does not record it.\n"+
+				"Run `npm run generate` in %s and commit the result; if it is genuinely not an input, drop it from "+
+				"GENERATOR_INPUTS in generate.ts and from ciPipelineGeneratorInputs here, in one change.",
+				input, ciPipelineStampFile, ciPipelinesDir)
+			continue
+		}
+		if got != want {
+			t.Errorf("%s has changed since the generator last ran: %s records %s, the file hashes to %s.\n"+
+				"The checked-in workflows were produced from an older %s. Run `npm run generate` in %s and commit "+
+				"the result - including the stamp, which moves even when no emitted byte does.",
+				input, ciPipelineStampFile, got[:12], want[:12], input, ciPipelinesDir)
+		}
+	}
+
+	for input := range stamp.Inputs {
+		if _, ok := hashes[input]; !ok {
+			t.Errorf("%s records %s, which is no longer a generator input on disk.\n"+
+				"Run `npm run generate` in %s and commit the result.", ciPipelineStampFile, input, ciPipelinesDir)
+		}
+	}
+}
 
 // lastCommitTouching returns the sha of the most recent commit reachable from
 // HEAD that touched any of paths, or "" when git's history does not reach one.
@@ -275,15 +405,25 @@ func lastCommitTouching(t *testing.T, paths ...string) string {
 // time, so an mtime comparison there is a coin toss, and a guard that fails
 // at random is a guard people delete.
 //
+// The stamp counts as generated output here, and has to: an input change that
+// moves no emitted byte leaves nothing else to commit, and without the stamp
+// this check would then report stale with no way to satisfy it. With it, the
+// remedy in the failure message is always available - regenerating always
+// rewrites the stamp - and TestCIPipelineStampRecordsItsInputs is the content
+// check standing behind it.
+//
 // Its blind spot is the same commit: a source change and a hand-written
 // workflow landing together are, to this check, indistinguishable from a
-// source change and its regeneration. That is what the example's own
-// `npm test` and TestCIPipelineWorkflowsRegenerate are for.
+// source change and its regeneration. The stamp closes that on the input side
+// (it cannot be rewritten without running the generator over those inputs);
+// the example's own `npm test` and TestCIPipelineWorkflowsRegenerate are what
+// close it on the emitted-YAML side.
 func TestCIPipelineWorkflowsAreNotStale(t *testing.T) {
-	generated := make([]string, 0, len(ciPipelineForges))
+	generated := make([]string, 0, len(ciPipelineForges)+1)
 	for _, dir := range ciPipelineForges {
 		generated = append(generated, dir)
 	}
+	generated = append(generated, ciPipelineStampFile)
 	sort.Strings(generated)
 
 	lastSource := lastCommitTouching(t, ciPipelineGeneratorInputs...)

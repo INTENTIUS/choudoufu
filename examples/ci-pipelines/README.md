@@ -146,11 +146,18 @@ github/.github/workflows/*.yml
 forgejo/.forgejo/workflows/*.yml
 ```
 
-and there is a third tree that `npm run generate` does not touch:
+plus `generated-from.json`, the record of which input state they were generated from
+(see the currency guard below). There is a third tree that `npm run generate` does not
+touch:
 
 ```
 gitlab/.gitlab-ci.yml          # hand-written; one job, on a Pipeline Schedule
 ```
+
+`gitlab` is still one of the three forges `src/forge.ts` accepts, because that
+hand-written job runs `chant run` and the Ops read `CHANT_FORGE` at build time
+wherever they run. A forge this project builds for is not necessarily one it
+generates a tree for.
 
 Each is a repository root as a consumer would lay it out. Copy the contents of
 `github/` (or `forgejo/`, or `gitlab/`) into the repository that holds your chant
@@ -232,16 +239,22 @@ Variables:    CHANT_SCHEDULED_OP = live-discover
 A scheduled pipeline with a different selector runs nothing from this file, and a
 push or merge-request pipeline produces no job from it at all.
 
-**`CHANT_FORGE: forgejo`, on GitLab.** `src/forge.ts` takes two values: `github`,
-where a finding is posted through `gh`, and `forgejo`, which is report-only - the
-finding is the job's own log. GitLab is a third report-only instance, because every
-posting mode chant has is the same `reconcilePr` activity shelling to `gh` and there
-is no merge-request note activity (chant #2231). The job therefore builds the forgejo
-Ops, and says so rather than leaving the variable unset: unset defaults to `github`,
-whose `live-discover` opens a GitHub issue and would fail on every scheduled run.
-Giving `gitlab` its own value in `src/forge.ts` is the change to make the day that
-generator grows the triggers this file works around; `src/` is a generator input, so
-it belongs with a regeneration rather than with a hand-written file.
+**`CHANT_FORGE: gitlab`.** `src/forge.ts` takes three values. `github` posts a
+finding through `gh`; `forgejo` and `gitlab` are report-only, and the finding is the
+job's own log. GitLab reports because every posting mode chant has is the same
+`reconcilePr` activity shelling to `gh`, and because chant has no GitLab
+merge-request note activity for one to land on (chant #2231; chant #2256 is the issue
+that would add one, along with the triggers this file works around). The job names
+its forge rather than leaving the variable unset: unset defaults to `github`, whose
+`live-discover` opens a GitHub issue and would fail on every scheduled run.
+
+It set `forgejo` when the file landed (#986), which was true of the build and false
+about the run - `forgejo` was then the only report-only value on offer. Being a forge
+this project *builds* for is not the same as being one it *generates* for, and giving
+GitLab its own value is what lets the second list stay shorter than the first without
+the pipeline misnaming itself (#807). Both currency guards now read this value back
+against `FORGES` in `src/forge.ts` rather than against a literal of their own, so a
+value `chant run` would throw on at module load cannot sit in this file unnoticed.
 
 ## AWS credentials
 
@@ -379,12 +392,23 @@ neither.
 git and the files themselves: every workflow is tracked, the set of workflows is
 exactly the set of `src/*.op.ts` per forge, each file names its own forge and its own
 Op source and sets a matching `CHANT_FORGE`, the choudoufu install is pinned to a
-version and verified against the release's published SHA256, and no generator input
-was committed after the workflows it generates. Its blind spot is stated in the file:
-with no node it proves correspondence and ordering, not equality, and a hand-edit
-committed in the same commit as the source change it pretends to reflect is invisible
-to the ordering check by construction. Where node is available it goes on to
+version and verified against the release's published SHA256, the generator has been
+run since the inputs last changed, and no generator input was committed after the
+workflows it generates. Its blind spot is stated in the file: with no node it proves
+correspondence, input state and ordering, not equality, and a workflow hand-edited
+after a regeneration is invisible to all three. Where node is available it goes on to
 regenerate and diff, which is the same proof `npm test` gives.
+
+**`generated-from.json`** is how the second-to-last of those is answerable at all.
+`generate.ts` writes it at the end of every run: one SHA256 per generator input, which
+`live/ci_pipelines_test.go` re-computes and compares. Commit order alone cannot answer
+the currency question when an input changes and no emitted byte moves - there is then
+nothing to commit beside the source change, and a check asking only "was an input
+committed after the workflows" reports stale forever with a remedy that produces no
+commit. #807's third forge value is exactly that change. The stamp moves whenever an
+input moves, so the remedy is always available, and it catches a source change that
+never went through the generator even when the two land in one commit. It is
+generated: run `npm run generate`, never edit it.
 
 **`gitlab/.gitlab-ci.yml` is guarded differently**, because "regenerate and diff" is
 the wrong question for a file no generator writes. Both guards hold what is left: that

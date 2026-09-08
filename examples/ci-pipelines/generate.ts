@@ -19,12 +19,13 @@
  * which credentials it may reach for.
  */
 
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateOpsPipeline } from "@intentius/chant/op";
 import type { ComponentPipelineOptions, ScheduledOpSpec } from "@intentius/chant/lexicon";
-import { forge } from "./src/forge";
+import { forge, type Forge } from "./src/forge";
 
 const projectDir = dirname(fileURLToPath(import.meta.url));
 
@@ -191,11 +192,92 @@ function options(): ComponentPipelineOptions {
   };
 }
 
-/** Where each forge wants its workflow files, relative to a repository root. */
-const WORKFLOW_DIR: Record<string, string> = {
+/**
+ * Where each forge wants its workflow files, relative to a repository root.
+ *
+ * This is the generated half of `FORGES`, and it is deliberately the shorter
+ * list. A forge can be one this project builds Ops for without being one this
+ * project generates a tree for: where chant's Op generator for that forge
+ * cannot express these Ops, the pipeline is hand-written and committed as it
+ * is, and `main` below refuses to generate for it by name rather than writing
+ * something over it. The build still has to know the forge - the hand-written
+ * job runs `chant run`, which loads `src/forge.ts` the same way a generated
+ * one does.
+ */
+const WORKFLOW_DIR: Partial<Record<Forge, string>> = {
   github: join("github", ".github", "workflows"),
   forgejo: join("forgejo", ".forgejo", "workflows"),
 };
+
+/**
+ * The generator inputs, relative to this directory: everything a regeneration
+ * reads. `live/ci_pipelines_test.go`'s `ciPipelineGeneratorInputs` is the same
+ * list, and a guard there fails when the two disagree.
+ */
+const GENERATOR_INPUTS = ["chant.config.ts", "generate.ts", "package-lock.json", "package.json", "src"];
+
+/**
+ * The stamp: which input state the checked-in trees were generated from.
+ *
+ * The currency question is "are the committed workflows what today's inputs
+ * produce", and answering it needs the generator, so the guard that runs where
+ * node does not have had to ask a proxy instead - was any input committed
+ * after the workflows. That proxy has a false answer built into it: an input
+ * change that moves no output byte leaves nothing to commit, and the proxy
+ * then reports stale forever with a remedy (`npm run generate` and commit the
+ * result) that produces no commit. #807's third forge value is exactly that
+ * change - `src/forge.ts` grew a value neither generated forge reads.
+ *
+ * So the run records what it read. The stamp moves whenever an input moves,
+ * whether or not the emitted YAML does, which gives the proxy something real
+ * to compare and turns it into a content check: a machine with no node can
+ * hash the inputs itself and see whether the generator has been run since they
+ * last changed. That also closes the blind spot the ordering check documents,
+ * on the input side - a source change and a workflow edit landing in one
+ * commit are no longer indistinguishable from a regeneration.
+ */
+const STAMP_FILE = "generated-from.json";
+
+/** Every file under one input entry, relative to the project, slash-separated and sorted. */
+async function inputFiles(entry: string): Promise<string[]> {
+  const full = join(projectDir, entry);
+  const stats = await stat(full);
+  if (!stats.isDirectory()) return [entry];
+
+  const found: string[] = [];
+  for (const child of (await readdir(full)).sort()) {
+    found.push(...(await inputFiles(`${entry}/${child}`)));
+  }
+  return found;
+}
+
+/** The stamp's bytes: sorted paths, one SHA256 each, stable across runs and machines. */
+async function stampBody(): Promise<string> {
+  const paths: string[] = [];
+  for (const entry of GENERATOR_INPUTS) paths.push(...(await inputFiles(entry)));
+  paths.sort();
+
+  const inputs: Record<string, string> = {};
+  for (const path of paths) {
+    inputs[path] = createHash("sha256").update(await readFile(join(projectDir, path))).digest("hex");
+  }
+
+  return (
+    JSON.stringify(
+      {
+        note: [
+          "Written by examples/ci-pipelines/generate.ts on every run. DO NOT EDIT; run `npm run generate`.",
+          "It records the generator inputs the checked-in workflows were produced from, so a machine with no",
+          "node can still tell a regenerated tree from a stale one - which commit order alone cannot, when an",
+          "input change moves no output byte. live/ci_pipelines_test.go re-hashes these files and compares.",
+        ],
+        inputs,
+      },
+      null,
+      2,
+    ) + "\n"
+  );
+}
 
 /**
  * The banner every generated file carries. It names the command that rewrites
@@ -212,12 +294,21 @@ function banner(name: string): string {
 }
 
 async function main(): Promise<void> {
+  const workflowDir = WORKFLOW_DIR[forge];
+  if (!workflowDir) {
+    throw new Error(
+      `${forge} is a forge this project builds Ops for, but not one this generator emits a tree for: ` +
+        `chant's Op generator for it cannot express these Ops, so its pipeline is hand-written and committed ` +
+        `as it stands. Generate for ${Object.keys(WORKFLOW_DIR).join(" or ")}.`,
+    );
+  }
+
   const result = await generateOpsPipeline(specs(), forge, options(), projectDir);
   if (!result.success || !result.files) {
     throw new Error(`generating the ${forge} pipeline failed: ${result.error ?? "no files and no error"}`);
   }
 
-  const dir = join(outDir, WORKFLOW_DIR[forge]);
+  const dir = join(outDir, workflowDir);
   await mkdir(dir, { recursive: true });
 
   // Remove a file for an Op that no longer exists, rather than leaving it
@@ -231,10 +322,17 @@ async function main(): Promise<void> {
     await writeFile(join(dir, file.name), banner(file.name) + file.yaml, "utf8");
   }
 
+  // Last, so a failed generation leaves no stamp claiming a tree it did not
+  // write. Every forge writes the same bytes - the stamp is about the inputs,
+  // not about which forge read them - so `npm run generate` running both in
+  // sequence is idempotent here.
+  await writeFile(join(outDir, STAMP_FILE), await stampBody(), "utf8");
+
   console.log(`${forge}: wrote ${result.files.length} workflow(s) to ${dir}`);
   for (const job of result.jobs ?? []) {
     console.log(`  ${job.jobName}: ${job.trigger.kind} findingMode=${job.findingMode}`);
   }
+  console.log(`  ${STAMP_FILE}: the input state this was generated from`);
 }
 
 await main();
