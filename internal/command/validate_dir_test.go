@@ -6,6 +6,8 @@
 package command
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -43,5 +45,47 @@ func TestValidate_DirArgumentResolvesItsOwnProviders(t *testing.T) {
 	}
 	if got := out.Stderr(); strings.Contains(got, "provider registry.opentofu.org/hashicorp/simple") {
 		t.Errorf("validate %s complained about the provider that is installed in it:\n%s", dir, got)
+	}
+}
+
+// TestValidate_DirArgumentWithoutProvidersStillRefuses is the other side of
+// the field the test above pins, and the reason that one is a check rather
+// than a formality: a "fix" that pointed the lookup at something more
+// permissive, or that stopped consulting the lock file at all, would pass
+// the test above and fail here.
+//
+// The directory carries the identical configuration with nothing installed
+// beside it, which is the ordinary un-initialized case, and validate has to
+// keep saying so.
+func TestValidate_DirArgumentWithoutProvidersStillRefuses(t *testing.T) {
+	dir := t.TempDir()
+	config := `terraform {
+  required_providers {
+    simple = {
+      source = "hashicorp/simple"
+    }
+  }
+}
+
+resource "simple_resource" "example" {
+  value = "seven"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(config), 0o600); err != nil {
+		t.Fatalf("writing the configuration: %v", err)
+	}
+
+	view, done := testView(t)
+	c := &ValidateCommand{Meta: Meta{View: view, WorkingDir: workdir.NewDir(".")}}
+
+	code := c.Run([]string{"-no-color", dir})
+	out := done(t)
+
+	if code == 0 {
+		t.Fatalf("validate %s exited 0 for a directory with no providers installed\n"+
+			"--- stdout ---\n%s\n--- stderr ---\n%s", dir, out.Stdout(), out.Stderr())
+	}
+	if got := out.Stderr(); !strings.Contains(got, "Missing required provider") {
+		t.Errorf("stderr does not report the missing provider:\n%s", got)
 	}
 }

@@ -36,7 +36,6 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/getmodules"
 	"github.com/intentius/choudoufu/internal/getproviders"
-	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/provisioners"
 	"github.com/intentius/choudoufu/internal/states"
@@ -380,6 +379,34 @@ func (m *Meta) RunOperation(ctx context.Context, b backend.Enhanced, opReq *back
 // contextOpts returns the options to use to initialize a OpenTofu
 // context with the settings from this Meta.
 func (m *Meta) contextOpts(ctx context.Context) (*tofu.ContextOpts, error) {
+	return m.contextOptsForDir(ctx, ".")
+}
+
+// contextOptsForDir is [Meta.contextOpts] for a root module directory that
+// is not the process working directory: rootDir is where the provider
+// plugins that will back the context are looked up.
+//
+// GitHub issue #989, which is #973 a third time. Nearly every command in
+// this fork reaches its root module through the global -chdir option, which
+// moves the process itself, so "where the tool runs" and "what the tool
+// reads" are one directory and the distinction below cannot be observed.
+// The exceptions are the commands that take the root module directory as a
+// positional argument: live-check and live-ls, fixed in #988, and validate,
+// which inherits the form from upstream. For those, resolving plugins
+// against the process working directory reads one directory's providers
+// while validating another directory's configuration, and the run then
+// reports "Missing required provider ... run init" for a directory init has
+// already run in.
+//
+// Passing "." reproduces the historical behaviour exactly, which is what
+// [Meta.contextOpts] does: [Meta.pluginsForDir] resolves "." to the same
+// lock file and the same cache directory that [Meta.providerFactories]
+// reached for directly.
+//
+// The experimental new-runtime module injection below is deliberately left
+// on m.WorkingDir. It is a different question from plugin lookup, it is off
+// unless TOFU_X_EXPERIMENTAL_RUNTIME is set, and #989 is about the plugins.
+func (m *Meta) contextOptsForDir(ctx context.Context, rootDir string) (*tofu.ContextOpts, error) {
 	workspace, err := m.Workspace(ctx)
 	if err != nil {
 		return nil, err
@@ -390,22 +417,9 @@ func (m *Meta) contextOpts(ctx context.Context) (*tofu.ContextOpts, error) {
 	opts.UIInput = m.UIInput()
 	opts.Parallelism = m.parallelism
 
-	// If testingOverrides are set, we'll skip the plugin discovery process
-	// and just work with what we've been given, thus allowing the tests
-	// to provide mock providers and provisioners.
-	if m.testingOverrides != nil {
-		opts.Plugins = plugins.NewLibrary(
-			m.testingOverrides.Providers,
-			m.testingOverrides.Provisioners,
-		)
-	} else {
-		var providerFactories map[addrs.Provider]providers.Factory
-		providerFactories, err = m.providerFactories()
-		opts.Plugins = plugins.NewLibrary(
-			providerFactories,
-			m.provisionerFactories(),
-		)
-	}
+	// pluginsForDir keeps the testingOverrides escape hatch: with mock
+	// providers in place there is no plugin discovery to point anywhere.
+	opts.Plugins, err = m.pluginsForDir(rootDir)
 
 	if m.NewRuntimeEnabled() {
 		// Inject runtime modules if the new runtime is enabled.
