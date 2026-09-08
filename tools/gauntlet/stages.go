@@ -31,15 +31,33 @@ package main
 // past what the stage's own docs claim). For a headline stage, flipping
 // Status to active is still the deliberate change that lowers the bars
 // until estates catch up.
+//
+// Tier1Gated is a third, independent axis (#999): whether a headline
+// stage's activation evidence is a tier-1 fixture (live/behaviors.json,
+// #522's ruling) rather than 26 hand-written per-estate sections. #491 and
+// #643 retired the sweep model that used to supply those sections, so an
+// estate with no section for such a stage is not evidence the estate
+// fails it - it is evidence the estate has never been asked to run it.
+// isClearAgainst (artifact.go) treats a "not_run" verdict on a
+// Tier1Gated stage as neutral rather than as a miss: an estate that never
+// exercises it stays clear. A genuine "fail" still fails it, and a genuine
+// per-estate "pass" - reference-ec2-vpc's day2_crash, a survivor of the
+// retired sweep model - still counts, exactly as it would for any other
+// headline stage. This is the maintainer's ruling on #999 (option 2 over
+// "tier-1 stages never gate clear" - chosen specifically so a real,
+// already-recorded pass like that one keeps counting instead of being
+// discarded). Every other headline stage (Tier1Gated: false) is unaffected:
+// a "not_run" on it still breaks clear, exactly as it always has.
 type Stage struct {
-	ID       string `json:"id"`
-	Order    int    `json:"order"`
-	Title    string `json:"title"`
-	Status   string `json:"status"`   // "active" or "planned"
-	Headline bool   `json:"headline"` // counts toward the two bars and toward `next`, once active
-	Proves   string `json:"proves"`
-	Oracle   string `json:"oracle"`
-	Break    string `json:"break"`
+	ID         string `json:"id"`
+	Order      int    `json:"order"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`      // "active" or "planned"
+	Headline   bool   `json:"headline"`    // counts toward the two bars and toward `next`, once active
+	Tier1Gated bool   `json:"tier1_gated"` // "not_run" is neutral for `clear`, not a miss; "fail" still fails it (#999)
+	Proves     string `json:"proves"`
+	Oracle     string `json:"oracle"`
+	Break      string `json:"break"`
 }
 
 const (
@@ -105,13 +123,13 @@ func Stages() []Stage {
 			Break:  "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
 		},
 		{
-			ID: "day2_crash", Order: 10, Title: "Crash between create and destroy", Status: StatusPlanned, Headline: true,
+			ID: "day2_crash", Order: 10, Title: "Crash between create and destroy", Status: StatusActive, Headline: true, Tier1Gated: true,
 			Proves: "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
 			Oracle: "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
 			Break:  "Interrupt and then assert nothing is proposed; the assertion must fail.",
 		},
 		{
-			ID: "day2_teardown", Order: 11, Title: "Teardown", Status: StatusPlanned, Headline: true,
+			ID: "day2_teardown", Order: 11, Title: "Teardown", Status: StatusActive, Headline: true, Tier1Gated: true,
 			Proves: "`choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.",
 			Oracle: "Stock `apply -destroy` on the same estate leaves the same empty account.",
 			Break:  "Leave one resource; the assertion that the estate is empty must fail.",

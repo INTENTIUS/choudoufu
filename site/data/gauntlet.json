@@ -12,6 +12,7 @@
       "title": "Cold deploy",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.",
       "oracle": "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.",
       "break": "Not applicable; this stage has nothing of choudoufu's to break."
@@ -22,6 +23,7 @@
       "title": "Migrate",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "`choudoufu live-import -approve` against the stock state file binds every instance: each state entry becomes a marker on the resource, a record, or an identity derived from the declaration, and the summary line reports zero skipped.",
       "oracle": "The stock state file's instance list. Every address in it must be accounted for by name.",
       "break": "Remove one instance from the expected count; the assertion on the summary line must fail."
@@ -32,6 +34,7 @@
       "title": "Replan from nothing",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "With the state file deleted, `choudoufu live-plan` is empty, and a representative set of rendered identities equals what the AWS CLI reports for the same objects. An empty plan alone is not enough: a wrong identity can converge.",
       "oracle": "Stock `plan` on the migrated state is also empty. Identity strings are compared by value against the CLI, which is the same answer stock's state would hold.",
       "break": "Corrupt one expected identity string; stage 3 must fail on that string and nothing else."
@@ -42,6 +45,7 @@
       "title": "No-op apply",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "Applying the empty plan changes nothing: the estate's tagged-object count before and after is identical.",
       "oracle": "Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.",
       "break": "Expect a different count; the assertion must fail."
@@ -52,6 +56,7 @@
       "title": "Drift and reconverge",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "One live object is mutated out of band through the AWS CLI; the next plan proposes fixing exactly that object and nothing else, and apply reconverges it.",
       "oracle": "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
       "break": "Mutate a second object as well; the single-object assertion must fail."
@@ -62,6 +67,7 @@
       "title": "Rename",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.",
       "oracle": "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
       "break": "Rename without the `moved` block; the plan must show a destroy and a create."
@@ -72,6 +78,7 @@
       "title": "Remove a block",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
       "oracle": "Stock with the same block removed plans the same destroys in a working order.",
       "break": "Keep the block; no destroy may be proposed."
@@ -82,6 +89,7 @@
       "title": "Change count",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.",
       "oracle": "Stock's plan for the same count change, normalised.",
       "break": "Expect a different instance to be destroyed; the assertion must fail."
@@ -92,6 +100,7 @@
       "title": "Replace with create_before_destroy",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.",
       "oracle": "Stock's replace of the same resource leaves the same single object.",
       "break": "Skip the destroy half; the next plan must report a collision rather than proposing nothing."
@@ -100,8 +109,9 @@
       "id": "day2_crash",
       "order": 10,
       "title": "Crash between create and destroy",
-      "status": "planned",
+      "status": "active",
       "headline": true,
+      "tier1_gated": true,
       "proves": "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
       "oracle": "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
       "break": "Interrupt and then assert nothing is proposed; the assertion must fail."
@@ -110,8 +120,9 @@
       "id": "day2_teardown",
       "order": 11,
       "title": "Teardown",
-      "status": "planned",
+      "status": "active",
       "headline": true,
+      "tier1_gated": true,
       "proves": "`choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.",
       "oracle": "Stock `apply -destroy` on the same estate leaves the same empty account.",
       "break": "Leave one resource; the assertion that the estate is empty must fail."
@@ -122,6 +133,7 @@
       "title": "Plan, review, apply",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "`plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.",
       "oracle": "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
       "break": "Apply the planfile after a mutation and expect success; the run must refuse."
@@ -132,6 +144,7 @@
       "title": "Greenfield apply",
       "status": "active",
       "headline": true,
+      "tier1_gated": false,
       "proves": "Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.",
       "oracle": "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
       "break": "Drop one resource from the expected inventory; the comparison must fail."
@@ -142,6 +155,7 @@
       "title": "Strict profile",
       "status": "active",
       "headline": false,
+      "tier1_gated": false,
       "proves": "With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else. Tested and shown per estate; not part of the headline bars.",
       "oracle": "No stock equivalent. The toggle documentation is the oracle, and each toggle's fixture is the comparison.",
       "break": "Turn a toggle off; its refusal must disappear and no other may appear."
