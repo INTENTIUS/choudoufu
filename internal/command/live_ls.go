@@ -466,6 +466,12 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // withhold the listing that already succeeded.
 func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
+	// Whether provider schemas were read, tracked across the skip paths
+	// below rather than only on the path that completes: a comparison that
+	// stops at the subset check still knows which library answered, and
+	// "schemas" is a fact about the run, not about the gap list. GitHub
+	// issue #973, whose repro is a skip.
+	schemasRead := false
 	skip := func(reason string) (liveLsComparison, tfdiags.Diagnostics) {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
@@ -477,7 +483,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 		// caller parsing prose - GitHub issue #966, which reports both a
 		// missing key and a warning that never reached the stream the
 		// caller was reading.
-		return liveLsComparison{Skipped: reason}, diags
+		return liveLsComparison{Skipped: reason, Schemas: schemasRead}, diags
 	}
 
 	config, cfgDiags := c.loadConfig(ctx, dir)
@@ -488,12 +494,23 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 		return skip(fmt.Sprintf("%s has no readable module configuration.", dir))
 	}
 
-	coreOpts, err := c.contextOpts(ctx)
+	// Resolved against DIR rather than against the process working
+	// directory - GitHub issue #973. An error here is not a skip: it means
+	// DIR's lock file names a provider that is not installed beside it,
+	// which is an un-initialized directory, and this command's whole
+	// contract is that a comparison it cannot make fully still runs as far
+	// as it can and says how far that was. The library returned alongside
+	// the error still carries every provider that IS installed.
+	lib, err := c.pluginsForDir(dir)
 	if err != nil {
-		return skip(fmt.Sprintf("providers could not be launched to read schemas: %s.", err))
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Provider plugins are not fully installed",
+			fmt.Sprintf("%s The comparison below runs with whatever provider schemas were available; run \"choudoufu init\" in that directory for the complete answer.", err),
+		))
 	}
 
-	provs := newStatelessProviders(config, coreOpts.Plugins)
+	provs := newStatelessProviders(config, lib)
 	closeProviders := func() {
 		if cd := provs.close(ctx); cd.HasErrors() {
 			log.Printf("[WARN] live-ls: closing providers after the declared-instance comparison: %s", cd.Err())
@@ -501,6 +518,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 	}
 
 	resourceSchemas := provs.resourceSchemas(ctx)
+	schemasRead = len(resourceSchemas) > 0
 
 	// GitHub issue #966: the comparison below runs without schemas, but
 	// liveLsRung's markers.Taggable check cannot, so no instance can be
@@ -564,7 +582,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Address < gaps[j].Address })
 
-	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: len(resourceSchemas) > 0}, diags
+	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead}, diags
 }
 
 // liveLsComparison is what [LiveLsCommand.liveLsGaps] found: the gaps
