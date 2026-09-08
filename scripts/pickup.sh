@@ -24,6 +24,22 @@ REPO="INTENTIUS/choudoufu"
 FETCH=1
 [ "${1:-}" = "-no-fetch" ] && FETCH=0
 
+# The primary checkout, resolved once (#1012). $ROOT is wherever THIS COPY of
+# the script lives - a worktree's checked-out scripts/pickup.sh resolves ROOT
+# to that worktree, not to the primary - so anything that must ask about the
+# primary specifically (the "dirty" check below; HANDOFF's disposition table
+# is keyed on it) has to look past ROOT. `git rev-parse --git-common-dir`
+# does that: in a linked worktree it prints the ABSOLUTE path to the
+# primary's .git; run from the primary itself it prints the bare relative
+# ".git", which is how the two cases are told apart here. A known hard-coded
+# path would break for anyone who cloned this repo somewhere else, so it is
+# used only as the last-resort fallback, never as the mechanism.
+COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null)"
+case "$COMMON_DIR" in
+  /*) PRIMARY="$(cd "$(dirname "$COMMON_DIR")" && pwd)" ;;
+  *)  PRIMARY="$ROOT" ;;
+esac
+
 have() { command -v "$1" >/dev/null 2>&1; }
 hr() { printf '\n== %s\n' "$1"; }
 
@@ -42,10 +58,10 @@ if [ "$FETCH" = 1 ] && git remote get-url origin >/dev/null 2>&1; then
     echo 'origin     fetch failed (offline?); origin/main may be stale'
   fi
 fi
-dirty=$(git status --porcelain | wc -l | tr -d ' ')
+dirty=$(git -C "$PRIMARY" status --porcelain | wc -l | tr -d ' ')
 if [ "$dirty" != "0" ]; then
-  echo "dirty      $dirty uncommitted path(s) in the primary checkout (a session worked in the main tree; read them before anything else):"
-  git status --porcelain | head -20 | sed 's/^/             /'
+  echo "dirty      $dirty uncommitted path(s) in the primary checkout ($PRIMARY; a session worked in the main tree; read them before anything else):"
+  git -C "$PRIMARY" status --porcelain | head -20 | sed 's/^/             /'
 fi
 
 # ------------------------------------------------------------ 2. the artifact
