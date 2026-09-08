@@ -162,6 +162,12 @@ set -uo pipefail
 #                 the real scale-down plan, assert the WRONG instance
 #                 (count_test[0] rather than count_test[1]) was destroyed.
 #                 The stage must report fail.
+#   BREAK_SLOT    set to 1 to run day2_count's G1S break control instead:
+#                 stamp a tofu-slot onto count_test[0] out of band, through
+#                 the AWS CLI, and then run G1S's identical assertions. G1S
+#                 asserts that a count instance the configuration NAMES
+#                 carries no slot, so its break has to be a wrongly-present
+#                 tag rather than a missing one. The stage must report fail.
 #   BREAK_STAGE3  set to 1 to corrupt stage 3's expected inline-policy name.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5's replan.
 #   BREAK_APPROVAL
@@ -1799,6 +1805,155 @@ COUNTPROVEOF
       || { grep -E '^  #' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the two new instances did not bind their own markers cleanly"; }
     log "  No changes - both new instances bind their own markers and plan empty immediately"
 
+    # ── G1S. the two kinds of count instance, side by side (#969/#976) ────
+    # A `tofu-slot` is minted for a count block whose instances resolve
+    # identity.ClassNeedsDiscovery - a genuinely fungible set - and for no
+    # other block. aws_iam_role.count_test above is NOT one: its `name` is
+    # built from count.index, so the configuration itself says which live
+    # role is instance k, lint admits the shape because it can prove the
+    # two names distinct (#217), identity resolution answers CONCRETE per
+    # instance, and there is nothing left for a slot to decide. Those
+    # instances carry tofu-estate and tofu-address and NO tofu-slot, on the
+    # first apply and on every apply after it (live/MARKERS.md, "Which
+    # count instances carry one").
+    #
+    # That correct ABSENCE is what issue #969 reported as a bug, because
+    # the spec's own "Present on" cell said "count instances only" and
+    # nothing anywhere read the tag set back off a slotless count instance
+    # to show otherwise. PR #977 fixed the spec and pinned the behaviour at
+    # the seam that writes the tags (internal/command/
+    # live_plan_count_class_test.go); #976 asked for the estate-scale
+    # claim, read through the AWS CLI after a real apply. This is it.
+    #
+    # An absence is only evidence beside a positive control on the same
+    # read path, so this step stands one up that differs from count_test in
+    # EXACTLY ONE property: name_prefix instead of name. Same type, same
+    # count, same API call, same account, same apply. The provider mints
+    # the role's actual name at create time, nothing in the configuration
+    # says which live role is instance k, identity resolution answers
+    # NEEDS_DISCOVERY, and the slot is then the only record of which member
+    # is which. So a tofu-slot read coming back "None" on count_test cannot
+    # be a broken query or a wrong role name - the identical query returns
+    # 0 and 1 on the two roles standing beside it. It is also why this
+    # control is a second aws_iam_role rather than some server-assigned
+    # type: the rule the pair demonstrates is a property of the BLOCK, not
+    # of the type, and a pair of different types could not show that.
+    #
+    # Established against this checkout's pinned floci image before any
+    # assertion below was written, no tofu in the loop for the read:
+    #
+    #   probe-count-test-0 (name = "...-${count.index}")
+    #                             -> {tofu-estate, tofu-address}
+    #   probe-slotctl-0268ce90...  (name_prefix)
+    #                             -> {tofu-estate, tofu-address, tofu-slot=0}
+    #   probe-slotctl-fa586486...  (name_prefix)
+    #                             -> {tofu-estate, tofu-address, tofu-slot=1}
+    #
+    # BREAK_SLOT=1 stamps a tofu-slot onto count_test[0] out of band,
+    # through the AWS CLI, and then runs the IDENTICAL assertions: the
+    # break here has to be a wrongly-PRESENT tag rather than a missing one,
+    # because what is asserted is an absence. The step must catch it.
+    SLOT_CONTROL_PREFIX="gsxp-slotctl-"
+    slot_control_block() {
+      cat <<SLOTEOF
+resource "aws_iam_role" "slot_control" {
+  count       = 2
+  name_prefix = "$SLOT_CONTROL_PREFIX"
+  path        = "/"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+}
+SLOTEOF
+    }
+    # The whole marker set off the live object, and one tag by value. Both
+    # go through the same IAM call for every role this step reads, which is
+    # what makes the absence and the presence comparable at all.
+    role_tag_keys() { awsl iam list-role-tags --role-name "$1" --query 'sort(Tags[].Key)' --output text | tr '\t' ' '; }
+    role_tag() { awsl iam list-role-tags --role-name "$1" --query "Tags[?Key=='$2'].Value | [0]" --output text; }
+
+    log "=== G1S. the slotless kind and the fungible kind, side by side (#969/#976) ==="
+    slot_control_block > "$ESTATE/day2_count_slots.tofu"
+    SLOT_ADD_PLAN_OUT="$(plan_into 2>&1)"; SLOT_ADD_PLAN_RC=$?
+    [ "$SLOT_ADD_PLAN_RC" -eq 0 ] || { printf '%s\n' "$SLOT_ADD_PLAN_OUT" | tail -40; fail "the slot-control-block-add plan exited $SLOT_ADD_PLAN_RC"; }
+    grep -qF 'Plan: 2 to add, 0 to change, 0 to destroy.' <<< "$SLOT_ADD_PLAN_OUT" \
+      || { printf '%s\n' "$SLOT_ADD_PLAN_OUT" | tail -15; fail "adding the name_prefix count block did not plan exactly 2 creates"; }
+    SLOT_ADD_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; SLOT_ADD_APPLY_RC=$?
+    [ "$SLOT_ADD_APPLY_RC" -eq 0 ] || { printf '%s\n' "$SLOT_ADD_APPLY_OUT" | tail -40; fail "the name_prefix-block-add apply exited $SLOT_ADD_APPLY_RC"; }
+    grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$SLOT_ADD_APPLY_OUT" \
+      || { grep -E 'Apply complete' <<< "$SLOT_ADD_APPLY_OUT"; fail "the name_prefix-block-add apply did not create exactly 2 resources"; }
+
+    # Leg 1: the fungible set. Found the way a reader with no configuration
+    # finds it - by listing the account and reading the markers off what
+    # comes back - and asserted as (tofu-address, tofu-slot) pairs, so a
+    # slot landing on the wrong member is a failure and not a rounding
+    # error.
+    SC_NAMES="$(awsl iam list-roles --query "sort(Roles[?starts_with(RoleName, '$SLOT_CONTROL_PREFIX')].RoleName)" --output text | tr '\t' '\n')"
+    SC_N="$(grep -c . <<< "$SC_NAMES")"
+    [ "$SC_N" = "2" ] || { printf '%s\n' "$SC_NAMES"; fail "expected exactly 2 live slot_control roles named from $SLOT_CONTROL_PREFIX, found $SC_N"; }
+    SC_PAIRS=""
+    while read -r SC_ROLE; do
+      [ -n "$SC_ROLE" ] || continue
+      SC_KEYS="$(role_tag_keys "$SC_ROLE")"
+      [ "$SC_KEYS" = "tofu-address tofu-estate tofu-slot" ] \
+        || fail "the fungible slot_control role $SC_ROLE carries tag keys [$SC_KEYS], not exactly [tofu-address tofu-estate tofu-slot] - a count block whose instances resolve NEEDS_DISCOVERY carries all three (live/MARKERS.md, \"Which count instances carry one\")"
+      SC_ESTATE_TAG="$(role_tag "$SC_ROLE" tofu-estate)"
+      [ "$SC_ESTATE_TAG" = "$ESTATE_NAME" ] || fail "the fungible slot_control role $SC_ROLE carries tofu-estate=$SC_ESTATE_TAG, not $ESTATE_NAME"
+      SC_PAIRS="$SC_PAIRS$(role_tag "$SC_ROLE" tofu-address)=$(role_tag "$SC_ROLE" tofu-slot)
+"
+    done <<< "$SC_NAMES"
+    SC_PAIRS="$(printf '%s' "$SC_PAIRS" | sort | tr '\n' ' ' | sed 's/ *$//')"
+    [ "$SC_PAIRS" = "aws_iam_role.slot_control:0=0 aws_iam_role.slot_control:1=1" ] \
+      || fail "the fungible set's (tofu-address, tofu-slot) pairs read [$SC_PAIRS], not [aws_iam_role.slot_control:0=0 aws_iam_role.slot_control:1=1] - slots are assigned from a monotonic counter per count block starting at 0 (live/MARKERS.md)"
+    log "  fungible set (name_prefix, NEEDS_DISCOVERY): $SC_PAIRS - both slots read off the live roles via the AWS CLI"
+
+    if [ "${BREAK_SLOT:-}" = "1" ]; then
+      log "  BREAK_SLOT=1: stamping tofu-slot=0 onto $CT0_NAME out of band, through the AWS CLI - the absence assertions below assert exactly that tag is not there, so they must catch it"
+      awsl iam tag-role --role-name "$CT0_NAME" --tags Key=tofu-slot,Value=0 >/dev/null \
+        || fail "BREAK_SLOT=1: could not stamp the out-of-band tofu-slot onto $CT0_NAME"
+    fi
+
+    # Leg 2: the client-named set, through the identical calls. The whole
+    # key set first (the block's own `purpose` tag is in it, so this also
+    # says the marker merged into the block's tags rather than replacing
+    # them), then each marker by value.
+    CT0_KEYS="$(role_tag_keys "$CT0_NAME")"
+    CT1_KEYS="$(role_tag_keys "$CT1_NAME")"
+    [ "$CT0_KEYS" = "purpose tofu-address tofu-estate" ] \
+      || fail "count_test[0] ($CT0_NAME) carries tag keys [$CT0_KEYS], not exactly [purpose tofu-address tofu-estate] - the configuration names this instance (name = \"$COUNT_TEST_PREFIX\${count.index}\"), so it resolves CONCRETE and must carry no tofu-slot at all; the slot_control roles beside it, read through the identical call, carry one ($SC_PAIRS)"
+    [ "$CT1_KEYS" = "purpose tofu-address tofu-estate" ] \
+      || fail "count_test[1] ($CT1_NAME) carries tag keys [$CT1_KEYS], not exactly [purpose tofu-address tofu-estate] - see count_test[0]'s message above"
+    CT0_SLOT_TAG="$(role_tag "$CT0_NAME" tofu-slot)"
+    CT1_SLOT_TAG="$(role_tag "$CT1_NAME" tofu-slot)"
+    [ "$CT0_SLOT_TAG" = "None" ] \
+      || fail "count_test[0] ($CT0_NAME) carries tofu-slot=$CT0_SLOT_TAG - a statically named count instance was given a slot, and a reader binding this set by slot rather than by tofu-address would rebind the survivors down one index on a scale-down while the names cannot move"
+    [ "$CT1_SLOT_TAG" = "None" ] \
+      || fail "count_test[1] ($CT1_NAME) carries tofu-slot=$CT1_SLOT_TAG - see count_test[0]'s message above"
+    [ "$(role_tag "$CT0_NAME" tofu-estate)" = "$ESTATE_NAME" ] || fail "count_test[0] no longer carries tofu-estate=$ESTATE_NAME"
+    [ "$(role_tag "$CT1_NAME" tofu-estate)" = "$ESTATE_NAME" ] || fail "count_test[1] no longer carries tofu-estate=$ESTATE_NAME"
+    [ "$(role_tag "$CT0_NAME" tofu-address)" = 'aws_iam_role.count_test:0' ] || fail "count_test[0] no longer carries tofu-address=aws_iam_role.count_test:0"
+    [ "$(role_tag "$CT1_NAME" tofu-address)" = 'aws_iam_role.count_test:1' ] || fail "count_test[1] no longer carries tofu-address=aws_iam_role.count_test:1"
+    log "  client-named set (name from count.index, CONCRETE): $CT0_NAME and $CT1_NAME carry [$CT0_KEYS] - tofu-estate and tofu-address by value, tofu-slot absent (the query returns \"$CT0_SLOT_TAG\"), so this set binds by tofu-address"
+
+    if [ "${BREAK_SLOT:-}" = "1" ]; then
+      fail "BREAK_SLOT=1: the tofu-slot=0 stamped onto $CT0_NAME out of band went unnoticed - this step's absence assertions are not load-bearing"
+    fi
+
+    # And the absence is stable rather than a not-yet: with both kinds live,
+    # the next plan proposes nothing. The fungible pair is bound by its
+    # slots and the client-named pair by its addresses, in one pass.
+    SLOT_NOOP_PLAN_OUT="$(plan_into 2>&1)"; SLOT_NOOP_PLAN_RC=$?
+    [ "$SLOT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$SLOT_NOOP_PLAN_OUT" | tail -30; fail "the plan after adding the name_prefix block exited $SLOT_NOOP_PLAN_RC"; }
+    grep -qF "No changes. Your infrastructure matches the configuration." <<< "$SLOT_NOOP_PLAN_OUT" \
+      || { grep -E '^  #' <<< "$SLOT_NOOP_PLAN_OUT"; fail "the plan with both kinds of count set live is not empty - a slotless set that binds by tofu-address, or a slotted set that binds by slot, did not bind"; }
+    log "  No changes - four count instances, two kinds, both bound on the next plan"
+
     log "=== G2. scale count down: 2 -> 1 ==="
     count_test_block 1 > "$ESTATE/day2_count.tofu"
     COUNT_DOWN_PLAN_OUT="$(plan_into 2>&1)"; COUNT_DOWN_PLAN_RC=$?
@@ -1908,7 +2063,7 @@ COUNTPROVEOF
 
     log ""
     log "PART G (day2_count): PASS"
-    gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_role.count_test from 2 to 1 proposed exactly \"count_test[1] will be destroyed\" (0 add, 0 change, 1 destroy) and applied it, leaving count_test[0]'s server-minted RoleId ($CT0_ID), its CreateDate and its tofu-address=aws_iam_role.count_test:0 marker all unchanged, and tombstoning count_test[1]'s local record (has tombstone, no identity - the #398-guard shape); scaling back from 1 to 2 proposed exactly \"count_test[1] will be created\" (1 add, 0 change, 0 destroy) and brought it back under the SAME deterministic name ($CT1_NAME) with a NEW RoleId ($CT1_ID -> $CT1_NEW_ID) and a new CreateDate, re-marked aws_iam_role.count_test:1 and re-identified in the record store, while count_test[0] stayed untouched throughout; the next plan is empty. Every identity here is read back through the AWS CLI and the local record store, never through choudoufu's own report, and the destroy witness is the RoleId rather than the name or the ARN because both of those are deterministic from configuration and come back identical - confirmed against floci directly, no tofu in the loop, before the assertions were written. Stock oracle (G-ORACLE): real tofu standing the IDENTICAL count block up in the idle greenfield-oracle account showed the identical shape - destroy the higher index only, create the higher index back under the same name with a new RoleId ($ORACLE_CT1_ID -> $ORACLE_CT1_NEW_ID), the lower index's RoleId and CreateDate unchanged both times - and the two sides' normalised action sets are compared literally, not just described. Synthetic block, per live/GAUNTLET.md #8's sanctioned fallback: the pinned crossplane module declares no count at all and its only two for_each knobs (aws_iam_role_policy.additional_policies over var.additional_policies, aws_iam_role_policy_attachment.additional_policy_attachments over toset(var.additional_policies_arns)) are both UNTAGGABLE types that carry no marker to keep an identity in, the second provably resolving to zero instances, and the first's inline-policy set is additionally policed by aws_iam_role_policies_exclusive in the same module; aws_iam_role.count_test reuses a type this estate already exercises and lives in its own day2_count.tofu beside the estate's root wiring (\$ESTATE), so the vendored module stays byte-identical. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and reports fail, proving the which-instance assertion is load-bearing."
+    gauntlet_stage day2_count pass "choudoufu: scaling aws_iam_role.count_test from 2 to 1 proposed exactly \"count_test[1] will be destroyed\" (0 add, 0 change, 1 destroy) and applied it, leaving count_test[0]'s server-minted RoleId ($CT0_ID), its CreateDate and its tofu-address=aws_iam_role.count_test:0 marker all unchanged, and tombstoning count_test[1]'s local record (has tombstone, no identity - the #398-guard shape); scaling back from 1 to 2 proposed exactly \"count_test[1] will be created\" (1 add, 0 change, 0 destroy) and brought it back under the SAME deterministic name ($CT1_NAME) with a NEW RoleId ($CT1_ID -> $CT1_NEW_ID) and a new CreateDate, re-marked aws_iam_role.count_test:1 and re-identified in the record store, while count_test[0] stayed untouched throughout; the next plan is empty. Every identity here is read back through the AWS CLI and the local record store, never through choudoufu's own report, and the destroy witness is the RoleId rather than the name or the ARN because both of those are deterministic from configuration and come back identical - confirmed against floci directly, no tofu in the loop, before the assertions were written. Stock oracle (G-ORACLE): real tofu standing the IDENTICAL count block up in the idle greenfield-oracle account showed the identical shape - destroy the higher index only, create the higher index back under the same name with a new RoleId ($ORACLE_CT1_ID -> $ORACLE_CT1_NEW_ID), the lower index's RoleId and CreateDate unchanged both times - and the two sides' normalised action sets are compared literally, not just described. Synthetic block, per live/GAUNTLET.md #8's sanctioned fallback: the pinned crossplane module declares no count at all and its only two for_each knobs (aws_iam_role_policy.additional_policies over var.additional_policies, aws_iam_role_policy_attachment.additional_policy_attachments over toset(var.additional_policies_arns)) are both UNTAGGABLE types that carry no marker to keep an identity in, the second provably resolving to zero instances, and the first's inline-policy set is additionally policed by aws_iam_role_policies_exclusive in the same module; aws_iam_role.count_test reuses a type this estate already exercises and lives in its own day2_count.tofu beside the estate's root wiring (\$ESTATE), so the vendored module stays byte-identical. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and reports fail, proving the which-instance assertion is load-bearing. G1S (#969/#976), the two kinds of count instance side by side in one apply: the whole tag key set is read back off each live role through the AWS CLI, and count_test[0]/count_test[1] - whose names the configuration itself builds from count.index, so identity resolution answers CONCRETE per instance - carry exactly [purpose tofu-address tofu-estate], with tofu-estate=$ESTATE_NAME and tofu-address=aws_iam_role.count_test:0/:1 asserted by value and tofu-slot ABSENT (the query returns None), while two roles of the SAME type differing in exactly one property - name_prefix instead of name, so NEEDS_DISCOVERY - carry [tofu-address tofu-estate tofu-slot] and read back the pairs $SC_PAIRS through the identical call, which is what makes the absence evidence rather than a broken query; the plan with all four instances live proposes nothing, so the slotless set binds by tofu-address and the fungible one by its slots. BREAK_SLOT=1 stamps a tofu-slot onto count_test[0] out of band through the AWS CLI and the identical assertions catch it, proving the absence check is load-bearing (an absence needs a wrongly-PRESENT tag as its break, not a missing one)."
     log ""
     gauntlet_end_stage
   fi
