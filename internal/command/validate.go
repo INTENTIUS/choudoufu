@@ -91,7 +91,16 @@ func (c *ValidateCommand) validate(ctx context.Context, dir, testDir string, noT
 	validate := func(cfg *configs.Config) tfdiags.Diagnostics {
 		var diags tfdiags.Diagnostics
 
-		opts, err := c.contextOpts(ctx)
+		// dir, not the process working directory - GitHub issue #989.
+		// "validate DIR" is the one upstream command that reaches its root
+		// module by positional argument rather than through -chdir, so it
+		// is the one place where the two can differ; every provider this
+		// configuration names was installed by an "init" run in dir, and
+		// dir is where its lock file and its provider cache live. Local
+		// test modules go through this same closure and are covered by the
+		// same answer, because init installs the whole tree's providers
+		// into dir's one cache.
+		opts, err := c.contextOptsForDir(ctx, dir)
 		if err != nil {
 			diags = diags.Append(err)
 			return diags
