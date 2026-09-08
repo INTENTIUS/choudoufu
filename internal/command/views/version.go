@@ -58,6 +58,7 @@ func (v *VersionMixed) printJsonVersion(version string, versionPrerelease string
 	}
 
 	output := versionOutput{
+		ChoudoufuVersion:   tfversion.Fork,
 		Version:            finalVersion,
 		Platform:           platform,
 		ProviderSelections: providerVersions,
@@ -106,6 +107,24 @@ func (v *VersionMixed) printHumanVersion(version string, versionPrerelease strin
 }
 
 type versionOutput struct {
+	// ChoudoufuVersion is this fork's own release tag (tfversion.Fork),
+	// empty on a development build - the same key, from the same source,
+	// that [LivePlanDocument] carries, and deliberately written with no
+	// "omitempty" for the same reason that document does not use one: a
+	// caller checking a version floor before it spawns a verb needs to
+	// tell a development build of a current binary (the key is present
+	// and empty) from a binary too old to carry the key at all (the key
+	// is absent). With "omitempty" both render as absent and that caller
+	// is back to pattern-matching the human line, which is what this
+	// field was added to stop (#968).
+	ChoudoufuVersion string `json:"choudoufu_version"`
+
+	// Version is the upstream OpenTofu base version this build's engine
+	// is, under upstream's own key so that tooling written against stock
+	// keeps reading it. [LivePlanDocument] calls the same value
+	// "upstream_version"; a choudoufu release tag and the OpenTofu
+	// release its engine forked from are two different numbers, and this
+	// document, like that one, prints both.
 	Version            string            `json:"terraform_version"`
 	Platform           string            `json:"platform"`
 	FIPS140Enabled     bool              `json:"fips140,omitempty"`

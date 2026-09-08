@@ -6,7 +6,36 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 ## choudoufu v0.16.0 (Unreleased)
 
-Nothing recorded yet.
+FORK WORK:
+
+- **`choudoufu version -json` carries the fork tag** (#968). The fork's
+  own release version was readable by a machine only out of the human
+  first line (`choudoufu v0.15.0 (based on OpenTofu v1.13.0-dev)`) or out
+  of `live-plan -json`, which needs a configuration and a cloud call to
+  produce. `version -json` itself named only the upstream base version, as
+  `terraform_version`. It now prints `choudoufu_version` beside it - the
+  same key, from the same `tfversion.Fork`, that `live-plan -json` already
+  carries:
+
+  ```json
+  {
+    "choudoufu_version": "v0.15.0",
+    "terraform_version": "1.13.0-dev",
+    "platform": "darwin_arm64",
+    "provider_selections": {}
+  }
+  ```
+
+  On a development build the value is `""`, and the key is still written -
+  `live-plan -json` made the same choice, and it is the one that matters
+  to the caller this was filed for. INTENTIUS/behold checks a version
+  floor before it spawns any of the four `-json` verbs, because a binary
+  older than v0.14.0 answers an unknown verb with an exit code it would
+  otherwise have to pattern-match. Without `omitempty` that caller can
+  tell a development build (key present, empty) from a binary too old to
+  have the field (key absent); with it, both read as absent and the caller
+  is back to parsing the human line. `terraform_version` keeps its name
+  and its meaning, so anything written against stock still reads it.
 
 ## choudoufu v0.15.0 (2026-09-08)
 

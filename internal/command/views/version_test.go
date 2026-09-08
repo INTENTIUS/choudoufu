@@ -69,6 +69,7 @@ on darwin_arm64
 				})
 			},
 			wantStdout: `{
+  "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",
   "platform": "darwin_arm64",
   "provider_selections": {
@@ -86,6 +87,7 @@ on darwin_arm64
 				})
 			},
 			wantStdout: `{
+  "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",
   "platform": "darwin_arm64",
   "fips140": true,
@@ -104,6 +106,7 @@ on darwin_arm64
 				})
 			},
 			wantStdout: `{
+  "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",
   "platform": "darwin_arm64",
   "provider_selections": {
@@ -171,21 +174,48 @@ on darwin_arm64
 
 // TestVersionViews_fork covers release builds of choudoufu, which set
 // tfversion.Fork to the release tag via linker flags. The human output names
-// the fork release; the JSON output keeps the upstream-shaped version.
+// the fork release; the JSON output keeps the upstream-shaped
+// "terraform_version" and carries the fork tag beside it as
+// "choudoufu_version" - the same key [LivePlanDocument] uses, derived the
+// same way and, like that document, written unconditionally rather than with
+// "omitempty" (#968).
+//
+// The two JSON cases below are the reason the field carries no "omitempty":
+// on a development build the key is PRESENT and empty, so a caller checking a
+// version floor before it spawns a verb can tell that build apart from a
+// binary old enough not to have the field at all, where the key is absent. An
+// "omitempty" field would render both as absent and leave that caller back to
+// pattern-matching the human line, which is what #968 was filed to stop.
 func TestVersionViews_fork(t *testing.T) {
-	tfversion.Fork = "v0.2.0"
-	t.Cleanup(func() { tfversion.Fork = "" })
+	prior := tfversion.Fork
+	t.Cleanup(func() { tfversion.Fork = prior })
 
-	t.Run("human", func(t *testing.T) {
+	t.Run("human on a release build", func(t *testing.T) {
+		tfversion.Fork = "v0.2.0"
 		testVersionHuman(t, arguments.ViewHuman, func(v Version) {
 			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
 		}, "choudoufu v0.2.0 (based on OpenTofu v0.1.0-dev)\non darwin_arm64\n", "")
 	})
 
-	t.Run("json", func(t *testing.T) {
+	t.Run("json on a release build", func(t *testing.T) {
+		tfversion.Fork = "v0.2.0"
 		testVersionHuman(t, arguments.ViewJSON, func(v Version) {
 			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
 		}, `{
+  "choudoufu_version": "v0.2.0",
+  "terraform_version": "0.1.0-dev",
+  "platform": "darwin_arm64",
+  "provider_selections": null
+}
+`, "")
+	})
+
+	t.Run("json on a development build", func(t *testing.T) {
+		tfversion.Fork = ""
+		testVersionHuman(t, arguments.ViewJSON, func(v Version) {
+			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
+		}, `{
+  "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",
   "platform": "darwin_arm64",
   "provider_selections": null

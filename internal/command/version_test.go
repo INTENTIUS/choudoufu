@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/depsfile"
 	"github.com/intentius/choudoufu/internal/getproviders"
+	tfversion "github.com/intentius/choudoufu/version"
 )
 
 func TestVersionCommand_implements(t *testing.T) {
@@ -99,6 +100,48 @@ func TestVersion_flags(t *testing.T) {
 	}
 }
 
+// TestVersion_jsonFork is TestVersion_json on a release-shaped build, where
+// the linker has set tfversion.Fork to the release tag. The two documents
+// TestVersion_json asserts are both development builds and so both carry
+// "choudoufu_version" empty; this one proves the command actually passes the
+// tag through to the rendered document rather than the field being
+// unconditionally blank (#968).
+func TestVersion_jsonFork(t *testing.T) {
+	td := t.TempDir()
+	t.Chdir(td)
+
+	prior := tfversion.Fork
+	t.Cleanup(func() { tfversion.Fork = prior })
+	tfversion.Fork = "v0.15.0"
+
+	view, done := testView(t)
+	c := &VersionCommand{
+		Meta: Meta{
+			WorkingDir: workdir.NewDir("."),
+			View:       view,
+		},
+		Version:  "4.5.6",
+		Platform: getproviders.Platform{OS: "aros", Arch: "riscv64"},
+	}
+	code := c.Run([]string{"-json"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("bad: \n%s", output.Stderr())
+	}
+
+	expected := strings.TrimSpace(`
+{
+  "choudoufu_version": "v0.15.0",
+  "terraform_version": "4.5.6",
+  "platform": "aros_riscv64",
+  "provider_selections": {}
+}
+`)
+	if diff := cmp.Diff(expected, strings.TrimSpace(output.Stdout())); diff != "" {
+		t.Fatalf("wrong output\n%s", diff)
+	}
+}
+
 func TestVersion_json(t *testing.T) {
 	td := t.TempDir()
 	t.Chdir(td)
@@ -124,6 +167,7 @@ func TestVersion_json(t *testing.T) {
 	actual := strings.TrimSpace(output.Stdout())
 	expected := strings.TrimSpace(`
 {
+  "choudoufu_version": "",
   "terraform_version": "4.5.6",
   "platform": "aros_riscv64",
   "provider_selections": {}
@@ -173,6 +217,7 @@ func TestVersion_json(t *testing.T) {
 	actual = strings.TrimSpace(output.Stdout())
 	expected = strings.TrimSpace(`
 {
+  "choudoufu_version": "",
   "terraform_version": "4.5.6-foo",
   "platform": "aros_riscv64",
   "provider_selections": {
