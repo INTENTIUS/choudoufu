@@ -55,6 +55,32 @@
       }
     },
     {
+      "id": "crash-interrupt",
+      "script": "live/e2e/crash-interrupt/run.sh",
+      "category": "shape",
+      "runnable": true,
+      "runner": true,
+      "seam": "A create_before_destroy replace of aws_instance.main (a real vpc+subnet+instance), interrupted with SIGTERM between the create committing and the destroy dispatching via #503's deterministic self-interrupt hook (TOFU_E2E_APPLY_RESOURCE_INTERRUPT, internal/command/apply_e2etesting_crash.go) - no retry loop, one attempt, since the mechanism is deterministic by construction rather than by timing luck. Asserts the new object confirmed live, the old confirmed deposed (one write-back carrying both together), the recovery plan destroying exactly the deposed object, the recovery apply terminating it (confirmed via the AWS CLI), and - the assertion PR #943/issue #938 taught - one more plan after that reading 'No changes' with no foreign claimant, proving the destroyed identity was recorded as a tombstone rather than left for the terminated object's own lingering tag (still readable through the tagging API after termination) to be read as a second live claimant of the same address.",
+      "shapes": [
+        "scalar"
+      ],
+      "identity_kind": "server-minted",
+      "resources": 3,
+      "needs": [
+        "docker",
+        "aws-cli"
+      ],
+      "default_port": 4770,
+      "stage": "day2_crash",
+      "last_run": {
+        "commit": "503e4eeeda5ed86650d98c9b972e3d20d6b18904",
+        "date": "2026-09-08T18:31:20Z",
+        "exit_code": 0,
+        "verdict": "pass",
+        "duration_s": 80.6
+      }
+    },
+    {
       "id": "create-over",
       "script": "live/e2e/create-over/run.sh",
       "category": "shape",
