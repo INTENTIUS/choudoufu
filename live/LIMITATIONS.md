@@ -2553,7 +2553,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unmarked apply of a marker-only resource
 
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's. Fires at two seams that answer the identical question from the same schema predicate (markers.Taggable): as a plan-time error, before a plan is ever approved (internal/command's live_plan.go and live_mode.go - GitHub issue #950, the node-path equivalent of the HCL-rewriting stamp's own plan-time refusal, which issue #644/#944 retired with no replacement until #950 restored one), and as this same finding in the offline `choudoufu live-check` report (internal/live/check's NodeStampUnmarkedApply, issue #454's port), for a configuration nobody has planned yet. A needs-discovery instance whose estate record already holds an identity (issue #364) is exempt from the plan-time form.
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 

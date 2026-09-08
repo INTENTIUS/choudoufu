@@ -172,7 +172,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// the moment ANY provider's schema loaded - random_id's, say - even
 	// while the AWS schema this run actually needed had failed to acquire,
 	// which fabricated a hard error instead of the warning it is now).
-	// Nothing here has to gate anything: [nodeStampUnmarkedApply] carries
+	// Nothing here has to gate anything: [NodeStampUnmarkedApply] carries
 	// the same invariant stamp.SkipReason.Unknown did, so a type with no
 	// schema of its own - whether because this whole configuration was
 	// analyzed without schemas or because one provider of several failed -

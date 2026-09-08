@@ -1235,6 +1235,18 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		return nil, diags
 	}
 
+	// GitHub issue #950: the node-path equivalent of the retired
+	// statelessStampGaps' plan-time "Unstamped marker-only resource"
+	// error. See [statelessUnmarkedApplyGaps]'s own doc comment
+	// (live_plan.go). r.recordStore, unlike recordShrinkStore
+	// (line ~1004 above), is read unconditionally - this check is not
+	// gated on [nodeResolveEnabled] the way edge 3's sweep-demand shrink
+	// is.
+	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate))
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
 	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources

@@ -73,7 +73,7 @@ func TestStampGate_UnknownSchemaIsNotRefused(t *testing.T) {
 // assertStampUnknownWarning finds the "taggability unknown" warning stamping
 // raises for a needs-discovery resource whose type schema this run has not
 // got. This was stamp.SkipReason.Unknown before GitHub issue #644; the
-// node port keeps the rule in nodeStampUnmarkedApply's !hasSchema arm.
+// node port keeps the rule in NodeStampUnmarkedApply's !hasSchema arm.
 func assertStampUnknownWarning(t *testing.T, report Report, typeName string) {
 	t.Helper()
 
@@ -300,7 +300,7 @@ func classesOf(report Report) map[identity.Class]int {
 }
 
 // TestStampGate_UniqueNameCauseIsExemptFromTheUnmarkedApplyRefusal is the
-// one exemption in [nodeStampUnmarkedApply], pinned by rendered finding.
+// one exemption in [NodeStampUnmarkedApply], pinned by rendered finding.
 //
 // A resource whose instances can only be found by their ownership marker is
 // refused when its type has nowhere to write one: applying it unmarked
@@ -314,7 +314,7 @@ func classesOf(report Report) map[identity.Class]int {
 // The guard moved here under GitHub issue #644. It used to be
 // internal/live/stamp's TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused,
 // which drove the HCL-rewriting engine's mustStamp/unstampableAt pair; that
-// engine is deleted, and this file's nodeStampUnmarkedApply is the only
+// engine is deleted, and this file's NodeStampUnmarkedApply is the only
 // place the exemption is implemented now. The wording half of that test -
 // one sentence per cause, asserted on the rendered string - stayed in
 // internal/live/stamp/discoverycause_test.go against
@@ -324,7 +324,7 @@ func classesOf(report Report) map[identity.Class]int {
 // what makes this a test rather than an observation: the two resources are
 // both untaggable, both server-assigned, both CloudFront, and both given a
 // schema with no tags attribute below. The ONLY thing that differs is the
-// cause resolution assigns, so a nodeStampUnmarkedApply that had stopped
+// cause resolution assigns, so a NodeStampUnmarkedApply that had stopped
 // reading the cause fails on the first assertion, and one that had stopped
 // refusing anything at all fails on the second.
 func TestStampGate_UniqueNameCauseIsExemptFromTheUnmarkedApplyRefusal(t *testing.T) {

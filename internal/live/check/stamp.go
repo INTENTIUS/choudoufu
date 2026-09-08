@@ -48,7 +48,7 @@ func (s flatSchemas) ResourceTypeConfig(_ addrs.Provider, _ addrs.ResourceMode, 
 // resource" (the same thing on an instance nothing but its marker can ever
 // find again) - come from whether a resource's type is taggable and whether
 // its identity is server-assigned, neither of which reads the estate name at
-// all (see [nodeStampUnmarkedApply]). The one refusal that DOES
+// all (see [NodeStampUnmarkedApply]). The one refusal that DOES
 // compare against the estate name's actual value, "Ownership marker conflict", only
 // fires when the configuration already hardcodes a *different* literal
 // tofu-estate value for the same resource - and when that is true,
@@ -107,7 +107,7 @@ func declaredEstateNames(ctx context.Context, cfg *configs.Config) []string {
 // It says nothing about provider schemas, deliberately. GitHub issue #230's
 // invariant - a type whose own schema this run could not read is UNKNOWN,
 // never refused - is applied by whoever reads this map against a schema,
-// which since GitHub issue #644 is [nodeStampUnmarkedApply]'s !hasSchema
+// which since GitHub issue #644 is [NodeStampUnmarkedApply]'s !hasSchema
 // arm and nothing else. The first fix for #230 filtered this map by schema presence
 // instead, which held here and nowhere else, and it compared a different
 // predicate from the one stamp applies (a key present in the map, versus a
