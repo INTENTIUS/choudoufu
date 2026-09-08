@@ -1,1 +1,0 @@
-{"description":"Approve terraform apply of root \"estate\" (gate: always). The Destroys run outcome from this phase is the plan's destroy count.","expiresAt":"2026-09-10T02:01:23.151Z","gate":"approve-live-apply","kind":"pending","op":"live-apply","runId":"local-1788832876903","timestamp":"2026-09-08T02:01:23.151Z","version":1}
