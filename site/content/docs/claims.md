@@ -656,11 +656,24 @@ because the cloud never sees it, and nothing in the account records it.
 Under choudoufu ownership is a tag on the resource, and a tag write is an
 API call the cloud's own policy engine evaluates per resource. A role can
 be fenced to half an estate by a condition on the ownership tag, with the
-grant `live/MARKERS.md` publishes under "Granting an estate". A carve, one
-half moving into an estate of its own, is then a governed write the
-platform can refuse. The scenario turns the emulator's IAM enforcement on
-for its run; the harness's own key stays privileged, and only the two
-roles the scenario creates and assumes are governed.
+grant `live/MARKERS.md` publishes under "Granting an estate". That fence
+binds the credential, not the binary: the same condition governs a plain
+AWS CLI call with no choudoufu anywhere in the process, exactly as it
+governs choudoufu's own writes, and what it lets through is not hidden
+from the tool either - the next plan reads live tags, not a log of who
+wrote them. A carve, one half moving into an estate of its own, is then a
+governed write the platform can refuse. The scenario turns the emulator's
+IAM enforcement on for its run; the harness's own key stays privileged,
+and only the two roles the scenario creates and assumes are governed.
+
+The boundary this claim proves is narrow, and it is worth stating exactly
+that way. The grant fences three actions by name -
+`ec2:CreateTags`, `ec2:DeleteTags` and `ec2:TerminateInstances` - on
+resources carrying the ownership tag's value for the caller's half. It
+says nothing about any other action, and nothing about a resource this
+estate does not own. Read it as "this condition governs the actions it
+names, on the resources that carry the tag it names," never as a claim
+that IAM fences every write a tool-less actor could make.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
@@ -671,10 +684,12 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
   just smoke the-tag-is-the-boundary
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke the-tag-is-the-boundary and report the "caught"
-line: it drops the conditions from Bob's grant, and Bob's write on
-Alice's half must go through, which proves the condition and not the
-credentials was the boundary.
+BREAK=1 just smoke the-tag-is-the-boundary and report both "caught"
+lines: the first drops the conditions from Bob's grant, and Bob's write
+on Alice's half through choudoufu must go through, which proves the
+condition and not the credentials was the boundary; the second repeats
+that with no choudoufu in the call at all, a plain AWS CLI write, and it
+must go through too.
 ```
 
 The steps as they print:
@@ -691,20 +706,36 @@ The steps as they print:
    kind of change on the gateway. The provider's CreateTags comes back
    403 and the gateway is untouched.
 5. `Bob converges the same change` - his session, his half.
-6. `the carve begins with a git move, and Bob's attempt at the retag is
+6. `Bob, tool-less, is refused on Alice's half - by AWS, with no
+   choudoufu in the call path` - under Bob's session, with nothing of
+   this tool anywhere in the process, a plain `aws ec2 create-tags` and a
+   plain `aws ec2 terminate-instances` against the database both come
+   back refused. The same condition that governs choudoufu's own writes
+   governs a script's.
+7. `Bob's own half, tool-less, and the platform lets it through - the
+   next plan sees it` - the identical plain CLI call against the
+   gateway, Bob's own half, lands with no choudoufu involved, and the
+   next `choudoufu plan` names the drift and proposes reconciling it -
+   nothing the fence permits is invisible to the tool. Bob then
+   reconciles it with an ordinary apply.
+8. `the carve begins with a git move, and Bob's attempt at the retag is
    denied` - the data module moves to a new root, and Bob's
    `live-mv -from-estate=app` is refused by the platform before anything
    moves.
-7. `Alice completes the carve: one governed tag write` - the same
+9. `Alice completes the carve: one governed tag write` - the same
    command under Alice's session, and tofu-estate becomes data.
-8. `both estates plan clean, each under its own role` - No changes in
+10. `both estates plan clean, each under its own role` - No changes in
    data under Alice and in app under Bob.
-9. `teardown - each estate by its own destroy`.
+11. `teardown - each estate by its own destroy`.
 
 The `BREAK=1` run replaces Bob's grant with the same reach and no
 conditions, then has Bob change a tag on Alice's half. The write must go
 through. If the platform still refused, something other than the
-condition was the boundary and the claim would prove nothing.
+condition was the boundary and the claim would prove nothing. It then
+repeats the write with no choudoufu at all - a plain `aws ec2 create-tags`
+under Bob's session - and that must go through too, or step 6's refusal
+above would have measured a check this tool runs before calling the API
+rather than the condition itself.
 
 One emulator note. Real EC2 refuses with `UnauthorizedOperation`; the
 emulator refuses with a 403 whose body the EC2 SDK cannot parse, so the
