@@ -55,7 +55,34 @@ type LiveLsReport struct {
 	// tiers name resources with no marker to find at all, ever, which this
 	// listing's whole mechanism is reading markers. Empty when ConfigDir is
 	// empty.
+	//
+	// An empty list is only meaningful alongside GapsSkipped and Schemas
+	// below: see GitHub issue #966.
 	Gaps []LiveLsGap
+
+	// GapsSkipped is why the declared-instance comparison did not run,
+	// empty when it ran to completion. GitHub issue #966: an empty Gaps
+	// means two opposite things - the comparison ran and found nothing, or
+	// it never ran - and the -json document made the second one look like
+	// the first by omitting the key entirely.
+	//
+	// It carries the same sentence [command.LiveLsCommand.liveLsGaps]'
+	// "Declared-instance comparison skipped" warning carries, so the
+	// document and the warning cannot say different things, and it is also
+	// set when no configuration directory was given at all - the case where
+	// there is nothing to compare and an empty list would otherwise read as
+	// a comparison that found nothing.
+	GapsSkipped string
+
+	// Schemas is whether the declared-instance comparison read the
+	// provider's own resource schemas. Without them
+	// [command.liveLsRung]'s [markers.Taggable] check cannot run, so the
+	// declaration-carried rung - the larger half of what this comparison
+	// exists to report - classifies nothing and every such instance drops
+	// silently out of Gaps.
+	//
+	// False when no comparison ran at all, which GapsSkipped then explains.
+	Schemas bool
 }
 
 // LiveLsItem is one live resource carrying the listed estate's marker.
@@ -181,14 +208,27 @@ type liveLsJSONGap struct {
 }
 
 type liveLsJSONReport struct {
-	Estate     string           `json:"estate"`
-	Region     string           `json:"region,omitempty"`
-	Consistent bool             `json:"consistent"`
-	Stabilized bool             `json:"stabilized"`
-	Attempts   int              `json:"attempts"`
-	ConfigDir  string           `json:"config_dir,omitempty"`
-	Items      []liveLsJSONItem `json:"items"`
-	Gaps       []liveLsJSONGap  `json:"gaps,omitempty"`
+	Estate     string `json:"estate"`
+	Region     string `json:"region,omitempty"`
+	Consistent bool   `json:"consistent"`
+	Stabilized bool   `json:"stabilized"`
+	Attempts   int    `json:"attempts"`
+	ConfigDir  string `json:"config_dir,omitempty"`
+
+	// Schemas is GitHub issue #966's "what was this computed from", the
+	// same field and the same two values live-check -json carries - see
+	// [schemaSource] and [LiveLsReport.Schemas]. No omitempty: the
+	// un-initialized case is the one the issue was filed about.
+	Schemas string `json:"schemas"`
+
+	Items []liveLsJSONItem `json:"items"`
+
+	// Gaps carries no omitempty and is never nil, so an empty comparison
+	// renders as "gaps": [] rather than as an absent key a reader has to
+	// interpret. GapsSkipped says whether that empty list is an answer or
+	// the absence of one.
+	Gaps        []liveLsJSONGap `json:"gaps"`
+	GapsSkipped string          `json:"gaps_skipped,omitempty"`
 }
 
 func (v *LiveLsJSON) Report(rep LiveLsReport) {
@@ -199,7 +239,14 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 		Stabilized: rep.Stabilized,
 		Attempts:   rep.Attempts,
 		ConfigDir:  rep.ConfigDir,
+		Schemas:    schemaSource(rep.Schemas),
 		Items:      make([]liveLsJSONItem, 0, len(rep.Items)),
+		// Never nil, for the reason the field's own doc comment gives:
+		// encoding/json renders a nil slice as `null`, and GitHub issue
+		// #966's whole complaint is a reader having to interpret a gaps
+		// key that is not there.
+		Gaps:        make([]liveLsJSONGap, 0, len(rep.Gaps)),
+		GapsSkipped: rep.GapsSkipped,
 	}
 	for _, item := range rep.Items {
 		out.Items = append(out.Items, liveLsJSONItem{
@@ -292,13 +339,34 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 	}
 
 	if rep.ConfigDir != "" {
-		fmt.Fprintf(&b, "\n%d declared instance(s) in %s the listing itself cannot see:\n", len(rep.Gaps), rep.ConfigDir)
-		if len(rep.Gaps) == 0 {
-			b.WriteString("None - every declared instance this configuration knows how to check for is either in the listing above or on a rung this run could not classify.\n")
+		// GitHub issue #966: a skipped comparison used to print the same
+		// "0 declared instance(s) ... cannot see" line a completed one
+		// prints when it has nothing to report, so the count read as an
+		// answer. Say it did not run instead of counting nothing.
+		if rep.GapsSkipped != "" {
+			fmt.Fprintf(&b, "\nThe declared-instance comparison against %s did not run: %s\n", rep.ConfigDir, rep.GapsSkipped)
+			b.WriteString("The listing above is unaffected.\n")
+		} else {
+			fmt.Fprintf(&b, "\n%d declared instance(s) in %s the listing itself cannot see:\n", len(rep.Gaps), rep.ConfigDir)
+			if len(rep.Gaps) == 0 {
+				b.WriteString("None - every declared instance this configuration knows how to check for is either in the listing above or on a rung this run could not classify.\n")
+			}
+			for _, gap := range rep.Gaps {
+				fmt.Fprintf(&b, "  %-40s %-20s rung=%s\n", gap.Address, gap.Type, gap.Rung)
+				fmt.Fprintf(&b, "    %s\n", gap.Detail)
+			}
 		}
-		for _, gap := range rep.Gaps {
-			fmt.Fprintf(&b, "  %-40s %-20s rung=%s\n", gap.Address, gap.Type, gap.Rung)
-			fmt.Fprintf(&b, "    %s\n", gap.Detail)
+
+		// The same paragraph live-check's prose report has always ended
+		// with, on the other command that degrades the same way. Printed
+		// whenever a configuration directory was named, skipped comparison
+		// included: "no schemas" is why the answer above is worth less
+		// either way.
+		if !rep.Schemas {
+			b.WriteString("\nNo provider schemas were available, so no resource type's taggability could be read.\n")
+			b.WriteString("Instances whose type carries no tags argument - the declaration-carried rung, which this\n")
+			b.WriteString("listing structurally cannot see - are missing from the section above rather than reported\n")
+			b.WriteString("in it. Run \"choudoufu init\" in that directory for the accurate answer.\n")
 		}
 	}
 
