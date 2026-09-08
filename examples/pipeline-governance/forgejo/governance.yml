@@ -1,0 +1,88 @@
+# forgejo-warden policy for a repository that runs examples/ci-pipelines'
+# Forgejo workflows. Copy it into that repository, change the two placeholder
+# names, then dry-run it:
+#
+#   npx @intentius/forgejo-warden reconcile \
+#     --config governance.yml \
+#     --base-url https://forgejo.example.com \
+#     --token-env FORGEJO_TOKEN --mode dry-run
+#
+# This is the same policy as ../github/governance.yml wherever Forgejo has
+# the same thing, and honestly different wherever it does not. The two
+# differences that matter are the shape of a status-check context and the
+# absence of deployment environments; both are explained in
+# ../README.md and neither is a preference.
+#
+# warden is selective by omission: it manages only what is declared here, and
+# with no `owned:` declaration it creates and updates but never deletes.
+
+orgs:
+  my-org: # your Forgejo org name
+
+    repos:
+      my-estate-repo: # the repository holding the chant project and the estate
+
+        branchProtection:
+          # ── The pull request cannot merge until choudoufu has answered ────
+          #
+          # These two entries are the two jobs that run on a pull request to
+          # main - live-check and live-plan - but a Forgejo status-check
+          # context is not a job name. Forgejo builds it as
+          #
+          #   "<workflow display name> / <job name> (<event>)"
+          #
+          # (services/actions/commit_status.go), and the display name is the
+          # workflow's own `name:` key, which the generated workflows do not
+          # carry, so the stored context for live-check is literally
+          # "/ live-check (pull_request)". Forgejo compiles each required
+          # context as a glob (services/pull/commit_status.go), so these two
+          # patterns bind the half that is stable - the job name and the
+          # event - and keep matching if chant ever emits a `name:` key.
+          - ruleName: main
+            enablePush: false
+            requiredApprovals: 1
+            dismissStaleApprovals: true
+            blockOnOutdatedBranch: true
+            enableStatusCheck: true
+            statusCheckContexts:
+              - "*/ live-check (pull_request)"
+              - "*/ live-plan (pull_request)"
+
+          # ── Who may approve an apply ──────────────────────────────────────
+          #
+          # Forgejo has no deployment environments and no reviewer gate on a
+          # job, so there is no equivalent of the GitHub policy's `production`
+          # environment and this file does not pretend otherwise. What it has
+          # is the gate that is actually load-bearing on both forges: chant's
+          # approval is a commit on chant/lifecycle, so protecting that branch
+          # is what puts an apply behind a reviewer here.
+          - ruleName: chant/lifecycle
+            enablePush: false
+            requiredApprovals: 1
+
+        # ── The credentials the workflows read ───────────────────────────────
+        #
+        # No OIDC path from Forgejo to AWS is verified anywhere in this
+        # organization, so the Forgejo workflows carry a static key pair from
+        # repository secrets. warden manages a secret's PRESENCE and never its
+        # value.
+        #
+        # One caveat with teeth, from forgejo-warden's own
+        # src/cycles/secrets-variables.ts: applying a secret that does not
+        # exist yet PUTs the value of $FORGEJO_SECRET_<NAME> from the apply
+        # run's own environment, and an empty string when that variable is
+        # unset. So an apply run that has not been handed the key creates the
+        # secret empty rather than refusing - which is the opposite of
+        # github-warden's behaviour, and the reason to run this policy in
+        # dry-run first and provision the two values before the first apply.
+        secrets:
+          - name: AWS_ACCESS_KEY_ID
+          - name: AWS_SECRET_ACCESS_KEY
+
+        # A variable value is not secret and is reconciled fully: warden puts
+        # it back if someone edits it in the UI. The generated workflows read
+        # this one twice, as AWS_REGION for choudoufu's tagging-API sweep and
+        # as TF_VAR_aws_region for the provider.
+        variables:
+          - name: AWS_REGION
+            value: us-east-1
