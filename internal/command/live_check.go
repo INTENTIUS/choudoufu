@@ -364,7 +364,11 @@ Usage: choudoufu [global options] live-check [-json] [DIR]
 
   Running "choudoufu init" in DIR first makes the answer more accurate,
   because provider schemas admit resource types the built-in table does not
-  carry. Without them those types read as refused, and the report says so.
+  carry. Without them those types read as refused, and the report says so:
+  the prose report ends with a paragraph naming init, and -json carries a
+  top-level "schemas" field reading "provider" when the provider's own
+  schemas backed the rungs below it and "builtin" when they did not. A
+  "builtin" answer is the degraded one; run init and ask again.
 
   Exits non-zero when anything refuses the configuration, so it can gate CI.
 

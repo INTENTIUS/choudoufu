@@ -86,7 +86,20 @@ func (c *LiveLsCommand) Run(rawArgs []string) int {
 	if report != nil {
 		views.NewLiveLs(args.ViewOptions, c.View).Report(*report)
 	}
-	c.View.Diagnostics(diags)
+	if args.ViewOptions.ViewType == arguments.ViewJSON {
+		// GitHub issue #966. [views.View.Diagnostics] sends WARNINGS to
+		// Stdout, and every diagnostic this command raises is a warning by
+		// design ("every failure along the way downgrades to a warning" -
+		// see liveLsGaps). Under -json that appended prose to the document
+		// a caller parses, so the "Declared-instance comparison skipped"
+		// warning simultaneously broke stdout and never reached the stderr
+		// the issue's reporter was capturing: written, and effectively
+		// never printed. Same fix, same reason, as live-mv's #791 and
+		// live-plan's #894.
+		c.View.DiagnosticsToStderr(diags)
+	} else {
+		c.View.Diagnostics(diags)
+	}
 	if diags.HasErrors() {
 		return 1
 	}
@@ -175,14 +188,22 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		gaps, declared, gapDiags := c.liveLsGaps(ctx, args.ConfigDir, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.ConfigDir, items)
 		diags = diags.Append(gapDiags)
-		rep.Gaps = gaps
+		rep.Gaps = cmp.Gaps
+		rep.GapsSkipped = cmp.Skipped
+		rep.Schemas = cmp.Schemas
 		for i := range rep.Items {
-			if rep.Items[i].Address != "" && declared[rep.Items[i].Address] {
+			if rep.Items[i].Address != "" && cmp.Declared[rep.Items[i].Address] {
 				rep.Items[i].Declared = true
 			}
 		}
+	} else {
+		// No directory, so no comparison, so an empty gap list is the
+		// absence of an answer rather than one. GitHub issue #966: the
+		// document used to omit the key here too, which reads the same as
+		// "compared, and found no gaps".
+		rep.GapsSkipped = "no configuration directory was given; pass DIR to compare this listing against a configuration's declared instances."
 	}
 
 	return rep, diags
@@ -443,15 +464,20 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // at all, so a configuration that will not load, is outside the stateless
 // subset, or cannot be resolved is news worth printing, never a reason to
 // withhold the listing that already succeeded.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []views.LiveLsItem) ([]views.LiveLsGap, map[string]bool, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	skip := func(reason string) ([]views.LiveLsGap, map[string]bool, tfdiags.Diagnostics) {
+	skip := func(reason string) (liveLsComparison, tfdiags.Diagnostics) {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
 			"Declared-instance comparison skipped",
 			fmt.Sprintf("%s The cloud listing above is unaffected.", reason),
 		))
-		return nil, nil, diags
+		// The reason travels in the report as well as in the warning, so
+		// the -json document says why its gap list is empty without a
+		// caller parsing prose - GitHub issue #966, which reports both a
+		// missing key and a warning that never reached the stream the
+		// caller was reading.
+		return liveLsComparison{Skipped: reason}, diags
 	}
 
 	config, cfgDiags := c.loadConfig(ctx, dir)
@@ -475,6 +501,20 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 	}
 
 	resourceSchemas := provs.resourceSchemas(ctx)
+
+	// GitHub issue #966: the comparison below runs without schemas, but
+	// liveLsRung's markers.Taggable check cannot, so no instance can be
+	// classified declaration-carried and every one of them drops silently
+	// out of the gap list. That is the issue's own repro - a clean-looking
+	// empty answer - so it is said out loud here and carried in the
+	// report's Schemas field for a reader that parses no prose.
+	if len(resourceSchemas) == 0 {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Declared-instance comparison ran without provider schemas",
+			fmt.Sprintf("No provider schema was available for %s, so no resource type's taggability could be read: an instance whose type carries no tags argument - the declaration-carried rung, which this listing structurally cannot see - is missing from the gap list below rather than reported in it. Run \"choudoufu init\" in that directory for the accurate answer.", dir),
+		))
+	}
 
 	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
 		closeProviders()
@@ -524,7 +564,24 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Address < gaps[j].Address })
 
-	return gaps, declared, diags
+	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: len(resourceSchemas) > 0}, diags
+}
+
+// liveLsComparison is what [LiveLsCommand.liveLsGaps] found: the gaps
+// themselves, the declared-address set the item listing is marked against,
+// whether provider schemas backed any of it, and - when it did not run at
+// all - why.
+//
+// It is a struct rather than four return values because GitHub issue #966
+// added the last two, and the two it added are the ones a caller is most
+// likely to forget: a zero liveLsComparison is the honest answer for a
+// comparison that produced nothing, and Skipped is what tells a reader
+// whether the empty Gaps above it means "none" or "not asked".
+type liveLsComparison struct {
+	Gaps     []views.LiveLsGap
+	Declared map[string]bool
+	Schemas  bool
+	Skipped  string
 }
 
 // liveLsRung classifies why a declared instance cannot be found by this
@@ -584,6 +641,14 @@ Usage: choudoufu [global options] live-ls -estate=NAME [options] [DIR]
   reads as an absence when it is really a rung this listing's own mechanism
   cannot reach. DIR is never required: the listing above needs no
   configuration to be complete on its own terms.
+
+  That comparison needs DIR's provider schemas to tell a declaration-carried
+  instance from a real absence, so run "choudoufu init" in DIR first. Without
+  them the comparison still runs and still reports the record rung, but no
+  declaration-carried instance is classified at all. -json says which it got
+  in a top-level "schemas" field, "provider" or "builtin"; its "gaps" key is
+  always present, with "gaps_skipped" naming the reason when the comparison
+  did not run rather than leaving an empty list to read as "no gaps".
 
 Options:
 

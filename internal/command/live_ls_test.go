@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -539,5 +541,154 @@ func TestLiveLsCommand_Run_noEstate(t *testing.T) {
 	}
 	if !strings.Contains(output.Stderr(), "No estate named") {
 		t.Errorf("stderr does not explain the missing -estate:\n%s", output.Stderr())
+	}
+}
+
+// GitHub issue #966, live-ls's half. Two separate defects, both of which
+// let an un-initialised directory return a clean-looking answer:
+//
+//  1. liveLsGaps' "Declared-instance comparison skipped" warning is a
+//     warning, and [views.View.Diagnostics] sends warnings to STDOUT. Under
+//     -json that put prose after the document (breaking any parser reading
+//     stdout) while leaving stderr empty - which is exactly what the issue
+//     reports, "checked twice, stderr captured to a file". The warning was
+//     written and effectively never seen. #791 and #894 already fixed the
+//     same class on live-mv and live-plan.
+//
+//  2. In the issue's own repro nothing was skipped at all: the comparison
+//     ran with no provider schemas, liveLsRung could classify no
+//     declaration-carried instance without markers.Taggable, and every gap
+//     dropped out silently, leaving "gaps" absent.
+
+// liveLsJSONDoc is this test file's decode target, the same convention
+// liveCheckJSONDoc follows in live_check_test.go: only the fields these
+// tests assert on, since views.liveLsJSONReport is unexported.
+type liveLsJSONDoc struct {
+	Estate      string `json:"estate"`
+	ConfigDir   string `json:"config_dir"`
+	Schemas     string `json:"schemas"`
+	GapsSkipped string `json:"gaps_skipped"`
+	Items       []struct {
+		Type    string `json:"type"`
+		Address string `json:"address"`
+	} `json:"items"`
+	Gaps *[]struct {
+		Address string `json:"address"`
+		Rung    string `json:"rung"`
+	} `json:"gaps"`
+}
+
+// liveLsJSONRun runs live-ls -json against the fake tagging server with
+// dir as its configuration directory, and returns the decoded document
+// alongside the raw streams.
+func liveLsJSONRun(t *testing.T, dir string) (liveLsJSONDoc, string, string) {
+	t.Helper()
+	srv := &fakeLiveLsServer{
+		t: t,
+		tagged: []cloudcontrol.TaggedResource{
+			{
+				ResourceARN: "arn:aws:s3:::my-bucket",
+				Tags:        map[string]string{"tofu-estate": "prod", "tofu-address": "aws_s3_bucket.data"},
+			},
+		},
+	}
+	server := srv.start()
+
+	t.Setenv("TOFU_LIVE_CLOUDCONTROL", "")
+	t.Setenv("AWS_ENDPOINT_URL", server.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	t.Setenv("AWS_REGION", "us-east-1")
+
+	// WorkingDir "." (this package's own directory), the same base
+	// newLiveCheckCommand uses, so a DIR argument resolves the way it does
+	// on a command line rather than against an unrelated temporary
+	// directory.
+	view, done := testView(t)
+	c := &LiveLsCommand{Meta: Meta{WorkingDir: workdir.NewDir("."), View: view}}
+	args := []string{"-no-color", "-json", "-estate=prod"}
+	if dir != "" {
+		args = append(args, dir)
+	}
+	c.Run(args)
+	out := done(t)
+
+	var doc liveLsJSONDoc
+	if err := json.Unmarshal([]byte(out.Stdout()), &doc); err != nil {
+		t.Fatalf("stdout is not one JSON document and nothing else: %v\n--- stdout ---\n%s\n--- stderr ---\n%s", err, out.Stdout(), out.Stderr())
+	}
+	return doc, out.Stdout(), out.Stderr()
+}
+
+// TestLiveLsCommand_Run_json_skippedComparisonReachesStderr is defect 1.
+// The assertion that matters is not "stderr mentions the skip" on its own -
+// it is that AND stdout being parseable, because the old behaviour
+// satisfied neither and moving the warning anywhere else on stdout would
+// satisfy only the first.
+func TestLiveLsCommand_Run_json_skippedComparisonReachesStderr(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("resource \"aws_s3_bucket\" {\n"), 0o600); err != nil {
+		t.Fatalf("writing the unparseable configuration: %v", err)
+	}
+
+	doc, stdout, stderr := liveLsJSONRun(t, dir)
+
+	if !strings.Contains(stderr, "Declared-instance comparison skipped") {
+		t.Errorf("the skip warning did not reach stderr:\n--- stderr ---\n%s\n--- stdout ---\n%s", stderr, stdout)
+	}
+	if strings.Contains(stdout, "Declared-instance comparison skipped") {
+		t.Errorf("the skip warning was printed on stdout, alongside the document a parser reads:\n%s", stdout)
+	}
+	if doc.Gaps == nil {
+		t.Error("gaps is absent from the document, which reads as \"no gaps\" - GitHub issue #966's own words")
+	} else if len(*doc.Gaps) != 0 {
+		t.Errorf("gaps = %+v for a comparison that never ran", *doc.Gaps)
+	}
+	if doc.GapsSkipped == "" {
+		t.Error("gaps_skipped is empty, so the empty gaps list above is indistinguishable from a complete comparison")
+	}
+}
+
+// TestLiveLsCommand_Run_json_uninitializedDirectorySaysBuiltin is defect 2:
+// the issue's own repro. This package installs no provider plugin, so the
+// comparison runs, completes, and classifies nothing.
+func TestLiveLsCommand_Run_json_uninitializedDirectorySaysBuiltin(t *testing.T) {
+	// A real fixture rather than a written-out temporary one, the way
+	// TestLiveCheckJSON_DemoEstateListsInstancesWithRungs uses it: the
+	// point of the test is a configuration this command can actually load
+	// and resolve while holding no provider schema at all.
+	doc, stdout, stderr := liveLsJSONRun(t, "../../live/e2e/estate")
+
+	if doc.Schemas != "builtin" {
+		t.Errorf("schemas = %q for a directory with no .terraform, want \"builtin\"\n--- stdout ---\n%s\n--- stderr ---\n%s", doc.Schemas, stdout, stderr)
+	}
+	if doc.Gaps == nil {
+		t.Error("gaps is absent from the document, which reads as \"no gaps\" - GitHub issue #966's own words")
+	}
+	// The comparison RAN here - it did not skip - which is what makes this
+	// the issue's own case rather than the skip case above: a completed
+	// comparison whose answer is silently worth less.
+	if doc.GapsSkipped != "" {
+		t.Errorf("gaps_skipped = %q; this test is meant to exercise a comparison that completes, not one that skips", doc.GapsSkipped)
+	}
+	if !strings.Contains(stderr, "Declared-instance comparison ran without provider schemas") {
+		t.Errorf("the degradation was not reported on stderr either:\n--- stderr ---\n%s", stderr)
+	}
+	if strings.Contains(stdout, "Warning") {
+		t.Errorf("a warning was printed on stdout, alongside the document a parser reads:\n%s", stdout)
+	}
+}
+
+// TestLiveLsCommand_Run_json_noConfigDirStillCarriesGaps: with no DIR there
+// is nothing to compare, and an empty gaps list would read as a comparison
+// that found nothing. The reason has to be there instead.
+func TestLiveLsCommand_Run_json_noConfigDirStillCarriesGaps(t *testing.T) {
+	doc, stdout, _ := liveLsJSONRun(t, "")
+
+	if doc.Gaps == nil {
+		t.Errorf("gaps is absent with no DIR given:\n%s", stdout)
+	}
+	if doc.GapsSkipped == "" {
+		t.Errorf("gaps_skipped is empty with no DIR given, so an empty gaps list reads as an answer:\n%s", stdout)
 	}
 }
