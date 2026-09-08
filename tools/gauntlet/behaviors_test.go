@@ -346,7 +346,7 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 //   - provisioner-taint proves the fork's own create-time-provisioner taint
 //     tracking (record-primary identity's Provisioned bit surviving a
 //     failed apply). That is a different mechanism from every stage above,
-//     including the planned day2_crash: day2_crash is about an interrupted
+//     including day2_crash: day2_crash is about an interrupted
 //     CREATE-BEFORE-DESTROY replace's deposed key, not a provisioner
 //     failure, and nothing in this fixture uses create_before_destroy.
 //
@@ -360,7 +360,7 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 // identity resolution. day2_remove is mapped with genuine, passing
 // evidence (see the day2RemoveFixtures block below) but does not meet
 // that bar - only test_plan does - so BehaviorsProven(committed
-// live/behaviors.json) is 1, not 2.
+// live/behaviors.json) is 1, not 3.
 //
 // destroy-teardown -> day2_teardown (#804, following #557's already-built,
 // already-passing fixture and #522's ruling that activation is gated on
@@ -385,6 +385,18 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 // per-estate section to count as passing for that estate, flipping this
 // specific stage regresses the board the same way #480 did. See #804's PR
 // body for the exact numbers and the follow-up this blocks on.
+//
+// crash-interrupt -> day2_crash (#805, following #503's already-proven
+// deterministic self-interrupt mechanism): the fixture is mapped with
+// genuine, passing evidence but covers only the "scalar" shape (the crash
+// target is a single aws_instance, not count/for_each/module-nested) and
+// only one identity kind (server-minted) - so it sits at the same ceiling
+// day2_remove and day2_teardown do, and BehaviorsProven(committed
+// live/behaviors.json) is 1, not 4. day2_crash's Status (stages.go) also
+// stays StatusPlanned, for the identical isClearAgainst reason named above
+// for day2_teardown - confirmed directly on day2_crash (a throwaway,
+// reverted probe: flipping tanked core clear from 26/26 to 1/26), not just
+// inferred from #804's finding. See #805's PR body for the exact numbers.
 func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 	root := repoRootForTest(t)
 	bi, err := LoadBehaviorIndex(root)
@@ -409,6 +421,7 @@ func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 		"tagging-sweep":          "day2_remove",
 		"record-store":           "day2_remove",
 		"destroy-teardown":       "day2_teardown",
+		"crash-interrupt":        "day2_crash",
 	}
 	unmapped := []string{"dataread-projection", "provisioner-taint"}
 
@@ -531,12 +544,46 @@ func TestCommittedBehaviorIndexStageMappingIsSound(t *testing.T) {
 		t.Fatal("day2_teardown's mapped fixtures now meet the ruling's shape+identity-kind coverage bar - that is good news (the gap closed), but this test's own commentary above is now stale and must be rewritten, not left claiming a gap that no longer exists")
 	}
 
+	// day2_crash (issue #805): crash-interrupt is mapped and genuinely
+	// exercises the stage - a real create_before_destroy replace of
+	// aws_instance.main interrupted deterministically between the create
+	// committing and the destroy dispatching (#503's self-interrupt hook),
+	// asserting the same shape #483/#503 already proved on
+	// reference-ec2-vpc PLUS the tombstone assertion PR #943/issue #938
+	// taught (one more plan after the recovery apply reads "No changes"
+	// with no foreign claimant, rather than refusing on the terminated
+	// object's own lingering tag). But it covers only the "scalar" shape
+	// (the crash target is a single aws_instance, not count/for_each/
+	// module-nested) and only one of the three named identity kinds
+	// (server-minted; no deterministic- or no-server-id fixture exercises
+	// a crashed replace today). Asserted directly, the same reasoning
+	// day2_remove's block above uses, so a future change that accidentally
+	// makes day2_crash "proven" without actually closing either gap is
+	// caught here by name.
+	var day2CrashFixtures []BehaviorFixture
+	for _, f := range bi.Fixtures {
+		if f.Stage == "day2_crash" {
+			day2CrashFixtures = append(day2CrashFixtures, f)
+		}
+	}
+	if len(day2CrashFixtures) == 0 {
+		t.Fatal("day2_crash has no mapped fixtures; the mapping above is stale")
+	}
+	for _, f := range day2CrashFixtures {
+		if f.LastRun == nil || f.LastRun.Verdict != VerdictPass {
+			t.Fatalf("day2_crash's fixture %q is not passing; the mapping above no longer describes genuine, passing evidence", f.ID)
+		}
+	}
+	if meetsShapeAndIdentityCoverage("day2_crash", day2CrashFixtures) {
+		t.Fatal("day2_crash's mapped fixtures now meet the ruling's shape+identity-kind coverage bar - that is good news (the gap closed), but this test's own commentary above is now stale and must be rewritten, not left claiming a gap that no longer exists")
+	}
+
 	proven, total := BehaviorsProven(bi)
 	if total != len(Stages()) {
 		t.Fatalf("BehaviorsProven total = %d, want %d", total, len(Stages()))
 	}
 	if proven != 1 {
-		t.Fatalf("BehaviorsProven(committed live/behaviors.json) = %d, want 1 (test_plan only - day2_remove and day2_teardown are both mapped with genuine, passing evidence but neither meets the ruling's shape+identity-kind coverage bar) - if a fixture's last_run now fails, or the mapping or coverage changed, update this pin deliberately rather than silencing it", proven)
+		t.Fatalf("BehaviorsProven(committed live/behaviors.json) = %d, want 1 (test_plan only - day2_remove, day2_teardown and day2_crash are all mapped with genuine, passing evidence but none meets the ruling's shape+identity-kind coverage bar) - if a fixture's last_run now fails, or the mapping or coverage changed, update this pin deliberately rather than silencing it", proven)
 	}
 }
 
