@@ -25,4 +25,5 @@ surface are here too.
 | [Where things are stored]({{< relref "storage" >}}) | State, records and receipts, and what lives where |
 | [How the compatibility numbers are measured]({{< relref "measurement" >}}) | Where the corpus ranking comes from, and what not to read into it |
 | [How the pinned AWS provider gets bumped]({{< relref "provider-bump" >}}) | What a provider upgrade can change, and how it is reviewed |
+| [Running an estate from CI]({{< relref "cicd" >}}) | The five jobs a choudoufu pipeline runs, per forge, and what the governance policies lock |
 | [Reference]({{< relref "reference" >}}) | The fork's call surface, per stage |
