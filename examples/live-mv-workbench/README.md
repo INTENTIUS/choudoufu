@@ -289,6 +289,38 @@ rebuilds on every run so a change is never demoed stale; a run made this
 way says so in its preflight line, because its numbers are this build's,
 not the docs'.
 
+## The measured run
+
+The numbers this example quotes come from one recorded run, stamped the way
+the board stamps one, so a reader can tell a measurement from a memory. A run
+on a different pin is a different run; re-measure rather than carry a number
+forward.
+
+| | |
+|---|---|
+| commit | `60d0cdf63f` |
+| choudoufu | v0.15.0 (`choudoufu version` inside the demo container) |
+| emulator | floci `sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, the digest `live/floci-image` pins |
+| date | 2026-09-08 |
+| command | `just up` then `tlmig all --auto` in the demo container |
+
+What it measured, phase by phase:
+
+| what | number |
+|---|---|
+| the monolith, full-refresh plan | 56 provider requests, 1.6s |
+| one estate after the split, `-refresh=false` | 7 requests, 1.3s - 8.0x fewer |
+| preview | 15 moves dry-run through `live-mv -json`, 0 refused |
+| `found_by` across those 15 | `IDENTITY` for the IAM roles, `LIST` for the rest - the engine's two admission paths, which the old text reconstruction reported as one invented word |
+| approval gate | `approved.tfplan` 7118 bytes; the drifted apply exited 3 naming `aws_cloudwatch_log_group.team_b_0`; the identical file then applied 1 change; the account read back the approved retention |
+| teardown | clean - nothing carrying the run's prefix in IAM or under `/<prefix>/` in CloudWatch Logs, and nothing live under any of the four estates |
+
+The demo's own seed declares no cross-estate data source, so `live-check
+-json` reported no `references[]` on this run and the plan is shown unpriced
+- "15 moves", not "15 moves, 0 filter rewrites". The priced shape is in
+`tests/fixtures/preview-run`, whose team-b reads team-a's `aws_vpc.main` by
+its markers.
+
 ## Rehearsing without an account
 
 Two recorded runs live under `tests/fixtures/`: `sample-run`, a synthetic
