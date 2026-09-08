@@ -30,6 +30,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/provisioners"
@@ -1995,6 +1996,78 @@ func TestStatelessTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
 	}
 }
 
+// TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses is GitHub issue
+// #950's repro and fix: the retired HCL-rewrite stamp's own plan-time
+// "Unstamped marker-only resource" error (statelessStampGaps, deleted by
+// GitHub issue #644/#944) has a node-path equivalent now
+// ([statelessUnmarkedApplyGaps], live_plan.go), and this is the fixture
+// that shows the gap was real before it existed.
+//
+// aws_vpc.unmarkable is ClassNeedsDiscovery (server-assigned identity,
+// exactly like every other aws_vpc fixture in this package - see
+// twoRegionNeedsDiscoveryCloud's own doc comment) and its DiscoveryCause
+// does not bind by name, so it can ONLY ever be found again by its
+// ownership marker. cloud.schemas strips "tags" from aws_vpc's schema
+// (statelessTestSchemasWithout), simulating a real provider schema that
+// has nowhere to write one - for a type NOT in
+// internal/live/identity/markerless_generated.go's hand-curated list, so
+// internal/live/lint's markerless-type veto never sees it and the block is
+// admitted.
+//
+// Before GitHub issue #950's fix,
+// [projection.NodeResolver.AdjustConfigValue] silently returned this
+// instance's configuration unchanged - not even a warning - because
+// !markers.Taggable(schema.Block) is one of its unconditional early
+// returns (nodestamp.go). Nothing else on the live plan/apply path ever
+// consulted [check.NodeStampUnmarkedApply], the offline instrument that
+// has always been able to say so (`choudoufu live-check`, GitHub issue
+// #454): the plan below proposed CREATING the instance clean, with no
+// error, warning, or refusal anywhere. Reverting the two
+// statelessUnmarkedApplyGaps call sites (live_plan.go, live_mode.go)
+// reproduces that: this test then finds "will be created" with exit 0 and
+// no "Unmarked apply" text.
+func TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-stampgaps-unmarked-apply-950"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+	cloud.schemas = statelessTestSchemasWithout("aws_vpc")
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=stampgaps-950"})
+	output := done(t)
+	all := output.Stdout() + output.Stderr()
+
+	if code == 0 {
+		t.Fatalf("exit code 0: aws_vpc.unmarkable is findable only by its ownership marker and its type has nowhere to write one, so this plan proposes creating an object no later run can ever find again, silently:\n%s", all)
+	}
+	if !strings.Contains(all, stamp.SummaryUnmarkedApply) {
+		t.Errorf("want the %q refusal; got:\n%s", stamp.SummaryUnmarkedApply, all)
+	}
+	if !strings.Contains(all, "aws_vpc.unmarkable") {
+		t.Errorf("the refusal does not name aws_vpc.unmarkable:\n%s", all)
+	}
+	if strings.Contains(all, "will be created") {
+		t.Errorf("the plan still proposed a create alongside the refusal:\n%s", all)
+	}
+	if cloud.imported("aws_vpc", "") {
+		t.Errorf("nothing should have been read from the live system before this refusal fires:\n%s", all)
+	}
+}
+
+// TestLivePlan_unmarkedApplyGapsExemptsAFullyRecordBackedBlock's own
+// scenario - a needs-discovery, untaggable block whose estate record
+// already holds an identity (GitHub issue #364's write half) must not be
+// refused - is covered at the check package's own level, where the
+// exemption mechanism actually lives:
+// TestNodeStampUnmarkedApply_recordBackedInstanceIsExempt in
+// internal/live/check/nodestamp_recordbacked_test.go. See
+// [check.NodeStampUnmarkedApply]'s own doc comment on its recordBacked
+// parameter for why the exemption checks EVERY instance of a block rather
+// than any one of them.
+
 func statelessTestLoadConfig(t *testing.T, dir string) *configs.Config {
 	t.Helper()
 
@@ -2163,6 +2236,62 @@ type statelessTestCloud struct {
 	// while it runs, so it needs no lock. Whatever it points at is called
 	// concurrently and owns its own synchronisation.
 	onImport func(entering bool)
+
+	// schemas overrides [statelessTestSchemas]'s caricature for this one
+	// cloud, when non-nil. GitHub issue #950's own fixture is the reason
+	// this exists: it needs a real, admission-table-classified
+	// needs-discovery type (aws_vpc, exactly as [twoRegionNeedsDiscoveryCloud]
+	// already uses it) with its "tags" attribute REMOVED, to reproduce a
+	// type the hand-curated markerless table has never heard of but whose
+	// real provider schema still has nowhere to write a marker - see
+	// [statelessTestSchemasWithout]. Every existing fixture leaves this nil
+	// and reads statelessTestSchemas() unchanged, exactly as before this
+	// field existed.
+	schemas map[string]providers.Schema
+}
+
+// schemasOrDefault is what every schema-consulting point in
+// [statelessTestCloud.provider] and [statelessTestProvider.ListResourceStream]
+// reads instead of calling [statelessTestSchemas] directly, so a test that
+// sets c.schemas sees that override applied consistently everywhere a
+// schema is served from - the identity schema wrapper
+// ([statelessTestIdentitySchemas]) included.
+func (c *statelessTestCloud) schemasOrDefault() map[string]providers.Schema {
+	if c.schemas != nil {
+		return c.schemas
+	}
+	return statelessTestSchemas()
+}
+
+// statelessTestSchemasWithout is [statelessTestSchemas]'s caricature, minus
+// the "tags" attribute on the named types - the shape a real provider
+// schema takes for a type genuinely markerless in fact but not (yet, or
+// ever) in internal/live/identity/markerless_generated.go's hand-curated
+// list. See [statelessTestCloud.schemas]'s own doc comment for why a test
+// needs this rather than the real generated table.
+func statelessTestSchemasWithout(typeNames ...string) map[string]providers.Schema {
+	out := statelessTestSchemas()
+	strip := make(map[string]bool, len(typeNames))
+	for _, n := range typeNames {
+		strip[n] = true
+	}
+	for name, schema := range out {
+		if !strip[name] {
+			continue
+		}
+		block := *schema.Block
+		attrs := make(map[string]*configschema.Attribute, len(block.Attributes))
+		for k, v := range block.Attributes {
+			if k == "tags" {
+				continue
+			}
+			attrs[k] = v
+		}
+		block.Attributes = attrs
+		schema.Block = &block
+		out[name] = schema
+	}
+	return out
 }
 
 // allowRegion widens the set of regions this cloud's mock provider accepts
@@ -2341,8 +2470,18 @@ func statelessTestListSchemas() map[string]providers.Schema {
 }
 
 func statelessTestIdentitySchemas() map[string]providers.Schema {
-	out := make(map[string]providers.Schema, len(statelessTestSchemas()))
-	for name, schema := range statelessTestSchemas() {
+	return statelessTestIdentitySchemasFrom(statelessTestSchemas())
+}
+
+// statelessTestIdentitySchemasFrom is [statelessTestIdentitySchemas]'s own
+// wrapping, applied to an arbitrary base map rather than always
+// [statelessTestSchemas]'s own - the hook [statelessTestCloud.provider]
+// uses so a cloud with c.schemas set (GitHub issue #950's own override, see
+// that field's doc comment) gets an identity-schema-wrapped copy of ITS
+// base, not the unmodified caricature.
+func statelessTestIdentitySchemasFrom(base map[string]providers.Schema) map[string]providers.Schema {
+	out := make(map[string]providers.Schema, len(base))
+	for name, schema := range base {
 		schema.IdentitySchema = &configschema.Object{
 			Nesting: configschema.NestingSingle,
 			Attributes: map[string]*configschema.Attribute{
@@ -2372,7 +2511,7 @@ type statelessTestProvider struct {
 func (p *statelessTestProvider) ListResourceStream(_ context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	schema := statelessTestSchemas()[req.TypeName]
+	schema := p.cloud.schemasOrDefault()[req.TypeName]
 	for _, o := range p.cloud.listed[req.TypeName] {
 		if home, placed := p.cloud.regionOf[req.TypeName+"/"+o.id]; placed && home != p.region {
 			// This object lives somewhere this provider configuration does
@@ -2438,7 +2577,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 					},
 				},
 			}},
-			ResourceTypes:     statelessTestIdentitySchemas(),
+			ResourceTypes:     statelessTestIdentitySchemasFrom(c.schemasOrDefault()),
 			ListResourceTypes: statelessTestListSchemas(),
 		},
 	}
@@ -2480,7 +2619,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 		c.mu.Lock()
 		c.imports = append(c.imports, key)
 		c.mu.Unlock()
-		schema := statelessTestSchemas()[req.TypeName]
+		schema := c.schemasOrDefault()[req.TypeName]
 		resp.ImportedResources = []providers.ImportedResource{{
 			TypeName: req.TypeName,
 			State:    statelessTestObject(schema, map[string]string{"id": id}),
@@ -2489,7 +2628,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 	}
 
 	p.ReadResourceFn = func(req providers.ReadResourceRequest) (resp providers.ReadResourceResponse) {
-		schema := statelessTestSchemas()[req.TypeName]
+		schema := c.schemasOrDefault()[req.TypeName]
 		id := req.PriorState.GetAttr("id")
 		key := req.TypeName + "/" + id.AsString()
 		attrs, ok := c.objects[key]

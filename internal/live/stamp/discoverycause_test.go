@@ -48,7 +48,7 @@ var unmarkedSubject = addrs.ConfigResource{
 // So the wording assertions stay here, on the exported function that
 // produces them, and the severity half - which cause escalates to an error
 // and which stays silent - now belongs to the seam that decides it,
-// internal/live/check's nodeStampUnmarkedApply (nodestamp.go), where
+// internal/live/check's NodeStampUnmarkedApply (nodestamp.go), where
 // stamp_gate_test.go's TestStampGate_UniqueNameCauseIsNotRefused pins the
 // one exemption by rendered finding.
 func detailWithCause(t *testing.T, disco identity.BlockDiscovery) string {

@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
@@ -947,6 +948,17 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// that seam cannot say for itself. See [statelessMarkerEstate], and
 	// GitHub issue #644 for what used to be here.
 	diags = diags.Append(statelessMarkerEstate(ctx, config, estateFlag))
+	if diags.HasErrors() {
+		return 1, false, diags
+	}
+
+	// GitHub issue #950: the node-path equivalent of the retired
+	// statelessStampGaps' plan-time "Unstamped marker-only resource"
+	// error. See [statelessUnmarkedApplyGaps]'s own doc comment. Read from
+	// recordStoreForReads rather than recordShrinkStore - this check is
+	// unconditional, not gated on [nodeResolveEnabled] the way edge 3's
+	// sweep-demand shrink is.
+	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate))
 	if diags.HasErrors() {
 		return 1, false, diags
 	}
@@ -1983,6 +1995,49 @@ func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFl
 			),
 		))
 	}
+}
+
+// statelessUnmarkedApplyGaps is GitHub issue #950's node-path equivalent of
+// the retired HCL-rewrite stamp's own plan-time "Unstamped marker-only
+// resource" error (statelessStampGaps, deleted by GitHub issue #644/#944 -
+// see that function's own final form, git history over this file).
+//
+// The gap: [projection.NodeResolver.AdjustConfigValue] - the marker writer
+// every plan and apply now goes through unconditionally (GitHub issue
+// #644's safety fix) - writes NO diagnostic at all when a needs-discovery
+// resource's type has nowhere to carry a marker
+// ([markers.Taggable] false): it returns the evaluated configuration
+// unchanged, silently. Nothing before this call ever said so on the live
+// plan/apply path either - [lint.CheckWith]'s markerless-type veto only
+// catches the population GitHub issue #698's hand-curated table already
+// knows about (internal/live/identity/markerless_generated.go), and a real
+// provider schema can say "no tags" for a type that table has never heard
+// of. The only place that ever reported the remainder was
+// `choudoufu live-check`, run separately, after a plan proposing to create
+// the same object had already been approved and applied. This wires the
+// identical predicate ([check.NodeStampUnmarkedApply], the same function
+// GitHub issue #454 built for the offline report) into the plan itself, so
+// the run that would create the unfindable object is the one that refuses.
+//
+// store is read whenever a record store is open, never gated on
+// [nodeResolveEnabled]: unlike the sweep-demand shrink
+// [statelessRecordBackedNeedsDiscoveryAddrs] itself exists for (edge 3,
+// gated so a flag-off run sees byte-identical discovery demand), this
+// check is answering "would the writer succeed", and the writer it is
+// asking about already runs unconditionally, flag on or off. Called from
+// both live_plan.go's own "-estate" pipeline and live_mode.go's
+// PriorState, at the same point each already calls
+// [statelessMarkerEstate] - after schemas, resolutions and the estate name
+// are all settled, before the plan walk reaches the first instance.
+func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	needs := resolutions.NeedsDiscovery()
+	recordBacked, recordDiags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, store, needs)
+	diags = diags.Append(recordDiags)
+	if recordDiags.HasErrors() {
+		return diags
+	}
+	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked))
 }
 
 // statelessUndiscoveredNote names what a run without discovery leaves

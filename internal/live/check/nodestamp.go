@@ -39,7 +39,7 @@ import (
 //
 //   - Which marker-only resources would be applied with no ownership
 //     marker at all, because their type has nowhere to write one? This is
-//     [nodeStampUnmarkedApply], and it is the whole of the corpus's
+//     [NodeStampUnmarkedApply], and it is the whole of the corpus's
 //     nonzero population - see this file's own measurement note below.
 //   - Which resources already hardcode a tofu-estate or tofu-address tag
 //     value that disagrees with what this run would write? This is
@@ -119,12 +119,16 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 	if result == nil {
 		return diags
 	}
-	diags = diags.Append(nodeStampUnmarkedApply(cfg, result, schemas, estate))
+	// recordBacked is nil: this offline instrument never opens a live
+	// record store (see NodeStampUnmarkedApply's own doc comment on its
+	// recordBacked parameter), so every needs-discovery instance reads as
+	// not record-backed here, exactly as it always has.
+	diags = diags.Append(NodeStampUnmarkedApply(cfg, result, schemas, estate, nil))
 	diags = diags.Append(nodeStampMarkerConflicts(ctx, cfg, result, schemas, estate))
 	return diags
 }
 
-// nodeStampUnmarkedApply is the retired rewrite's marker-only escalation
+// NodeStampUnmarkedApply is the retired rewrite's marker-only escalation
 // (its mustStamp/unstampableAt pair), ported: for every resource
 // block whose instances can only ever be found by their ownership marker
 // ([identity.Result.DiscoveryCausesByBlock]), can this run's node path
@@ -138,7 +142,37 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // one finding per BLOCK regardless of how many instances a for_each or
 // count expands it to, because every instance of one block shares one
 // declaration and therefore one verdict.
-func nodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string) tfdiags.Diagnostics {
+//
+// Exported for GitHub issue #950: internal/command's live plan/apply
+// pipeline (live_plan.go, live_mode.go) calls this directly, at plan time,
+// on the exact same predicate this file's own offline [nodeStampDiagnostics]
+// has always computed - the retired stamp.go rewrite's statelessStampGaps
+// used to raise a plan-time "Unstamped marker-only resource" error for
+// precisely this population, and [projection.NodeResolver.AdjustConfigValue]
+// has no equivalent: it returns config unchanged, with no diagnostic
+// whatsoever, when a needs-discovery type's schema has nowhere to write a
+// marker. Before #950, the only thing that ever said so was this file,
+// and only when an operator ran `choudoufu live-check` separately, after
+// the plan that would have created the object had already been approved.
+//
+// recordBacked is the online caller's #364 record-backed set
+// (ordinarily [statelessRecordBackedNeedsDiscoveryAddrs]'s result), keyed
+// by resource INSTANCE address rather than by block: an instance whose
+// estate record already holds an identity is not "lost to every future
+// run" the way this refusal's whole warning describes (GitHub issue #364's
+// write half covers it instead of a live tag), so it must not escalate on
+// top of a safety net #364 already provides. Because this function's own
+// verdict is per BLOCK (see the granularity paragraph above) while
+// recordBacked is necessarily per INSTANCE - a for_each or count block can
+// have some instances already recorded and others not, most commonly a
+// block mid-expansion whose new members have no record yet - the exemption
+// only applies when EVERY needs-discovery instance of a block is
+// record-backed; a block with even one unrecorded instance still refuses,
+// which is the conservative side of that granularity mismatch rather than
+// silently admitting the one instance that has nowhere to be found again.
+// nil (the offline caller's own value, via [nodeStampDiagnostics]) exempts
+// nothing, matching this function's pre-#950 behavior exactly.
+func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	causesByBlock := stampNeedsDiscovery(result)
@@ -170,14 +204,14 @@ func nodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 
 		disco := causesByBlock[key]
 		// mustStamp, ported: present in NeedsDiscovery (true here, by
-		// construction) AND not found-by-name AND not record-backed. This
-		// offline instrument never populates a record-backed set (neither
-		// did the stamp.Stamp call it replaces - Analyze's stamp.Request
-		// never set RecordBackedBlocks either, since that needs a live
-		// record store this instrument does not open), so the second half
-		// of stamp.go's own test is always false here, matching prior
-		// behavior exactly.
-		mustStamp := !disco.Cause.BindsByName()
+		// construction) AND not found-by-name AND not record-backed. The
+		// offline caller ([nodeStampDiagnostics]) passes recordBacked nil,
+		// so the third term is always false there, matching this
+		// function's pre-#950 behavior exactly; the online caller passes
+		// its own #364 record-backed set - see this function's own doc
+		// comment for the block/instance granularity mismatch
+		// [blockFullyRecordBacked] resolves conservatively.
+		mustStamp := !disco.Cause.BindsByName() && !blockFullyRecordBacked(result, key, recordBacked)
 
 		typeName := blockAddr.Resource.Type
 		schema, hasSchema := schemas[typeName]
@@ -229,6 +263,32 @@ func nodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 		}
 	}
 	return diags
+}
+
+// blockFullyRecordBacked reports whether EVERY instance
+// [identity.Result.NeedsDiscovery] resolved for the block named by key is
+// present in recordBacked. See [NodeStampUnmarkedApply]'s own doc comment
+// for why "every instance", rather than "any instance", is the conservative
+// answer to the granularity mismatch between a per-block verdict and a
+// per-instance record. recordBacked nil (the offline caller's own value)
+// or a block with no needs-discovery instances at all (defensive only - key
+// always names one here, since the caller derived it from the same
+// NeedsDiscovery list) both report false: nothing is exempted.
+func blockFullyRecordBacked(result *identity.Result, key string, recordBacked map[string]bool) bool {
+	if len(recordBacked) == 0 {
+		return false
+	}
+	var any bool
+	for _, r := range result.NeedsDiscovery() {
+		if r.Addr.ConfigResource().String() != key {
+			continue
+		}
+		any = true
+		if !recordBacked[r.Addr.String()] {
+			return false
+		}
+	}
+	return any
 }
 
 // lookupResourceBlock finds the *configs.Resource a NeedsDiscovery block
