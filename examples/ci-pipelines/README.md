@@ -248,6 +248,14 @@ workaround: the cache is never consulted for ownership, live always wins, and lo
 the record costs a slower run and nothing else. An `ssm` (or `s3`) store is shared and
 lives under IAM, which is what a pipeline should declare.
 
+Running this root prints two `Resource type has no orphan recovery` warnings, one
+per resource. They are wrong, and they are choudoufu's rather than the example's:
+both types have rows in the generated admission table, and the same run's `-json`
+document lists `aws_iam_role` under `swept`. The warning fires for the schema-first
+path as well as for the type-not-in-the-table path it was written for. Filed as
+[#980](https://github.com/INTENTIUS/choudoufu/issues/980), found by building this
+example.
+
 The IAM role is in the root on purpose. IAM is one of the services whose tagging call
 choudoufu does not print a paste-ready adopt command for (Route53 and S3 are the
 others), so an unmarked IAM role appears in the adoption ledger as a refusal naming
