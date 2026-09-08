@@ -71,17 +71,25 @@
 #
 # CHANT_FORGE
 #
-# This project builds its Ops for one of two forges: `github`, where a finding
-# is posted through `gh`, and `forgejo`, which is report-only - the finding is
-# the job's own log and nothing is posted. GitLab is a third report-only
-# instance, because every posting mode chant has is the same `reconcilePr`
-# activity shelling to `gh` and there is no merge-request note activity
-# (#2231). So this job builds the forgejo Ops, and says so rather than leaving
-# the variable unset: unset defaults to `github`, whose `live-discover` opens
-# a GitHub issue and would fail on every scheduled run. Giving `gitlab` its
-# own value in src/forge.ts is the change to make the day chant's gitlab
-# generator grows the triggers this file works around - src/ is a generator
-# input, so it belongs with a regeneration rather than here.
+# This project builds its Ops for one of three forges. `github` posts a
+# finding through `gh`. `forgejo` and `gitlab` are report-only - the finding is
+# the job's own log and nothing is posted - because every posting mode chant
+# has is the same `reconcilePr` activity shelling to `gh`, and on GitLab there
+# is no merge-request note activity behind it either (#2231;
+# INTENTIUS/chant#2256 is the issue that would add one, along with the triggers
+# this file works around).
+#
+# So this job builds the gitlab Ops, and says so rather than leaving the
+# variable unset: unset defaults to `github`, whose `live-discover` opens a
+# GitHub issue and would fail on every scheduled run. It said `forgejo` when
+# this file landed, because that was the only report-only value src/forge.ts
+# offered; it has its own now (#807), and both guards read this value back
+# against that list rather than against a literal of their own, so a value
+# `chant run` would throw on cannot sit here unnoticed.
+#
+# Being a forge this project builds for is not the same as being one it
+# generates for: `npm run generate` still emits two trees and never this file.
+# src/forge.ts says why the two lists are different lists.
 #
 # The choudoufu release is pinned by version and verified against the SHA256
 # that release published, the same line the generated workflows install. A
@@ -92,7 +100,7 @@ stages:
   - scheduled-ops
 
 variables:
-  CHANT_FORGE: forgejo
+  CHANT_FORGE: gitlab
   # The provider reads var.aws_region and choudoufu's tagging-API sweep reads
   # the SDK's AWS_REGION. AWS_REGION is one project CI/CD variable; this makes
   # the Terraform one follow it, so the two cannot disagree.
