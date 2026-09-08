@@ -1,4 +1,28 @@
 {
-  "terraform_version": "1.16.0",
+  "_comment": [
+    "The stock oracle every gauntlet stage compares choudoufu against.",
+    ".github/workflows/gauntlet.yml and .github/workflows/contribute.yml",
+    "feed these to setup-terraform and setup-opentofu; a local checkout is",
+    "NOT forced to honour them, which is why every row records the version",
+    "it was really measured against (tools/gauntlet/oracle.go's probeOracle)",
+    "and the estate page prints Stale when the two disagree. Read that",
+    "field before comparing two boards.",
+    "",
+    "terraform_version was 1.16.0 and is 1.16.1 because 1.16.0 carries a",
+    "graph regression that makes the ORACLE itself nondeterministic:",
+    "hashicorp/terraform#39089, a spurious `Error: Cycle` on an acyclic",
+    "configuration, and hashicorp/terraform#39076, a planned",
+    "destroy-then-create applied create-before-destroy with the destroy",
+    "silently dropped. Both land at 038c6f72 (PR #38840, 1.16.0-alpha),",
+    "both are fixed by PR #39091 in 1.16.1, and 1.15.9 is the last good",
+    "release before them. Measured on corpus-rds-complete-postgres's own",
+    "day2_replace stock oracle plan, 20 runs each against one frozen",
+    "cold_deploy state on the pinned emulator: 1.16.0 gave 11 clean plans",
+    "and 9 cycles, 1.16.1 gave 20 clean plans and 0 cycles. See #947.",
+    "",
+    "A human maintains this file deliberately: hand-edit, then run",
+    "`just oracle-bump` for the movement report before landing it."
+  ],
+  "terraform_version": "1.16.1",
   "tofu_version": "1.12.6"
 }

@@ -995,8 +995,29 @@ EOF
   ( cd "$ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
-grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
-  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+if grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT"; then
+  printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'
+  # Attribute the churn before naming it. A plan whose ONLY proposed action
+  # is CREATING a target group attachment is not the rename churning: it is
+  # cold_deploy having silently lost a RegisterTargets call, three stages
+  # earlier. This example registers TWO different instances into the one
+  # "ex-instance" target group - aws_instance.this through target_groups and
+  # aws_instance.other through additional_target_group_attachments - and
+  # terraform issues both concurrently under its default parallelism of 10.
+  # floci's registerTargets read-modify-writes the target group's own target
+  # list with no lock, so one registration can be dropped; RegisterTargets
+  # answers with an empty success body, the apply still says "Apply
+  # complete! Resources: 80 added", and the loss first shows up as an
+  # unexplained "will be created" on the next plan that refreshes.
+  # INTENTIUS/choudoufu#1005; measured with an AWS CLI probe and no
+  # terraform in the loop at 2 rounds in 25 (concurrency 2) and 3 in 10
+  # (concurrency 5). Fail either way - a run whose cold deploy lost an
+  # object proves nothing about a rename - but fail saying which.
+  ORACLE_CHURN="$(grep -E '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT")"
+  grep -qvE '^  # module\.alb\.aws_lb_target_group_attachment\..+ will be created$' <<< "$ORACLE_CHURN" \
+    || fail "the day2_rename stock oracle plan proposes nothing but target-group-attachment CREATES ($(tr '\n' ' ' <<< "$ORACLE_CHURN" | sed 's/  # //g')) - the emulator lost a RegisterTargets during stage 1's cold deploy, so this is not churn from the rename; see INTENTIUS/choudoufu#1005"
+  fail "stock proposes a destroy or create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"
+fi
 grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
   || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
 log "  stock: zero churn on cold_deploy's own state - both moves report only their move, no attribute diff at all"

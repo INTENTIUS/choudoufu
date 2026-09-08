@@ -2,7 +2,7 @@
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb",
   "oracle": {
-    "terraform": "1.16.0",
+    "terraform": "1.16.1",
     "tofu": "1.12.6"
   },
   "stages": [
