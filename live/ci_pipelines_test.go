@@ -406,6 +406,57 @@ func ciPipelineGitLabBody(t *testing.T) string {
 // with, or "" when the file sets none.
 var ciPipelineGitLabForgeVar = regexp.MustCompile(`(?m)^\s*CHANT_FORGE:\s*(\S+)\s*$`)
 
+// ciPipelineGitLabForge is the value that job has to carry: GitLab reports as
+// itself rather than borrowing another forge's build.
+const ciPipelineGitLabForge = "gitlab"
+
+// ciPipelineForgeList and ciPipelineForgeLiteral read the forge values
+// src/forge.ts accepts, out of the source rather than restated here. The Ops
+// read CHANT_FORGE at module load and `readForge` throws on anything not in
+// this list, so a pipeline setting a value the list does not carry fails on
+// every run before it builds an Op.
+var (
+	ciPipelineForgeList    = regexp.MustCompile(`(?m)^export const FORGES: readonly Forge\[\] = \[([^\]]*)\];`)
+	ciPipelineForgeLiteral = regexp.MustCompile(`"([a-z]+)"`)
+)
+
+// ciPipelineAcceptedForges returns the forges src/forge.ts accepts.
+func ciPipelineAcceptedForges(t *testing.T) []string {
+	t.Helper()
+
+	path := filepath.Join(ciPipelinesDir, "src", "forge.ts")
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+
+	list := ciPipelineForgeList.FindSubmatch(source)
+	if list == nil {
+		t.Fatalf("%s no longer declares `export const FORGES: readonly Forge[] = [...]`, so this guard cannot "+
+			"tell which forge values the Ops accept. Restore the declaration or teach this reader the new shape "+
+			"- do not leave it matching nothing, which would pass over an empty set.", path)
+	}
+
+	var forges []string
+	for _, match := range ciPipelineForgeLiteral.FindAllSubmatch(list[1], -1) {
+		forges = append(forges, string(match[1]))
+	}
+
+	// A parse that found nothing, or that lost the default forge, is a broken
+	// reader rather than a source with no forges.
+	found := false
+	for _, forge := range forges {
+		if forge == "github" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("read %v as the forges %s accepts, which does not include the default (github); this reader is "+
+			"matching the wrong thing", forges, path)
+	}
+	return forges
+}
+
 // TestCIPipelineGitLabIsTrackedAndHandWritten holds that the GitLab pipeline
 // exists, is in git, and has not quietly become a generated file.
 //
@@ -512,20 +563,36 @@ func TestCIPipelineGitLabRunsOneScheduledOp(t *testing.T) {
 		t.Errorf("%s installs a floating release", ciPipelineGitLabFile)
 	}
 
-	// The Ops read CHANT_FORGE at build time to choose a finding mode, and
-	// src/forge.ts accepts two values. Unset it defaults to github, whose
-	// live-discover posts a GitHub issue through `gh` and would fail on every
-	// scheduled run; github set explicitly is the same thing said out loud.
-	// GitLab is a third report-only instance, so the job builds the forgejo
-	// Ops - see the file's own header.
+	// The Ops read CHANT_FORGE at build time to choose a finding mode. Unset
+	// it defaults to github, whose live-discover posts a GitHub issue through
+	// `gh` and would fail on every scheduled run. Set to something src/forge.ts
+	// does not accept, `readForge` throws at module load and the run fails
+	// before it builds an Op - which is why the value is checked against the
+	// forge list itself and not against a literal repeated here.
 	match := ciPipelineGitLabForgeVar.FindStringSubmatch(body)
 	if match == nil {
-		t.Errorf("%s sets no CHANT_FORGE, so `chant run` there builds the Ops for the default forge (github), "+
+		t.Fatalf("%s sets no CHANT_FORGE, so `chant run` there builds the Ops for the default forge (github), "+
 			"whose %s posts a GitHub issue through `gh` and fails on every scheduled run",
 			ciPipelineGitLabFile, ciPipelineGitLabOp)
-	} else if match[1] != "forgejo" {
-		t.Errorf("%s builds its Ops with CHANT_FORGE=%q; GitLab has no posting activity at all "+
-			"(every chant finding mode is `reconcilePr` shelling to `gh`), so it needs the report-only build, "+
-			"which is %q", ciPipelineGitLabFile, match[1], "forgejo")
+	}
+
+	accepted := ciPipelineAcceptedForges(t)
+	known := false
+	for _, forge := range accepted {
+		if forge == match[1] {
+			known = true
+		}
+	}
+	if !known {
+		t.Errorf("%s builds its Ops with CHANT_FORGE=%q, which src/forge.ts does not accept (it takes %v).\n"+
+			"`chant run` loads src/forge.ts before it builds an Op, and readForge throws there, so every "+
+			"scheduled run fails before it starts.", ciPipelineGitLabFile, match[1], accepted)
+	}
+	if match[1] != ciPipelineGitLabForge {
+		t.Errorf("%s builds its Ops with CHANT_FORGE=%q rather than %q.\n"+
+			"GitLab has no posting activity at all - every chant finding mode is `reconcilePr` shelling to `gh`, "+
+			"and chant has no GitLab merge-request note activity (chant #2256) - so it needs a report-only build; "+
+			"it gets one under its own name, rather than by claiming to be the forge this job does not run on.",
+			ciPipelineGitLabFile, match[1], ciPipelineGitLabForge)
 	}
 }

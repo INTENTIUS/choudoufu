@@ -92,7 +92,7 @@ stages:
   - scheduled-ops
 
 variables:
-  CHANT_FORGE: forgejo
+  CHANT_FORGE: gitlab
   # The provider reads var.aws_region and choudoufu's tagging-API sweep reads
   # the SDK's AWS_REGION. AWS_REGION is one project CI/CD variable; this makes
   # the Terraform one follow it, so the two cannot disagree.

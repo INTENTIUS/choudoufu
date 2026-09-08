@@ -33,6 +33,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import { parseYAML } from "@intentius/chant/yaml";
+import { FORGES } from "../src/forge";
 
 const exampleDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -163,12 +164,25 @@ describe("the GitLab pipeline is hand-written", () => {
 
   it("and it builds the report-only Ops, because GitLab has no posting activity", () => {
     const doc = parseYAML(readFileSync(committed, "utf8")) as unknown as { variables?: Record<string, string> };
+    const value = doc.variables?.CHANT_FORGE;
+
+    // The job hands this string to `chant run`, which loads src/forge.ts,
+    // which throws on a value it does not know - at module load, before any
+    // Op is built, on every scheduled run. So the YAML is checked against the
+    // forge list itself rather than against a literal repeated here.
+    assert.ok(
+      value !== undefined && (FORGES as readonly string[]).includes(value),
+      `gitlab/.gitlab-ci.yml builds its Ops with CHANT_FORGE=${JSON.stringify(value)}, which src/forge.ts does ` +
+        `not accept (it takes ${FORGES.map((f) => JSON.stringify(f)).join(", ")}). ` +
+        "`chant run` throws there at module load, so every scheduled run fails before it starts.",
+    );
     assert.equal(
-      doc.variables?.CHANT_FORGE,
-      "forgejo",
-      "Every chant finding mode is the `reconcilePr` activity shelling to `gh`, so GitLab can only report. " +
+      value,
+      "gitlab",
+      "Every chant finding mode is the `reconcilePr` activity shelling to `gh` and chant has no GitLab " +
+        "merge-request note activity (chant #2256), so GitLab can only report - but it reports as itself. " +
         "Unset, CHANT_FORGE defaults to github, whose live-discover opens a GitHub issue and fails on every " +
-        "scheduled run.",
+        "scheduled run; borrowing forgejo's value makes the job claim a forge it does not run on.",
     );
   });
 });
