@@ -140,16 +140,21 @@ func TestSiteContentMeasuredFiguresCarryProvenance(t *testing.T) {
 //     when the pin has moved (TestRenderedDocsAreCurrent,
 //     tools/gauntlet). Sweeping it here would duplicate that guard on
 //     rendered bytes this test does not own.
-//   - site/content/docs/examples/: a walkthrough a reader runs themselves
-//     against their own account (`examples/live-mv-workbench`); its figures
-//     ("On the sample fixture it is around 56 requests") are illustrative
-//     of the shape a reader's own run will show, explicitly hedged
-//     ("around", "sample"), and self-verifying by construction - unlike a
-//     claim about this repository's own measured behavior, the reader
-//     checks it by running the demo, not by trusting the page.
+//
+// site/content/docs/examples/ used to be skipped too, on the grounds that a
+// walkthrough's figures are hedged ("On the sample fixture it is around 56
+// requests") and self-verifying, since the reader checks them by running the
+// demo rather than by trusting the page. That reasoning did not survive
+// contact with #979: terralith-migration.md's other hedged figure, "around
+// 29 requests" for the one-estate `-refresh=false` plan, re-measured at 7 on
+// v0.15.0 (#978), and it had been wrong by a factor of four for as long as
+// nobody re-ran it. A hedge is not provenance - "around" says the number
+// moves, not which run produced it, and a reader who does run the demo gets
+// a different number with no way to tell whether the page is stale or their
+// account simply differs. The subtree is swept now, and the page names its
+// run.
 var siteFigureProvenanceSkipPrefixes = []string{
 	filepath.Join("site", "content", "docs", "progress") + string(filepath.Separator),
-	filepath.Join("site", "content", "docs", "examples") + string(filepath.Separator),
 }
 
 // measuredFigureUnitWords is the closed, documented list of unit words this
