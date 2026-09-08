@@ -218,7 +218,23 @@ func (m *Meta) providerDevOverrideRuntimeWarnings() tfdiags.Diagnostics {
 // the returned map may be incomplete or invalid, but will be as complete
 // as possible given the cause of the error.
 func (m *Meta) providerFactories() (map[addrs.Provider]providers.Factory, error) {
-	locks, diags := m.lockedDependencies()
+	return m.providerFactoriesIn(".", m.WorkingDir.ProviderLocalCacheDir())
+}
+
+// providerFactoriesIn is [Meta.providerFactories] for a root module
+// directory that is not the process working directory: rootDir is where the
+// dependency lock file is read from and cacheDirPath is the provider cache
+// those locks are resolved against. The two always belong together - a lock
+// file names versions that only its own directory's cache is expected to
+// hold - which is why one function takes both rather than each being reached
+// for separately.
+//
+// GitHub issue #973. See [Meta.lockedDependenciesIn] for the defect this
+// exists to fix; providerFactories passes "." and the process working
+// directory's cache, which is what every caller reached through -chdir
+// already got.
+func (m *Meta) providerFactoriesIn(rootDir string, cacheDirPath string) (map[addrs.Provider]providers.Factory, error) {
+	locks, diags := m.lockedDependenciesIn(rootDir)
 	if diags.HasErrors() {
 		return nil, fmt.Errorf("failed to read dependency lock file: %w", diags.Err())
 	}
@@ -234,7 +250,7 @@ func (m *Meta) providerFactories() (map[addrs.Provider]providers.Factory, error)
 	// available in the provider cache because "tofu init" should already
 	// have put them there.
 	providerLocks := locks.AllProviders()
-	cacheDir := providercache.NewDir(m.WorkingDir.ProviderLocalCacheDir())
+	cacheDir := providercache.NewDir(cacheDirPath)
 
 	// The internal providers are _always_ available, even if the configuration
 	// doesn't request them, because they don't need any special installation

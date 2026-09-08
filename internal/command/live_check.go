@@ -8,14 +8,13 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/lint"
-	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -140,21 +139,35 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 		return check.Report{Load: load}
 	}
 
-	var schemas map[string]providers.Schema
+	// Resolved against DIR rather than against the process working
+	// directory - GitHub issue #973 - because the argument is the whole
+	// reason this command exists in the shape it does: it is pointed at a
+	// repository the caller is not standing in. See [Meta.pluginsForDir].
+	lib, err := c.pluginsForDir(dir)
+	if err != nil {
+		// Logged, not reported. An incomplete library is the ORDINARY case
+		// here: a directory that was never initialized, or one carrying a
+		// lock file whose packages are not installed beside it, is what
+		// this command's own help text says it is meant to be run on. The
+		// run continues with whatever is installed, and the report already
+		// says out loud whether provider schemas backed its rungs - the
+		// "schemas" field under -json since #966, and the init paragraph in
+		// the prose report before that. A diagnostic here would say the
+		// same thing a second time and, under -json, would say it on
+		// stdout, in front of the document a parser reads.
+		log.Printf("[WARN] live-check: reading the provider cache for %s: %s", dir, err)
+	}
+	provs := newStatelessProviders(load.Config, lib)
+	schemas := provs.resourceSchemas(ctx)
 	// managedTypes is the same read, attributed per provider rather than
 	// merged: it is what lets this instrument draw the data-read phase's
 	// provider boundary where a real live-plan draws it. See
 	// [check.Context.ProviderManagedTypes].
-	var managedTypes map[addrs.Provider]map[string]bool
-	if coreOpts, err := c.contextOpts(ctx); err == nil {
-		provs := newStatelessProviders(load.Config, coreOpts.Plugins)
-		schemas = provs.resourceSchemas(ctx)
-		managedTypes = provs.managedTypesByProvider(ctx)
-		// A close failure is not this command's news: it read schemas and
-		// is done with the plugins. A provider that would not launch
-		// already shows up as absent schemas, which the report states.
-		_ = provs.close(ctx)
-	}
+	managedTypes := provs.managedTypesByProvider(ctx)
+	// A close failure is not this command's news: it read schemas and is
+	// done with the plugins. A provider that would not launch already shows
+	// up as absent schemas, which the report states.
+	_ = provs.close(ctx)
 
 	report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas, ProviderManagedTypes: managedTypes})
 	report.Load = load

@@ -11,6 +11,7 @@ import (
 	"log"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -52,18 +53,41 @@ const dependencyLockFilename = ".terraform.lock.hcl"
 // and does not update as a result of calling replaceLockedDependencies
 // or any other modification method.
 func (m *Meta) lockedDependencies() (*depsfile.Locks, tfdiags.Diagnostics) {
+	return m.lockedDependenciesIn(".")
+}
+
+// lockedDependenciesIn is [Meta.lockedDependencies] for a root module
+// directory that is not the process working directory.
+//
+// GitHub issue #973: the two commands that take their root module directory
+// as a positional argument rather than through the global -chdir option -
+// live-check and live-ls - resolve their configuration, their data
+// directory and their provider cache against that argument, and the lock
+// file has to travel with them. Reading the process working directory's
+// lock file while reading the argument's provider cache is the specific
+// mismatch #973 reports, and it degrades silently: no provider is found,
+// so the run falls back to the built-in admission table and reports an
+// answer that names a remedy ("run init in that directory") the caller has
+// already followed.
+//
+// Passing "." reproduces the historical behaviour byte for byte, which is
+// what [Meta.lockedDependencies] does, because filepath.Join(".", name) is
+// name.
+func (m *Meta) lockedDependenciesIn(rootDir string) (*depsfile.Locks, tfdiags.Diagnostics) {
+	filename := filepath.Join(rootDir, dependencyLockFilename)
+
 	// We check that the file exists first, because the underlying HCL
 	// parser doesn't distinguish that error from other error types
 	// in a machine-readable way but we want to treat that as a success
 	// with no locks. There is in theory a race condition here in that
 	// the file could be created or removed in the meantime, but we're not
 	// promising to support two concurrent dependency installation processes.
-	_, err := os.Stat(dependencyLockFilename)
+	_, err := os.Stat(filename)
 	if os.IsNotExist(err) {
 		return m.annotateDependencyLocksWithOverrides(depsfile.NewLocks()), nil
 	}
 
-	ret, diags := depsfile.LoadLocksFromFile(dependencyLockFilename)
+	ret, diags := depsfile.LoadLocksFromFile(filename)
 	return m.annotateDependencyLocksWithOverrides(ret), diags
 }
 
