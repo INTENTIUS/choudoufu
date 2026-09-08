@@ -2102,16 +2102,16 @@
         "test_plan": "pass"
       },
       "clear": true,
-      "commit": "e6a969816183a1a55de49b25647d509a0143d9f7",
-      "date": "2026-09-07T20:29:57Z",
+      "commit": "4d72968cdb2111627ce2bed8262e0aad40c2d7cf",
+      "date": "2026-09-08T01:17:12Z",
       "exit_code": 0,
       "detail": {
-        "cold_deploy": "5 resources from stock terraform against aws, AMI ami-01c265752adadcdf8, tofu-cert-run=livecert-1788812855-97501",
+        "cold_deploy": "5 resources from stock terraform against aws, AMI ami-01c265752adadcdf8, tofu-cert-run=livecert-1788830081-83505",
         "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
         "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
         "test_plan": "post-migrate plan is empty; aws_instance.main's tofu-address/tofu-estate confirmed via the AWS CLI directly"
       },
-      "duration_s": 142
+      "duration_s": 150.8
     },
     {
       "estate": "terralith-scale",
