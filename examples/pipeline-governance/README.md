@@ -152,6 +152,15 @@ that exits 0. Holding the workflows to their generator is
 role ARN variables exist. What those roles may do in AWS is an IAM policy, and
 `examples/ci-pipelines`' README has the table of what each of the three needs.
 
+**Anything on GitLab.** `examples/ci-pipelines/gitlab/.gitlab-ci.yml` is
+`live-discover` alone, hand-written, because chant's gitlab Op generator
+refuses the `pull_request` and `push` event models by name. Neither of the two
+things these policies exist to lock is there to lock: no job runs on a merge
+request, and no job applies. What a
+[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy could still
+assert is that the sweep's project CI/CD variables exist, which is worth its
+own file the day someone runs that pipeline for real.
+
 **Anything about `staging`.** The `live-adopt` job runs on a push to `staging`
 and writes marker tags after its gate. Neither policy protects that branch;
 add a rule for it if you use it.
