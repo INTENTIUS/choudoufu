@@ -416,25 +416,25 @@ func TestPipelineGovernanceDeclaresEveryCredentialTheWorkflowsRead(t *testing.T)
 	}
 }
 
-// TestPipelineGovernanceEnvironmentGapIsStillReal is a tripwire on a documented
-// limitation rather than on a property, and it is written to fail the day the
-// limitation goes away.
+// TestPipelineGovernanceEnvironmentGates holds that the GitHub policy's
+// `production` environment is the same environment `live-apply`'s generated
+// job actually declares, closing the gap
+// TestPipelineGovernanceEnvironmentGapIsStillReal used to name (chant #2264
+// gave `ScheduledOpSpec` an `environment` option, and
+// examples/ci-pipelines/generate.ts's `live-apply` spec now sets it - see
+// that file and examples/pipeline-governance/README.md's "What the
+// environment does" section for how the two gates stack).
 //
-// The GitHub policy declares a `production` environment with a required
-// reviewer, and a GitHub environment's protection rules bind a job only when
-// that job declares `environment: production`. chant's generateOpsPipeline
-// emits no `environment:` key, so today that reviewer gates nothing, and both
-// the README and examples/ci-pipelines/src/live-apply.op.ts say so.
-//
-// If a regenerated live-apply.yml ever carries the key, that paragraph is
-// wrong and this test says which paragraph. It is the same reasoning as a
-// skipped test that fails when the bug it names is fixed.
-func TestPipelineGovernanceEnvironmentGapIsStillReal(t *testing.T) {
+// Both directions matter, the same way the required-checks join above checks
+// both directions: an environment the policy declares and no job names binds
+// nothing, and a job naming an environment the policy never provisions gets
+// an unprotected one created on first deploy rather than a reviewer.
+func TestPipelineGovernanceEnvironmentGates(t *testing.T) {
 	const applyOp = "live-apply"
 
 	repo := govPolicyRepo(t, "github")
 	if envs := govNames(repo.Environments); len(envs) != 1 || envs[0] != "production" {
-		t.Errorf("the github policy declares environments %v; the README and this test are written about exactly one, named production", envs)
+		t.Fatalf("the github policy declares environments %v; the README and this test are written about exactly one, named production", envs)
 	}
 
 	doc := govWorkflowDoc(t, "github", applyOp)
@@ -442,10 +442,47 @@ func TestPipelineGovernanceEnvironmentGapIsStillReal(t *testing.T) {
 	if !ok {
 		t.Fatalf("github/%s.yml declares no %q job; the policy and the README are both written about it", applyOp, applyOp)
 	}
-	if job.Environment.Kind != 0 {
-		t.Errorf("github/%s.yml now declares an `environment:`, so the generated apply job CAN be gated by the production environment.\n"+
-			"That is good news and it makes examples/pipeline-governance/README.md's \"What the environment does not do\" section wrong. "+
-			"Rewrite that section and delete this test.", applyOp)
+	if job.Environment.Kind == 0 {
+		t.Fatalf("github/%s.yml declares no `environment:`, so the github policy's production environment "+
+			"reviewer gates nothing. examples/ci-pipelines/generate.ts's live-apply spec should carry "+
+			"`environment: { name: \"production\" }` (chant #2264).", applyOp)
+	}
+
+	var envDoc struct {
+		Name string `yaml:"name"`
+	}
+	if err := job.Environment.Decode(&envDoc); err != nil {
+		t.Fatalf("github/%s.yml's `environment:` does not decode as a {name, url?} mapping: %v", applyOp, err)
+	}
+	if envDoc.Name != "production" {
+		t.Errorf("github/%s.yml deploys to environment %q, and the github policy provisions a reviewer on "+
+			"%q. A job naming an environment the policy never declares gets an unprotected one created on "+
+			"first deploy rather than the reviewer this policy exists to add.", applyOp, envDoc.Name, "production")
+	}
+
+	// GitLab's own generator maps the same spec option to its own
+	// `environment:` key (chant #2268); this project ships no GitLab
+	// governance policy yet (examples/pipeline-governance/README.md, "Anything
+	// on GitLab"), so only the job side is checked here.
+	var gitlabDoc map[string]yaml.Node
+	if err := yaml.Unmarshal([]byte(ciPipelineGitLabBody(t)), &gitlabDoc); err != nil {
+		t.Fatalf("parsing %s as YAML: %v", ciPipelineGitLabFile, err)
+	}
+	applyNode, ok := gitlabDoc[applyOp]
+	if !ok {
+		t.Fatalf("gitlab/%s declares no %q job", ciPipelineGitLabFile, applyOp)
+	}
+	var gitlabJob struct {
+		Environment struct {
+			Name string `yaml:"name"`
+		} `yaml:"environment"`
+	}
+	if err := applyNode.Decode(&gitlabJob); err != nil {
+		t.Fatalf("gitlab/%s's %q job does not decode: %v", ciPipelineGitLabFile, applyOp, err)
+	}
+	if gitlabJob.Environment.Name != "production" {
+		t.Errorf("gitlab/%s's %q job deploys to environment %q, not %q",
+			ciPipelineGitLabFile, applyOp, gitlabJob.Environment.Name, "production")
 	}
 }
 

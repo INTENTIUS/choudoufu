@@ -24,6 +24,8 @@ jobs:
   live-apply:
     runs-on: ubuntu-latest
     container: node:22
+    environment:
+      name: production
     outputs:
       gated: '${{ steps.chant-run.outputs.gated }}'
       op: '${{ steps.chant-run.outputs.op }}'

@@ -501,54 +501,108 @@ func TestCIPipelineWorkflowsRegenerate(t *testing.T) {
 }
 
 // ------------------------------------------------------------------------
-// GitLab: the one CI file in the example that no generator writes.
+// GitLab: one file, every job in it - generated now (#807, sub-issue (e)).
 // ------------------------------------------------------------------------
 //
-// examples/ci-pipelines/gitlab/.gitlab-ci.yml is hand-written (#807, sub-issue
-// (b)), and the checks above deliberately do not reach it: it is not in
-// ciPipelineForges, so it is not one workflow per Op, it carries no generated
-// banner, and no regeneration can prove it current.
+// chant's gitlab Op generator was cron-only through 0.59.0, refusing four of
+// the five Ops by name; examples/ci-pipelines/gitlab/.gitlab-ci.yml was
+// hand-written for exactly that reason (#807, sub-issue (b)). chant #2268
+// (0.60.0) taught it `pull_request` and `push` triggers and a merge-request
+// note activity behind `findingMode: "comment"`, so `generate.ts` now emits
+// GitLab too, retiring the hand-written file.
 //
-// That is not a licence to leave it unguarded - it is the reason it needs its
-// own. A hand-written file loses every property the generator was giving the
-// other two trees for free, so the two things worth the most are asserted here
-// directly: that the install it runs unattended is still pinned by version and
-// checksum, and that the single job it declares is the single Op chant's
-// gitlab generator can actually express. The other four Ops fail that
-// generator by name - `pull_request` and `push` have no event model there
-// (chant #2084) and `live-plan`'s "comment" finding mode has no merge-request
-// note activity behind it (chant #2231) - so a job here running one of them
-// would be a job whose Op cannot be generated for the forge it is running on.
+// It emits one combined file rather than one per Op - a GitLab trigger is
+// job-scoped rather than workflow-scoped (`rules:` on the job, not `on:` on
+// the file), so there is nothing to split into separate files the way GitHub
+// and Forgejo's per-Op workflows are. That shape does not fit
+// `ciPipelineForges` (built around "one tracked file per Op", which is what
+// `TestCIPipelineWorkflowsAreTracked` and its neighbours above assert), so
+// this section proves the same things the per-op guards above prove, read
+// against the one file GitLab gets: tracked and generated, one job per Op,
+// its own forge and install pin, and not stale relative to its inputs.
 
-// ciPipelineGitLabFile is the hand-written pipeline, relative to the example
-// directory. Slash-separated on purpose: it is passed to git as a pathspec.
-const ciPipelineGitLabFile = "gitlab/.gitlab-ci.yml"
+// ciPipelineGitLabDir and ciPipelineGitLabFile are where the gitlab tree
+// lands and what the generator names its one file - not `.gitlab-ci.yml`,
+// because a consuming repository already has one and includes this file from
+// it (see the example's README).
+const ciPipelineGitLabDir = "gitlab"
+const ciPipelineGitLabFile = "scheduled-ops.gitlab-ci.yml"
 
-// ciPipelineGitLabOp is the only Op GitLab gets: the scheduled sweep, the one
-// Op in the project with a cron trigger and no posting mode.
-const ciPipelineGitLabOp = "live-discover"
+// ciPipelineGitLabRelPath is the file's path relative to the example
+// directory, slash-separated so it can be passed to git as a pathspec.
+func ciPipelineGitLabRelPath() string {
+	return ciPipelineGitLabDir + "/" + ciPipelineGitLabFile
+}
 
-// ciPipelineGitLabBody reads the hand-written pipeline. A missing file is
-// fatal rather than a skip: the deliverable is a file, and an absent one is
-// the failure this guard exists to catch.
+// ciPipelineGitLabBody reads the generated pipeline. A missing file is fatal
+// rather than a skip: the deliverable is a file, and an absent one is the
+// failure this guard exists to catch.
 func ciPipelineGitLabBody(t *testing.T) string {
 	t.Helper()
 
-	path := filepath.Join(ciPipelinesDir, filepath.FromSlash(ciPipelineGitLabFile))
+	path := filepath.Join(ciPipelinesDir, ciPipelineGitLabDir, ciPipelineGitLabFile)
 	body, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("reading the hand-written GitLab pipeline %s: %v", path, err)
+		t.Fatalf("reading the generated GitLab pipeline %s: %v", path, err)
 	}
 	return string(body)
 }
 
-// ciPipelineGitLabForgeVar reads the CHANT_FORGE the GitLab job builds its Ops
-// with, or "" when the file sets none.
-var ciPipelineGitLabForgeVar = regexp.MustCompile(`(?m)^\s*CHANT_FORGE:\s*(\S+)\s*$`)
+// TestCIPipelineGitLabIsTrackedAndGenerated holds the GitLab counterpart of
+// TestCIPipelineWorkflowsAreTracked and TestCIPipelineWorkflowsNameTheirOwnSource:
+// the file is committed, carries its own generated-file banner, and runs all
+// five Ops the example declares - GitLab gets every job now, not the one
+// scheduled sweep it was limited to before #2268.
+func TestCIPipelineGitLabIsTrackedAndGenerated(t *testing.T) {
+	rel := ciPipelineGitLabRelPath()
+	if tracked := gitLines(t, "ls-files", "--", rel); len(tracked) != 1 {
+		t.Fatalf("git tracks %v for %s; the generated GitLab pipeline has to be committed, "+
+			"or the example's GitLab half is a README paragraph with no file behind it", tracked, rel)
+	}
 
-// ciPipelineGitLabForge is the value that job has to carry: GitLab reports as
-// itself rather than borrowing another forge's build.
-const ciPipelineGitLabForge = "gitlab"
+	body := ciPipelineGitLabBody(t)
+
+	wantBanner := "# " + ciPipelineGitLabFile + " - generated by examples/ci-pipelines/generate.ts. DO NOT EDIT."
+	if !strings.HasPrefix(body, wantBanner) {
+		t.Errorf("%s does not open with its own generated-file banner.\nwant prefix: %s", rel, wantBanner)
+	}
+	wantRegen := "# Regenerate with: CHANT_FORGE=gitlab npm run generate"
+	if !strings.Contains(body, wantRegen) {
+		t.Errorf("%s does not carry %q, so it does not say how to regenerate it", rel, wantRegen)
+	}
+
+	ops := ciPipelineOps(t)
+	for _, op := range ops {
+		if !strings.Contains(body, "chant run "+op) {
+			t.Errorf("%s does not run %q, one of the five Ops the example declares (%v)", rel, op, ops)
+		}
+	}
+}
+
+// TestCIPipelineGitLabInstallIsPinned is TestCIPipelineInstallIsPinned's
+// GitLab half, counting install lines instead of iterating files: GitLab's
+// five jobs share one file, so one pinned install per job is what "every job
+// installs a pinned choudoufu" comes down to here.
+func TestCIPipelineGitLabInstallIsPinned(t *testing.T) {
+	body := ciPipelineGitLabBody(t)
+	ops := ciPipelineOps(t)
+
+	if got := ciPipelineInstallPin.FindAllString(body, -1); len(got) != len(ops) {
+		t.Errorf("%s has %d pinned choudoufu install lines; the example declares %d Ops (%v), one job apiece",
+			ciPipelineGitLabFile, len(got), len(ops), ops)
+	}
+	if !strings.Contains(body, "sha256sum -c -") || !ciPipelineChecksum.MatchString(body) {
+		t.Errorf("%s downloads choudoufu without verifying a SHA256 against the release's published checksum",
+			ciPipelineGitLabFile)
+	}
+	if strings.Contains(body, "releases/latest") {
+		t.Errorf("%s installs a floating release", ciPipelineGitLabFile)
+	}
+}
+
+// ciPipelineGitLabForgeVar reads the CHANT_FORGE the GitLab job builds its Ops
+// with, or nil when the file sets none.
+var ciPipelineGitLabForgeVar = regexp.MustCompile(`(?m)^\s*CHANT_FORGE:\s*(\S+)\s*$`)
 
 // ciPipelineForgeList and ciPipelineForgeLiteral read the forge values
 // src/forge.ts accepts, out of the source rather than restated here. The Ops
@@ -597,123 +651,19 @@ func ciPipelineAcceptedForges(t *testing.T) []string {
 	return forges
 }
 
-// TestCIPipelineGitLabIsTrackedAndHandWritten holds that the GitLab pipeline
-// exists, is in git, and has not quietly become a generated file.
-//
-// Both directions matter. Untracked, it is a file the next clone does not
-// have, and the example's GitLab half is then a paragraph in a README with
-// nothing behind it. Carrying a generated banner, it claims a currency nothing
-// checks: `npm run generate` does not write this path, so a banner telling a
-// reader to regenerate rather than edit would send them to a command that
-// leaves the file exactly as it found it.
-func TestCIPipelineGitLabIsTrackedAndHandWritten(t *testing.T) {
-	if tracked := gitLines(t, "ls-files", "--", ciPipelineGitLabFile); len(tracked) != 1 {
-		t.Fatalf("git tracks %v for %s; the hand-written GitLab pipeline has to be committed, "+
-			"or the example's GitLab half is a README paragraph with no file behind it",
-			tracked, ciPipelineGitLabFile)
-	}
-
+// TestCIPipelineGitLabBuildsItsOwnForge holds the invariant
+// TestCIPipelineWorkflowsNameTheirOwnSource holds for github and forgejo:
+// the file builds its Ops with CHANT_FORGE: gitlab, checked against the forge
+// list itself rather than against a literal repeated here, because
+// `chant run` throws on module load on a value that list does not carry -
+// before any Op is built, on every triggered or scheduled run.
+func TestCIPipelineGitLabBuildsItsOwnForge(t *testing.T) {
 	body := ciPipelineGitLabBody(t)
 
-	for _, marker := range []string{"DO NOT EDIT", "generated by examples/ci-pipelines/generate.ts"} {
-		if strings.Contains(body, marker) {
-			t.Errorf("%s carries %q, but no generator writes it.\n"+
-				"If `generate.ts` has grown a gitlab forge, add it to ciPipelineForges above and delete this guard; "+
-				"until then the file is hand-written and must not claim otherwise.", ciPipelineGitLabFile, marker)
-		}
-	}
-
-	// The same claim from the other side: nothing in the generator's own
-	// entry points names gitlab. The day one does, this fails and points
-	// whoever wired it at the guard that has to move with it.
-	for _, input := range []string{"package.json", "generate.ts"} {
-		source, err := os.ReadFile(filepath.Join(ciPipelinesDir, input))
-		if err != nil {
-			t.Fatalf("reading %s: %v", input, err)
-		}
-		if strings.Contains(string(source), "gitlab") {
-			t.Errorf("%s names gitlab, so the generator may now emit %s.\n"+
-				"Move it into ciPipelineForges with the other generated trees and drop the hand-written guards, "+
-				"or keep gitlab out of the generator.", input, ciPipelineGitLabFile)
-		}
-	}
-}
-
-// TestCIPipelineGitLabRunsOneScheduledOp holds what the hand-written file is
-// allowed to say: one job, gated to a Pipeline Schedule carrying the selector
-// variable, running the one Op that has a cron trigger, on an install pinned
-// the same way the generated workflows pin theirs.
-func TestCIPipelineGitLabRunsOneScheduledOp(t *testing.T) {
-	body := ciPipelineGitLabBody(t)
-
-	ops := ciPipelineOps(t)
-	declared := false
-	for _, op := range ops {
-		if op == ciPipelineGitLabOp {
-			declared = true
-		}
-	}
-	if !declared {
-		t.Fatalf("%s runs %q, which is not one of the Ops the example declares (%v)",
-			ciPipelineGitLabFile, ciPipelineGitLabOp, ops)
-	}
-
-	// GitLab has no in-file cron: a schedule is a project-level object that
-	// runs the project's existing .gitlab-ci.yml. Without both halves of the
-	// rule the job runs on every pipeline the project has, including a merge
-	// request, where it would sweep the account with the estate's credentials.
-	for _, want := range []string{
-		`$CI_PIPELINE_SOURCE == "schedule"`,
-		`$CHANT_SCHEDULED_OP == "` + ciPipelineGitLabOp + `"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("%s does not gate its job on %s.\n"+
-				"GitLab has no in-file cron, so the schedule is a project-level object and the rule is the only "+
-				"thing keeping this job off every other pipeline the project runs.", ciPipelineGitLabFile, want)
-		}
-	}
-
-	if !strings.Contains(body, "chant run "+ciPipelineGitLabOp) {
-		t.Errorf("%s does not run `chant run %s`", ciPipelineGitLabFile, ciPipelineGitLabOp)
-	}
-	for _, op := range ops {
-		if op == ciPipelineGitLabOp {
-			continue
-		}
-		if strings.Contains(body, "chant run "+op) {
-			t.Errorf("%s runs %q, which chant's gitlab Op generator refuses by name: its trigger is a "+
-				"pull_request or a push and GitLab has neither event (chant #2084), and live-plan's finding mode "+
-				"posts a pull-request comment GitLab has no activity for (chant #2231).\n"+
-				"GitLab gets the cron Op and nothing else until that generator grows the triggers.",
-				ciPipelineGitLabFile, op)
-		}
-	}
-
-	// The generated workflows get their pin from generate.ts; this file has
-	// only this check.
-	if !ciPipelineInstallPin.MatchString(body) {
-		t.Errorf("%s has no pinned choudoufu release asset (want a releases/download/vX.Y.Z/choudoufu_vX.Y.Z_linux_amd64.tar.gz URL)",
-			ciPipelineGitLabFile)
-	}
-	if !strings.Contains(body, "sha256sum -c -") || !ciPipelineChecksum.MatchString(body) {
-		t.Errorf("%s downloads choudoufu without verifying a SHA256 against the release's published checksum",
-			ciPipelineGitLabFile)
-	}
-	if strings.Contains(body, "releases/latest") {
-		t.Errorf("%s installs a floating release", ciPipelineGitLabFile)
-	}
-
-	// The Ops read CHANT_FORGE at build time to choose a finding mode. Unset
-	// it defaults to github, whose live-discover posts a GitHub issue through
-	// `gh` and would fail on every scheduled run. Set to something src/forge.ts
-	// does not accept, `readForge` throws at module load and the run fails
-	// before it builds an Op - which is why the value is checked against the
-	// forge list itself and not against a literal repeated here.
 	match := ciPipelineGitLabForgeVar.FindStringSubmatch(body)
 	if match == nil {
 		t.Fatalf("%s sets no CHANT_FORGE, so `chant run` there builds the Ops for the default forge (github), "+
-			"whose %s posts a GitHub issue through `gh` and fails on every scheduled run",
-			ciPipelineGitLabFile, ciPipelineGitLabOp)
+			"whose live-discover opens a GitHub issue and fails on every run", ciPipelineGitLabFile)
 	}
 
 	accepted := ciPipelineAcceptedForges(t)
@@ -726,13 +676,74 @@ func TestCIPipelineGitLabRunsOneScheduledOp(t *testing.T) {
 	if !known {
 		t.Errorf("%s builds its Ops with CHANT_FORGE=%q, which src/forge.ts does not accept (it takes %v).\n"+
 			"`chant run` loads src/forge.ts before it builds an Op, and readForge throws there, so every "+
-			"scheduled run fails before it starts.", ciPipelineGitLabFile, match[1], accepted)
+			"run fails before it starts.", ciPipelineGitLabFile, match[1], accepted)
 	}
-	if match[1] != ciPipelineGitLabForge {
-		t.Errorf("%s builds its Ops with CHANT_FORGE=%q rather than %q.\n"+
-			"GitLab has no posting activity at all - every chant finding mode is `reconcilePr` shelling to `gh`, "+
-			"and chant has no GitLab merge-request note activity (chant #2256) - so it needs a report-only build; "+
-			"it gets one under its own name, rather than by claiming to be the forge this job does not run on.",
-			ciPipelineGitLabFile, match[1], ciPipelineGitLabForge)
+	if match[1] != "gitlab" {
+		t.Errorf("%s builds its Ops with CHANT_FORGE=%q rather than %q, so it claims a forge it is not running on",
+			ciPipelineGitLabFile, match[1], "gitlab")
+	}
+}
+
+// TestCIPipelineGitLabWorkflowsAreNotStale is
+// TestCIPipelineWorkflowsAreNotStale's GitLab half: no generator input was
+// committed after the one file GitLab gets. See that test's doc comment for
+// what a commit-order check can and cannot prove.
+func TestCIPipelineGitLabWorkflowsAreNotStale(t *testing.T) {
+	generated := []string{ciPipelineGitLabRelPath(), ciPipelineStampFile}
+	sort.Strings(generated)
+
+	lastSource := lastCommitTouching(t, ciPipelineGeneratorInputs...)
+	lastGenerated := lastCommitTouching(t, generated...)
+
+	if lastSource == "" || lastGenerated == "" {
+		t.Logf("git history does not reach a commit touching the generator inputs (%q) or %s (%q); the "+
+			"commit-order check did not run.", lastSource, ciPipelineGitLabRelPath(), lastGenerated)
+		return
+	}
+	if lastSource == lastGenerated {
+		return
+	}
+
+	cmd := exec.Command("git", "merge-base", "--is-ancestor", lastGenerated, lastSource)
+	cmd.Dir = ciPipelinesDir
+	if err := cmd.Run(); err == nil {
+		t.Errorf("%s is stale: %s last changed it, and %s changed a generator input (%v) after that.\n"+
+			"Run `npm run generate` in %s and commit the result.",
+			ciPipelineGitLabRelPath(), lastGenerated[:12], lastSource[:12], ciPipelineGeneratorInputs, ciPipelinesDir)
+	}
+}
+
+// TestCIPipelineGitLabRegenerates is TestCIPipelineWorkflowsRegenerate's
+// GitLab half: on a machine that can run the generator, regenerate into a
+// scratch directory and compare byte for byte. Skips under the same
+// conditions that test does.
+func TestCIPipelineGitLabRegenerates(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("no node on PATH, so the generator cannot run here; the tracked, banner, forge and "+
+			"install-pin checks in this file still ran (%v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(ciPipelinesDir, "node_modules", "@intentius", "chant")); err != nil {
+		t.Skipf("the example's dependencies are not installed (run `npm install` in %s); the checks in this file "+
+			"that need no node still ran", ciPipelinesDir)
+	}
+
+	scratch := t.TempDir()
+	cmd := exec.Command(node, "--import", "tsx", "generate.ts")
+	cmd.Dir = ciPipelinesDir
+	cmd.Env = append(os.Environ(), "CHANT_FORGE=gitlab", "CHANT_PIPELINE_OUT_DIR="+scratch)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("regenerating the gitlab pipeline: %v\n%s", err, out)
+	}
+
+	wantPath := filepath.Join(scratch, ciPipelineGitLabDir, ciPipelineGitLabFile)
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("reading the regenerated %s: %v", ciPipelineGitLabRelPath(), err)
+	}
+	if got := ciPipelineGitLabBody(t); got != string(want) {
+		t.Errorf("%s is not what generate.ts emits today.\n"+
+			"Run `npm run generate` in %s and commit the result; never edit a generated workflow by hand.",
+			ciPipelineGitLabRelPath(), ciPipelinesDir)
 	}
 }

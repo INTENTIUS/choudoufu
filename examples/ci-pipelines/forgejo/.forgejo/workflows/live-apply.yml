@@ -2,6 +2,12 @@
 # Regenerate with: CHANT_FORGE=forgejo npm run generate
 # The Op this job runs is examples/ci-pipelines/src/live-apply.op.ts.
 
+# chant dropped `environment: production` from this workflow: Forgejo Actions has no
+# environments, so there is no protection rule, required reviewer or wait timer for the key to
+# name. This job is not held back by anything on the forge. What still stops the apply is chant's
+# own gate: the run records a pending fact on the chant/lifecycle branch and ends, and `chant
+# approve <op> <gate>` is what lets the next run through.
+
 on:
   push:
     branches:
