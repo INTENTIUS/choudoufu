@@ -3,7 +3,8 @@
 The CI a choudoufu estate needs, as one chant project rather than one hand-written
 YAML file per forge. Five Ops over one live root; the GitHub and Forgejo workflows
 are generated from them and checked in beside them, under a guard that regenerating
-leaves the tree clean.
+leaves the tree clean. GitLab gets one of the five, hand-written, because chant's
+gitlab generator refuses the other four by name - see below.
 
 Nothing here is a template you fill in. It is a project that builds, whose five Op
 names are also the five job names a branch-protection rule or a warden policy can
@@ -145,9 +146,16 @@ github/.github/workflows/*.yml
 forgejo/.forgejo/workflows/*.yml
 ```
 
+and there is a third tree that `npm run generate` does not touch:
+
+```
+gitlab/.gitlab-ci.yml          # hand-written; one job, on a Pipeline Schedule
+```
+
 Each is a repository root as a consumer would lay it out. Copy the contents of
-`github/` (or `forgejo/`) into the repository that holds your chant project, where
-the project sits at the root, since the jobs run `npm ci` and `npx chant run` there.
+`github/` (or `forgejo/`, or `gitlab/`) into the repository that holds your chant
+project, where the project sits at the root, since the jobs run `npm ci` and
+`npx chant run` there.
 
 ## What each forge gets, and what it refuses
 
@@ -174,14 +182,66 @@ not:
   both reporting Ops run in `report` mode, where the finding is the run's own log and
   its step summary.
 
-**GitLab** gets the cron Op and nothing else, and this example does not generate it.
-chant's gitlab Op generator has no `pull_request`/`push` event model at all and
-refuses both by name, because a GitLab schedule is a project-level cron object rather
-than an event; it also refuses `setup` steps spelled `uses:` (GitLab CI has `script`
-and nothing else) and an additive `permissions` map (GitLab has no per-job token-scope
-mapping, and its OIDC surface is a different declaration chant does not generate). So
-a GitLab pipeline here would be `live-discover` alone, wired to a project-level
-Pipeline Schedule. That is issue #807's sub-issue (b), not this one.
+**GitLab** gets one job of the five, `live-discover`, hand-written in
+`gitlab/.gitlab-ci.yml`. The next section is what it is and why it is not generated.
+
+## The GitLab pipeline
+
+chant has a gitlab Op generator, and it is cron-only. Handed this project's five
+specs it refuses four of them by name, before it emits any YAML:
+
+| Op | What the generator says |
+|---|---|
+| `live-check`, `live-plan` | `has a "pull_request" trigger, but GitLab has no pull_request/push event model (#2084) - only a project-level Pipeline Schedule (cron)` |
+| `live-adopt`, `live-apply` | the same refusal, for their `push` trigger |
+| `live-plan`, again | `has findingMode "comment" ... GitLab has no pull_request event and chant has no GitLab merge-request note activity (#2231)` |
+
+and it refuses two of the per-Op options the other forges use, for the reason there
+is no `permissions:` block on a GitLab job at all (chant #2242): a `setup` step
+spelled `uses:` is a GitHub Actions marketplace action and GitLab CI runs `script`
+lines only, and an additive `permissions` map has no per-job token-scope mapping to
+go into - GitLab's OIDC surface is a separate `id_tokens:` declaration the job
+exchanges itself, which chant does not generate.
+
+`live-discover` is the one Op that crosses: a cron trigger and, on this forge, no
+posting mode. So GitLab gets the nightly sweep and nothing else. There is no
+pull-request gate, no gated apply and no adoption run there; a project on GitLab that
+wants those runs them somewhere with an event model, or waits for the chant work
+filed as #807's sub-issue (e).
+
+The job body in `gitlab/.gitlab-ci.yml` is the shape that generator emits for
+`live-discover` - one `stages`, one selector rule, one `chant run` - with the pinned
+install line and the credentials added. It is hand-written rather than generated
+because generating one job out of a five-Op project whose other four throw would put
+a file here that `npm run generate` cannot reproduce, and a generated file nothing
+regenerates is the failure the currency guards exist to prevent. The guards therefore
+treat it as tracked and hand-written, and assert it never grows a banner claiming
+otherwise.
+
+**What to set up.** GitLab has no in-file cron: a schedule is a project-level object
+that runs the project's existing `.gitlab-ci.yml`. Create one Pipeline Schedule
+(Settings > CI/CD > Schedules) with the cron `src/live-discover.op.ts` declares and
+the selector variable the job's rule reads:
+
+```
+Description:  live-discover
+Interval:     0 6 * * *
+Variables:    CHANT_SCHEDULED_OP = live-discover
+```
+
+A scheduled pipeline with a different selector runs nothing from this file, and a
+push or merge-request pipeline produces no job from it at all.
+
+**`CHANT_FORGE: forgejo`, on GitLab.** `src/forge.ts` takes two values: `github`,
+where a finding is posted through `gh`, and `forgejo`, which is report-only - the
+finding is the job's own log. GitLab is a third report-only instance, because every
+posting mode chant has is the same `reconcilePr` activity shelling to `gh` and there
+is no merge-request note activity (chant #2231). The job therefore builds the forgejo
+Ops, and says so rather than leaving the variable unset: unset defaults to `github`,
+whose `live-discover` opens a GitHub issue and would fail on every scheduled run.
+Giving `gitlab` its own value in `src/forge.ts` is the change to make the day that
+generator grows the triggers this file works around; `src/` is a generator input, so
+it belongs with a regeneration rather than with a hand-written file.
 
 ## AWS credentials
 
@@ -224,6 +284,23 @@ things to know before using them:
    `generate.ts` and give the credentials to the runner. That trades a repository
    secret for a runner-level one and is not obviously better; it is stated because it
    is the other real option.
+
+**GitLab: a static key too, and unverified for the same reason.** Set
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` as masked, protected project CI/CD
+variables on a role that only needs to read - `live-discover` sweeps the tagging API
+and reads the adoption ledger, and writes no marker and no resource. They are not
+repeated under `variables:` in the file, because a GitLab CI/CD variable is already in
+every job's environment; the scoping dial there is the variable's own protection and
+environment scope, not the YAML. That is the one place the GitLab shape is better than
+the Forgejo one, where the generator's `variables` become a workflow-level `env:` and
+`live-check` sees a key it does not need.
+
+GitLab does document an OIDC path - an `id_tokens:` block with an `aud`, exchanged for
+credentials by the job through `sts:AssumeRoleWithWebIdentity` - and chant does not
+generate it. The file leaves it out rather than sketching it: nothing in this
+organization has verified a GitLab-to-AWS exchange, which is open question Q2 of
+issue #807, and an unverified auth block that reads as generated is worse than a
+static key that says what it is.
 
 ## The estate
 
@@ -309,9 +386,21 @@ committed in the same commit as the source change it pretends to reflect is invi
 to the ordering check by construction. Where node is available it goes on to
 regenerate and diff, which is the same proof `npm test` gives.
 
-Both were proven red before they were trusted green: a hand-edited workflow, a deleted
-one, a `CHANT_FORGE` pointing at the wrong forge, a checksum check replaced by `cat`,
-a sixth Op with no workflow, and a generator input committed after the workflows.
+**`gitlab/.gitlab-ci.yml` is guarded differently**, because "regenerate and diff" is
+the wrong question for a file no generator writes. Both guards hold what is left: that
+regenerating writes no gitlab tree at all, that the file is tracked and carries no
+generated banner (and that nothing in `package.json` or `generate.ts` names gitlab, so
+the day the generator does emit it, the guard fails and names itself as the thing that
+has to move), that the one job is the one Op that generator can express, gated on both
+halves of its schedule rule, and that its install is pinned by version and checksum the
+same way the generated ones are.
+
+All of them were proven red before they were trusted green: a hand-edited workflow, a
+deleted one, a `CHANT_FORGE` pointing at the wrong forge, a checksum check replaced by
+`cat`, a sixth Op with no workflow, a generator input committed after the workflows,
+and on the GitLab side an untracked file, a deleted one, a `DO NOT EDIT` banner, a
+second job running `live-apply`, a dropped selector, and a `generate.ts` taught to
+write a gitlab tree.
 
 ## Pinning
 
@@ -330,8 +419,9 @@ branch, at build time, by name.
 ## What is not here
 
 - **The governance policies** that require these job names. Issue #807, sub-issue (c).
-- **The GitLab cron pipeline.** Sub-issue (b), and see above for what chant's gitlab
-  generator can and cannot express today.
+- **The other four Ops on GitLab.** Not a gap in this example: chant's gitlab Op
+  generator refuses them by name, and #807's sub-issue (e) is the chant work that
+  would change that. See the GitLab section above.
 - **The doc page** on the site. Sub-issue (d).
 - **A `.terraform.lock.hcl`.** A real repository commits one; this example leaves the
   provider pinned by `required_providers` only, so a clone of it does not carry a lock
