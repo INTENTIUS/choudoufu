@@ -43,6 +43,7 @@ jobs:
           json="${RUNNER_TEMP:-/tmp}/chant-run-live-adopt.json"
           npx chant run live-adopt --gated-exit 0 --json | tee "$json"
           node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(r.status!=="gated"||!process.env.GITHUB_OUTPUT)process.exit(0);fs.appendFileSync(process.env.GITHUB_OUTPUT,`gated=true\nop=${r.op}\ngate=${(r.gate&&r.gate.name)||""}\napprove=${r.approve||""}\n`)' "$json"
+        shell: bash
         env:
           GITHUB_TOKEN: '${{ github.token }}'
   live-adopt-gate-notice:
@@ -62,16 +63,18 @@ jobs:
           CHANT_GATE: '${{ needs.live-adopt.outputs.gate }}'
           CHANT_APPROVE: '${{ needs.live-adopt.outputs.approve }}'
         run: |
+          api_base="${GITHUB_API_URL%/}"
+          api_base="${api_base:-https://api.github.com}"
           marker="<!-- chant-gate:$CHANT_OP -->"
           body=$(printf '%s\n\nThe `%s` apply for %s stopped at gate `%s` and is waiting for an approval. Nothing was applied.\n\n```\n%s --approver <you>\n```\n\nThe pending fact is on `_gates/%s.jsonl` on the `chant/lifecycle` branch. Approving is a commit: push it and this workflow runs again and applies.\n' "$marker" "$CHANT_OP" "$GITHUB_SHA" "$CHANT_GATE" "$CHANT_APPROVE" "$CHANT_OP")
-          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq ".[0].number // empty")
+          pr=$(gh api "$api_base/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq ".[0].number // empty")
           if [ -z "$pr" ]; then
             gh issue create --title "$CHANT_OP is waiting on gate $CHANT_GATE" --body "$body"
             exit 0
           fi
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" --paginate --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" | grep -m1 -E "^[0-9]+$" || true)
+          id=$(gh api "$api_base/repos/$GITHUB_REPOSITORY/issues/$pr/comments" --paginate --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" | grep -m1 -E "^[0-9]+$" || true)
           if [ -n "$id" ]; then
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f "body=$body" --jq .html_url
+            gh api --method PATCH "$api_base/repos/$GITHUB_REPOSITORY/issues/comments/$id" -f "body=$body" --jq .html_url
           else
-            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$pr/comments" -f "body=$body" --jq .html_url
+            gh api --method POST "$api_base/repos/$GITHUB_REPOSITORY/issues/$pr/comments" -f "body=$body" --jq .html_url
           fi
