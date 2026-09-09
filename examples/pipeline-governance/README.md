@@ -1,20 +1,19 @@
 # pipeline-governance
 
-The other half of [`examples/ci-pipelines`](../ci-pipelines): a warden policy
-for each forge that has one, locking down a repository running those
-generated workflows.
+The other half of [`examples/ci-pipelines`](../ci-pipelines): one warden
+policy per forge, locking down a repository running those generated
+workflows.
 
-Two policies today, and neither is a new idea. `github/governance.yml` is a
-[github-warden](https://github.com/INTENTIUS/github-warden) policy and
+Three files, and none of them a new idea. `github/governance.yml` is a
+[github-warden](https://github.com/INTENTIUS/github-warden) policy,
 `forgejo/governance.yml` is a
-[forgejo-warden](https://github.com/INTENTIUS/forgejo-warden) policy, each in
-its own tool's config shape, so you can drop one into your repository and run
-it unchanged. GitLab is the third forge `examples/ci-pipelines` generates a
-pipeline for; it ships no [gitlab-warden](https://github.com/INTENTIUS/gitlab-warden)
-policy yet (#1008) - see "Anything on GitLab" below. What is specific to
-choudoufu is the names: the five Ops in `examples/ci-pipelines/src` are the
-five job names, and these policies are written against them rather than
-against a description of them.
+[forgejo-warden](https://github.com/INTENTIUS/forgejo-warden) policy, and
+`gitlab/governance.yml` is a
+[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy (#1008) -
+each in its own tool's config shape, so you can drop one into your repository
+and run it unchanged. What is specific to choudoufu is the names: the five
+Ops in `examples/ci-pipelines/src` are the five job names, and these policies
+are written against them rather than against a description of them.
 
 ## What they are written against
 
@@ -202,7 +201,7 @@ apply, or that apply fails on all four with this error.
 
 ## Applying them
 
-Dry-run reads and changes nothing. Do that first, on both forges.
+Dry-run reads and changes nothing. Do that first, on all three forges.
 
 ```bash
 # GitHub
@@ -228,7 +227,7 @@ npx @intentius/gitlab-warden reconcile \
   --token-env GITLAB_TOKEN --mode dry-run
 ```
 
-Both wardens are selective by omission: they manage only what the file
+All three wardens are selective by omission: they manage only what the file
 declares, and with no `owned:` declaration they create and update but never
 delete. Both defaults are deliberate for a starter policy, which is going into
 a repository that already has other things in it.

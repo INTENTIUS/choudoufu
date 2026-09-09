@@ -366,6 +366,13 @@ func TestPipelineGovernanceCoversEveryForge(t *testing.T) {
 // only holds that a policy file exists, not what it protects.
 func TestPipelineGovernanceProtectsTheGateLedgerBranch(t *testing.T) {
 	for forge := range pipelineGovernancePolicies {
+		// See the same skip elsewhere in this file: gitlab's policy is a
+		// different shape govPolicyRepo cannot parse. Its version is
+		// TestPipelineGovernanceGitLabProtectsTheGateLedgerBranch, in the
+		// delimited GitLab section below (#1008).
+		if forge == "gitlab" {
+			continue
+		}
 		repo := govPolicyRepo(t, forge)
 
 		var protected []string
@@ -1043,5 +1050,50 @@ func TestPipelineGovernanceGitLabDeclaresEveryCredentialTheWorkflowsRead(t *test
 
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("the gitlab policy declares variables %v, and its generated pipeline reads %v", got, want)
+	}
+}
+
+// TestPipelineGovernanceGitLabProtectsTheGateLedgerBranch is
+// TestPipelineGovernanceProtectsTheGateLedgerBranch's gitlab counterpart:
+// gitlabProtectedBranch has no review-required field of its own (see
+// ../README.md, "Where GitLab differs, and why" - a review requirement on
+// GitLab is the project-wide approvalRules block, not a branch attribute), so
+// this checks force-push-disabled on the protectedBranches rule and a
+// positive approvalsRequired on approvalRules separately, rather than
+// through govRule.reviewRequired()/forcePushDisabled() like the generic test.
+func TestPipelineGovernanceGitLabProtectsTheGateLedgerBranch(t *testing.T) {
+	repo := govGitLabRepo(t)
+
+	var protected []string
+	found := false
+	for _, rule := range repo.ProtectedBranches {
+		protected = append(protected, rule.Name)
+		if rule.Name != pipelineGateLedgerBranch {
+			continue
+		}
+		if rule.AllowForcePush == nil || *rule.AllowForcePush {
+			t.Errorf("the gitlab policy's %s rule does not disable a force push", pipelineGateLedgerBranch)
+			continue
+		}
+		found = true
+	}
+	if !found {
+		t.Errorf("the gitlab policy has no protectedBranches rule for %q, the branch chant's own gate "+
+			"resolution lives on and both READMEs call the approval of record.\n"+
+			"It protects %v. Either chant's gate-ledger branch moved (chant/packages/core/src/lifecycle/git.ts's "+
+			"STATE_BRANCH) or the policy dropped the rule.",
+			pipelineGateLedgerBranch, protected)
+	}
+
+	reviewRequired := false
+	for _, rule := range repo.ApprovalRules {
+		if rule.ApprovalsRequired > 0 {
+			reviewRequired = true
+		}
+	}
+	if !reviewRequired {
+		t.Errorf("the gitlab policy declares no approvalRules entry with approvalsRequired > 0, so nothing "+
+			"requires a review before a change reaches %q the way the other two policies' branch rules do",
+			pipelineGateLedgerBranch)
 	}
 }
