@@ -18,12 +18,18 @@
  * is baked into each Op, the gate is a phase inside `live-apply`, and this
  * file only says what triggers each Op, what the job installs first, and
  * which credentials it may reach for.
+ *
+ * `specs()` is exported, and `main()` below runs only when this file is the
+ * process entry point, so `tests/pipelines.test.ts`'s trigger-parity guard
+ * can `import { specs } from "../generate.ts"` and read the one table this
+ * project's triggers come from, without also generating a tree as a side
+ * effect of importing it.
  */
 
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { generateOpsPipeline } from "@intentius/chant/op";
 import type { ComponentPipelineOptions, ScheduledOpSpec } from "@intentius/chant/lexicon";
 import { forge, discoverFindingMode, planFindingMode, type Forge } from "./src/forge";
@@ -142,7 +148,7 @@ const OIDC: ScheduledOpSpec["permissions"] = { "id-token": "write" };
  * production applies behind its gate (`live-apply`, on a push to `main`), and
  * `live-discover` sweeps the account on its own cron regardless.
  */
-function specs(): ScheduledOpSpec[] {
+export function specs(): ScheduledOpSpec[] {
   const github = forge === "github";
   // GitLab's Op generator now expresses pull_request/push triggers and a
   // per-job id_tokens declaration (chant #2268, #2257), so its jobs get the
@@ -225,7 +231,7 @@ function specs(): ScheduledOpSpec[] {
  * anywhere in this organization, and the README says so rather than dressing
  * it up.
  */
-function options(): ComponentPipelineOptions {
+export function options(): ComponentPipelineOptions {
   const gitlab = forge === "gitlab";
   const region = gitlab ? "$AWS_REGION" : "${{ vars.AWS_REGION }}";
   return {
@@ -412,4 +418,12 @@ async function main(): Promise<void> {
   console.log(`  ${STAMP_FILE}: the input state this was generated from`);
 }
 
-await main();
+// Run only when this file is the process entry point (`node --import tsx
+// generate.ts`, which is what both `npm run generate:*` and
+// TestCIPipelineWorkflowsRegenerate/TestCIPipelineGitLabRegenerates invoke),
+// not when something imports it - `tests/pipelines.test.ts` imports `specs`
+// for the trigger-parity table, and an import that wrote a tree and a stamp
+// as a side effect would make running the tests mutate the working copy.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

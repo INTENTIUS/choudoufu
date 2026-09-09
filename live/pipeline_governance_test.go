@@ -62,6 +62,22 @@ var pipelineGovernancePolicies = map[string]string{
 	"forgejo": filepath.Join("forgejo", "governance.yml"),
 }
 
+// pipelineGateLedgerBranch is the branch chant's own gate resolution lives
+// on: `chant approve` writes a {@link GateResolutionRecord} there as a commit
+// (chant/packages/core/src/lifecycle/gate-ledger.ts), and both this
+// project's READMEs call it the approval of record.
+//
+// It is not importable from the Go side: chant's own name for it,
+// `STATE_BRANCH` (chant/packages/core/src/lifecycle/git.ts), is a private
+// const with no `export` keyword, and a Go program could not read a
+// TypeScript source constant out of a published package either way. So this
+// is the one place choudoufu pins the literal. Both policies and both
+// project READMEs were grepped for `chant/lifecycle` when this constant was
+// added, and agree with it; TestPipelineGovernanceProtectsTheGateLedgerBranch
+// below is what a policy renaming its own rule out from under that agreement
+// would fail.
+const pipelineGateLedgerBranch = "chant/lifecycle"
+
 // ---------------------------------------------------------------------------
 // The policy, as much of it as this file reads
 // ---------------------------------------------------------------------------
@@ -88,12 +104,22 @@ type govNamed struct {
 
 // govRule is one branch-protection entry. github-warden keys it by `pattern`
 // and forgejo-warden by `ruleName`; the required checks are
-// `requiredStatusCheckContexts` and `statusCheckContexts` respectively.
+// `requiredStatusCheckContexts` and `statusCheckContexts` respectively, a
+// required review is `requirePullRequestReviews`/`requiredApprovingReviewCount`
+// and `requiredApprovals` respectively, and a disabled force push is
+// `allowForcePushes: false` and `enablePush: false` respectively - forgejo's
+// `enablePush` disables an ordinary push too, which disables a force push a
+// fortiori.
 type govRule struct {
-	Pattern                     string   `yaml:"pattern"`
-	RuleName                    string   `yaml:"ruleName"`
-	RequiredStatusCheckContexts []string `yaml:"requiredStatusCheckContexts"`
-	StatusCheckContexts         []string `yaml:"statusCheckContexts"`
+	Pattern                      string   `yaml:"pattern"`
+	RuleName                     string   `yaml:"ruleName"`
+	RequiredStatusCheckContexts  []string `yaml:"requiredStatusCheckContexts"`
+	StatusCheckContexts          []string `yaml:"statusCheckContexts"`
+	RequirePullRequestReviews    bool     `yaml:"requirePullRequestReviews"`
+	RequiredApprovingReviewCount int      `yaml:"requiredApprovingReviewCount"`
+	RequiredApprovals            int      `yaml:"requiredApprovals"`
+	AllowForcePushes             *bool    `yaml:"allowForcePushes"`
+	EnablePush                   *bool    `yaml:"enablePush"`
 }
 
 // branch is the branch (or glob) this rule protects, whichever warden spelled it.
@@ -111,6 +137,31 @@ func (r govRule) contexts() []string {
 		return r.RequiredStatusCheckContexts
 	}
 	return r.StatusCheckContexts
+}
+
+// reviewRequired reports whether this rule requires at least one approving
+// review, in whichever warden spelled it: github-warden's boolean
+// `requirePullRequestReviews`, or forgejo-warden's positive `requiredApprovals` count.
+func (r govRule) reviewRequired() bool {
+	if r.RequirePullRequestReviews {
+		return true
+	}
+	return r.RequiredApprovals > 0
+}
+
+// forcePushDisabled reports whether this rule disables a force push, in
+// whichever warden spelled it: github-warden's `allowForcePushes: false`, or
+// forgejo-warden's `enablePush: false`, which disables an ordinary push too
+// and so disables a force push a fortiori. A key neither warden declares
+// reads as force pushes allowed, the same default each warden itself uses.
+func (r govRule) forcePushDisabled() bool {
+	if r.AllowForcePushes != nil {
+		return !*r.AllowForcePushes
+	}
+	if r.EnablePush != nil {
+		return !*r.EnablePush
+	}
+	return false
 }
 
 // govPolicyRepo reads one forge's policy and returns its single managed
@@ -275,6 +326,48 @@ func TestPipelineGovernanceCoversEveryForge(t *testing.T) {
 	for forge := range pipelineGovernancePolicies {
 		if _, ok := ciPipelineForges[forge]; !ok {
 			t.Errorf("examples/pipeline-governance ships a %s policy for a pipeline examples/ci-pipelines does not generate", forge)
+		}
+	}
+}
+
+// TestPipelineGovernanceProtectsTheGateLedgerBranch holds that every policy
+// carries a rule for pipelineGateLedgerBranch ("chant/lifecycle"), requiring
+// a review and refusing a force push, in that warden's own spelling of both.
+//
+// Both READMEs call this branch the approval of record: `chant approve`
+// writes the gate's resolution there as a commit, so whoever can push it can
+// let a gated apply through regardless of what a forge-side environment
+// reviewer does. Nothing asserted that before this test - a policy that
+// dropped the rule, or a branch that got renamed out from under it, still
+// read as a green TestPipelineGovernanceCoversEveryForge, because that test
+// only holds that a policy file exists, not what it protects.
+func TestPipelineGovernanceProtectsTheGateLedgerBranch(t *testing.T) {
+	for forge := range pipelineGovernancePolicies {
+		repo := govPolicyRepo(t, forge)
+
+		var protected []string
+		found := false
+		for _, rule := range repo.BranchProtection {
+			protected = append(protected, rule.branch())
+			if rule.branch() != pipelineGateLedgerBranch {
+				continue
+			}
+			if !rule.reviewRequired() {
+				t.Errorf("the %s policy's %s rule does not require a review", forge, pipelineGateLedgerBranch)
+				continue
+			}
+			if !rule.forcePushDisabled() {
+				t.Errorf("the %s policy's %s rule does not disable a force push", forge, pipelineGateLedgerBranch)
+				continue
+			}
+			found = true
+		}
+		if !found {
+			t.Errorf("the %s policy has no branch-protection rule for %q, the branch chant's own gate "+
+				"resolution lives on and both READMEs call the approval of record.\n"+
+				"It protects %v. Either chant's gate-ledger branch moved (chant/packages/core/src/lifecycle/git.ts's "+
+				"STATE_BRANCH) or the policy dropped the rule.",
+				forge, pipelineGateLedgerBranch, protected)
 		}
 	}
 }

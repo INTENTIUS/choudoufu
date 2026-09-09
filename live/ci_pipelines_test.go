@@ -19,17 +19,18 @@ import (
 	"testing"
 
 	version "github.com/hashicorp/go-version"
+	"gopkg.in/yaml.v3"
 )
 
 // examples/ci-pipelines ships generated CI: one chant project, five Ops, and
-// the GitHub and Forgejo workflows those Ops produce, checked in beside the
-// config that produces them (GitHub issue #807). A generated file that has
-// drifted from its generator is worse than no generated file, because it
-// reads as authoritative and describes a pipeline nobody has.
+// the GitHub, Forgejo and GitLab workflows those Ops produce, checked in
+// beside the config that produces them (GitHub issue #807). A generated file
+// that has drifted from its generator is worse than no generated file,
+// because it reads as authoritative and describes a pipeline nobody has.
 //
 // The example's own `npm test` is the real currency guard: it re-runs
-// generate.ts for both forges into a scratch directory and diffs byte for
-// byte, in both directions. It needs node and `npm install`, and this
+// generate.ts for all three forges into a scratch directory and diffs byte
+// for byte, in both directions. It needs node and `npm install`, and this
 // repository's Go CI has neither, so it does not run there.
 //
 // This file is the backstop that does run there. It proves, with nothing but
@@ -41,7 +42,7 @@ import (
 //     added or deleted without regenerating fails here;
 //   - each file says which forge and which Op source it came from, and its
 //     own CHANT_FORGE agrees with the directory it is in - the one invariant
-//     the whole two-forge arrangement rests on;
+//     every forge's arrangement rests on;
 //   - the choudoufu install every job runs is pinned to a version and a
 //     checksum rather than floating;
 //   - the generator has been run since the inputs last changed, by re-hashing
@@ -59,10 +60,16 @@ import (
 // generated file edited after it ran. TestCIPipelineWorkflowsRegenerate closes
 // that last gap on any machine that has run `npm install` in the example.
 //
-// The example's third tree, `gitlab/`, is not generated at all: chant's gitlab
-// Op generator is cron-only and refuses four of the five Ops by name, so the
-// one job GitLab gets is hand-written (#807, sub-issue (b)). The guards for it
-// are at the bottom of this file and say what they hold instead of currency.
+// The example's third tree, `gitlab/`, is generated too, since chant #2268
+// (0.60.0) taught its Op generator `pull_request`/`push` triggers. It used to
+// be hand-written (#807, sub-issue (b)), because that generator was cron-only
+// through 0.59.0 and refused four of the five Ops by name. GitLab's generator
+// returns one combined file rather than one per Op - a GitLab trigger is
+// job-scoped, not workflow-scoped, so there is nothing to split into separate
+// files - which does not fit `ciPipelineForges` below (built around "one
+// tracked file per Op", true of GitHub and Forgejo and not of GitLab). The
+// guards for it are at the bottom of this file and prove the same things the
+// per-Op guards above prove, read against the one file GitLab gets.
 
 const ciPipelinesDir = "../examples/ci-pipelines"
 
@@ -171,8 +178,10 @@ func ciPipelineWorkflow(t *testing.T, forge, op string) string {
 	return string(body)
 }
 
-// TestCIPipelineWorkflowsNameTheirOwnSource holds the invariant the two-forge
-// arrangement rests on.
+// TestCIPipelineWorkflowsNameTheirOwnSource holds, for github and forgejo,
+// the invariant every forge's generated workflow rests on.
+// TestCIPipelineGitLabBuildsItsOwnForge holds the same invariant for GitLab,
+// whose one-file-for-every-job shape does not fit the per-Op loop below.
 //
 // An Op's finding mode is baked into the Op at build time, and the Ops read
 // CHANT_FORGE to decide it - on GitHub the plan lands as a pull-request
@@ -216,6 +225,181 @@ func TestCIPipelineWorkflowsNameTheirOwnSource(t *testing.T) {
 					"to choose a finding mode, so a workflow that does not set it, or sets another forge's, grants "+
 					"permissions for an Op nobody runs.", forge, op, wantEnv)
 			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Trigger parity: one table, read off the GitHub tree, checked against
+// Forgejo's `on:` and GitLab's `rules:`.
+// ---------------------------------------------------------------------------
+//
+// examples/ci-pipelines/tests/pipelines.test.ts builds the same table from
+// `specs()` directly, since chant is a TypeScript dependency and specs() is
+// not readable from here. This file reads it off GitHub's generated tree
+// instead - the reference dialect everywhere else in this file compares
+// Forgejo and GitLab against - which is provably the same table:
+// TestCIPipelineWorkflowsRegenerate and TestCIPipelineForgejoTriggerParity
+// hold, on a machine with node, that GitHub's own tree is what specs()
+// produces and that Forgejo's agrees with it.
+
+// ciPipelineTrigger is one Op's trigger, forge-neutral: what kind of event
+// fires the job, which branch a `pull_request` or `push` trigger names, and
+// which cron a `schedule` trigger names.
+type ciPipelineTrigger struct {
+	Kind     string // "pull_request", "push", or "schedule"
+	Branches []string
+	Cron     string
+}
+
+// ciTriggerWorkflow reads only the `on:` block of a generated GitHub or
+// Forgejo workflow - the shape both dialects share.
+type ciTriggerWorkflow struct {
+	On struct {
+		PullRequest *struct {
+			Branches []string `yaml:"branches"`
+		} `yaml:"pull_request"`
+		Push *struct {
+			Branches []string `yaml:"branches"`
+		} `yaml:"push"`
+		Schedule []struct {
+			Cron string `yaml:"cron"`
+		} `yaml:"schedule"`
+	} `yaml:"on"`
+}
+
+// ciPipelineWorkflowTrigger reads one generated GitHub or Forgejo workflow's
+// `on:` block and returns it as a ciPipelineTrigger. Fatal on a shape this
+// project does not use: every Op here fires on exactly one of pull_request,
+// push or a single schedule entry, and a workflow matching none of them is
+// not one this reader can answer for.
+func ciPipelineWorkflowTrigger(t *testing.T, forge, op string) ciPipelineTrigger {
+	t.Helper()
+
+	var doc ciTriggerWorkflow
+	if err := yaml.Unmarshal([]byte(ciPipelineWorkflow(t, forge, op)), &doc); err != nil {
+		t.Fatalf("parsing %s/%s.yml as YAML: %v", forge, op, err)
+	}
+
+	switch {
+	case doc.On.PullRequest != nil:
+		return ciPipelineTrigger{Kind: "pull_request", Branches: doc.On.PullRequest.Branches}
+	case doc.On.Push != nil:
+		return ciPipelineTrigger{Kind: "push", Branches: doc.On.Push.Branches}
+	case len(doc.On.Schedule) == 1:
+		return ciPipelineTrigger{Kind: "schedule", Cron: doc.On.Schedule[0].Cron}
+	default:
+		t.Fatalf("%s/%s.yml's `on:` is none of pull_request, push or a single schedule entry; "+
+			"this reader does not know how to read its trigger", forge, op)
+		panic("unreachable")
+	}
+}
+
+// ciPipelineTriggerTable reads the trigger every Op fires on off the GitHub
+// tree - the reference dialect - once, so the Forgejo and GitLab guards below
+// check a derived table rather than restating a second (or third) literal
+// per Op that could drift from GitHub's own with nobody noticing.
+func ciPipelineTriggerTable(t *testing.T) map[string]ciPipelineTrigger {
+	t.Helper()
+
+	table := make(map[string]ciPipelineTrigger)
+	for _, op := range ciPipelineOps(t) {
+		table[op] = ciPipelineWorkflowTrigger(t, "github", op)
+	}
+	return table
+}
+
+// ciPipelineTriggersEqual compares two triggers by value: same kind, same
+// branches in the same order (every trigger in this project names exactly
+// one), same cron.
+func ciPipelineTriggersEqual(a, b ciPipelineTrigger) bool {
+	return a.Kind == b.Kind && a.Cron == b.Cron && strings.Join(a.Branches, ",") == strings.Join(b.Branches, ",")
+}
+
+// TestCIPipelineForgejoTriggerParity holds that Forgejo's `on:` fires on the
+// same trigger GitHub's does, for every Op - read off ciPipelineTriggerTable
+// rather than a second hand-copied literal per Op, so a forge drifting from
+// the other is caught here instead of only by a human reading both files.
+func TestCIPipelineForgejoTriggerParity(t *testing.T) {
+	table := ciPipelineTriggerTable(t)
+
+	for _, op := range ciPipelineOps(t) {
+		want := table[op]
+		got := ciPipelineWorkflowTrigger(t, "forgejo", op)
+		if !ciPipelineTriggersEqual(got, want) {
+			t.Errorf("forgejo/%s.yml triggers on %+v, and github/%s.yml (the reference dialect) triggers on %+v",
+				op, got, op, want)
+		}
+	}
+}
+
+// ciPipelineGitLabExpectedRule renders trig as the `if:` condition
+// generate.ts's gitlab Op generator writes for it: a merge_request_event
+// targeting trig's one branch for a pull_request trigger, a push to it for a
+// push trigger, and - GitLab has no in-file cron (see the generated file's
+// own header comment) - a schedule pipeline naming op's own
+// CHANT_SCHEDULED_OP for a schedule trigger.
+//
+// Fatal on a branch count other than one: every trigger in this project
+// names exactly one branch, and a second would need this rendering taught
+// the syntax for it rather than silently comparing against the wrong thing.
+func ciPipelineGitLabExpectedRule(t *testing.T, op string, trig ciPipelineTrigger) string {
+	t.Helper()
+
+	switch trig.Kind {
+	case "pull_request", "push":
+		if len(trig.Branches) != 1 {
+			t.Fatalf("%s: the reference trigger names %d branches (%v); this rendering only reasons about one",
+				op, len(trig.Branches), trig.Branches)
+		}
+		if trig.Kind == "pull_request" {
+			return fmt.Sprintf(`$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "%s"`,
+				trig.Branches[0])
+		}
+		return fmt.Sprintf(`$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "%s"`, trig.Branches[0])
+	case "schedule":
+		return fmt.Sprintf(`$CI_PIPELINE_SOURCE == "schedule" && $CHANT_SCHEDULED_OP == "%s"`, op)
+	default:
+		t.Fatalf("%s: trigger kind %q has no known GitLab rendering", op, trig.Kind)
+		panic("unreachable")
+	}
+}
+
+// TestCIPipelineGitLabTriggerParity holds that every job's `rules:` fires on
+// the GitLab rendering of the same trigger table TestCIPipelineForgejoTriggerParity
+// checks Forgejo against, read off the GitHub tree.
+func TestCIPipelineGitLabTriggerParity(t *testing.T) {
+	table := ciPipelineTriggerTable(t)
+
+	var doc map[string]yaml.Node
+	if err := yaml.Unmarshal([]byte(ciPipelineGitLabBody(t)), &doc); err != nil {
+		t.Fatalf("parsing %s as YAML: %v", ciPipelineGitLabFile, err)
+	}
+
+	for _, op := range ciPipelineOps(t) {
+		node, ok := doc[op]
+		if !ok {
+			t.Fatalf("%s declares no %q job", ciPipelineGitLabFile, op)
+		}
+
+		var job struct {
+			Rules []struct {
+				If string `yaml:"if"`
+			} `yaml:"rules"`
+		}
+		if err := node.Decode(&job); err != nil {
+			t.Fatalf("%s's %q job does not decode: %v", ciPipelineGitLabFile, op, err)
+		}
+		if len(job.Rules) != 1 {
+			t.Fatalf("%s's %q job declares %d rules; this project's generator writes exactly one per job",
+				ciPipelineGitLabFile, op, len(job.Rules))
+		}
+
+		want := ciPipelineGitLabExpectedRule(t, op, table[op])
+		if job.Rules[0].If != want {
+			t.Errorf("%s's %q job fires on %q, and github/%s.yml (the reference dialect) fires on %+v, "+
+				"which renders on GitLab as %q",
+				ciPipelineGitLabFile, op, job.Rules[0].If, op, table[op], want)
 		}
 	}
 }

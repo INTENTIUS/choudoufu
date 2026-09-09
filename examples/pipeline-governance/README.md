@@ -1,16 +1,20 @@
 # pipeline-governance
 
-The other half of [`examples/ci-pipelines`](../ci-pipelines): one warden policy
-per forge that locks down a repository running those generated workflows.
+The other half of [`examples/ci-pipelines`](../ci-pipelines): a warden policy
+for each forge that has one, locking down a repository running those
+generated workflows.
 
-Two files, and neither is a new idea. `github/governance.yml` is a
+Two policies today, and neither is a new idea. `github/governance.yml` is a
 [github-warden](https://github.com/INTENTIUS/github-warden) policy and
 `forgejo/governance.yml` is a
 [forgejo-warden](https://github.com/INTENTIUS/forgejo-warden) policy, each in
 its own tool's config shape, so you can drop one into your repository and run
-it unchanged. What is specific to choudoufu is the names: the five Ops in
-`examples/ci-pipelines/src` are the five job names, and these policies are
-written against them rather than against a description of them.
+it unchanged. GitLab is the third forge `examples/ci-pipelines` generates a
+pipeline for; it ships no [gitlab-warden](https://github.com/INTENTIUS/gitlab-warden)
+policy yet (#1008) - see "Anything on GitLab" below. What is specific to
+choudoufu is the names: the five Ops in `examples/ci-pipelines/src` are the
+five job names, and these policies are written against them rather than
+against a description of them.
 
 ## What they are written against
 
@@ -18,11 +22,11 @@ Read out of the generated workflows, not out of prose:
 
 | Job | Trigger | Where |
 |---|---|---|
-| `live-check` | pull request to `main` | both forges |
-| `live-plan` | pull request to `main` | both forges |
-| `live-adopt` | push to `staging` | both forges |
-| `live-apply` | push to `main` | both forges |
-| `live-discover` | cron `0 6 * * *` | both forges |
+| `live-check` | pull request to `main` | all three forges |
+| `live-plan` | pull request to `main` | all three forges |
+| `live-adopt` | push to `staging` | all three forges |
+| `live-apply` | push to `main` | all three forges |
+| `live-discover` | cron `0 6 * * *` | all three forges |
 | `live-adopt-gate-notice`, `live-apply-gate-notice` | after their job, when it gated | GitHub only |
 
 Only the first two can be required status checks. A forge reports a check when
@@ -158,7 +162,7 @@ policy file points at a workflow file. A policy requiring `live-check` is
 satisfied by any job named `live-check`, including one somebody wrote by hand
 that exits 0. Holding the workflows to their generator is
 `examples/ci-pipelines`' job, and it does it twice: the example's own
-`npm test` regenerates both forges and diffs byte for byte, and
+`npm test` regenerates all three forges and diffs byte for byte, and
 `live/ci_pipelines_test.go` is the backstop for a CI with no node.
 
 **That a role has the permissions its job needs.** The policies assert the
