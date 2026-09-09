@@ -1,0 +1,21 @@
+# What a consumer's own .gitlab-ci.yml looks like once the generated file is
+# added to it, per examples/ci-pipelines/README.md ("Generating").
+include:
+  - local: 'scheduled-ops.gitlab-ci.yml'
+
+# The one thing the generated jobs need and do not carry.
+#
+# chant's gate records its pending fact as a commit on the `chant/lifecycle`
+# orphan branch. A GitLab CI checkout configures no `user.email`/`user.name`,
+# so that commit cannot be written and `live-apply` and `live-adopt` die with
+# a bare `Op "live-apply" failed after 43.8s` and no error line. Setting an
+# identity is the whole fix.
+#
+# This is an overlay, not an edit: scheduled-ops.gitlab-ci.yml stays
+# byte-for-byte what the generator wrote, and a `default: before_script:`
+# reaches every job in it, because none of them declares a before_script of
+# its own.
+default:
+  before_script:
+    - git config user.email "ci@choudoufu.invalid"
+    - git config user.name "choudoufu CI"
