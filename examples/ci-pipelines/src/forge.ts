@@ -35,10 +35,20 @@
  * `comment` is the one posting mode that does not shell to `gh`: on GitHub it
  * PATCHes/POSTs a pull-request comment through the GitHub REST API, and since
  * chant #2268 it does the equivalent over GitLab's own REST API when the run
- * is a `merge_request_event` pipeline - a plain `fetch`, no `gh`, no `glab`,
- * authenticated with a `GITLAB_TOKEN` CI/CD variable or the job's own
- * `CI_JOB_TOKEN`. `live-plan` runs on a merge request, so it gets `comment` on
- * GitLab exactly as it does on GitHub.
+ * is a `merge_request_event` pipeline - a plain `fetch`, no `gh`, no `glab`.
+ * It needs a `GITLAB_TOKEN` CI/CD variable, masked, scope `api`; a project
+ * access token is the least-privilege form of that. The job's own
+ * `CI_JOB_TOKEN` is read as a fallback (chant's `gitlabNoteTokenFrom`), but it
+ * only reaches the notes API on an instance whose job-token allowlist covers
+ * it, which is not every GitLab. `live-plan` runs on a merge request, so it
+ * gets `comment` on GitLab exactly as it does on GitHub - provided the token
+ * is actually there: a *protected* CI/CD variable is not exposed to a
+ * merge-request pipeline built from an unprotected branch, so an unprotected
+ * feature branch's `live-plan` run silently loses `GITLAB_TOKEN` along with
+ * the three `CHOUDOUFU_*_ROLE_ARN` variables if those are marked protected.
+ * Push-to-`main`/`staging` jobs are unaffected; only merge-request jobs read
+ * these variables in a pipeline that could run from a protected or an
+ * unprotected branch.
  *
  * `live-discover` runs on a cron. `comment` needs a merge request to post on
  * and is refused at build time by both Op generators when the trigger has

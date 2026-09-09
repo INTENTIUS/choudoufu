@@ -77,7 +77,7 @@ shape survives it.
 | Forge | Where it comes from | The plan lands as | AWS credentials |
 |---|---|---|---|
 | GitHub | generated | a pull-request comment, edited in place by the next push | OIDC, no stored key |
-| Forgejo | generated | the run's own log and step summary | a static key from repository secrets, unverified |
+| Forgejo | generated | the run's own log and step summary | a static key from repository secrets, unverified; the pull-request jobs hold the apply credential |
 | GitLab | generated | a merge-request note, edited in place by the next push | OIDC, no stored key, unverified |
 
 **GitHub** gets all five jobs with everything on. Both CI-native triggers
@@ -122,6 +122,17 @@ GitLab has none of. This crossed over in chant #2268; earlier the generator
 refused every `pull_request`/`push` trigger and the `comment` finding mode by
 name, which is why GitLab used to get `live-discover` alone, hand-written.
 
+`live-plan`'s merge-request note needs a `GITLAB_TOKEN` CI/CD variable
+(masked, scope `api`); a project access token is the least-privilege way to
+create one. The job's own `CI_JOB_TOKEN` is read as a fallback, but it only
+reaches the notes API on an instance whose job-token allowlist has been
+configured to cover it. A *protected* CI/CD variable is not exposed to a
+merge-request pipeline built from an unprotected branch, which silently
+strips `GITLAB_TOKEN` and the three `CHOUDOUFU_*_ROLE_ARN` variables from
+exactly the merge-request jobs that read them; push-to-`main` and
+push-to-`staging` jobs are unaffected. Mark these variables unprotected, or
+protect the branches that open merge requests against `main`.
+
 ## Governance
 
 [`examples/pipeline-governance`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance)
@@ -155,6 +166,71 @@ reviewer gates the job rather than nothing. Forgejo Actions has no
 environments at all, so its dialect drops the key and says so in a header
 comment on the generated file.
 
+## Before the first run
+
+Each forge's generated YAML reads a set of variables, secrets and platform
+objects that nothing in this project provisions. Create these before pointing
+a trigger at the generated workflow; the names below are read out of the
+generated trees themselves, not assumed.
+
+### GitHub
+
+- `AWS_REGION`, a repository variable (`vars.AWS_REGION`, read by every job).
+- The three role ARNs, each a repository variable: `CHOUDOUFU_PLAN_ROLE_ARN`
+  (`live-plan`, `live-discover`), `CHOUDOUFU_ADOPT_ROLE_ARN` (`live-adopt`),
+  `CHOUDOUFU_APPLY_ROLE_ARN` (`live-apply`).
+- The three IAM roles those variables name, each with an OIDC trust policy on
+  GitHub's own identity provider that admits the right `sub` claim: a
+  `pull_request` event and `refs/heads/main` for the plan role (it covers
+  both `live-plan` and `live-discover`, whose cron runs off the default
+  branch), `refs/heads/staging` for the adopt role, `refs/heads/main` for the
+  apply role. `live-check` needs no role at all.
+- The `production` environment, with a required reviewer: `live-apply`'s job
+  declares `environment: { name: production }`, and nothing else gates it.
+- [`examples/pipeline-governance/github`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/github)'s
+  branch protection rules, applied to the repository.
+
+### GitLab
+
+- The same three roles as GitHub, over GitLab's own OIDC surface: each job's
+  `id_tokens:` sets `aud: $CI_SERVER_URL` (chant's default and GitLab's own
+  recommendation for an AWS federation), so the IAM identity provider's
+  audience needs to be `$CI_SERVER_URL`'s value, not GitHub's.
+- `AWS_REGION` and the three `CHOUDOUFU_*_ROLE_ARN` values, as project CI/CD
+  variables, either unprotected or paired with protected source branches (see
+  "Per forge" above for what a mismatch strips).
+- `GITLAB_TOKEN`, a masked CI/CD variable with scope `api`, for `live-plan`'s
+  merge-request note. A project access token is the least-privilege way to
+  create it.
+- A Pipeline Schedule (Settings > CI/CD > Schedules) with its
+  `CHANT_SCHEDULED_OP` variable set to `live-discover` - the job's own
+  `rules:` only fires on `$CI_PIPELINE_SOURCE == "schedule"` when that
+  variable matches, so no schedule means no sweep.
+- The `production` protected environment (Settings > CI/CD > Protected
+  environments), since `live-apply`'s job declares `environment: { name:
+  production }` and nothing else in this project's files provisions the
+  approval rule behind it.
+- The `include:` of the generated file in the project's own
+  `.gitlab-ci.yml`. GitLab does not read `scheduled-ops.gitlab-ci.yml` on its
+  own.
+
+### Forgejo
+
+- `AWS_REGION`, a repository variable (`vars.AWS_REGION`).
+- The static key pair, as repository secrets: `AWS_ACCESS_KEY_ID` and
+  `AWS_SECRET_ACCESS_KEY`. On Forgejo the pull-request jobs hold the apply
+  credential: because the generator's variables are workflow-scoped rather
+  than per-Op, `live-check` and `live-plan` - both of which run on every pull
+  request - get the same key pair as `live-apply` (#1028, doc-only interim
+  until a chant generator change lands per-Op credentials).
+- A runner registered under the `docker` label - every generated job sets
+  `runs-on: docker`.
+- Reachability to `https://code.forgejo.org/actions/checkout@v4`: every job's
+  first step is that `uses:`, so a runner that cannot reach `code.forgejo.org`
+  fails before anything else runs.
+- [`examples/pipeline-governance/forgejo`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/forgejo)'s
+  branch protection rules, applied there too.
+
 ## What is not there yet
 
 **A GitLab governance policy.** `examples/pipeline-governance` holds policies
@@ -166,14 +242,21 @@ protected-environment approval rule its `live-apply` job now names. A
 [gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy is worth
 its own file the day someone runs this pipeline for real.
 
-**AWS auth off GitHub.** OIDC to AWS is proven on GitHub Actions and nowhere
-else in this organization. GitLab's role assumption follows the same shape
-GitHub's does - a job-level identity token exchanged for role credentials -
-over GitLab's own `id_tokens:` surface rather than a marketplace action, but
-nothing here has run it against a real GitLab instance and a real AWS IAM
-OIDC identity provider. The Forgejo workflows have no OIDC surface to reach
-for at all: Forgejo Actions drops both `permissions:` and `id_tokens:`, so
-they ship with a static key and say so. Treat the GitLab shape as unverified
-and the Forgejo one as the credential model to replace outright: a
-long-lived key that can change an estate is worth replacing with whatever
-short-lived credential your runner can already mint.
+**No forge has a recorded run.** GitHub, Forgejo and GitLab all generate
+today; none of the three has ever run one of these five jobs end to end,
+against a real account or a real forge. [#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)
+is the smoke that runs the Ops in order against a real AWS account and
+records the result; until it lands, treat every credential path below as
+read-but-not-run rather than proven. GitLab's role assumption follows the
+same shape GitHub's does - a job-level identity token exchanged for role
+credentials - over GitLab's own `id_tokens:` surface rather than a
+marketplace action, but nothing here has run it against a real GitLab
+instance and a real AWS IAM OIDC identity provider. The Forgejo workflows
+have no OIDC surface to reach for at all: Forgejo Actions drops both
+`permissions:` and `id_tokens:`, so they ship with a static key and say so;
+[#1027](https://github.com/INTENTIUS/choudoufu/issues/1027) is the session
+against a real Forgejo instance that settles what is asserted but
+unobserved there. Treat the GitLab shape as unverified and the Forgejo one
+as the credential model to replace outright: a long-lived key that can
+change an estate is worth replacing with whatever short-lived credential
+your runner can already mint.
