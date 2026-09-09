@@ -8,12 +8,17 @@ build:
 test:
     go test ./...
 
-# Exactly what .github/workflows/ci.yml runs, in order, so a red main is
-# something you find here rather than on GitHub. `env -u PWD` is needed for
-# the test step and only locally: /Users/alex/checkouts is a symlink and
-# os.Getwd() honours PWD, which the Linux runner does not have to care about.
-# TestCIRunsEveryForkOwnedTestPackage (live/ci_coverage_test.go) keeps the
-# package list here and in the workflow from drifting apart.
+# Exactly what .github/workflows/ci.yml's `fast` job runs, in order, so a red
+# main is something you find here rather than on GitHub. `env -u PWD` is
+# needed for the test step and only locally: /Users/alex/checkouts is a
+# symlink and os.Getwd() honours PWD, which the Linux runner does not have to
+# care about. TestCIRunsEveryForkOwnedTestPackage (live/ci_coverage_test.go)
+# keeps the package list here and in the workflow from drifting apart.
+#
+# It also runs the example-ci-pipelines job's check (issue #1022): that job
+# is a separate job from `fast` in the workflow (see its comment in ci.yml for
+# why), but there is one local gate, so it runs here too, needing `npm ci`
+# first.
 #
 # Run exactly what CI runs, in order, before pushing.
 ci:
@@ -29,6 +34,8 @@ ci:
     echo "==> docs site build"
     cp live/iam-reference.json site/data/iamref.json
     (cd site && hugo --minify --quiet)
+    echo "==> examples/ci-pipelines tests"
+    (cd examples/ci-pipelines && npm ci --no-audit --no-fund && npm test)
     echo "==> CI steps passed"
 
 # Check whether background subagents (dispatched via the Agent tool) are

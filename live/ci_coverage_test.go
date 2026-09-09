@@ -909,3 +909,44 @@ func TestCIValidationRunsOnOrdinaryEvents(t *testing.T) {
 			ciWorkflowRel, validateJobName)
 	}
 }
+
+// exampleCIPipelinesJobName is the ci.yml job that runs examples/ci-pipelines'
+// own `npm test` - the byte-for-byte regeneration proof described atop
+// live/ci_pipelines_test.go, which otherwise only ever ran on a laptop
+// (issue #1022, issue #807).
+const exampleCIPipelinesJobName = "example-ci-pipelines"
+
+// TestCIRunsTheCIPipelinesExampleTests is issue #1022's guard: it stops the
+// job that runs examples/ci-pipelines' own currency proof from quietly going
+// away, or from drifting off the pinned node version, the lock-file cache
+// key, or the exact command the issue asked for.
+func TestCIRunsTheCIPipelinesExampleTests(t *testing.T) {
+	data, err := os.ReadFile(ciWorkflowRel)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciWorkflowRel, err)
+	}
+	job, ok := workflowJob(string(data), exampleCIPipelinesJobName)
+	if !ok {
+		t.Fatalf("%s has no `%s:` job.\n"+
+			"examples/ci-pipelines' own `npm test` is the byte-for-byte regeneration proof for all three "+
+			"forges (see the header of live/ci_pipelines_test.go); without this job it runs only on a "+
+			"laptop, which is exactly the state issue #1022 found it in.",
+			ciWorkflowRel, exampleCIPipelinesJobName)
+	}
+
+	for _, want := range []struct {
+		substr string
+		why    string
+	}{
+		{"actions/setup-node", "the job needs node to run the example's generator and its test suite"},
+		{"cache: npm", "issue #1022 asks for the install to be cached"},
+		{"examples/ci-pipelines/package-lock.json", "the cache must be keyed on the example's own lock file, not the whole repo's"},
+		{"npm ci --no-audit --no-fund", "issue #1022 names this exact install command"},
+		{"npm test", "the install alone proves nothing; the job must run the example's suite"},
+		{"examples/ci-pipelines", "the job must run inside the example, not the repo root"},
+	} {
+		if !strings.Contains(job, want.substr) {
+			t.Errorf("the %s job in %s does not contain %q: %s", exampleCIPipelinesJobName, ciWorkflowRel, want.substr, want.why)
+		}
+	}
+}
