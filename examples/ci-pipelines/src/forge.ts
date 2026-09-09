@@ -20,15 +20,41 @@
  * ## Why forgejo reports rather than posting
  *
  * Every posting mode chant has - `comment`, `issue`, `pull-request`,
- * `merge-request` - is the `reconcilePr` activity. `issue` and `pull-request`
- * shell to `gh` against the GitHub API; chant carries no Forgejo client and no
- * way to point `gh` at a Forgejo instance, which is why the forgejo Op
- * generator refuses `comment` by name. `issue` is not refused there, but it
- * is the same `gh issue create`, so an Op carrying it on Forgejo would
- * generate cleanly and fail at its Report step on every run. This example
- * does not ship that: on Forgejo both reporting Ops run in `report` mode,
- * where the finding is the run's own log and its step summary, and the
- * README says so rather than the pipeline discovering it.
+ * `merge-request` - is the `reconcilePr` activity, and it shells to `gh`
+ * against the GitHub API. That is what the forgejo Op generator's refusal of
+ * `comment` by name rests on; `issue` is not refused there, but it is the
+ * same `gh issue create`, so an Op carrying it on Forgejo would generate
+ * cleanly and fail at its Report step on every run.
+ *
+ * What exactly fails was settled on a real instance for #1027, Forgejo
+ * 12.0.4+gitea-1.22.0 with `forgejo-runner` v9.1.1. It is the URL, not the
+ * forge:
+ *
+ *  - `gh api repos/{owner}/{repo}/issues/{n}/comments` with `GH_HOST` set to
+ *    the instance requests `https://$GH_HOST/api/v3/...`. Forgejo serves
+ *    `/api/v1` and answers `/api/v3` with 404, for GET and POST alike. `gh`
+ *    also forces https, so a plain-HTTP instance fails earlier still, with
+ *    "server gave HTTP response to HTTPS client".
+ *  - Handed a full URL, the same `gh` works:
+ *    `gh api http://host/api/v1/repos/{owner}/{repo}/issues/{n}/comments`
+ *    listed comments and created one, over plain HTTP and over TLS.
+ *  - Forgejo's own `/api/v1` takes the GitHub-shaped sticky-comment calls
+ *    unchanged: GET and POST on `issues/{n}/comments`, PATCH on
+ *    `issues/comments/{id}` to edit in place.
+ *  - Inside a Forgejo job, `github.api_url` is already
+ *    `http://host/api/v1` and `${{ github.token }}` authenticates both calls
+ *    (GET 200, POST 201, the comment authored by the actions bot).
+ *
+ * So chant could post to Forgejo; `reconcilePr` has no path that does. That
+ * is chant #2291, and it is a prefix and a token to resolve rather than a
+ * client to write. Until it lands, both reporting Ops run in `report` mode
+ * on Forgejo, where the finding is the run's own log and not its step
+ * summary: the runner does export `GITHUB_STEP_SUMMARY` and writes succeed, but
+ * Forgejo 12.0.4 stores the file nowhere - no artifact, no API field, no
+ * panel in the run view - so a summary is visible only when the job also
+ * prints it to the log. The README carries the rest of that session's
+ * observations, including what `concurrency:` and `workflow_dispatch:` do
+ * there.
  *
  * ## Why gitlab now posts a `live-plan` comment but still reports `live-discover`
  *
@@ -98,14 +124,15 @@ export const forge: Forge = readForge();
  * equivalent note on the merge request that triggered it. Both are the same
  * `comment` finding mode and the same hidden-marker edit-in-place recipe -
  * `reconcilePr` picks the API by which CI variable the run itself carries.
- * Forgejo reports, for the reason above: chant has no Forgejo client.
+ * Forgejo reports, for the reason above: `reconcilePr` has no Forgejo path,
+ * though the instance itself would accept the call.
  */
 export const planFindingMode = forge === "forgejo" ? ("report" as const) : ("comment" as const);
 
 /**
  * How `live-discover` reports the adoption ledger its nightly sweep built.
- * `issue` only on GitHub: it is `gh issue create`, which only GitHub's `gh`
- * can do, and GitLab's own `comment` path needs a merge request a cron job
- * never has.
+ * `issue` only on GitHub: it is `gh issue create`, which `gh` sends to
+ * `/api/v3` on whatever host it is pointed at, a path Forgejo does not serve;
+ * and GitLab's own `comment` path needs a merge request a cron job never has.
  */
 export const discoverFindingMode = forge === "github" ? ("issue" as const) : ("report" as const);
