@@ -256,12 +256,6 @@ on your instance.** "Where GitLab differs, and why" has the detail: both are
 Premium/Ultimate, proven read-only (not applied) against GitLab CE by
 `gitlab-warden`'s own e2e suite.
 
-**Anything about `staging` on GitHub or Forgejo.** The GitLab policy protects
-`staging` (no force push) because #1008 asked for it in anticipation of
-#1024's extension of this example to the other two forges. `github/governance.yml`
-and `forgejo/governance.yml` do not yet; add a rule there too if you use it
-before #1024 lands.
-
 ## The guard
 
 `live/pipeline_governance_test.go` reads both sides, the policy YAML and the

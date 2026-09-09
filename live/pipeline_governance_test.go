@@ -127,6 +127,7 @@ type govRule struct {
 	RequiredApprovals            int      `yaml:"requiredApprovals"`
 	AllowForcePushes             *bool    `yaml:"allowForcePushes"`
 	EnablePush                   *bool    `yaml:"enablePush"`
+	AllowDeletions               *bool    `yaml:"allowDeletions"`
 }
 
 // branch is the branch (or glob) this rule protects, whichever warden spelled it.
@@ -164,6 +165,24 @@ func (r govRule) reviewRequired() bool {
 func (r govRule) forcePushDisabled() bool {
 	if r.AllowForcePushes != nil {
 		return !*r.AllowForcePushes
+	}
+	if r.EnablePush != nil {
+		return !*r.EnablePush
+	}
+	return false
+}
+
+// deletionDisabled reports whether this rule disables deleting the branch it
+// protects, in whichever warden spelled it: github-warden's separate
+// `allowDeletions: false`, or forgejo-warden's `enablePush: false` - which has
+// no distinct deletion field (BranchProtectionConfig in forgejo-warden's own
+// src/config/types.ts) because disabling an ordinary push disables deleting
+// the branch too, a fortiori, the same reasoning forcePushDisabled uses. A
+// key neither warden declares reads as deletion allowed, the same default
+// each warden itself uses.
+func (r govRule) deletionDisabled() bool {
+	if r.AllowDeletions != nil {
+		return !*r.AllowDeletions
 	}
 	if r.EnablePush != nil {
 		return !*r.EnablePush
@@ -292,6 +311,35 @@ func govPullRequestJobs(t *testing.T, forge string) (string, []string) {
 	return branch, jobs
 }
 
+// govPushBranches returns every branch any Op's `push` trigger fires on,
+// sorted and de-duplicated.
+//
+// It reads ciPipelineTriggerTable (#1021, ci_pipelines_test.go), which
+// already holds each Op's trigger kind, branch and cron read off the GitHub
+// tree - the reference dialect every forge's generated pipeline is checked
+// against elsewhere in this repository (TestCIPipelineForgejoTriggerParity,
+// TestCIPipelineGitLabTriggerParity). Deriving the branch set from that table
+// rather than a literal here means a new push trigger on a new branch - or an
+// existing one moved to a different branch - shows up here as a branch with
+// no rule, not as a silently unchecked policy.
+func govPushBranches(t *testing.T) []string {
+	t.Helper()
+
+	set := map[string]bool{}
+	for _, trig := range ciPipelineTriggerTable(t) {
+		if trig.Kind != "push" {
+			continue
+		}
+		for _, branch := range trig.Branches {
+			set[branch] = true
+		}
+	}
+	if len(set) == 0 {
+		t.Fatalf("no Op's trigger table entry has kind \"push\"; this file's push-branch protections would all pass over an empty set")
+	}
+	return govSortedKeys(set)
+}
+
 // govExpectedContext renders one job name as the status-check context that
 // forge reports for it.
 //
@@ -402,14 +450,23 @@ func TestPipelineGovernanceProtectsTheGateLedgerBranch(t *testing.T) {
 	}
 }
 
-// TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget holds that the
-// rule carrying the required checks protects the branch those pull requests
-// are opened against.
+// TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget holds that every
+// branch a generated workflow triggers on on this forge has a matching
+// branch-protection rule: the pull-request branch needs one carrying the
+// required status checks, and every branch any `push` trigger fires on -
+// staging for live-adopt, main for live-apply, whatever a future Op adds -
+// needs one requiring a review and disabling a force push and a deletion.
 //
-// A rule on the wrong branch is the failure mode with no symptom: the checks
-// are declared, the settings page shows them, and pull requests to the branch
-// the pipeline actually watches merge unchecked.
+// A rule on the wrong branch, or no rule at all for a branch a push trigger
+// fires on, is the failure mode with no symptom: the checks (or the review
+// gate) are declared, the settings page shows them, and the branch the
+// pipeline actually watches is reachable unchecked. #1024: live-adopt writes
+// marker tags from a push to staging while holding the adopt role for the
+// whole run, and nothing asserted a rule existed for that branch until this
+// test covered every push trigger rather than only the pull-request one.
 func TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget(t *testing.T) {
+	pushBranches := govPushBranches(t)
+
 	for forge := range pipelineGovernancePolicies {
 		// gitlab has no per-op workflow directory (ciPipelineForges has no
 		// "gitlab" entry - its one file is read a different way) and its
@@ -420,21 +477,31 @@ func TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget(t *testing.T) {
 		if forge == "gitlab" {
 			continue
 		}
-		branch, _ := govPullRequestJobs(t, forge)
+		prBranch, _ := govPullRequestJobs(t, forge)
 		repo := govPolicyRepo(t, forge)
 
+		rulesByBranch := make(map[string]govRule, len(repo.BranchProtection))
 		var protected []string
-		found := false
 		for _, rule := range repo.BranchProtection {
 			protected = append(protected, rule.branch())
-			if rule.branch() == branch && len(rule.contexts()) > 0 {
-				found = true
-			}
+			rulesByBranch[rule.branch()] = rule
 		}
-		if !found {
+
+		if rule, ok := rulesByBranch[prBranch]; !ok || len(rule.contexts()) == 0 {
 			t.Errorf("the %s policy has no branch-protection rule with required status checks for %q, the branch its pull-request workflows target.\n"+
 				"It protects %v. Either the workflows' trigger moved (regenerate and re-read examples/ci-pipelines) or the policy names the wrong branch.",
-				forge, branch, protected)
+				forge, prBranch, protected)
+		}
+
+		for _, branch := range pushBranches {
+			rule, ok := rulesByBranch[branch]
+			if !ok || !rule.reviewRequired() || !rule.forcePushDisabled() || !rule.deletionDisabled() {
+				t.Errorf("the %s policy has no branch-protection rule requiring a review and disabling a force push and a "+
+					"deletion for %q, a branch a push trigger fires on.\n"+
+					"It protects %v. Either a push trigger's branch moved (regenerate and re-read examples/ci-pipelines) "+
+					"or the policy is missing a rule for it.",
+					forge, branch, protected)
+			}
 		}
 	}
 }
@@ -1019,23 +1086,40 @@ func TestPipelineGovernanceGitLabRequiredJobsAreTheGeneratedMergeRequestJobs(t *
 // TestPipelineGovernanceGitLabProtectsTheBranchTheWorkflowsTarget is
 // TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget's gitlab
 // counterpart: a protectedBranches rule, with no force push, exists for the
-// branch the merge-request jobs target.
+// branch the merge-request jobs target, and for every branch any Op's `push`
+// trigger fires on (#1024) - read off govPushBranches, the same #1021 parity
+// table the generic test uses, since that table is forge-neutral and GitLab's
+// own trigger rendering is checked against it directly by
+// TestCIPipelineGitLabTriggerParity.
+//
+// gitlab-warden's ProtectedBranchConfig has no review-required field of its
+// own (see TestPipelineGovernanceGitLabProtectsTheGateLedgerBranch's comment):
+// a review requirement on GitLab is the project-wide approvalRules block, not
+// a branch attribute, so this checks only force-push-disabled per branch, the
+// same as the mainline case always did.
 func TestPipelineGovernanceGitLabProtectsTheBranchTheWorkflowsTarget(t *testing.T) {
-	branch, _ := govGitLabMergeRequestJobs(t)
-	repo := govGitLabRepo(t)
+	mrBranch, _ := govGitLabMergeRequestJobs(t)
 
+	branches := map[string]bool{mrBranch: true}
+	for _, branch := range govPushBranches(t) {
+		branches[branch] = true
+	}
+
+	repo := govGitLabRepo(t)
+	rulesByBranch := make(map[string]gitlabProtectedBranch, len(repo.ProtectedBranches))
 	var protected []string
-	found := false
 	for _, rule := range repo.ProtectedBranches {
 		protected = append(protected, rule.Name)
-		if rule.Name == branch && rule.AllowForcePush != nil && !*rule.AllowForcePush {
-			found = true
-		}
+		rulesByBranch[rule.Name] = rule
 	}
-	if !found {
-		t.Errorf("the gitlab policy has no protectedBranches rule with allowForcePush: false for %q, the branch its merge-request jobs target.\n"+
-			"It protects %v. Either the pipeline's trigger moved (regenerate and re-read examples/ci-pipelines) or the policy names the wrong branch.",
-			branch, protected)
+
+	for branch := range branches {
+		rule, ok := rulesByBranch[branch]
+		if !ok || rule.AllowForcePush == nil || *rule.AllowForcePush {
+			t.Errorf("the gitlab policy has no protectedBranches rule with allowForcePush: false for %q, a branch its merge-request or push jobs target.\n"+
+				"It protects %v. Either a trigger's branch moved (regenerate and re-read examples/ci-pipelines) or the policy names the wrong branch.",
+				branch, protected)
+		}
 	}
 }
 

@@ -58,6 +58,23 @@ orgs:
             allowForcePushes: false
             allowDeletions: false
 
+          # ── The branch live-adopt writes to ─────────────────────────────
+          #
+          # live-adopt runs on a push to staging, after chant's own gate, and
+          # holds the adopt role for the whole run while it writes marker
+          # tags. A push straight to this branch is what triggers that, so
+          # protecting it makes reaching a push here a reviewed pull request
+          # too - the same reasoning as chant/lifecycle above, applied to the
+          # branch a push trigger actually fires on rather than the ledger.
+          # No required status checks: nothing runs on a pull request to
+          # staging, so requiring one would leave every such pull request
+          # pending forever.
+          - pattern: staging
+            requirePullRequestReviews: true
+            requiredApprovingReviewCount: 1
+            allowForcePushes: false
+            allowDeletions: false
+
         # ── The production environment ─────────────────────────────────────
         #
         # READ examples/pipeline-governance/README.md, "What the environment
