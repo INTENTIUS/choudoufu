@@ -388,13 +388,16 @@ workaround: the cache is never consulted for ownership, live always wins, and lo
 the record costs a slower run and nothing else. An `ssm` (or `s3`) store is shared and
 lives under IAM, which is what a pipeline should declare.
 
-Running this root prints two `Resource type has no orphan recovery` warnings, one
-per resource. They are wrong, and they are choudoufu's rather than the example's:
-both types have rows in the generated admission table, and the same run's `-json`
-document lists `aws_iam_role` under `swept`. The warning fires for the schema-first
-path as well as for the type-not-in-the-table path it was written for. Filed as
+Running this root used to print two `Resource type has no orphan recovery`
+warnings, one per resource, and they were wrong: both types have rows in the
+generated admission table, and the same run's `-json` document lists
+`aws_iam_role` under `swept`. The warning was firing for the schema-first path as
+well as for the type-not-in-the-table path it was written for. That was
 [#980](https://github.com/INTENTIUS/choudoufu/issues/980), found by building this
-example.
+example, and it is fixed - the warning now fires only for types nothing can sweep.
+`scripts/smoke.sh` counts them on every run and prints the count as a verdict
+line; it reads `count=0` at v0.16.0, over `live-check`, `live-plan`, `live-apply`,
+`live-adopt` and `live-discover` together.
 
 The IAM role is in the root on purpose. IAM is one of the services whose tagging call
 choudoufu does not print a paste-ready adopt command for (Route53 and S3 are the
@@ -404,9 +407,31 @@ half of adoption, and a CI example should carry it.
 
 ## Running it locally, against the emulator
 
-The three read-only Ops run end to end against floci with no AWS account. Point the
-SDK at the emulator, put a `choudoufu` on PATH, and pick the forge whose finding modes
-do not need a forge:
+All five Ops run end to end against floci with no AWS account. The scripted version
+is `scripts/smoke.sh`, or `just smoke-ci-pipelines` from the repository root, which
+starts the pinned emulator, runs the five in order, and prints one verdict line per
+Op read off that run's own `--json` status:
+
+```
+SMOKE op=live-check verdict=pass status=ok
+SMOKE op=live-plan verdict=pass status=ok
+SMOKE op=live-apply verdict=pass status=gated
+SMOKE op=live-apply/approve verdict=pass status=resolved
+SMOKE op=live-apply verdict=pass status=ok
+SMOKE op=live-adopt verdict=pass status=gated
+SMOKE op=live-adopt/approve verdict=pass status=resolved
+SMOKE op=live-adopt verdict=pass status=ok
+SMOKE op=live-discover verdict=pass status=ok
+SMOKE op=apply-refusal verdict=pass status=exit3
+```
+
+It runs in a throwaway repository rather than in this checkout, because chant pushes
+its gate ledger to the first configured remote after every gate write. On a forge,
+`.github/workflows/ci-pipelines-smoke.yml` (`workflow_dispatch` only) runs the same
+script against floci as a service container.
+
+By hand, it is: point the SDK at the emulator, put a `choudoufu` on PATH, and pick
+the forge whose finding modes do not need a forge:
 
 ```bash
 docker run -d --rm -p 4566:4566 "$(cat ../../live/floci-image)"
@@ -424,7 +449,16 @@ npx chant run live-apply --gated-exit 0 --json   # stops at the gate
 `live-apply` stops where it should: `"status":"gated"`, the Apply phase skipped, and
 the approve command in the record. Approving is `chant approve live-apply
 approve-live-apply --approver you`, which is a commit on the `chant/lifecycle` branch;
-re-running then applies.
+re-running then applies. `live-adopt` gates the same way, on `approve-live-adopt`.
+
+Two things the emulator run settled that the rest of this file had only asserted
+(#1026). The chant gate resolution names the gate, the Op and the approver, and
+nothing about the plan - so a configuration edit between `chant approve` and the next
+`chant run live-apply` is re-planned and applied, not refused. The exit-3 refusal
+guards a narrower window: it is `apply <planfile>` disagreeing with the plan file it
+was handed, so it protects the gap between the Op's own Plan phase and its Apply
+phase, and `scripts/smoke.sh` proves it by tampering between `choudoufu plan -out`
+and `choudoufu apply`.
 
 ## The currency guard
 
