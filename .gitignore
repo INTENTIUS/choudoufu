@@ -138,6 +138,11 @@ ci.rc
 ci.meta
 ci.meta.tmp
 
+# `just ci`'s docs step points Hugo's cache here (issue #1031) so concurrent
+# gates in separate worktrees don't collide on the shared, per-user
+# ~/Library/Caches/hugo_cache.
+/.hugo_cache/
+
 # worker scratch repros and local record stores never belong in the repo
 .repro/
 .tofu-records/

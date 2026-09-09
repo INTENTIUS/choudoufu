@@ -33,7 +33,21 @@ ci:
     env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
     echo "==> docs site build"
     cp live/iam-reference.json site/data/iamref.json
-    (cd site && hugo --minify --quiet)
+    # --cacheDir scopes Hugo's cache to this worktree. Left unset, it
+    # defaults to a single OS-level, per-user directory
+    # (~/Library/Caches/hugo_cache) shared by every worktree on the
+    # machine, so concurrent `just ci` runs collide on it (issue #1031).
+    #
+    # No --quiet: --quiet swallows a real build error down to nothing, and
+    # a failure here used to leave ci.out with no diagnostic at all -
+    # only `just`'s own "Recipe 'ci' failed" line (issue #1031). The
+    # output is captured instead and only printed on failure, so a
+    # passing run stays as quiet as before and a failing one says why.
+    root="$(pwd)"
+    if ! docs_log="$(cd site && hugo --minify --cacheDir "$root/.hugo_cache" 2>&1)"; then
+        echo "$docs_log"
+        exit 1
+    fi
     echo "==> examples/ci-pipelines tests"
     (cd examples/ci-pipelines && npm ci --no-audit --no-fund && npm test)
     echo "==> CI steps passed"
