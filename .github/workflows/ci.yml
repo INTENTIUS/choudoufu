@@ -27,6 +27,25 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # TestIdentityGolden and TestIdentityGoldenCohortsAreDeterministic
+      # (internal/live/check, issue #930) render the 31 verification
+      # cohorts with tools/estate-gen before pinning their identities,
+      # which shells out to a literal "terraform" for `init` and `fmt`.
+      # flocitest.RequireBinary fails those tests outright rather than
+      # skipping when the binary is absent - a green run here over
+      # unverified cohort identities is the outcome the golden exists to
+      # prevent - so the binary has to actually be on PATH in this job.
+      #
+      # Pinned via live/oracle-versions.json, the same file gauntlet.yml
+      # and contribute.yml read, rather than "latest": issue #544 (root
+      # cause of #498) is what an unpinned oracle costs.
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
       # gofmt covers the roots this fork wholly owns, plus internal/command,
       # which it does not: that package is upstream's, and the fork has
       # added 21 files inside it. Whole-root thinking left those 21
