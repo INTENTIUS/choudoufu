@@ -145,14 +145,44 @@ name, which is why GitLab used to get `live-discover` alone, hand-written.
 
 `live-plan`'s merge-request note needs a `GITLAB_TOKEN` CI/CD variable
 (masked, scope `api`); a project access token is the least-privilege way to
-create one. The job's own `CI_JOB_TOKEN` is read as a fallback, but it only
-reaches the notes API on an instance whose job-token allowlist has been
-configured to cover it. A *protected* CI/CD variable is not exposed to a
+create one. The job's own `CI_JOB_TOKEN` is read as a fallback and does not
+work on a stock instance. A *protected* CI/CD variable is not exposed to a
 merge-request pipeline built from an unprotected branch, which silently
 strips `GITLAB_TOKEN` and the three `CHOUDOUFU_*_ROLE_ARN` variables from
 exactly the merge-request jobs that read them; push-to-`main` and
 push-to-`staging` jobs are unaffected. Mark these variables unprotected, or
 protect the branches that open merge requests against `main`.
+
+The pipeline was run once against a real instance for #1026, GitLab CE
+**17.11.0** with **gitlab-runner 17.11.0** on the docker executor and the
+floci emulator behind it, which settled both of those and three more things.
+`live-check`, `live-plan` and `live-discover` ran green on the generated file
+unchanged, and `live-plan`'s note was updated in place by the next push.
+`CI_JOB_TOKEN` is not a working fallback: with `GITLAB_TOKEN` removed the
+Report step came back `answered 401: {"message":"401 Unauthorized"} (token
+from CI_JOB_TOKEN, sent as JOB-TOKEN)` and failed the job, so a project
+without the variable gets a red merge request rather than a log-only finding.
+The protected-variable case produces that same 401 and nothing else - the
+variable exists on the project and is absent from the job, with no line
+anywhere naming it. `live-apply` and `live-adopt` both failed: a GitLab CI
+checkout configures no `user.email`/`user.name`, so chant's gate cannot write
+its pending fact to `chant/lifecycle`, and the job ends at a bare `Op
+"live-apply" failed after 43.8s` with no error line and no failing step
+(chant #2301); `live-adopt` fails for a second, forge-independent reason
+below. The approve-then-re-run loop does not close either, because a GitLab
+checkout fetches the pipeline's own ref and nothing else, so the retried job
+reads an empty ledger and gates again (chant #2303). With a git identity set
+and `chant/lifecycle` fetched, `live-apply` walks through its gate and
+applies for real.
+
+`environment: production` does less on CE than the key suggests. Protected
+environments and deployment approvals are Premium, and on 17.11.0 CE both API
+endpoints answer `404`, so there is no approval rule to create. The
+environment is still created and every `live-apply` job records a deployment
+against it, which makes it an audit trail rather than a gate. Read that trail
+carefully: `--gated-exit 0` makes a gated run a green job, and GitLab records
+a green job that deployed nothing as a *successful* deployment to
+`production`. chant's own gate is the control that holds.
 
 ## Governance
 
@@ -218,11 +248,24 @@ generated trees themselves, not assumed.
   recommendation for an AWS federation), so the IAM identity provider's
   audience needs to be `$CI_SERVER_URL`'s value, not GitHub's.
 - `AWS_REGION` and the three `CHOUDOUFU_*_ROLE_ARN` values, as project CI/CD
-  variables, either unprotected or paired with protected source branches (see
-  "Per forge" above for what a mismatch strips).
+  variables, either unprotected or paired with protected source branches. A
+  mismatch is silent: reproduced on 17.11.0, a protected variable is simply
+  absent from a merge-request job off an unprotected branch, and nothing in
+  the log names it.
 - `GITLAB_TOKEN`, a masked CI/CD variable with scope `api`, for `live-plan`'s
   merge-request note. A project access token is the least-privilege way to
-  create it.
+  create it. This is required, not optional: on 17.11.0 the job's own
+  `CI_JOB_TOKEN` answered `401 Unauthorized` on the notes API and failed the
+  job.
+- A git identity for the jobs - two `git config` lines in a
+  `default: before_script:` on the `.gitlab-ci.yml` that does the `include:`.
+  A GitLab checkout sets none, and chant's gate writes a commit, so
+  `live-apply` and `live-adopt` fail with no error line without it (chant
+  #2301).
+- The `chant/lifecycle` ref in the job, if the approve-then-re-run loop is
+  meant to close. A GitLab checkout fetches the pipeline's own ref and nothing
+  else, so a re-run after `chant approve` reads an empty ledger and gates
+  again (chant #2303).
 - A Pipeline Schedule (Settings > CI/CD > Schedules) with its
   `CHANT_SCHEDULED_OP` variable set to `live-discover` - the job's own
   `rules:` only fires on `$CI_PIPELINE_SOURCE == "schedule"` when that
@@ -230,7 +273,9 @@ generated trees themselves, not assumed.
 - The `production` protected environment (Settings > CI/CD > Protected
   environments), since `live-apply`'s job declares `environment: { name:
   production }` and nothing else in this project's files provisions the
-  approval rule behind it.
+  approval rule behind it. **Not available on CE**, where both the protected
+  environments and the deployment approvals APIs answer `404` - there, the
+  environment is a deployment record and chant's gate is the only control.
 - The `include:` of the generated file in the project's own
   `.gitlab-ci.yml`. GitLab does not read `scheduled-ops.gitlab-ci.yml` on its
   own.
@@ -268,32 +313,51 @@ generated trees themselves, not assumed.
 
 ## What is not there yet
 
-**A GitLab governance policy.** `examples/pipeline-governance` holds policies
-for `github` and `forgejo` only. GitLab's own Op generator now expresses all
-five triggers (chant #2268), so its pipeline runs real merge-request and push
-jobs the way GitHub's and Forgejo's do - but nothing requires its checks,
-protects `chant/lifecycle` there, or provisions the `production`
-protected-environment approval rule its `live-apply` job now names. A
-[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy is worth
-its own file the day someone runs this pipeline for real.
+**A GitLab governance policy that covers the environment.**
+`examples/pipeline-governance/gitlab/governance.yml` now requires the checks
+and protects `chant/lifecycle` there (#1008). What it cannot carry is the
+`production` protected-environment approval rule `live-apply`'s job names,
+because on GitLab CE there is no such object to declare: the protected
+environments and deployment approvals APIs both answer `404`, so that half of
+the control exists only on Premium and above.
 
-**No forge has a recorded run.** GitHub, Forgejo and GitLab all generate
-today; none of the three has ever run one of these five jobs end to end,
-against a real account or a real forge. [#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)
-is the smoke that runs the Ops in order against a real AWS account and
-records the result; until it lands, treat every credential path below as
-read-but-not-run rather than proven. GitLab's role assumption follows the
-same shape GitHub's does - a job-level identity token exchanged for role
-credentials - over GitLab's own `id_tokens:` surface rather than a
-marketplace action, but nothing here has run it against a real GitLab
-instance and a real AWS IAM OIDC identity provider. The Forgejo workflows
-have no OIDC surface to reach for at all: Forgejo Actions drops both
-`permissions:` and `id_tokens:`, so they ship with a static key and say so.
-[#1027](https://github.com/INTENTIUS/choudoufu/issues/1027) ran them against a
-real Forgejo (12.0.4+gitea-1.22.0, `forgejo-runner` v9.1.1) with no AWS
-account behind them: checkout, `npm ci`, the pinned choudoufu binary, `init`
-and `chant run` all worked, and the run ended at the credential call, so the
-dialect is observed and the credential path still is not. Treat the GitLab shape as unverified and the Forgejo one
-as the credential model to replace outright: a long-lived key that can
-change an estate is worth replacing with whatever short-lived credential
-your runner can already mint.
+**No forge has run against a real cloud.** All three have now run the jobs
+themselves, and none of the three runs had an AWS account behind it, so what
+is proven everywhere is the dialect and what is proven nowhere is the
+credential path.
+
+- **GitHub** runs the five Ops in order on every dispatch of
+  `.github/workflows/ci-pipelines-smoke.yml`, against floci as a service
+  container ([#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)).
+  That is the full sequence - check, plan, gated apply, approve, apply,
+  adopt, discover, and the exit-3 refusal - with a verdict line per Op.
+- **Forgejo** 12.0.4+gitea-1.22.0 with `forgejo-runner` v9.1.1 ran the
+  generated workflows with no cloud behind them
+  ([#1027](https://github.com/INTENTIUS/choudoufu/issues/1027)): checkout,
+  `npm ci`, the pinned binary, `init` and `chant run` all worked, and the run
+  ended at the credential call.
+- **GitLab** CE 17.11.0 with `gitlab-runner` 17.11.0 ran all five jobs
+  against floci, over all four of the pipeline's triggers, in the harness at
+  `examples/ci-pipelines/e2e/gitlab`. Three ran green unmodified; the two
+  that failed did so for the reasons in "Per forge" above, and both were
+  chased down to a verdict line.
+
+What none of that touches is the exchange between a forge and AWS. GitLab's
+role assumption follows the same shape GitHub's does - a job-level identity
+token exchanged for role credentials - over GitLab's own `id_tokens:` surface
+rather than a marketplace action, and against floci the SDK's static
+credentials shadowed the web-identity provider entirely, so no STS call was
+made. The Forgejo workflows have no OIDC surface to reach for at all: Forgejo
+Actions drops both `permissions:` and `id_tokens:`, so they ship with a
+static key and say so. Treat the GitLab exchange as unverified and the
+Forgejo one as the credential model to replace outright: a long-lived key
+that can change an estate is worth replacing with whatever short-lived
+credential your runner can already mint.
+
+**`live-adopt` needs an `init` nobody gives it.** Its Op is Check, Ledger,
+Gate, Adopt with no Init phase, and the Ledger step needs the provider schema
+for marker discovery, so on a fresh checkout - which is every CI checkout -
+it fails with `Error: Provider unavailable for marker discovery`. Seen on
+GitLab; forge-independent, and chant #2302. The local smoke does not catch it
+because `live-apply` runs first there and installs the provider into the same
+working tree.

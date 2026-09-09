@@ -66,7 +66,11 @@ The gate is a fact on a ledger, not a wait. The push run reaches it, finds no
 resolution, records the pending fact and ends; it does not hold a runner open.
 `chant approve live-apply approve-live-apply --approver you` writes the resolution,
 and re-running the workflow walks through the gate and applies. That is the approval
-of record. A forge-side environment reviewer stacks on top of it: the spec in
+of record.
+
+The re-run only reads that resolution if the job's checkout carries the
+`chant/lifecycle` ref, and on GitLab it does not: see "What the generated file does on
+a real GitLab". A forge-side environment reviewer stacks on top of it: the spec in
 `generate.ts` carries `environment: { name: "production" }` (chant #2264), so
 the generated GitHub and GitLab jobs both declare `environment:` and a
 protection rule on that environment - `examples/pipeline-governance/github/governance.yml`'s
@@ -102,6 +106,22 @@ marker is silent and adopts or displaces a real object, where a refusal is loud.
 that still has its `terraform.tfstate` should run it once by hand: it reads every
 instance, index and key included, straight out of the state file, which is the blind
 spot content matching cannot cover.
+
+**This Op does not run on a fresh checkout, which is every CI checkout.**
+`TerraformAdoptOp` builds Check, Ledger, Gate, Adopt and no Init, and the Ledger step
+needs the provider schema for marker discovery. On GitLab, on a clean clone, that is
+
+```
+[phase] Ledger
+  ✗ choudoufuLivePlan(root=estate, adoptionOnly=true)   90.7s
+│ Error: Provider unavailable for marker discovery
+```
+
+every time. One `choudoufu init` in the root beforehand is enough to reach the gate.
+The local smoke does not catch it because it runs `live-apply` first, whose Init phase
+has already installed the provider into the same working tree. The fix belongs in
+chant's composite rather than in a generated pipeline, so nothing here works around
+it; chant #2302, with both halves of the measurement in `e2e/gitlab/README.md`.
 
 ### live-discover
 
@@ -277,6 +297,12 @@ one job. chant #2268 (0.60.0) gave the generator both triggers and a merge-reque
 note activity behind `comment`, so this project now generates GitLab exactly as it
 generates GitHub and Forgejo - the hand-written file is gone.
 
+It has also been run. `e2e/gitlab/` stands up GitLab CE 17.11.0, a `gitlab-runner`
+with the docker executor and the pinned floci emulator on one network, pushes this
+file into a project and drives all four of its triggers; "What the generated file
+does on a real GitLab" below is that run, and anything in this section that names
+17.11.0 is measured rather than read off the generator.
+
 **One file, not five.** GitLab's Op generator returns a single document,
 `scheduled-ops.gitlab-ci.yml`, with all five jobs in it (`generateGitlabOpPipeline`,
 in the gitlab lexicon). A GitHub or Forgejo trigger lives on the workflow (`on:`), so
@@ -306,9 +332,12 @@ CI/CD variable, masked, scope `api`; nothing on the project provisions this by
 default, and a project access token is the least-privilege way to create it (chant's
 own `gitlabNoteTokenFrom`, in `packages/core/src/op/activities/reconcile.ts`, reads
 `CHANT_GITLAB_TOKEN` then `GITLAB_TOKEN` first). The job's own `CI_JOB_TOKEN` is read
-as a fallback, but it only reaches the notes API on a GitLab instance whose job-token
-allowlist has been configured to cover it - not the default, and not something to
-rely on without checking. No `gh` install, no GitHub token, and the same
+as a fallback, and on a stock instance it does not work: on GitLab CE 17.11.0, with
+`GITLAB_TOKEN` removed, the Report step came back
+`answered 401: {"message":"401 Unauthorized"} (token from CI_JOB_TOKEN, sent as
+JOB-TOKEN)` and failed the whole job, so the merge request got a red pipeline rather
+than a log-only finding. The notes API is not on the default job-token allowlist.
+Treat `GITLAB_TOKEN` as required. No `gh` install, no GitHub token, and the same
 hidden-marker edit-in-place recipe as the GitHub comment: one note per merge
 request, updated on every push rather than stacked. `live-discover` stays `report`
 mode on GitLab: `comment` needs a merge request to post its note on, and a cron job
@@ -324,15 +353,32 @@ that read them - it degrades to no token and no role to assume, not a build-time
 refusal. Push-to-`main` and push-to-`staging` jobs are unaffected either way, since
 those only ever run from a protected branch.
 
+Reproduced on 17.11.0: `GITLAB_TOKEN` recreated with `"protected": true`, a merge
+request opened from the unprotected branch `feature/retention`, and the job's only
+symptom was the 401 above - chant fell through to `CI_JOB_TOKEN` because, from
+inside the job, the variable simply was not there. Flipping the same variable to
+unprotected and pushing again: `Op "live-plan" completed in 25.5s`, with the note
+updated in place. Nothing in the job log names the stripped variable, which is why
+this is worth checking before believing a token is misconfigured.
+
 **`live-apply` deploys to the `production` environment.** GitLab has the same
 `environment: { name, url? }` key GitHub does, with its own protected-environment
 approval rule behind it (Settings > CI/CD > Protected environments) - chant's
 `environment` option (#2264) maps onto it the same way it maps onto GitHub's. Nothing
 in this project's own `.gitlab-ci.yml` can create that protection rule; it is project
 configuration, the same way a GitHub environment's reviewer is repository
-configuration. `examples/pipeline-governance` ships no GitLab policy yet (see its
-README's "Anything on GitLab"), so protecting it is a step a consumer takes by hand
-today.
+configuration.
+
+On GitLab CE there is no such rule to create. Protected environments and deployment
+approvals are Premium: on 17.11.0 CE, `GET /api/v4/projects/1/protected_environments`
+and `GET /api/v4/deployments/3/approval` both answer `404`. The key is not inert - the
+`production` environment is created on the first pipeline and every `live-apply` job
+records a deployment against it - but it is an audit trail, not a gate, and chant's
+own gate is the only thing holding the apply. Read the deployment list carefully while
+you are at it: `--gated-exit 0` makes a gated run a green job, and GitLab records a
+green job that deploys nowhere as a **successful** deployment to `production`. Three
+deployments to `production` on that instance read `success`; one of them applied
+something and two of them stopped at the gate.
 
 **No `uses:` step and no gated-apply notice job.** GitLab CI runs `script:` lines
 only; a `setup` entry spelled `{ uses }` is a GitHub Actions marketplace action, which
@@ -358,6 +404,58 @@ whose `live-discover` opens a GitHub issue and would fail on every scheduled run
 another forge. It said `forgejo` before this project could generate for GitLab at all
 (#986), which was true of the build and false about the run - `forgejo` was then the
 only report-only value on offer; #807 gave GitLab its own.
+
+### What the generated file does on a real GitLab
+
+GitLab CE **17.11.0** (revision `5e1517f7b46`, `enterprise: false`), **gitlab-runner
+17.11.0** with the docker executor, the pinned floci emulator, and the example's own
+`terraform/` root as the estate. Ten pipelines, seventeen jobs; the harness and the
+full record are in `e2e/gitlab/`.
+
+Three of the five ran green on the generated file with nothing changed:
+`Op "live-check" completed in 17.6s` on a merge request, `Op "live-plan" completed in
+29.9s` with `[outcome] Comment=…/merge_requests/1#note_1`, and `Op "live-discover"
+completed in 27.5s` off a Pipeline Schedule carrying `CHANT_SCHEDULED_OP`. A second
+push to the same merge request updated note 1 in place rather than adding a second
+one, which is the edit-in-place recipe this file claims.
+
+The other two failed, and one of the two reasons is not GitLab's:
+
+**A GitLab CI checkout configures no `user.email`/`user.name`, and chant's gate needs
+one.** The gate records its pending fact as a commit on `chant/lifecycle`, so with no
+identity the write fails and the job ends at
+
+```
+[phase] Plan
+  ✓ terraformPlan(root=estate, planFile=chant.tfplan)   21.1s
+    [outcome] Changed=true
+Op "live-apply" failed after 43.8s
+```
+
+with no error line, no failing step record and exit 1. Two `git config` lines ahead of
+`npx chant run` turn the same job into `Op "live-apply" is gated on
+"approve-live-apply" after 40.6s` and exit 0, with `chant-gate-live-apply.md` uploaded.
+`e2e/gitlab/overlay/.gitlab-ci.yml` sets them in a `default: before_script:`, which
+reaches every generated job without editing the generated file. Nothing in any of the
+three dialects sets an identity, so this is not a GitLab-only gap (chant #2301).
+
+**The approve-then-re-run loop does not close.** `chant approve` writes the resolution
+and pushes it, and the retried job gated anyway - it fetches the pipeline's own ref at
+depth 20 and nothing else, so it read an empty ledger and recorded a *second* pending
+fact (`expires : …T05:15:13Z` on the first run, `…T05:16:39Z` on the retry). The same
+commit, in the same image, with `git fetch origin
+chant/lifecycle:refs/heads/chant/lifecycle` first, reads `[approved] e2e-operator` and
+applies for real: `✓ terraformApply(root=estate, planFile=chant.tfplan) 9.0s`, and the
+log group and IAM role are then in the emulator. `GIT_DEPTH: 0` alone is not the fix -
+GitLab fetches refspecs, not every branch (chant #2303).
+
+Two smaller things the run settled. The stage is named `scheduled-ops` for all five
+jobs, merge-request jobs included, so a merge request's pipeline shows `live-check`
+and `live-plan` under a heading that says "scheduled-ops" (chant #2293). And the
+generated `id_tokens:` exports are inert rather than fatal alongside static
+credentials: the jobs exported `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` and
+still planned against floci, because the SDK's env-static provider wins over the
+web-identity one, so no STS call was ever attempted.
 
 ## AWS credentials
 
@@ -406,9 +504,14 @@ rather than a marketplace action:
    above, read the same way (`$CHOUDOUFU_PLAN_ROLE_ARN`, and so on).
 
 This is chant's own documented shape for the option (its `id_tokens:` doc comment
-names the AWS STS call by name), but nothing in this organization has run it against a
-real GitLab instance and a real AWS IAM OIDC identity provider - open question Q2 of
-issue #807, unresolved by this change. Register the IAM OIDC provider's audience as
+names the AWS STS call by name). The pipeline itself has now run on a real GitLab
+(17.11.0, see "What the generated file does on a real GitLab"), but against the floci
+emulator with static credentials, which is not an identity provider: GitLab did mint
+the JWT and the job did write it to a file, and no STS exchange was ever attempted,
+because `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` were present and the SDK's
+env-static provider wins over the web-identity one. So the exports are inert rather
+than fatal alongside a static key, and the exchange itself is still unrun - open
+question Q2 of issue #807, unresolved. Register the IAM OIDC provider's audience as
 `$CI_SERVER_URL` (chant's default, and GitLab's own documented recommendation for an
 AWS federation), and confirm the exchange once by hand before relying on it.
 
@@ -613,16 +716,21 @@ default branch, at build time, by name.
 
 ## What is not here
 
-- **A GitLab governance policy.** `examples/pipeline-governance` ships github-warden
-  and forgejo-warden policies (#807, sub-issue (c)); there is no
-  gitlab-warden equivalent, so nothing requires the GitLab checks, protects
-  `chant/lifecycle` there, or provisions the `production` protected-environment
-  approval rule `live-apply`'s job now names. See that example's README, "Anything
-  on GitLab".
+- **A GitLab governance policy that covers the environment.**
+  `examples/pipeline-governance/gitlab/governance.yml` requires the checks and
+  protects `chant/lifecycle` there (#1008, #1021). The `production`
+  protected-environment approval rule `live-apply`'s job names is the half it
+  cannot carry, and on GitLab CE there is no such object to declare at all - see
+  "What the generated file does on a real GitLab".
 - **Property-level drift.** chant's terraform lexicon implements entity-level
   observation for a live root and not `observeResourcesDeep()`, so there is no
   property-tree diff and no claimed-field set. `live-plan` is the plan, which is a
   different and older answer to the same question.
 - **A verified GitLab-to-AWS OIDC exchange.** The role assumption in "AWS credentials"
-  above is chant's documented shape for the option, run against no real GitLab
-  instance. Open question Q2 of issue #807.
+  above is chant's documented shape for the option. The pipeline has now run on GitLab
+  CE 17.11.0 (`e2e/gitlab/`), but against floci with static credentials, so the STS
+  exchange is still unexercised. Open question Q2 of issue #807.
+- **The GitLab run, as automation.** `e2e/gitlab/bootstrap.sh` stands the instance,
+  runner and emulator up and seeds the project; driving the four triggers and reading
+  the verdicts is still by hand, and nothing in `just ci` or `just smoke-ci-pipelines`
+  runs any of it.
