@@ -255,12 +255,28 @@ sits beside four jobs with real event triggers rather than alone.
 
 **`live-plan` posts a merge-request note.** `findingMode: "comment"` is `reconcilePr`
 either way, and since chant #2268 that activity reaches GitLab's own notes REST API
-directly - a plain `fetch`, authenticated with a `GITLAB_TOKEN` CI/CD variable (masked,
-scope `api`) or the job's own `CI_JOB_TOKEN` - rather than shelling to `gh`. No `gh`
-install, no GitHub token, and the same hidden-marker edit-in-place recipe as the
-GitHub comment: one note per merge request, updated on every push rather than
-stacked. `live-discover` stays `report` mode on GitLab: `comment` needs a merge
-request to post its note on, and a cron job never has one.
+directly - a plain `fetch` - rather than shelling to `gh`. It needs a `GITLAB_TOKEN`
+CI/CD variable, masked, scope `api`; nothing on the project provisions this by
+default, and a project access token is the least-privilege way to create it (chant's
+own `gitlabNoteTokenFrom`, in `packages/core/src/op/activities/reconcile.ts`, reads
+`CHANT_GITLAB_TOKEN` then `GITLAB_TOKEN` first). The job's own `CI_JOB_TOKEN` is read
+as a fallback, but it only reaches the notes API on a GitLab instance whose job-token
+allowlist has been configured to cover it - not the default, and not something to
+rely on without checking. No `gh` install, no GitHub token, and the same
+hidden-marker edit-in-place recipe as the GitHub comment: one note per merge
+request, updated on every push rather than stacked. `live-discover` stays `report`
+mode on GitLab: `comment` needs a merge request to post its note on, and a cron job
+never has one.
+
+**A protected CI/CD variable does not reach an unprotected branch's pipeline.**
+GitLab strips a variable marked "Protect variable" from any pipeline whose source
+branch is not itself protected - a merge-request pipeline off a feature branch is
+exactly that case. Mark `GITLAB_TOKEN` and the three `CHOUDOUFU_*_ROLE_ARN`
+variables unprotected, or protect the source branches that open merge requests
+against `main`, or `live-plan` silently loses all four on the merge-request jobs
+that read them - it degrades to no token and no role to assume, not a build-time
+refusal. Push-to-`main` and push-to-`staging` jobs are unaffected either way, since
+those only ever run from a protected branch.
 
 **`live-apply` deploys to the `production` environment.** GitLab has the same
 `environment: { name, url? }` key GitHub does, with its own protected-environment
@@ -351,8 +367,11 @@ AWS federation), and confirm the exchange once by hand before relying on it.
 **Forgejo: a static key, and this is unverified for a different reason.** No OIDC
 surface is being asked to work here at all: Forgejo Actions has neither `permissions:`
 nor `id_tokens:`, so its dialect drops both, and its jobs carry `AWS_ACCESS_KEY_ID`
-and `AWS_SECRET_ACCESS_KEY` from repository secrets instead. Two things to know before
-using them:
+and `AWS_SECRET_ACCESS_KEY` from repository secrets instead. On Forgejo the
+pull-request jobs hold the apply credential: `live-check` and `live-plan` run on
+every pull request and get the same key pair as `live-apply`, because there is no
+per-Op credential split yet (#1028, blocked on a chant generator change). Two
+things to know before using them:
 
 1. The generator's `variables` become the workflow's **top-level** `env:`, so the
    credentials are workflow-scoped. `live-check` sees them on Forgejo even though it
