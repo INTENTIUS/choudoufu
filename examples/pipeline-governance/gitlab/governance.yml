@@ -1,0 +1,149 @@
+# gitlab-warden policy for a repository that runs examples/ci-pipelines'
+# generated gitlab/scheduled-ops.gitlab-ci.yml. Copy it into that repository
+# (as governance.yaml, or whatever path you pass to --config), change the
+# node's path, then dry-run it:
+#
+#   npx @intentius/gitlab-warden reconcile \
+#     --config governance.yaml \
+#     --token-env GITLAB_TOKEN --mode dry-run
+#
+# gitlab-warden's config shape is a single top-level `nodes:` map keyed by
+# full path, one entry per group or project - not the `orgs: -> repos:`
+# spine ../github/governance.yml and ../forgejo/governance.yml share (see
+# INTENTIUS/gitlab-warden's POLICY.md, `src/config/types.ts`). That is the
+# first of several places this policy is honestly different from the other
+# two rather than a GitLab reskin of them; ../README.md's GitLab section
+# explains the rest, and live/pipeline_governance_test.go reads this file
+# with its own parser for that reason.
+#
+# warden is selective by omission: it manages only what is declared here,
+# and with no `owned:` declaration it creates and updates but never deletes.
+
+nodes:
+  my-group/my-estate-repo: # your GitLab group/subgroup path and project name
+    kind: project
+
+    # ── The pipeline cannot merge until choudoufu has answered ────────────
+    #
+    # GitLab has no per-job "required status check" list the way GitHub's
+    # requiredStatusCheckContexts or Forgejo's statusCheckContexts do. What
+    # blocks an unreviewed or failing merge here is two project-wide
+    # settings instead of a named check: onlyAllowMergeIfPipelineSucceeds,
+    # which fails the merge unless every job GitLab ran for this pipeline
+    # succeeded, and approvalRules below, which requires a review.
+    #
+    # live-check and live-plan are the only jobs the generated pipeline
+    # rules: to run on a merge request to main - read out of
+    # gitlab/scheduled-ops.gitlab-ci.yml, not restated from memory - so
+    # "the pipeline must succeed" comes down to exactly those two on a
+    # merge request. They are named here, in a form
+    # live/pipeline_governance_test.go parses, so a rename in
+    # examples/ci-pipelines/src has something to break:
+    #
+    #   required merge-request jobs: live-check, live-plan
+    projectSettings:
+      onlyAllowMergeIfPipelineSucceeds: true
+      onlyAllowMergeIfAllDiscussionsAreResolved: true
+
+    # mr-approvals is Premium/Ultimate (GitLab's own tier, not a warden
+    # choice): INTENTIUS/gitlab-warden's e2e suite (e2e/README.md's coverage
+    # table) reads this cycle cleanly on CE 17.11 - a 404, tolerated - but its
+    # apply/converge/drift/delete loop is unvalidated against a live instance,
+    # the same status as protectedEnvironments below. Declared anyway because
+    # #1008 asks for a review requirement here the same way the other two
+    # policies have one; on a CE/Free instance this entry will not converge,
+    # and reconcile's plan for it is optimistic rather than proven.
+    approvalRules:
+      - name: required-review
+        approvalsRequired: 1
+
+    # ── Who may push main, or approve an apply ─────────────────────────────
+    #
+    # chant's gate is a fact on a ledger, and `chant approve live-apply
+    # approve-live-apply` writes that fact as a commit on the chant/lifecycle
+    # branch. Whoever can push that branch can let an apply through, so it is
+    # protected the same as main: no force push, and the approvalRules entry
+    # above still requires a review for anything merged onto it.
+    #
+    # staging is not a branch examples/ci-pipelines' merge-request jobs
+    # target - live-adopt runs on a push to it, after chant's own gate - but
+    # it is protected here too, the same way, so #1024's later extension of
+    # this policy finds the rule already in the shape it expects.
+    protectedBranches:
+      - name: main
+        pushAccessLevel: 40 # maintainer
+        mergeAccessLevel: 30 # developer
+        allowForcePush: false
+      - name: chant/lifecycle
+        pushAccessLevel: 40
+        mergeAccessLevel: 30
+        allowForcePush: false
+      - name: staging
+        pushAccessLevel: 40
+        mergeAccessLevel: 30
+        allowForcePush: false
+        # gitlab-warden's ProtectedBranchConfig (src/config/types.ts) has no
+        # separate "no deletion" field, unlike GitHub's allowDeletions or
+        # Forgejo's enablePush: on GitLab, deleting a protected branch is a
+        # force push against it, so allowForcePush: false above is what
+        # blocks it too.
+
+    # ── The production environment ─────────────────────────────────────────
+    #
+    # Unlike Forgejo, GitLab has protected environments natively. chant #2268
+    # gave the gitlab Op generator the same `environment` option GitHub's has
+    # (../README.md, "What the environment does"), and the generated
+    # live-apply job in gitlab/scheduled-ops.gitlab-ci.yml carries
+    # `environment: { name: production }`. This is the reviewer that binds
+    # it - Premium/Ultimate, on GitLab.com and on a self-managed instance
+    # alike; it is not a warden limitation. INTENTIUS/gitlab-warden's e2e
+    # suite (e2e/README.md's coverage table) reads this cycle on CE 17.11 (a
+    # 404, tolerated) but its apply lands the 404 in `failed[]` rather than
+    # converging - there is nothing on a CE/Free instance for this block to
+    # attach to. Declared anyway because #1008 asks for it and the generated
+    # job already names the environment; on Premium or above it is real, and
+    # on CE it documents the intent for the day the instance is upgraded.
+    protectedEnvironments:
+      - name: production
+        deployAccessLevels: [40] # maintainer
+        requiredApprovalCount: 1
+
+    # ── The credentials the pipeline reads ──────────────────────────────────
+    #
+    # A variable with no `value` here is presence-only, the same idea as the
+    # other two policies' credentials (see ../github/governance.yml) - but
+    # gitlab-warden's actual mechanism is its own third thing, confirmed
+    # against a real GitLab CE 17.11 apply while writing this policy: on
+    # create it reads `$GITLAB_VAR_<KEY>` from the apply run's own
+    # environment (POLICY.md), and if that variable is unset, GitLab's own
+    # API - not warden - rejects the empty value with
+    # `POST .../variables returned 400: {"message":{"value":["is invalid"]}}`.
+    # That is neither github-warden's refuse-and-name-it nor forgejo-warden's
+    # create-it-empty; provision the four masked ones below via
+    # `GITLAB_VAR_<KEY>` in whatever runs the apply before the first reconcile.
+    # AWS_REGION carries a value, the same as on the other two forges,
+    # because a pipeline pointed at the wrong region is an incident and a
+    # region is not account-specific.
+    #
+    # The three role ARNs are read the same way GitHub's OIDC jobs read
+    # theirs: live-plan and live-discover both read CHOUDOUFU_PLAN_ROLE_ARN,
+    # live-adopt reads CHOUDOUFU_ADOPT_ROLE_ARN, live-apply reads
+    # CHOUDOUFU_APPLY_ROLE_ARN. GITLAB_TOKEN is the one credential neither
+    # other forge's policy declares: live-plan's merge-request note goes
+    # through GitLab's own REST API rather than `gh`, and needs a token with
+    # `api` scope to post it (examples/ci-pipelines/src/forge.ts). Left
+    # unprotected here on purpose - #1030 works out whether it needs
+    # `protected: true`, and a protected variable is stripped from a
+    # merge-request pipeline built off an unprotected branch, which is
+    # exactly the pipeline live-plan runs in.
+    variables:
+      - key: AWS_REGION
+        value: us-east-1
+      - key: CHOUDOUFU_PLAN_ROLE_ARN
+        masked: true
+      - key: CHOUDOUFU_ADOPT_ROLE_ARN
+        masked: true
+      - key: CHOUDOUFU_APPLY_ROLE_ARN
+        masked: true
+      - key: GITLAB_TOKEN
+        masked: true

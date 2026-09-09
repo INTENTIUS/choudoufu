@@ -87,14 +87,13 @@ has already started and read the live system.
 
 GitLab's own generator maps the same `environment` option to its own
 `environment:` key (chant #2268), and `gitlab/scheduled-ops.gitlab-ci.yml`'s
-`live-apply` job carries it too - `TestPipelineGovernanceEnvironmentGates`
-checks that side as well. This project ships no GitLab governance policy
-(see "Anything on GitLab" below), so nothing here provisions the GitLab
-protected-environment approval rule the key would need to mean anything on
-that forge yet; the job says which environment it deploys to, and that is as
-far as this repository goes today. Forgejo Actions has no environments at
-all, so its dialect drops the key and says so in a header comment on the
-generated file, and `chant/lifecycle` stays the only gate there.
+`live-apply` job carries it too. Since #1008, `gitlab/governance.yml`
+provisions the matching `protectedEnvironments:` entry, and
+`TestPipelineGovernanceEnvironmentGates` checks that side the same way it
+checks GitHub's `environments:` entry - both directions, both forges.
+Forgejo Actions has no environments at all, so its dialect drops the key and
+says so in a header comment on the generated file, and `chant/lifecycle`
+stays the only gate there.
 
 ## Where Forgejo differs, and why
 
@@ -125,6 +124,82 @@ environment, and an empty string when that variable is unset
 secret and writes nothing. Run the Forgejo policy in dry-run and provision both
 values before the first apply.
 
+## Where GitLab differs, and why
+
+| | GitHub | Forgejo | GitLab |
+|---|---|---|---|
+| Config shape | `orgs: -> repos:` | `orgs: -> repos:` | `nodes:` keyed by path |
+| "Required" mechanism | named status checks | named status checks (glob) | `onlyAllowMergeIfPipelineSucceeds` + a comment naming the jobs |
+| Review requirement | branch-rule field | branch-rule field | project-wide `approvalRules` (Premium) |
+| Deployment gate | `environments:`, native | none - `chant/lifecycle` only | `protectedEnvironments:`, native (Premium) |
+| Apply credential | 3 OIDC role ARNs | 1 static key pair | 3 OIDC role ARNs + `GITLAB_TOKEN` |
+
+**The config shape is not a reskin of the other two.** github-warden and
+forgejo-warden share one spine, `orgs: <org>: repos: <repo>:`, which is why
+`live/pipeline_governance_test.go` can read both with one parser. gitlab-warden
+has no concept of an org or a repo in its config; it has a single top-level
+`nodes:` map keyed by full path, one entry per group or project
+([`INTENTIUS/gitlab-warden`'s `POLICY.md`](https://github.com/INTENTIUS/gitlab-warden/blob/main/POLICY.md),
+`src/config/types.ts`). `gitlab/governance.yml` is a `kind: project` node, and
+the Go guard for it is a second, parallel reader rather than a third branch
+bolted onto `govPolicyRepo`.
+
+**"Required" is a pipeline setting, not a list of names.** GitHub's
+`requiredStatusCheckContexts` and Forgejo's `statusCheckContexts` both name
+individual jobs. GitLab has nothing equivalent: a protected branch's pipeline
+requirement is `onlyAllowMergeIfPipelineSucceeds`, which blocks the merge
+unless the whole pipeline succeeded, not any one named job. Since `live-check`
+and `live-plan` are the only jobs the generated pipeline rules onto a merge
+request, "the pipeline must succeed" comes down to exactly those two there -
+`gitlab/governance.yml` names them in a comment for
+`live/pipeline_governance_test.go` to hold against a rename, because the
+schema itself has nowhere to put that list.
+
+**A review is a project setting too, not a branch attribute.** `approvalRules`
+sets how many approvals a merge request needs project-wide; there is no
+per-branch review-count field the way github-warden's
+`requiredPullRequestReviews` or forgejo-warden's `requiredApprovals` are part
+of the branch rule itself. `protectedBranches` here covers what GitLab does
+attach to a branch: who may push or merge it, and whether it can be force
+pushed - which is also how "no deletion" is expressed, since GitLab has no
+separate delete permission on a protected branch, only the same force-push
+gate.
+
+**Two of these blocks are Premium/Ultimate, on GitLab.com and self-managed
+alike - not a warden limitation, a GitLab one.** `approvalRules`
+(gitlab-warden's `mr-approvals` cycle) and `protectedEnvironments`
+(`protected-environments`) both need a paid tier. `INTENTIUS/gitlab-warden`'s
+e2e suite runs its full read/apply/converge/drift/delete loop against a real
+GitLab CE 17.11 instance for every cycle CE supports, and its coverage table
+(`e2e/README.md`) marks these two read-only there: CE reports a 404 rather
+than a 403 for a tier-gated endpoint, which warden tolerates as "unmanaged"
+rather than a plan NOTE, and an *apply* against either lands that 404 in
+`failed[]` instead of converging. This policy declares both anyway, because
+the issue this file answers (#1008) asks for the review requirement and the
+production gate the same way the other two policies have them, and the
+generated `live-apply` job already names the `production` environment it
+would bind to. On Premium or above both blocks are real; on CE or Free they
+are a stated intent that does not yet converge, and the policy says so in a
+comment at each block rather than pretending otherwise. `protectedEnvironments:`
+is otherwise the direct GitLab counterpart of GitHub's `environments:` - see
+"What the environment does" above.
+
+**One more credential than the other two.** `live-plan`'s merge-request note
+goes over GitLab's own REST API rather than through `gh`
+(`examples/ci-pipelines/src/forge.ts`), and that call needs a `GITLAB_TOKEN`
+CI/CD variable with `api` scope - a credential neither the GitHub nor the
+Forgejo policy declares, because neither needs it. It is presence-only here
+the same way the role ARNs are, `value` omitted - but "presence-only" is a
+third thing on GitLab, not a repeat of the other two, confirmed against a
+real GitLab CE 17.11 apply while writing this policy: on create,
+gitlab-warden reads `$GITLAB_VAR_<KEY>` from the apply run's own environment
+(`INTENTIUS/gitlab-warden`'s `POLICY.md`), and an unset one is not refused by
+warden the way a missing GitHub variable is, nor created empty the way a
+missing Forgejo secret is - GitLab's own API rejects the empty value outright,
+`POST .../variables returned 400: {"message":{"value":["is invalid"]}}`.
+Provision the four masked variables via `GITLAB_VAR_<KEY>` before the first
+apply, or that apply fails on all four with this error.
+
 ## Applying them
 
 Dry-run reads and changes nothing. Do that first, on both forges.
@@ -143,6 +218,14 @@ npx @intentius/forgejo-warden reconcile \
   --config governance.yml \
   --base-url https://forgejo.example.com \
   --token-env FORGEJO_TOKEN --mode dry-run
+
+# GitLab
+cp examples/pipeline-governance/gitlab/governance.yml governance.yaml
+# edit: the node's key, the project's group/subgroup path
+npx @intentius/gitlab-warden reconcile \
+  --config governance.yaml \
+  --base-url https://gitlab.example.com \
+  --token-env GITLAB_TOKEN --mode dry-run
 ```
 
 Both wardens are selective by omission: they manage only what the file
@@ -169,24 +252,16 @@ that exits 0. Holding the workflows to their generator is
 role ARN variables exist. What those roles may do in AWS is an IAM policy, and
 `examples/ci-pipelines`' README has the table of what each of the three needs.
 
-**Anything on GitLab.** chant #2268 taught the gitlab Op generator
-`pull_request`/`push` triggers and a merge-request-note posting mode, so
-`examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml` is generated now
-and carries all five jobs, `live-apply` behind its own `environment:
-production` key included - the premise "no job runs on a merge request, and
-no job applies" this paragraph used to state is no longer true. What is still
-true is that nothing here locks any of it: there is no
-[gitlab-warden](https://github.com/INTENTIUS/gitlab-warden) policy in this
-example, so no required merge-request check, no protected `chant/lifecycle`
-rule and no protected-environment approval on GitLab's own `production`
-object exist anywhere but in the job's own YAML. A GitLab policy is worth its
-own file the day someone runs this pipeline for real; until then, treat the
-generated GitLab jobs the way you would an ungoverned copy of the GitHub or
-Forgejo ones.
+**That the GitLab policy's `approvalRules` or `protectedEnvironments` converge
+on your instance.** "Where GitLab differs, and why" has the detail: both are
+Premium/Ultimate, proven read-only (not applied) against GitLab CE by
+`gitlab-warden`'s own e2e suite.
 
-**Anything about `staging`.** The `live-adopt` job runs on a push to `staging`
-and writes marker tags after its gate. Neither policy protects that branch;
-add a rule for it if you use it.
+**Anything about `staging` on GitHub or Forgejo.** The GitLab policy protects
+`staging` (no force push) because #1008 asked for it in anticipation of
+#1024's extension of this example to the other two forges. `github/governance.yml`
+and `forgejo/governance.yml` do not yet; add a rule there too if you use it
+before #1024 lands.
 
 ## The guard
 

@@ -54,12 +54,19 @@ import (
 const pipelineGovernanceDir = "../examples/pipeline-governance"
 
 // pipelineGovernancePolicies maps a forge to its policy file, relative to the
-// example directory. The forge keys are ciPipelineForges' keys: a policy with
-// no pipeline, or a pipeline with no policy, fails in
-// TestPipelineGovernanceCoversEveryForge below.
+// example directory. The forge keys are the forges ciPipelineAcceptedForges
+// reads out of src/forge.ts: a policy with no pipeline, or a pipeline with no
+// policy, fails in TestPipelineGovernanceCoversEveryForge below.
+//
+// github's and forgejo's policies share one config shape (govPolicy below,
+// `orgs: -> repos:`) and are read by the generic tests that follow. gitlab's
+// is a different tool with a different shape (`nodes:`, see #1008) and is
+// read by its own parser and its own tests, in the delimited section near
+// the bottom of this file.
 var pipelineGovernancePolicies = map[string]string{
 	"github":  filepath.Join("github", "governance.yml"),
 	"forgejo": filepath.Join("forgejo", "governance.yml"),
+	"gitlab":  filepath.Join("gitlab", "governance.yml"),
 }
 
 // pipelineGateLedgerBranch is the branch chant's own gate resolution lives
@@ -310,13 +317,29 @@ func govExpectedContext(forge, job string) string {
 // ---------------------------------------------------------------------------
 
 // TestPipelineGovernanceCoversEveryForge holds that there is one policy per
-// generated pipeline. A forge whose pipeline ships with no policy is a
-// pipeline nothing protects, and this file would otherwise never mention it.
+// forge examples/ci-pipelines builds for. A forge whose pipeline ships with
+// no policy is a pipeline nothing protects, and this file would otherwise
+// never mention it.
+//
+// It reads the forge list from src/forge.ts (ciPipelineAcceptedForges, also
+// used by ci_pipelines_test.go) rather than iterating ciPipelineForges, a
+// two-entry map of only github and forgejo. Iterating that map is the
+// version of this test that shipped green while GitLab had a generated
+// pipeline and no policy (#1008, #1021): a two-entry map cannot fail on a
+// third forge it never looks at. ciPipelineAcceptedForges names every forge
+// src/forge.ts accepts, so a fourth forge added there and left unpoliced
+// fails here the same way GitLab did.
 func TestPipelineGovernanceCoversEveryForge(t *testing.T) {
-	for forge := range ciPipelineForges {
+	accepted := ciPipelineAcceptedForges(t)
+	acceptedSet := make(map[string]bool, len(accepted))
+	for _, forge := range accepted {
+		acceptedSet[forge] = true
+	}
+
+	for _, forge := range accepted {
 		rel, ok := pipelineGovernancePolicies[forge]
 		if !ok {
-			t.Errorf("examples/ci-pipelines generates a %s pipeline and examples/pipeline-governance ships no %s policy", forge, forge)
+			t.Errorf("src/forge.ts accepts %q and examples/ci-pipelines builds a pipeline for it, and examples/pipeline-governance ships no %s policy", forge, forge)
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(pipelineGovernanceDir, rel)); err != nil {
@@ -324,8 +347,8 @@ func TestPipelineGovernanceCoversEveryForge(t *testing.T) {
 		}
 	}
 	for forge := range pipelineGovernancePolicies {
-		if _, ok := ciPipelineForges[forge]; !ok {
-			t.Errorf("examples/pipeline-governance ships a %s policy for a pipeline examples/ci-pipelines does not generate", forge)
+		if !acceptedSet[forge] {
+			t.Errorf("examples/pipeline-governance ships a %s policy for a forge src/forge.ts does not accept", forge)
 		}
 	}
 }
@@ -381,6 +404,15 @@ func TestPipelineGovernanceProtectsTheGateLedgerBranch(t *testing.T) {
 // the pipeline actually watches merge unchecked.
 func TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget(t *testing.T) {
 	for forge := range pipelineGovernancePolicies {
+		// gitlab has no per-op workflow directory (ciPipelineForges has no
+		// "gitlab" entry - its one file is read a different way) and its
+		// policy is a different shape (govPolicyRepo assumes github-warden's
+		// and forgejo-warden's shared `orgs: -> repos:` spine). Its version
+		// of this assertion is TestPipelineGovernanceGitLabProtectsTheBranchTheWorkflowsTarget,
+		// in the delimited GitLab section below (#1008).
+		if forge == "gitlab" {
+			continue
+		}
 		branch, _ := govPullRequestJobs(t, forge)
 		repo := govPolicyRepo(t, forge)
 
@@ -412,6 +444,13 @@ func TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget(t *testing.T) {
 // under live markers.
 func TestPipelineGovernanceRequiredChecksAreTheGeneratedPullRequestJobs(t *testing.T) {
 	for forge := range pipelineGovernancePolicies {
+		// See the same skip in TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget:
+		// gitlab has no per-op workflow directory and a differently-shaped
+		// policy. Its join is TestPipelineGovernanceGitLabRequiredJobsAreTheGeneratedMergeRequestJobs,
+		// below (#1008).
+		if forge == "gitlab" {
+			continue
+		}
 		branch, jobs := govPullRequestJobs(t, forge)
 
 		want := make([]string, 0, len(jobs))
@@ -497,6 +536,13 @@ func govNames(entries []govNamed) []string {
 // existence of something nothing reads.
 func TestPipelineGovernanceDeclaresEveryCredentialTheWorkflowsRead(t *testing.T) {
 	for forge := range pipelineGovernancePolicies {
+		// See the same skip above: gitlab has no per-op workflow directory,
+		// no vars./secrets. namespacing to grep for, and a differently-shaped
+		// policy. Its version is TestPipelineGovernanceGitLabDeclaresEveryCredentialTheWorkflowsRead,
+		// below (#1008).
+		if forge == "gitlab" {
+			continue
+		}
 		wantVars, wantSecrets := govCredentialRefs(t, forge)
 		repo := govPolicyRepo(t, forge)
 
@@ -554,9 +600,11 @@ func TestPipelineGovernanceEnvironmentGates(t *testing.T) {
 	}
 
 	// GitLab's own generator maps the same spec option to its own
-	// `environment:` key (chant #2268); this project ships no GitLab
-	// governance policy yet (examples/pipeline-governance/README.md, "Anything
-	// on GitLab"), so only the job side is checked here.
+	// `environment:` key (chant #2268). Since #1008 there is a GitLab policy
+	// too, provisioning the same protected environment the other two forges'
+	// policies do (github via `environments:`, gitlab via
+	// `protectedEnvironments:`) - checked on both sides, the same as github
+	// above.
 	var gitlabDoc map[string]yaml.Node
 	if err := yaml.Unmarshal([]byte(ciPipelineGitLabBody(t)), &gitlabDoc); err != nil {
 		t.Fatalf("parsing %s as YAML: %v", ciPipelineGitLabFile, err)
@@ -576,6 +624,11 @@ func TestPipelineGovernanceEnvironmentGates(t *testing.T) {
 	if gitlabJob.Environment.Name != "production" {
 		t.Errorf("gitlab/%s's %q job deploys to environment %q, not %q",
 			ciPipelineGitLabFile, applyOp, gitlabJob.Environment.Name, "production")
+	}
+
+	gitlabRepo := govGitLabRepo(t)
+	if envs := govGitLabProtectedEnvironmentNames(gitlabRepo); len(envs) != 1 || envs[0] != "production" {
+		t.Errorf("the gitlab policy declares protectedEnvironments %v; the README and this test are written about exactly one, named production", envs)
 	}
 }
 
@@ -659,5 +712,336 @@ func TestPipelineGovernanceForgejoContextsMatchWhatForgejoWouldReport(t *testing
 					context, job, declared)
 			}
 		}
+	}
+}
+
+// =============================================================================
+// GitLab (#1008): a different warden, a different config shape
+//
+// gitlab-warden's policy is a single top-level `nodes:` map keyed by full
+// path (INTENTIUS/gitlab-warden's POLICY.md, src/config/types.ts), not the
+// `orgs: -> repos:` spine github-warden and forgejo-warden share, so govPolicy
+// and govRule above cannot parse it: unmarshalling a `nodes:` document into
+// govPolicy finds no `orgs:` key and govPolicyRepo's "exactly one org, one
+// repo" assertion fatals on zero. Everything in this section is a parallel
+// reader and a parallel set of joins for that shape, not a reuse of the
+// generic ones - the generic tests above skip "gitlab" explicitly and point
+// here instead.
+//
+// gitlab-warden also has no field that names a "required status check": a
+// GitLab merge request either blocks on the whole pipeline succeeding
+// (projectSettings.onlyAllowMergeIfPipelineSucceeds) or it does not, there is
+// no per-job equivalent of requiredStatusCheckContexts/statusCheckContexts.
+// So gitlab/governance.yml names the jobs that requirement is standing in
+// for, in a comment structured for govGitLabDeclaredRequiredJobs to read, and
+// the join here holds that comment against the jobs the generated pipeline
+// actually runs on a merge request - the same join in spirit as
+// TestPipelineGovernanceRequiredChecksAreTheGeneratedPullRequestJobs, reading
+// a comment instead of a YAML list because the schema has no list to read.
+// =============================================================================
+
+// gitlabPolicy is the slice of a gitlab-warden governance config these tests
+// read: a top-level `nodes:` map, keyed by full path.
+type gitlabPolicy struct {
+	Nodes map[string]gitlabNode `yaml:"nodes"`
+}
+
+type gitlabNode struct {
+	Kind               string                     `yaml:"kind"`
+	ProjectSettings    gitlabProjectSettings      `yaml:"projectSettings"`
+	ApprovalRules      []gitlabApprovalRule       `yaml:"approvalRules"`
+	ProtectedBranches  []gitlabProtectedBranch    `yaml:"protectedBranches"`
+	ProtectedEnvironments []govNamed              `yaml:"protectedEnvironments"`
+	Variables          []gitlabVariable           `yaml:"variables"`
+}
+
+type gitlabProjectSettings struct {
+	OnlyAllowMergeIfPipelineSucceeds bool `yaml:"onlyAllowMergeIfPipelineSucceeds"`
+}
+
+type gitlabApprovalRule struct {
+	Name              string `yaml:"name"`
+	ApprovalsRequired int    `yaml:"approvalsRequired"`
+}
+
+type gitlabProtectedBranch struct {
+	Name          string `yaml:"name"`
+	AllowForcePush *bool `yaml:"allowForcePush"`
+}
+
+// gitlabVariable is a gitlab-warden CI/CD variable. Its identity field is
+// `key`, not `name` - govNamed does not fit here, unlike protectedEnvironments
+// above, whose ProtectedEnvironmentConfig genuinely is keyed by `name`.
+type gitlabVariable struct {
+	Key string `yaml:"key"`
+}
+
+// govGitLabRepo reads the gitlab policy and returns its single managed
+// project node.
+//
+// Both other policies declare exactly one org and one repo, asserted rather
+// than assumed (govPolicyRepo above); this is that assertion's gitlab
+// counterpart, so a second node added without a second set of checks does
+// not silently go unchecked.
+func govGitLabRepo(t *testing.T) gitlabNode {
+	t.Helper()
+
+	path := filepath.Join(pipelineGovernanceDir, pipelineGovernancePolicies["gitlab"])
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading the gitlab policy: %v", err)
+	}
+
+	var policy gitlabPolicy
+	if err := yaml.Unmarshal(body, &policy); err != nil {
+		t.Fatalf("parsing %s as YAML: %v", path, err)
+	}
+
+	if len(policy.Nodes) != 1 {
+		t.Fatalf("%s declares %d nodes; these tests read one, so a second would go unchecked", path, len(policy.Nodes))
+	}
+	for _, node := range policy.Nodes {
+		if node.Kind != "project" {
+			t.Fatalf("%s declares a node of kind %q; these tests are written about a project node", path, node.Kind)
+		}
+		return node
+	}
+	panic("unreachable: the loop above returns or fatals")
+}
+
+// govGitLabProtectedEnvironmentNames returns the names of a gitlab node's
+// declared protected environments.
+func govGitLabProtectedEnvironmentNames(node gitlabNode) []string {
+	return govNames(node.ProtectedEnvironments)
+}
+
+// govGitLabDeclaredRequiredJobs reads the "required merge-request jobs" line
+// gitlab/governance.yml carries in a comment, because gitlab-warden's schema
+// has no field that names a required status check the way
+// requiredStatusCheckContexts/statusCheckContexts do (see the section
+// header above). This is the policy's half of the join: whichever names
+// appear after the colon are the jobs the policy is written to require.
+var govGitLabRequiredJobsComment = regexp.MustCompile(`(?m)^\s*#\s*required merge-request jobs:\s*(.+?)\s*$`)
+
+func govGitLabDeclaredRequiredJobs(t *testing.T) []string {
+	t.Helper()
+
+	path := filepath.Join(pipelineGovernanceDir, pipelineGovernancePolicies["gitlab"])
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading the gitlab policy: %v", err)
+	}
+
+	match := govGitLabRequiredJobsComment.FindSubmatch(body)
+	if match == nil {
+		t.Fatalf("%s carries no \"required merge-request jobs: ...\" comment; gitlab-warden's schema has no field "+
+			"naming a required status check, so this is the only place the policy states which jobs "+
+			"onlyAllowMergeIfPipelineSucceeds is standing in for", path)
+	}
+
+	var jobs []string
+	for _, job := range strings.Split(string(match[1]), ",") {
+		if job = strings.TrimSpace(job); job != "" {
+			jobs = append(jobs, job)
+		}
+	}
+	sort.Strings(jobs)
+	return jobs
+}
+
+// govGitLabJob is the slice of one job in the generated GitLab pipeline these
+// tests read.
+type govGitLabJob struct {
+	Rules []struct {
+		If string `yaml:"if"`
+	} `yaml:"rules"`
+}
+
+// govGitLabReservedTopLevelKeys are the scheduled-ops.gitlab-ci.yml top-level
+// keys that are not job names. GitLab's five Ops share one file (unlike
+// github and forgejo, one workflow per Op), so this join has to tell a job
+// apart from the document's own pipeline-wide configuration.
+var govGitLabReservedTopLevelKeys = map[string]bool{
+	"stages":    true,
+	"variables": true,
+	"workflow":  true,
+	"default":   true,
+	"include":   true,
+}
+
+// govGitLabJobs parses every job out of the generated GitLab pipeline.
+func govGitLabJobs(t *testing.T) map[string]govGitLabJob {
+	t.Helper()
+
+	var raw map[string]yaml.Node
+	if err := yaml.Unmarshal([]byte(ciPipelineGitLabBody(t)), &raw); err != nil {
+		t.Fatalf("parsing %s as YAML: %v", ciPipelineGitLabFile, err)
+	}
+
+	jobs := make(map[string]govGitLabJob, len(raw))
+	for name, node := range raw {
+		if govGitLabReservedTopLevelKeys[name] {
+			continue
+		}
+		var job govGitLabJob
+		if err := node.Decode(&job); err != nil {
+			t.Fatalf("%s's %q entry does not decode as a job: %v", ciPipelineGitLabFile, name, err)
+		}
+		jobs[name] = job
+	}
+	if len(jobs) == 0 {
+		t.Fatalf("%s parsed with no jobs; this file's assertions would all pass over an empty set", ciPipelineGitLabFile)
+	}
+	return jobs
+}
+
+// govGitLabMergeRequestEvent and govGitLabMergeRequestBranch pick a job's
+// merge-request rule apart: whether it fires on one at all, and which branch
+// it targets.
+var (
+	govGitLabMergeRequestEvent  = regexp.MustCompile(`merge_request_event`)
+	govGitLabMergeRequestBranch = regexp.MustCompile(`CI_MERGE_REQUEST_TARGET_BRANCH_NAME\s*==\s*"([^"]+)"`)
+)
+
+// govGitLabMergeRequestJobs returns the branch every merge-request-triggered
+// job in the generated pipeline targets, and the sorted names of those jobs -
+// the gitlab counterpart of govPullRequestJobs above. Those are the only job
+// names "the pipeline must succeed" can ever mean on a merge request: a job
+// gated on push or schedule never runs on one.
+func govGitLabMergeRequestJobs(t *testing.T) (string, []string) {
+	t.Helper()
+
+	branches := map[string]bool{}
+	var jobs []string
+
+	for name, job := range govGitLabJobs(t) {
+		for _, rule := range job.Rules {
+			if !govGitLabMergeRequestEvent.MatchString(rule.If) {
+				continue
+			}
+			jobs = append(jobs, name)
+			if m := govGitLabMergeRequestBranch.FindStringSubmatch(rule.If); m != nil {
+				branches[m[1]] = true
+			}
+		}
+	}
+
+	if len(jobs) == 0 {
+		t.Fatalf("%s: no job triggers on a merge_request_event, so there is nothing onlyAllowMergeIfPipelineSucceeds could require", ciPipelineGitLabFile)
+	}
+	if len(branches) != 1 {
+		t.Fatalf("%s: the merge-request jobs target %d branches (%v); this policy protects one", ciPipelineGitLabFile, len(branches), branches)
+	}
+
+	sort.Strings(jobs)
+	var branch string
+	for b := range branches {
+		branch = b
+	}
+	return branch, jobs
+}
+
+// govGitLabRoleArnRef and govGitLabPlainVarRef find the credentials the
+// generated GitLab pipeline reads.
+//
+// GitLab CI/CD variables carry no namespace prefix the way `vars.`/`secrets.`
+// do on the other two forges - every variable, GitLab's own predefined ones
+// (CI_PIPELINE_ID, CI_COMMIT_BRANCH, ...) and chant's own internal ones
+// (CHANT_ID_TOKEN, CHANT_GATE_SUMMARY, CHANT_SCHEDULED_OP, CHANT_FORGE) alike,
+// is a bare `$NAME`. Grabbing every `$NAME` in the file would require an
+// exclusion list of everything that is not a repository-provisioned
+// credential, and a new GitLab predefined variable would silently join it.
+// Instead these two patterns are anchored on the naming convention the
+// credentials this pipeline reads actually use - a role ARN import shells to
+// `export AWS_ROLE_ARN="$CHOUDOUFU_<OP>_ROLE_ARN"`, and AWS_REGION/
+// GITLAB_TOKEN are named directly (GITLAB_TOKEN only in the file's own header
+// comment documenting what live-plan needs, since chant's GitLab REST client
+// reads it from the job's process environment rather than interpolating it
+// into the YAML) - so a rename to a name outside this convention fails loudly
+// here rather than silently dropping out of both sides of the join.
+var (
+	govGitLabRoleArnRef  = regexp.MustCompile(`\$(CHOUDOUFU_[A-Z]+_ROLE_ARN)\b`)
+	govGitLabPlainVarRef = regexp.MustCompile(`\b(AWS_REGION|GITLAB_TOKEN)\b`)
+)
+
+func govGitLabCredentialRefs(t *testing.T) []string {
+	t.Helper()
+
+	body := ciPipelineGitLabBody(t)
+	set := map[string]bool{}
+	for _, m := range govGitLabRoleArnRef.FindAllStringSubmatch(body, -1) {
+		set[m[1]] = true
+	}
+	for _, m := range govGitLabPlainVarRef.FindAllStringSubmatch(body, -1) {
+		set[m[1]] = true
+	}
+	return govSortedKeys(set)
+}
+
+func govGitLabVariableNames(vars []gitlabVariable) []string {
+	out := make([]string, 0, len(vars))
+	for _, v := range vars {
+		out = append(out, v.Key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestPipelineGovernanceGitLabRequiredJobsAreTheGeneratedMergeRequestJobs is
+// the gitlab join TestPipelineGovernanceRequiredChecksAreTheGeneratedPullRequestJobs
+// is for github and forgejo: the jobs the policy is written to require equal
+// the jobs the generated pipeline actually runs on a merge request, and the
+// project setting that stands in for "required" on GitLab is on.
+func TestPipelineGovernanceGitLabRequiredJobsAreTheGeneratedMergeRequestJobs(t *testing.T) {
+	repo := govGitLabRepo(t)
+	if !repo.ProjectSettings.OnlyAllowMergeIfPipelineSucceeds {
+		t.Errorf("the gitlab policy does not set projectSettings.onlyAllowMergeIfPipelineSucceeds: true, " +
+			"so nothing on GitLab actually requires the jobs it names in its \"required merge-request jobs\" comment")
+	}
+
+	_, gotJobs := govGitLabMergeRequestJobs(t)
+	wantJobs := govGitLabDeclaredRequiredJobs(t)
+
+	if strings.Join(gotJobs, "\n") != strings.Join(wantJobs, "\n") {
+		t.Errorf("the gitlab policy names required merge-request jobs %v, and the generated pipeline runs %v on a merge request.\n"+
+			"The Op names in examples/ci-pipelines/src are the job names: rename an Op and this policy's comment has to move with it.",
+			wantJobs, gotJobs)
+	}
+}
+
+// TestPipelineGovernanceGitLabProtectsTheBranchTheWorkflowsTarget is
+// TestPipelineGovernanceProtectsTheBranchTheWorkflowsTarget's gitlab
+// counterpart: a protectedBranches rule, with no force push, exists for the
+// branch the merge-request jobs target.
+func TestPipelineGovernanceGitLabProtectsTheBranchTheWorkflowsTarget(t *testing.T) {
+	branch, _ := govGitLabMergeRequestJobs(t)
+	repo := govGitLabRepo(t)
+
+	var protected []string
+	found := false
+	for _, rule := range repo.ProtectedBranches {
+		protected = append(protected, rule.Name)
+		if rule.Name == branch && rule.AllowForcePush != nil && !*rule.AllowForcePush {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the gitlab policy has no protectedBranches rule with allowForcePush: false for %q, the branch its merge-request jobs target.\n"+
+			"It protects %v. Either the pipeline's trigger moved (regenerate and re-read examples/ci-pipelines) or the policy names the wrong branch.",
+			branch, protected)
+	}
+}
+
+// TestPipelineGovernanceGitLabDeclaresEveryCredentialTheWorkflowsRead is
+// TestPipelineGovernanceDeclaresEveryCredentialTheWorkflowsRead's gitlab
+// counterpart, reading govGitLabCredentialRefs instead of vars./secrets.
+// references, since gitlab-warden has one `variables:` collection rather
+// than variables and secrets split by namespace.
+func TestPipelineGovernanceGitLabDeclaresEveryCredentialTheWorkflowsRead(t *testing.T) {
+	want := govGitLabCredentialRefs(t)
+	got := govGitLabVariableNames(govGitLabRepo(t).Variables)
+
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("the gitlab policy declares variables %v, and its generated pipeline reads %v", got, want)
 	}
 }
