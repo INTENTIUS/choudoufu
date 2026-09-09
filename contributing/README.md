@@ -65,4 +65,4 @@ no artifact backs is a bug.
 | [`../MAINTAINERS.md`](../MAINTAINERS.md) | Who decides. |
 | [`../CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) | Expected conduct, and where to report. |
 | [`../SECURITY.md`](../SECURITY.md) | Reporting a vulnerability. |
-| [`../CONTRIBUTING.RELEASE.md`](../CONTRIBUTING.RELEASE.md) | Cutting a release. |
+| [`../CHANGELOG.md`](../CHANGELOG.md) | Cutting a release - the real, in-order procedure. `../CONTRIBUTING.RELEASE.md` is upstream OpenTofu's own manual, inherited as upstream wrote it, and does not describe this fork's process. |

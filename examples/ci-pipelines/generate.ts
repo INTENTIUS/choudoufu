@@ -19,11 +19,11 @@
  * file only says what triggers each Op, what the job installs first, and
  * which credentials it may reach for.
  *
- * `specs()` is exported, and `main()` below runs only when this file is the
- * process entry point, so `tests/pipelines.test.ts`'s trigger-parity guard
- * can `import { specs } from "../generate.ts"` and read the one table this
- * project's triggers come from, without also generating a tree as a side
- * effect of importing it.
+ * `specs()`, `options()`, `CHOUDOUFU_VERSION` and `CHOUDOUFU_SHA256` are
+ * exported, and `main()` below runs only when this file is the process entry
+ * point, so `tests/pipelines.test.ts` can `import` them and read the one
+ * table this project's triggers and pin come from, without also generating a
+ * tree as a side effect of importing it.
  */
 
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -53,8 +53,8 @@ const outDir = resolve(process.env.CHANT_PIPELINE_OUT_DIR ?? projectDir);
  * the release that made `live-plan -json` reachable on a configuration
  * declaring its own estate - the shape every chant live root has.
  */
-const CHOUDOUFU_VERSION = "v0.16.0";
-const CHOUDOUFU_SHA256 = "1e9d540893c6f30fad47530614cf0b1935672e991167a175aca940ebe7b3c7ae";
+export const CHOUDOUFU_VERSION = "v0.16.0";
+export const CHOUDOUFU_SHA256 = "1e9d540893c6f30fad47530614cf0b1935672e991167a175aca940ebe7b3c7ae";
 const CHOUDOUFU_ASSET = `choudoufu_${CHOUDOUFU_VERSION}_linux_amd64.tar.gz`;
 const INSTALL_CHOUDOUFU =
   `curl -fsSL -o /tmp/${CHOUDOUFU_ASSET} ` +

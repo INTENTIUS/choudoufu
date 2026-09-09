@@ -4,6 +4,39 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
+**Cutting a release, step by step.** `RELEASE.md` and `CONTRIBUTING.RELEASE.md`
+are upstream OpenTofu's own manuals, inherited as upstream wrote them, and
+describe neither this fork's cadence nor its tooling; this paragraph is the
+real procedure, read against `PR #1017` (`v0.16.0`) and
+`.github/workflows/release.yml`:
+
+1. Branch `release/vX.Y.Z` off `main`.
+2. `go run ./tools/gauntlet snapshot vX.Y.Z` (`just gauntlet-snapshot vX.Y.Z`)
+   writes `live/history/vX.Y.Z.json`, the board's own record of the release.
+3. `go run ./tools/gauntlet notes live/history/<previous>.json
+   live/history/vX.Y.Z.json` (`just gauntlet-notes ...`) prints the board
+   movement paragraph above; date the previous `(Unreleased)` heading and
+   open a fresh empty one above it, as the paragraph above says.
+4. Commit as `release: cut vX.Y.Z`, open a pull request from `release/vX.Y.Z`,
+   run the gate (`scripts/ci-gate.sh run` / `check`) at the branch's tip, and
+   merge.
+5. Tag the merge commit `vX.Y.Z` and push the tag.
+   `.github/workflows/release.yml` triggers on the pushed tag - not on the
+   merge - builds the six platform binaries, and publishes the GitHub
+   release with its `SHA256SUMS`. This is the first point the checksum
+   `examples/ci-pipelines` pins can be known: the workflow only runs once the
+   tag exists, so it cannot finish inside the release pull request itself.
+6. In a follow-up pull request - the "first PR after the tag" that
+   `live/ci_pipelines_test.go`'s `TestCIPipelinePinIsTiedToRelease` exists to
+   tolerate being one release behind for - bump `CHOUDOUFU_VERSION` and
+   `CHOUDOUFU_SHA256` in `examples/ci-pipelines/generate.ts` to the new tag
+   and the `linux_amd64` line of its published `SHA256SUMS` (`tests/pipelines.test.ts`
+   reads both back out of `generate.ts` rather than repeating them, so there
+   is nothing to edit there), run `npm run generate` in
+   `examples/ci-pipelines`, and commit the three regenerated trees plus
+   `generated-from.json` alongside the pin. Skipping this step for more than
+   one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
+
 ## choudoufu v0.17.0 (Unreleased)
 
 Nothing recorded yet.
