@@ -77,10 +77,11 @@ from what each forge's dialect can carry:
 | | GitHub | Forgejo | GitLab |
 |---|---|---|---|
 | Jobs | all 5, `permissions:` computed per job | all 5, `permissions:`/`id-token:` dropped (runner ignores them) | all 5, one combined file (`rules:` per job, not `on:`) |
-| Credentials | 3 OIDC roles, one per job that needs one | one static key pair, workflow-scoped - `live-check` and `live-plan` hold it too (#1028) | 3 OIDC roles via `id_tokens:` and a shell script, no marketplace action |
-| Plan lands as | a pull-request comment, edited in place | the run's own log - no step-summary surface exists | a merge-request note, edited in place |
+| Credentials | 3 OIDC roles, one per job that needs one | 3 static key pairs, one per job that needs one - `live-check` holds none (#1028) | 3 OIDC roles via `id_tokens:` and a shell script, no marketplace action |
+| Plan lands as | a pull-request comment, edited in place | a pull-request comment, edited in place (chant#2291) | a merge-request note, edited in place |
+| Sweep reaches | a GitHub issue, edited in place | the run's own log - `issue`'s endpoints are unverified there (#1027) | a GitLab issue, edited in place (chant#2292) |
 | Apply gate | chant's gate, plus a `production` environment reviewer | chant's gate only - Forgejo Actions has no environments | chant's gate, plus `production`; an audit trail only on CE |
-| Reporting | `comment`/`issue`/`pull-request` via `gh` | `report` mode - `gh` builds `/api/v3`, Forgejo answers `/api/v1`, so `comment`/`issue` would fail its Report step | a plain REST call to GitLab's notes API |
+| Reporting | `comment`/`issue`/`pull-request` via `gh` | `comment` via `gh`, built from `GITHUB_API_URL` (chant#2291); `issue` stays `report` | `comment`/`issue` via a plain REST call to GitLab's own API |
 
 All three have now been run, once each, against no real cloud account:
 
@@ -93,9 +94,10 @@ All three have now been run, once each, against no real cloud account:
 What running rather than reading found:
 
 - A container job's default shell on GitHub is `sh`, and the generated
-  `live-apply` and `live-adopt` jobs both open with `set -o pipefail` and
-  declare no shell of their own, so two of the five GitHub jobs fail with
-  `Illegal option -o pipefail` before chant even starts (chant#2299).
+  `live-apply` and `live-adopt` jobs both open with `set -o pipefail` and used
+  to declare no shell of their own, so two of the five GitHub jobs failed with
+  `Illegal option -o pipefail` before chant even started. Fixed in chant 0.62.0
+  (chant#2299): the gated step now declares `shell: bash`.
 - A gate resolution binds nothing about the plan it approved: approve,
   rename a resource, re-run `live-apply`, and it applies with no refusal.
   The exit-3 refusal above guards a narrower window, Plan-to-Apply only
@@ -105,11 +107,12 @@ What running rather than reading found:
   bare `Op "live-apply" failed after 43.8s` with no error line and no
   failing step (chant#2301, forge-independent, not yet checked on the other
   two).
-- `live-adopt` has no Init phase, and its Ledger step needs the provider
+- `live-adopt` had no Init phase, and its Ledger step needs the provider
   schema for marker discovery, so on any fresh checkout - every CI checkout -
-  it fails with `Error: Provider unavailable for marker discovery`
-  (chant#2302, forge-independent; the local smoke script misses this because
-  `live-apply` runs first there and installs the provider).
+  it failed with `Error: Provider unavailable for marker discovery`
+  (forge-independent; the local smoke script missed this because `live-apply`
+  ran first there and installed the provider). Fixed in chant 0.62.0
+  (chant#2302): `TerraformAdoptOp` now has its own Init phase.
 - The approve-then-re-run loop does not close on GitLab: a GitLab checkout
   fetches the pipeline's own ref and nothing else, so a re-run after `chant
   approve` reads an empty ledger and gates again, and that same clone's
@@ -130,9 +133,11 @@ None of the three runs had an AWS account behind it: the dialect is proven
 and the credential exchange is not. GitLab's `id_tokens:` role assumption
 follows GitHub's shape, but floci's static credentials shadowed it end to
 end, so no STS call was made ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)
-Q2 stays open). Forgejo has no OIDC surface to reach for at all - it ships a
-static key and says so - which is the credential model worth replacing
-outright rather than the one waiting on a proof.
+Q2 stays open). Forgejo has no OIDC surface to reach for at all - it ships
+static keys and says so - which is the credential model worth replacing
+outright rather than the one waiting on a proof. Since #1028, at least each
+job holds only the key pair its own Op needs, rather than one pair shared by
+every job in the file.
 
 [`examples/ci-pipelines/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md#what-each-forge-gets-and-what-it-refuses)
 and its [smoke workflow](https://github.com/INTENTIUS/choudoufu/blob/main/.github/workflows/ci-pipelines-smoke.yml)
@@ -186,7 +191,7 @@ of the generated trees themselves, not assumed.
 | | GitHub | Forgejo | GitLab |
 |---|---|---|---|
 | Region | `AWS_REGION` repository variable, read by every job | `AWS_REGION` repository variable | `AWS_REGION` project CI/CD variable |
-| Credentials | 3 role ARNs as repository variables (`CHOUDOUFU_PLAN_ROLE_ARN` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_ROLE_ARN` for `live-adopt`, `CHOUDOUFU_APPLY_ROLE_ARN` for `live-apply`) plus matching IAM roles, OIDC-trusted for `pull_request`+`refs/heads/main` (plan role), `refs/heads/staging` (adopt role), `refs/heads/main` (apply role); `live-check` needs none | one static key pair as repository secrets, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` - workflow-scoped, so `live-check` and `live-plan` hold the same apply-capable key `live-apply` does (#1028, doc-only interim until chant's generator gives Forgejo per-Op credentials) | the same three role ARNs as project CI/CD variables (unprotected, or paired with protected source branches - a protected one is silently absent otherwise) plus IAM roles trusting `aud: $CI_SERVER_URL`; `GITLAB_TOKEN` (masked, scope `api`) for `live-plan`'s note, required rather than a fallback |
+| Credentials | 3 role ARNs as repository variables (`CHOUDOUFU_PLAN_ROLE_ARN` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_ROLE_ARN` for `live-adopt`, `CHOUDOUFU_APPLY_ROLE_ARN` for `live-apply`) plus matching IAM roles, OIDC-trusted for `pull_request`+`refs/heads/main` (plan role), `refs/heads/staging` (adopt role), `refs/heads/main` (apply role); `live-check` needs none | 3 static key pairs as repository secrets, one per job that needs one (`CHOUDOUFU_PLAN_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_*` for `live-adopt`, `CHOUDOUFU_APPLY_*` for `live-apply`) - job-scoped since #1028, so `live-check` holds none | the same three role ARNs as project CI/CD variables (unprotected, or paired with protected source branches - a protected one is silently absent otherwise) plus IAM roles trusting `aud: $CI_SERVER_URL`; `GITLAB_TOKEN` (masked, scope `api`) for `live-plan`'s note and `live-discover`'s issue, required rather than a fallback |
 | Compute | - | a runner registered under the `docker` label, reachable to `https://code.forgejo.org/actions/checkout@v4` (every job's first step) | `gitlab-runner` on the docker executor |
 | Apply gate | `production` environment, required reviewer - `live-apply` declares `environment: { name: production }` and nothing else gates it | none - Forgejo Actions has no environments | `production` protected environment; Premium only, 404 on CE, where chant's own gate is the only control |
 | Governance | [`examples/pipeline-governance/github`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/github)'s branch rules | [`examples/pipeline-governance/forgejo`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/forgejo)'s branch rules | [`examples/pipeline-governance/gitlab`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/gitlab)'s rules |
@@ -199,7 +204,7 @@ Schedule (Settings > CI/CD > Schedules) with its `CHANT_SCHEDULED_OP`
 variable set to `live-discover`, since the job's own `rules:` only fire on a
 scheduled pipeline carrying that value, and the `include:` of the generated
 file in the project's own `.gitlab-ci.yml` - GitLab does not read
-`scheduled-ops.gitlab-ci.yml` on its own.
+`ops.gitlab-ci.yml` on its own.
 
 Forgejo also needs write access, treated as the right to start
 `live-apply`: the dispatch endpoint does not check that a workflow declares

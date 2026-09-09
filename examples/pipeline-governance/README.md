@@ -57,7 +57,7 @@ repository missing the apply role surfaces at reconcile time rather than in an
 unattended 3am run that then cannot authenticate. `AWS_REGION` is declared with
 a value because a pipeline pointed at the wrong region is an incident and a
 region is not account-specific. The credentials themselves are presence-only:
-the three role ARNs on GitHub, the static key pair on Forgejo.
+the three role ARNs on GitHub, the three static key pairs on Forgejo.
 
 ## What the environment does
 
@@ -85,7 +85,7 @@ holds the job before any step runs, where chant's gate holds the run after it
 has already started and read the live system.
 
 GitLab's own generator maps the same `environment` option to its own
-`environment:` key (chant #2268), and `gitlab/scheduled-ops.gitlab-ci.yml`'s
+`environment:` key (chant #2268), and `gitlab/ops.gitlab-ci.yml`'s
 `live-apply` job carries it too. Since #1008, `gitlab/governance.yml`
 provisions the matching `protectedEnvironments:` entry, and
 `TestPipelineGovernanceEnvironmentGates` checks that side the same way it
@@ -120,8 +120,8 @@ on Forgejo it is the only one.
 apply path PUTs the value of `$FORGEJO_SECRET_<NAME>` from the apply run's own
 environment, and an empty string when that variable is unset
 (`src/cycles/secrets-variables.ts`). github-warden instead reports the missing
-secret and writes nothing. Run the Forgejo policy in dry-run and provision both
-values before the first apply.
+secret and writes nothing. Run the Forgejo policy in dry-run and provision all
+six values before the first apply.
 
 ## Where GitLab differs, and why
 
@@ -131,7 +131,7 @@ values before the first apply.
 | "Required" mechanism | named status checks | named status checks (glob) | `onlyAllowMergeIfPipelineSucceeds` + a comment naming the jobs |
 | Review requirement | branch-rule field | branch-rule field | project-wide `approvalRules` (Premium) |
 | Deployment gate | `environments:`, native | none - `chant/lifecycle` only | `protectedEnvironments:`, native (Premium) |
-| Apply credential | 3 OIDC role ARNs | 1 static key pair | 3 OIDC role ARNs + `GITLAB_TOKEN` |
+| Apply credential | 3 OIDC role ARNs | 3 static key pairs, one per job that needs one | 3 OIDC role ARNs + `GITLAB_TOKEN` |
 
 **The config shape is not a reskin of the other two.** github-warden and
 forgejo-warden share one spine, `orgs: <org>: repos: <repo>:`, which is why

@@ -23,11 +23,22 @@
 # assertions below can read it. It is also how the README says a consumer
 # lays this out - the chant project at the repository root.
 #
-# ## Why forgejo
+# ## Why CHANT_FINDING_MODE=report
 #
-# CHANT_FORGE picks the finding modes. `forgejo` is the only value whose
-# two reporting Ops both run in `report` mode, so nothing tries to reach a
-# forge API. github's `live-discover` would `gh issue create`.
+# This smoke's job is plan/gate/apply behaviour, not the posting path: the
+# scratch repository above has no remote and no pull request, and the CI
+# smoke (.github/workflows/ci-pipelines-smoke.yml) dispatches on
+# workflow_dispatch, which carries no pull request either. Every posting
+# mode (`comment`, `issue`) is `reconcilePr`, and `reconcilePr` throws when a
+# run carries none of those - there is nowhere to post. Since chant #2291
+# lifted Forgejo's `comment` refusal, no CHANT_FORGE value is left whose two
+# reporting Ops both default to `report` on their own, so this script sets
+# `CHANT_FINDING_MODE=report` (src/forge.ts) to force both `live-plan` and
+# `live-discover` into `report` mode regardless of which forge CHANT_FORGE
+# below picks. That variable is never set when the three committed trees are
+# generated - see the doc comment on `FINDING_MODE_OVERRIDE` in
+# src/forge.ts, and the currency guard in tests/pipelines.test.ts that checks
+# a regeneration under it would differ from what is committed.
 #
 # Env:
 #   CHOUDOUFU_BIN   an existing choudoufu binary; default builds ./cmd/choudoufu
@@ -178,6 +189,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test
 export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
 export TF_VAR_aws_region=us-east-1
 export CHANT_FORGE=forgejo
+export CHANT_FINDING_MODE=report
 export CHECKPOINT_DISABLE=1
 
 OUT="$WORK/out"; mkdir -p "$OUT"

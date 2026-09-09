@@ -1,5 +1,5 @@
 # Throwaway GitLab CE + gitlab-runner + floci, for running the generated
-# gitlab/scheduled-ops.gitlab-ci.yml against a real instance (#1026 item 3).
+# gitlab/ops.gitlab-ci.yml against a real instance (#1026 item 3).
 #
 # Modelled on gitlab-warden's e2e/docker-compose.yml. Two differences, both
 # forced by the fact that jobs run inside containers rather than on the host:

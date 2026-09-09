@@ -12,11 +12,11 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@intentius/chant": "0.60.0",
-    "@intentius/chant-lexicon-terraform": "0.60.0",
-    "@intentius/chant-lexicon-forgejo": "0.60.0",
-    "@intentius/chant-lexicon-github": "0.60.0",
-    "@intentius/chant-lexicon-gitlab": "0.60.0",
+    "@intentius/chant": "0.62.0",
+    "@intentius/chant-lexicon-forgejo": "0.62.0",
+    "@intentius/chant-lexicon-github": "0.62.0",
+    "@intentius/chant-lexicon-gitlab": "0.62.0",
+    "@intentius/chant-lexicon-terraform": "0.62.0",
     "tsx": "4.20.6"
   }
 }

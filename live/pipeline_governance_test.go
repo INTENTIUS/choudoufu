@@ -931,7 +931,7 @@ type govGitLabJob struct {
 	} `yaml:"rules"`
 }
 
-// govGitLabReservedTopLevelKeys are the scheduled-ops.gitlab-ci.yml top-level
+// govGitLabReservedTopLevelKeys are the ops.gitlab-ci.yml top-level
 // keys that are not job names. GitLab's five Ops share one file (unlike
 // github and forgejo, one workflow per Op), so this join has to tell a job
 // apart from the document's own pipeline-wide configuration.
