@@ -126,6 +126,43 @@ function readForge(): Forge {
 export const forge: Forge = readForge();
 
 /**
+ * An escape hatch for a build with nowhere to post a finding.
+ *
+ * Every posting mode below - `comment`, `issue` - is `reconcilePr`, and
+ * `reconcilePr` throws when the run it is in carries no pull request, no
+ * merge request and no forge to open an issue on
+ * (`noPullRequestContextMessage`, chant's `op/activities/reconcile.ts`).
+ * `scripts/smoke.sh` runs the five Ops end to end against floci, and its job
+ * is plan/gate/apply behaviour, not the posting path: the local run is a
+ * scratch repository with no remote and no pull request, and the CI smoke
+ * (`.github/workflows/ci-pipelines-smoke.yml`) dispatches on
+ * `workflow_dispatch`, which carries no pull request either. Since chant
+ * #2291 lifted Forgejo's `comment` refusal, no forge value is left whose two
+ * reporting Ops both default to `report` (the property the smoke used to
+ * lean on by picking `CHANT_FORGE=forgejo`), so the smoke needs its own way
+ * to say "nowhere to post" that does not depend on which forge it happens to
+ * build for.
+ *
+ * Setting `CHANT_FINDING_MODE=report` forces both `planFindingMode` and
+ * `discoverFindingMode` to `"report"` regardless of forge. It is a build-time
+ * environment variable, read only here, and it is never set when the three
+ * committed trees are generated: `npm run generate` always runs with it
+ * unset, so `github/`, `forgejo/` and `gitlab/` reflect the forge-derived
+ * defaults below and nothing else. `tests/pipelines.test.ts`'s currency guard
+ * checks that a regeneration with the override set would produce different
+ * bytes, so a tree accidentally committed under the override would be
+ * caught rather than silently accepted as current.
+ */
+const FINDING_MODE_OVERRIDE = process.env.CHANT_FINDING_MODE;
+if (FINDING_MODE_OVERRIDE !== undefined && FINDING_MODE_OVERRIDE !== "report") {
+  throw new Error(
+    `CHANT_FINDING_MODE is "${FINDING_MODE_OVERRIDE}", and the only value this project reads is "report" ` +
+      `(or unset, for the forge-derived default below). It exists for a run with nowhere to post a finding.`,
+  );
+}
+const FORCE_REPORT = FINDING_MODE_OVERRIDE === "report";
+
+/**
  * How `live-plan` reports the plan it read: one comment on the pull request
  * (GitHub, and Forgejo since chant #2291) or the equivalent note on the merge
  * request (GitLab, since chant #2268) that triggered the run. All three are
@@ -133,9 +170,10 @@ export const forge: Forge = readForge();
  * recipe - `reconcilePr` picks the API by which CI variable the run itself
  * carries, and on GitHub/Forgejo that is `GITHUB_API_URL`, which both set
  * correctly. No longer forge-conditional: see the module doc above for why
- * Forgejo stopped being the exception.
+ * Forgejo stopped being the exception. `CHANT_FINDING_MODE=report` (see
+ * above) overrides this to `"report"` for a run with nowhere to post.
  */
-export const planFindingMode = "comment" as const;
+export const planFindingMode = FORCE_REPORT ? ("report" as const) : ("comment" as const);
 
 /**
  * How `live-discover` reports the adoption ledger its nightly sweep built.
@@ -145,6 +183,11 @@ export const planFindingMode = "comment" as const;
  * build-time refused there, but only `comment`'s endpoints were verified
  * against a real instance (#1027), so `issue` remains
  * un-refused-but-unverified and this project does not turn it on.
+ * `CHANT_FINDING_MODE=report` (see above) overrides this to `"report"`
+ * regardless of forge, for a run with nowhere to post.
  */
-export const discoverFindingMode =
-  forge === "github" || forge === "gitlab" ? ("issue" as const) : ("report" as const);
+export const discoverFindingMode = FORCE_REPORT
+  ? ("report" as const)
+  : forge === "github" || forge === "gitlab"
+    ? ("issue" as const)
+    : ("report" as const);
