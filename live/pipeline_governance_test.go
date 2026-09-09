@@ -747,12 +747,12 @@ type gitlabPolicy struct {
 }
 
 type gitlabNode struct {
-	Kind               string                     `yaml:"kind"`
-	ProjectSettings    gitlabProjectSettings      `yaml:"projectSettings"`
-	ApprovalRules      []gitlabApprovalRule       `yaml:"approvalRules"`
-	ProtectedBranches  []gitlabProtectedBranch    `yaml:"protectedBranches"`
+	Kind                  string                  `yaml:"kind"`
+	ProjectSettings       gitlabProjectSettings   `yaml:"projectSettings"`
+	ApprovalRules         []gitlabApprovalRule    `yaml:"approvalRules"`
+	ProtectedBranches     []gitlabProtectedBranch `yaml:"protectedBranches"`
 	ProtectedEnvironments []govNamed              `yaml:"protectedEnvironments"`
-	Variables          []gitlabVariable           `yaml:"variables"`
+	Variables             []gitlabVariable        `yaml:"variables"`
 }
 
 type gitlabProjectSettings struct {
@@ -765,8 +765,8 @@ type gitlabApprovalRule struct {
 }
 
 type gitlabProtectedBranch struct {
-	Name          string `yaml:"name"`
-	AllowForcePush *bool `yaml:"allowForcePush"`
+	Name           string `yaml:"name"`
+	AllowForcePush *bool  `yaml:"allowForcePush"`
 }
 
 // gitlabVariable is a gitlab-warden CI/CD variable. Its identity field is
