@@ -16,8 +16,10 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it } from "node:test";
+import { before, describe, it } from "node:test";
 import { parseYAML } from "@intentius/chant/yaml";
+import { generateOpsPipeline } from "@intentius/chant/op";
+import { specs, options } from "../generate.ts";
 
 const projectDir = dirname(fileURLToPath(import.meta.url), );
 const exampleDir = join(projectDir, "..");
@@ -84,7 +86,7 @@ function installStep(forge: Forge, op: string): Step {
   return step;
 }
 
-describe("both forges get one workflow per Op, and nothing else", () => {
+describe("github and forgejo get one workflow per Op each, and nothing else", () => {
   for (const forge of Object.keys(FORGE_DIR) as Forge[]) {
     it(`${forge}`, () => {
       assert.deepEqual(
@@ -181,9 +183,8 @@ describe("live-check reaches for no credential of its own", () => {
 });
 
 describe("github: the pull-request half observes and posts, and can only read", () => {
-  it("live-plan triggers on a pull request against main", () => {
-    assert.deepEqual(workflow("github", "live-plan").on, { pull_request: { branches: ["main"] } });
-  });
+  // live-plan's trigger itself is covered by the trigger-parity table below,
+  // which every forge and every Op is checked against in one place.
 
   it("live-plan's permissions are the comment mode's, plus OIDC and nothing else", () => {
     assert.deepEqual(workflow("github", "live-plan").permissions, {
@@ -215,13 +216,9 @@ describe("github: the pull-request half observes and posts, and can only read", 
 });
 
 describe("github: the push half applies behind a gate without painting main red", () => {
-  it("live-apply triggers on a push to main", () => {
-    assert.deepEqual(workflow("github", "live-apply").on, { push: { branches: ["main"] } });
-  });
-
-  it("live-adopt triggers on a push to staging, which is the reconcile position on the dial", () => {
-    assert.deepEqual(workflow("github", "live-adopt").on, { push: { branches: ["staging"] } });
-  });
+  // live-apply's and live-adopt's triggers are covered by the trigger-parity
+  // table below; live-adopt's push to `staging` is the reconcile position on
+  // the dial.
 
   for (const op of ["live-apply", "live-adopt"]) {
     it(`${op} maps only the gated outcome to success`, () => {
@@ -256,15 +253,10 @@ describe("github: the push half applies behind a gate without painting main red"
 });
 
 describe("github: the sweep runs on the cron the Op declares", () => {
-  it("live-discover carries the Op's own schedule, plus a manual dispatch", () => {
-    // The cron is on the Op (`schedule: { cron }`), not in generate.ts:
-    // `generateOpsPipeline` copies a discovered Op's own cadence onto its
-    // spec, so there is one place to change it.
-    assert.deepEqual(workflow("github", "live-discover").on, {
-      schedule: [{ cron: "0 6 * * *" }],
-      workflow_dispatch: {},
-    });
-  });
+  // The cron is on the Op (`schedule: { cron }`), not in generate.ts:
+  // `generateOpsPipeline` copies a discovered Op's own cadence onto its
+  // spec, so there is one place to change it. Covered, with a manual
+  // dispatch on top, by the trigger-parity table below.
 
   it("and reports as an issue, which is the whole write access it gets", () => {
     assert.deepEqual(workflow("github", "live-discover").permissions, {
@@ -332,14 +324,8 @@ describe("forgejo gets the same pipeline minus what its runner cannot do", () =>
     );
   });
 
-  it("still triggers on pull requests and pushes, because the generator reuses github's builder", () => {
-    assert.deepEqual(workflow("forgejo", "live-plan").on, { pull_request: { branches: ["main"] } });
-    assert.deepEqual(workflow("forgejo", "live-apply").on, { push: { branches: ["main"] } });
-    assert.deepEqual(workflow("forgejo", "live-discover").on, {
-      schedule: [{ cron: "0 6 * * *" }],
-      workflow_dispatch: {},
-    });
-  });
+  // Forgejo's triggers, because the generator reuses github's builder for
+  // them, are covered by the trigger-parity table below.
 });
 
 // ---------------------------------------------------------------------------
@@ -367,6 +353,96 @@ function gitlabJob(op: string): GitlabJob {
   assert.ok(job, `gitlab: no job named ${op}`);
   return job as GitlabJob;
 }
+
+// ---------------------------------------------------------------------------
+// Trigger parity: one table, built once from specs(), checked against all
+// three generated trees - the TS counterpart of live/ci_pipelines_test.go's
+// ciPipelineTriggerTable, which reads the same table off the GitHub tree
+// instead, since specs() is not readable from Go.
+// ---------------------------------------------------------------------------
+
+/**
+ * One Op's trigger, forge-neutral: what kind of event fires the job, which
+ * branch a `pull_request` or `push` trigger names, and which cron a
+ * `schedule` trigger names.
+ */
+interface OpTriggerParity {
+  kind: "pull_request" | "push" | "cron";
+  branches?: string[];
+  cron?: string;
+}
+
+/**
+ * Resolves every Op's trigger by asking `generateOpsPipeline` to do it -
+ * `trigger` when a spec sets one, else the declaring Op's own
+ * `schedule.cron` (`live-discover` sets neither on its spec; see
+ * generate.ts's `specs()` and its own comment on `opSchedule`) - rather than
+ * re-deriving the resolution here. The forge passed in is arbitrary: an
+ * `OpTrigger` is the same abstract value regardless of which forge's dialect
+ * eventually renders it, so "github" here names nothing about GitHub, only a
+ * valid forge for `generateOpsPipeline` to accept.
+ */
+async function triggerTable(): Promise<Record<string, OpTriggerParity>> {
+  const result = await generateOpsPipeline(specs(), "github", options(), exampleDir);
+  assert.ok(result.success && result.jobs, `building the reference trigger table failed: ${result.error}`);
+
+  const table: Record<string, OpTriggerParity> = {};
+  for (const job of result.jobs!) {
+    table[job.op] =
+      job.trigger.kind === "cron"
+        ? { kind: "cron", cron: job.trigger.schedule }
+        : { kind: job.trigger.kind, branches: job.trigger.branches };
+  }
+  return table;
+}
+
+/** The `on:` block github and forgejo's shared dialect renders trig as. */
+function expectedOn(trig: OpTriggerParity): Record<string, unknown> {
+  if (trig.kind === "cron") {
+    return { schedule: [{ cron: trig.cron }], workflow_dispatch: {} };
+  }
+  return { [trig.kind]: { branches: trig.branches } };
+}
+
+/**
+ * The GitLab `rules:` entry trig renders as, for the Op named op. GitLab has
+ * no in-file cron (see the generated file's own header), so a `schedule`
+ * trigger becomes a rule keyed on the Op's name via `CHANT_SCHEDULED_OP`
+ * rather than on the cron string itself - the cron lives on the Pipeline
+ * Schedule an operator creates outside the file.
+ */
+function expectedGitlabRule(op: string, trig: OpTriggerParity): { if: string }[] {
+  if (trig.kind === "cron") {
+    return [{ if: `$CI_PIPELINE_SOURCE == "schedule" && $CHANT_SCHEDULED_OP == "${op}"` }];
+  }
+  assert.equal(trig.branches?.length, 1, `${op}: this rendering only reasons about one branch`);
+  const branch = trig.branches![0];
+  return trig.kind === "pull_request"
+    ? [{ if: `$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "${branch}"` }]
+    : [{ if: `$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "${branch}"` }];
+}
+
+describe("trigger parity: github, forgejo and gitlab fire on the table specs() builds", () => {
+  let table: Record<string, OpTriggerParity>;
+
+  before(async () => {
+    table = await triggerTable();
+  });
+
+  for (const forge of Object.keys(FORGE_DIR) as Forge[]) {
+    for (const op of OPS) {
+      it(`${forge}/${op} triggers on what specs() says`, () => {
+        assert.deepEqual(workflow(forge, op).on, expectedOn(table[op]));
+      });
+    }
+  }
+
+  for (const op of OPS) {
+    it(`gitlab/${op} fires the rule specs() renders on GitLab`, () => {
+      assert.deepEqual(gitlabJob(op).rules, expectedGitlabRule(op, table[op]));
+    });
+  }
+});
 
 describe("gitlab: one job per Op, in the one file the generator emits", () => {
   it("is exactly the five Ops, plus stages: and variables:", () => {
@@ -412,11 +488,7 @@ describe("gitlab: live-check reaches for no credential of its own", () => {
 });
 
 describe("gitlab: live-plan posts a merge-request note, over OIDC, with no gh install", () => {
-  it("triggers on a merge request targeting main", () => {
-    assert.deepEqual(gitlabJob("live-plan").rules, [
-      { if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"' },
-    ]);
-  });
+  // live-plan's rules: is covered by the trigger-parity table below.
 
   it("declares an id_tokens: entry for the plan role's OIDC exchange", () => {
     assert.deepEqual(gitlabJob("live-plan").id_tokens, { CHANT_ID_TOKEN: { aud: "$CI_SERVER_URL" } });
@@ -446,14 +518,8 @@ describe("gitlab: live-plan posts a merge-request note, over OIDC, with no gh in
 });
 
 describe("gitlab: the push half applies behind a gate without painting the pipeline red", () => {
-  it("live-apply triggers on a push to main; live-adopt on a push to staging", () => {
-    assert.deepEqual(gitlabJob("live-apply").rules, [
-      { if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"' },
-    ]);
-    assert.deepEqual(gitlabJob("live-adopt").rules, [
-      { if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "staging"' },
-    ]);
-  });
+  // live-apply's and live-adopt's rules: are covered by the trigger-parity
+  // table below.
 
   it("live-apply is bound to the production environment", () => {
     assert.deepEqual(gitlabJob("live-apply").environment, { name: "production" });
@@ -483,11 +549,8 @@ describe("gitlab: the push half applies behind a gate without painting the pipel
 });
 
 describe("gitlab: the sweep runs on the cron the Op declares, and only reports", () => {
-  it("live-discover is gated to a Pipeline Schedule, not to a branch or merge-request event", () => {
-    assert.deepEqual(gitlabJob("live-discover").rules, [
-      { if: '$CI_PIPELINE_SOURCE == "schedule" && $CHANT_SCHEDULED_OP == "live-discover"' },
-    ]);
-  });
+  // live-discover's rules: (gated to a Pipeline Schedule, not to a branch or
+  // merge-request event) is covered by the trigger-parity table below.
 
   it("carries no findingMode-comment machinery: report needs no merge request to post on", () => {
     // Asserted the same way GitHub's live-discover is asserted to be
