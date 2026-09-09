@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
@@ -93,10 +94,31 @@ import (
 // diff is the work; a large diff of purely added lines is the campaign
 // working.
 //
-// It also moves when tools/estate-gen rewrites live/e2e/estates, because
-// those .tf files are in the sweep. That is wanted: a regenerated cohort
-// whose rendered identities changed is a change to what the e2e run will put
-// into a cloud tag, and nothing else reports it.
+// # Two sections, and why the second one is generated
+//
+// The file has two delimited halves. The first is the committed fixtures:
+// every configuration directory under internal/live and live, labelled by its
+// path in the checkout. The second is the 31 verification cohorts, labelled
+// "<cohorts>/<name>", which are not in the checkout at all - issue #699
+// stopped committing them because they were generator output that every
+// working copy then filled with an ignored .terraform/. They are rendered
+// into this run's own temporary directory by the same
+// [flocitest.GenerateCohorts] the acceptance tier uses, and their rendered
+// identities are pinned here by value exactly as the committed ones are.
+//
+// That second half was unpinned for one commit (#929) and pinned again for
+// GitHub issue #930, on the maintainer's reading that nothing about the risk
+// moved when the fixtures became generated: the product still renders those
+// identities on every cohort run, and a wrong one refuses nothing. What
+// replaced the pin in between - a check that each cohort DECLARES the types
+// its roster records - answers a different question than what each instance
+// RESOLVES to.
+//
+// The cost of that decision is paid here and is worth stating where it is
+// paid: generating the cohorts runs `terraform init` and launches the
+// provider plugin, which is about thirteen seconds warm and needs `go`, a
+// stock `terraform` and the pinned AWS provider on a machine that previously
+// needed none of them to run this test.
 
 var updateIdentityGolden = flag.Bool("update", false, "rewrite testdata/identity-golden.txt from this run")
 
@@ -115,8 +137,61 @@ var identityGoldenRoots = []string{"internal/live", "live"}
 
 const identityGoldenPath = "testdata/identity-golden.txt"
 
+// identityGoldenCohortLabel is what a generated cohort's rows carry in the
+// "dir" column, in place of a checkout-relative path they do not have: the
+// trees are rendered into t.TempDir(), whose name is different on every run,
+// and a golden that differs between two runs of the same commit is not a
+// golden.
+const identityGoldenCohortLabel = "<cohorts>"
+
+// The section markers. They are comment lines, so every reader that parses
+// this file skips them - reportIdentityGoldenDiff's index, and
+// live/identity_golden_pin_test.go's recount and digest, which hash rows
+// only. They cost a line each and they buy the thing #930 asked for: a reader
+// looking at the diff can tell which half a moved row is in, and the two
+// halves mean different things. A moved row above the cohort marker is a
+// committed fixture nobody edited resolving differently. A moved row below it
+// is the generator's output having changed.
+const (
+	identityGoldenFixtureMarker = "# --- section: committed fixtures, one row per instance the in-repo .tf files resolve ---"
+	identityGoldenCohortMarker  = "# --- section: verification cohorts, rendered by `go run ./tools/estate-gen -all` from internal/live/cohorts ---"
+)
+
+// identityGoldenSkipCohortsEnv turns the cohort generation off for an
+// environment that genuinely cannot run it.
+//
+// It is an explicit opt-out rather than a silent fallback, and a missing `go`
+// or `terraform` is a failure rather than a skip, because the failure this
+// file exists to prevent is a green run over unverified identities. Somebody
+// who sets this variable knows the cohort half went unchecked on that run; a
+// LookPath that quietly degraded would be the same green with nobody knowing.
+//
+// Two things still hold with it set: the committed-fixture half is verified
+// as usual, and the golden's cohort section must still be present and
+// non-empty, so an opted-out run cannot pass over a truncated file. What does
+// not hold is the by-value check on the cohort rows, which is the whole point
+// of the flag being loud.
+//
+// -update refuses outright when it is set. Regenerating without the cohorts
+// would write a golden with 700-odd rows missing, and that file would then
+// look like a deletion somebody meant.
+const identityGoldenSkipCohortsEnv = "CHOUDOUFU_GOLDEN_SKIP_COHORTS"
+
+// identityGoldenEntry is one directory to analyze: the absolute path to read,
+// and the label its rows carry.
+//
+// The two are separate fields because half the sweep has no path in the
+// checkout. A committed fixture labels itself by its path under the
+// repository root; a generated cohort labels itself <cohorts>/<name>, and the
+// directory behind that label is gone when the test ends.
+type identityGoldenEntry struct {
+	label string
+	dir   string
+}
+
 // TestIdentityGolden pins the rendered identity of every managed resource
-// instance the in-repo fixtures resolve.
+// instance the in-repo fixtures and the generated verification cohorts
+// resolve.
 //
 // Regenerate with:
 //
@@ -124,15 +199,49 @@ const identityGoldenPath = "testdata/identity-golden.txt"
 //
 // then READ the diff. A modified line is an alarm; an added line is progress
 // whose rendered value you should still look at.
+//
+// The cohort half renders 31 estates with tools/estate-gen first, which needs
+// `go`, a stock `terraform` and the pinned AWS provider; see
+// [identityGoldenSkipCohortsEnv] for the opt-out and what it costs.
 func TestIdentityGolden(t *testing.T) {
 	root := flocitest.RepoRoot(t)
-	dirs := identityGoldenDirs(t, root)
-	if len(dirs) < 300 {
+	fixtures := identityGoldenFixtureEntries(t, root)
+	if len(fixtures) < 300 {
 		t.Fatalf("found only %d configuration directories under %v; the walk is not reaching the tree it is supposed to cover, so a green result here proves nothing",
-			len(dirs), identityGoldenRoots)
+			len(fixtures), identityGoldenRoots)
 	}
 
-	got := renderIdentityGolden(t, root, dirs)
+	scrubRoot := func(s string) string { return scrubIdentityGolden(root, s) }
+	fixtureRows, fixtureClasses, fixtureInstances := identityGoldenRows(t, fixtures, scrubRoot)
+	t.Logf("swept %d committed configuration directories under %v; %d instances resolved", len(fixtures), identityGoldenRoots, fixtureInstances)
+	if fixtureInstances == 0 {
+		t.Fatal("no instance resolved anywhere in the committed tree; the sweep is broken rather than the fixtures being empty")
+	}
+
+	cohortEntries, cohortRoot, generated := identityGoldenCohortEntries(t)
+	if !generated {
+		if *updateIdentityGolden {
+			t.Fatalf("-update with %s set would write a golden with the cohort section missing, which reads as a deletion somebody meant.\n"+
+				"Unset it and regenerate on a machine with go and terraform.", identityGoldenSkipCohortsEnv)
+		}
+		identityGoldenCompareFixturesOnly(t, fixtureRows)
+		return
+	}
+
+	// The cohort trees live under a temp directory whose name changes every
+	// run, and path.module/path.root render a directory straight into an
+	// identity. Both scrubs, innermost first.
+	scrubCohort := func(s string) string {
+		return scrubRoot(strings.ReplaceAll(s, cohortRoot, identityGoldenCohortLabel))
+	}
+	cohortRows, cohortClasses, cohortInstances := identityGoldenRows(t, cohortEntries, scrubCohort)
+	t.Logf("rendered and swept %d generated cohort directories; %d instances resolved", len(cohortEntries), cohortInstances)
+	if cohortInstances == 0 {
+		t.Fatal("the cohorts rendered but resolved no instance at all; that is a broken render or a broken sweep, not an empty roster")
+	}
+
+	got := identityGoldenFile(fixtureRows, cohortRows, len(fixtures), len(cohortEntries),
+		fixtureInstances, cohortInstances, identityGoldenClassSum(fixtureClasses, cohortClasses))
 
 	if *updateIdentityGolden {
 		// The same relative path the comparison below reads, rather than one
@@ -158,64 +267,191 @@ func TestIdentityGolden(t *testing.T) {
 	reportIdentityGoldenDiff(t, want, got)
 }
 
-// renderIdentityGolden produces the whole file: one line per resolved
-// instance, ordered by directory then by address, both of which are sorted
-// strings rather than map iterations.
-func renderIdentityGolden(t *testing.T, root string, dirs []string) string {
+// TestIdentityGoldenCohortsAreDeterministic renders the roster twice, in two
+// temporary directories, and holds the two runs to the same rows in the same
+// order.
+//
+// It is separate from TestIdentityGolden, and it is the separable half of
+// what pinning generated fixtures costs: it pays for a second `estate-gen
+// -all` (about thirteen seconds warm) to prove a property of the GENERATOR
+// rather than of any identity, so it can be dropped without unpinning a
+// single row.
+//
+// The property is not free of doubt. The golden is one file compared byte for
+// byte, so anything nondeterministic in the render - a map iteration reaching
+// the HCL, a directory walk taking filesystem order, a timestamp - would show
+// up as a test that fails on some runs and passes on others, which this
+// repository has already learned to call a finding rather than a flake. This
+// makes it a named failure with the two rows printed side by side instead.
+func TestIdentityGoldenCohortsAreDeterministic(t *testing.T) {
+	entriesA, rootA, generated := identityGoldenCohortEntries(t)
+	if !generated {
+		t.Skipf("%s is set; the generator's determinism is not checked on this run", identityGoldenSkipCohortsEnv)
+	}
+	entriesB, rootB, _ := identityGoldenCohortEntries(t)
+
+	repo := flocitest.RepoRoot(t)
+	rowsOf := func(entries []identityGoldenEntry, out string) string {
+		rows, _, _ := identityGoldenRows(t, entries, func(s string) string {
+			return scrubIdentityGolden(repo, strings.ReplaceAll(s, out, identityGoldenCohortLabel))
+		})
+		return rows
+	}
+	a, b := rowsOf(entriesA, rootA), rowsOf(entriesB, rootB)
+	if a == b {
+		return
+	}
+
+	// Every difference is one of these two, since equal-length slices whose
+	// every element matches rejoin to equal strings: there is no third case
+	// to fall through to.
+	linesA, linesB := strings.Split(a, "\n"), strings.Split(b, "\n")
+	if len(linesA) != len(linesB) {
+		t.Fatalf("two renders of the same roster resolved a different number of instances: %d and %d.\n"+
+			"The generator is not deterministic, so the golden's cohort section cannot be pinned by value until it is.",
+			len(linesA)-1, len(linesB)-1)
+	}
+	for i := range linesA {
+		if linesA[i] != linesB[i] {
+			t.Fatalf("two renders of the same roster disagree at row %d:\n  first  %s\n  second %s\n"+
+				"The generator is not deterministic, so the golden's cohort section cannot be pinned by value until it is.",
+				i+1, linesA[i], linesB[i])
+		}
+	}
+}
+
+// identityGoldenCompareFixturesOnly is the opted-out path: the committed half
+// is checked exactly as usual, the generated half is not checked at all, and
+// the golden must still carry it.
+//
+// That last clause is the one worth reading twice. Without it, setting the
+// opt-out and deleting the cohort section would be green here and caught only
+// by the counts in live/identity_golden_pin_test.go - which is a real leg,
+// but not one this file should be leaning on to notice that most of its own
+// rows are gone.
+func identityGoldenCompareFixturesOnly(t *testing.T, fixtureRows string) {
 	t.Helper()
 
-	var body strings.Builder
+	wantBytes, err := os.ReadFile(identityGoldenPath)
+	if err != nil {
+		t.Fatalf("reading %s: %s", identityGoldenPath, err)
+	}
+	want := string(wantBytes)
 
-	classCounts := map[string]int{}
-	var instances int
-	for _, dir := range dirs {
-		report, panicked, stack := identityGoldenAnalyze(t.Context(), dir)
+	before, after, found := strings.Cut(want, identityGoldenCohortMarker)
+	if !found {
+		t.Fatalf("%s carries no cohort section (%q).\n"+
+			"With %s set this run cannot regenerate it, and a golden missing it pins 700-odd fewer identities than it claims.",
+			identityGoldenPath, identityGoldenCohortMarker, identityGoldenSkipCohortsEnv)
+	}
+	if n := len(identityGoldenRowLines(after)); n == 0 {
+		t.Fatalf("%s carries the cohort marker and no cohort rows beneath it; the section was truncated.", identityGoldenPath)
+	} else {
+		t.Logf("%s is set: %d cohort rows in %s were NOT verified by value on this run", identityGoldenSkipCohortsEnv, n, identityGoldenPath)
+	}
+
+	if strings.Join(identityGoldenRowLines(before), "\n") == strings.TrimRight(fixtureRows, "\n") {
+		return
+	}
+	reportIdentityGoldenDiff(t, before, fixtureRows)
+}
+
+// identityGoldenRowLines is every data row in a chunk of the file: comments
+// and blanks dropped.
+func identityGoldenRowLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// identityGoldenClassSum adds the two sections' class tallies, since the
+// header's class lines cover the whole file.
+func identityGoldenClassSum(sections ...map[string]int) map[string]int {
+	out := map[string]int{}
+	for _, m := range sections {
+		for class, n := range m {
+			out[class] += n
+		}
+	}
+	return out
+}
+
+// identityGoldenRows produces one line per resolved instance, in the order
+// the entries were given, which is sorted by label rather than by whatever
+// order a directory walk or a generator returned.
+func identityGoldenRows(t *testing.T, entries []identityGoldenEntry, scrub func(string) string) (rows string, classCounts map[string]int, instances int) {
+	t.Helper()
+
+	classCounts = map[string]int{}
+	var body strings.Builder
+	for _, e := range entries {
+		report, panicked, stack := identityGoldenAnalyze(t.Context(), e.dir)
 		if panicked != "" {
 			// Not this test's job to assert on, but silently emitting zero
 			// lines for a crashing directory would make the golden shrink
 			// and read as a deletion rather than a crash.
-			t.Errorf("%s panicked during analysis: %s\n%s", rel(root, dir), panicked, stack)
+			t.Errorf("%s panicked during analysis: %s\n%s", e.label, panicked, stack)
 			continue
 		}
 		if !report.Readable() {
 			continue
 		}
-		rd := rel(root, dir)
 		for _, res := range report.Identities {
-			body.WriteString(rd)
+			body.WriteString(e.label)
 			body.WriteByte('\t')
 			body.WriteString(res.Addr.String())
 			body.WriteByte('\t')
 			body.WriteString(string(res.Class))
 			body.WriteByte('\t')
-			body.WriteString(scrubIdentityGolden(root, renderedIdentity(res)))
+			body.WriteString(scrub(renderedIdentity(res)))
 			body.WriteByte('\t')
-			body.WriteString(scrubIdentityGolden(root, renderedIdentityAttrs(res)))
+			body.WriteString(scrub(renderedIdentityAttrs(res)))
 			body.WriteByte('\n')
 			classCounts[string(res.Class)]++
 			instances++
 		}
 	}
-	t.Logf("swept %d configuration directories under %v; %d instances resolved", len(dirs), identityGoldenRoots, instances)
-	if instances == 0 {
-		t.Fatal("no instance resolved anywhere in the tree; the sweep is broken rather than the fixtures being empty")
-	}
+	return body.String(), classCounts, instances
+}
 
+// identityGoldenFile assembles the whole file: the header, the shape block
+// the pin in live/ reads back, and the two delimited sections.
+//
+// The digest covers the rows of both sections and nothing else - not the
+// header, which would make it depend on itself, and not the section markers,
+// because live/identity_golden_pin_test.go recomputes it by hashing every
+// non-comment line and the two have to agree.
+func identityGoldenFile(fixtureRows, cohortRows string, fixtureDirs, cohortDirs, fixtureInstances, cohortInstances int, classCounts map[string]int) string {
 	var buf strings.Builder
 	buf.WriteString("# internal/live/check/testdata/identity-golden.txt\n")
 	buf.WriteString("#\n")
 	buf.WriteString("# Rendered identity of every managed resource instance the in-repo\n")
-	buf.WriteString("# fixtures resolve, analyzed without provider schemas.\n")
+	buf.WriteString("# fixtures and the generated verification cohorts resolve, analyzed\n")
+	buf.WriteString("# without provider schemas.\n")
 	buf.WriteString("#\n")
 	buf.WriteString("# Generated by TestIdentityGolden -update. Do not hand-edit; regenerate\n")
 	buf.WriteString("# and read the diff. A MODIFIED line is an alarm - a fixture nobody\n")
 	buf.WriteString("# touched now renders a different identity. An ADDED line is the\n")
 	buf.WriteString("# campaign working, and its value is still worth reading.\n")
 	buf.WriteString("#\n")
-	buf.WriteString(identityGoldenShapeBlock(len(dirs), instances, classCounts, body.String()))
+	buf.WriteString(identityGoldenShapeBlock(fixtureDirs+cohortDirs, fixtureInstances+cohortInstances,
+		fixtureDirs, cohortDirs, fixtureInstances, cohortInstances,
+		classCounts, fixtureRows+cohortRows))
 	buf.WriteString("#\n")
 	buf.WriteString("# dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes\n")
-	buf.WriteString(body.String())
+	buf.WriteString("#\n")
+	buf.WriteString(identityGoldenFixtureMarker)
+	buf.WriteString("\n")
+	buf.WriteString(fixtureRows)
+	buf.WriteString("#\n")
+	buf.WriteString(identityGoldenCohortMarker)
+	buf.WriteString("\n")
+	buf.WriteString(cohortRows)
 	return buf.String()
 }
 
@@ -240,7 +476,14 @@ func renderIdentityGolden(t *testing.T, root string, dirs []string) string {
 // and every class count byte-identical, so both this test and the pin in live/
 // went green over 35 changed markers. A count cannot see a value move, and the
 // value is the product's whole output.
-func identityGoldenShapeBlock(dirs, instances int, classCounts map[string]int, body string) string {
+//
+// The per-section lines carry their own key names ("fixture-dirs", not
+// "dirs") deliberately: live/identity_golden_pin_test.go's parseShapeLine
+// reads every "key=value" field on a "# shape:" line into one flat map, so a
+// second line spelling "dirs=" would overwrite the total with a section's
+// figure and the pin would then be checking the wrong number while looking
+// entirely correct.
+func identityGoldenShapeBlock(dirs, instances, fixtureDirs, cohortDirs, fixtureInstances, cohortInstances int, classCounts map[string]int, body string) string {
 	classes := make([]string, 0, len(classCounts))
 	for class := range classCounts {
 		classes = append(classes, class)
@@ -252,6 +495,8 @@ func identityGoldenShapeBlock(dirs, instances int, classCounts map[string]int, b
 	for _, class := range classes {
 		fmt.Fprintf(&b, "# shape: class %s=%d\n", class, classCounts[class])
 	}
+	fmt.Fprintf(&b, "# shape: fixture-dirs=%d fixture-instances=%d\n", fixtureDirs, fixtureInstances)
+	fmt.Fprintf(&b, "# shape: cohort-dirs=%d cohort-instances=%d\n", cohortDirs, cohortInstances)
 	fmt.Fprintf(&b, "# shape: body-sha256=%s\n", identityGoldenBodyDigest(body))
 	return b.String()
 }
@@ -345,6 +590,63 @@ func identityGoldenAnalyze(ctx context.Context, dir string) (report Report, pani
 	// admits, which shows up here as a line that is absent rather than a
 	// line that is wrong.
 	return Dir(ctx, dir, Context{}), "", ""
+}
+
+// identityGoldenFixtureEntries is the committed half of the sweep: every
+// configuration directory under the roots, labelled by its path in the
+// checkout and sorted by that label.
+func identityGoldenFixtureEntries(t *testing.T, root string) []identityGoldenEntry {
+	t.Helper()
+
+	dirs := identityGoldenDirs(t, root)
+	out := make([]identityGoldenEntry, 0, len(dirs))
+	for _, dir := range dirs {
+		out = append(out, identityGoldenEntry{label: rel(root, dir), dir: dir})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].label < out[j].label })
+	return out
+}
+
+// identityGoldenCohortEntries renders the whole cohort roster into this
+// run's own temporary directory and returns one entry per rendered tree,
+// sorted by label, plus the temp root to scrub out of any rendered value.
+//
+// generated is false only when [identityGoldenSkipCohortsEnv] is set. A
+// missing tool is a failure here, not a skip: this file's whole subject is
+// that a green run over unverified identities is the worst outcome available,
+// and an environment that cannot render the cohorts has to say so out loud.
+//
+// It reuses [flocitest.GenerateCohorts] rather than shelling out again, so
+// there is exactly one way in this repository to turn the roster into trees;
+// a second one would drift, and the drift would land in a golden.
+func identityGoldenCohortEntries(t *testing.T) (entries []identityGoldenEntry, tempRoot string, generated bool) {
+	t.Helper()
+
+	if v := os.Getenv(identityGoldenSkipCohortsEnv); v != "" {
+		t.Logf("%s=%s: the generated cohorts are not rendered on this run", identityGoldenSkipCohortsEnv, v)
+		return nil, "", false
+	}
+	flocitest.RequireBinary(t, "go")
+	flocitest.RequireBinary(t, "terraform")
+
+	dirs := flocitest.GenerateCohorts(t)
+	if len(dirs) == 0 {
+		t.Fatal("the cohort roster rendered no trees at all")
+	}
+	if got, want := len(dirs), len(cohorts.Names()); got != want {
+		t.Fatalf("rendered %d cohort trees, want the roster's %d", got, want)
+	}
+	// Every tree is one level under the same parent, which is the string
+	// that has to disappear from any identity a path.module reaches.
+	tempRoot = filepath.Dir(dirs[0])
+	for _, dir := range dirs {
+		entries = append(entries, identityGoldenEntry{
+			label: identityGoldenCohortLabel + "/" + filepath.Base(dir),
+			dir:   dir,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].label < entries[j].label })
+	return entries, tempRoot, true
 }
 
 // identityGoldenDirs is every directory under the roots holding a
