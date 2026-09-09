@@ -4,7 +4,67 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
-## choudoufu v0.16.0 (Unreleased)
+## choudoufu v0.17.0 (Unreleased)
+
+Nothing recorded yet.
+
+## choudoufu v0.16.0 (2026-09-09)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.16.0.json`](live/history/v0.16.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.15.0.json live/history/v0.16.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+Two headline stages activated, `day2_crash` and `day2_teardown` (#804,
+#805, PRs #998, #1004, #1009), and they are the first stages ever
+activated on tier-1 fixtures - `live/e2e/crash-interrupt/run.sh` and
+`live/e2e/destroy-teardown/run.sh` - rather than on 26 hand-written
+per-estate sections. What made that possible is #999's ruling: a
+`not_run` verdict on a `Tier1Gated` stage is neutral for `clear` rather
+than a miss, because #491 and #643 retired the sweep model that used to
+supply those sections, so an estate carrying no section for such a stage
+is not an estate that fails it - it is one nothing has asked. On the old
+rule the flip was unaffordable, and PR #998 deliberately held it:
+activating `day2_teardown` alone would have taken both bars from 27/27 to
+0/27. A genuine `fail` still fails such a stage, and a genuine per-estate
+`pass` still counts, which is why `day2_crash` reads 1 pass and 26
+`not_run` - reference-ec2-vpc's own, a survivor of the retired model.
+
+`BehaviorsProven` did not move: it still reads 1 of 14. Both fixtures
+pass, but each is short of the identity kinds #522 makes mandatory for an
+identity-touching stage - both carry `server-minted` alone, where the
+ruling wants `deterministic` and `none` beside it - and `crash-interrupt`
+is scalar-only where the three mandatory shapes are `count`, `for_each`
+and `module-nested`. Activation cleared the tier-1 gate; it did not clear
+the proof bar, and the two are deliberately separate.
+
+For the first time the board is measured entirely against its own
+declared oracle. Every row in v0.15.0's snapshot recorded terraform
+1.15.8 while `live/oracle-versions.json` declared 1.16.0; all 27 rows now
+record 1.16.1, which is what the pin now declares. The pin moved because
+1.16.0 makes the ORACLE itself nondeterministic: hashicorp/terraform#39089,
+a spurious `Error: Cycle` on an acyclic configuration, measured at 9
+cycles in 20 runs of `corpus-rds-complete-postgres`'s own `day2_replace`
+stock oracle plan against one frozen `cold_deploy` state, where 1.16.1
+gave 0 in 20. hashicorp/terraform#39076, a planned destroy-then-create
+applied create-before-destroy with the destroy silently dropped, lands at
+the same commit (038c6f72, PR #38840) and is fixed by the same one (PR
+#39091, 1.16.1). That is #1010, off #947 and #1005, and it is why the
+previous board's 26/26 was not what it appeared: every row was a verdict
+against a version the pin did not name.
+`TestOraclePinIsNotAKnownBrokenRelease` now refuses a pin that walks back
+onto 1.16.0.
+
+The re-measure is PR #1011, all 27 estates on the 1.16.1 oracle, which
+landed at core 25/26 and all 26/27 with `corpus-alb-complete` short; PR
+#1015 repinned the emulator to floci's ELBv2 concurrency fix (#1005) and
+that estate cleared, restoring 26/26 and 27/27. The snapshot's emulator
+digest moves with the repin, from `sha256:a39185cc...` to
+`sha256:d9207de1...`.
 
 FORK WORK:
 
