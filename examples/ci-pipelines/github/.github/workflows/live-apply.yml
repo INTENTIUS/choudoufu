@@ -38,7 +38,7 @@ jobs:
           role-to-assume: '${{ vars.CHOUDOUFU_APPLY_ROLE_ARN }}'
           aws-region: '${{ vars.AWS_REGION }}'
       - run: npm ci --no-audit --no-fund
-      - run: curl -fsSL -o /tmp/choudoufu_v0.15.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.15.0/choudoufu_v0.15.0_linux_amd64.tar.gz && echo "c5a40433bd159c1bb2596fbd8005ee4886f144a150f96c7219ac1e23298c50d3  /tmp/choudoufu_v0.15.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.15.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+      - run: curl -fsSL -o /tmp/choudoufu_v0.16.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.16.0/choudoufu_v0.16.0_linux_amd64.tar.gz && echo "1e9d540893c6f30fad47530614cf0b1935672e991167a175aca940ebe7b3c7ae  /tmp/choudoufu_v0.16.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.16.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
       - id: chant-run
         run: |
           set -o pipefail

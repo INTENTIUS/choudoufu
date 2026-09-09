@@ -118,7 +118,7 @@ describe("every job installs a pinned choudoufu before it runs an Op", () => {
         // Pinned by version AND by the checksum the release publishes: a tag
         // can be moved and an asset can be replaced, and an unattended run
         // holding a cloud role would never notice.
-        assert.match(install.run!, /releases\/download\/v0\.15\.0\/choudoufu_v0\.15\.0_linux_amd64\.tar\.gz/);
+        assert.match(install.run!, /releases\/download\/v0\.16\.0\/choudoufu_v0\.16\.0_linux_amd64\.tar\.gz/);
         assert.match(install.run!, /sha256sum -c -/);
         assert.match(install.run!, /[0-9a-f]{64}/);
         // chant's lexicon refuses a choudoufu older than v0.14.0.
@@ -126,7 +126,7 @@ describe("every job installs a pinned choudoufu before it runs an Op", () => {
 
         const body = text(forge, op);
         assert.ok(
-          body.indexOf("choudoufu_v0.15.0") < body.indexOf(`chant run ${op}`),
+          body.indexOf("choudoufu_v0.16.0") < body.indexOf(`chant run ${op}`),
           "the install has to precede the invocation, or the Op's first step is a missing binary",
         );
       });
@@ -384,7 +384,7 @@ describe("gitlab: one job per Op, in the one file the generator emits", () => {
       const script = gitlabJob(op).script ?? [];
       const install = script.find((line) => line.includes("choudoufu_v"));
       assert.ok(install, `${op}: no choudoufu install line`);
-      assert.match(install, /releases\/download\/v0\.15\.0\/choudoufu_v0\.15\.0_linux_amd64\.tar\.gz/);
+      assert.match(install, /releases\/download\/v0\.16\.0\/choudoufu_v0\.16\.0_linux_amd64\.tar\.gz/);
       assert.match(install, /sha256sum -c -/);
       assert.match(install, /[0-9a-f]{64}/);
       assert.ok(!install.includes("latest"), "the install must not float");
