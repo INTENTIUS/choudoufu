@@ -64,6 +64,22 @@ demo:
 smoke scenario="":
     bash live/smoke/smoke.sh {{scenario}}
 
+# The five Ops of examples/ci-pipelines, actually run (issue #1026): the
+# pinned floci image, then live-check, live-plan, live-apply (gated, then
+# approved, then applied), live-adopt (the same pair), live-discover, and
+# the exit-3 refusal that guards a saved plan. One `SMOKE op=... verdict=...`
+# line each, read off each run's own --json status. ~2 minutes.
+#
+# It is not a live/smoke scenario because those are shell against choudoufu
+# and the aws CLI, and this one needs node and the example's own
+# node_modules to have a `chant` to run at all. Without docker it stops and
+# says why rather than passing; the CI half is
+# .github/workflows/ci-pipelines-smoke.yml, which has an emulator by
+# construction. BREAK=1 proves two of its assertions can fail.
+smoke-ci-pipelines:
+    @docker info >/dev/null 2>&1 || { echo "SMOKE skipped: the docker daemon is not running, and this smoke needs the pinned floci emulator. Start Docker and re-run, or dispatch .github/workflows/ci-pipelines-smoke.yml." >&2; exit 1; }
+    bash examples/ci-pipelines/scripts/smoke.sh
+
 # One recipe for every named e2e demo: `just demo-run corpus-vpc-complete`
 # runs live/e2e/corpus-vpc-complete/run.sh. This replaced ~54 hand-cloned
 # demo-<name> recipes (issue #700), so adding an estate touches zero

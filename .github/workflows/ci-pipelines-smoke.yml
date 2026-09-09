@@ -1,0 +1,109 @@
+# The five Ops of examples/ci-pipelines, actually run (issue #1026).
+#
+# Everything else that guards that example proves what the generated YAML
+# says. This runs the Ops the YAML names, in the order the pipeline runs
+# them, against the pinned floci emulator as a service container, and reads
+# each run's own `--json` status rather than its exit code. One verdict line
+# per Op, greppable out of the log:
+#
+#     SMOKE op=<name> verdict=<pass|fail> status=<json status>
+#
+# `workflow_dispatch` only. It is a recorded measurement, not a gate: it
+# pulls an emulator image and a release tarball, and the example's real
+# guards (live/ci_pipelines_test.go, and `npm test` in the example) are what
+# every push runs.
+#
+# The sequence itself lives in examples/ci-pipelines/scripts/smoke.sh, which
+# is the same script `just smoke-ci-pipelines` runs on a laptop. Setting
+# SMOKE_ENDPOINT tells it an emulator is already up, so it starts no
+# container of its own - there is no docker inside a job container, and a
+# service container is the shape a forge offers anyway.
+name: ci-pipelines-smoke
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pipelines-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # node:22 rather than node:22-slim, and for the same reason generate.ts
+    # picks it for the generated jobs: slim carries neither curl nor git, so
+    # neither the install line below nor actions/checkout's git path works
+    # in it.
+    container: node:22
+
+    # A container job's default shell on GitHub is `sh`, not `bash`, and the
+    # steps below use `set -o pipefail`. This is not cosmetic: the generated
+    # `live-apply` and `live-adopt` jobs run `set -o pipefail` in a
+    # `container: node:22` job and declare no shell either, so they fail
+    # with "Illegal option -o pipefail" before chant starts (#1026 found it
+    # here first, on this very step).
+    defaults:
+      run:
+        shell: bash
+
+    services:
+      # The pin in live/floci-image. The step "the emulator is the pin"
+      # below fails the run if this digest and that file ever disagree -
+      # a service image cannot read a file, so the two are checked rather
+      # than shared.
+      floci:
+        image: ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805
+
+    env:
+      # Service containers are reachable from a job container by their
+      # label, on the container's own port; nothing is published to a host.
+      SMOKE_ENDPOINT: http://floci:4566
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: the emulator is the pin
+        run: |
+          set -euo pipefail
+          pinned="$(cat live/floci-image)"
+          used="$(grep -oE 'ghcr\.io/lex00/floci@sha256:[0-9a-f]{64}' \
+                    .github/workflows/ci-pipelines-smoke.yml | head -1)"
+          if [ "$pinned" != "$used" ]; then
+            echo "SMOKE op=floci-pin verdict=fail used=$used pinned=$pinned"
+            echo "This workflow's service image is not the pin in live/floci-image." >&2
+            exit 1
+          fi
+          echo "SMOKE op=floci-pin verdict=pass digest=$used"
+
+      # The install line the generated GitHub workflows run, read out of the
+      # generator that emits them rather than copied, so this workflow cannot
+      # drift from the pin the example ships (#1019 moves it to v0.16.0).
+      # It is a pinned release, not a build of this checkout: the point of
+      # the run is the pipeline a consumer gets.
+      - name: install choudoufu, the pinned release the generated jobs install
+        working-directory: examples/ci-pipelines
+        run: |
+          set -euo pipefail
+          ver="$(sed -n 's/^const CHOUDOUFU_VERSION = "\(.*\)";$/\1/p' generate.ts)"
+          sha="$(sed -n 's/^const CHOUDOUFU_SHA256 = "\(.*\)";$/\1/p' generate.ts)"
+          if [ -z "$ver" ] || [ -z "$sha" ]; then
+            echo "SMOKE op=choudoufu-pin verdict=fail reason=unreadable-generate.ts"
+            exit 1
+          fi
+          echo "SMOKE op=choudoufu-pin verdict=pass version=$ver"
+          asset="choudoufu_${ver}_linux_amd64.tar.gz"
+          curl -fsSL -o "/tmp/${asset}" \
+            "https://github.com/INTENTIUS/choudoufu/releases/download/${ver}/${asset}" &&
+            echo "${sha}  /tmp/${asset}" | sha256sum -c - &&
+            tar -xzf "/tmp/${asset}" -C /usr/local/bin choudoufu &&
+            choudoufu version
+
+      - name: run the five Ops
+        env:
+          CHOUDOUFU_BIN: /usr/local/bin/choudoufu
+        run: bash examples/ci-pipelines/scripts/smoke.sh
