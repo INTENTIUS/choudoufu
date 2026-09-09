@@ -532,9 +532,6 @@ default branch, at build time, by name.
   `chant/lifecycle` there, or provisions the `production` protected-environment
   approval rule `live-apply`'s job now names. See that example's README, "Anything
   on GitLab".
-- **A `.terraform.lock.hcl`.** A real repository commits one; this example leaves the
-  provider pinned by `required_providers` only, so a clone of it does not carry a lock
-  file for an architecture you may not be on.
 - **Property-level drift.** chant's terraform lexicon implements entity-level
   observation for a live root and not `observeResourcesDeep()`, so there is no
   property-tree diff and no claimed-field set. `live-plan` is the plan, which is a
