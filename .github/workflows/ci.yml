@@ -169,3 +169,36 @@ jobs:
             echo "A SKIP here means the terraform binary is missing and the test is invisible again (issue #578, defect 3)."
             exit 1
           }
+
+  # examples/ci-pipelines' byte-for-byte regeneration proof (issue #807) is
+  # the example's own `npm test`: it re-runs generate.ts for all three forges
+  # into a scratch directory and diffs the result against what is checked in,
+  # byte for byte. It needs node and the example's own dependencies, which
+  # nothing in this workflow installed, so the proof had only ever run on a
+  # laptop (issue #1022) - never in this repository's CI, and never once. The
+  # Go tests in live/ci_pipelines_test.go that stand in for it when node is
+  # absent (see that file's header) skip for the identical reason.
+  #
+  # A separate job rather than a step in `fast`, the same call as
+  # validate-generated-terralith above: `npm ci` is the only other thing in
+  # this workflow that talks to a public package registry, so an npm outage
+  # should name itself here instead of reddening the Go tier, and running
+  # beside `fast` costs a pull request no wall clock. Measured on the example,
+  # issue #1022: `npm ci` ~1s, `npm test` ~4s.
+  #
+  # Cache keyed on the example's own lock file, not the whole repo's, so a
+  # change anywhere else in the tree cannot invalidate it.
+  example-ci-pipelines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: examples/ci-pipelines/package-lock.json
+      - name: npm ci && npm test
+        working-directory: examples/ci-pipelines
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
