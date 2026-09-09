@@ -77,7 +77,7 @@ shape survives it.
 | Forge | Where it comes from | The plan lands as | AWS credentials |
 |---|---|---|---|
 | GitHub | generated | a pull-request comment, edited in place by the next push | OIDC, no stored key |
-| Forgejo | generated | the run's own log and step summary | a static key from repository secrets, unverified; the pull-request jobs hold the apply credential |
+| Forgejo | generated | the run's own log | a static key from repository secrets, unverified; the pull-request jobs hold the apply credential |
 | GitLab | generated | a merge-request note, edited in place by the next push | OIDC, no stored key, unverified |
 
 **GitHub** gets all five jobs with everything on. Both CI-native triggers
@@ -94,13 +94,34 @@ GitHub's builder, so the triggers cross over unchanged. Three things do not.
 `id-token: write` goes with it, which is honest: a Forgejo runner mints no
 OIDC token off a workflow permission. The gated-apply notice job goes because
 it shells to `gh`. So does every posting mode. `comment`, `issue` and
-`pull-request` are one chant activity shelling to `gh`, and chant carries no
-Forgejo client, so a reporting job that tried to post there would generate
-cleanly and fail at its Report step on every run. Both reporting jobs run in
-report mode instead. Credentials there are `AWS_ACCESS_KEY_ID` and
+`pull-request` are one chant activity shelling to `gh`, which builds
+`https://$GH_HOST/api/v3/...`; Forgejo serves `/api/v1` and answers `/api/v3`
+with 404, so a reporting job that tried to post there would generate cleanly
+and fail at its Report step on every run. Both reporting jobs run in report
+mode instead. Credentials there are `AWS_ACCESS_KEY_ID` and
 `AWS_SECRET_ACCESS_KEY` from repository secrets, and because the generator's
 variables become the workflow's top-level `env:`, `live-check` sees a key it
 does not need.
+
+The workflows were run once against a real instance for #1027, Forgejo
+12.0.4+gitea-1.22.0 with `forgejo-runner` v9.1.1, which settled what the keys
+inherited from GitHub's builder do there. `workflow_dispatch:` works, in the
+UI and over
+`POST /api/v1/repos/{owner}/{repo}/actions/workflows/{file}/dispatches`;
+`live-discover` dispatched that way ran through checkout, `npm ci` and the
+choudoufu binary. `concurrency:` is not read at all - Forgejo 12.0.4 has no
+`cancel-in-progress` handling, and three dispatched runs sharing one group
+with `cancel-in-progress: false` ran at the same time - while two pushes to
+one branch do cancel the earlier run, which Forgejo does for every workflow
+whether or not it carries the key. `GITHUB_STEP_SUMMARY` is exported by the
+runner and writes to it succeed, but Forgejo surfaces the file nowhere: no
+artifact, no API field, no panel in the run view. That is why the plan lands
+as the run's log rather than as a log and a step summary. `gh` can reach
+Forgejo when it is handed a full URL
+(`gh api http://host/api/v1/repos/{owner}/{repo}/issues/{n}/comments` lists
+and posts comments, authenticated by the job's own `${{ github.token }}`);
+what fails is the short path form chant serializes. Teaching `reconcilePr`
+that prefix is chant #2291.
 
 **GitLab** gets all five jobs too, generated into one combined file at
 [`examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml) -
@@ -230,6 +251,20 @@ generated trees themselves, not assumed.
   fails before anything else runs.
 - [`examples/pipeline-governance/forgejo`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/forgejo)'s
   branch protection rules, applied there too.
+- Write access to the repository, treated as the right to start `live-apply`.
+  Forgejo 12.0.4's
+  `POST /api/v1/repos/{owner}/{repo}/actions/workflows/{file}/dispatches` does
+  not check that the workflow declares `workflow_dispatch:`: the same call
+  against `live-apply.yml`, which declares none, returned 204 and ran the job
+  (#1027). The UI's "Run workflow" button does respect the key and only
+  appears on `live-discover.yml`, so the button is not the surface to reason
+  about. What holds the apply back is chant's own gate, not the trigger list.
+- Somewhere else to serialise applies, if two of them running at once would
+  hurt. `concurrency:` is inert on Forgejo 12.0.4 (see "Per forge"), so two
+  `live-apply` runs started against different refs run side by side, and two
+  against the same ref end with the earlier one cancelled mid-step rather
+  than queued behind the later one - which `cancel-in-progress: false` on
+  the generated file reads as promising and does not deliver.
 
 ## What is not there yet
 
@@ -253,10 +288,12 @@ credentials - over GitLab's own `id_tokens:` surface rather than a
 marketplace action, but nothing here has run it against a real GitLab
 instance and a real AWS IAM OIDC identity provider. The Forgejo workflows
 have no OIDC surface to reach for at all: Forgejo Actions drops both
-`permissions:` and `id_tokens:`, so they ship with a static key and say so;
-[#1027](https://github.com/INTENTIUS/choudoufu/issues/1027) is the session
-against a real Forgejo instance that settles what is asserted but
-unobserved there. Treat the GitLab shape as unverified and the Forgejo one
+`permissions:` and `id_tokens:`, so they ship with a static key and say so.
+[#1027](https://github.com/INTENTIUS/choudoufu/issues/1027) ran them against a
+real Forgejo (12.0.4+gitea-1.22.0, `forgejo-runner` v9.1.1) with no AWS
+account behind them: checkout, `npm ci`, the pinned choudoufu binary, `init`
+and `chant run` all worked, and the run ended at the credential call, so the
+dialect is observed and the credential path still is not. Treat the GitLab shape as unverified and the Forgejo one
 as the credential model to replace outright: a long-lived key that can
 change an estate is worth replacing with whatever short-lived credential
 your runner can already mint.

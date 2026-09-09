@@ -194,13 +194,12 @@ not:
   than emitting a control that names an object the instance does not have.
 - **the gated-apply notice job**, which shells to `gh` against the GitHub API.
 - **every posting mode.** `comment`, `issue` and `pull-request` are all chant's
-  `reconcilePr` activity. `issue` and `pull-request` shell to `gh`; chant carries no
-  Forgejo client and no way to point `gh` at a Forgejo instance, which is why the
-  forgejo generator refuses `comment` by name. `issue` is not refused there, but it is
-  the same `gh issue create`, so an Op carrying it on Forgejo would generate cleanly
-  and fail at its Report step on every run. This example does not ship that: on
-  Forgejo both reporting Ops run in `report` mode, where the finding is the run's own
-  log and its step summary.
+  `reconcilePr` activity, which shells to `gh`. `gh` builds its URLs as
+  `https://$GH_HOST/api/v3/...` and Forgejo serves `/api/v1`, so the call chant
+  serializes returns 404 on a Forgejo instance; that is why the forgejo generator
+  refuses `comment` by name, and why `issue`, which it does not refuse, would still
+  fail at its Report step on every run. This example does not ship that: on Forgejo
+  both reporting Ops run in `report` mode, where the finding is the run's own log.
 
 **GitLab** gets all five jobs now too (chant #2268), in the one file the next section
 describes. `live-plan` posts a merge-request note the way GitHub's posts a
@@ -221,6 +220,53 @@ CI's own shape rather than of a chant refusal:
   by GitLab's generator at build time, but they are still `reconcilePr` shelling to
   `gh`, which cannot reach a GitLab instance. So the nightly sweep stays `report` mode
   on GitLab, the same as on Forgejo.
+
+### What the carried-over GitHub keys do on a real Forgejo
+
+Observed on Forgejo 12.0.4+gitea-1.22.0 with `forgejo-runner` v9.1.1, one repository,
+one `docker`-labelled runner (#1027). The four keys the forgejo dialect inherits from
+GitHub's builder do not all mean there what they mean on GitHub:
+
+- **`concurrency:` is not read.** Two `workflow_dispatch` runs of one workflow sharing
+  `group: probe-serial` with `cancel-in-progress: false` overlapped in full
+  (`04:52:19-04:53:19` and `04:52:21-04:53:21`), and a third overlapped both. Two
+  pushes 34 seconds apart do cancel the first run, but that is Forgejo cancelling the
+  superseded runs of a ref on its own (`services/actions.CancelPreviousJobs`): a
+  control workflow carrying no `concurrency:` block at all was cancelled by the second
+  push exactly as the one carrying `cancel-in-progress: false` was. The Forgejo 12.0.4
+  binary contains no `cancel-in-progress` string. So two `live-apply` runs on the same
+  branch do not overlap, and two on different refs are not held apart by the group.
+- **`workflow_dispatch:` works.** Signed in with write access, `live-discover.yml`'s
+  page renders the `workflow_dispatch_dropdown` and a "Run workflow" button that
+  `live-apply.yml`'s page does not, and
+  `POST /api/v1/repos/{owner}/{repo}/actions/workflows/live-discover.yml/dispatches`
+  with `{"ref":"main"}` returns 204 and starts a run that reaches `chant run
+  live-discover` and the choudoufu binary. The API endpoint does not check the
+  trigger, though: the same POST against `live-apply.yml`, which declares no
+  `workflow_dispatch`, also returned 204 and ran the job.
+- **`GITHUB_STEP_SUMMARY` is set and nothing reads it.** The runner exports
+  `/var/run/act/workflow/SUMMARY.md`; appending to it succeeds. Forgejo stores nothing:
+  the run's artifact list is empty, the run-view JSON the web UI fetches carries no
+  summary field, the REST API has no job resource at all in 12.0.4
+  (`/api/v1/repos/{owner}/{repo}/actions/runs/{id}/jobs` is 404), and the server binary
+  contains no `step_summary` string. A step summary is visible only if the job also
+  prints it to the log, which is why the finding above is the log alone.
+- **`outputs:` resolve, and nothing here consumes them.** A second job with
+  `needs: producer` read all four values back
+  (`CONSUMER sees gated=[true] op=[live-apply] gate=[apply-gate] approve=[chant approve
+  live-apply apply-gate]`), so the block is live rather than inert. The REST API does
+  not expose it, and this example drops the notice job that would have consumed it, so
+  the four keys on `live-apply` and `live-adopt` are cosmetic here.
+
+One correction to the posting bullet above, from the same session. `gh` can be pointed
+at a Forgejo instance after all, as long as it is handed a full URL:
+`gh api http://forgejo:3000/api/v1/repos/{owner}/{repo}/issues/1/comments` listed and
+created comments over plain HTTP and over TLS, and a job's own `${{ github.token }}`
+authenticated it, since `github.api_url` inside a Forgejo job is already
+`http://forgejo:3000/api/v1`. What returns 404 is the short path form chant serializes,
+`gh api repos/{owner}/{repo}/issues/{n}/comments`, which `gh` expands against
+`/api/v3`. Teaching `reconcilePr` that prefix is chant #2291; until it lands, `report`
+is what this example ships.
 
 ## The GitLab pipeline
 
@@ -304,8 +350,10 @@ artifact instead, since GitLab has no step-summary surface to write it to.
 **`CHANT_FORGE: gitlab`.** `src/forge.ts` takes three values, and each generated job
 sets the one it was built for, in the file's own top-level `variables:`. `github`
 posts through `gh`; `gitlab` posts through the notes API above on `live-plan` and
-reports everywhere else; `forgejo` reports everywhere, because it has neither a `gh`
-target nor a notes API. The value is never left unset: unset defaults to `github`,
+reports everywhere else; `forgejo` reports everywhere, because `reconcilePr` has no
+Forgejo path: its `gh` calls resolve to `/api/v3` and Forgejo serves `/api/v1` (see
+"What the carried-over GitHub keys do on a real Forgejo"), and the plain-`fetch` note
+path #2268 added is GitLab's. The value is never left unset: unset defaults to `github`,
 whose `live-discover` opens a GitHub issue and would fail on every scheduled run on
 another forge. It said `forgejo` before this project could generate for GitLab at all
 (#986), which was true of the build and false about the run - `forgejo` was then the
