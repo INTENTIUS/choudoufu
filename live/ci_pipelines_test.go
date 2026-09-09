@@ -412,6 +412,32 @@ var ciPipelineInstallPin = regexp.MustCompile(
 
 var ciPipelineChecksum = regexp.MustCompile(`\b[0-9a-f]{64}\b`)
 
+// ciPipelineGenerateTSPath is generate.ts, read as text below because a Go
+// test cannot import a TypeScript module: it is the same file
+// tests/pipelines.test.ts imports CHOUDOUFU_VERSION/CHOUDOUFU_SHA256 from.
+var ciPipelineGenerateTSPath = filepath.Join(ciPipelinesDir, "generate.ts")
+
+var (
+	ciPipelinePinVersionRe  = regexp.MustCompile(`CHOUDOUFU_VERSION\s*=\s*"v(\d+\.\d+\.\d+)"`)
+	ciPipelinePinChecksumRe = regexp.MustCompile(`CHOUDOUFU_SHA256\s*=\s*"([0-9a-f]{64})"`)
+)
+
+// ciPipelinePinnedChecksum reads the SHA256 generate.ts pins, as text - the
+// value every generated job's install line is supposed to carry verbatim.
+func ciPipelinePinnedChecksum(t *testing.T) string {
+	t.Helper()
+
+	body, err := os.ReadFile(ciPipelineGenerateTSPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciPipelineGenerateTSPath, err)
+	}
+	m := ciPipelinePinChecksumRe.FindSubmatch(body)
+	if m == nil {
+		t.Fatalf("%s: no `CHOUDOUFU_SHA256 = \"<64 hex>\"` line found", ciPipelineGenerateTSPath)
+	}
+	return string(m[1])
+}
+
 // TestCIPipelineInstallIsPinned holds that no generated job installs a
 // floating choudoufu.
 //
@@ -420,7 +446,24 @@ var ciPipelineChecksum = regexp.MustCompile(`\b[0-9a-f]{64}\b`)
 // not a version, and a tag can be moved and a release asset can be replaced
 // without the run noticing - which is why the checksum is checked too, not
 // only the version.
+//
+// What this proves and what it does not: the checksum comparison below is
+// against ciPipelinePinnedChecksum, read out of generate.ts's own
+// CHOUDOUFU_SHA256 - so a generated file whose checksum has drifted from what
+// the generator currently declares (a hand-edit, a stale regeneration, one
+// forge's tree pinned to a different release than another's) fails here. It
+// does NOT reach the network to confirm that value is what
+// github.com/INTENTIUS/choudoufu/releases actually published for that tag:
+// this guard runs in this repository's offline Go CI, which has no network
+// access to fetch SHA256SUMS. That independent confirmation is a step in the
+// release procedure instead (done once, by a person, against the tag's
+// SHA256SUMS asset, at the moment the pin is bumped - see the commit message
+// convention in git log for examples/ci-pipelines/generate.ts). A wrong
+// checksum that was never checked against SHA256SUMS at pin time would read
+// green here forever, because "green" only means "internally consistent".
 func TestCIPipelineInstallIsPinned(t *testing.T) {
+	pinnedChecksum := ciPipelinePinnedChecksum(t)
+
 	for forge := range ciPipelineForges {
 		for _, op := range ciPipelineOps(t) {
 			body := ciPipelineWorkflow(t, forge, op)
@@ -432,6 +475,10 @@ func TestCIPipelineInstallIsPinned(t *testing.T) {
 			if !strings.Contains(body, "sha256sum -c -") || !ciPipelineChecksum.MatchString(body) {
 				t.Errorf("%s/%s.yml downloads choudoufu without verifying a SHA256 against the release's published checksum",
 					forge, op)
+			} else if !strings.Contains(body, pinnedChecksum) {
+				t.Errorf("%s/%s.yml's checksum does not match the one generate.ts pins (CHOUDOUFU_SHA256=%s); "+
+					"run `npm run generate` in %s and commit the regenerated trees",
+					forge, op, pinnedChecksum, ciPipelinesDir)
 			}
 			if strings.Contains(body, "releases/latest") {
 				t.Errorf("%s/%s.yml installs a floating release", forge, op)
@@ -768,10 +815,13 @@ func TestCIPipelineGitLabIsTrackedAndGenerated(t *testing.T) {
 // TestCIPipelineGitLabInstallIsPinned is TestCIPipelineInstallIsPinned's
 // GitLab half, counting install lines instead of iterating files: GitLab's
 // five jobs share one file, so one pinned install per job is what "every job
-// installs a pinned choudoufu" comes down to here.
+// installs a pinned choudoufu" comes down to here. See
+// TestCIPipelineInstallIsPinned's doc comment for what the checksum
+// comparison here proves and what it does not (no network call).
 func TestCIPipelineGitLabInstallIsPinned(t *testing.T) {
 	body := ciPipelineGitLabBody(t)
 	ops := ciPipelineOps(t)
+	pinnedChecksum := ciPipelinePinnedChecksum(t)
 
 	if got := ciPipelineInstallPin.FindAllString(body, -1); len(got) != len(ops) {
 		t.Errorf("%s has %d pinned choudoufu install lines; the example declares %d Ops (%v), one job apiece",
@@ -780,6 +830,10 @@ func TestCIPipelineGitLabInstallIsPinned(t *testing.T) {
 	if !strings.Contains(body, "sha256sum -c -") || !ciPipelineChecksum.MatchString(body) {
 		t.Errorf("%s downloads choudoufu without verifying a SHA256 against the release's published checksum",
 			ciPipelineGitLabFile)
+	} else if !strings.Contains(body, pinnedChecksum) {
+		t.Errorf("%s's checksum does not match the one generate.ts pins (CHOUDOUFU_SHA256=%s); "+
+			"run `npm run generate` in %s and commit the regenerated trees",
+			ciPipelineGitLabFile, pinnedChecksum, ciPipelinesDir)
 	}
 	if strings.Contains(body, "releases/latest") {
 		t.Errorf("%s installs a floating release", ciPipelineGitLabFile)
@@ -1108,5 +1162,133 @@ func TestCIPipelineTerraformLockCoversMultiplePlatforms(t *testing.T) {
 			"Regenerate with `tofu providers lock -platform=linux_amd64 -platform=linux_arm64 "+
 			"-platform=darwin_arm64 -platform=darwin_amd64` in %s/%s and commit the result.",
 			lockPath, len(hashes), hashes, ciPipelinesDir, ciPipelineTerraformDir)
+	}
+}
+
+// ============================================================================
+// #1029: the choudoufu pin is tied to this repository's own release, not a
+// literal nobody re-derives against anything.
+//
+// There is no root `version` file recording choudoufu's own tag: `version/`
+// is a directory holding the upstream OpenTofu base version this fork builds
+// on (version/VERSION, e.g. "1.13.0-dev"), a different number entirely, and
+// it never moves when a choudoufu release is cut. The in-tree record of
+// choudoufu's own releases is live/history/vX.Y.Z.json, one file per
+// release, written by `go run ./tools/gauntlet snapshot vX.Y.Z` (the
+// `just gauntlet-snapshot` recipe) as the last step of cutting a release,
+// alongside the `vX.Y.Z` git tag placed on the release PR's merge commit.
+// The newest entry there is the closest thing this repository has to "the
+// current release" that is read rather than remembered.
+//
+// Tolerance is one release, not zero: `.github/workflows/release.yml`
+// triggers `on: push: tags:` and builds the binaries and SHA256SUMS AFTER
+// the tag exists, and the tag goes on the release PR's own merge commit - so
+// the checksum this pin needs cannot be known inside that same PR. Bumping
+// the pin is necessarily a follow-up PR (see the `examples/ci-pipelines: pin
+// choudoufu vX.Y.Z (#NNNN)` commits in git log for the pattern), and one
+// release of slack is exactly the width of "the first PR after the tag".
+// Two releases behind means that follow-up PR was skipped for an entire
+// cycle, which is what this guard refuses.
+// ============================================================================
+
+// ciPipelineHistoryDir is live/history, relative to this test package's own
+// directory - `go test` runs with the package directory as its working
+// directory, the same assumption ciPipelinesDir makes for
+// examples/ci-pipelines above.
+const ciPipelineHistoryDir = "history"
+
+// ciPipelinePinnedVersion reads the version generate.ts pins (the same
+// CHOUDOUFU_VERSION tests/pipelines.test.ts imports), as both a comparable
+// *version.Version and its literal "vX.Y.Z" spelling for messages.
+func ciPipelinePinnedVersion(t *testing.T) (*version.Version, string) {
+	t.Helper()
+
+	body, err := os.ReadFile(ciPipelineGenerateTSPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciPipelineGenerateTSPath, err)
+	}
+	m := ciPipelinePinVersionRe.FindSubmatch(body)
+	if m == nil {
+		t.Fatalf("%s: no `CHOUDOUFU_VERSION = \"vX.Y.Z\"` line found", ciPipelineGenerateTSPath)
+	}
+	raw := string(m[1])
+	v, err := version.NewVersion(raw)
+	if err != nil {
+		t.Fatalf("%s: CHOUDOUFU_VERSION %q does not parse as a version: %v", ciPipelineGenerateTSPath, raw, err)
+	}
+	return v, "v" + raw
+}
+
+// ciPipelineReleaseHistory returns every release live/history/ records,
+// newest first, read from the filenames themselves (vX.Y.Z.json) rather than
+// from the JSON bodies: the ledger's existence is the signal this guard
+// needs, not any field inside it.
+func ciPipelineReleaseHistory(t *testing.T) []*version.Version {
+	t.Helper()
+
+	entries, err := os.ReadDir(ciPipelineHistoryDir)
+	if err != nil {
+		t.Fatalf("reading %s: %v", ciPipelineHistoryDir, err)
+	}
+
+	var releases []*version.Version
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		raw := strings.TrimPrefix(strings.TrimSuffix(entry.Name(), ".json"), "v")
+		v, err := version.NewVersion(raw)
+		if err != nil {
+			continue // not a vX.Y.Z.json release snapshot; none today, but not this guard's business to enforce
+		}
+		releases = append(releases, v)
+	}
+
+	// A walk that found nothing would make the comparison below pass
+	// vacuously, which reads as a green guard proving nothing.
+	if len(releases) == 0 {
+		t.Fatalf("no vX.Y.Z.json release snapshots found in %s; this repository's own release ledger, "+
+			"written by `go run ./tools/gauntlet snapshot vX.Y.Z` when a release is cut, is how this guard "+
+			"finds the current release, and an empty directory makes this comparison meaningless rather than true",
+			ciPipelineHistoryDir)
+	}
+	sort.Sort(sort.Reverse(version.Collection(releases)))
+	return releases
+}
+
+// TestCIPipelinePinIsTiedToRelease holds that examples/ci-pipelines pins
+// either this repository's newest recorded release or the one immediately
+// before it - never further behind, and never a version live/history/ has no
+// record of at all (which would otherwise read as "one behind" by accident
+// if this compared version numbers arithmetically instead of the ledger's
+// own order).
+func TestCIPipelinePinIsTiedToRelease(t *testing.T) {
+	pinned, pinnedSpelling := ciPipelinePinnedVersion(t)
+	releases := ciPipelineReleaseHistory(t) // newest first
+
+	newest := releases[0]
+	tolerated := []*version.Version{newest}
+	if len(releases) > 1 {
+		tolerated = append(tolerated, releases[1])
+	}
+
+	ok := false
+	for _, v := range tolerated {
+		if pinned.Equal(v) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		t.Errorf("examples/ci-pipelines/generate.ts pins choudoufu %s, but the newest release recorded in "+
+			"%s/ is v%s (tolerance is one release behind, i.e. v%s here; this pin is further behind than "+
+			"that, or names a version %s/ has no record of at all).\n"+
+			"Fix: bump CHOUDOUFU_VERSION and CHOUDOUFU_SHA256 in examples/ci-pipelines/generate.ts to v%s "+
+			"(the checksum comes from that release's own SHA256SUMS asset, the linux_amd64 line, at "+
+			"github.com/INTENTIUS/choudoufu/releases/tag/v%s), then run `npm run generate` in "+
+			"examples/ci-pipelines and commit the three regenerated trees plus generated-from.json "+
+			"alongside the pin.",
+			pinnedSpelling, ciPipelineHistoryDir, newest.String(), tolerated[len(tolerated)-1].String(),
+			ciPipelineHistoryDir, newest.String(), newest.String())
 	}
 }

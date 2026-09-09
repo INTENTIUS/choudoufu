@@ -19,7 +19,17 @@ import { fileURLToPath } from "node:url";
 import { before, describe, it } from "node:test";
 import { parseYAML } from "@intentius/chant/yaml";
 import { generateOpsPipeline } from "@intentius/chant/op";
-import { specs, options } from "../generate.ts";
+import { specs, options, CHOUDOUFU_VERSION, CHOUDOUFU_SHA256 } from "../generate.ts";
+
+/**
+ * `installRe` is built from `CHOUDOUFU_VERSION` rather than repeated as a
+ * literal, so a pin bump in `generate.ts` cannot drift from what this file
+ * asserts against; a literal `RegExp` needs its version dots escaped, since
+ * an unescaped `.` in the version string would match any character.
+ */
+const installRe = new RegExp(
+  `releases/download/${CHOUDOUFU_VERSION.replace(/\./g, "\\.")}/choudoufu_${CHOUDOUFU_VERSION.replace(/\./g, "\\.")}_linux_amd64\\.tar\\.gz`,
+);
 
 const projectDir = dirname(fileURLToPath(import.meta.url), );
 const exampleDir = join(projectDir, "..");
@@ -120,15 +130,15 @@ describe("every job installs a pinned choudoufu before it runs an Op", () => {
         // Pinned by version AND by the checksum the release publishes: a tag
         // can be moved and an asset can be replaced, and an unattended run
         // holding a cloud role would never notice.
-        assert.match(install.run!, /releases\/download\/v0\.16\.0\/choudoufu_v0\.16\.0_linux_amd64\.tar\.gz/);
+        assert.match(install.run!, installRe);
         assert.match(install.run!, /sha256sum -c -/);
-        assert.match(install.run!, /[0-9a-f]{64}/);
+        assert.ok(install.run!.includes(CHOUDOUFU_SHA256), "the checksum must be the one generate.ts pins");
         // chant's lexicon refuses a choudoufu older than v0.14.0.
         assert.ok(!install.run!.includes("latest"), "the install must not float");
 
         const body = text(forge, op);
         assert.ok(
-          body.indexOf("choudoufu_v0.16.0") < body.indexOf(`chant run ${op}`),
+          body.indexOf(`choudoufu_${CHOUDOUFU_VERSION}`) < body.indexOf(`chant run ${op}`),
           "the install has to precede the invocation, or the Op's first step is a missing binary",
         );
       });
@@ -460,9 +470,9 @@ describe("gitlab: one job per Op, in the one file the generator emits", () => {
       const script = gitlabJob(op).script ?? [];
       const install = script.find((line) => line.includes("choudoufu_v"));
       assert.ok(install, `${op}: no choudoufu install line`);
-      assert.match(install, /releases\/download\/v0\.16\.0\/choudoufu_v0\.16\.0_linux_amd64\.tar\.gz/);
+      assert.match(install, installRe);
       assert.match(install, /sha256sum -c -/);
-      assert.match(install, /[0-9a-f]{64}/);
+      assert.ok(install.includes(CHOUDOUFU_SHA256), "the checksum must be the one generate.ts pins");
       assert.ok(!install.includes("latest"), "the install must not float");
       assert.ok(
         script.some((line) => line.includes(`npx chant run ${op}`)),

@@ -1,6 +1,9 @@
 # OpenTofu release manual
 
 > [!WARNING]
+> This is upstream OpenTofu's own manual, inherited as upstream wrote it. It describes upstream's nightly/beta/rc/stable train, cloud credentials, and package managers, none of which apply here. **choudoufu's own release procedure is the "Cutting a release" paragraph at the top of [`CHANGELOG.md`](CHANGELOG.md)** - branch, `gauntlet snapshot`, tag, then the follow-up pin PR for `examples/ci-pipelines`. This file is kept only because parts of the fork still build on OpenTofu's own release train; do not follow it for a choudoufu release.
+
+> [!WARNING]
 > This manual is intended for OpenTofu core and fork maintainers. If you are looking for the normal contribution guide, see [this file](CONTRIBUTING.md).
 
 This manual describes how to create an OpenTofu release. OpenTofu has two kinds of releases. Nightly releases are created
