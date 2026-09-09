@@ -1,6 +1,6 @@
 # Running the generated GitLab pipeline on a real GitLab
 
-`examples/ci-pipelines/gitlab/scheduled-ops.gitlab-ci.yml` was generated,
+`examples/ci-pipelines/gitlab/ops.gitlab-ci.yml` was generated,
 asserted against and never run. This directory runs it: a throwaway GitLab CE
 instance, a `gitlab-runner` with the docker executor, and the floci AWS
 emulator on one network, with the example's own `terraform/` root as the
@@ -198,10 +198,12 @@ the deployment list reads `success` for a run that applied nothing.
 
 ## Two smaller notes
 
-The stage is named `scheduled-ops` for all five jobs, merge-request jobs
-included, so a merge request's pipeline shows `live-check` and `live-plan`
-under a heading that says "scheduled-ops" (chant #2293). The name is
-`generateGitlabOpPipeline`'s, not this project's.
+This session ran against a pre-#2293 chant, when the stage was named
+`scheduled-ops` for all five jobs, merge-request jobs included, so a merge
+request's pipeline showed `live-check` and `live-plan` under a heading that
+said "scheduled-ops". Chant #2293 (0.62.0) renamed both the stage and the
+generated file to `ops`; the name is `generateGitlabOpPipeline`'s, not this
+project's.
 
 The generated jobs export `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN`
 and were still able to plan against floci with `AWS_ACCESS_KEY_ID` and

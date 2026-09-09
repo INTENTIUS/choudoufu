@@ -49,7 +49,7 @@ type Forge = keyof typeof FORGE_DIR;
  * structure the way GitHub and Forgejo do. Its own `describe` block below
  * parses that shape directly rather than forcing it through `Workflow`.
  */
-const GITLAB_FILE = join(exampleDir, "gitlab", "scheduled-ops.gitlab-ci.yml");
+const GITLAB_FILE = join(exampleDir, "gitlab", "ops.gitlab-ci.yml");
 
 /** The five Ops, which are also the five job names. */
 const OPS = ["live-adopt", "live-apply", "live-check", "live-discover", "live-plan"] as const;
@@ -67,6 +67,7 @@ interface Job {
   container?: string;
   permissions?: Record<string, string>;
   outputs?: Record<string, string>;
+  env?: Record<string, string>;
   steps?: Step[];
 }
 interface Workflow {
@@ -170,17 +171,18 @@ describe("live-check reaches for no credential of its own", () => {
     }
   });
 
-  it("forgejo: but does see the estate's static key, because `variables` are workflow-scoped", () => {
-    // Not a defect in this example and not something it can dodge: the
-    // generator's `variables` become the workflow's top-level `env:`, and a
-    // Forgejo job has no OIDC to mint per-job credentials instead. So the
-    // no-credentials property this job has on GitHub is a property GitHub
-    // provides, not one the pipeline shape provides. Asserted rather than
-    // hidden, and named in the README.
-    assert.equal(
-      workflow("forgejo", "live-check").env?.AWS_ACCESS_KEY_ID,
-      "${{ secrets.AWS_ACCESS_KEY_ID }}",
-    );
+  it("forgejo: and sees none either, now that credentials are per-Op (#1028)", () => {
+    // Inverse of what this project used to assert: the generator's
+    // `variables` used to become the workflow's top-level `env:`, so
+    // live-check held the same apply-capable key every other job did, because
+    // Forgejo has no OIDC to mint per-job credentials instead. Since chant
+    // #2290 gave the Op generator a per-Op `variables` entry, that credential
+    // lives on the job that needs it and no other - see the section below.
+    const env = workflow("forgejo", "live-check").env ?? {};
+    assert.deepEqual(Object.keys(env).sort(), ["AWS_REGION", "CHANT_FORGE", "TF_VAR_aws_region"]);
+    for (const key of ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]) {
+      assert.ok(!(key in env), `${key} must not reach a job that makes no cloud call`);
+    }
   });
 
   it("and it runs init first, which is what makes the answer accurate", () => {
@@ -298,21 +300,43 @@ describe("forgejo gets the same pipeline minus what its runner cannot do", () =>
     }
   });
 
-  it("authenticates with a static secret, stated rather than implied", () => {
+  it("authenticates with a static secret, one pair per Op (#1028)", () => {
     // No OIDC path from Forgejo to AWS is verified anywhere in this
-    // organization, so the credentials are a repository secret. They sit in
-    // the workflow's top-level env because that is where the generator's
-    // `variables` land - workflow-scoped, so even live-check sees them, which
-    // is one more reason the OIDC form is better where it exists.
-    assert.equal(workflow("forgejo", "live-apply").env?.AWS_ACCESS_KEY_ID, "${{ secrets.AWS_ACCESS_KEY_ID }}");
-    assert.equal(
-      workflow("forgejo", "live-apply").env?.AWS_SECRET_ACCESS_KEY,
-      "${{ secrets.AWS_SECRET_ACCESS_KEY }}",
-    );
+    // organization, so the credentials are repository secrets. Since #1028
+    // they sit in each Op's own job-level env: rather than the workflow's
+    // top-level one, mirroring the per-Op role split GitHub's setup steps
+    // make - `live-plan` and `live-discover` share a read pair, `live-adopt`
+    // and `live-apply` each get their own write pair, and `live-check` gets
+    // none of it.
+    const keyOf = (op: string) => workflow("forgejo", op).jobs[op].env?.AWS_ACCESS_KEY_ID;
+    const secretOf = (op: string) => workflow("forgejo", op).jobs[op].env?.AWS_SECRET_ACCESS_KEY;
+
+    assert.equal(keyOf("live-plan"), "${{ secrets.CHOUDOUFU_PLAN_ACCESS_KEY_ID }}");
+    assert.equal(secretOf("live-plan"), "${{ secrets.CHOUDOUFU_PLAN_SECRET_ACCESS_KEY }}");
+    assert.equal(keyOf("live-discover"), keyOf("live-plan"));
+    assert.equal(secretOf("live-discover"), secretOf("live-plan"));
+    assert.equal(keyOf("live-adopt"), "${{ secrets.CHOUDOUFU_ADOPT_ACCESS_KEY_ID }}");
+    assert.equal(keyOf("live-apply"), "${{ secrets.CHOUDOUFU_APPLY_ACCESS_KEY_ID }}");
+    assert.equal(workflow("forgejo", "live-check").jobs["live-check"].env, undefined);
   });
 
-  it("posts nothing, because every posting mode chant has shells to gh", () => {
+  it("the two write pairs are not the read pair the pull request holds", () => {
+    // Mirrors "the two roles that may write are not the role the pull
+    // request assumes" for GitHub, over Forgejo's static key pairs instead
+    // of role ARNs.
+    const keyOf = (op: string) => workflow("forgejo", op).jobs[op].env?.AWS_ACCESS_KEY_ID;
+    assert.notEqual(keyOf("live-apply"), keyOf("live-plan"));
+    assert.notEqual(keyOf("live-adopt"), keyOf("live-plan"));
+    assert.notEqual(keyOf("live-apply"), keyOf("live-adopt"));
+  });
+
+  it("live-plan posts a sticky comment now (chant #2291); every other job still only reports", () => {
+    const plan = text("forgejo", "live-plan");
+    assert.ok(plan.includes("cli/cli/releases"), "live-plan: installs gh");
+    assert.ok(plan.includes("GH_TOKEN"), "live-plan: carries a gh token");
+
     for (const op of OPS) {
+      if (op === "live-plan") continue;
       const body = text("forgejo", op);
       assert.ok(!body.includes("cli/cli/releases"), `${op}: no gh install`);
       assert.ok(!body.includes("GH_TOKEN"), `${op}: no gh token`);
@@ -558,17 +582,22 @@ describe("gitlab: the push half applies behind a gate without painting the pipel
   }
 });
 
-describe("gitlab: the sweep runs on the cron the Op declares, and only reports", () => {
+describe("gitlab: the sweep runs on the cron the Op declares, and opens an issue (chant #2292)", () => {
   // live-discover's rules: (gated to a Pipeline Schedule, not to a branch or
   // merge-request event) is covered by the trigger-parity table below.
 
-  it("carries no findingMode-comment machinery: report needs no merge request to post on", () => {
-    // Asserted the same way GitHub's live-discover is asserted to be
-    // "issue"-mode by its own permissions in the section above: here it is
-    // the absence of a merge-request rule and the absence of a gh install,
-    // since a cron job's finding mode is "report" wherever it is not GitHub.
+  it("carries no gh install: the issue path is a plain REST call, not a shell-out", () => {
+    // Unlike GitHub's "issue" mode (`gh issue create`), GitLab's own path
+    // (chant #2292) is `reconcilePr` over GitLab's REST API with the same
+    // token resolution `comment` uses - so there is still no gh install here,
+    // for a different reason than there used to be.
     const script = gitlabJob("live-discover").script!.join("\n");
     assert.ok(!script.includes("cli/cli/releases"), "no gh install");
+  });
+
+  it("the generated header names the finding mode and the token it needs", () => {
+    const body = readFileSync(GITLAB_FILE, "utf8");
+    assert.match(body, /live-discover:.*finding-mode issue.*GITLAB_TOKEN/);
   });
 });
 

@@ -80,9 +80,13 @@ orgs:
         # ── The credentials the workflows read ───────────────────────────────
         #
         # No OIDC path from Forgejo to AWS is verified anywhere in this
-        # organization, so the Forgejo workflows carry a static key pair from
-        # repository secrets. warden manages a secret's PRESENCE and never its
-        # value.
+        # organization, so the Forgejo workflows carry static key pairs from
+        # repository secrets - one pair per Op that needs one, since #1028
+        # moved them off the workflow-wide `variables:` and onto each Op's own
+        # job. `live-check` needs none, `live-plan` and `live-discover` share
+        # a read pair, and `live-adopt`/`live-apply` each get their own write
+        # pair - the same split GitHub's three role ARNs make. warden manages
+        # a secret's PRESENCE and never its value.
         #
         # One caveat with teeth, from forgejo-warden's own
         # src/cycles/secrets-variables.ts: applying a secret that does not
@@ -91,10 +95,14 @@ orgs:
         # unset. So an apply run that has not been handed the key creates the
         # secret empty rather than refusing - which is the opposite of
         # github-warden's behaviour, and the reason to run this policy in
-        # dry-run first and provision the two values before the first apply.
+        # dry-run first and provision all six values before the first apply.
         secrets:
-          - name: AWS_ACCESS_KEY_ID
-          - name: AWS_SECRET_ACCESS_KEY
+          - name: CHOUDOUFU_PLAN_ACCESS_KEY_ID
+          - name: CHOUDOUFU_PLAN_SECRET_ACCESS_KEY
+          - name: CHOUDOUFU_ADOPT_ACCESS_KEY_ID
+          - name: CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY
+          - name: CHOUDOUFU_APPLY_ACCESS_KEY_ID
+          - name: CHOUDOUFU_APPLY_SECRET_ACCESS_KEY
 
         # A variable value is not secret and is reconciled fully: warden puts
         # it back if someone edits it in the UI. The generated workflows read

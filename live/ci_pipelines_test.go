@@ -759,7 +759,7 @@ func TestCIPipelineWorkflowsRegenerate(t *testing.T) {
 // because a consuming repository already has one and includes this file from
 // it (see the example's README).
 const ciPipelineGitLabDir = "gitlab"
-const ciPipelineGitLabFile = "scheduled-ops.gitlab-ci.yml"
+const ciPipelineGitLabFile = "ops.gitlab-ci.yml"
 
 // ciPipelineGitLabRelPath is the file's path relative to the example
 // directory, slash-separated so it can be passed to git as a pathspec.

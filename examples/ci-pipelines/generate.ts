@@ -111,8 +111,10 @@ const IMAGE = "node:22";
  * signing, by design, since the token itself is the credential being
  * exchanged. Forgejo gets neither branch: its dialect drops `permissions:`
  * and `environment:` outright (no OIDC token, no environment object), so
- * `assumeRole` is never called for it and its jobs fall back to the static
- * key pair in `options()` below - unverified, same as it always was.
+ * `assumeRole` is never called for it and its jobs instead carry their own
+ * static key pair, one per Op, from `forgejoKeyPair` below (#1028) -
+ * unverified, same as it always was, but no longer shared with every other
+ * job in the file.
  */
 function assumeRole(roleVariable: string): NonNullable<ScheduledOpSpec["setup"]> {
   if (forge === "gitlab") {
@@ -140,6 +142,24 @@ function assumeRole(roleVariable: string): NonNullable<ScheduledOpSpec["setup"]>
 const OIDC: ScheduledOpSpec["permissions"] = { "id-token": "write" };
 
 /**
+ * A Forgejo job's own static key pair (#1028, chant #2290): the per-Op
+ * `variables` a job-level `env:` becomes, since Forgejo Actions mints no OIDC
+ * token to build one with `assumeRole` instead. `name` picks the secret pair
+ * this Op reads, mirroring the `CHOUDOUFU_*_ROLE_ARN` naming
+ * `assumeRole` uses for GitHub/GitLab: `live-plan` and `live-discover` share
+ * `PLAN` (a read pair), `live-adopt` gets `ADOPT` and `live-apply` gets
+ * `APPLY`, each its own write pair. `live-check` calls this for none of them,
+ * so the one job every pull request runs is the one job that cannot print a
+ * credential - the whole point of #1028.
+ */
+function forgejoKeyPair(name: "PLAN" | "ADOPT" | "APPLY"): NonNullable<ScheduledOpSpec["variables"]> {
+  return {
+    AWS_ACCESS_KEY_ID: `\${{ secrets.CHOUDOUFU_${name}_ACCESS_KEY_ID }}`,
+    AWS_SECRET_ACCESS_KEY: `\${{ secrets.CHOUDOUFU_${name}_SECRET_ACCESS_KEY }}`,
+  };
+}
+
+/**
  * The five Ops, as the jobs a governance policy can name.
  *
  * The per-environment dial is which Op an environment runs, not three copies
@@ -150,16 +170,20 @@ const OIDC: ScheduledOpSpec["permissions"] = { "id-token": "write" };
  */
 export function specs(): ScheduledOpSpec[] {
   const github = forge === "github";
+  const forgejo = forge === "forgejo";
   // GitLab's Op generator now expresses pull_request/push triggers and a
   // per-job id_tokens declaration (chant #2268, #2257), so its jobs get the
   // same per-Op role and OIDC wiring GitHub's do - only the *shape* of the
   // setup step differs, in assumeRole() above. Forgejo has neither surface
-  // (no OIDC token, no environment object), so it keeps the flat static key
-  // in options() below, unverified as it always was.
+  // (no OIDC token, no environment object), so its jobs hold their own
+  // static key pair instead, in a per-Op `variables` entry (#1028, chant
+  // #2290) rather than the workflow-wide one this used to be.
   const oidcForge = github || forge === "gitlab";
-  // `gh` is a GitHub-only dependency: GitLab's own "comment" mode needs no
-  // install (see INSTALL_GH's comment above), and forgejo never gets here.
-  const ghSetup = github ? [{ run: INSTALL_GH }] : [];
+  // `gh` is needed by any Op whose finding mode shells out to it: GitHub's
+  // "comment" and "issue" both do, and since chant #2291 Forgejo's "comment"
+  // does too, over a `GITHUB_API_URL`-built call rather than a bare path.
+  // GitLab's own modes go over a plain fetch and never need it.
+  const ghSetup = github || forgejo ? [{ run: INSTALL_GH }] : [];
   return [
     {
       // No credentials of any kind: `live-check` makes no cloud calls, reads
@@ -171,19 +195,25 @@ export function specs(): ScheduledOpSpec[] {
     {
       name: "live-plan",
       trigger: { kind: "pull_request", branches: ["main"] },
-      // "comment" now generates for GitLab too (chant #2268's merge-request
-      // note activity); Forgejo has no posting activity at all, so it stays
-      // "report". See ./src/forge.ts for the reasoning behind this value.
+      // "comment" on every forge now (chant #2268's merge-request note
+      // activity for GitLab, chant #2291's GITHUB_API_URL fix for Forgejo).
+      // See ./src/forge.ts for the reasoning behind this value.
       findingMode: planFindingMode,
       ...(oidcForge
         ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), ...ghSetup], permissions: OIDC }
-        : {}),
+        : forgejo
+          ? { setup: ghSetup, variables: forgejoKeyPair("PLAN") }
+          : {}),
     },
     {
       name: "live-adopt",
       trigger: { kind: "push", branches: ["staging"] },
       findingMode: "report",
-      ...(oidcForge ? { setup: assumeRole("CHOUDOUFU_ADOPT_ROLE_ARN"), permissions: OIDC } : {}),
+      ...(oidcForge
+        ? { setup: assumeRole("CHOUDOUFU_ADOPT_ROLE_ARN"), permissions: OIDC }
+        : forgejo
+          ? { variables: forgejoKeyPair("ADOPT") }
+          : {}),
     },
     {
       name: "live-apply",
@@ -196,18 +226,24 @@ export function specs(): ScheduledOpSpec[] {
       // examples/pipeline-governance/github/governance.yml for what the
       // reviewer adds on top of chant's own gate below.
       environment: { name: "production" },
-      ...(oidcForge ? { setup: assumeRole("CHOUDOUFU_APPLY_ROLE_ARN"), permissions: OIDC } : {}),
+      ...(oidcForge
+        ? { setup: assumeRole("CHOUDOUFU_APPLY_ROLE_ARN"), permissions: OIDC }
+        : forgejo
+          ? { variables: forgejoKeyPair("APPLY") }
+          : {}),
     },
     {
       // No `trigger` and no `schedule`: this Op declares its own cron, and
       // `generateOpsPipeline` copies it onto the spec before rendering.
       name: "live-discover",
-      // "issue" only on GitHub; GitLab's own "comment" path needs a merge
-      // request a cron job never has. See ./src/forge.ts.
+      // "issue" on GitHub and GitLab (chant #2292); Forgejo's own "issue"
+      // path is unverified and stays "report". See ./src/forge.ts.
       findingMode: discoverFindingMode,
       ...(oidcForge
         ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), ...ghSetup], permissions: OIDC }
-        : {}),
+        : forgejo
+          ? { variables: forgejoKeyPair("PLAN") }
+          : {}),
     },
   ];
 }
@@ -222,14 +258,16 @@ export function specs(): ScheduledOpSpec[] {
  *
  * `variables` becomes the workflow's top-level `env:` (GitHub, Forgejo) or
  * top-level `variables:` (GitLab - every job's environment already carries a
- * GitLab CI/CD variable, which is why the credentials below are not repeated
- * there the way they are for Forgejo). On GitHub and GitLab that is the forge
- * marker, the region and nothing else - the credentials are minted per job by
- * the setup step (`assumeRole`, above). Forgejo's dialect drops
- * `permissions:` and has no `id_tokens:` equivalent at all, so its jobs carry
- * the credentials themselves; no OIDC path off Forgejo to AWS is verified
- * anywhere in this organization, and the README says so rather than dressing
- * it up.
+ * GitLab CI/CD variable, which is why the region below is not repeated there
+ * the way it is for Forgejo). On every forge that is the forge marker, the
+ * region and nothing else - no credential of any kind lands here since #1028:
+ * GitHub and GitLab mint theirs per job by the setup step (`assumeRole`,
+ * above), and Forgejo's own per-Op static key pair is a per-Op `variables`
+ * entry on `specs()` (`forgejoKeyPair`, above) rather than a forge-wide one,
+ * for the same reason - a workflow-scoped credential here would put it back
+ * on every job, `live-check` included, which is exactly what #1028 fixed. No
+ * OIDC path off Forgejo to AWS is verified anywhere in this organization, and
+ * the README says so rather than dressing it up.
  */
 export function options(): ComponentPipelineOptions {
   const gitlab = forge === "gitlab";
@@ -250,12 +288,6 @@ export function options(): ComponentPipelineOptions {
       // against, so only the Terraform-side alias is declared.
       ...(gitlab ? {} : { AWS_REGION: region }),
       TF_VAR_aws_region: region,
-      ...(forge === "forgejo"
-        ? {
-            AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}",
-            AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}",
-          }
-        : {}),
     },
   };
 }

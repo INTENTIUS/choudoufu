@@ -1,5 +1,5 @@
 # gitlab-warden policy for a repository that runs examples/ci-pipelines'
-# generated gitlab/scheduled-ops.gitlab-ci.yml. Copy it into that repository
+# generated gitlab/ops.gitlab-ci.yml. Copy it into that repository
 # (as governance.yaml, or whatever path you pass to --config), change the
 # node's path, then dry-run it:
 #
@@ -34,7 +34,7 @@ nodes:
     #
     # live-check and live-plan are the only jobs the generated pipeline
     # rules: to run on a merge request to main - read out of
-    # gitlab/scheduled-ops.gitlab-ci.yml, not restated from memory - so
+    # gitlab/ops.gitlab-ci.yml, not restated from memory - so
     # "the pipeline must succeed" comes down to exactly those two on a
     # merge request. They are named here, in a form
     # live/pipeline_governance_test.go parses, so a rename in
@@ -93,7 +93,7 @@ nodes:
     # Unlike Forgejo, GitLab has protected environments natively. chant #2268
     # gave the gitlab Op generator the same `environment` option GitHub's has
     # (../README.md, "What the environment does"), and the generated
-    # live-apply job in gitlab/scheduled-ops.gitlab-ci.yml carries
+    # live-apply job in gitlab/ops.gitlab-ci.yml carries
     # `environment: { name: production }`. This is the reviewer that binds
     # it - Premium/Ultimate, on GitLab.com and on a self-managed instance
     # alike; it is not a warden limitation. INTENTIUS/gitlab-warden's e2e

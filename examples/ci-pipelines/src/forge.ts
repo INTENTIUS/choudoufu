@@ -17,18 +17,19 @@
  *  - the generated workflow sets `CHANT_FORGE` in its own top-level `env:`,
  *    so the Op the runner builds is the Op the workflow was generated from.
  *
- * ## Why forgejo reports rather than posting
+ * ## Why forgejo posts a `live-plan` comment now, and what still only reports
  *
  * Every posting mode chant has - `comment`, `issue`, `pull-request`,
- * `merge-request` - is the `reconcilePr` activity, and it shells to `gh`
- * against the GitHub API. That is what the forgejo Op generator's refusal of
- * `comment` by name rests on; `issue` is not refused there, but it is the
- * same `gh issue create`, so an Op carrying it on Forgejo would generate
- * cleanly and fail at its Report step on every run.
+ * `merge-request` - is the `reconcilePr` activity, and it shells to `gh`.
+ * The forgejo Op generator used to refuse `comment` by name on the premise
+ * that chant had no way to point `gh` at a Forgejo instance. Chant #2291
+ * checked that premise against a real instance for #1027 and found it false:
+ * the failure was `gh api` resolving a *relative* path against `/api/v3`,
+ * which Forgejo does not serve, not an unreachable forge.
  *
- * What exactly fails was settled on a real instance for #1027, Forgejo
- * 12.0.4+gitea-1.22.0 with `forgejo-runner` v9.1.1. It is the URL, not the
- * forge:
+ * What exactly fails, and what does not, was settled on a real instance for
+ * #1027, Forgejo 12.0.4+gitea-1.22.0 with `forgejo-runner` v9.1.1. It is the
+ * URL, not the forge:
  *
  *  - `gh api repos/{owner}/{repo}/issues/{n}/comments` with `GH_HOST` set to
  *    the instance requests `https://$GH_HOST/api/v3/...`. Forgejo serves
@@ -45,20 +46,24 @@
  *    `http://host/api/v1` and `${{ github.token }}` authenticates both calls
  *    (GET 200, POST 201, the comment authored by the actions bot).
  *
- * So chant could post to Forgejo; `reconcilePr` has no path that does. That
- * is chant #2291, and it is a prefix and a token to resolve rather than a
- * client to write. Until it lands, both reporting Ops run in `report` mode
- * on Forgejo, where the finding is the run's own log and not its step
- * summary: the runner does export `GITHUB_STEP_SUMMARY` and writes succeed, but
- * Forgejo 12.0.4 stores the file nowhere - no artifact, no API field, no
- * panel in the run view - so a summary is visible only when the job also
- * prints it to the log. The README carries the rest of that session's
- * observations, including what `concurrency:` and `workflow_dispatch:` do
- * there.
+ * chant #2291 built `reconcilePr`'s `comment` mode from `GITHUB_API_URL`
+ * rather than a bare path, which both GitHub Actions and Forgejo Actions
+ * already set correctly, so `comment` now crosses over unchanged (see
+ * `@intentius/chant-lexicon-forgejo`'s `generate-op-pipeline.ts` module doc).
+ * `live-plan` runs on a pull request, so it gets `comment` on Forgejo exactly
+ * as it does on GitHub and GitLab: `planFindingMode` below is no longer
+ * forge-conditional.
  *
- * ## Why gitlab now posts a `live-plan` comment but still reports `live-discover`
+ * `issue` (`gh issue create`) was not part of that verification - only the
+ * comment endpoints were exercised on the real instance - so it remains
+ * un-refused-but-unverified on Forgejo, the same state GitHub's `issue` mode
+ * was in before this. `discoverFindingMode` below stays `report` on Forgejo
+ * for exactly that reason: no build-time refusal fires, but nothing has
+ * proven the call actually reaches a Forgejo issue.
  *
- * `comment` is the one posting mode that does not shell to `gh`: on GitHub it
+ * ## Why gitlab now reaches an issue with `live-discover`, not just a comment with `live-plan`
+ *
+ * `comment` is the one posting mode that never shelled to `gh`: on GitHub it
  * PATCHes/POSTs a pull-request comment through the GitHub REST API, and since
  * chant #2268 it does the equivalent over GitLab's own REST API when the run
  * is a `merge_request_event` pipeline - a plain `fetch`, no `gh`, no `glab`.
@@ -76,14 +81,16 @@
  * these variables in a pipeline that could run from a protected or an
  * unprotected branch.
  *
- * `live-discover` runs on a cron. `comment` needs a merge request to post on
- * and is refused at build time by both Op generators when the trigger has
- * none (chant #2231, and gitlab's own equivalent check since #2268); `issue`
- * and `merge-request` are not build-time refused on gitlab, but they are
- * still `reconcilePr` shelling to `gh`, which cannot reach a GitLab instance.
- * So `live-discover` stays `report` on every forge but GitHub - the one
- * finding mode gitlab's own comment path cannot reach, because there is no
- * merge request for a nightly sweep to comment on.
+ * `live-discover` runs on a cron, and `comment` needs a merge request to post
+ * on - refused at build time by both Op generators when the trigger has none
+ * (chant #2231, and gitlab's own equivalent check since #2268). Chant #2292
+ * gave `reconcilePr`'s `issue` mode a GitLab path over the same `fetch` and
+ * token resolution `comment` uses, rather than shelling to `gh`, so
+ * `live-discover` now reaches an issue on GitLab too. `merge-request` is not
+ * build-time refused on gitlab, but it is still `reconcilePr` shelling to
+ * `gh`, which cannot reach a GitLab instance; nothing here uses it.
+ * `live-discover` stays `report` on Forgejo, the one forge #2292 did not
+ * touch and whose `issue` mode remains unverified per the section above.
  *
  * ## Why gitlab is a forge here
  *
@@ -119,20 +126,25 @@ function readForge(): Forge {
 export const forge: Forge = readForge();
 
 /**
- * How `live-plan` reports the plan it read. On GitHub that is one comment on
- * the pull request that triggered the run; on GitLab, since chant #2268, the
- * equivalent note on the merge request that triggered it. Both are the same
- * `comment` finding mode and the same hidden-marker edit-in-place recipe -
- * `reconcilePr` picks the API by which CI variable the run itself carries.
- * Forgejo reports, for the reason above: `reconcilePr` has no Forgejo path,
- * though the instance itself would accept the call.
+ * How `live-plan` reports the plan it read: one comment on the pull request
+ * (GitHub, and Forgejo since chant #2291) or the equivalent note on the merge
+ * request (GitLab, since chant #2268) that triggered the run. All three are
+ * the same `comment` finding mode and the same hidden-marker edit-in-place
+ * recipe - `reconcilePr` picks the API by which CI variable the run itself
+ * carries, and on GitHub/Forgejo that is `GITHUB_API_URL`, which both set
+ * correctly. No longer forge-conditional: see the module doc above for why
+ * Forgejo stopped being the exception.
  */
-export const planFindingMode = forge === "forgejo" ? ("report" as const) : ("comment" as const);
+export const planFindingMode = "comment" as const;
 
 /**
  * How `live-discover` reports the adoption ledger its nightly sweep built.
- * `issue` only on GitHub: it is `gh issue create`, which `gh` sends to
- * `/api/v3` on whatever host it is pointed at, a path Forgejo does not serve;
- * and GitLab's own `comment` path needs a merge request a cron job never has.
+ * `issue` on GitHub and, since chant #2292, on GitLab too - GitLab's path is
+ * its own REST call rather than `gh issue create`, so it needs no merge
+ * request a cron job never has. Forgejo stays `report`: `issue` is not
+ * build-time refused there, but only `comment`'s endpoints were verified
+ * against a real instance (#1027), so `issue` remains
+ * un-refused-but-unverified and this project does not turn it on.
  */
-export const discoverFindingMode = forge === "github" ? ("issue" as const) : ("report" as const);
+export const discoverFindingMode =
+  forge === "github" || forge === "gitlab" ? ("issue" as const) : ("report" as const);
