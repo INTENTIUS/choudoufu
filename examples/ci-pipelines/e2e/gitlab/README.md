@@ -25,7 +25,10 @@ docker compose -f examples/ci-pipelines/e2e/gitlab/docker-compose.yml down -v
 `bootstrap.sh` brings the stack up, mints a root API token with
 `gitlab-rails`, creates the project, registers the runner, sets the CI/CD
 variables and pushes the seeded project. It prints `GITLAB_E2E_URL`,
-`GITLAB_E2E_TOKEN` and `GITLAB_E2E_PROJECT_ID`.
+`GITLAB_E2E_TOKEN` and `GITLAB_E2E_PROJECT_ID`. It was run twice: once by
+hand, step by step, to produce everything below, and once as the script, from
+`down -v` to a green gated `live-apply` and a green merge-request pipeline
+with the note on it, to check that the script is the run.
 
 Two things about the stack are not cosmetic:
 

@@ -84,7 +84,7 @@ $COMPOSE exec -T runner gitlab-runner register --non-interactive \
   --docker-volumes /cache >&2
 $COMPOSE exec -T runner sed -i 's/^concurrent = .*/concurrent = 4/' /etc/gitlab-runner/config.toml
 $COMPOSE restart runner >&2
-log "runner registered: $($COMPOSE exec -T runner gitlab-runner --version | head -1)"
+log "runner registered: $($COMPOSE exec -T runner gitlab-runner --version 2>/dev/null | head -1 || true)"
 
 # The five the generated file reads, plus the three that point the AWS SDK at
 # floci. Every one UNPROTECTED on purpose: a protected variable is not
