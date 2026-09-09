@@ -47,6 +47,16 @@ jobs:
     # in it.
     container: node:22
 
+    # A container job's default shell on GitHub is `sh`, not `bash`, and the
+    # steps below use `set -o pipefail`. This is not cosmetic: the generated
+    # `live-apply` and `live-adopt` jobs run `set -o pipefail` in a
+    # `container: node:22` job and declare no shell either, so they fail
+    # with "Illegal option -o pipefail" before chant starts (#1026 found it
+    # here first, on this very step).
+    defaults:
+      run:
+        shell: bash
+
     services:
       # The pin in live/floci-image. The step "the emulator is the pin"
       # below fails the run if this digest and that file ever disagree -
