@@ -388,16 +388,21 @@ workaround: the cache is never consulted for ownership, live always wins, and lo
 the record costs a slower run and nothing else. An `ssm` (or `s3`) store is shared and
 lives under IAM, which is what a pipeline should declare.
 
-Running this root used to print two `Resource type has no orphan recovery`
-warnings, one per resource, and they were wrong: both types have rows in the
-generated admission table, and the same run's `-json` document lists
-`aws_iam_role` under `swept`. The warning was firing for the schema-first path as
-well as for the type-not-in-the-table path it was written for. That was
-[#980](https://github.com/INTENTIUS/choudoufu/issues/980), found by building this
-example, and it is fixed - the warning now fires only for types nothing can sweep.
-`scripts/smoke.sh` counts them on every run and prints the count as a verdict
-line; it reads `count=0` at v0.16.0, over `live-check`, `live-plan`, `live-apply`,
-`live-adopt` and `live-discover` together.
+Running this root prints `Resource type has no orphan recovery` warnings under
+the v0.15.0 release the generated jobs currently install, and none at all under
+v0.16.0. That is [#980](https://github.com/INTENTIUS/choudoufu/issues/980), found
+by building this example: the warning was firing for the schema-first admission
+path as well as for the type-not-in-the-table path it was written for. It is
+fixed in v0.16.0, which fires it only for types nothing can sweep.
+
+`scripts/smoke.sh` counts the warnings on every run and prints the count as its
+own verdict line, so the fix is a number rather than a claim. Measured over
+`live-check`, `live-plan`, `live-apply`, `live-adopt` and `live-discover`
+together: `count=34 per-live-plan=4` on v0.15.0, `count=0 per-live-plan=0` on
+v0.16.0. Two corrections to what this file used to say - the warning names
+`aws_cloudwatch_log_group` only, never `aws_iam_role`, so it was never "one per
+resource"; and a single `live-plan` emits it four times, in the `-json` document
+and the human render both.
 
 The IAM role is in the root on purpose. IAM is one of the services whose tagging call
 choudoufu does not print a paste-ready adopt command for (Route53 and S3 are the

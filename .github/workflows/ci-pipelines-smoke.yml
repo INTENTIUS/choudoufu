@@ -22,12 +22,6 @@ name: ci-pipelines-smoke
 
 on:
   workflow_dispatch: {}
-  # TEMPORARY (#1026): workflow_dispatch cannot reach a workflow that is not
-  # on the default branch yet, so this branch triggers itself once to record
-  # a real run. Removed in the next commit.
-  push:
-    branches:
-      - live/ops-smoke-1026
 
 permissions:
   contents: read
