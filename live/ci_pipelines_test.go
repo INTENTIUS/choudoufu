@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	version "github.com/hashicorp/go-version"
 )
 
 // examples/ci-pipelines ships generated CI: one chant project, five Ops, and
@@ -745,5 +747,182 @@ func TestCIPipelineGitLabRegenerates(t *testing.T) {
 		t.Errorf("%s is not what generate.ts emits today.\n"+
 			"Run `npm run generate` in %s and commit the result; never edit a generated workflow by hand.",
 			ciPipelineGitLabRelPath(), ciPipelinesDir)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// #1023: the example root's own provider, pinned by a lock rather than left
+// floating.
+//
+// terraform/main.tf constrains hashicorp/aws to "~> 6.59.0" and nothing else,
+// so an `init` with no lock present resolves whatever 6.59.x the registry
+// serves that day - a customer copying this example inherits an unbisectable
+// failure the moment the registry publishes a new patch release, in a
+// pipeline holding an apply role. The guards below hold the fix: a
+// `.terraform.lock.hcl` is tracked (never ignored), it pins a version that
+// satisfies main.tf's own constraint, and it carries hashes for more than one
+// platform - the whole point of generating it with multiple `-platform`
+// flags rather than letting a single `init` write down only the machine that
+// happened to run it.
+// ---------------------------------------------------------------------------
+
+// ciPipelineTerraformDir is the root that carries the floating provider.
+const ciPipelineTerraformDir = "terraform"
+
+// ciPipelineTerraformLockRelPath is ciPipelineTerraformLockPath, relative to
+// ciPipelinesDir - the form git commands below want.
+const ciPipelineTerraformLockRelPath = "terraform/.terraform.lock.hcl"
+
+// ciPipelineLockAWSProviderBlock finds the lock file's own
+// `provider "registry.../hashicorp/aws" { ... }` block and returns its
+// contents. HCL, not a line-oriented format hand-rolled with regexp for
+// everything else in this file, but the two things these guards read out of
+// it - a `version = "..."` line and a `hashes = [...]` list - are stable
+// enough across the lock file's own generated shape that a small
+// block-scoped regexp reads them without pulling in an HCL parser for two
+// fields.
+func ciPipelineLockAWSProviderBlock(t *testing.T, label, body string) string {
+	t.Helper()
+
+	re := regexp.MustCompile(`(?s)provider\s+"[^"]*hashicorp/aws"\s*\{(.*?)\n\}`)
+	m := re.FindStringSubmatch(body)
+	if m == nil {
+		t.Fatalf("%s: no `provider \"...hashicorp/aws\" { ... }` block found", label)
+	}
+	return m[1]
+}
+
+// ciPipelineMainTFAWSConstraint pulls the `version = "..."` value out of
+// main.tf's `required_providers { aws = { ... } }` entry - a different shape
+// from the lock file's own top-level `provider "..." { ... }` block, so it
+// gets its own small regexp rather than sharing one with
+// ciPipelineLockAWSProviderBlock.
+func ciPipelineMainTFAWSConstraint(t *testing.T, label, body string) string {
+	t.Helper()
+
+	blockRe := regexp.MustCompile(`(?s)aws\s*=\s*\{(.*?)\n\s*\}`)
+	block := blockRe.FindStringSubmatch(body)
+	if block == nil {
+		t.Fatalf("%s: no `aws = { ... }` entry found in required_providers", label)
+	}
+
+	return ciPipelineVersionLine(t, label, block[1])
+}
+
+// ciPipelineVersionLine pulls the value out of the first `version = "..."`
+// line in block. Both main.tf's `aws = { ... version = "~> 6.59.0" }` and the
+// lock file's `provider "...hashicorp/aws" { version = "6.59.0" ... }` shape
+// it this way; the lock file also has a `constraints = "..."` line, which
+// this regexp does not match because it anchors on the literal word
+// `version`.
+func ciPipelineVersionLine(t *testing.T, label, block string) string {
+	t.Helper()
+
+	re := regexp.MustCompile(`(?m)^\s*version\s*=\s*"([^"]+)"`)
+	m := re.FindStringSubmatch(block)
+	if m == nil {
+		t.Fatalf("%s: no `version = \"...\"` line found in the aws provider block:\n%s", label, block)
+	}
+	return m[1]
+}
+
+// TestCIPipelineTerraformLockIsTracked holds that the example commits a lock
+// for its own provider instead of ignoring it. `git ls-files` rather than a
+// plain file-exists check: a lock file present on disk but ignored (or never
+// added) is not a lock the next clone gets, which is exactly the gap #1023
+// found - `.gitignore` named it explicitly.
+func TestCIPipelineTerraformLockIsTracked(t *testing.T) {
+	tracked := gitLines(t, "ls-files", "--", ciPipelineTerraformLockRelPath)
+
+	if len(tracked) != 1 || tracked[0] != ciPipelineTerraformLockRelPath {
+		t.Errorf("git does not track %s (got %v).\n"+
+			"Generate it with `tofu providers lock -platform=linux_amd64 -platform=linux_arm64 "+
+			"-platform=darwin_arm64 -platform=darwin_amd64` in %s/%s, drop the ignore line in "+
+			"%s/.gitignore, and commit the result.",
+			ciPipelineTerraformLockRelPath, tracked, ciPipelinesDir, ciPipelineTerraformDir, ciPipelinesDir)
+	}
+}
+
+// TestCIPipelineTerraformLockSatisfiesConstraint holds that the version the
+// lock pins is one main.tf's own constraint would have accepted. A lock that
+// pins a version outside the constraint is worse than no lock: it reads as
+// the pin while actually recording a version `init` would refuse (or would
+// silently accept only because the constraint has since drifted out from
+// under it).
+func TestCIPipelineTerraformLockSatisfiesConstraint(t *testing.T) {
+	mainTFPath := filepath.Join(ciPipelinesDir, ciPipelineTerraformDir, "main.tf")
+	mainTF, err := os.ReadFile(mainTFPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", mainTFPath, err)
+	}
+	constraintStr := ciPipelineMainTFAWSConstraint(t, mainTFPath, string(mainTF))
+
+	lockPath := filepath.Join(ciPipelinesDir, ciPipelineTerraformLockRelPath)
+	lock, err := os.ReadFile(lockPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v (run `tofu init` in %s/%s and commit the lock)",
+			lockPath, err, ciPipelinesDir, ciPipelineTerraformDir)
+	}
+	lockBlock := ciPipelineLockAWSProviderBlock(t, lockPath, string(lock))
+	lockedStr := ciPipelineVersionLine(t, lockPath, lockBlock)
+
+	constraint, err := version.NewConstraint(constraintStr)
+	if err != nil {
+		t.Fatalf("%s: %q does not parse as a version constraint: %v", mainTFPath, constraintStr, err)
+	}
+	locked, err := version.NewVersion(lockedStr)
+	if err != nil {
+		t.Fatalf("%s: %q does not parse as a version: %v", lockPath, lockedStr, err)
+	}
+
+	if !constraint.Check(locked) {
+		t.Errorf("%s pins hashicorp/aws %s, which does not satisfy %s's own constraint %q.\n"+
+			"Regenerate the lock (`tofu providers lock -platform=... -platform=...` in %s/%s) so it "+
+			"pins a version the root's own required_providers block would accept.",
+			lockPath, lockedStr, mainTFPath, constraintStr, ciPipelinesDir, ciPipelineTerraformDir)
+	}
+}
+
+// ciPipelineLockHashes returns every `"h1:...` / `"zh:...` entry in the
+// lock's `hashes = [ ... ]` list.
+func ciPipelineLockHashes(t *testing.T, label, block string) []string {
+	t.Helper()
+
+	listRe := regexp.MustCompile(`(?s)hashes\s*=\s*\[(.*?)\]`)
+	m := listRe.FindStringSubmatch(block)
+	if m == nil {
+		t.Fatalf("%s: no `hashes = [ ... ]` list found in the aws provider block:\n%s", label, block)
+	}
+
+	entryRe := regexp.MustCompile(`"(?:h1|zh):[^"]*"`)
+	return entryRe.FindAllString(m[1], -1)
+}
+
+// TestCIPipelineTerraformLockCoversMultiplePlatforms holds that the lock was
+// generated with more than the one platform a bare `init` would have
+// recorded. The lock format does not tag each hash with the platform it
+// covers, so this cannot assert the exact four #1023 asks for
+// (linux_amd64, linux_arm64, darwin_arm64, darwin_amd64) by name; what it can
+// hold is that the hash list is not the single-entry shape a one-platform
+// `init` on whichever machine ran it would leave behind, which is the
+// failure mode #1023 is about - a lock that only works on its author's own
+// laptop.
+func TestCIPipelineTerraformLockCoversMultiplePlatforms(t *testing.T) {
+	lockPath := filepath.Join(ciPipelinesDir, ciPipelineTerraformLockRelPath)
+	lock, err := os.ReadFile(lockPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v (run `tofu init` in %s/%s and commit the lock)",
+			lockPath, err, ciPipelinesDir, ciPipelineTerraformDir)
+	}
+	block := ciPipelineLockAWSProviderBlock(t, lockPath, string(lock))
+	hashes := ciPipelineLockHashes(t, lockPath, block)
+
+	const wantMinHashes = 4
+	if len(hashes) < wantMinHashes {
+		t.Errorf("%s records only %d hash(es) for hashicorp/aws (%v); a lock generated for a single "+
+			"platform, not the four #1023 asks for.\n"+
+			"Regenerate with `tofu providers lock -platform=linux_amd64 -platform=linux_arm64 "+
+			"-platform=darwin_arm64 -platform=darwin_amd64` in %s/%s and commit the result.",
+			lockPath, len(hashes), hashes, ciPipelinesDir, ciPipelineTerraformDir)
 	}
 }
