@@ -18,7 +18,7 @@ but a genuine fail on it still breaks clear.
 
 {{< gauntlet-bars >}}
 
-Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, recorded at 2026-09-08T22:17:50Z.
+Estates below were last measured against different emulator pins: 26 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, 1 against `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805` (current pin) (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-09T01:54:39Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -60,7 +60,7 @@ answer is and how each check is proven non-vacuous, is
 
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass FAIL pass pass pass not run not run pass pass not run |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
@@ -90,11 +90,11 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h39m51.8s at commit `933618dec4`.
+27 of 27 estates have a recorded run duration, totaling 2h43m55.7s, but not from one sweep: 7m15.2s across 1 estate(s) at commit `0a3d554c04`; 2h36m40.5s across 26 estate(s) at commit `933618dec4`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | 3m11.3s | cold_deploy 1m28s, migrate 1m5s, test_plan 4s, test_apply 5s, drift_reconverge 39s, day2_rename 8s, day2_remove 22s, day2_count 48s, day2_replace 32s, plan_approval 22s, greenfield 1m35s |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | 7m15.2s | cold_deploy 1m26s, migrate 1m7s, test_plan 4s, test_apply 5s, drift_reconverge 39s, day2_rename 16s, day2_remove 22s, day2_count 47s, day2_replace 33s, plan_approval 22s, greenfield 1m34s |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | 6m57s | cold_deploy 1m32s, migrate 1m16s, test_plan 4s, test_apply 5s, drift_reconverge 9s, day2_rename 17s, day2_remove 14s, day2_count 56s, day2_replace 18s, plan_approval 21s, greenfield 1m44s |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 4m0s | cold_deploy 22s, migrate 1m28s, test_plan 2s, test_apply 3s, drift_reconverge 6s, day2_rename 11s, day2_remove 6s, day2_count 31s, day2_replace 13s, plan_approval 12s, greenfield 46s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | 6m39.2s | cold_deploy 55s, migrate 31s, test_plan 5s, test_apply 3s, drift_reconverge 7s, day2_rename 15s, day2_remove 29s, day2_count 2m9s, day2_replace 49s, plan_approval 16s, greenfield 1m0s |

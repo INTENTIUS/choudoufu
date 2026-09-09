@@ -31,7 +31,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Greenfield apply | pass | 1m0s | 35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `933618dec4` on 2026-09-08T22:17:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`. Total run time 6m39.2s.
+Last run at commit `933618dec4` on 2026-09-08T22:17:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805`. Total run time 6m39.2s.
 Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).
 
 ## Reproduce it
