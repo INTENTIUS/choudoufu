@@ -49,7 +49,7 @@
 #   FLOCI_PORT      host port for the emulator it starts itself (default 4570)
 #   FLOCI_IMAGE     override the pin in live/floci-image
 #   KEEP            1 leaves the scratch repository and the container up
-#   BREAK           1 breaks two assertions on purpose, to prove they can fail
+#   BREAK           1 breaks three assertions on purpose, to prove they can fail
 
 set -uo pipefail
 
@@ -248,6 +248,41 @@ op live-plan  ok
 op live-apply gated --gated-exit 0
 gate live-apply approve-live-apply
 op live-apply ok --gated-exit 0
+
+# ------------------------------ chant#2300: a moved plan is gated, by name
+
+# The gate above just approved a specific plan. #1026 measured the pre-2300
+# gap this closes: approve, rename a resource, re-run - and it applied with
+# no refusal. Reproduce exactly that sequence and assert the opposite now
+# holds: the run ends `gated` again, and the record names both the approved
+# and the newly planned digest rather than applying the rename.
+step "chant#2300: a plan that moved since the approval is gated again, by digest"
+cd "$WORK/repo/terraform" || die "no terraform root in the scratch repository"
+cp main.tf main.tf.orig
+if [ "${BREAK:-0}" = "1" ]; then
+  log "BREAK=1: not renaming, so the plan-moved assertion has to fail"
+else
+  sed -e 's/^resource "aws_iam_role" "app" {/resource "aws_iam_role" "app_renamed" {/' \
+      main.tf.orig > main.tf
+fi
+cd "$WORK/repo" || die "cannot re-enter the scratch repository"
+npx chant run live-apply --gated-exit 0 --json > "$OUT/live-apply.plan-moved.log" 2>&1
+PLAN_MOVED_STATUS="$(run_status "$OUT/live-apply.plan-moved.log")"
+if [ "$PLAN_MOVED_STATUS" = "gated" ] \
+   && ! grep -qE 'approved: sha256:[0-9a-f]+.*planned: sha256:[0-9a-f]+' "$OUT/live-apply.plan-moved.log"; then
+  PLAN_MOVED_STATUS="gated-no-mismatch-line"
+fi
+verdict live-apply/plan-moved gated "$PLAN_MOVED_STATUS"
+if [ "$PLAN_MOVED_STATUS" = "gated" ]; then
+  grep -oE 'approved: sha256:[0-9a-f]+[^;]*; planned: sha256:[0-9a-f]+[^.]*\.' \
+    "$OUT/live-apply.plan-moved.log" | head -1 | sed 's/^/    /'
+else
+  tail -25 "$OUT/live-apply.plan-moved.log" | sed 's/^/    /'
+fi
+# Restore the root: nothing was actually applied (the run stopped at the
+# gate), but later steps in this script assume the tree matches what was
+# last approved.
+mv "$WORK/repo/terraform/main.tf.orig" "$WORK/repo/terraform/main.tf"
 
 op live-adopt gated --gated-exit 0
 gate live-adopt approve-live-adopt

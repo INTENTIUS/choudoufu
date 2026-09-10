@@ -29,9 +29,11 @@ jobs:
       - run: curl -fsSL -o /tmp/choudoufu_v0.17.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.17.0/choudoufu_v0.17.0_linux_amd64.tar.gz && echo "f12d2975474b103be6f0f29a3dae6e81bbc876e70b5b95b49cc444ffbacb1fa5  /tmp/choudoufu_v0.17.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.17.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
       - id: chant-run
         run: |
-          set -o pipefail
+          set +e
           json="${RUNNER_TEMP:-/tmp}/chant-run-live-adopt.json"
-          npx chant run live-adopt --gated-exit 0 --json | tee "$json"
-        shell: bash
+          status="${RUNNER_TEMP:-/tmp}/chant-run-live-adopt.status"
+          { npx chant run live-adopt --gated-exit 0 --json; echo "$?" >"$status"; } | tee "$json"
+          code=$(cat "$status")
+          [ "$code" -eq 0 ] || exit "$code"
         env:
           GITHUB_TOKEN: '${{ github.token }}'

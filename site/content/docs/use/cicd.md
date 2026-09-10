@@ -44,8 +44,8 @@ instead of paging someone. That refusal is the gauntlet's `plan_approval`
 stage, measured on every estate: see
 [the stage table]({{< relref "/docs/progress#the-stages" >}}) and
 [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) for what
-the two plans are compared on. What a gate resolution does not bind is
-covered below.
+the two plans are compared on. What a gate resolution binds - and does not -
+is covered below.
 
 ## The per-environment dial
 
@@ -98,10 +98,14 @@ What running rather than reading found:
   to declare no shell of their own, so two of the five GitHub jobs failed with
   `Illegal option -o pipefail` before chant even started. Fixed in chant 0.62.0
   (chant#2299): the gated step now declares `shell: bash`.
-- A gate resolution binds nothing about the plan it approved: approve,
-  rename a resource, re-run `live-apply`, and it applies with no refusal.
-  The exit-3 refusal above guards a narrower window, Plan-to-Apply only
-  (chant#2300).
+- A gate resolution used to bind nothing about the plan it approved: approve,
+  rename a resource, re-run `live-apply`, and it applied with no refusal.
+  Fixed in chant 0.63.0 (chant#2300): a resolution now names the plan it
+  approved by a `sha256:` digest of the change set, and a later run whose
+  Plan phase produces a different digest ends `gated` again, naming both
+  digests rather than applying. That is the outer guard, spanning runs; the
+  exit-3 refusal above stays true as the inner one, narrower and
+  Plan-to-Apply only within a single run.
 - No CI checkout sets a git identity, and chant's gate writes a commit to
   record its resolution, so on GitLab `live-apply` and `live-adopt` die at a
   bare `Op "live-apply" failed after 43.8s` with no error line and no

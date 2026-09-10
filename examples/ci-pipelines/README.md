@@ -603,6 +603,7 @@ SMOKE op=live-plan verdict=pass status=ok
 SMOKE op=live-apply verdict=pass status=gated
 SMOKE op=live-apply/approve verdict=pass status=resolved
 SMOKE op=live-apply verdict=pass status=ok
+SMOKE op=live-apply/plan-moved verdict=pass status=gated
 SMOKE op=live-adopt verdict=pass status=gated
 SMOKE op=live-adopt/approve verdict=pass status=resolved
 SMOKE op=live-adopt verdict=pass status=ok
@@ -637,13 +638,23 @@ approve-live-apply --approver you`, which is a commit on the `chant/lifecycle` b
 re-running then applies. `live-adopt` gates the same way, on `approve-live-adopt`.
 
 Two things the emulator run settled that the rest of this file had only asserted
-(#1026). The chant gate resolution names the gate, the Op and the approver, and
-nothing about the plan - so a configuration edit between `chant approve` and the next
-`chant run live-apply` is re-planned and applied, not refused. The exit-3 refusal
-guards a narrower window: it is `apply <planfile>` disagreeing with the plan file it
-was handed, so it protects the gap between the Op's own Plan phase and its Apply
-phase, and `scripts/smoke.sh` proves it by tampering between `choudoufu plan -out`
-and `choudoufu apply`.
+(#1026), and chant#2300 changed one of them. A gate resolution now names the plan
+it approved - a `sha256:` digest of the change set, carried on both the pending
+fact and the resolution - and `chant approve` copies it from the standing pending
+fact by default, so the common path stays one command. A configuration or
+live-system change between `chant approve` and the next `chant run live-apply`
+re-plans to a different digest, and the run ends `gated` again, naming both
+digests (`approved: sha256:...`; `planned: sha256:...`) rather than applying. A
+resolution written before chant#2300 carries no digest and does not satisfy a
+plan-bound gate, so a gate standing open across the upgrade needs one more
+`chant approve` after its next run.
+
+That is the outer guard, spanning runs. The exit-3 refusal is the inner one,
+narrower: it is `apply <planfile>` disagreeing with the plan file it was handed,
+so it protects the gap between the Op's own Plan phase and its Apply phase inside
+a single run. `scripts/smoke.sh` proves both - the digest mismatch by approving,
+renaming a resource, and re-running `live-apply`, and the exit-3 case by
+tampering between `choudoufu plan -out` and `choudoufu apply`.
 
 ## The currency guard
 
