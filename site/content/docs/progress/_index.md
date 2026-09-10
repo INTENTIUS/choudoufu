@@ -18,7 +18,7 @@ but a genuine fail on it still breaks clear.
 
 {{< gauntlet-bars >}}
 
-Estates below were last measured against different emulator pins: 26 against `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-10T04:17:30Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805`, 1 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-10T04:55:37Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 The behaviors-proven line above counts how many of the 14 stages below have
 a FAST tier-1 fixture (`live/behaviors.json`) - a small, purpose-built script
@@ -60,7 +60,7 @@ answer is and how each check is proven non-vacuous, is
 
 | Estate | Set | Lane | Clear | Stages |
 |---|---|---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | no | pass pass pass pass pass pass pass pass pass not run not run pass FAIL not run |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass pass pass pass pass not run not run pass pass not run |
@@ -90,11 +90,11 @@ answer is and how each check is proven non-vacuous, is
 
 ## Run time
 
-27 of 27 estates have a recorded run duration, totaling 2h36m6.2s, but not from one sweep: 1h50m20.8s across 21 estate(s) at commit `840ab02e56`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 35m31.9s across 5 estate(s) at commit `b059fd99fd`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
+27 of 27 estates have a recorded run duration, totaling 2h36m36.1s, but not from one sweep: 1h43m25.4s across 20 estate(s) at commit `840ab02e56`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 35m31.9s across 5 estate(s) at commit `b059fd99fd`; 7m25.3s across 1 estate(s) at commit `b4b2003ea8`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per-stage (active stages, seconds recorded this run) |
 |---|---|---|
-| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | 6m55.4s | cold_deploy 1m27s, migrate 1m2s, test_plan 4s, test_apply 4s, drift_reconverge 38s, day2_rename 14s, day2_remove 22s, day2_count 43s, day2_replace 31s, plan_approval 20s, greenfield 1m30s |
+| [corpus-alb-complete]({{< relref "corpus-alb-complete" >}}) | 7m25.3s | cold_deploy 1m36s, migrate 1m4s, test_plan 4s, test_apply 5s, drift_reconverge 38s, day2_rename 19s, day2_remove 23s, day2_count 45s, day2_replace 32s, plan_approval 23s, greenfield 1m35s |
 | [corpus-autoscaling-complete]({{< relref "corpus-autoscaling-complete" >}}) | 6m29.8s | cold_deploy 1m25s, migrate 1m13s, test_plan 4s, test_apply 4s, drift_reconverge 8s, day2_rename 16s, day2_remove 15s, day2_count 52s, day2_replace 17s, plan_approval 19s, greenfield 1m36s |
 | [corpus-dynamodb-table-basic]({{< relref "corpus-dynamodb-table-basic" >}}) | 3m45.7s | cold_deploy 21s, migrate 1m25s, test_plan 2s, test_apply 2s, drift_reconverge 5s, day2_rename 11s, day2_remove 6s, day2_count 28s, day2_replace 12s, plan_approval 11s, greenfield 42s |
 | [corpus-ec2-instance-complete]({{< relref "corpus-ec2-instance-complete" >}}) | 6m54.7s | cold_deploy 1m5s, migrate 30s, test_plan 6s, test_apply 3s, drift_reconverge 7s, day2_rename 15s, day2_remove 29s, day2_count 2m8s, day2_replace 49s, plan_approval 17s, greenfield 1m5s |
