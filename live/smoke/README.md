@@ -300,6 +300,22 @@ showing its own checks would have caught it.
   the only live evidence for the deleted instance - the plan reports it
   unchanged and the run must fail on that line.
 
+- **plan-cost-under-foreign-load** - *Claim 20: scale - the estate
+  boundary holds when the account around it is a terralith.* Claim 14's
+  question asked where it is load-bearing: a generated terralith
+  (`tools/terralith-gen`, so this scenario needs Go) is applied under a
+  second `tofu-estate` marker beside the estate under test, and the estate
+  is replanned unchanged. The estate-scoped legs do not move with the
+  neighbour; the legs that read the account rather than the estate are
+  counted on their own and named rather than folded into a total - Cloud
+  Control's `ListResources`, which takes no tag filter at all, and the
+  types whose provider list resource offers no filter block either.
+  `FOREIGN_SCALE` and `OWNED_SCALE` set the two terraliths' sizes, so the
+  same scenario a reader runs in five minutes is the one that produced the
+  3,705-resource row. The BREAK control asks the same estate the
+  account-wide question (`-adoption-only`), which is exactly the branch
+  that drops the server-side estate filter, and the cost must explode.
+
 ## Knobs
 
 | Variable | Effect |
@@ -312,6 +328,8 @@ showing its own checks would have caught it.
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
+| `FOREIGN_SCALE=50` | plan-cost-under-foreign-load: how large the foreign terralith beside the estate is, in `tools/terralith-gen` scale (74N + 5 resources; default 1) |
+| `OWNED_SCALE=50` | plan-cost-under-foreign-load: how large the estate under test is, same units (default 1) |
 
 choudoufu builds from source by default and supports pinning; floci is
 always the pinned image, never built here - that split is deliberate
