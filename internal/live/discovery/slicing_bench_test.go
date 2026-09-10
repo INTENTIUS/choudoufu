@@ -402,6 +402,21 @@ func TestSlicingMatrixAgainstFloci(t *testing.T) {
 func measureLegs(t *testing.T, dir, estate string, proxy *flocitest.CountingProxy) *legSplit {
 	t.Helper()
 
+	return measureLegsWith(t, dir, estate, proxy, true)
+}
+
+// measureLegsWith is measureLegs with Request.CollectUnclaimed under the
+// caller's control. #584's own matrix always asks for unclaimed resources,
+// which is the adoption shape; issue #1032's foreign-load rows need both
+// shapes, because CollectUnclaimed is precisely the switch that drops the
+// sweep's server-side estate filter - [scanType]'s collectUnclaimed branch
+// widens every list to ScopeAll "because a server-side estate filter would
+// hide" an unclaimed resource. Measuring one estate's cost as the account
+// around it grows means measuring with that filter on, and the control for
+// that measurement means measuring with it off.
+func measureLegsWith(t *testing.T, dir, estate string, proxy *flocitest.CountingProxy, collectUnclaimed bool) *legSplit {
+	t.Helper()
+
 	provider := launchAWSProvider(t, dir)
 	cfg := loadModuleConfig(t, dir)
 
@@ -468,7 +483,7 @@ func measureLegs(t *testing.T, dir, estate string, proxy *flocitest.CountingProx
 		Resolutions:      resolutions,
 		Provider:         provider,
 		Region:           awsRegion,
-		CollectUnclaimed: true,
+		CollectUnclaimed: collectUnclaimed,
 		Sweep:            true,
 		Roster:           roster,
 		CloudControl:     cloudcontrol.New(ccCfg),
