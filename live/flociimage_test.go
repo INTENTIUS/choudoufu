@@ -65,6 +65,15 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-09-10 repin (issue #673, lex00/floci#188 - the listener's monitor for
+// the ELBv2 CreateRule priority check): the third repin in a row with the same
+// scope. Concurrent CreateRule calls on one listener tore the per-listener rule
+// index, which surfaced to a caller as PriorityInUse for a priority nothing
+// held; corpus-alb-complete is the estate that found it, and its greenfield
+// stage is what this repin re-measures. Like the two below, the fix changes
+// which concurrent mutations survive and which error a caller gets, not any
+// response shape.
+//
 // 2026-09-08 repin (issue #1005, lex00/floci#198 - the ELBv2 target group's
 // monitor for concurrent RegisterTargets/DeregisterTargets): same shape as
 // the 2026-09-05 repin below it. The maintainer ruling that ordered this one
@@ -91,12 +100,12 @@ var staleFlociMeasurements = map[string]string{
 	// own run time (single-digit minutes per N, but it is a call-count
 	// ratchet unrelated to EC2 subnet allocation - this fix touches no path
 	// bench-estate's synthetic fixture exercises).
-	"plan-budget.json": "measured against the pre-#672 pin, now two repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and neither fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor) touches a call this benchmark's synthetic fixture makes",
+	"plan-budget.json": "measured against the pre-#672 pin, now three repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
 	// TestCohortAcceptance (internal/live/acceptance) applies, deletes the
 	// state of, and replans all 31 estate-gen cohorts under
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
-	"cohort-acceptance.json": "measured against the pre-#672 pin, now two repins back; re-measuring costs a full `TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance` sweep across all 31 cohorts, out of scope for two repin rulings that named corpus-vpc-complete and corpus-alb-complete specifically",
+	"cohort-acceptance.json": "measured against the pre-#672 pin, now three repins back; re-measuring costs a full `TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance` sweep across all 31 cohorts, out of scope for three repin rulings that named corpus-vpc-complete, then corpus-alb-complete, then corpus-alb-complete again specifically",
 	// cohort-triage.json is hand triage reconciled against
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
