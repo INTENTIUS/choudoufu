@@ -213,6 +213,11 @@ cp -R "$SRC_EXAMPLE" "$WORK/iam/examples/iam-read-only-policy"
 cp -R "$SRC_MODULE" "$WORK/iam/modules/iam-read-only-policy"
 rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 [ -f "$EST/main.tf" ] || fail "the estate copy is missing main.tf"
+# #1034: pin hashicorp/aws to the SAME exact release plain terraform and
+# choudoufu both resolve, before either ever runs init. This script takes
+# every oracle/greenfield copy fresh from $SRC_EXAMPLE rather than from an
+# already-pinned tree, so each of those copies below needs its own call.
+gauntlet_pin_aws_provider "$EST/versions.tf" || fail "could not pin hashicorp/aws in $EST/versions.tf"
 log "  estate + module copied out of .corpus into $WORK"
 
 # ── 1. the onboarding delta - emulator flags only, no live block yet ───────
@@ -311,9 +316,10 @@ cp -R "$SRC_EXAMPLE" "$WORK/iam-greenfield/examples/iam-read-only-policy"
 cp -R "$SRC_MODULE" "$WORK/iam-greenfield/modules/iam-read-only-policy"
 GREEN_EST="$WORK/iam-greenfield/examples/iam-read-only-policy"
 rm -rf "$GREEN_EST/.terraform" "$GREEN_EST/.terraform.lock.hcl"
+gauntlet_pin_aws_provider "$GREEN_EST/versions.tf" || fail "could not pin hashicorp/aws in $GREEN_EST/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$GREEN_EST/main.tf"
 grep -q 's3_use_path_style' "$GREEN_EST/main.tf" || fail "the greenfield emulator delta did not match main.tf - the corpus pin has moved"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
@@ -356,6 +362,7 @@ cp -R "$SRC_EXAMPLE" "$WORK/iam-greenfield-oracle/examples/iam-read-only-policy"
 cp -R "$SRC_MODULE" "$WORK/iam-greenfield-oracle/modules/iam-read-only-policy"
 ORACLE_EST="$WORK/iam-greenfield-oracle/examples/iam-read-only-policy"
 rm -rf "$ORACLE_EST/.terraform"
+gauntlet_pin_aws_provider "$ORACLE_EST/versions.tf" || fail "could not pin hashicorp/aws in $ORACLE_EST/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$ORACLE_EST/main.tf"
 grep -q 's3_use_path_style' "$ORACLE_EST/main.tf" || fail "the greenfield oracle's emulator delta did not match main.tf"
 ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
@@ -430,6 +437,7 @@ cp -R "$SRC_EXAMPLE" "$ORACLE_ROOT/iam/examples/iam-read-only-policy"
 cp -R "$SRC_MODULE" "$ORACLE_ROOT/iam/modules/iam-read-only-policy"
 ORACLE="$ORACLE_ROOT/iam/examples/iam-read-only-policy"
 rm -rf "$ORACLE/.terraform" "$ORACLE/.terraform.lock.hcl"
+gauntlet_pin_aws_provider "$ORACLE/versions.tf" || fail "could not pin hashicorp/aws in $ORACLE/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$ORACLE/main.tf"
 grep -q 's3_use_path_style' "$ORACLE/main.tf" || fail "the day2_rename oracle's emulator delta did not match main.tf"
 cp "$WORK/cold.tfstate" "$ORACLE/terraform.tfstate"
@@ -489,6 +497,7 @@ cp -R "$SRC_EXAMPLE" "$REPLACE_ORACLE_ROOT/iam/examples/iam-read-only-policy"
 cp -R "$SRC_MODULE" "$REPLACE_ORACLE_ROOT/iam/modules/iam-read-only-policy"
 REPLACE_ORACLE="$REPLACE_ORACLE_ROOT/iam/examples/iam-read-only-policy"
 rm -rf "$REPLACE_ORACLE/.terraform" "$REPLACE_ORACLE/.terraform.lock.hcl"
+gauntlet_pin_aws_provider "$REPLACE_ORACLE/versions.tf" || fail "could not pin hashicorp/aws in $REPLACE_ORACLE/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$REPLACE_ORACLE/main.tf"
 grep -q 's3_use_path_style' "$REPLACE_ORACLE/main.tf" || fail "the day2_replace oracle's emulator delta did not match main.tf"
 cp "$WORK/cold.tfstate" "$REPLACE_ORACLE/terraform.tfstate"
@@ -659,7 +668,7 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve; the following apply must be a no-op) ==="
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
 
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {

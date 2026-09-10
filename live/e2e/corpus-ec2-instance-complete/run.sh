@@ -344,6 +344,10 @@ mkdir -p "$WORK/ec2-instance"
 cp -R "$SRC_MODULE"/. "$WORK/ec2-instance"
 rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 [ -f "$EST/main.tf" ] || fail "the estate copy is missing main.tf"
+# #1034: pin hashicorp/aws to the SAME exact release plain terraform and
+# choudoufu both resolve, before either ever runs init. $GREEN below is a
+# later `cp -R "$WORK/ec2-instance" ...` and inherits this for free.
+gauntlet_pin_aws_provider "$EST/versions.tf" || fail "could not pin hashicorp/aws in $EST/versions.tf"
 log "  module + example copied out of .corpus into $WORK"
 
 # ── 1. the reduction (see header) ───────────────────────────────────────────
@@ -693,6 +697,7 @@ perl -0pi -e 's/      kms_key_id = aws_kms_key\.this\.arn\n//' "$ORACLE_ROOT/exa
 perl -0pi -e 's/  user_data = <<-EOT\n    #!\/bin\/bash\n    echo "Hello Terraform!"\n  EOT\n\n//' "$ORACLE_ROOT/examples/complete/main.tf"
 perl -0777 -pi -e 's/\n# EC2 T2 Unlimited\n.*\z//s' "$ORACLE_ROOT/examples/complete/outputs.tf"
 perl -0777 -pi -e 's/    random = \{\n      source  = "hashicorp\/random"\n      version = ">= 3\.0"\n    \}\n//' "$ORACLE_ROOT/examples/complete/versions.tf"
+gauntlet_pin_aws_provider "$ORACLE_ROOT/examples/complete/versions.tf" || fail "could not pin hashicorp/aws in $ORACLE_ROOT/examples/complete/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = local\.region\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$ORACLE_ROOT/examples/complete/main.tf"
 grep -q 's3_use_path_style' "$ORACLE_ROOT/examples/complete/main.tf" || fail "the oracle's reconstruction of the reduction deltas did not match - the corpus pin has moved"
 ORACLE_EST="$ORACLE_ROOT/examples/complete"
@@ -754,6 +759,7 @@ perl -0pi -e 's/      kms_key_id = aws_kms_key\.this\.arn\n//' "$REMOVE_ORACLE_R
 perl -0pi -e 's/  user_data = <<-EOT\n    #!\/bin\/bash\n    echo "Hello Terraform!"\n  EOT\n\n//' "$REMOVE_ORACLE_ROOT/examples/complete/main.tf"
 perl -0777 -pi -e 's/\n# EC2 T2 Unlimited\n.*\z//s' "$REMOVE_ORACLE_ROOT/examples/complete/outputs.tf"
 perl -0777 -pi -e 's/    random = \{\n      source  = "hashicorp\/random"\n      version = ">= 3\.0"\n    \}\n//' "$REMOVE_ORACLE_ROOT/examples/complete/versions.tf"
+gauntlet_pin_aws_provider "$REMOVE_ORACLE_ROOT/examples/complete/versions.tf" || fail "could not pin hashicorp/aws in $REMOVE_ORACLE_ROOT/examples/complete/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = local\.region\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$REMOVE_ORACLE_ROOT/examples/complete/main.tf"
 grep -q 's3_use_path_style' "$REMOVE_ORACLE_ROOT/examples/complete/main.tf" || fail "the day2_remove oracle's reconstruction of the reduction deltas did not match - the corpus pin has moved"
 REMOVE_ORACLE_EST="$REMOVE_ORACLE_ROOT/examples/complete"
@@ -803,6 +809,7 @@ perl -0pi -e 's/      kms_key_id = aws_kms_key\.this\.arn\n//' "$REPLACE_ORACLE_
 perl -0pi -e 's/  user_data = <<-EOT\n    #!\/bin\/bash\n    echo "Hello Terraform!"\n  EOT\n\n//' "$REPLACE_ORACLE_ROOT/examples/complete/main.tf"
 perl -0777 -pi -e 's/\n# EC2 T2 Unlimited\n.*\z//s' "$REPLACE_ORACLE_ROOT/examples/complete/outputs.tf"
 perl -0777 -pi -e 's/    random = \{\n      source  = "hashicorp\/random"\n      version = ">= 3\.0"\n    \}\n//' "$REPLACE_ORACLE_ROOT/examples/complete/versions.tf"
+gauntlet_pin_aws_provider "$REPLACE_ORACLE_ROOT/examples/complete/versions.tf" || fail "could not pin hashicorp/aws in $REPLACE_ORACLE_ROOT/examples/complete/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = local\.region\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$REPLACE_ORACLE_ROOT/examples/complete/main.tf"
 grep -q 's3_use_path_style' "$REPLACE_ORACLE_ROOT/examples/complete/main.tf" || fail "the day2_replace oracle's reconstruction of the reduction deltas did not match - the corpus pin has moved"
 REPLACE_ORACLE_EST="$REPLACE_ORACLE_ROOT/examples/complete"
@@ -1393,16 +1400,20 @@ COUNTEOF
     awsl ec2 describe-tags --filters "Name=resource-id,Values=$1" "Name=key,Values=$2" --query 'Tags[0].Value' --output text 2>/dev/null
   }
 
-  # The registry host is deliberately NOT pinned in this pattern. STAGE 1's
-  # plain `terraform init` writes
-  # provider "registry.terraform.io/hashicorp/aws"; STAGE 2's `choudoufu
-  # init` rewrites the SAME file as
-  # provider "registry.opentofu.org/hashicorp/aws", because this fork is an
-  # OpenTofu fork and resolves a bare "hashicorp/aws" source against
-  # OpenTofu's own registry. Both resolved 6.62.0 for this estate's
-  # ">= 6.37" constraint when this was checked directly; a host-specific
-  # pattern here matched neither by the time day2_count runs, which is
-  # exactly how the first draft of this section failed.
+  # The registry host is deliberately NOT pinned in this pattern (the sed
+  # below matches "registry.<anything>/hashicorp/aws" and grabs whichever
+  # host's block is present) because STAGE 1's plain `terraform init` writes
+  # provider "registry.terraform.io/hashicorp/aws" while STAGE 2's
+  # `choudoufu init` rewrites the SAME file as
+  # "registry.opentofu.org/hashicorp/aws" - this fork is an OpenTofu fork
+  # and resolves a bare "hashicorp/aws" source against OpenTofu's own
+  # registry, an independent mirror of registry.terraform.io. A
+  # host-specific pattern here matched neither by the time day2_count runs,
+  # which is exactly how the first draft of this section failed. #1034:
+  # gauntlet_pin_aws_provider, called on $EST/versions.tf in section 1
+  # above, now makes both hosts resolve the SAME exact version, so
+  # $EST_AWS_VER below is that pin - the two registries can go on
+  # disagreeing about what "latest" means without this oracle ever noticing.
   EST_AWS_VER="$(sed -n '/^provider "registry\.[^"]*\/hashicorp\/aws" {/,/^}/p' "$EST/.terraform.lock.hcl" 2>/dev/null | sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' | head -1)"
   [ -n "$EST_AWS_VER" ] \
     || { [ -f "$EST/.terraform.lock.hcl" ] && sed -n '1,20p' "$EST/.terraform.lock.hcl"; fail "could not read the adopted estate's own resolved hashicorp/aws version out of $EST/.terraform.lock.hcl - the day2_count oracle would otherwise silently compare two different providers"; }

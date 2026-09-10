@@ -8,6 +8,8 @@ package residue
 import (
 	"encoding/json"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/pins"
@@ -165,6 +167,87 @@ func TestEveryAcquiredProviderIsLocked(t *testing.T) {
 		if !seen[key] {
 			t.Errorf("corpus-provider-pins.json: %s (constraint %q) is locked but no row in corpus-refusals.json matches it - prune it, or the manifest entry that once needed it is gone",
 				pin.Provider, pin.Constraint)
+		}
+	}
+}
+
+// awsProviderPinScripts is issue #1034's five estates: stock's cold_deploy
+// installs the newest hashicorp/aws from registry.terraform.io while
+// choudoufu's own init resolves the identical bare source against
+// registry.opentofu.org, an independent mirror that can lag by hours. Each
+// of these scripts crosses a real corpus module through both binaries
+// against the SAME .terraform.lock.hcl, so a mirror lag makes the two
+// halves silently disagree about which release they are even comparing.
+var awsProviderPinScripts = []string{
+	"e2e/corpus-ec2-instance-complete/run.sh",
+	"e2e/corpus-iam-policy/run.sh",
+	"e2e/corpus-iam-read-only-policy/run.sh",
+	"e2e/corpus-sqs-basic/run.sh",
+	"e2e/corpus-rds-complete-postgres/run.sh",
+}
+
+// awsProviderPinPattern matches live/oracle-versions.json's own
+// aws_provider_version field: a bare semver, no leading "v", no
+// pre-release/build suffix - the same shape a real hashicorp/aws release
+// tag takes.
+var awsProviderPinPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// TestGauntletCrossingScriptsPinOneAWSProvider is issue #1034's guard: one
+// crossing reads one hashicorp/aws version from one place -
+// live/oracle-versions.json's aws_provider_version, applied through
+// live/e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider - rather than
+// letting a bare lower-bound constraint float to whatever
+// registry.terraform.io serves the morning stage 1 runs while
+// choudoufu's own init resolves the same bare source against
+// registry.opentofu.org.
+//
+// A real network call to both registries is deliberately NOT made here (a
+// `go test` in this package must not depend on the network); that check is
+// documented in live/e2e/lib/gauntlet.sh's own comment as a manual step a
+// human runs before bumping the pin. What this test CAN verify without a
+// network call: the pin exists and looks like a release, the shared
+// function exists and reads the pin file rather than a hardcoded literal,
+// and every one of #1034's five estates actually calls it and never
+// reintroduces a float via -upgrade.
+func TestGauntletCrossingScriptsPinOneAWSProvider(t *testing.T) {
+	var oracle struct {
+		AWSProviderVersion string `json:"aws_provider_version"`
+	}
+	decodeInto(t, "oracle-versions.json", &oracle)
+	if !awsProviderPinPattern.MatchString(oracle.AWSProviderVersion) {
+		t.Fatalf("live/oracle-versions.json's aws_provider_version is %q, which is not a bare X.Y.Z release - a human must hand-edit this field the way terraform_version/tofu_version are maintained",
+			oracle.AWSProviderVersion)
+	}
+
+	lib, err := os.ReadFile("e2e/lib/gauntlet.sh")
+	if err != nil {
+		t.Fatalf("reading live/e2e/lib/gauntlet.sh: %v", err)
+	}
+	libSrc := string(lib)
+	if !strings.Contains(libSrc, "gauntlet_pin_aws_provider()") {
+		t.Fatalf("live/e2e/lib/gauntlet.sh no longer defines gauntlet_pin_aws_provider - issue #1034's single pin point is gone")
+	}
+	if !strings.Contains(libSrc, "oracle-versions.json") {
+		t.Fatalf("live/e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider no longer reads live/oracle-versions.json - it must read the ONE place the pin lives, never a literal it carries itself")
+	}
+	if strings.Contains(libSrc, `"6.`) {
+		t.Fatalf("live/e2e/lib/gauntlet.sh appears to carry a literal hashicorp/aws version (a quoted \"6.*\" string) - the pin must be read from live/oracle-versions.json, not hardcoded in the shell function")
+	}
+
+	for _, rel := range awsProviderPinScripts {
+		data, err := os.ReadFile(rel)
+		if err != nil {
+			t.Errorf("reading live/%s: %v", rel, err)
+			continue
+		}
+		src := string(data)
+		if !strings.Contains(src, "gauntlet_pin_aws_provider") {
+			t.Errorf("live/%s never calls gauntlet_pin_aws_provider - its hashicorp/aws requirement floats to whatever registry.terraform.io serves the morning stage 1 runs while choudoufu's own init resolves the same bare source against registry.opentofu.org (issue #1034)",
+				rel)
+		}
+		if strings.Contains(src, "-upgrade") {
+			t.Errorf("live/%s passes -upgrade to a terraform/tofu init - this re-floats the version gauntlet_pin_aws_provider just pinned, reopening issue #1034",
+				rel)
 		}
 	}
 }
