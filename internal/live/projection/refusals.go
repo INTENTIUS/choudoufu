@@ -142,6 +142,10 @@ var refusals = []Refusal{
 		What:    "A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected.",
 	},
 	{
+		Summary: SummaryVerifiedNotImportable,
+		What:    "GitHub issue #1043: this same run's own estate-wide tag sweep found a live object carrying this estate's tofu-estate marker and a tofu-address marker naming a declared instance whose identity comes out of configuration (a derived/concrete identity, never a provider list call), and reading that instance back by its own identity then reported that nothing exists there. The two answers come from this same run and contradict each other, so the plan refuses rather than propose creating a duplicate of the object its own tag sweep just saw. [ReasonListedNotImportable]'s sibling for the population that guard's own doc comment names as deliberately uncovered.",
+	},
+	{
 		Summary: "No configuration to project",
 		What:    "Projection was given no configuration. A caller error, not a configuration one.",
 	},

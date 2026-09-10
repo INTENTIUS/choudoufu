@@ -2198,6 +2198,13 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		if b.refuseListedButAbsent(addr, typeName, importID, w, rc != nil && !w.undeclared) {
 			return true
 		}
+		// GitHub issue #1043: the config-identified sibling of the check
+		// above, for the population [builder.refuseListedButAbsent]'s own
+		// doc comment names as deliberately uncovered - see
+		// [builder.refuseVerifiedButAbsent].
+		if b.refuseVerifiedButAbsent(addr, typeName, importID, w, rc != nil && !w.undeclared) {
+			return true
+		}
 		b.omit(addr, ReasonAbsent,
 			fmt.Sprintf(
 				"The provider reports no %s exists with identity %q, so this resource has not been created yet. The plan will propose creating it.",

@@ -124,3 +124,69 @@ func (b *builder) refuseListedButAbsent(addr addrs.AbsResourceInstance, typeName
 	b.omit(addr, ReasonListedNotImportable, detail, cause)
 	return true
 }
+
+// SummaryVerifiedNotImportable is GitHub issue #1043's refusal:
+// [refuseVerifiedButAbsent]'s error summary.
+const SummaryVerifiedNotImportable = "Live resource verified but not importable"
+
+// refuseVerifiedButAbsent is [refuseListedButAbsent]'s sibling on the same
+// statusAbsent branch, for the population that guard's own doc comment
+// names as deliberately uncovered: a type whose identity comes out of
+// configuration text rather than a provider list call, so w.identity is
+// always cty.NilVal and the discriminator above never fires for it -
+// exactly identity.ClassConcrete's "derived" population, aws_cloudwatch_log_group
+// among them (GitHub issue #1043's own report).
+//
+// # The discriminator, and why it is safe here where a bare tag sighting is not
+//
+// [refuseListedButAbsent]'s doc comment states the danger plainly: the
+// Resource Groups Tagging API keeps a deleted object's ARN queryable for a
+// time, so "this estate's tag index has an entry for this address" is not,
+// by itself, proof that the object still exists - a rule built on it alone
+// would refuse a genuine rebuild of a genuinely deleted resource.
+//
+// b.opts.Ownership.Verified is that same tag index, but narrowed to what
+// [own.verified] already means everywhere else in this package: THIS RUN's
+// own estate-wide sweep ([discovery.Result.VerifiedDeclared], surfaced
+// through [discovery.Result.MarkerVerified]) saw a live object, moments
+// ago, carrying this estate's tofu-estate marker and a tofu-address marker
+// naming this exact instance. It is not a cache, a state file, or a
+// yesterday's answer - it is the SAME process's own evidence about the
+// SAME identity read is about to contradict, gathered independently
+// (through GetResources rather than through this type's classic Importer).
+// A plan that proposed a CREATE anyway would be trusting one read over
+// another from the very same run, with no way to say which is right; this
+// refuses instead, exactly as the list-served case does, and a rerun (or,
+// if the sighting really is stale, disowning the object by hand) is the
+// way forward - never a silently duplicated resource.
+//
+// declared and the located/recordFirst/no-estate gates are copied from
+// [refuseListedButAbsent] unchanged: an undeclared instance's absence is
+// the destroy this run wanted, and a record-sourced binding has its own
+// answer already (see that function's doc comment for both).
+func (b *builder) refuseVerifiedButAbsent(addr addrs.AbsResourceInstance, typeName, importID string, w wanted, declared bool) bool {
+	own := b.opts.Ownership
+	switch {
+	case own == nil || own.Estate == "":
+		return false
+	case !declared:
+		return false
+	case w.located || w.recordFirst:
+		return false
+	case !own.verified(addr):
+		return false
+	}
+
+	detail := fmt.Sprintf(
+		"This run's own estate-wide tag sweep found a live %s carrying estate %q's %s marker and a %s marker naming %s, and reading it back at the import identity %q reported that nothing exists there. Both answers come from this same run and they contradict each other, so this plan refuses rather than propose creating a second %s alongside the one its own tag index just saw. Two things produce this: an eventual-consistency lag between the provider's tagging index and its per-type read path for a just-created object, or the object was destroyed between the two calls, in which case re-running is enough. To disown the tagged object instead, remove its %s and %s tags and re-run.",
+		typeName, own.Estate, markers.TagEstate, markers.TagAddress, addr, importID, typeName,
+		markers.TagEstate, markers.TagAddress,
+	)
+	cause := fmt.Sprintf("this run's own tag sweep found a live %s carrying its marker and then reading it back reported absence.", typeName)
+
+	log.Printf("[WARN] projection: %s was verified by this run's own tag sweep, and importing it at %q reported absence; refusing rather than proposing a create", addr, importID)
+
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryVerifiedNotImportable, detail))
+	b.omit(addr, ReasonVerifiedNotImportable, detail, cause)
+	return true
+}
