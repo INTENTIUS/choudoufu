@@ -96,8 +96,12 @@ What running rather than reading found:
 - A container job's default shell on GitHub is `sh`, and the generated
   `live-apply` and `live-adopt` jobs both open with `set -o pipefail` and used
   to declare no shell of their own, so two of the five GitHub jobs failed with
-  `Illegal option -o pipefail` before chant even started. Fixed in chant 0.62.0
-  (chant#2299): the gated step now declares `shell: bash`.
+  `Illegal option -o pipefail` before chant even started. chant 0.62.0 first
+  fixed this by declaring `shell: bash`, which chant 0.63.0 (chant#2299)
+  replaced again: the gated step now captures the invocation's own exit code
+  into a file inside the pipe (`{ npx chant run ...; echo "$?" >"$status"; }
+  | tee "$json"`, then `exit "$(cat "$status")"`), which is plain POSIX `sh`
+  and needs no `shell:` override at all.
 - A gate resolution used to bind nothing about the plan it approved: approve,
   rename a resource, re-run `live-apply`, and it applied with no refusal.
   Fixed in chant 0.63.0 (chant#2300): a resolution now names the plan it

@@ -4,9 +4,9 @@ The CI a choudoufu estate needs, as one chant project rather than one hand-writt
 YAML file per forge. Five Ops over one live root; the GitHub, Forgejo and GitLab
 pipelines are all generated from them and checked in beside them, under a guard
 that regenerating leaves the tree clean. GitLab's generator was cron-only through
-chant 0.59.0 and got the other four Ops's triggers in chant #2268 (0.60.0), so
-this project pins 0.60.0 and all three forges are generated the same way now -
-see below.
+chant 0.59.0 and got the other four Ops's triggers in chant #2268 (0.60.0).
+This project now pins chant 0.63.0 (`package.json`), and all three forges are
+generated the same way - see below.
 
 Nothing here is a template you fill in. It is a project that builds, whose five Op
 names are also the five job names a branch-protection rule or a warden policy can
