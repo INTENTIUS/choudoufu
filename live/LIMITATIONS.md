@@ -2462,6 +2462,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Live resource listed but not importable | error | `internal/live/projection` | "Live resource listed but not importable" |
 | - | - | projection | Live resource marked for another address | error | `internal/live/projection` | "Live resource marked for another address" |
 | - | - | projection | Live resource outside this estate | error | `internal/live/projection` | "Live resource outside this estate" |
+| - | - | projection | Live resource verified but not importable | error | `internal/live/projection` | "Live resource verified but not importable" |
 | - | - | projection | Located identity could not be recorded | error | `internal/live/projection` | "Located identity could not be recorded" |
 | - | - | projection | No configuration to project | error | `internal/live/projection` | "No configuration to project" |
 | - | - | projection | No identity resolutions to project | error | `internal/live/projection` | "No identity resolutions to project" |
@@ -2487,7 +2488,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**215 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**216 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3832,6 +3833,14 @@ reserved for the limits wing's fixture directories, and
 #### Live resource outside this estate
 
 **What.** A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Live resource verified but not importable
+
+**What.** GitHub issue #1043: this same run's own estate-wide tag sweep found a live object carrying this estate's tofu-estate marker and a tofu-address marker naming a declared instance whose identity comes out of configuration (a derived/concrete identity, never a provider list call), and reading that instance back by its own identity then reported that nothing exists there. The two answers come from this same run and contradict each other, so the plan refuses rather than propose creating a duplicate of the object its own tag sweep just saw. [ReasonListedNotImportable]'s sibling for the population that guard's own doc comment names as deliberately uncovered.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

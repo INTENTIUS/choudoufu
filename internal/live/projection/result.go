@@ -297,6 +297,28 @@ const (
 	// [builder.refuseListedButAbsent] for why a list-served identity is
 	// proof of existence where a tag-index sighting is not.
 	ReasonListedNotImportable Reason = "LISTED_NOT_IMPORTABLE"
+
+	// ReasonVerifiedNotImportable means THIS SAME RUN's estate-wide tag
+	// sweep found a live object carrying this estate's tofu-estate marker
+	// and a tofu-address marker naming this exact instance (recorded in
+	// [discovery.Result.VerifiedDeclared] and surfaced here as
+	// [Ownership.Verified]), and reading the instance by its own
+	// configuration-derived identity then reported that nothing exists
+	// there (GitHub issue #1043). The instance is NOT proposed for
+	// creation: doing so risks duplicating an object this run's own
+	// tagging index just vouched for. An error diagnostic
+	// ([SummaryVerifiedNotImportable]) accompanies every omission with
+	// this reason, so the run stops rather than applying half a plan.
+	//
+	// This is [ReasonListedNotImportable]'s sibling for a type whose
+	// identity comes out of configuration rather than a provider list
+	// call - see [builder.refuseVerifiedButAbsent] for the discriminator
+	// and for why a tag-index sighting, ordinarily too weak to stand in
+	// for a live listing (a deleted object can linger in the tag index),
+	// is still trusted here: the sighting is the SAME run's own evidence
+	// for the SAME address a plan is about to create a duplicate of,
+	// never a cached or historical one.
+	ReasonVerifiedNotImportable Reason = "VERIFIED_NOT_IMPORTABLE"
 )
 
 // Has reports whether the projection contains an object for the given

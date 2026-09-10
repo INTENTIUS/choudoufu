@@ -319,3 +319,144 @@ func TestListedButAbsentRefusalIsRegistered(t *testing.T) {
 		t.Errorf("the registry entry does not name the issue it closes: %q", r.What)
 	}
 }
+
+// GitHub issue #1043. aws_cloudwatch_log_group's identity comes out of
+// configuration (its "name" argument), never out of a provider list call, so
+// [builder.refuseListedButAbsent]'s own doc comment names it as the
+// population that guard deliberately does not cover: w.identity is always
+// cty.NilVal for it, and TestListedButAbsent_tagIndexSightingStillProposesTheRebuild
+// above is the proof that an ordinary tag-index sighting (no vouch recorded
+// in Ownership.Verified) rightly changes nothing for this type either -
+// otherwise a genuine rebuild of a genuinely deleted log group would be
+// refused on stale tag-index evidence, the exact hazard that test guards.
+//
+// What #1043 reports is narrower and did not exist as a test before this
+// issue: THIS SAME RUN's own estate-wide tag sweep (Ownership.Verified,
+// [discovery.Result.MarkerVerified]'s surface) saw a live object carrying
+// this estate's marker and this address's tofu-address tag, and the
+// per-type identity read then reported absence anyway. That is the fixture
+// below: buildSighted's provider (imports nothing, no diagnostics - the
+// same "no such object" wire shape importAndRead folds into statusAbsent)
+// plus Ownership.Verified naming this exact address, which is what
+// [builder.refuseVerifiedButAbsent] checks for.
+func buildVerifiedSighted(t *testing.T, verified bool) (*Result, string, *sightedProvider) {
+	t.Helper()
+	cfg := loadConfig(t, "testdata/named")
+	p := newSightedProvider(t)
+	addr := mustAddr(t, sightedType+".app")
+	own := &Ownership{Estate: sightedEstate}
+	if verified {
+		own.Verified = map[string]bool{addr.String(): true}
+	}
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		sightedResolution(t, cty.NilVal),
+	}, p.providers(), Options{Ownership: own})
+	return res, renderDiags(diags), p
+}
+
+// TestVerifiedButAbsent_tagIndexVouchRefusesTheDuplicate is this issue's RED
+// case: with the vouch in place, a plain per-type absence must not stand as
+// ReasonAbsent (which tells the plan to propose a CREATE) - it must refuse,
+// the same posture [builder.refuseListedButAbsent] already takes for a
+// live-listed identity, so the run stops instead of duplicating live
+// infrastructure its own tag sweep just vouched for.
+func TestVerifiedButAbsent_tagIndexVouchRefusesTheDuplicate(t *testing.T) {
+	res, rendered, p := buildVerifiedSighted(t, true)
+
+	if len(p.imports) != 1 {
+		t.Fatalf("expected exactly one import attempt, got %d: %v", len(p.imports), p.imports)
+	}
+
+	omissions := renderedOmissions(res)
+	if strings.Contains(omissions, "The plan will propose creating it") {
+		t.Errorf("the plan still proposes creating a duplicate of an object this run's own tag sweep vouched for:\n%s", omissions)
+	}
+	if !strings.Contains(omissions, string(ReasonVerifiedNotImportable)) {
+		t.Errorf("the omission is not classified as %s:\n%s", ReasonVerifiedNotImportable, omissions)
+	}
+
+	if !strings.Contains(rendered, SummaryVerifiedNotImportable) {
+		t.Fatalf("no %q diagnostic was produced; the plan would continue and create a duplicate:\n%s", SummaryVerifiedNotImportable, rendered)
+	}
+	for _, want := range []string{
+		"[Error] " + SummaryVerifiedNotImportable,
+		"This run's own estate-wide tag sweep",
+		"tofu-estate",
+		"tofu-address",
+		sightedType + ".app",
+		`"/ours/logs"`,
+		"refuses rather than propose creating a second",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, rendered)
+		}
+	}
+}
+
+// TestVerifiedButAbsent_noVouchIsUnaffected is the control: with no vouch
+// recorded (Ownership.Verified nil, the ordinary case for a genuinely new or
+// genuinely deleted-and-rebuilt instance), this guard must do nothing and
+// the plain ABSENT/create-it answer must stand - otherwise every derived
+// resource's first-ever create would refuse itself.
+func TestVerifiedButAbsent_noVouchIsUnaffected(t *testing.T) {
+	res, rendered, _ := buildVerifiedSighted(t, false)
+
+	if strings.Contains(rendered, SummaryVerifiedNotImportable) {
+		t.Fatalf("a run with no tag-sweep vouch refused an absence it has no evidence about:\n%s", rendered)
+	}
+	omissions := renderedOmissions(res)
+	if !strings.Contains(omissions, "The plan will propose creating it") {
+		t.Errorf("an ordinary, unvouched absence no longer proposes creating it:\n%s", omissions)
+	}
+	if !strings.Contains(omissions, string(ReasonAbsent)) {
+		t.Errorf("the omission is not classified as %s:\n%s", ReasonAbsent, omissions)
+	}
+}
+
+// TestVerifiedButAbsent_undeclaredAbsenceIsNotRefused mirrors
+// TestListedButAbsent_undeclaredAbsenceIsNotRefused: an instance the estate
+// owns and the configuration no longer declares reaches the same branch, and
+// "absent" there means the destroy this run would have proposed has already
+// happened - never a duplicate to refuse over, whatever Ownership.Verified
+// says about the address.
+func TestVerifiedButAbsent_undeclaredAbsenceIsNotRefused(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+	p := newSightedProvider(t)
+
+	r := sightedResolution(t, cty.NilVal)
+	r.Addr = mustAddr(t, sightedType+".removed")
+	r.ImportID = "/gone/logs"
+	r.IdentityValues = map[string]string{"id": "/gone/logs"}
+	r.Undeclared = true
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{r},
+		p.providers(), Options{
+			Ownership: &Ownership{
+				Estate:   sightedEstate,
+				Verified: map[string]bool{r.Addr.String(): true},
+			},
+			UndeclaredProvider: awsProvider,
+		})
+
+	rendered := renderDiags(diags)
+	if strings.Contains(rendered, SummaryVerifiedNotImportable) {
+		t.Fatalf("an already-destroyed orphan was refused:\n%s", rendered)
+	}
+	omissions := renderedOmissions(res)
+	if !strings.Contains(omissions, string(ReasonAbsent)) {
+		t.Errorf("the orphan's absence is not the ordinary ABSENT answer:\n%s", omissions)
+	}
+}
+
+// TestVerifiedButAbsentRefusalIsRegistered keeps this refusal reachable
+// through check.AllRefusals(): a refusal nobody can look up is one an
+// operator meets with no documentation behind it.
+func TestVerifiedButAbsentRefusalIsRegistered(t *testing.T) {
+	r, ok := LookupRefusal(SummaryVerifiedNotImportable)
+	if !ok {
+		t.Fatalf("%q is not in this package's refusal registry", SummaryVerifiedNotImportable)
+	}
+	if !strings.Contains(r.What, "#1043") {
+		t.Errorf("the registry entry does not name the issue it closes: %q", r.What)
+	}
+}
