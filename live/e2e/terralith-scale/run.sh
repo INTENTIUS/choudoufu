@@ -158,6 +158,17 @@ EXPECTED=$((74 * SCALE + 5))
 TAGGABLE=$((33 * SCALE + 5))
 UNTAGGABLE=$((EXPECTED - TAGGABLE))
 
+# COUNT_FULL/COUNT_TOP track the estate's OWN count_team block, which
+# terralith-gen scales too: `count = 2 * SCALE` (issue #574), not the fixed
+# `count = 2` this script assumed at every scale until this comment was
+# added (#1032, unit 2 - found by SCALE=10 landing on "count1 edit did not
+# rewrite all six count_team count arguments", since a plain `s/= 2/= 1/`
+# only ever matches at SCALE=1). PART K scales this block down by exactly
+# one instance - the top index - and back, the same shape at every scale.
+COUNT_FULL=$((2 * SCALE))
+COUNT_TOP=$((COUNT_FULL - 1))
+COUNT_TOP_FMT="$(printf '%04d' "$COUNT_TOP")"
+
 cleanup() {
   docker rm -f "$FLOCI_NAME" "$GREEN_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -441,9 +452,9 @@ render_config() {
         drop_block "$dir/iam.tf" aws_iam_role_policy team_0002_inline
         ;;
       count1)
-        sed_i "$dir/iam.tf" -E 's/^([[:space:]]*count[[:space:]]*)= 2$/\1= 1/'
-        [ "$(grep -cE '^[[:space:]]*count[[:space:]]*= 1$' "$dir/iam.tf")" = "6" ] \
-          || fail "count1 edit did not rewrite all six count_team count arguments in $dir/iam.tf"
+        sed_i "$dir/iam.tf" -E "s/^([[:space:]]*count[[:space:]]*)= ${COUNT_FULL}\$/\\1= ${COUNT_TOP}/"
+        [ "$(grep -cE "^[[:space:]]*count[[:space:]]*= ${COUNT_TOP}\$" "$dir/iam.tf")" = "6" ] \
+          || fail "count1 edit did not rewrite all six count_team count arguments (= ${COUNT_FULL} -> = ${COUNT_TOP}) in $dir/iam.tf"
         ;;
       replace4) replace_profile_4 "$dir/iam.tf" ;;
       reviewp) add_reviewed_tag "$dir/network.tf" ;;
@@ -1551,10 +1562,12 @@ gauntlet_stage day2_remove pass "deleting two blocks - the taggable, marked aws_
 # ══════════════════════════════════════════════════════════════════════════
 #
 # The estate's own count block, not an added fixture: terralith-gen emits
-# six declarations each carrying `count = 2` (aws_iam_role.count_team and
-# its inline policy, customer-managed policy, two attachments and instance
-# profile). Scaling all six to 1 and back is a twelve-instance cycle over
-# four resource types, two of them untaggable.
+# six declarations each carrying `count = 2 * SCALE` (aws_iam_role.count_team
+# and its inline policy, customer-managed policy, two attachments and
+# instance profile) - COUNT_FULL/COUNT_TOP above. Scaling all six down by
+# exactly one instance - the top index, COUNT_TOP - and back is a
+# twelve-instance cycle over four resource types, two of them untaggable, at
+# every scale.
 
 gauntlet_begin_stage day2_count
 log "=== K0. capture the index-[0] identities that must survive the whole cycle ==="
@@ -1568,11 +1581,11 @@ C0_PROFILE_TAG="$(marker_of_profile "$ENDPOINT" "${PREFIX}-count-team-0000-profi
   || fail "count_team_profile[0] carries tofu-address=$C0_PROFILE_TAG before day2_count, not the escaped form of aws_iam_instance_profile.count_team_profile[0]"
 log "  count_team[0] role id $C0_ROLE_ID, markers on the role and the profile confirmed by value"
 
-log "=== K1. choudoufu: scale the six count_team blocks from 2 to 1 ==="
+log "=== K1. choudoufu: scale the six count_team blocks from $COUNT_FULL to $COUNT_TOP ==="
 render_config "$ADOPTED" live rename0 moved0 rename1 remove2 count1
 DOWN_PLAN="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; CT_RC=$?
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$DOWN_PLAN" | tail -30; fail "the day2_count scale-down plan exited $CT_RC"; }
-DOWN_1_N="$(grep -cE '^  # \S+\[1\] will be destroyed' <<< "$DOWN_PLAN" || true)"
+DOWN_1_N="$(grep -cE "^  # \\S+\\[${COUNT_TOP}\\] will be destroyed" <<< "$DOWN_PLAN" || true)"
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   log "  BREAK_COUNT=1: asserting the WRONG instances (index [0]) were the ones destroyed"
   if grep -qE '^  # \S+\[0\] will be destroyed' <<< "$DOWN_PLAN"; then
@@ -1588,41 +1601,41 @@ fi
 grep -qE '^  # \S+\[0\] will be' <<< "$DOWN_PLAN" \
   && { grep -E '^  # .+ will be' <<< "$DOWN_PLAN"; fail "the scale-down plan touches an index-[0] instance, which must be untouched"; }
 [ "$DOWN_1_N" = "6" ] \
-  || { grep -E '^  # .+ will be' <<< "$DOWN_PLAN"; fail "the scale-down plan destroys $DOWN_1_N index-[1] instances, not 6"; }
+  || { grep -E '^  # .+ will be' <<< "$DOWN_PLAN"; fail "the scale-down plan destroys $DOWN_1_N index-[${COUNT_TOP}] instances, not 6"; }
 grep -qF 'Plan: 0 to add, 0 to change, 6 to destroy.' <<< "$DOWN_PLAN" \
   || { printf '%s\n' "$DOWN_PLAN" | tail -12; fail "the scale-down plan proposes something other than exactly six destroys"; }
-log "  choudoufu: exactly six destroys, all index [1] - the same shape stock's oracle (G1) produced"
+log "  choudoufu: exactly six destroys, all index [$COUNT_TOP] - the same shape stock's oracle (G1) produced"
 DOWN_APPLY="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CT_RC=$?
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$DOWN_APPLY" | tail -30; fail "the day2_count scale-down apply exited $CT_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 6 destroyed' <<< "$DOWN_APPLY" \
   || { grep -E 'Apply complete' <<< "$DOWN_APPLY"; fail "the scale-down apply was not exactly six destroys"; }
-C1_ROLE_N="$(awsl iam list-roles --query "length(Roles[?RoleName=='${PREFIX}-count-team-0001-role'])" --output text)"
-[ "$C1_ROLE_N" = "0" ] || fail "count_team[1]'s role still exists after the scale-down destroy"
+C1_ROLE_N="$(awsl iam list-roles --query "length(Roles[?RoleName=='${PREFIX}-count-team-${COUNT_TOP_FMT}-role'])" --output text)"
+[ "$C1_ROLE_N" = "0" ] || fail "count_team[${COUNT_TOP}]'s role still exists after the scale-down destroy"
 C0_ROLE_AFTER="$(awsl iam get-role --role-name "${PREFIX}-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ "$C0_ROLE_AFTER" = "$C0_ROLE_ID" ] || fail "count_team[0]'s role id changed across the scale-down ($C0_ROLE_ID -> $C0_ROLE_AFTER)"
 [ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0000-role")" = "$(escape_address 'aws_iam_role.count_team[0]')" ] \
   || fail "count_team[0]'s marker no longer reads aws_iam_role.count_team[0] after the scale-down"
-log "  index [1] genuinely gone, index [0] keeps both its live id and its identity"
+log "  index [$COUNT_TOP] genuinely gone, index [0] keeps both its live id and its identity"
 
-log "=== K2. choudoufu: scale the same six blocks back from 1 to 2 ==="
+log "=== K2. choudoufu: scale the same six blocks back from $COUNT_TOP to $COUNT_FULL ==="
 render_config "$ADOPTED" live rename0 moved0 rename1 remove2
 UP_PLAN="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; CT_RC=$?
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$UP_PLAN" | tail -30; fail "the day2_count scale-up plan exited $CT_RC"; }
 grep -qE '^  # \S+\[0\] will be' <<< "$UP_PLAN" \
   && { grep -E '^  # .+ will be' <<< "$UP_PLAN"; fail "the scale-up plan touches an index-[0] instance, which must be untouched"; }
-UP_1_N="$(grep -cE '^  # \S+\[1\] will be created' <<< "$UP_PLAN" || true)"
+UP_1_N="$(grep -cE "^  # \\S+\\[${COUNT_TOP}\\] will be created" <<< "$UP_PLAN" || true)"
 [ "$UP_1_N" = "6" ] \
-  || { grep -E '^  # .+ will be' <<< "$UP_PLAN"; fail "the scale-up plan creates $UP_1_N index-[1] instances, not 6"; }
+  || { grep -E '^  # .+ will be' <<< "$UP_PLAN"; fail "the scale-up plan creates $UP_1_N index-[${COUNT_TOP}] instances, not 6"; }
 grep -qF 'Plan: 6 to add, 0 to change, 0 to destroy.' <<< "$UP_PLAN" \
   || { printf '%s\n' "$UP_PLAN" | tail -12; fail "the scale-up plan proposes something other than exactly six creates"; }
 UP_APPLY="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CT_RC=$?
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$UP_APPLY" | tail -30; fail "the day2_count scale-up apply exited $CT_RC"; }
 grep -qE 'Resources: 6 added, 0 changed, 0 destroyed' <<< "$UP_APPLY" \
   || { grep -E 'Apply complete' <<< "$UP_APPLY"; fail "the scale-up apply was not exactly six creates"; }
-C1_ROLE_BACK="$(awsl iam get-role --role-name "${PREFIX}-count-team-0001-role" --query 'Role.RoleId' --output text)"
-[ -n "$C1_ROLE_BACK" ] && [ "$C1_ROLE_BACK" != "None" ] || fail "count_team[1]'s role was not recreated by the scale-up"
-[ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0001-role")" = "$(escape_address 'aws_iam_role.count_team[1]')" ] \
-  || fail "the recreated count_team[1] role does not carry tofu-address=aws_iam_role.count_team[1]"
+C1_ROLE_BACK="$(awsl iam get-role --role-name "${PREFIX}-count-team-${COUNT_TOP_FMT}-role" --query 'Role.RoleId' --output text)"
+[ -n "$C1_ROLE_BACK" ] && [ "$C1_ROLE_BACK" != "None" ] || fail "count_team[${COUNT_TOP}]'s role was not recreated by the scale-up"
+[ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-${COUNT_TOP_FMT}-role")" = "$(escape_address "aws_iam_role.count_team[${COUNT_TOP}]")" ] \
+  || fail "the recreated count_team[${COUNT_TOP}] role does not carry tofu-address=aws_iam_role.count_team[${COUNT_TOP}]"
 C0_ROLE_FINAL="$(awsl iam get-role --role-name "${PREFIX}-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ "$C0_ROLE_FINAL" = "$C0_ROLE_ID" ] || fail "count_team[0]'s role id changed across the scale-up ($C0_ROLE_ID -> $C0_ROLE_FINAL)"
 [ "$(marker_of_profile "$ENDPOINT" "${PREFIX}-count-team-0000-profile")" = "$(escape_address 'aws_iam_instance_profile.count_team_profile[0]')" ] \
@@ -1631,8 +1644,8 @@ COUNT_FINAL="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$COUNT_FINAL" | tail -30; fail "the post-count plan exited $CT_RC"; }
 plan_is_noop "$COUNT_FINAL" \
   || { grep -E '^  #' <<< "$COUNT_FINAL" | head -20; fail "the post-count plan is not empty"; }
-log "  index [1] recreated and correctly re-marked, index [0] untouched throughout, next plan empty"
-gauntlet_stage day2_count pass "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
+log "  index [$COUNT_TOP] recreated and correctly re-marked, index [0] untouched throughout, next plan empty"
+gauntlet_stage day2_count pass "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled $COUNT_FULL to $COUNT_TOP and back: exactly six index-[$COUNT_TOP] destroys then exactly six index-[$COUNT_TOP] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[$COUNT_TOP] carries aws_iam_role.count_team[$COUNT_TOP], and the plan afterwards is empty"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART L: REPLACE WITH create_before_destroy (day2_replace)
