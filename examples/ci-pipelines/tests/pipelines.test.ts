@@ -237,10 +237,19 @@ describe("github: the push half applies behind a gate without painting main red"
       const run = steps("github", op).find((s) => s.run?.includes(`chant run ${op}`));
       assert.ok(run, "the job runs the Op");
       assert.match(run.run!, /--gated-exit 0/);
-      // Without pipefail a failing run piped into tee comes back as tee's
-      // zero, which would turn a broken apply green - the one thing this
-      // mapping must not do.
-      assert.match(run.run!, /set -o pipefail/);
+      // A failing run piped into tee must not come back as tee's own zero,
+      // which would turn a broken apply green - the one thing this mapping
+      // must not do. chant 0.63.0 (chant#2299) captures the invocation's own
+      // exit code into a file from inside the pipe's first stage and
+      // propagates it once the pipe finishes, rather than `set -o pipefail`
+      // (which a plain `sh` container job rejects outright - a regression on
+      // busybox `ash` images that never needed pipefail's workaround).
+      assert.match(run.run!, /\{ npx chant run \S+[^}]*; echo "\$\?" ?>"\$status"; \} \| tee "\$json"/);
+      assert.match(run.run!, /\[ "\$code" -eq 0 \] \|\| exit "\$code"/);
+      // The script is POSIX sh, not bash, so the step needs no shell
+      // override and runs the same under ash, dash or bash (#2299 does not
+      // reopen: nothing here is a bash-only construct).
+      assert.equal(run.shell, undefined, "no shell override crosses the generator");
     });
 
     it(`${op} publishes what it stopped on, and a follow-up job says where`, () => {

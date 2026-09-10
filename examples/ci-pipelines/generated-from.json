@@ -8,8 +8,8 @@
   "inputs": {
     "chant.config.ts": "06dab2c66ab94a7bbe3d3d228c15665230bed766b28b4be5c385b197df9ae8b2",
     "generate.ts": "531dbdc654fb8cf946b983bb5eebb4eddd2321655b1c61f173f0a12138c1b3c0",
-    "package-lock.json": "25c6dfe9d539d6b51dbf58d04ad934d3e0cadd9f7190bfb2985f4d8cf8474678",
-    "package.json": "89751f0b44cc6b5223fdaa3f7083a503c034cb15856c0ddceb02b37039b9e3f4",
+    "package-lock.json": "a23ca6b6fcfb0c2875d73ac8197c8eb9ca0a7531d0dfb4b00df91ab1e1659152",
+    "package.json": "fd2201e2e0397ad362171689e5edbdd5b880e5a563dbaa30884a00035445de7f",
     "src/forge.ts": "e93b3e9fa34a94667be3e1adb1e7de5c4983bf8f131ddc1c45e36d937e2ce604",
     "src/live-adopt.op.ts": "85e31433a95752639dcc35332b042ffc65a96e6faa13b758cdd585dfee2a1578",
     "src/live-apply.op.ts": "ea46ba32bb69e48112ec9f9188f0fbd702723ad7aa68e1fe2709206bbf905abc",
