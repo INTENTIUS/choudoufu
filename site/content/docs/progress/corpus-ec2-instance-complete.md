@@ -12,12 +12,12 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Clear.** Every headline stage passes.
+**Not clear yet.**
 
 | Stage | Verdict | Duration | Detail |
 |---|---|---|---|
-| Cold deploy | pass | 55s | 35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration |
-| Migrate | pass | 31s | 24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply |
+| Cold deploy | pass | 1m3s | 35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration |
+| Migrate | FAIL | 19s | choudoufu init failed |
 | Replan from nothing | pass | 5s | no resource change proposed by either plan; the default plan reports "nothing was swept" (the CollectUnclaimed ruling (#604) made the account-inventory question opt-in, and a run that did not ask must say so), and a second plan run with TOFU_LIVE_COLLECT_UNCLAIMED=1 finds exactly 8 foreign objects - the instance's own root volume plus floci's default-VPC bootstrap; instance tofu-address re-checked against EC2 |
 | No-op apply | pass | 3s | genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file |
 | Drift and reconverge | pass | 7s | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
@@ -28,11 +28,11 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Crash between create and destroy | not run |  |  |
 | Teardown | not run |  |  |
 | Plan, review, apply | pass | 16s | one argument edited (the "/dev/sdf" entry's MountPoint volume tag inside module "ec2_complete"'s ebs_volumes argument, /mnt/data -> /mnt/data-reviewed - the module merges each entry's tags into that entry's aws_ebs_volume alone, so it reaches module.ec2_complete.aws_ebs_volume.this["/dev/sdf"] and nothing else), "plan -out=approved.tfplan" wrote a 72488-byte stock-format plan file whose whole change set is that one update; the world then moved out of band (i-9fe92adc44cecd245's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and "apply approved.tfplan" refused with "The approved plan no longer matches the live system" at exit 3, classifying the drift under "This apply would do, and the approved plan does not include:" and naming both module.ec2_complete.aws_instance.this[0] and the live i-9fe92adc44cecd245 it was computed against, with "Exit status 3" spelled out for a pipeline; nothing was applied - volume vol-89225b2660b986979 still read MountPoint=/mnt/data through ec2 describe-tags, not from the absence of an "Apply complete!" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with i-9fe92adc44cecd245's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and vol-89225b2660b986979 read back with MountPoint=/mnt/data-reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART C starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails |
-| Greenfield apply | pass | 1m0s | 35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag |
+| Greenfield apply | pass | 58s | 35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 24 objects carry the estate tag |
 | Strict profile (not a headline stage) | not run |  |  |
 
-Last run at commit `933618dec4` on 2026-09-08T22:17:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805`. Total run time 6m39.2s.
-Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).
+Last run at commit `840ab02e56` on 2026-09-10T01:38:39Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:d9207de14c919f4bfa50e956376cc441970f3679aabfdd43f3dbf4b779b20805`. Total run time 2m20.9s.
+Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.
 
 ## Reproduce it
 
