@@ -474,7 +474,7 @@ rm -rf "$WORK/iam-greenfield/examples/iam-policy/.terraform" \
        "$WORK/iam-greenfield/examples/iam-policy/terraform.tfstate.backup" \
        "$WORK/iam-greenfield/examples/iam-policy/.terraform.lock.hcl"
 GREEN_EST="$WORK/iam-greenfield/examples/iam-policy"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 
 gauntlet_begin_stage greenfield
@@ -562,7 +562,7 @@ gauntlet_begin_stage migrate
 # ordinary apply to converge tofu-slot (see the TOFU-SLOT FINDING above)
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
 
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {

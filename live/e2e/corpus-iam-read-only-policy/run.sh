@@ -319,7 +319,7 @@ rm -rf "$GREEN_EST/.terraform" "$GREEN_EST/.terraform.lock.hcl"
 gauntlet_pin_aws_provider "$GREEN_EST/versions.tf" || fail "could not pin hashicorp/aws in $GREEN_EST/versions.tf"  # #1034
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$GREEN_EST/main.tf"
 grep -q 's3_use_path_style' "$GREEN_EST/main.tf" || fail "the greenfield emulator delta did not match main.tf - the corpus pin has moved"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
@@ -668,7 +668,7 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve; the following apply must be a no-op) ==="
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
 
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {

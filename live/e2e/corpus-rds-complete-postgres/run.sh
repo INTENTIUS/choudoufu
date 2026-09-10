@@ -655,16 +655,16 @@ apply_deltas "$GREEN_EST"
 apply_deltas "$ORACLE_G_EST"
 GREEN_EST="$GREEN_EST" GREEN_ESTATE_NAME="$GREEN_ESTATE_NAME" python3 << 'PYINNER'
 import os
+import re
 p = os.environ["GREEN_EST"] + "/versions.tf"
 s = open(p).read()
-old = """  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 6.28"
-    }
-  }
-}"""
-assert old in s, "greenfield: versions.tf required_providers block not found - the corpus pin has moved"
+# #1034: the version constraint is no longer the corpus's own ">= 6.28" -
+# gauntlet_pin_aws_provider (run.sh, section 0) already rewrote it to an
+# exact "= <pin>" before this ever runs, so match any quoted value here
+# rather than the original literal.
+m = re.search(r'  required_providers \{\n    aws = \{\n      source  = "hashicorp/aws"\n      version = "[^"]*"\n    \}\n  \}\n\}', s)
+assert m, "greenfield: versions.tf required_providers block not found - the corpus pin has moved"
+old = m.group(0)
 name = os.environ["GREEN_ESTATE_NAME"]
 # strict { no_source_create = "create" }: found necessary re-verifying this
 # stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
@@ -965,7 +965,7 @@ perl -pi -e 's/^(  manage_master_user_password_rotation)(\s*)= true$/$1$2= false
 # module.db_default's random_id.snapshot_identifier (an effects-only
 # resource - see the record-store fixture; skip_final_snapshot defaults to
 # false and module.db_default does not override it).
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \">= 6.28\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$ADOPTED_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$ADOPTED_EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED_EST/versions.tf" || fail "DELTA 4 did not match versions.tf - the corpus pin has moved"
 log "  DELTA 4  live block + local record_store added             (onboarding)"
 
