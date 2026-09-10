@@ -209,7 +209,7 @@ unfiltered_types owned-loaded | evidence
 echo "account-wide Cloud Control list CALLS - alone: $OWNED_ALONE_CC   ·   under load: $OWNED_LOADED_CC" | evidence
 [ "$OWNED_LOADED_CC" = "$OWNED_ALONE_CC" ] \
   || fail "foreignload" "the account-wide Cloud Control list count moved with the foreign population ($OWNED_ALONE_CC -> $OWNED_LOADED_CC); that is a finding to record against issue #1032, not a threshold to edit"
-proof "the account-wide Cloud Control list ran $OWNED_LOADED_CC times either way, and every action that did move is named above."
+proof "the account-wide Cloud Control list ran $OWNED_LOADED_CC times either way, and every list this plan could not scope to the estate is named above with the run's own reason for it."
 
 step "4. what reading the whole terralith would cost"
 explain \
