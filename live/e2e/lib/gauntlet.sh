@@ -96,6 +96,53 @@ gauntlet_end() {
   printf 'GAUNTLET end=1\n'
 }
 
+# gauntlet_pin_aws_provider <versions.tf path>: rewrites a freshly copied
+# corpus module's `hashicorp/aws` requirement to an exact version, read from
+# live/oracle-versions.json's aws_provider_version field (issue #1034).
+#
+# A plain `terraform init` resolves a corpus module's bare `>= X` lower
+# bound against registry.terraform.io's newest matching release. choudoufu's
+# own init resolves the identical bare `hashicorp/aws` source against
+# registry.opentofu.org, because this fork is an OpenTofu fork - an
+# independent mirror that can lag registry.terraform.io by hours. On
+# 2026-09-09 that lag put hashicorp/aws 6.64.0 on the former and not yet on
+# the latter, so stock's cold_deploy and choudoufu's later stages read two
+# different provider versions off the SAME .terraform.lock.hcl. Pinning both
+# sides to one exact release - checked to exist on both registries before a
+# human bumps it, the same way live/floci-image and
+# live/oracle-versions.json's own terraform_version/tofu_version are bumped
+# deliberately rather than left to float - makes which registry answered
+# irrelevant.
+#
+# Call this once per corpus module copy, right after the copy and before
+# its first `terraform init`/`tofu init`, on the ROOT (example) directory's
+# own versions.tf - the one terraform actually inits in. A child module's
+# own required_providers (if any) is left untouched: every corpus module
+# used here declares only a lower bound there (">= 6.28" and similar), which
+# an exact pin at the root satisfies by intersection, so the child's
+# constraint never needs rewriting. A later `cp -R` of an already-pinned
+# tree (greenfield, an oracle copy taken from $EST rather than from the
+# pristine corpus source) inherits the pin for free and needs no second
+# call - see each crossing script's own comment at its cp sites for which
+# case it is.
+#
+# live/pins_drift_test.go's TestGauntletCrossingScriptsPinOneAWSProvider
+# checks every one of #1034's five estates calls this and none passes
+# terraform/tofu init an -upgrade flag, which would re-float the version
+# this function just pinned.
+gauntlet_pin_aws_provider() {
+  local target="$1" pin
+  : "${ROOT:?gauntlet_pin_aws_provider needs $ROOT set (every crossing script sets it before sourcing this file)}"
+  pin="$(python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['aws_provider_version'])" 2>/dev/null)"
+  [ -n "$pin" ] || { printf 'gauntlet_pin_aws_provider: could not read aws_provider_version from %s/live/oracle-versions.json\n' "$ROOT" >&2; return 1; }
+  [ -f "$target" ] || { printf 'gauntlet_pin_aws_provider: %s does not exist\n' "$target" >&2; return 1; }
+  AWS_PIN="$pin" perl -0777 -pi -e '
+    s/(aws\s*=\s*\{\s*\n\s*source\s*=\s*"hashicorp\/aws"\s*\n\s*version\s*=\s*")[^"]*(")/$1 . "= $ENV{AWS_PIN}" . $2/e;
+  ' "$target"
+  grep -q "version *= *\"= $pin\"" "$target" \
+    || { printf 'gauntlet_pin_aws_provider: %s does not carry the pinned hashicorp/aws version %s after rewrite - the corpus module shape may have moved\n' "$target" "$pin" >&2; return 1; }
+}
+
 # gauntlet_record_count <dir>: counts a record store's on-disk record files
 # under <dir> the way every crossing script already counted them by hand -
 # "-type f", skipping the write-lock and in-progress-write files a

@@ -252,6 +252,11 @@ cp -R "$SRC_EXAMPLE" "$WORK/iam/examples/iam-policy"
 cp -R "$SRC_MODULE" "$WORK/iam/modules/iam-policy"
 rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 [ -f "$EST/main.tf" ] || fail "the estate copy is missing main.tf"
+# #1034: pin hashicorp/aws to the SAME exact release plain terraform and
+# choudoufu both resolve, before either ever runs init. Every oracle and
+# greenfield copy below is `cp -r "$EST" ...` or `cp -R "$WORK/iam" ...`,
+# so this one call is inherited by all of them.
+gauntlet_pin_aws_provider "$EST/versions.tf" || fail "could not pin hashicorp/aws in $EST/versions.tf"
 log "  estate + module copied out of .corpus into $WORK"
 
 # ── 1. the onboarding delta - emulator flags only, no live block yet ───────

@@ -392,6 +392,11 @@ mkdir -p "$WORK/sqs"
 cp -R "$SRC_MODULE"/. "$WORK/sqs"
 rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 [ -f "$EST/main.tf" ] || fail "the estate copy is missing main.tf"
+# #1034: pin hashicorp/aws to the SAME exact release plain terraform and
+# choudoufu both resolve, before either ever runs init. Every oracle and
+# greenfield copy below is `cp -R "$WORK/sqs" ...`, so this one call is
+# inherited by all of them.
+gauntlet_pin_aws_provider "$EST/versions.tf" || fail "could not pin hashicorp/aws in $EST/versions.tf"
 log "  module + example copied out of .corpus into $WORK"
 
 # ── 1. the reduction (see header) + the one onboarding delta ───────────────

@@ -21,8 +21,30 @@
     "and 9 cycles, 1.16.1 gave 20 clean plans and 0 cycles. See #947.",
     "",
     "A human maintains this file deliberately: hand-edit, then run",
-    "`just oracle-bump` for the movement report before landing it."
+    "`just oracle-bump` for the movement report before landing it.",
+    "",
+    "aws_provider_version (#1034) is a THIRD, independent fact this file",
+    "pins for the same reason as the two above: a plain `terraform init`",
+    "resolves a corpus module's bare `hashicorp/aws` requirement against",
+    "registry.terraform.io's newest matching release, while choudoufu's own",
+    "init resolves the identical bare source against registry.opentofu.org,",
+    "an independent mirror. On 2026-09-09 hashicorp/aws 6.64.0 published to",
+    "the former hours before the latter mirrored it, and the two crossing",
+    "halves of five estates read two different provider versions off the",
+    "same lock file. live/e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider",
+    "reads this field and rewrites every corpus module copy's",
+    "required_providers block to an exact `= <this>` before either binary",
+    "ever runs `init`, so which registry answered stops mattering. Verified",
+    "on both registries before every bump - see live/e2e/lib/gauntlet.sh's",
+    "own comment for the check command. This is NOT",
+    "internal/live/pins.AWSProviderVersion: that constant pins the release",
+    "tools/survey-gen and tools/corpus-gen analyze provider SCHEMAS against",
+    "(bumping it regenerates live/survey-full.json and",
+    "live/corpus-refusals.json - a deliberate, separate event per that",
+    "package's own doc comment); this field pins the release the gauntlet's",
+    "own corpus estates actually DEPLOY against emulated AWS."
   ],
   "terraform_version": "1.16.1",
-  "tofu_version": "1.12.6"
+  "tofu_version": "1.12.6",
+  "aws_provider_version": "6.63.0"
 }

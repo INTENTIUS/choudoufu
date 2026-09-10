@@ -481,6 +481,14 @@ copy_tree() {
          "$dest/rds/examples/complete-postgres/.terraform.lock.hcl" \
          "$dest/rds/examples/complete-postgres/terraform.tfstate" \
          "$dest/rds/examples/complete-postgres/terraform.tfstate.backup"
+  # #1034: pin hashicorp/aws to the SAME exact release plain terraform and
+  # choudoufu both resolve, before either ever runs init. copy_tree is
+  # every fresh copy this script makes from the pristine corpus source
+  # (PLAIN, GREEN, ORACLE_G, ADOPTED); their own downstream oracle copies
+  # (e.g. `cp -r "$PLAIN" "$PLAIN_ORACLE_ROOT"`) all start from an
+  # already-pinned tree and inherit this for free.
+  gauntlet_pin_aws_provider "$dest/rds/examples/complete-postgres/versions.tf" \
+    || fail "could not pin hashicorp/aws in $dest/rds/examples/complete-postgres/versions.tf"
 }
 
 gauntlet_begin
