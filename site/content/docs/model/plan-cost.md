@@ -147,35 +147,63 @@ reported in
 | Instances | Tagging leg | Native leg | Sweep | Read pass | Total | Read pass share |
 |---|---|---|---|---|---|---|
 | 79 | 1 | 512 | 548 | 148 | 696 | 21.3% |
-| 301 | 2 | 521 | 592 | 556 | 1148 | 48.4% |
-| 745 | 4 | 521 | 660 | 1372 | 2032 | 67.5% |
+| 301 | 2 | 552 | 706 | 556 | 1262 | 44.1% |
+| 745 | 4 | 612 | 960 | 1372 | 2332 | 58.8% |
 
-**The three rows are not the same vintage, and only the first has been
-re-measured.** As published, the 79-instance row read `521 / 558 / 706 /
-21.0%`. Re-run at `5ff7f43f5b` its legs read tagging 1, native 512,
-configuration scan 26, boundary 9, post-sweep 0 - sweep 548, total 696. The
-read pass did not move. That nine-call drift in the native leg is unrelated
-to the `#628` provider-block defect that corrupted CLI-plan counts elsewhere
-on this page: the in-process bench configures its provider from a literal
-three-flag body that never carried `skip_requesting_account_id`. The 301- and
-745-instance rows have not been re-run and stand at their published values.
+**All three rows are now re-measured, but at two different commits.** The
+79-instance row is `5ff7f43f5b`'s re-measure (2026-08-30, floci pin
+`sha256:c55d74e1`): as published it read `521 / 558 / 706 / 21.0%`; re-run its
+legs read tagging 1, native 512, configuration scan 26, boundary 9,
+post-sweep 0 - sweep 548, total 696. That nine-call drift in the native leg
+is unrelated to the `#628` provider-block defect that corrupted CLI-plan
+counts elsewhere on this page: the in-process bench configures its provider
+from a literal three-flag body that never carried
+`skip_requesting_account_id`.
 
-The two legs do not add up to the sweep on their own. The rest of it is the
-configuration scan, 26, 58 and 124 calls at the three scales, plus a boundary
-and post-sweep pass of about ten calls. Those four account for the sweep
-exactly at 79 instances and to within one call at the two larger scales, where
-a type whose scan records nothing fires no progress event and its calls fold
-into the next attribution interval.
+The 301- and 745-instance rows are a fresh re-measure taken for
+[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032) at commit
+`56099dcd63` (2026-09-09), floci pin `sha256:d9207de1`, with the same harness
+- `SLICE_SCALE=4 SLICE_K=1` and `SLICE_SCALE=10 SLICE_K=1`, `TF_FLOCI_TEST=1
+env -u PWD go test ./internal/live/discovery/ -run TestSlicingMatrixAgainstFloci`.
+Both runs passed (`--- PASS: TestSlicingMatrixAgainstFloci`, 146.98s and
+301.52s). As published, these two rows read `521 / 592 / 1148 / 48.4%` and
+`521 / 660 / 2032 / 67.5%`. Re-measured: the read pass did not move at either
+scale, 556 and 1372, matching the published figures to the call, and the
+stock-side comparison two sections down (558 and 1374) matched to the call
+too. **The native leg did move**, to 552 at 301 instances and 612 at 745 -
+up 31 and up 91 from the values this page carried until now, and up 40 and
+up 100 from the 79-instance row's own re-measured 512. Every prior
+measurement on this page called the native leg flat regardless of scale;
+this run's 301- and 745-instance figures are not flat with each other or
+with the 79-instance row. What changed between `5ff7f43f5b` and `56099dcd63`
+that moved it has not been isolated - `git log --oneline
+5ff7f43f5b..56099dcd63 -- internal/live/discovery/` lists 58 commits, wider
+than this measurement's scope to bisect - so this is recorded as a finding
+on #1032 rather than explained here.
+
+The two legs do not add up to the sweep on their own. At `56099dcd63`, the
+rest of it is the configuration scan (60 at 301 instances, 128 at 745,
+against 26 published at 79) plus a boundary and post-sweep pass that no
+longer reads as "about ten calls" at the larger scales: boundary 8 and 6,
+post-sweep 84 and 210, at 301 and 745 respectively. Tagging, native,
+configuration scan, boundary and post-sweep sum to the sweep column above
+exactly at all three scales in this run.
 
 Both terms are linear; fitted to the three rows as published,
 `sweep = 545.9 + 0.15315N` and `read pass = 1.8378N + 2.8` cross at **322
-instances**, just past this fixture's scale 4. Take that as the shape rather
-than a current number - the line was fit before the 79-instance row moved by
-ten calls, and re-fitting across one re-measured row and two published ones
-would describe no run that ever happened. Below the crossing a plan is
-mostly the fixed sweep; above it, cost tracks your estate - the shape has not
-changed. This is a crossover between choudoufu's *own* two terms on a full-sweep run,
-not between choudoufu and stock - there is no such crossing, as
+instances**, just past this fixture's scale 4. That fit predates every row
+this page now carries: it was taken before the 79-instance row's re-measure
+moved it by ten calls, and the 301- and 745-instance rows have since moved by
+well over a hundred calls each. Take the fit as the shape of the argument
+rather than a current number. Re-fitting it against the three rows now
+measured - and deciding whether a native leg that no longer reads flat
+changes the shape rather than only the numbers - is
+[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032)'s unit 6, not
+this measurement. Below the crossing a plan is mostly the fixed sweep; above
+it, cost tracks your estate - whether that shape survives is the open
+question above, not something this re-measure answers. This is a crossover
+between choudoufu's *own* two terms on a full-sweep run, not between
+choudoufu and stock - there is no such crossing, as
 [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets out.
 
 ### The read pass is the number stock pays to read the same resources
@@ -187,14 +215,18 @@ and the totals differ by a constant:
 |---|---|---|
 | 79 | 150 | 148 |
 | 301 | 558 | 556 |
-| 745 | 1374, not measured | 1372 |
+| 745 | 1374 | 1372 |
 
 A constant two calls separates the two. Stock's provider block resolves its
 own account with one `GetCallerIdentity` and one `GetUser`; the read pass has
 no equivalent, since nothing in it needs the account identity. The read pass
 fits `1.8378N + 2.8`, and stock's own two-point fit is `1.84N + 5` - the same
-line, two more calls of constant. 745 was not re-run on either side; 1374 is
-what stock's shared slope implies rather than anything anyone counted.
+line, two more calls of constant. 745 was not re-run on either side when that
+fit was taken; 1374 was what stock's shared slope implied rather than
+anything anyone had counted. It is now counted: the `56099dcd63` re-measure
+above ran a stock `terraform plan` on the same 745-instance estate as part of
+the same harness run and read exactly 1374, and 558 at 301 instances,
+matching the fit at both points to the call.
 
 So the shared term is the resource reads: the read pass is the AWS provider's
 own `Read` implementations, which stock invokes on the same resources when it
