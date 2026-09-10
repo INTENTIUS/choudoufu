@@ -37,9 +37,77 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.17.0 (Unreleased)
+## choudoufu v0.18.0 (Unreleased)
 
 Nothing recorded yet.
+
+## choudoufu v0.17.0 (2026-09-09)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.17.0.json`](live/history/v0.17.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.16.0.json live/history/v0.17.0.json`):
+
+- Core estates: 26/26 clear -> 20/26 clear (-6)
+- All estates: 27/27 clear -> 21/27 clear (-6)
+- Newly cleared: none
+- Regressed: corpus-alb-complete, corpus-ec2-instance-complete, corpus-iam-policy, corpus-iam-read-only-policy, corpus-rds-complete-postgres, corpus-sqs-basic
+
+Stated plainly, because the maintainer chose to release on this measurement
+rather than hold for it: the bars dropped for two reasons, both external to
+this tree. Five of the six regressions - corpus-ec2-instance-complete,
+corpus-iam-policy, corpus-iam-read-only-policy, corpus-sqs-basic,
+corpus-rds-complete-postgres - fail migrate on registry mirror lag:
+hashicorp/aws 6.64.0 is on registry.terraform.io and not yet on
+registry.opentofu.org, so stock's `cold_deploy` locks a version choudoufu's
+stages cannot resolve. Not a defect in this tree; filed as #1034. The
+sixth, corpus-alb-complete, fails greenfield on PriorityInUse, the #673
+pattern recurring on the current emulator pin; #673 is reopened. Stale
+evidence fell from 26 estates to 1 in the same re-measure (PR
+live/board-remeasure-chant-0.62, gate GREEN at
+e9320d1565e498e09a320a1b74c8437dfd20132e).
+
+FORK WORK:
+
+- **The three-forge parity epic closes** (#1018, all thirteen sub-issues
+  closed, including #1008). `examples/ci-pipelines` generates GitHub,
+  Forgejo and GitLab pipelines from one chant project, and this cycle is
+  the first time all three have actually been run rather than read as
+  YAML. GitLab CE 17.11 took ten pipelines and seventeen jobs across all
+  four triggers with no edit needed to the generated file (#1026);
+  Forgejo 12.0.4 settled four things this tree asserted and had never
+  observed, including that `gh` reaches Forgejo when handed a full
+  `/api/v1` URL (#1027); the GitLab governance policy now exists and is
+  applied against a real GitLab CE 17.11, closing the two-entry forge
+  check (#1008, #1021); staging is now protected on GitHub and Forgejo,
+  the branch set derived from #1021's parity table rather than
+  hand-written (#1024); and the chant pin moved to 0.62.0, which carries
+  per-Op Forgejo credentials so a pull request's `live-check` and
+  `live-plan` hold no credential that can apply, `live-plan` and
+  `live-discover` share a read pair, and `live-adopt` and `live-apply`
+  each get their own write pair (#1028). Running the three forges for
+  real found six upstream defects, chant#2299 to chant#2303 and
+  chant#2305, four of them fixed in 0.62.0. The pin is now tied to this
+  repository's own release rather than able to drift silently behind it
+  (#1029), and the CI/CD docs page was corrected and cut from 363 lines
+  to 213 to say what each forge has actually run rather than what it was
+  assumed to do (#1020, #1025, #1030).
+
+- **gate: init hugo-book submodule, stop swallowing docs errors, scope
+  hugo cache to worktree** (#1031). Concurrent `scripts/ci-gate.sh run`
+  invocations across worktrees were contending on a shared, unconfigured
+  Hugo cache, and the docs step failed with no diagnostic because the
+  recipe ran `hugo --minify --quiet`. A fresh worktree also had no
+  `site/themes/hugo-book` submodule, failing the same step a different
+  way. Both are fixed; the per-worktree cache lands on the mechanism
+  alone, stated as such rather than claiming a reproduction that was not
+  had.
+
+- **identity golden: render the estate-gen cohorts and pin their
+  identities again** (#997, #930). `TestIdentityGolden` renders the 31
+  verification cohorts with `internal/live/flocitest.GenerateCohorts` and
+  pins their identities by value in a delimited section of the golden,
+  with `TestIdentityGoldenCohortsAreDeterministic` proving two renders of
+  the same roster produce the same rows in the same order.
 
 ## choudoufu v0.16.0 (2026-09-09)
 
