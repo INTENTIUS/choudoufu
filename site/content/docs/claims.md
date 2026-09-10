@@ -1348,17 +1348,30 @@ and three the account grew by 3,705 resources and the read pass did not
 move by one call.
 
 **The Cloud Control column is flat, and that answers the question this
-claim was expected to lose.** Two of the thirteen types a terralith
-declares have no native list resource in the AWS provider -
-`aws_ecs_cluster` and `aws_iam_instance_profile` - so discovery reaches
-them through Cloud Control's `ListResources`, which offers no server-side
-tag filter on any type at all and therefore enumerates the account. It
-reads **435 calls in all four rows**, and its one `GetResource` refinement
-fires once in all four. The account-wide list does not grow with the
-foreign population: it is one call per admitted type, and the type count
-is a property of the provider's admission table rather than of the
-account. A steady-state `choudoufu plan` with a warm record store reaches
-it zero times.
+claim was expected to lose.** Cloud Control's `ListResources` offers no
+server-side tag filter on any type at all, so every call it makes
+enumerates the account and the estate filter is applied on this side of
+the wire. It reads **435 calls in all four rows**, and its one
+`GetResource` refinement fires once in all four. 435 is one call per
+admitted type the provider offers no native list resource for: an
+account-wide plan of the same fixture, captured with `TF_LOG=debug`, logs
+exactly 435 `listing <type> via Cloud Control` lines. That count is a
+property of the provider's admission table, not of the account, which is
+why 3,705 more resources do not move it.
+
+Two of the thirteen types a terralith declares have no native list
+resource either, and neither of them goes this way. The same capture says
+where they go instead:
+
+```
+stateless/discovery: sweeping aws_ecs_cluster via the Tagging API (AWS::ECS::Cluster), 1 resources
+stateless/discovery: sweeping aws_iam_instance_profile via the Tagging API (AWS::IAM::InstanceProfile), 10 resources
+```
+
+That is the estate-filtered leg - one `GetResources` carrying a
+`tofu-estate` tag filter, answered server-side - so those two types cost
+the account nothing. A steady-state `choudoufu plan` with a warm record
+store reaches Cloud Control zero times at all.
 
 **What does grow is the native leg, and it is not Cloud Control.** The
 plan column climbs 187 to 197 to 687 as the account fills, and every call
