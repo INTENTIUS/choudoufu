@@ -313,6 +313,47 @@ None of that helps a directory running stock. Delete or archive the old state
 file as part of the migration, and treat any surviving stock directory
 pointing at the same estate as the hazard it now is.
 
+## Day two at scale
+
+Everything above answers whether a plan costs less. A different question is
+whether the day-two mechanisms still run at all once an estate is thousands
+of resources rather than dozens: drift detection, rename, remove, a count
+pool edit, replace, the approval gate. This is not a cost claim and makes no
+seconds-based comparison between tools, so it sits outside the page's own
+rule against emulator wall clock ([below](#and-an-emulator-cannot-answer-this-question)).
+What it records is a pass/fail result at scale, plus which stage a large
+run's seconds actually went to.
+
+`live/e2e/terralith-scale/run.sh` ran the eleven active stages -
+`cold_deploy`, `migrate`, `test_plan`, `test_apply`, `greenfield`,
+`drift_reconverge`, `plan_approval`, `day2_rename`, `day2_remove`,
+`day2_count`, `day2_replace` - at scale 10 (745 resources) and scale 50
+(3,705 resources), recorded by hand in
+[`live/e2e/terralith-scale/scale-history.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/terralith-scale/scale-history.json)
+at commit `283d2833b3`, emulator pin `sha256:d9207de1`, 2026-09-09 and
+2026-09-10. All eleven passed at both scales.
+
+| Scale | Resources | Total | `cold_deploy` | `greenfield` | Every other stage, summed |
+|---|---|---|---|---|---|
+| 1 | 79 | 329 s | 122 s | 60 s | 147 s |
+| 10 | 745 | 1,332 s | 647 s | 381 s | 304 s |
+| 50 | 3,705 | 5,656 s | 3,001 s | 1,746 s | 909 s |
+
+`cold_deploy` and `greenfield` together are 4,747 of the 5,656 seconds at
+scale 50, 84%. Of what is left, every day-two stage stays under two
+minutes: `day2_rename` 70 s, `day2_remove` 54 s, `day2_count` 99 s,
+`day2_replace` 60 s, `drift_reconverge` 70 s, `plan_approval` 101 s.
+`migrate`, the one-time stamp pass rather than a day-two stage, takes 410 s
+of the remainder - the section above covers what that pass does and why it
+is serial.
+
+A negative control ran at scale 50 too: `BREAK_APPROVAL=1` expects the
+post-approval apply to wrongly succeed, and choudoufu still refused it, so
+only that wrong expectation failed while `cold_deploy` through
+`plan_approval` passed exactly as the row above. The refusal
+[claim 15]({{< relref "/docs/claims#claim-15-apply-exactly-what-was-approved" >}})
+covers still holds at 3,705 resources.
+
 ## Splitting an estate into several states
 
 Slicing a terralith into several smaller states, rather than planning it as
@@ -339,14 +380,28 @@ at eight states comes from.
 
 Day-2 planning is cheap to slice; adopting or recovering an estate from
 markers alone is not. The estate-wide native sweep does not scale down with a
-slice's type count: **about 512 calls per slice at every scale measured**,
-4096 summed across eight states, `native_sweep_calls` re-measured at
-`5ff7f43f5b` (the same figure [what a plan
-costs]({{< relref "/docs/model/plan-cost#the-native-leg-does-not-move" >}})
-stamps). A slice declaring five types still pays what the whole estate pays,
-because the sweep builds its universe by *subtracting* the types a
-configuration declares from the admission table, not by listing only what
-that slice has.
+slice's type count: sliced at a fixed 79-instance estate it is **512 calls
+per slice regardless of slice count**, 4096 summed across eight states,
+`native_sweep_calls` re-measured at `5ff7f43f5b`. A slice declaring five
+types still pays what the whole estate pays, because the sweep builds its
+universe by *subtracting* the types a configuration declares from the
+admission table, not by listing only what that slice has.
+
+That per-slice figure has not been re-run at a larger estate, and the
+adjacent axis - one slice, larger estate - is no longer flat: 512, 552 and
+612 calls at 79, 301 and 745 instances, re-measured at `56099dcd63` for
+[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032). Up 40 and up
+100 from the 79-instance figure, contradicting what this page said until
+now. [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) has not
+isolated the cause; [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039)
+traces the account-tracking share of it to three types -
+`aws_iam_policy`, `aws_iam_role`, `aws_ecs_service` - whose provider list
+resource carries no filter block, so their cost tracks how many of them
+exist in the account rather than how many types are admitted; at this scale
+that account holds nothing but the estate itself, so a bigger estate means
+more of those objects. [What a plan
+costs]({{< relref "/docs/model/plan-cost#the-native-leg-is-flat-across-slices-but-not-across-scale" >}})
+carries both axes and the re-fit this finding forces.
 
 `09d180f921` took that leg off the steady-state plan path once an estate has
 a record store to narrow by, and left it everywhere else: a plan with no
@@ -361,26 +416,36 @@ expect to adopt piecemeal.
 
 **There is no crossover.** The hypothesis this work was filed under was that
 choudoufu's plan is a high fixed cost plus a low marginal cost, so that past
-some estate size the two curves cross and choudoufu wins outright. The first
-half is right and the second is not. Fitted to the two scales measured on a
-full-sweep plan:
+some estate size the two curves cross and choudoufu wins outright; the
+first half of that is right, the second is not.
 
-```
-stock                = 1.84N + 5      (150 at N=79, 558 at N=301)
-choudoufu, migrated  = 1.99N + 553    (710 at N=79, 1152 at N=301)
-```
+The two-point fit this section used to carry - `stock = 1.84N + 5` against
+`choudoufu, migrated = 1.99N + 553`, built from 710 calls at N=79 and 1152
+at N=301 - is dropped rather than carried forward to the point that now
+exists. Both of its own two numbers have since moved to 696 and 1262 ([what
+a plan
+costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}})'s
+re-measured split table), a third point exists that the fit was never built
+to predict (2332 at N=745), and the leg behind all three is no longer flat
+with itself ([#1037](https://github.com/INTENTIUS/choudoufu/issues/1037)).
+A line drawn through two points that have since moved is not a fit worth
+extending to a third; the current re-fit, with its own honest residual,
+lives on [what a plan
+costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}})
+rather than repeated here.
 
-The fixed cost is real. The marginal cost is about **8% higher** rather than
-lower: a migrated instance is read by the projection and also pays its share
-of the sweep. The *ratio* therefore falls with N - 4.7x at 79 instances, 2.1x
-at 301 - while the absolute *difference* never closes. There is nothing to
-cross.
-
-Two caveats on those two lines, in opposite directions. Two points determine a
-line exactly, so that fit has no residual and is a description of two
-measurements rather than a tested model. And since `09d180f921` it no longer
-describes a steady-state plan at all: it describes a run that sweeps the whole
-admission table, which today means an adoption or a recovery.
+What still holds is visible directly in the current rows, without needing a
+line drawn through them. Stock's full-sweep total is 150, 558 and 1374
+calls at 79, 301 and 745 instances; choudoufu's migrated full-sweep total is
+696, 1262 and 2332 over the same three points. The difference between the
+two grows across the three points - 546, 704 and 958 calls - while the
+ratio between the two falls toward one without reaching it - 4.64x, 2.26x
+and 1.70x across that same span. A falling ratio beside a growing
+difference is the shape the old fit described too, and there is still
+nothing to cross. Since `09d180f921`,
+none of these three rows describes a steady-state plan - each describes a
+run that sweeps the whole admission table, which today means an adoption or
+a recovery.
 
 Nothing in the seconds crosses either. As measured at `5dc10cc781` the
 wall-clock ratio narrowed the same way the call ratio does, roughly 5x at 79
@@ -457,11 +522,19 @@ these figures until it has.
 
 A wall clock measured against the pinned emulator grades the machine the test
 ran on rather than this repository's code, which is why
-`live/plan-budget.json` records one and never gates on it. Every second on
-this page is real AWS for that reason.
+`live/plan-budget.json` records one and never gates on it. Every second in
+this comparison, and everywhere else on this page that measures one tool
+against another, is real AWS for that reason.
 [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
-sets out the rule and the three other questions an emulator-backed measurement
-cannot answer.
+sets out the rule and the three other questions an emulator-backed
+measurement cannot answer.
+
+[Day two at scale](#day-two-at-scale) above is the one exception, named as
+one rather than left as a quiet violation of the rule: it makes no
+cross-tool comparison and draws no ratio a slower laptop could move. It
+answers a pass/fail question (did the eleven stages still run at 3,705
+resources) and a share-of-total question (which stage the seconds went to),
+neither of which needs the machine to be graded against anything.
 
 ### What evaluating this costs in money
 

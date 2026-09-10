@@ -178,8 +178,9 @@ this run's 301- and 745-instance figures are not flat with each other or
 with the 79-instance row. What changed between `5ff7f43f5b` and `56099dcd63`
 that moved it has not been isolated - `git log --oneline
 5ff7f43f5b..56099dcd63 -- internal/live/discovery/` lists 58 commits, wider
-than this measurement's scope to bisect - so this is recorded as a finding
-on #1032 rather than explained here.
+than this measurement's scope to bisect - so this is
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) rather than
+explained here.
 
 The two legs do not add up to the sweep on their own. At `56099dcd63`, the
 rest of it is the configuration scan (60 at 301 instances, 128 at 745,
@@ -189,21 +190,47 @@ post-sweep 84 and 210, at 301 and 745 respectively. Tagging, native,
 configuration scan, boundary and post-sweep sum to the sweep column above
 exactly at all three scales in this run.
 
-Both terms are linear; fitted to the three rows as published,
-`sweep = 545.9 + 0.15315N` and `read pass = 1.8378N + 2.8` cross at **322
-instances**, just past this fixture's scale 4. That fit predates every row
-this page now carries: it was taken before the 79-instance row's re-measure
-moved it by ten calls, and the 301- and 745-instance rows have since moved by
-well over a hundred calls each. Take the fit as the shape of the argument
-rather than a current number. Re-fitting it against the three rows now
-measured - and deciding whether a native leg that no longer reads flat
-changes the shape rather than only the numbers - is
-[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032)'s unit 6, not
-this measurement. Below the crossing a plan is mostly the fixed sweep; above
-it, cost tracks your estate - whether that shape survives is the open
-question above, not something this re-measure answers. This is a crossover
-between choudoufu's *own* two terms on a full-sweep run, not between
-choudoufu and stock - there is no such crossing, as
+The old fit, `sweep = 545.9 + 0.15315N` against `read pass = 1.8378N + 2.8`,
+crossing at 322 instances, is retired rather than carried forward: it was
+taken before any of the three rows above moved, and a line built from
+numbers this page now contradicts is not a fit worth keeping. Re-fitting it,
+and deciding whether a native leg that no longer reads flat changes the
+shape rather than only the numbers, is this paragraph.
+
+Fitted by least squares to the three rows as measured here - sweep 548, 706
+and 960 at 79, 301 and 745 instances - the line is `sweep = 508.5 +
+0.612N`, crossing `read pass = 1.8378N + 2.8` at **413 instances**. Unlike
+every two-point fit elsewhere on this page, this one has a real residual,
+because three points drawn from a curve that is not straight cannot sit on
+one line: the fit predicts 557, 693 and 964 against the measured 548, 706
+and 960, off by +9, -13 and +4. The pairwise slopes between the three rows
+are not equal either - 0.71 per instance from 79 to 301, 0.57 from 301 to
+745 - so the growth is decelerating, not linear, and 413 marks where a
+straight approximation of that curve meets the read pass rather than a
+crossing this page has independently confirmed.
+
+What is driving the growth is named, if not yet isolated.
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) found the native
+leg is no longer flat and has not yet found which of the fifty-eight commits
+between the two measurement runs moved it.
+[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039), filed from this
+same unit's foreign-load side, traces the account-tracking term to three
+types - `aws_iam_policy`, `aws_iam_role`, `aws_ecs_service` - whose provider
+list resource carries no filter block, so their cost tracks how many of them
+exist rather than how many types are admitted. In the table above the
+account holds nothing but the estate under test, so a bigger N means more of
+those objects and a fatter unfiltered list; that is the same mechanism the
+claims page's [foreign-load
+table]({{< relref "/docs/claims#claim-20-scale---the-estate-boundary-holds-when-the-account-is-a-terralith" >}})
+shows from the other side, growing a neighboring estate instead of this one
+- there the analogous column, the plan calls rather than the flat Cloud
+Control list, climbs 187, 197 and 687 for the same reason.
+
+Below 413 a plan is mostly the fixed sweep; above it, cost tracks the estate
+more than the sweep does - but that boundary is provisional until #1037
+explains the mechanism, not a settled property of this re-fit. This is
+still a crossover between choudoufu's *own* two terms on a full-sweep run,
+not between choudoufu and stock - there is no such crossing, as
 [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets out.
 
 ### The read pass is the number stock pays to read the same resources
@@ -261,28 +288,43 @@ turns the whole pass off. The
 [unchanged-is-free claim]({{< relref "/docs/claims#claim-9-unchanged-is-free" >}})
 measures it; default plans are untouched, since the read is drift detection.
 
-### The native leg does not move
+### The native leg is flat across slices but not across scale
 
-`native_sweep_calls` measures **512 in every configuration** the slicing work
-covered: whole estates at all three scales above, both slices of a two-way
-split, and each of eight slices of an eight-way split. It does not grow with
-the estate, and it does not shrink when a configuration declares fewer types.
-(It read **521** in all thirteen when that work was published, and 512 on the
-re-measure at `5ff7f43f5b`; the split table above accounts for the nine calls.
-Flat is the property that matters, and it is still flat. What did change is
-who pays it, which the section above and `09d180f921` cover.)
+Two different axes share this leg, and they no longer behave the same way.
 
-The second half of that runs the wrong way round from most people's intuition,
-so here is the mechanism. `sweepTypes` builds its universe by *removing* the
-types the configuration declares from the admission table, so a slice
-declaring five types has a sweep universe of 1022 to 1026 against the whole
-estate's 1021. A small slice pays slightly more than the whole estate does.
+Sliced at a fixed 79-instance estate, `native_sweep_calls` measures **512 in
+every configuration** the slicing work covered: the whole estate, both
+slices of a two-way split, and each of eight slices of an eight-way split,
+all at that one scale. It does not shrink when a configuration declares
+fewer types, for the mechanism below. (It read **521** in all thirteen when
+that work was published, and 512 on the re-measure at `5ff7f43f5b`; the
+split table above accounts for the nine calls.) That finding stands - the
+slicing measurement has never been re-run at a scale other than 79.
+
+Held at one slice and varied by estate scale, it is not flat. The measured
+split above gives 512, 552 and 612 at 79, 301 and 745 instances - up 40 and
+up 100 from the 79-instance row. This section used to call the leg flat
+without that qualifier; it does not any more, and
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) is open on why,
+with [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) naming the
+likely mechanism: three types with no server-side filter on their list
+resource, whose cost tracks how many of them exist rather than how many
+types are admitted.
+
+The mechanism behind the flat-across-slices half runs the wrong way round
+from most people's intuition, so here it is. `sweepTypes` builds its
+universe by *removing* the types the configuration declares from the
+admission table, so a slice declaring five types has a sweep universe of
+1022 to 1026 against the whole estate's 1021. A small slice pays slightly
+more than the whole estate does, at whatever the estate's own scale is.
 
 The consequence for an already-sliced estate is where the sweep actually
 hurts: because it does not shrink per slice, its cost multiplies with slice
 count even though a steady-state plan's does not - the same 512-calls-per-
-slice figure `5ff7f43f5b` measured above, times the number of slices, 4096
-summed at eight, on any run that sweeps in full.
+slice figure `5ff7f43f5b` measured at 79 instances, times the number of
+slices, 4096 summed at eight, on any run that sweeps in full. Whether that
+multiplier itself grows with estate scale has not been measured; only the
+unsliced case has, above.
 [What you pay]({{< relref "/docs/what-you-pay#splitting-an-estate-into-several-states" >}})
 has the steady-state ratio table (1.05x/1.07x/1.21x at k=1/2/8) and the
 choice this leaves an adopter with.
@@ -557,10 +599,14 @@ passes through once.
   reads 1, 2 and 4 rather than 1 everywhere. `cloudcontrol.Client.GetResources`
   sets no `ResourcesPerPage`, so the real page size is the Resource Groups
   Tagging API's own default and no emulator-backed run can report it.
-- **One fixture, one composition** - the 512-call native leg is a property of
+- **One fixture, one composition** - the native leg is mostly a property of
   the admission table and the ARN join table rather than of the estate, but
-  that is an argument; only this estate was measured, and it declares thirteen
-  types.
+  not entirely: [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037)
+  measured it growing with estate scale (512, 552, 612 at 79, 301 and 745
+  instances) and [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039)
+  traces part of that growth to three types whose list calls track
+  population rather than type count. Only this estate was measured, and it
+  declares thirteen types.
 - **AWS only** - nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
