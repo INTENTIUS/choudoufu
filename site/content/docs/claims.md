@@ -20,11 +20,11 @@ and passes only by catching it. A test that cannot
 fail proves nothing, so every claim ships with its failure demonstrated.
 Claim 15 inverts the control rather than dropping it: its risk is a
 refusal that fires unconditionally, so its `BREAK=1` run removes the
-fault and requires the run to succeed. Claim 20 is the one claim on this
-page with no scenario and no `BREAK=1` control: it cites measurements
-already published elsewhere in this repository rather than proving
-itself fresh, and it says so rather than reading like the other
-nineteen.
+fault and requires the run to succeed. Claim 20's scenario runs at a scale
+a reader picks: its default takes about five minutes, and the same
+scenario with one environment variable changed is what produced the
+3,705-resource row it reports. The throttling half of claim 20 is still
+cited rather than run, because the emulator does not throttle.
 
 | Claim | Scenario | ~time |
 |---|---|---|
@@ -47,7 +47,7 @@ nineteen.
 | A record-only composite identity survives cache loss without a duplicate create | `just smoke record-only-survives-cache-loss` | 2 min |
 | A replaced object's shadow is not a second claimant | `just smoke a-shadow-is-not-a-claimant` | 3 min |
 | The boundary holds across accounts | `just smoke the-boundary-holds-across-accounts` | 2 min |
-| Scale, cited rather than re-run | *(no scenario - evidence-cited, see claim 20)* | — |
+| Scale: the estate boundary holds when the account is a terralith | `just smoke plan-cost-under-foreign-load` (needs Go) | 5 min |
 
 ## Claim 1: owned resources cannot fall out of plans unnoticed
 
