@@ -238,3 +238,113 @@ livecert_sweep() {
     livecert_aws ec2 delete-vpc --vpc-id "$vpc" >/dev/null 2>&1 || true
   done
 }
+
+# ── the maintainer-run-guard ───────────────────────────────────────────────
+#
+# livecert_require_maintainer_allow refuses a heavy/paid run unless the
+# maintainer has enabled it by hand. LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY
+# (the case block above, in every caller) is NOT that guard: an agent can set
+# its own environment variable, and did, three times, the night of
+# 2026-09-11 - three real-AWS certification cycles and two corpus runs went
+# out overnight on an inferred authorization. See CLAUDE.md's
+# maintainer-run-guard rule for the incident and why agents are forbidden
+# from creating the file this function reads.
+#
+# The file lives OUTSIDE the repository
+# (~/.config/choudoufu/allow-heavy-runs) so no clone, checkout, or generated
+# tree can ever carry it by accident, and its single line - "until
+# <RFC3339 or YYYY-MM-DDTHH:MM>", local time - is an instant, not a
+# boolean, so a forgotten enable expires on its own. `just
+# allow-heavy-runs 2h` prints the exact command to write it; nothing in
+# this repository ever runs that command itself.
+#
+# This is the shell half of one rule expressed twice - tools/gauntlet's
+# CheckMaintainerAllow (maintainerguard.go) is the Go half, read by `gauntlet
+# run` and `gauntlet live-cert`. Both refuse with the same message shape:
+# the allow file's path, why it did not pass, and the `just
+# allow-heavy-runs` recipe.
+#
+# Skipped entirely in CI (GITHUB_ACTIONS=true): a scheduled or dispatched
+# workflow run IS the maintainer's decision, made once when the workflow was
+# authored, not something re-derived from a file in $HOME that would not
+# even exist on the runner. Prints its refusal on stderr and exits 1;
+# callers are bash scripts under `set -e`-adjacent discipline that already
+# treat the sibling LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY check the
+# same way, so this sits beside it rather than returning a value the caller
+# has to remember to check.
+livecert_require_maintainer_allow() {
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    return 0
+  fi
+  local allow_file="${HOME}/.config/choudoufu/allow-heavy-runs"
+  local reason=""
+  if [ ! -f "$allow_file" ]; then
+    reason="the allow file does not exist"
+  else
+    local line rest until_epoch now_epoch
+    line="$(head -n1 "$allow_file")"
+    case "$line" in
+      "until "*) rest="${line#until }" ;;
+      *) rest="" ;;
+    esac
+    rest="$(printf '%s' "$rest" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [ -z "$rest" ]; then
+      reason="its first line is not \"until <timestamp>\" (got: \"$line\")"
+    else
+      until_epoch="$(livecert_parse_local_timestamp "$rest")" || until_epoch=""
+      if [ -z "$until_epoch" ]; then
+        reason="its timestamp \"$rest\" could not be parsed as RFC3339 or YYYY-MM-DDTHH:MM"
+      else
+        now_epoch="$(date +%s)"
+        if [ "$now_epoch" -ge "$until_epoch" ]; then
+          reason="it expired at $rest"
+        fi
+      fi
+    fi
+  fi
+  if [ -n "$reason" ]; then
+    echo "refusing: $allow_file - $reason; run \`just allow-heavy-runs 2h\` for the exact command to paste - nothing has been started" >&2
+    exit 2
+  fi
+}
+
+# livecert_parse_local_timestamp converts an "until" value - a bare local
+# YYYY-MM-DDTHH:MM[:SS], or a full RFC3339 instant with a zone offset or a
+# trailing Z - to epoch seconds on stdout, trying GNU date's -d first
+# (Linux) and falling back to BSD date's -j/-f (macOS, this repo's own
+# development machine): the two platforms this guard actually has to run on
+# (CI sets GITHUB_ACTIONS=true and never reaches this function at all - see
+# the check at the top of livecert_require_maintainer_allow above). Prints
+# nothing and returns nonzero on a value neither can parse.
+livecert_parse_local_timestamp() {
+  local ts="$1" norm epoch
+  # GNU date -d accepts both forms directly. On BSD date this option means
+  # something else entirely (or errors outright), so a bogus result here is
+  # exactly as likely as a real one; -u keeps a Z-suffixed value's own
+  # embedded offset from being reinterpreted through whatever TZ the shell
+  # happens to have, without affecting a bare local value tried below.
+  epoch="$(TZ="${TZ:-}" date -d "$ts" +%s 2>/dev/null)" && { printf '%s\n' "$epoch"; return 0; }
+  # BSD date -j -f needs an exact format with no offset punctuation of its
+  # own; normalize "Z" to "+0000" and strip a colon from a "+07:00"-style
+  # offset before trying each fixed layout in turn. A bare
+  # YYYY-MM-DDTHH:MM with no seconds field gets ":00" appended before
+  # parsing, never parsed via the seconds-less "%Y-%m-%dT%H:%M" layout
+  # directly - BSD's strptime leaves a format's omitted fields (seconds,
+  # here) filled from the CURRENT wall-clock time rather than zeroed, so
+  # parsing "2026-09-12T08:00" without this fixup silently produced a
+  # result off by however many seconds past the minute this function
+  # happened to run at (caught testing this guard by hand: two calls a
+  # second apart returned epochs 7 seconds apart for the identical input).
+  case "$ts" in
+    *Z) norm="${ts%Z}+0000" ;;
+    *) norm="$ts" ;;
+  esac
+  norm="$(printf '%s' "$norm" | sed -E 's/([+-][0-9]{2}):([0-9]{2})$/\1\2/')"
+  case "$norm" in
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]) norm="${norm}:00" ;;
+  esac
+  for fmt in "%Y-%m-%dT%H:%M:%S%z" "%Y-%m-%dT%H:%M:%S"; do
+    epoch="$(date -j -f "$fmt" "$norm" +%s 2>/dev/null)" && { printf '%s\n' "$epoch"; return 0; }
+  done
+  return 1
+}

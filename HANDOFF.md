@@ -313,6 +313,32 @@ Rules are tests. The ones that hold this document to the tree:
   or in a personal, uncommitted local settings file's `env` block, before
   editing.
 
+### Heavy runs are the maintainer's, by hand
+
+`tools/gauntlet run` (locally, outside CI) and `tools/gauntlet live-cert`
+refuse before starting any container or making any cloud call unless
+`~/.config/choudoufu/allow-heavy-runs` exists and its one line reads
+`until <RFC3339 or YYYY-MM-DDTHH:MM>` (local time) still in the future;
+`live/live-cert/terralith-scale.sh` and `reference-ec2-vpc.sh` enforce the
+identical rule for themselves via `livecert_require_maintainer_allow`
+(`live/live-cert/lib/live-cert.sh`) when run directly with `TARGET=aws`, so
+there is no path around the Go runner either. The file lives outside the
+repository on purpose: nothing here creates it, checking out a branch or
+worktree never carries it along, and it expires on its own rather than
+staying enabled forever. `just allow-heavy-runs 2h` (or `90m`, `1d`, ...)
+computes the instant and prints the exact command —
+
+```
+mkdir -p ~/.config/choudoufu && echo 'until <instant>' > ~/.config/choudoufu/allow-heavy-runs
+```
+
+— for the maintainer to paste by hand; the recipe never runs it itself. CI
+is unaffected: a workflow run has `GITHUB_ACTIONS=true` set for it already,
+which both the Go and shell guards treat as the maintainer's decision
+already made when the workflow was scheduled or dispatched. See CLAUDE.md's
+"Heavy and paid runs are the maintainer's, by hand" for the rule agents
+follow, and the 2026-09-11 incident that made it a rule.
+
 ## Retired
 
 The old stock-comparison score and its three labels, the decision matrix and its `RULE` row,

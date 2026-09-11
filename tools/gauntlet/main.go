@@ -235,6 +235,14 @@ func cmdRender(root string) error {
 }
 
 func cmdRun(root string, args []string) error {
+	// The maintainer-run-guard (issue: 2026-09-11 incident, see CLAUDE.md):
+	// a local `run` (CI unset, GITHUB_ACTIONS unset) is a heavy run - real
+	// containers, real wall-clock minutes - that only the maintainer's own
+	// hand should start. Checked before flag parsing even finishes reading
+	// estate names, so a malformed invocation never races the refusal.
+	if err := CheckMaintainerAllow(); err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
 	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, one estate at a time. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner")

@@ -71,3 +71,18 @@ permanently green in CI on a shallow checkout.
 The same rule applies to evidence: read verdict lines, never exit codes. A
 printed summary is not proof a run measured anything. A check that fails
 once and passes on re-run is a finding, not a flake.
+
+## Heavy and paid runs are the maintainer's, by hand
+
+`tools/gauntlet run` (outside CI), `tools/gauntlet live-cert`, and the
+`live/live-cert/*.sh` scripts run directly all refuse to start until
+`~/.config/choudoufu/allow-heavy-runs` names a still-future instant, and no
+agent may create, edit, or otherwise bring that file into existence, under
+any justification, including setting `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY`
+and treating that as authorization. **Three real-AWS certification cycles
+and two corpus runs went out overnight on 2026-09-11 on exactly that
+inferred authorization** — the incident this rule exists to prevent from
+happening again. `just allow-heavy-runs <duration>` only prints the
+command that writes the file; the maintainer pastes it by hand when they
+decide to, and an agent that runs that printed command itself has broken
+this rule exactly the same way as writing the file directly.

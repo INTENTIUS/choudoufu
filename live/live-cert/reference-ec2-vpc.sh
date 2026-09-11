@@ -91,6 +91,11 @@ case "$TARGET" in
   floci) ENDPOINT="http://127.0.0.1:${FLOCI_PORT}" ;;
   aws)
     ENDPOINT=""
+    # The maintainer-run-guard (CLAUDE.md, 2026-09-11 incident): checked
+    # before the env-var key below, and independent of it - see
+    # livecert_require_maintainer_allow's own doc comment in
+    # lib/live-cert.sh for why the env var alone is not a guard.
+    livecert_require_maintainer_allow
     if [ "${LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY:-}" != "yes" ]; then
       echo "refusing: TARGET=aws needs LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes - nothing has been created" >&2
       exit 2
