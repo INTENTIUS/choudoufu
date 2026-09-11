@@ -65,6 +65,21 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-09-11 repin (issue #1045, lex00/floci PR #202 - closes lex00/floci#201):
+// floci was answering GetResources/GetTagKeys/GetTagValues for IAM, which
+// real AWS never does (probed directly, recorded on issue #692); a
+// narrowing built on GetResources for IAM would have passed against this
+// pin while silently dropping owned IAM objects on real AWS.
+// TagResources/UntagResources still accept IAM ARNs, as AWS does. #202 also
+// paginates ListRoles/ListPolicies/ListPolicyVersions/ListAttachedRolePolicies
+// with MaxItems/Marker, default and cap 100. gauntlet.json's own top-level
+// "emulator" field now names the pre-#1045 pin: the corpus re-measure this
+// repin would otherwise call for is a full `gauntlet.yml` dispatch, which
+// per HANDOFF.md's "Heavy runs, dispatched by hand" section runs only in CI,
+// gated on the maintainer's own approval click
+// (`gh workflow run gauntlet.yml -R INTENTIUS/choudoufu --ref <branch> -f
+// set=all`) - not this unit's to run. See gauntlet.json's own entry below.
+//
 // 2026-09-10 repin (issue #673, lex00/floci#188 - the listener's monitor for
 // the ELBv2 CreateRule priority check): the third repin in a row with the same
 // scope. Concurrent CreateRule calls on one listener tore the per-listener rule
@@ -110,6 +125,12 @@ var staleFlociMeasurements = map[string]string{
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
 	"cohort-triage.json": "reconciled by hand against cohort-acceptance.json (see this file's own generated_by field); re-measuring depends on that artifact's own re-measurement, which is the entry above",
+	// gauntlet.json's per-estate rows carry their own last_run.commit/pin
+	// provenance; only the top-level "emulator" field this guard reads is
+	// stale. Re-measuring is the full corpus, a multi-hour run gated behind
+	// a maintainer-approved gauntlet.yml dispatch (HANDOFF.md, "Heavy runs,
+	// dispatched by hand"), never a worker's or agent's to start.
+	"gauntlet.json": "measured against the pre-#1045 pin (lex00/floci PR #202 - stops floci serving IAM through GetResources/GetTagKeys/GetTagValues); re-measuring is the full corpus, dispatched by hand via `gh workflow run gauntlet.yml -R INTENTIUS/choudoufu --ref <branch> -f set=all` and gated on the maintainer's own approval click in the `corpus` environment, not run as part of this repin",
 }
 
 // flociPinRef is live/floci-image's full ref.

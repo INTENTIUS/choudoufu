@@ -98,15 +98,26 @@ func TestFlociTypeCapability(t *testing.T) {
 	// row says changed with the pin: sha256:a1c729f4 unioned the
 	// resourcegroupstaggingapi index with a live read of every service's
 	// stores, so the same seven recipes that all came back empty against
-	// sha256:1362e856 now all turn up in the sweep. The row is still here,
-	// still mechanism-scoped, and now records implemented - which is what
-	// makes flocitest.TaggingSweepCapabilityGate a no-op rather than a skip.
+	// sha256:1362e856 now all turn up in the sweep - implemented, from
+	// that pin through sha256:9ec3fa64.
+	//
+	// Issue #1045 (lex00/floci PR #202, closes lex00/floci#201): the
+	// pinned image was answering GetResources/GetTagKeys/GetTagValues for
+	// IAM, which real AWS never does (probed directly, recorded on issue
+	// #692) - a divergence that let a narrowing built on GetResources for
+	// IAM pass here while silently dropping owned IAM objects on real
+	// AWS. #202 stops floci serving IAM through those three tagging calls
+	// (TagResources/UntagResources still accept IAM ARNs, as AWS does),
+	// so the tagging sweep across this pin's seven recipes is back to 6/7:
+	// aws_iam_role's tagging-sweep row now reads unimplemented, matching
+	// real AWS and every pre-sha256:a1c729f4 digest, which is what makes
+	// flocitest.TaggingSweepCapabilityGate skip rather than no-op again.
 	if _, ok := FlociTypeCapability(pinnedDigest, "aws_iam_role", ""); ok {
 		t.Error("expected no ordinary-path manifest entry for aws_iam_role (it works fine there); got one")
 	}
 	sweep, ok := FlociTypeCapability(pinnedDigest, "aws_iam_role", "tagging-sweep")
-	if !ok || sweep.Status != FlociImplemented {
-		t.Errorf("aws_iam_role tagging-sweep = %+v, ok=%v, want status %q", sweep, ok, FlociImplemented)
+	if !ok || sweep.Status != FlociUnimplemented {
+		t.Errorf("aws_iam_role tagging-sweep = %+v, ok=%v, want status %q", sweep, ok, FlociUnimplemented)
 	}
 
 	if _, ok := FlociTypeCapability(pinnedDigest, "aws_no_such_type", ""); ok {
