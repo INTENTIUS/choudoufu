@@ -18,10 +18,29 @@
 # SMOKE_ENDPOINT tells it an emulator is already up, so it starts no
 # container of its own - there is no docker inside a job container, and a
 # service container is the shape a forge offers anyway.
+#
+# `target: real-aws` (issue #807, "what stays open" item 1) runs the same
+# script with no emulator and no endpoint override, against whatever
+# short-lived credentials aws-actions/configure-aws-credentials mints for
+# vars.CHOUDOUFU_APPLY_ROLE_ARN in vars.AWS_REGION - both repository
+# variables the maintainer sets up once, per examples/ci-pipelines/README.md's
+# "Setting up OIDC for this smoke" and examples/ci-pipelines/scripts/oidc-bootstrap.sh.
+# It is its own job rather than a conditional step on `smoke`, because a
+# `services:` container cannot itself be made conditional. The `smoke` job
+# below is otherwise untouched: its only new line is the `if:` that skips it
+# for `target: real-aws`.
 name: ci-pipelines-smoke
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "emulator (floci, default) or real-aws (OIDC-minted credentials against a real account)"
+        type: choice
+        options:
+          - emulator
+          - real-aws
+        default: emulator
 
 permissions:
   contents: read
@@ -32,6 +51,7 @@ concurrency:
 
 jobs:
   smoke:
+    if: github.event.inputs.target != 'real-aws'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -106,4 +126,62 @@ jobs:
       - name: run the five Ops
         env:
           CHOUDOUFU_BIN: /usr/local/bin/choudoufu
+        run: bash examples/ci-pipelines/scripts/smoke.sh
+
+  # target: real-aws. No floci, no endpoint override, no static credential:
+  # aws-actions/configure-aws-credentials mints a short-lived credential by
+  # assuming the apply role - the widest of the three the README names,
+  # since this smoke runs live-apply - and the script (SMOKE_TARGET=real-aws)
+  # skips the emulator entirely so choudoufu talks to the real account.
+  smoke-real-aws:
+    if: github.event.inputs.target == 'real-aws'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: node:22
+
+    defaults:
+      run:
+        shell: bash
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: '${{ vars.AWS_REGION }}'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: '${{ vars.CHOUDOUFU_APPLY_ROLE_ARN }}'
+          aws-region: '${{ vars.AWS_REGION }}'
+
+      # Identical to the "install choudoufu" step in the smoke job above -
+      # kept as a separate copy because the two jobs do not share steps, and
+      # the pin is read from generate.ts either way, so the two cannot drift
+      # from each other independently of drifting from that file.
+      - name: install choudoufu, the pinned release the generated jobs install
+        working-directory: examples/ci-pipelines
+        run: |
+          set -euo pipefail
+          ver="$(sed -n 's/^const CHOUDOUFU_VERSION = "\(.*\)";$/\1/p' generate.ts)"
+          sha="$(sed -n 's/^const CHOUDOUFU_SHA256 = "\(.*\)";$/\1/p' generate.ts)"
+          if [ -z "$ver" ] || [ -z "$sha" ]; then
+            echo "SMOKE op=choudoufu-pin verdict=fail reason=unreadable-generate.ts"
+            exit 1
+          fi
+          echo "SMOKE op=choudoufu-pin verdict=pass version=$ver"
+          asset="choudoufu_${ver}_linux_amd64.tar.gz"
+          curl -fsSL -o "/tmp/${asset}" \
+            "https://github.com/INTENTIUS/choudoufu/releases/download/${ver}/${asset}" &&
+            echo "${sha}  /tmp/${asset}" | sha256sum -c - &&
+            tar -xzf "/tmp/${asset}" -C /usr/local/bin choudoufu &&
+            choudoufu version
+
+      - name: run the five Ops against real AWS
+        env:
+          CHOUDOUFU_BIN: /usr/local/bin/choudoufu
+          SMOKE_TARGET: real-aws
         run: bash examples/ci-pipelines/scripts/smoke.sh
