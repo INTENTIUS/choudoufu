@@ -43,16 +43,14 @@ import (
 
 // mergeArtifactAllowedPath reports whether p is allowed to differ between
 // base and a side without forcing a re-run: the artifact itself, its Hugo
-// copy, the rendered progress docs, or an estate's own crossing script. Any
+// copy, the board data the site's progress pages read (#1055), or an
+// estate's own crossing script. Any
 // OTHER file differing means product code moved under a row's measurement -
 // the precondition every other check in this file assumes holds.
 var mergeArtifactEstateScript = regexp.MustCompile(`^live/e2e/[^/]+/run\.sh$`)
 
 func mergeArtifactAllowedPath(p string) bool {
-	if p == ArtifactPath || p == SiteDataPath {
-		return true
-	}
-	if strings.HasPrefix(p, "site/content/docs/progress/") {
+	if p == ArtifactPath || p == SiteDataPath || p == SiteBoardPath {
 		return true
 	}
 	return mergeArtifactEstateScript.MatchString(p)

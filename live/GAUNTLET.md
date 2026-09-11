@@ -13,7 +13,8 @@ Migration from a stock state file is lossless and a greenfield apply is
 equivalent. Everything below is that sentence made checkable.
 
 This page defines the gauntlet; it does not walk you through running it.
-The two procedures are rendered from this same tool as their own pages:
+The two procedures are their own pages on the site, hand-written and
+reading the lanes and the example entry from `site/data/gauntlet_board.json`:
 adding an estate is `site/content/docs/progress/add-an-estate.md`, and
 contributing compute is `site/content/docs/progress/contribute.md`.
 
@@ -381,7 +382,7 @@ re-run is mandatory instead, when:
   `last_run.date`.
 - **Product code moved between a row's measurement and the merge.**
   The merge is only valid when nothing outside live/gauntlet.json,
-  `site/data/gauntlet.json`, `site/content/docs/progress/**`, and an estate's own
+  `site/data/gauntlet.json`, `site/data/gauntlet_board.json`, and an estate's own
   `live/e2e/<name>/run.sh` differs between base and either side. PRs
   #502 and #503 both genuinely needed a re-run for exactly this reason -
   `tools/gauntlet/run.go`'s recording path changed underneath them - and

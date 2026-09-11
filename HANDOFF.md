@@ -209,7 +209,7 @@ a regression; the estate usually got better and the script did not.
    the wrong fix; find the property and derive the rule, then say how many
    other types it reached.
 4. `go run ./tools/gauntlet render`; commit the script, the artifact and the
-   rendered docs together. `just ci` must be green.
+   site's board data (`site/data/gauntlet_board.json`) together. `just ci` must be green.
 5. When a planned stage is implemented for enough estates to be honest, flip
    its status to active in `tools/gauntlet/stages.go`. The bars drop; that is
    the point. **A headline flip is half a unit.** A PR that flips a stage's

@@ -8,7 +8,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -175,13 +174,14 @@ func TestRunLiveCertSendsSIGTERMOnCeiling(t *testing.T) {
 	}
 }
 
-// TestRenderLiveCertSectionIsSeparate: the rendered progress page carries a
-// distinct, clearly-labeled section for live-cert evidence, and adding it
-// leaves the emulator-estate table (and everything feeding {{< gauntlet-bars >}})
-// textually unaffected - a live-aws row must never be conflated with
-// emulator rows "anywhere they both appear ... including the rendered
-// progress page" (#440's own wording).
-func TestRenderLiveCertSectionIsSeparate(t *testing.T) {
+// TestBoardLiveCertIsSeparate: the board carries live-cert evidence in its
+// own field, and adding it leaves every other field (the estate rows, the
+// stage table, the banners - everything feeding {{< gauntlet-bars >}} and
+// the estate table) unaffected - a live-aws row must never be conflated
+// with emulator rows "anywhere they both appear ... including the rendered
+// progress page" (#440's own wording). The site's prose beside the table
+// says in words that these rows never count toward the bars.
+func TestBoardLiveCertIsSeparate(t *testing.T) {
 	root := testRoot(t)
 	m, err := LoadManifest(root)
 	if err != nil {
@@ -189,9 +189,9 @@ func TestRenderLiveCertSectionIsSeparate(t *testing.T) {
 	}
 	without := &Artifact{}
 	without.Rebuild(m, nil, "sha256:test", OracleVersions{})
-	withoutPage := renderProgressIndex(without)
-	if strings.Contains(withoutPage, "Live-AWS certification") {
-		t.Fatal("renderLiveCertSection must render nothing when a.LiveCert is empty")
+	withoutBoard := buildBoard(m, without)
+	if len(withoutBoard.LiveCert) != 0 {
+		t.Fatal("buildBoard must carry no live-cert rows when a.LiveCert is empty")
 	}
 
 	with := &Artifact{LiveCert: []LiveCertResult{{
@@ -200,29 +200,18 @@ func TestRenderLiveCertSectionIsSeparate(t *testing.T) {
 		Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictPass, "test_apply": VerdictPass},
 	}}}
 	with.Rebuild(m, nil, "sha256:test", OracleVersions{})
-	withPage := renderProgressIndex(with)
+	withBoard := buildBoard(m, with)
 
-	if !strings.Contains(withPage, "## Live-AWS certification") {
-		t.Fatal("expected a distinct '## Live-AWS certification' section when a.LiveCert is non-empty")
-	}
-	if !strings.Contains(withPage, "never counted toward either of") {
-		t.Fatal("the live-cert section must say in words that it does not count toward the two headline bars")
-	}
-	if !strings.Contains(withPage, "reference-ec2-vpc | aws | us-east-1") {
-		t.Fatalf("live-cert row not rendered as expected; page:\n%s", withPage)
+	if len(withBoard.LiveCert) != 1 || withBoard.LiveCert[0].Estate != "reference-ec2-vpc" || withBoard.LiveCert[0].Region != "us-east-1" {
+		t.Fatalf("live-cert row not carried as expected: %+v", withBoard.LiveCert)
 	}
 
-	// Every OTHER line of the page (the estate table, the bars shortcode,
-	// the stage table, the run-time section) must be byte-identical with
-	// and without the live-cert section - the addition must be purely
-	// additive, never editing existing rendered evidence.
-	beforeSection := strings.Index(withPage, "## Live-AWS certification")
-	afterSection := strings.Index(withPage, "To add an estate")
-	if beforeSection < 0 || afterSection < 0 || afterSection < beforeSection {
-		t.Fatalf("could not locate the live-cert section bounds in the rendered page")
-	}
-	stripped := withPage[:beforeSection] + withPage[afterSection:]
-	if stripped != withoutPage {
-		t.Fatal("rendering a.LiveCert changed content OUTSIDE its own section - the separation is not purely additive")
+	// Every OTHER field must be identical with and without live cert - the
+	// addition must be purely additive, never editing existing evidence.
+	withBoard.LiveCert = withoutBoard.LiveCert
+	a, _ := withBoard.Canonical()
+	b, _ := withoutBoard.Canonical()
+	if string(a) != string(b) {
+		t.Fatal("a.LiveCert changed board content OUTSIDE its own field - the separation is not purely additive")
 	}
 }

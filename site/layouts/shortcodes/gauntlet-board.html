@@ -1,0 +1,84 @@
+{{- /*
+  Renders one section of site/data/gauntlet_board.json, the board
+  `go run ./tools/gauntlet render` writes (#1055). The generator emits data;
+  this shortcode is where it becomes a table, so the site's layout is the
+  only thing that decides how a measurement looks.
+
+    {{< gauntlet-board "banner" >}}      the board-wide emulator/date sentence
+    {{< gauntlet-board "stages" >}}      the stage table
+    {{< gauntlet-board "estates" >}}     every estate's verdict row
+    {{< gauntlet-board "runtime" >}}     the run-time banner and table
+    {{< gauntlet-board "livecert" >}}    the live-AWS certification table (empty when none)
+    {{< gauntlet-board "stage-count" >}} how many stages the registry has
+    {{< gauntlet-board "lanes" >}}       the manifest's lanes, comma separated
+    {{< gauntlet-board "example" >}}     one manifest entry, as a JSON block
+
+  Missing data prints one line and nothing else - a missing artifact must
+  never look like a silent zero.
+*/ -}}
+{{- $section := .Get 0 -}}
+{{- $b := hugo.Data.gauntlet_board -}}
+{{- if not $b -}}
+<p class="gauntlet-missing">No gauntlet board data yet; run <code>go run ./tools/gauntlet render</code>.</p>
+{{- else if eq $section "banner" -}}
+{{ $b.banner | markdownify }}
+{{- else if eq $section "stage-count" -}}
+{{- $b.stage_count -}}
+{{- else if eq $section "lanes" -}}
+{{- delimit $b.lanes ", " -}}
+{{- else if eq $section "example" -}}
+<pre><code class="language-json">{{ $b.example_entry }}</code></pre>
+{{- else if eq $section "stages" -}}
+<div class="table-wrap">
+<table class="board-stages">
+<thead><tr><th></th><th>Stage</th><th>Status</th><th>Headline</th><th>What a pass proves</th></tr></thead>
+<tbody>
+{{- range $b.stages }}
+<tr><td>{{ .order }}</td><td>{{ .title }}</td><td>{{ .status }}</td><td>{{ .headline_cell }}</td><td>{{ .proves_first | markdownify }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- else if eq $section "estates" -}}
+<div class="table-wrap">
+<table class="board-estates">
+<thead><tr><th>Estate</th><th>Set</th><th>Lane</th><th>Clear</th><th>Stages</th></tr></thead>
+<tbody>
+{{- range $b.estates }}
+{{- $p := site.GetPage (printf "/docs/progress/%s" .name) }}
+<tr><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ $.Page.Scratch.Set "n" .Title }}{{ .Title }}</a>{{ else }}{{ .name }}{{ end }}</td><td>{{ .set }}</td><td>{{ .lane }}</td><td>{{ if .clear }}yes{{ else }}no{{ end }}</td><td class="cells">{{ range .cells }}<span class="cell cell-{{ replace . " " "-" | lower }}">{{ . }}</span> {{ end }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- else if eq $section "runtime" -}}
+{{ $b.runtime_banner | markdownify }}
+<div class="table-wrap">
+<table class="board-runtime">
+<thead><tr><th>Estate</th><th>Total</th><th>Per-stage (active stages, seconds recorded this run)</th></tr></thead>
+<tbody>
+{{- range $b.estates }}
+{{- $p := site.GetPage (printf "/docs/progress/%s" .name) }}
+<tr><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ else }}{{ .name }}{{ end }}</td><td>{{ .runtime_total }}</td><td>{{ .runtime_cells }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- else if eq $section "livecert" -}}
+{{- with $b.live_cert -}}
+<div class="table-wrap">
+<table class="board-livecert">
+<thead><tr><th>Estate</th><th>Target</th><th>Region</th><th>Clear</th><th>Date</th><th>Ceiling</th></tr></thead>
+<tbody>
+{{- range . }}
+<tr><td>{{ .estate }}</td><td>{{ .target }}</td><td>{{ .region }}</td><td>{{ if .clear }}yes{{ else }}no{{ end }}</td><td>{{ .date }}</td><td>${{ printf "%.2f" .ceiling_usd }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- else -}}
+<p class="gauntlet-missing">No live-AWS certification run is recorded yet.</p>
+{{- end -}}
+{{- else -}}
+{{- errorf "gauntlet-board: unknown section %q" $section -}}
+{{- end -}}

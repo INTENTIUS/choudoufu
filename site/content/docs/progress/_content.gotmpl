@@ -1,0 +1,52 @@
+{{- /*
+  Content adapter (#1055): one page per estate in the gauntlet, built from
+  site/data/gauntlet_board.json - the board `go run ./tools/gauntlet render`
+  writes. The generator never writes a page; this file turns its rows into
+  pages, so the site's layout and the measured artifact cannot drift into
+  each other. A page is markdown so any theme's single-page layout renders
+  it.
+
+  Each estate page keeps the URL the rendered pages had
+  (/docs/progress/<name>/), so nothing linking to one moves.
+*/ -}}
+{{- $board := hugo.Data.gauntlet_board -}}
+{{- if not $board -}}
+  {{- errorf "site/data/gauntlet_board.json is missing; run `go run ./tools/gauntlet render`" -}}
+{{- end -}}
+{{- range $board.estates -}}
+  {{- $e := . -}}
+  {{- $md := slice -}}
+  {{- $md = $md | append $e.source "" -}}
+  {{- with $e.url -}}
+    {{- $md = $md | append (printf "Source: <%s> at `%s`." . $e.pin) "" -}}
+  {{- end -}}
+  {{- $md = $md | append (printf "Set: %s. Lane: %s." $e.set $e.lane) -}}
+  {{- with $e.reason -}}
+    {{- $md = $md | append "" (printf "Why it is in the core set: %s" .) -}}
+  {{- end -}}
+  {{- $md = $md | append "" -}}
+  {{- if $e.clear -}}
+    {{- $md = $md | append "**Clear.** Every headline stage passes." -}}
+  {{- else -}}
+    {{- $md = $md | append "**Not clear yet.**" -}}
+  {{- end -}}
+  {{- $md = $md | append "" "| Stage | Verdict | Duration | Detail |" "|---|---|---|---|" -}}
+  {{- range $e.stage_rows -}}
+    {{- $md = $md | append (printf "| %s | %s | %s | %s |" .title .verdict (default "" .duration) (replace (default "" .detail) "|" "\\|")) -}}
+  {{- end -}}
+  {{- $md = $md | append "" -}}
+  {{- with $e.last_run_note -}}{{- $md = $md | append . -}}{{- end -}}
+  {{- with $e.legacy_note -}}{{- $md = $md | append . -}}{{- end -}}
+  {{- with $e.oracle_note -}}{{- $md = $md | append . -}}{{- end -}}
+  {{- with $e.notes -}}{{- $md = $md | append "" . -}}{{- end -}}
+  {{- $md = $md | append "" "## Reproduce it" "" "```" (printf "go run ./tools/gauntlet run %s" $e.name) "```" "" -}}
+  {{- $md = $md | append "Needs Docker (the emulator is pulled at the pinned digest), the AWS CLI, and a" "stock `terraform` or `tofu` binary on PATH for the cold deploy. The script is" (printf "`%s`; `BREAK=1` corrupts its assertions to show they are load-bearing." $e.script) -}}
+  {{- $page := dict
+      "path" $e.name
+      "title" $e.name
+      "kind" "page"
+      "params" (dict "estate" $e.name "clear" $e.clear "set" $e.set "lane" $e.lane "weight" 50 "evidence" true)
+      "content" (dict "mediaType" "text/markdown" "value" (delimit $md "\n"))
+  -}}
+  {{- $.AddPage $page -}}
+{{- end -}}

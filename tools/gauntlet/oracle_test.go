@@ -169,35 +169,35 @@ func TestRebuildSetsArtifactOracle(t *testing.T) {
 	}
 }
 
-// TestRenderEstatePageOracleLine: the estate page's oracle-provenance line
-// (beside the existing emulator one) is silent for a row that predates
-// #544 - no LastRun at all, or a LastRun that never recorded Oracle - and
-// otherwise reports a match or a **Stale** note against a.Oracle, the same
-// three-way shape the emulator line already uses.
-func TestRenderEstatePageOracleLine(t *testing.T) {
+// TestBoardEstateOracleNote: the estate's oracle-provenance note (#544,
+// beside the existing emulator one, both in SiteBoardPath) is silent for a
+// row that predates #544 - no LastRun at all, or a LastRun that never
+// recorded Oracle - and otherwise reports a match or a **Stale** note
+// against a.Oracle, the same three-way shape the emulator note uses.
+func TestBoardEstateOracleNote(t *testing.T) {
 	a := &Artifact{Oracle: OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}, Stages: Stages()}
 	r := EstateResult{Name: "x", Protocol: ProtocolGauntlet, Stages: map[string]string{}}
 
-	if page := renderEstatePage(r, a); strings.Contains(page, "Oracle:") {
-		t.Errorf("no LastRun at all: page should not mention Oracle:\n%s", page)
+	if note := boardEstate(r, a).OracleNote; note != "" {
+		t.Errorf("no LastRun at all: note should be empty, got %q", note)
 	}
 
 	r.LastRun = &LastRun{Commit: "c", Date: "d"}
-	if page := renderEstatePage(r, a); strings.Contains(page, "Oracle:") {
-		t.Errorf("LastRun.Oracle is nil: page should not mention Oracle:\n%s", page)
+	if note := boardEstate(r, a).OracleNote; note != "" {
+		t.Errorf("LastRun.Oracle is nil: note should be empty, got %q", note)
 	}
 
 	r.LastRun.Oracle = &OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}
-	if page := renderEstatePage(r, a); !strings.Contains(page, "Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin).") {
-		t.Errorf("expected a matching-oracle line; got:\n%s", page)
+	if note := boardEstate(r, a).OracleNote; note != "Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin)." {
+		t.Errorf("expected a matching-oracle note; got %q", note)
 	}
 
 	r.LastRun.Oracle = &OracleVersions{Terraform: "1.15.8", Tofu: "1.12.5"}
-	page := renderEstatePage(r, a)
-	if !strings.Contains(page, "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`.") {
-		t.Errorf("expected the recorded (stale) versions in the line; got:\n%s", page)
+	note := boardEstate(r, a).OracleNote
+	if !strings.Contains(note, "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`.") {
+		t.Errorf("expected the recorded (stale) versions in the note; got %q", note)
 	}
-	if !strings.Contains(page, "**Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.") {
-		t.Errorf("expected a stale note naming the current pin; got:\n%s", page)
+	if !strings.Contains(note, "**Stale**: the current pin is terraform `1.16.0`, tofu `1.12.6`.") {
+		t.Errorf("expected a stale note naming the current pin; got %q", note)
 	}
 }
