@@ -110,6 +110,36 @@ func maintainerAllowReason(exists bool, firstLine string, now time.Time) string 
 	return ""
 }
 
+// heavyRunIsNamedEmulatorLoop reports whether a `gauntlet run` invocation is
+// the ordinary developer loop this guard was never meant to block (2026-09-11
+// correction, made after the maintainer asked why `gauntlet run
+// terralith-scale` - one estate, scale 1, the local floci emulator, about
+// five minutes, no cloud, no cost - needed unlocking at all: it does not).
+// The incident the guard exists for was three real-AWS certification cycles
+// and two full-corpus runs started overnight on an inferred authorization; a
+// single named emulator estate was never the thing, and a guard that blocks
+// ordinary work gets disabled or routed around, at which point it guards
+// nothing.
+//
+// The distinction the guard now draws is set-versus-named, not a resource
+// count: one or more explicitly named estates, with no -set flag asking for
+// a whole set instead, is allowed with no allow file at all. Everything else
+// - a bare `gauntlet run` with no names (which RunEstates resolves to the
+// "all" set, i.e. every estate, when Set is left at its "all" default: see
+// run.go's RunEstates), an explicit -set core or -set all (even combined
+// with names, since that combination reads as "I meant a set" and RunEstates
+// ignores Set once Names is non-empty anyway, so the flag having been typed
+// at all is the only signal left that the caller meant more than the named
+// estates), and of course every live-cert invocation (RunLiveCert calls
+// CheckMaintainerAllow unconditionally, live estate or not, target=floci or
+// target=aws: even Stage-1 proving is a real container for real minutes) and
+// every TARGET=aws shell path (live-cert.sh's livecert_require_maintainer_
+// allow, unchanged by this function entirely) - still requires it, exactly
+// as before.
+func heavyRunIsNamedEmulatorLoop(names []string, setFlagExplicit bool) bool {
+	return len(names) > 0 && !setFlagExplicit
+}
+
 // CheckMaintainerAllow is the entry point `run` and `live-cert` both call
 // before starting any container or making any cloud call. It returns nil
 // in CI (see inCI) or when the allow file names a future instant, and an

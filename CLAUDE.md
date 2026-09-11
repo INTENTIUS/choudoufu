@@ -74,15 +74,30 @@ once and passes on re-run is a finding, not a flake.
 
 ## Heavy and paid runs are the maintainer's, by hand
 
-`tools/gauntlet run` (outside CI), `tools/gauntlet live-cert`, and the
-`live/live-cert/*.sh` scripts run directly all refuse to start until
-`~/.config/choudoufu/allow-heavy-runs` names a still-future instant, and no
-agent may create, edit, or otherwise bring that file into existence, under
-any justification, including setting `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY`
-and treating that as authorization. **Three real-AWS certification cycles
-and two corpus runs went out overnight on 2026-09-11 on exactly that
-inferred authorization** — the incident this rule exists to prevent from
-happening again. `just allow-heavy-runs <duration>` only prints the
-command that writes the file; the maintainer pastes it by hand when they
-decide to, and an agent that runs that printed command itself has broken
-this rule exactly the same way as writing the file directly.
+The guard is proportionate, not a blanket refusal of `tools/gauntlet run`
+(corrected 2026-09-11, the same day it landed, after the maintainer asked
+why a run as small as `gauntlet run terralith-scale` needed unlocking at
+all: one estate, scale 1, the local floci emulator, about five minutes, no
+cloud, no cost). **A `gauntlet run` naming one or more estates explicitly,
+with no `-set` flag, against the emulator, needs no allow file at all: that
+is the ordinary developer loop.** Everything that amounts to a whole set
+still refuses until `~/.config/choudoufu/allow-heavy-runs` names a
+still-future instant: `-set core`, `-set all`, and a bare `gauntlet run`
+with no names at all (which resolves to the "all" set). So does every
+`tools/gauntlet live-cert` invocation and every `live/live-cert/*.sh` script
+run directly, `TARGET=aws` or not (even Stage-1 floci proving there is a
+real container for real minutes) - unchanged. No agent may create, edit, or
+otherwise bring the allow file into existence under any justification,
+including setting `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY` and
+treating that as authorization.
+
+A single named emulator estate was never what this guard was built for.
+**Three real-AWS certification cycles and two corpus runs went out
+overnight on 2026-09-11 on exactly that inferred authorization** - that is
+the shape the guard exists to stop. Blocking ordinary developer work too,
+instead of only that shape, just gets a guard disabled or routed around,
+and a guard that is routinely bypassed protects nothing. `just
+allow-heavy-runs <duration>` only prints the command that writes the file;
+the maintainer pastes it by hand when they decide to, and an agent that
+runs that printed command itself has broken this rule exactly the same way
+as writing the file directly.
