@@ -302,6 +302,25 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 		// ImportSyntax ("TASKDEFINITIONARN") rather than anything in this
 		// table.
 		"task-definition": single("AWS::ECS::TaskDefinition"),
+		// A service's ARN is service/cluster-name/service-name (the modern,
+		// long ARN format ECS has minted since 2019; see
+		// ecs_service.html.markdown's "## Import" section) - unambiguous,
+		// no other CFN type shares the "service" segment. [ParseARN] cuts
+		// at the FIRST "/" only, so ResourceID keeps the embedded
+		// "cluster-name/service-name" slash, which is exactly the shape
+		// internal/live/identity's generated table already composes an
+		// import ID from (ImportSyntax "CLUSTER/NAME"). GitHub issue #1039:
+		// without this row arnJoinReaches is false for aws_ecs_service (no
+		// CFN type this table covers), so partitionSweepTypes sent it
+		// through the native per-type leg even though the Resource Groups
+		// Tagging API - unlike IAM's ("aws_iam_" is
+		// taggingAPIUnservedServices) - genuinely does index ECS: the type
+		// paid a whole-account, client-side-filtered ListServices instead of
+		// riding the sweep's one estate-filtered GetResources call for
+		// free. Adding the row moves it there, the same way the iam/policy
+		// and cloudfront/distribution rows above closed the identical gap
+		// for their own types.
+		"service": single("AWS::ECS::Service"),
 	},
 	// A distribution's ARN is arn:aws:cloudfront::ACCOUNT:distribution/ID -
 	// unambiguous, the same slash-delimited shape iam's "role"/"policy"

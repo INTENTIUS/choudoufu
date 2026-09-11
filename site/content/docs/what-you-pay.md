@@ -387,21 +387,27 @@ types still pays what the whole estate pays, because the sweep builds its
 universe by *subtracting* the types a configuration declares from the
 admission table, not by listing only what that slice has.
 
-That per-slice figure has not been re-run at a larger estate, and the
-adjacent axis - one slice, larger estate - is no longer flat: 512, 552 and
-612 calls at 79, 301 and 745 instances, re-measured at `56099dcd63` for
-[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032). Up 40 and up
-100 from the 79-instance figure, contradicting what this page said until
-now. [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) has not
-isolated the cause; [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039)
-traces the account-tracking share of it to three types -
-`aws_iam_policy`, `aws_iam_role`, `aws_ecs_service` - whose provider list
-resource carries no filter block, so their cost tracks how many of them
-exist in the account rather than how many types are admitted; at this scale
-that account holds nothing but the estate itself, so a bigger estate means
-more of those objects. [What a plan
+That per-slice figure has not been re-run at a larger estate. The adjacent
+axis - one slice, larger estate - stopped being flat for a while: 521, 548
+and 612 calls at 79, 301 and 745 instances, re-measured at `56099dcd63` for
+[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032), up from the
+512-ish figure this page carried until then.
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) and
+[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) isolated why -
+`aws_iam_policy` and `aws_iam_role` were listed a second time, in full, by
+the native sweep even when the config-driven scan had already listed the
+whole account for either a moment earlier (both are in the one service the
+Resource Groups Tagging API never indexes), and `aws_ecs_service` had no
+`arnJoinTable` row for its own ARN shape and so took the whole-account
+native leg instead of the Tagging API's one estate-filtered call the way
+every other joinable type does - and fixed both, at `c0632fa3b7`
+(2026-09-11), floci pin `sha256:9ec3fa64...`: 508, 510 and 510 on the same
+three rows, flat again. [What a plan
 costs]({{< relref "/docs/model/plan-cost#the-native-leg-is-flat-across-slices-but-not-across-scale" >}})
-carries both axes and the re-fit this finding forces.
+carries the fixed numbers and what the old crossover fit's retirement means
+for this page's own claims. Only the k=1 (unsliced) row of the scale axis
+was re-measured for this fix; the per-slice figure two paragraphs up (k=2,
+k=8) has not been re-run since either fix landed.
 
 `09d180f921` took that leg off the steady-state plan path once an estate has
 a record store to narrow by, and left it everywhere else: a plan with no
@@ -426,8 +432,13 @@ exists. Both of its own two numbers have since moved to 696 and 1262 ([what
 a plan
 costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}})'s
 re-measured split table), a third point exists that the fit was never built
-to predict (2332 at N=745), and the leg behind all three is no longer flat
-with itself ([#1037](https://github.com/INTENTIUS/choudoufu/issues/1037)).
+to predict (2332 at N=745), and at the time that re-measurement was taken
+the leg behind all three was not flat with itself either
+([#1037](https://github.com/INTENTIUS/choudoufu/issues/1037), fixed since at
+`c0632fa3b7` - the native leg on its own is flat again, but the totals
+696/1262/2332 have not been re-measured against the fix, since they also
+carry the configuration scan, boundary and post-sweep terms this unit did
+not touch).
 A line drawn through two points that have since moved is not a fit worth
 extending to a third; the current re-fit, with its own honest residual,
 lives on [what a plan
