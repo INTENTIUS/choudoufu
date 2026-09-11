@@ -269,6 +269,75 @@ adoption path proper and the one place the expensive sweep is worth its price.
 [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) covers both
 routes.
 
+### At 3,705 resources, migration itself still holds - the post-migrate plan does not
+
+[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032) took the same
+harness to five times the resource count, real AWS, `us-east-2`, scale 50
+(3,705 resources), recorded in
+[`live/gauntlet.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/gauntlet.json)'s
+`live_cert` block at `15f5dcd5d5`, 2026-09-11, under a $100 ceiling:
+
+| Stage | Result |
+|---|---|
+| `cold_deploy` | 3,705 resources applied by stock `terraform` in 2,072 s, 370 throttling-error lines and 370 retries, all absorbed |
+| `migrate` | `choudoufu live-import -approve`: 1,655 of 3,705 verified, **1,655 stamped**, 2,050 skipped, in 1,216 s, 627 throttling-error lines and 627 retries |
+| `test_plan` | **Not empty.** The post-migrate plan proposes creating dozens of `aws_iam_policy` resources - both the `count`-expanded `count_team_policy[N]` and the named `team_NNNN_policy` instances - that already exist and are already tagged |
+| `test_apply` | Not reached; `test_plan` gates it |
+
+`cold_deploy` and `migrate` are both a stronger result than the 745-resource
+row above: the write side holds at almost five times the resources, and it
+stamped 1,655 objects with no error and no message weaker than "745 of 745
+would be reused" would name at that scale. **`test_plan` is where this run
+found a real defect and stopped**, per this repository's own rule of
+recording a defect from a live-cert run rather than repairing it inline.
+Migration's own accounting says all 1,655 eligible resources were verified
+and stamped cleanly; the very next plan of the migrated estate nonetheless
+proposes to create many of the `aws_iam_policy` instances again, which is an
+identity-resolution gap between what `live-import` verifies and what a plan
+later resolves, surfacing only once the estate is large enough to carry
+enough `aws_iam_policy` instances (650 role+policy blocks at this scale, 350
+of them content-duplicate per `tools/terralith-gen`'s own count) for the gap
+to be reachable. It did not reproduce at 79 or 745 resources in this same
+harness.
+
+A second, separate problem sits on top of the first and very nearly hid it.
+The harness's own `test_plan` state-model check
+(`live/live-cert/terralith-scale.sh`, "4a2. state model") counts tagged
+resources with `aws resourcegroupstaggingapi get-resources ... --query
+'length(ResourceTagMappingList)' --output text`, the same per-page-not-total
+counting bug this script had already fixed once, for `ssm_prefix_count`, in
+its own teardown path. At scale 50 the tag listing pages, so the query
+printed three numbers instead of one (`50\n50\n4`), the shell's own `-gt`
+comparison errored ("integer expression expected"), and the stage recorded
+**"identity piece unused: no resource in the account carries
+tofu-estate=..."** - false: `migrate` had just stamped 1,655 resources, and
+the account tagging query itself paged because there were multiple hundreds
+of them, not zero. The recorded failure detail names the wrong defect. The
+real one is the `aws_iam_policy` recreation above, read from the gating
+plan's own preview lines, not from the stage's recorded message. This script
+bug is unfixed here, per this run's own scope (report the defect, do not
+repair the harness mid-run); a future unit should fix `ssm_prefix_count`'s
+sibling in the identity check the same way.
+
+Teardown ran to completion and is independently confirmed empty - see
+["What evaluating this costs in money"](#what-evaluating-this-costs-in-money)
+below - but not unattended: the teardown function's own "choudoufu's own
+destroy path" step (`terralith-scale.sh`'s teardown, explicitly commented
+"best effort, NOT the trusted path") is exactly the post-migrate `apply`
+above, re-run, and it hung for about forty minutes issuing `CreatePolicy`
+calls against IAM policy names that already existed
+(`EntityAlreadyExists`) at 0% CPU with no output growth, rather than
+finishing or failing outright. Terminating that one child process let the
+script's own trusted path - a plain `terraform destroy` against the
+untouched `cold_deploy` state file - run and finish normally. Left alone,
+this would have run into the harness's own 25,200 s process ceiling, whose
+`SIGTERM` lands on the whole script while it is blocked inside this same
+first call to its `teardown()` function - which the function's own
+`TEARDOWN_DONE` re-entry guard would then have made a no-op, skipping the
+trusted destroy path entirely. That is a second, independent finding worth
+its own fix: the untrusted best-effort step should not be able to block the
+trusted one.
+
 ### The old state file stops being a safe fallback
 
 This is the part of migration that costs something, and it is worth knowing
@@ -559,6 +628,38 @@ Teardown was confirmed by listing rather than inferred from an exit code, and
 then verified again independently through the AWS CLI: the account is back to
 its baseline, and the 21 ARNs still answering the run's own tag were described
 one at a time to confirm each was `INACTIVE` at zero running and zero desired.
+
+At 3,705 resources ([#1032](https://github.com/INTENTIUS/choudoufu/issues/1032),
+scale 50, `us-east-2`, commit `15f5dcd5d5`, 2026-09-11) the same holds:
+effectively **$0.00**, against a $100 ceiling. Every resource type this
+estate creates is free at this run's usage - IAM, VPC, subnet, security
+group, Route 53 records, ECS cluster/service/task-definitions at
+`desired_count = 0` - and the one hosted zone was deleted well inside the
+twelve hours below which AWS does not charge for one. Teardown ran to
+completion once the harness's own hung best-effort step was cleared (see
+above) and was confirmed both by the harness's own listing
+(`VERIFIED EMPTY by listing: nothing matching prefix=lc1032s50 or tag
+tofu-cert-run=lc1032s50-run remains`) and independently, by hand, afterward:
+
+```
+$ aws iam list-roles --query "Roles[?starts_with(RoleName, 'lc1032s50-')].RoleName" --output text | tr '\t' '\n' | grep -c .
+0
+$ aws iam list-policies --scope Local --query "Policies[?starts_with(PolicyName, 'lc1032s50')].PolicyName" --output text | tr '\t' '\n' | grep -c .
+0
+$ aws resourcegroupstaggingapi get-resources --region us-east-2 --tag-filters Key=tofu-estate,Values=tl-livecert-lc1032s50 --query 'ResourceTagMappingList[?!(contains(ResourceARN, `:ecs:`))]' --output json
+[]
+```
+
+The Tagging API is not unconditionally empty: 101 ECS ARNs (1 cluster, 50
+services, 50 task definitions - exactly this estate's "container" count)
+still answer `tofu-estate=tl-livecert-lc1032s50`, the same class of residue
+the 745-resource run named above (there, 3 ARNs). ECS retains a deleted
+cluster's, service's and task definition's tag-visible metadata after
+deletion; it is not live and not billable. Confirmed directly rather than
+assumed: `aws ecs describe-clusters` reports the cluster `INACTIVE` at 0
+running/pending/active-services, `aws ecs list-task-definitions
+-status ACTIVE` for the family prefix returns nothing, and a sample of five
+services across the run all read `INACTIVE` at 0 running/0 desired.
 
 ## Where the mechanism is
 
