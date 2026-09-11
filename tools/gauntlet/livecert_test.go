@@ -155,6 +155,11 @@ func TestRunLiveCertSendsSIGTERMOnCeiling(t *testing.T) {
 	}
 
 	t.Setenv("LIVECERT_SCRIPT_OVERRIDE", script)
+	// The maintainer-run-guard (maintainerguard.go) refuses a local
+	// live-cert run with no allow file - correct, but not what this test is
+	// about, so it opts out the same way CI itself does rather than faking
+	// an allow file this test has no other reason to manage.
+	t.Setenv("GITHUB_ACTIONS", "true")
 	// target=floci (never requires -confirm) and a 1-second ceiling: the
 	// script sleeps for 10s, so RunLiveCert's ceiling fires almost
 	// immediately, well before the sleep would exit on its own - any

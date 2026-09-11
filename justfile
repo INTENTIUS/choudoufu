@@ -8,6 +8,38 @@ build:
 test:
     go test ./...
 
+# Prints (never runs) the exact command that turns on heavy/paid runs for
+# DURATION (default 2h; also accepts e.g. 90m, 1d) - the maintainer-run-guard
+# (CLAUDE.md; 2026-09-11 incident: three real-AWS certification cycles and
+# two corpus runs went out overnight on an inferred authorization).
+# `tools/gauntlet run` (locally), `tools/gauntlet live-cert`, and the two
+# live-cert scripts run directly all refuse unless
+# ~/.config/choudoufu/allow-heavy-runs exists and its one line reads
+# "until <timestamp>" still in the future. This recipe only computes that
+# line and prints the shell command to write it - nothing in this repo ever
+# creates or writes that file itself; the maintainer pastes the printed
+# command by hand when they actually want a heavy or paid run to proceed.
+allow-heavy-runs duration="2h":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dur="{{duration}}"
+    case "$dur" in
+      *h) secs=$(( ${dur%h} * 3600 )) ;;
+      *m) secs=$(( ${dur%m} * 60 )) ;;
+      *d) secs=$(( ${dur%d} * 86400 )) ;;
+      *) echo "duration must end in h, m, or d (e.g. 2h, 90m, 1d), got: $dur" >&2; exit 1 ;;
+    esac
+    # RFC3339 in UTC (a trailing Z, never a bare numeric offset like
+    # +0600): Go's time.RFC3339 layout requires a colon in a numeric
+    # offset (-06:00), which neither BSD nor GNU date's %z ever prints, so
+    # a numeric-offset stamp here would print clean and then fail to
+    # parse in tools/gauntlet's guard. -u sidesteps that instead of
+    # fighting each date implementation's %z format.
+    until_ts="$(date -u -v+"${secs}"S +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d "+${secs} seconds" +"%Y-%m-%dT%H:%M:%SZ")"
+    echo "Paste this yourself when you want heavy/paid runs enabled for {{duration}} - nothing here ran it for you:"
+    echo
+    echo "  mkdir -p ~/.config/choudoufu && echo 'until $until_ts' > ~/.config/choudoufu/allow-heavy-runs"
+
 # Exactly what .github/workflows/ci.yml's `fast` job runs, in order, so a red
 # main is something you find here rather than on GitHub. `env -u PWD` is
 # needed for the test step and only locally: /Users/alex/checkouts is a
