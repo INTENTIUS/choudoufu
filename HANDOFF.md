@@ -326,7 +326,7 @@ enforce it:
   `refuseLocalHeavyRun` refuses both subcommands unless `GITHUB_ACTIONS=true`
   / `CI=true` is set (true on every GitHub Actions runner) or a human has set
   `CHOUDOUFU_LOCAL_HEAVY_RUN=maintainer` by hand. The maintainer allow-file
-  half of this guard (`live/maintainer-run-guard`) lands separately; until it
+  half of this guard (the live/maintainer-run-guard branch) lands separately; until it
   merges, the env var alone is what a maintainer sets to run one locally.
 - **The workflow itself waits for a click.** `.github/workflows/live-cert.yml`
   runs in the `real-aws` GitHub environment; `.github/workflows/gauntlet.yml`'s
