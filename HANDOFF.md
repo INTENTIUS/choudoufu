@@ -312,6 +312,19 @@ Rules are tests. The ones that hold this document to the tree:
   direct edit still works: set `CHOUDOUFU_ALLOW_PRIMARY_EDIT=1` in the shell,
   or in a personal, uncommitted local settings file's `env` block, before
   editing.
+- **Iterating on a real estate.** A live-cert cycle against real AWS is a
+  full cold_deploy + migrate + teardown round trip, tens of minutes each,
+  to look at one plan (#1032). `live/live-cert/terralith-scale.sh` has a
+  held-estate mode for exactly this: `LIVECERT_HOLD=1` runs the stages and
+  then skips teardown, printing the work dir, the estate marker, the
+  prefix, and the exact commands to resume or tear down later instead;
+  `LIVECERT_RESUME=<work dir>` skips cold_deploy and migrate against a held
+  work dir and reruns from index_wait on, refusing outright if the work
+  dir's own recorded prefix or scale disagrees with the environment; and
+  `terralith-scale.sh teardown <work dir>` (or `LIVECERT_TEARDOWN_ONLY=<work
+  dir>`) tears one down on its own. A held run's row is never mistaken for a
+  finished certification: every stage it reports carries `held: true` in
+  its own detail.
 
 ## Retired
 
