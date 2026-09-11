@@ -335,7 +335,14 @@ refuse before starting any container or making any cloud call unless
 `live/live-cert/terralith-scale.sh` and `reference-ec2-vpc.sh` enforce the
 identical rule for themselves via `livecert_require_maintainer_allow`
 (`live/live-cert/lib/live-cert.sh`) when run directly with `TARGET=aws`, so
-there is no path around the Go runner either. The file lives outside the
+there is no path around the Go runner either — except teardown-only
+(`terralith-scale.sh teardown <work dir>` / `LIVECERT_TEARDOWN_ONLY`, see
+"Iterating on a real estate" above), which never calls it: that path only
+destroys resources an earlier run already created and verifies the account
+empty, so refusing it for want of the allow file would strand a held,
+billing estate live instead of tearing it down. It still requires
+`LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes` like every other
+`TARGET=aws` path. The file lives outside the
 repository on purpose: nothing here creates it, checking out a branch or
 worktree never carries it along, and it expires on its own rather than
 staying enabled forever. `just allow-heavy-runs 2h` (or `90m`, `1d`, ...)
