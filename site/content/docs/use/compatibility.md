@@ -81,17 +81,7 @@ larger set of untaggable types with no admission row yet that the classifier
 lands there by elimination. They differ threefold, and [Resource tier
 lookup]({{< relref "/docs/use/resource-tiers" >}}) separates them.
 
-<!-- readiness-gen:begin readiness-tiers -->
-| Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
-|---|---|---|---|---|---|---|---|
-| marker-carried | 682 | 161 | 1 | 2 | 0 | 0 | 846 |
-| declaration-carried | 341 | 37 | 0 | 1 | 0 | 0 | 379 |
-| record-carried | 96 | 294 | 3 | 16 | 62 | 0 | 471 |
-| excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
-| **Total** | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
-
-`live/readiness.json` last committed at commit `1b09912946` on 2026-09-06T20:17:12-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
-<!-- readiness-gen:end readiness-tiers -->
+{{< readiness "tiers" >}}
 
 ## How your configuration is written
 

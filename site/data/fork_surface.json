@@ -1,0 +1,36 @@
+{
+  "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
+  "fork_point_short": "03743ce6e8",
+  "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
+  "fork_point_url": "https://github.com/opentofu/opentofu/commit/03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
+  "measured_at_head": "0e6703b26565d246ec79cd317991d13b35c8b70b",
+  "measured_at_head_short": "0e6703b265",
+  "generated_at": "2026-09-05T22:11:08Z",
+  "base_opentofu_version": "1.13.0",
+  "named_roots": [
+    "internal/live/",
+    "tools/",
+    "live/",
+    "site/",
+    ".github/"
+  ],
+  "other_bucket": "other",
+  "counts": {
+    ".github/": 28,
+    "internal/live/": 1269,
+    "live/": 482,
+    "other": 983,
+    "site/": 92,
+    "tools/": 404
+  },
+  "named_total": 2275,
+  "other_count": 983,
+  "total": 3258,
+  "module_path_old": "github.com/opentofu/opentofu",
+  "module_path_new": "github.com/intentius/choudoufu",
+  "mechanical_module_rename": {
+    "excluded_count": 1137,
+    "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
+    "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
+  }
+}

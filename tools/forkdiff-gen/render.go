@@ -4,15 +4,13 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Render mode (issue #424, mirroring tools/readiness-gen's own -render):
-// `go run ./tools/forkdiff-gen -render` rewrites the docs site's positioning
-// page in place, between `<!-- forkdiff-gen:begin fork-surface -->` /
-// `<!-- forkdiff-gen:end fork-surface -->` markers, from the
-// already-committed live/fork-surface.json - not a fresh diff against the
-// fork point. That is the same deliberate choice readiness-gen's -render
+// `go run ./tools/forkdiff-gen -render` writes the docs site's copy of the
+// artifact (SiteDataRel, #1055) from the already-committed
+// live/fork-surface.json - not a fresh diff against the fork point. That is the same deliberate choice readiness-gen's -render
 // makes against live/readiness.json: reading the committed artifact rather
 // than recomputing it is what makes a hand-edited or freshly regenerated
 // live/fork-surface.json that never got rendered show up as a doc-render
-// diff (TestForkSurfaceRenderedSpanIsCurrent in render_test.go) instead of
+// diff (TestForkSurfaceSiteDataIsCurrent in render_test.go) instead of
 // silently passing because the render step re-derived the same numbers
 // itself. No git, no network, no other generator's process.
 package main
@@ -22,39 +20,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/intentius/choudoufu/internal/live/mdspan"
 )
 
-// markers is this generator's marker vocabulary - a distinct tool name
-// ("forkdiff-gen") from every other generator's spans, so two generators'
-// regions never collide even if they ever render into the same file.
-var markers = mdspan.For("forkdiff-gen")
-
-// PositioningMDRel is the docs site's positioning page, issue #424: the page
-// a customer reads to learn what choudoufu adds on top of stock OpenTofu,
-// with every claim on it rendered from a committed artifact rather than
-// typed by hand.
-const PositioningMDRel = "site/content/docs/_index.md"
-
-// spanForkSurface is the fork-surface summary this mode writes into
-// PositioningMDRel.
-const spanForkSurface = "fork-surface"
+// SiteDataRel is the docs site's copy of the fork-surface artifact
+// (#1055): everything in live/fork-surface.json except the per-file lists,
+// plus the fixed root order, so the site's fork-surface shortcode
+// (site/layouts/shortcodes/fork-surface.html) can render the summary the
+// positioning page shows. Before #1055 this mode wrote that summary as a
+// markdown span into the page itself; now the generator emits data and the
+// site decides how it reads.
+const SiteDataRel = "site/data/fork_surface.json"
 
 // forkPointCommitURL is the fork point's commit on the upstream project,
 // the same linking convention the docs site's root page already uses for
-// this same commit.
+// this same commit. The site's shortcode composes the link from it.
 const forkPointCommitURL = "https://github.com/opentofu/opentofu/commit/"
-
-// forkSurfaceJSONURL is live/fork-surface.json's own GitHub blob URL, so the
-// rendered page can point a reader at the full file-by-file artifact behind
-// the summary.
-const forkSurfaceJSONURL = "https://github.com/INTENTIUS/choudoufu/blob/main/live/fork-surface.json"
-
-// forkSurfaceGuardURL is live/forkdiff_test.go, issue #423's guard: the
-// place every "other"-bucket path is named with its own one-line reason.
-const forkSurfaceGuardURL = "https://github.com/INTENTIUS/choudoufu/blob/main/live/forkdiff_test.go"
 
 // loadForkSurfaceArtifact reads and decodes the already-committed
 // live/fork-surface.json. Kept separate from readCommitted (render_test.go,
@@ -73,49 +53,74 @@ func loadForkSurfaceArtifact(root string) (forkSurface, error) {
 	return a, nil
 }
 
-// renderForkSurfaceSummary builds the fork-surface span's body: a plain-
-// language paragraph plus a per-root table, both computed only from the
-// artifact's own Counts and MechanicalModuleRename fields - no file I/O, so
-// render_test.go's drift guard renders the same bytes runRender would write
-// without touching the filesystem.
-//
-// It deliberately does not claim every changed file sits "under" the six
-// named roots: the artifact's own "other" bucket is real, and a truthful
-// summary says so and points at where each of those files is justified,
-// rather than rounding it away.
-func renderForkSurfaceSummary(a forkSurface) string {
-	namedTotal := 0
-	for _, r := range namedRoots {
-		namedTotal += a.Counts[r]
+// siteForkSurface is the shape of SiteDataRel: the artifact's summary
+// fields, the named roots in their fixed order, the other bucket's name and
+// the two module paths, so the site can render the same paragraph and
+// table the page used to carry without re-deriving any of it.
+type siteForkSurface struct {
+	ForkPoint           string            `json:"fork_point"`
+	ForkPointShort      string            `json:"fork_point_short"`
+	ForkPointSubject    string            `json:"fork_point_subject"`
+	ForkPointURL        string            `json:"fork_point_url"`
+	MeasuredAtHead      string            `json:"measured_at_head"`
+	MeasuredAtHeadShort string            `json:"measured_at_head_short"`
+	GeneratedAt         string            `json:"generated_at"`
+	BaseOpenTofuVersion string            `json:"base_opentofu_version"`
+	NamedRoots          []string          `json:"named_roots"`
+	OtherBucket         string            `json:"other_bucket"`
+	Counts              map[string]int    `json:"counts"`
+	NamedTotal          int               `json:"named_total"`
+	OtherCount          int               `json:"other_count"`
+	Total               int               `json:"total"`
+	ModulePathOld       string            `json:"module_path_old"`
+	ModulePathNew       string            `json:"module_path_new"`
+	MechanicalModule    mechanicalSummary `json:"mechanical_module_rename"`
+}
+
+// buildSiteData computes SiteDataRel's content from the artifact's own
+// Counts and summary fields - no file I/O, so render_test.go's drift guard
+// builds the same bytes runRender would write without touching the
+// filesystem. It deliberately carries the "other" bucket as its own count:
+// a truthful summary says those files exist and where each is justified,
+// rather than rounding them away.
+func buildSiteData(a forkSurface) siteForkSurface {
+	d := siteForkSurface{
+		ForkPoint:           a.ForkPoint,
+		ForkPointShort:      a.ForkPointShort,
+		ForkPointSubject:    a.ForkPointSubject,
+		ForkPointURL:        forkPointCommitURL + a.ForkPoint,
+		MeasuredAtHead:      a.MeasuredAtHead,
+		MeasuredAtHeadShort: short(a.MeasuredAtHead),
+		GeneratedAt:         a.GeneratedAt,
+		BaseOpenTofuVersion: a.BaseOpenTofuVersion,
+		NamedRoots:          append([]string(nil), namedRoots...),
+		OtherBucket:         otherBucket,
+		Counts:              map[string]int{},
+		ModulePathOld:       modulePathOld,
+		ModulePathNew:       modulePathNew,
+		MechanicalModule:    a.MechanicalModuleRename,
 	}
-	otherCount := a.Counts[otherBucket]
-	total := namedTotal + otherCount
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "**%d files** diverge from stock OpenTofu `%s` at fork point [`%s`](%s%s) (\"%s\"). ",
-		total, a.BaseOpenTofuVersion, a.ForkPointShort, forkPointCommitURL, a.ForkPoint, a.ForkPointSubject)
-	fmt.Fprintf(&b, "%d of them sit under six fork-owned roots; the remaining %d are outside those roots, each named with its own one-line reason in [`live/forkdiff_test.go`](%s)'s guard rather than assumed stock. ",
-		namedTotal, otherCount, forkSurfaceGuardURL)
-	fmt.Fprintf(&b, "A further %d files (not counted above) change only the Go module import path, `%s` to `%s`, with no other line touched - the mechanical cost of forking a Go module, not a fact about this fork's own surface.\n\n",
-		a.MechanicalModuleRename.ExcludedCount, modulePathOld, modulePathNew)
-
-	fmt.Fprintf(&b, "Counted at choudoufu commit `%s` on %s. Run `go run ./tools/forkdiff-gen` to recount against the current HEAD before trusting this against a newer commit.\n\n",
-		short(a.MeasuredAtHead), a.GeneratedAt)
-
-	b.WriteString("| Root | Files |\n|---|---|\n")
 	for _, r := range namedRoots {
-		fmt.Fprintf(&b, "| `%s` | %d |\n", r, a.Counts[r])
+		d.Counts[r] = a.Counts[r]
+		d.NamedTotal += a.Counts[r]
 	}
-	fmt.Fprintf(&b, "| other (individually justified) | %d |\n", otherCount)
-	fmt.Fprintf(&b, "| **Total** | %d |\n", total)
-	fmt.Fprintf(&b, "\nFull file-by-file detail: [`live/fork-surface.json`](%s), regenerated by `go run ./tools/forkdiff-gen`.\n", forkSurfaceJSONURL)
+	d.OtherCount = a.Counts[otherBucket]
+	d.Counts[otherBucket] = d.OtherCount
+	d.Total = d.NamedTotal + d.OtherCount
+	return d
+}
 
-	return b.String()
+// renderSiteData is SiteDataRel's on-disk form.
+func renderSiteData(a forkSurface) ([]byte, error) {
+	out, err := json.MarshalIndent(buildSiteData(a), "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
 }
 
 // runRender is the -render entry point: read the committed
-// live/fork-surface.json, replace the positioning page's span, write back
-// only if it changed.
+// live/fork-surface.json and write the site's copy, only if it changed.
 func runRender() error {
 	root, err := repoRoot()
 	if err != nil {
@@ -125,8 +130,21 @@ func runRender() error {
 	if err != nil {
 		return err
 	}
-	body := renderForkSurfaceSummary(artifact)
-	return renderSpan(root, PositioningMDRel, spanForkSurface, body)
+	data, err := renderSiteData(artifact)
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(root, filepath.FromSlash(SiteDataRel))
+	old, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
+	if err == nil && string(old) == string(data) {
+		fmt.Fprintf(os.Stderr, "forkdiff-gen: %s is already current\n", SiteDataRel)
+		return nil
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
+		return fmt.Errorf("writing %s: %w", SiteDataRel, err)
+	}
+	fmt.Fprintf(os.Stderr, "forkdiff-gen: wrote %s\n", SiteDataRel)
+	return nil
 }
 
 // short truncates a full commit sha to the same 10-character width
@@ -137,27 +155,4 @@ func short(sha string) string {
 		return sha[:10]
 	}
 	return sha
-}
-
-// renderSpan rewrites one named span of one doc in place.
-func renderSpan(root, rel, span, body string) error {
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	doc, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", rel, err)
-	}
-
-	out, err := markers.Replace(rel, string(doc), span, body)
-	if err != nil {
-		return err
-	}
-	if out == string(doc) {
-		fmt.Fprintf(os.Stderr, "forkdiff-gen: %s's %q span is already current\n", rel, span)
-		return nil
-	}
-	if err := os.WriteFile(path, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
-		return fmt.Errorf("writing %s: %w", rel, err)
-	}
-	fmt.Fprintf(os.Stderr, "forkdiff-gen: rewrote %s's %q span\n", rel, span)
-	return nil
 }

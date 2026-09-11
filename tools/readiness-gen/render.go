@@ -5,10 +5,10 @@
 
 // Render mode (issue #419, mirroring tools/survey-gen's own -render and
 // tools/tagverbs-gen's -render): `go run ./tools/readiness-gen -render`
-// rewrites the readiness-tiers span of live/COVERAGE.md, of the docs site's
-// compatibility page, and of the docs site's per-type resource-tiers page in
-// place, between `<!-- readiness-gen:begin readiness-tiers -->` /
-// `<!-- readiness-gen:end readiness-tiers -->` marker pairs, from the
+// rewrites the readiness-tiers span of live/COVERAGE.md in place, between
+// `<!-- readiness-gen:begin readiness-tiers -->` /
+// `<!-- readiness-gen:end readiness-tiers -->` markers, and writes the docs
+// site's copy of the artifact (SiteDataRel, #1055), from the
 // already-committed live/readiness.json - not a fresh Build(). That is a
 // deliberate choice, the same one survey-gen's own -render makes against
 // live/survey.json: reading the committed artifact rather than
@@ -28,13 +28,12 @@
 // both require Build() to be a pure function of the committed inputs - by
 // computing the stamp only here, from the file the artifact already is.
 //
-// Issue #420 adds a second span, readiness-types, written only into the
-// resource-tiers page: the full per-type table (every row of
-// live/readiness.json, not just the tier-by-status tally readiness-tiers
-// already renders), so a customer can paste their own resource type and get
-// a tier, a status, and - for anything short of in-contract - a one-line
-// reason, without reading this generator's internals or row-gen's ledger
-// prose. reasonFor synthesizes that reason from Facts rather than quoting
+// Issue #420 adds the per-type rows (every row of live/readiness.json, not
+// just the tier-by-status tally), so a customer can paste their own resource
+// type into the site's resource-tiers page and get a tier, a status, and -
+// for anything short of in-contract - a one-line reason, without reading
+// this generator's internals or row-gen's ledger prose. Since #1055 those
+// rows are part of SiteDataRel rather than a markdown span. reasonFor synthesizes that reason from Facts rather than quoting
 // tools/row-gen/rejected.json's free text directly: those entries run to
 // paragraphs (see build.go's own package doc comment on classifyRejectedReason),
 // which is neither "one-line" nor safe to drop into a markdown table cell
@@ -42,6 +41,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -63,29 +63,20 @@ const (
 	// section to, alongside survey-gen's existing spans there.
 	CoverageMDRel = "live/COVERAGE.md"
 
-	// CompatibilityMDRel is the docs site's compatibility reference page -
-	// the closest existing site page to where live/COVERAGE.md's content
-	// already surfaces (site/content/docs/use/reference.md merely links to
-	// it; this page already discusses admitted types and links to
-	// live/LIMITATIONS.md for per-type detail).
-	CompatibilityMDRel = "site/content/docs/use/compatibility.md"
+	// SiteDataRel is the docs site's copy of the readiness artifact in the
+	// shape its pages render (#1055): the tier-by-status cross tab, the
+	// per-type rows with a one-line customer-facing reason each, and the
+	// provenance stamp. The site's compatibility and resource-tiers pages
+	// render it through the readiness shortcode
+	// (site/layouts/shortcodes/readiness.html). Before #1055 this mode
+	// wrote two markdown spans into those pages directly, which tied the
+	// artifact's presentation to one page format; now the generator emits
+	// data and the site decides how a measurement looks.
+	SiteDataRel = "site/data/readiness.json"
 
-	// ResourceTiersMDRel is the docs site's customer-facing per-type lookup
-	// page, issue #420. It carries both spans below: the same
-	// readiness-tiers cross tab CoverageMDRel and CompatibilityMDRel carry,
-	// so its rendered counts are never hand-typed either, plus its own
-	// readiness-types span.
-	ResourceTiersMDRel = "site/content/docs/use/resource-tiers.md"
-
-	// spanReadinessTable is the tier-by-status cross tab, rendered
-	// identically into all three docs above.
+	// spanReadinessTable is the tier-by-status cross tab, rendered into
+	// CoverageMDRel.
 	spanReadinessTable = "readiness-tiers"
-
-	// spanReadinessTypesTable is the full per-type lookup table (every row
-	// of live/readiness.json), rendered only into ResourceTiersMDRel - the
-	// other two docs already had their own scope before issue #420 and
-	// gain nothing from repeating 1699 rows.
-	spanReadinessTypesTable = "readiness-types"
 )
 
 // limitationsMDURL is live/LIMITATIONS.md's GitHub blob URL, the same
@@ -290,33 +281,73 @@ func reasonFor(r Row) string {
 	}
 }
 
-// renderReadinessTypesTable builds the readiness-types span's body: every
-// row of live/readiness.json, one table row each, wrapped in a scrolling
-// container.
-//
-// Precedent check for the wrapper, per issue #420's Accept criteria: this
-// site's hugo-book theme already gives every markdown table `display:
-// block; overflow: auto` (site/themes/hugo-book/assets/styles/markdown.css),
-// which is exactly the "own overflow-x: auto scrolling container" behavior
-// the issue asks for, applied automatically to every table on the site
-// today, including the existing readiness-tiers cross tab above. The div
-// wrapper below is redundant with that theme rule but kept anyway so the
-// requirement holds by construction from this page's own markup, not only
-// from a theme default a future theme swap could silently drop; it costs
-// nothing extra since goldmark (site/hugo.toml sets `unsafe = true`) passes
-// the surrounding raw HTML straight through and still parses the enclosed
-// markdown table as a table, given the blank line on each side that keeps
-// each raw-HTML line and the table in separate blocks.
-func renderReadinessTypesTable(a Artifact) string {
-	var b strings.Builder
-	b.WriteString(`<div class="readiness-table-wrap" style="overflow-x: auto;">`)
-	b.WriteString("\n\n")
-	b.WriteString("| Type | Tier | Status | Reason |\n|---|---|---|---|\n")
-	for _, r := range a.Types {
-		fmt.Fprintf(&b, "| `%s` | %s | %s | %s |\n", r.Type, r.Tier, r.Status, reasonFor(r))
+// siteData is the shape of SiteDataRel.
+type siteData struct {
+	// Stamp is readinessStamp's provenance line. Markdown.
+	Stamp string `json:"stamp"`
+	// Statuses is statusOrder: the cross tab's column order.
+	Statuses []string `json:"statuses"`
+	// Tiers is the cross tab, one row per tier in tierOrder, each with one
+	// count per status in Statuses order and a row total.
+	Tiers []siteTier `json:"tiers"`
+	// ColumnTotals is one total per status, and Total the grand total.
+	ColumnTotals []int `json:"column_totals"`
+	Total        int   `json:"total"`
+	// Types is every row of live/readiness.json with its reason.
+	Types []siteType `json:"types"`
+}
+
+type siteTier struct {
+	Tier   string `json:"tier"`
+	Counts []int  `json:"counts"`
+	Total  int    `json:"total"`
+}
+
+type siteType struct {
+	Type   string `json:"type"`
+	Tier   string `json:"tier"`
+	Status string `json:"status"`
+	// Reason is reasonFor's one line, markdown, empty for in-contract.
+	Reason string `json:"reason,omitempty"`
+}
+
+// buildSiteData computes SiteDataRel's content from the artifact and the
+// given stamp alone, with no file I/O or git calls of its own, so
+// render_test.go's drift guard builds the same bytes runRender would write
+// without touching the filesystem.
+func buildSiteData(a Artifact, stamp string) siteData {
+	cross := readinessCrossTab(a)
+	d := siteData{
+		Stamp:        stamp,
+		Statuses:     append([]string(nil), statusOrder...),
+		ColumnTotals: make([]int, len(statusOrder)),
+		Types:        []siteType{},
 	}
-	b.WriteString("\n</div>\n")
-	return b.String()
+	for _, tier := range tierOrder {
+		row := siteTier{Tier: tier}
+		for i, s := range statusOrder {
+			n := cross[crossKey{Tier: tier, Status: s}]
+			row.Counts = append(row.Counts, n)
+			row.Total += n
+			d.ColumnTotals[i] += n
+		}
+		d.Total += row.Total
+		d.Tiers = append(d.Tiers, row)
+	}
+	for _, r := range a.Types {
+		d.Types = append(d.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
+	}
+	return d
+}
+
+// renderSiteData is SiteDataRel's on-disk form: two-space indented with a
+// trailing newline, the way every other site/data artifact is written.
+func renderSiteData(a Artifact, stamp string) ([]byte, error) {
+	out, err := json.MarshalIndent(buildSiteData(a, stamp), "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
 }
 
 // runRender is the -render entry point: read the committed
@@ -336,24 +367,33 @@ func runRender() error {
 		return err
 	}
 	table := renderReadinessTable(artifact, stamp)
-	types := renderReadinessTypesTable(artifact)
-
-	for _, rel := range []string{CoverageMDRel, CompatibilityMDRel, ResourceTiersMDRel} {
-		if err := renderSpan(root, rel, spanReadinessTable, table); err != nil {
-			return err
-		}
-	}
-	if err := renderSpan(root, ResourceTiersMDRel, spanReadinessTypesTable, types); err != nil {
+	if err := renderSpan(root, CoverageMDRel, spanReadinessTable, table); err != nil {
 		return err
 	}
+	data, err := renderSiteData(artifact, stamp)
+	if err != nil {
+		return err
+	}
+	return writeIfChanged(root, SiteDataRel, data)
+}
+
+// writeIfChanged writes one file only if its bytes differ, so a render that
+// changes nothing leaves the tree untouched, the same way renderSpan does.
+func writeIfChanged(root, rel string, data []byte) error {
+	path := filepath.Join(root, filepath.FromSlash(rel))
+	old, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
+	if err == nil && string(old) == string(data) {
+		fmt.Fprintf(os.Stderr, "readiness-gen: %s is already current\n", rel)
+		return nil
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
+		return fmt.Errorf("writing %s: %w", rel, err)
+	}
+	fmt.Fprintf(os.Stderr, "readiness-gen: wrote %s\n", rel)
 	return nil
 }
 
-// renderSpan rewrites one named span of one doc in place. Parameterized by
-// span name (rather than the single spanReadinessTable this function used
-// to hardcode) because ResourceTiersMDRel carries two different spans and
-// this same logic - read, replace bounds, write only if changed - applies
-// to both.
+// renderSpan rewrites one named span of one doc in place.
 func renderSpan(root, rel, span, body string) error {
 	path := filepath.Join(root, filepath.FromSlash(rel))
 	doc, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
