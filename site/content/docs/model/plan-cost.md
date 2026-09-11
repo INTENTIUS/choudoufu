@@ -422,18 +422,47 @@ names as the account-tracking term at 745 resources - continuing to grow
 with estate scale rather than staying flat. 435 throttling-error lines and
 435 retries landed on this one plan alone, all absorbed.
 
-choudoufu's side of the pair does not exist at this scale, and this page
-will not estimate it in place of measuring it. `test_plan` found a real
-defect instead - the post-migrate plan was not empty; see
+choudoufu's side of the pair did not exist at this scale on that first run,
+and this page did not estimate it in place of measuring it. `test_plan`
+found a real defect instead - the post-migrate plan was not empty; see
 [what you pay]({{< relref "/docs/what-you-pay#at-3705-resources-migration-itself-still-holds---the-post-migrate-plan-does-not" >}})
 for what it proposed and why. A harness bug in the same stage's own
-identity check then masked that finding behind an unrelated, false "no
-resource carries this estate's marker" message and, because it fails before
-the script's own deferred timing fallback runs, no choudoufu-side
-`timed_plans` or API-call count was ever taken at this scale - not a zero,
-an unmeasured cell. The 79-versus-745 comparison above stays the only
-like-for-like real-AWS pair on this page until a clean post-migrate plan at
-3,705 resources produces one.
+identity check ([#1047](https://github.com/INTENTIUS/choudoufu/issues/1047))
+then masked that finding behind an unrelated, false "no resource carries
+this estate's marker" message and, because it failed before the script's
+own deferred timing fallback ran, no choudoufu-side `timed_plans` or
+API-call count was ever taken at this scale on that run - not a zero, an
+unmeasured cell.
+
+#1047 fixed the identity check's own counting bug
+(`ab70b1018d`), and a second scale-50 run (commit `8bbef274d6`, 2026-09-11)
+reached the deferred fallback this time, so the cell is measured now - it is
+just not the empty, like-for-like pair the table above needs. choudoufu's
+gating plan proposed `Plan: 358 to add, 0 to change, 4 to destroy` (the
+`aws_iam_policy` defect, still open as
+[#1046](https://github.com/INTENTIUS/choudoufu/issues/1046) - see
+[what you pay]({{< relref "/docs/what-you-pay#the-real-mechanism-a-cross-service-indexing-lag-not-a-page-size" >}})
+for the mechanism this second run found), so three timed re-plans of that
+same non-empty state read **375s, 356s and 373s** (`TF_LOG` unset, warm
+provider, each verdict self-labelled `Plan:_358_to_add,_0_to_change,_4_to_destroy`
+rather than `empty`), and the first post-migration instrumented plan counted
+**8,305 provider-mediated AWS API requests exactly** - dominated by IAM
+(1,530 `GetRolePolicy`, 1,477 `ListAttachedRolePolicies`, 1,115
+`ListRolePolicies`, 1,075 `GetRole`, 823 `GetPolicyVersion`, 517
+`GetInstanceProfile`, 325 `GetPolicy`) and Route 53 (648 `GetHostedZone`,
+614 `ListResourceRecordSets`) - against stock's 7,207 on the same run. A
+steady-state instrumented replan afterward counted 8,340, both counts
+`TypeScan.Refined = 0` throughout (this estate's policies and roles resolve
+their tags from the list call or the tag-index join, never a per-object
+GetResource refinement).
+
+Reading these numbers as a cost comparison would be the wrong lesson: a plan
+proposing 358 creates does strictly more work than an empty one, on both
+sides, so 375s-versus-183s here says nothing about choudoufu's plan being
+slower than stock's - it says the two plans are not doing the same thing.
+The 79-versus-745 comparison above stays the only like-for-like real-AWS
+pair on this page until a clean (empty) post-migrate plan at 3,705 resources
+produces one, which needs #1046 resolved first.
 
 ### The sweep now overlaps its own waiting
 

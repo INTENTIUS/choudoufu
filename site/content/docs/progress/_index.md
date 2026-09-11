@@ -135,7 +135,7 @@ together.
 | Estate | Target | Region | Clear | Date | Ceiling |
 |---|---|---|---|---|---|
 | reference-ec2-vpc | aws | us-east-2 | yes | 2026-09-08T01:17:12Z | $5.00 |
-| terralith-scale | aws | us-east-2 | no | 2026-09-11T08:34:03Z | $100.00 |
+| terralith-scale | aws | us-east-2 | no | 2026-09-11T12:31:25Z | $100.00 |
 
 
 To add an estate, see [Add an estate]({{< relref "add-an-estate" >}}).

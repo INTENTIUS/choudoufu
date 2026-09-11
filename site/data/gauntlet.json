@@ -2139,15 +2139,15 @@
         "test_plan": "fail"
       },
       "clear": false,
-      "commit": "15f5dcd5d552b5ac0d3f613e252c433a26689b9a",
-      "date": "2026-09-11T08:34:03Z",
+      "commit": "8bbef274d671b61342db452436abeb84820578a0",
+      "date": "2026-09-11T12:31:25Z",
       "exit_code": 1,
       "detail": {
-        "cold_deploy": "3705 resources from stock terraform against aws at scale=50 in 2072s, tofu-cert-run=lc1032s50-run, debug log 70585228B/370 throttle/370 retry",
-        "migrate": "1655 of 3705 verified, 1655 stamped, 2050 skipped, in 1216s, debug log 94209525B/627 throttle/627 retry",
-        "test_plan": "identity piece unused: no resource in the account carries tofu-estate=tl-livecert-lc1032s50"
+        "cold_deploy": "3705 resources from stock terraform against aws at scale=50 in 2023s, tofu-cert-run=lc1032s50b-run, debug log 70521448B/347 throttle/347 retry",
+        "migrate": "1655 of 3705 verified, 1655 stamped, 2050 skipped, in 1214s, debug log 94226106B/600 throttle/600 retry",
+        "test_plan": "the post-migrate plan is not empty - see /private/tmp/claude-501/-Users-alex-Documents-checkouts-intentius-choudoufu/aefed153-1ee1-4e68-9a5a-49f6e3e1cf34/scratchpad/scale50b/work/test_plan.out"
       },
-      "duration_s": 12633.3
+      "duration_s": 11180.5
     }
   ]
 }
