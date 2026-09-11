@@ -2132,24 +2132,22 @@
       "protocol": "live-aws",
       "target": "aws",
       "region": "us-east-2",
-      "ceiling_usd": 15,
+      "ceiling_usd": 100,
       "stages": {
         "cold_deploy": "pass",
         "migrate": "pass",
-        "test_apply": "pass",
-        "test_plan": "pass"
+        "test_plan": "fail"
       },
-      "clear": true,
-      "commit": "1d06e1d1774d4e38ff6836e56213e5a5272d44b8",
-      "date": "2026-08-31T03:20:33Z",
-      "exit_code": 0,
+      "clear": false,
+      "commit": "15f5dcd5d552b5ac0d3f613e252c433a26689b9a",
+      "date": "2026-09-11T08:34:03Z",
+      "exit_code": 1,
       "detail": {
-        "cold_deploy": "745 resources from stock terraform against aws at scale=10 in 413s, tofu-cert-run=lc1788143435-19631, debug log 13058408B/86 throttle/86 retry",
-        "migrate": "335 of 745 verified, 335 stamped, 410 skipped, in 222s, debug log 19403609B/190 throttle/190 retry",
-        "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 24",
-        "test_plan": "post-migrate plan is empty in 129s; zone/role tofu-address confirmed via the AWS CLI; debug log 5744376 bytes, 2 throttling-error line(s), 2 retry line(s)"
+        "cold_deploy": "3705 resources from stock terraform against aws at scale=50 in 2072s, tofu-cert-run=lc1032s50-run, debug log 70585228B/370 throttle/370 retry",
+        "migrate": "1655 of 3705 verified, 1655 stamped, 2050 skipped, in 1216s, debug log 94209525B/627 throttle/627 retry",
+        "test_plan": "identity piece unused: no resource in the account carries tofu-estate=tl-livecert-lc1032s50"
       },
-      "duration_s": 2998.6
+      "duration_s": 12633.3
     }
   ]
 }

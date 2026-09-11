@@ -361,6 +361,36 @@ the same pair now reads 3, 4, 3s against 17, 18, 17s. The 200s column is what
 a full sweep cost sequentially on a real account; an ordinary plan costs far
 less.
 
+### At 3,705 resources the pair could not be formed
+
+[#1032](https://github.com/INTENTIUS/choudoufu/issues/1032) took the same
+real-AWS harness to scale 50, 3,705 resources, `us-east-2`, commit
+`15f5dcd5d5`, 2026-09-11. Stock's side of the comparison is measured cleanly:
+three converged, no-change `terraform plan` runs at 192s, 289s and 184s
+(`TF_LOG` unset, warm provider), and one further instrumented plan (also
+empty) counting **7,248 provider-mediated AWS API requests exactly**, from
+`rpc.method` entries - dominated by IAM (1,658 `ListAttachedRolePolicies`,
+1,074 `GetRole`, 1,024 `GetRolePolicy`, 560 `ListRolePolicies`, 523
+`GetPolicy`, 522 `GetPolicyVersion`, 507 `GetInstanceProfile`) and Route 53
+(641 `GetHostedZone`, 627 `ListResourceRecordSets`), the same two services
+[What you pay]({{< relref "/docs/what-you-pay#the-same-comparison-on-real-aws-at-79-and-745-resources" >}})
+names as the account-tracking term at 745 resources - continuing to grow
+with estate scale rather than staying flat. 435 throttling-error lines and
+435 retries landed on this one plan alone, all absorbed.
+
+choudoufu's side of the pair does not exist at this scale, and this page
+will not estimate it in place of measuring it. `test_plan` found a real
+defect instead - the post-migrate plan was not empty; see
+[what you pay]({{< relref "/docs/what-you-pay#at-3705-resources-migration-itself-still-holds---the-post-migrate-plan-does-not" >}})
+for what it proposed and why. A harness bug in the same stage's own
+identity check then masked that finding behind an unrelated, false "no
+resource carries this estate's marker" message and, because it fails before
+the script's own deferred timing fallback runs, no choudoufu-side
+`timed_plans` or API-call count was ever taken at this scale - not a zero,
+an unmeasured cell. The 79-versus-745 comparison above stays the only
+like-for-like real-AWS pair on this page until a clean post-migrate plan at
+3,705 resources produces one.
+
 ### The sweep now overlaps its own waiting
 
 The admission table fixes how many calls there are. Nothing requires them to
