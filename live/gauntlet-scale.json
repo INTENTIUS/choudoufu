@@ -248,7 +248,20 @@
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         }
       },
-      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json"
+      "plan_calls": {
+        "sweep": {
+          "choudoufu": 588
+        },
+        "read_pass": {
+          "choudoufu": 118,
+          "stock": 150
+        },
+        "total": {
+          "choudoufu": 706,
+          "stock": 150
+        }
+      },
+      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json; plan_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 0fee6f5e09cb5600914f5ceccfaaf8ee0057df7a"
     }
   ]
 }
