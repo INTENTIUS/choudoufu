@@ -18,6 +18,7 @@
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
+//	go run ./tools/gauntlet scale-import-slice [-estate name] <slice_out.json> # merge a slicing-bench SLICE_OUT report's plan_calls split into live/gauntlet-scale.json (#1053)
 package main
 
 import (
@@ -65,6 +66,8 @@ func main() {
 		fatalIf(cmdMergeArtifact(root, os.Args[2:]))
 	case "scale-backfill":
 		fatalIf(cmdScaleBackfill(root, os.Args[2:]))
+	case "scale-import-slice":
+		fatalIf(cmdScaleImportSlice(root, os.Args[2:]))
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
@@ -82,7 +85,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the

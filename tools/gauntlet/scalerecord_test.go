@@ -407,3 +407,54 @@ func TestUpsertScaleRecordKeepsEverySize(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// PlanCalls (issue #1053): the real-AWS token pair on test_plan's own
+// detail. Item 5's second RED-then-GREEN proof - "one that fails when the
+// parser drops a token it was given" - is this test, tampered and restored;
+// see this worker's own report for the quoted RED output.
+// ---------------------------------------------------------------------------
+
+// TestParsePlanCallsDetailReadsBothTokens uses the exact numbers
+// site/content/docs/model/plan-cost.md quotes for the scale-50 real-AWS run
+// ("the first post-migration instrumented plan counted 8,305
+// provider-mediated AWS API requests exactly ... against stock's 7,207 on
+// the same run") to prove parsePlanCallsDetail reads BOTH sides off one
+// detail string, not just the one it happens to be given first.
+func TestParsePlanCallsDetailReadsBothTokens(t *testing.T) {
+	detail := "post-migrate plan is empty in 375s; zone/role tofu-address confirmed via the AWS CLI; debug log 5744376 bytes, 0 throttling-error line(s), 0 retry line(s); index_lag_s=120 seconds=375 throttle=0 retry=0 plan_calls_choudoufu=8305 plan_calls_stock=7207"
+
+	pc := parsePlanCallsDetail(detail)
+	if pc == nil {
+		t.Fatal("parsePlanCallsDetail returned nil for a detail string carrying both tokens")
+	}
+	if pc.Sweep != nil {
+		t.Errorf("Sweep = %+v, want nil - a real-AWS detail carries no leg split, only a total (see tokenPlanCallsChoudoufu's own doc comment)", pc.Sweep)
+	}
+	if pc.ReadPass != nil {
+		t.Errorf("ReadPass = %+v, want nil, same reason", pc.ReadPass)
+	}
+	if pc.Total == nil {
+		t.Fatal("Total is nil, want a populated pair")
+	}
+	if pc.Total.Choudoufu != 8305 {
+		t.Errorf("Total.Choudoufu = %d, want 8305 (from plan_calls_choudoufu=8305)", pc.Total.Choudoufu)
+	}
+	if pc.Total.Stock == nil {
+		t.Fatal("Total.Stock is nil, want 7207 - the parser dropped the plan_calls_stock= token it was given")
+	}
+	if *pc.Total.Stock != 7207 {
+		t.Errorf("Total.Stock = %d, want 7207 (from plan_calls_stock=7207)", *pc.Total.Stock)
+	}
+}
+
+// TestParsePlanCallsDetailAbsentToken proves the negative: no
+// plan_calls_choudoufu= token at all (every historical row, and a run that
+// predates this issue's instrumentation) yields nil, never a zero-valued
+// ScalePlanCalls that would read as "measured, and it was zero".
+func TestParsePlanCallsDetailAbsentToken(t *testing.T) {
+	detail := "post-migrate plan is empty in 17s; zone/role tofu-address confirmed via the AWS CLI; debug log 758890 bytes, 0 throttling-error line(s), 0 retry line(s)"
+	if pc := parsePlanCallsDetail(detail); pc != nil {
+		t.Fatalf("parsePlanCallsDetail = %+v, want nil for a detail with no plan_calls_ token at all", pc)
+	}
+}
