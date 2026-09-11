@@ -65,6 +65,22 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-09-11 repin (issue #1045, lex00/floci PR #202 - closes lex00/floci#201):
+// floci was answering GetResources/GetTagKeys/GetTagValues for IAM, which
+// real AWS never does (probed directly, recorded on issue #692); a
+// narrowing built on GetResources for IAM would have passed against this
+// pin while silently dropping owned IAM objects on real AWS.
+// TagResources/UntagResources still accept IAM ARNs, as AWS does. #202 also
+// paginates ListRoles/ListPolicies/ListPolicyVersions/ListAttachedRolePolicies
+// with MaxItems/Marker, default and cap 100. `go run ./tools/gauntlet
+// render` keeps gauntlet.json's own top-level "emulator" field (the one
+// flociImageFields reads) in sync with live/floci-image on every run,
+// independent of any estate's own last_run provenance, so this repin needs
+// no entry here for it - only a render, already done. The corpus
+// re-measure this repin would otherwise call for is a full `gauntlet.yml`
+// dispatch, gated on the maintainer's own approval click per HANDOFF.md's
+// "Heavy runs, dispatched by hand" section, not this unit's to run.
+//
 // 2026-09-10 repin (issue #673, lex00/floci#188 - the listener's monitor for
 // the ELBv2 CreateRule priority check): the third repin in a row with the same
 // scope. Concurrent CreateRule calls on one listener tore the per-listener rule

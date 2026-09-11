@@ -110,10 +110,13 @@ func TestCapabilityGateNoOpForUnrecordedType(t *testing.T) {
 // Re-probed as a round trip, the row is unimplemented, and the gate now
 // skips on it - correctly.
 //
-// The tagging-sweep direction is covered as a positive: the gate must be a
-// no-op on aws_iam_role, which is exactly what makes
-// internal/live/discovery's TestTaggingSweepAgainstFloci assert its bind
-// rather than skip.
+// The tagging-sweep direction on aws_iam_role used to be covered as a
+// positive here (the gate a no-op, on the strength of the union-index pin's
+// "implemented" row). Issue #1045 (lex00/floci PR #202) retired that: floci
+// stopped serving IAM through GetResources/GetTagKeys/GetTagValues, matching
+// real AWS, so the row is unimplemented again and the gate skips - now
+// TestCapabilityGateSkipsForTaggingSweepIAM below, the same shape as
+// TestCapabilityGateSkipsForKnownGap.
 func TestCapabilityGateMechanismScoping(t *testing.T) {
 	cases := []struct {
 		name string
@@ -140,11 +143,6 @@ func TestCapabilityGateMechanismScoping(t *testing.T) {
 			run:  func(st *testing.T) { CapabilityGate(st, "aws_iam_role") },
 			why:  "aws_iam_role has no mechanism=\"\" row; it works fine on the ordinary path",
 		},
-		{
-			name: "tagging-sweep is a no-op once the row records implemented",
-			run:  func(st *testing.T) { TaggingSweepCapabilityGate(st, "aws_iam_role") },
-			why:  "the pinned digest's union index populates the tagging sweep, so the row is implemented",
-		},
 	}
 
 	for _, tc := range cases {
@@ -161,6 +159,29 @@ func TestCapabilityGateMechanismScoping(t *testing.T) {
 		if !ran {
 			t.Errorf("%s: code after the gate never ran (%s)", tc.name, tc.why)
 		}
+	}
+}
+
+// TestCapabilityGateSkipsForTaggingSweepIAM is
+// TestCapabilityGateMechanismScoping's retired positive case, now a skip:
+// issue #1045 (lex00/floci PR #202, closes lex00/floci#201) stopped floci
+// serving IAM through GetResources/GetTagKeys/GetTagValues, matching real
+// AWS (probed directly, recorded on issue #692), so aws_iam_role's
+// tagging-sweep row is unimplemented again at this pin - the same shape
+// every digest before sha256:a1c729f4's union index carried, and every
+// digest since sha256:0bbeb430 carries again.
+func TestCapabilityGateSkipsForTaggingSweepIAM(t *testing.T) {
+	var sub *testing.T
+	t.Run("skip", func(st *testing.T) {
+		sub = st
+		TaggingSweepCapabilityGate(st, "aws_iam_role")
+		t.Fatal("unreachable: TaggingSweepCapabilityGate should have skipped before this line")
+	})
+	if !sub.Skipped() {
+		t.Fatal("TaggingSweepCapabilityGate did not skip for aws_iam_role, a documented manifest gap since #1045's repin")
+	}
+	if sub.Failed() {
+		t.Error("the subtest failed rather than skipped cleanly")
 	}
 }
 

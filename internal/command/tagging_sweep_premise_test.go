@@ -63,11 +63,43 @@ const taggingSweepAssignment = "req.TaggingSweep = true"
 // than assign it unconditionally; empty is the intended state and is what
 // the current pin supports.
 //
+// alwaysNativeSweepTypes below is the other, narrower way a row here can be
+// something other than "implemented" without owing statelessDiscoverOne a
+// gate: a type internal/live/discovery's own per-type routing
+// (typeNeedsResourceObjectToRecompose, issue #394) sends through the
+// native per-type sweep unconditionally, never through sweepViaTagging, no
+// matter what Request.TaggingSweep says. For those, an unimplemented
+// tagging-sweep row costs the production path nothing to leave ungated,
+// because the path never reads it.
+//
 // An entry here is not free. It says the emulator tier cannot exercise
 // internal/live/discovery's sweepViaTagging leg for that type, which is the
 // production candidate path, so whatever replaces it in a gate has to be
 // spelled out here alongside the cost of getting the evidence back.
 var taggingSweepEmulatorExceptions = map[string]string{}
+
+// alwaysNativeSweepTypes names the types this package can independently
+// verify internal/live/discovery routes through the native per-type sweep
+// unconditionally (issue #394's typeNeedsResourceObjectToRecompose is
+// unexported, so this list is hand-kept rather than imported - see each
+// entry's own citation into that package for what to re-check if
+// discovery.go's routing ever changes). Unlike taggingSweepEmulatorExceptions,
+// listing a type here is not a standing decision about the emulator: it is
+// a fact about where statelessDiscoverOne's candidates for the type come
+// from, true or false regardless of any floci pin, and it does not toggle
+// case 5's unconditional/exception coupling below - Request.TaggingSweep
+// stays correctly unconditional either way.
+//
+// issue #1045 (lex00/floci PR #202) is what first made this matter: floci
+// stopped serving IAM through GetResources, so aws_iam_role's tagging-sweep
+// row went from implemented to unimplemented, and this premise test would
+// otherwise demand either a re-pin (impossible - the new pin is the correct
+// one; the old pin's "implemented" was the divergence from real AWS, per
+// issue #692) or a TaggingSweep gate that would regress the sweep for every
+// other type to buy nothing, since aws_iam_role never took that leg anyway.
+var alwaysNativeSweepTypes = map[string]string{
+	"aws_iam_role": "internal/live/discovery.typeNeedsResourceObjectToRecompose returns true for aws_iam_role unconditionally (its aws_iam_service_linked_role sibling pair, issue #302/#394), so partitionSweepTypes always sends it through the native per-type leg (scanTypeReporting) and sweepViaTagging never sees it - see discovery.go's own doc comment on partitionSweepTypes and typeNeedsResourceObjectToRecompose",
+}
 
 // liveDir is the repository's live/ directory, relative to this package.
 const liveDir = "../../live"
@@ -213,9 +245,15 @@ func TestTaggingSweepPremiseHoldsForThePinnedEmulator(t *testing.T) {
 			typeName, priorTypes[typeName], digest, taggingSweepAssignment)
 	}
 
-	// 3 and 4: the two directions, on the same rows.
+	// 3 and 4: the two directions, on the same rows. alwaysNativeSweepTypes
+	// is checked first and short-circuits both: a type it names never takes
+	// the tagging leg regardless of this row's status, so neither direction
+	// says anything about whether statelessDiscoverOne needs a gate.
 	for _, typeName := range sortedKeys(rows) {
 		row := rows[typeName]
+		if _, native := alwaysNativeSweepTypes[typeName]; native {
+			continue
+		}
 		reason, excepted := taggingSweepEmulatorExceptions[typeName]
 		implemented := row.Status == "implemented"
 		switch {
