@@ -238,18 +238,6 @@ func cmdRender(root string) error {
 }
 
 func cmdRun(root string, args []string) error {
-	// The maintainer-run-guard (issue: 2026-09-11 incident, see CLAUDE.md):
-	// a local `run` (CI unset, GITHUB_ACTIONS unset) is a heavy run - real
-	// containers, real wall-clock minutes - that only the maintainer's own
-	// hand should start. Checked before flag parsing even finishes reading
-	// estate names, so a malformed invocation never races the refusal.
-	// withDispatchHint (heavyrun.go) adds the one thing CheckMaintainerAllow
-	// itself cannot know: which workflow runs this for real, and the exact
-	// `gh workflow run` line that dispatches it.
-	if err := CheckMaintainerAllow(); err != nil {
-		return withDispatchHint(err, "gauntlet.yml",
-			`gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates="name1 name2"`)
-	}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
 	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, one estate at a time. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner")
@@ -258,6 +246,40 @@ func cmdRun(root string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
+	// The maintainer-run-guard (2026-09-11 incident, see CLAUDE.md), made
+	// proportionate the same day after the maintainer asked why a run this
+	// small needs unlocking at all: one or more explicitly named estates,
+	// against the emulator, with no -set flag, is the ordinary developer
+	// loop (e.g. `gauntlet run terralith-scale`: one estate, scale 1, the
+	// local floci emulator, minutes, no cloud, no cost) and is allowed with
+	// no allow file. Everything else that reaches this point - a bare
+	// `gauntlet run` with no names at all (which resolves to the "all" set
+	// below, i.e. every estate, exactly like `-set all`: see run.go's
+	// RunEstates), or an explicit -set core/-set all - still needs the
+	// maintainer's own hand-run allow file: that is the shape the 2026-09-11
+	// incident actually was (three real-AWS certification cycles and two
+	// full-corpus runs), never a single named emulator estate.
+	// heavyRunIsNamedEmulatorLoop (maintainerguard.go) is the pure decision;
+	// checked here, after flag parsing (needed now to see the names and
+	// whether -set was explicitly typed) but still before loadAll or any
+	// script starts, so a malformed invocation never races the refusal.
+	// withDispatchHint (heavyrun.go) adds the one thing CheckMaintainerAllow
+	// itself cannot know: which workflow runs this for real, and the exact
+	// `gh workflow run` line that dispatches it.
+	setFlagExplicit := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "set" {
+			setFlagExplicit = true
+		}
+	})
+	if !heavyRunIsNamedEmulatorLoop(fs.Args(), setFlagExplicit) {
+		if err := CheckMaintainerAllow(); err != nil {
+			return withDispatchHint(err, "gauntlet.yml",
+				`gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates="name1 name2"`)
+		}
+	}
+
 	m, a, err := loadAll(root)
 	if err != nil {
 		return err

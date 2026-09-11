@@ -328,19 +328,41 @@ Rules are tests. The ones that hold this document to the tree:
 
 ### Heavy runs are the maintainer's, by hand
 
-`tools/gauntlet run` (locally, outside CI) and `tools/gauntlet live-cert`
-refuse before starting any container or making any cloud call unless
+The guard is proportionate, not a blanket refusal of `tools/gauntlet run`
+(corrected 2026-09-11, the same day it landed): a `run` naming one or more
+estates explicitly, with no `-set` flag, against the local floci emulator -
+the ordinary developer loop, e.g. `gauntlet run terralith-scale` (one
+estate, scale 1, about five minutes, no cloud, no cost) - proceeds with no
+allow file at all. `heavyRunIsNamedEmulatorLoop`
+(`tools/gauntlet/maintainerguard.go`) is that decision, consulted by cmdRun
+(`main.go`) before it ever calls `CheckMaintainerAllow`. A single named
+emulator estate was never what this guard was built for: the 2026-09-11
+incident that made it a rule (see below) was three real-AWS certification
+cycles and two full-corpus runs, not a five-minute local test of one
+estate, and a guard that blocks
+that kind of ordinary work gets disabled or routed around, at which point
+it protects nothing.
+
+Everything that amounts to a whole set still refuses before starting any
+container or making any cloud call, unless
 `~/.config/choudoufu/allow-heavy-runs` exists and its one line reads
-`until <RFC3339 or YYYY-MM-DDTHH:MM>` (local time) still in the future;
+`until <RFC3339 or YYYY-MM-DDTHH:MM>` (local time) still in the future:
+`-set core`, `-set all`, and a bare `tools/gauntlet run` with no names at
+all (which resolves to the "all" set, i.e. every estate - see run.go's
+RunEstates). So does every `tools/gauntlet live-cert` invocation
+unconditionally, named estate or not, `target=floci` or `target=aws`: even
+Stage-1 floci proving is a real container for real minutes.
 `live/live-cert/terralith-scale.sh` and `reference-ec2-vpc.sh` enforce the
 identical rule for themselves via `livecert_require_maintainer_allow`
-(`live/live-cert/lib/live-cert.sh`) when run directly with `TARGET=aws`, so
-there is no path around the Go runner either — except teardown-only
-(`terralith-scale.sh teardown <work dir>` / `LIVECERT_TEARDOWN_ONLY`, see
-"Iterating on a real estate" above), which never calls it: that path only
-destroys resources an earlier run already created and verifies the account
-empty, so refusing it for want of the allow file would strand a held,
-billing estate live instead of tearing it down. It still requires
+(`live/live-cert/lib/live-cert.sh`) when run directly with `TARGET=aws` -
+each script is inherently a single named estate already, so there is no
+set-versus-named distinction left to draw on the shell side, and no path
+around the Go runner either - except teardown-only (`terralith-scale.sh
+teardown <work dir>` / `LIVECERT_TEARDOWN_ONLY`, see "Iterating on a real
+estate" above), which never calls it: that path only destroys resources an
+earlier run already created and verifies the account empty, so refusing it
+for want of the allow file would strand a held, billing estate live instead
+of tearing it down. It still requires
 `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes` like every other
 `TARGET=aws` path. The file lives outside the
 repository on purpose: nothing here creates it, checking out a branch or
@@ -361,9 +383,11 @@ follow, and the 2026-09-11 incident that made it a rule.
 
 ### Heavy runs are dispatched, approved and never local
 
-A "heavy run" is `go run ./tools/gauntlet run` (a full estate pass, minutes
-to hours) or `go run ./tools/gauntlet live-cert -target aws` (spends real
-account money). The section above is the refusal itself (CI-only, otherwise
+A "heavy run" is `go run ./tools/gauntlet run -set core` or `-set all` (a
+full estate pass, minutes to hours - not a plain `run <name>` against the
+emulator, which the section above exempts) or `go run ./tools/gauntlet
+live-cert -target aws` (spends real account money). The section above is
+the refusal itself (CI-only, otherwise
 `CheckMaintainerAllow`); this one is where a heavy run actually happens now
 that a laptop is refused: GitHub Actions, dispatched by hand, and still
 gated on the maintainer's own approval click, so `CHOUDOUFU_LOCAL_HEAVY_RUN`

@@ -50,6 +50,93 @@ func TestMaintainerAllowReasonDecidesFromExistsLineAndNow(t *testing.T) {
 	}
 }
 
+// TestHeavyRunGuardIsProportionate pins the four cases the 2026-09-11
+// proportionality correction calls out by name, against
+// heavyRunIsNamedEmulatorLoop - the pure decision cmdRun (main.go) now
+// consults before ever calling CheckMaintainerAllow. Case 4 (live-cert) is
+// proven separately, in TestRunLiveCertRequiresAllowEvenForANamedEstate
+// below, because live-cert never calls heavyRunIsNamedEmulatorLoop at all -
+// RunLiveCert's own CheckMaintainerAllow call is unconditional, and that is
+// exactly the point being pinned.
+func TestHeavyRunGuardIsProportionate(t *testing.T) {
+	cases := []struct {
+		name            string
+		names           []string
+		setFlagExplicit bool
+		wantAllowed     bool
+	}{
+		{
+			name:            "1: named estate, no -set flag - the developer loop - allowed with no allow file",
+			names:           []string{"terralith-scale"},
+			setFlagExplicit: false,
+			wantAllowed:     true,
+		},
+		{
+			name:            "1b: multiple named estates, no -set flag - still the developer loop - allowed",
+			names:           []string{"terralith-scale", "reference-ec2-vpc"},
+			setFlagExplicit: false,
+			wantAllowed:     true,
+		},
+		{
+			name:            "2: -set core (or -set all) explicitly given - a whole set - refused without the allow file",
+			names:           nil,
+			setFlagExplicit: true,
+			wantAllowed:     false,
+		},
+		{
+			name:            "2b: -set explicitly given alongside named estates - still reads as \"I meant a set\" - refused",
+			names:           []string{"terralith-scale"},
+			setFlagExplicit: true,
+			wantAllowed:     false,
+		},
+		{
+			name: "3: bare `gauntlet run` with no names at all - resolves to the \"all\" set " +
+				"(RunEstates's Set default), i.e. everything - refused without the allow file, " +
+				"the same as -set all",
+			names:           nil,
+			setFlagExplicit: false,
+			wantAllowed:     false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := heavyRunIsNamedEmulatorLoop(tc.names, tc.setFlagExplicit)
+			if got != tc.wantAllowed {
+				t.Errorf("heavyRunIsNamedEmulatorLoop(%v, setFlagExplicit=%v) = %v, want %v",
+					tc.names, tc.setFlagExplicit, got, tc.wantAllowed)
+			}
+		})
+	}
+}
+
+// TestRunLiveCertRequiresAllowEvenForANamedEstate is case 4: the named-estate
+// exemption that now lets `gauntlet run <name>` proceed with no allow file
+// must never leak into live-cert. RunLiveCert calls CheckMaintainerAllow
+// unconditionally, before even validating the estate name against the
+// manifest, so this refuses on the allow-file check alone - nothing is
+// started, no script runs, target=floci or not.
+func TestRunLiveCertRequiresAllowEvenForANamedEstate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("CI", "")
+
+	_, _, _, err := RunLiveCert(".", "terralith-scale", "floci", "us-east-1", 5, 900, "")
+	if err == nil {
+		t.Fatal("RunLiveCert(target=floci, a single named estate) with no allow file = nil error, want a refusal - live-cert has no named-estate exemption")
+	}
+	path, pathErr := MaintainerAllowFile()
+	if pathErr != nil {
+		t.Fatal(pathErr)
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("refusal %q does not name the allow file %q", err.Error(), path)
+	}
+	if !strings.Contains(err.Error(), "just allow-heavy-runs") {
+		t.Errorf("refusal %q does not name the `just allow-heavy-runs` recipe", err.Error())
+	}
+}
+
 // TestCheckMaintainerAllowSkipsInCI proves the one deliberate bypass: a
 // GitHub Actions run (or anything else that sets CI) is exempt regardless
 // of whether the allow file exists, because the workflow's own schedule or
