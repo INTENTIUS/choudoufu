@@ -272,9 +272,87 @@ else
   fi
 fi
 
+echo "== case: the CloudWatch Logs tag actions are granted on both log-group ARN forms (#807) =="
+# Issue #807's run 34640702934: live-apply's fatal error named the log group
+# ARN with no trailing ":*" verbatim -
+#   "AccessDeniedException: ... is not authorized to perform:
+#    logs:ListTagsForResource on resource:
+#    arn:aws:logs:us-east-1:354867293429:log-group:/choudoufu-ci-pipelines-example/app"
+# - while the policy only ever granted the ":*" form
+# (LOG_GROUP_ARN). Prove DescribeTheEstate (shared by all three policies)
+# and WriteTheMarker (adopt + apply) both carry LOG_GROUP_ARN_BASE (the bare
+# form) alongside LOG_GROUP_ARN, and that ManageTheEstate - whose logs:
+# actions are true log-group actions, never the tagging trio - was left on
+# the ":*" form alone.
+write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
+runner="$WORK/run-tagarn.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$SCRIPT_PATH" --dry-run >"$WORK/tagarn.out" 2>"$WORK/tagarn.err"
+jq -c '.Statement[] | select(.Sid=="DescribeTheEstate")' "\$PLAN_POLICY"  > "$WORK/tagarn.plan.describe.json"  || true
+jq -c '.Statement[] | select(.Sid=="DescribeTheEstate")' "\$APPLY_POLICY" > "$WORK/tagarn.apply.describe.json" || true
+jq -c '.Statement[] | select(.Sid=="WriteTheMarker")'    "\$APPLY_POLICY" > "$WORK/tagarn.apply.marker.json"   || true
+jq -c '.Statement[] | select(.Sid=="ManageTheEstate")'   "\$APPLY_POLICY" > "$WORK/tagarn.apply.manage.json"   || true
+echo "\$LOG_GROUP_ARN"             > "$WORK/tagarn.starform"
+echo "\${LOG_GROUP_ARN_BASE:-}"    > "$WORK/tagarn.bareform"
+RUNEOF
+chmod +x "$runner"
+if ! PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL (tagarn): oidc-bootstrap.sh --dry-run exited non-zero. stderr:" >&2
+  cat "$WORK/tagarn.err" >&2 2>/dev/null || true
+  FAILURES=$((FAILURES + 1))
+else
+  STAR_ARN="$(cat "$WORK/tagarn.starform")"
+  BARE_ARN="$(cat "$WORK/tagarn.bareform")"
+  echo "  LOG_GROUP_ARN:      $STAR_ARN"
+  echo "  LOG_GROUP_ARN_BASE: $BARE_ARN"
+  if [ "$BARE_ARN" = "$STAR_ARN" ] || [ "${BARE_ARN}:*" != "$STAR_ARN" ]; then
+    echo "FAIL: LOG_GROUP_ARN_BASE ($BARE_ARN) is not the bare form of LOG_GROUP_ARN ($STAR_ARN)" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+
+  DESCRIBE_PLAN="$(cat "$WORK/tagarn.plan.describe.json" 2>/dev/null || true)"
+  DESCRIBE_APPLY="$(cat "$WORK/tagarn.apply.describe.json" 2>/dev/null || true)"
+  MARKER_APPLY="$(cat "$WORK/tagarn.apply.marker.json" 2>/dev/null || true)"
+  MANAGE_APPLY="$(cat "$WORK/tagarn.apply.manage.json" 2>/dev/null || true)"
+  echo "  plan DescribeTheEstate:  ${DESCRIBE_PLAN:-<absent>}"
+  echo "  apply DescribeTheEstate: ${DESCRIBE_APPLY:-<absent>}"
+  echo "  apply WriteTheMarker:    ${MARKER_APPLY:-<absent>}"
+  echo "  apply ManageTheEstate:   ${MANAGE_APPLY:-<absent>}"
+
+  for label_json in "plan DescribeTheEstate:$DESCRIBE_PLAN" "apply DescribeTheEstate:$DESCRIBE_APPLY" "apply WriteTheMarker:$MARKER_APPLY"; do
+    label="${label_json%%:*}"
+    stmt="${label_json#*:}"
+    if [ -z "$stmt" ]; then
+      echo "FAIL: $label statement is absent" >&2
+      FAILURES=$((FAILURES + 1))
+      continue
+    fi
+    if ! echo "$stmt" | jq -e --arg star "$STAR_ARN" --arg bare "$BARE_ARN" \
+        '(.Resource | type == "array") and (.Resource | index($star) != null) and (.Resource | index($bare) != null)' \
+        > /dev/null 2>&1; then
+      echo "FAIL: $label does not grant both $STAR_ARN and $BARE_ARN: $stmt" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+
+  if [ -z "$MANAGE_APPLY" ]; then
+    echo "FAIL: apply ManageTheEstate statement is absent" >&2
+    FAILURES=$((FAILURES + 1))
+  else
+    if ! echo "$MANAGE_APPLY" | jq -e --arg bare "$BARE_ARN" \
+        '(.Resource | type == "array") and (.Resource | index($bare) == null)' \
+        > /dev/null 2>&1; then
+      echo "FAIL: apply ManageTheEstate unexpectedly carries the bare ARN $BARE_ARN too: $MANAGE_APPLY" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  fi
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, and the record store's GetParametersByPath is scoped to the path ARN rather than the leaf."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the record store's GetParametersByPath is scoped to the path ARN rather than the leaf, and the CloudWatch Logs tag actions are granted on both log-group ARN forms."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."
