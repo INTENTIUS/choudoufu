@@ -569,8 +569,19 @@ obviously better; it is stated because it is the other real option.
 
 ### Setting up OIDC for the real-AWS smoke (issue #807)
 
-Everything above this point runs against floci; nothing in this repository's own CI
-has ever assumed one of these roles against a real account. `.github/workflows/ci-pipelines-smoke.yml`
+Everything above this point runs against floci. The generated pipeline's five Ops
+have since run once against a real AWS account with OIDC-minted, short-lived
+credentials and no stored key: run
+[34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301),
+main at `172bf2a390`, 2026-09-11, account `354867293429`, `us-east-1`, all 13 smoke
+verdicts passing, including the gate recorded and resolved on the git ledger and the
+apply refusal returning exit 3 against the real account rather than an emulator. Five
+defects stood in the way of that run; each is fixed on main and each has its own
+self-test in `scripts/selftest-oidc-bootstrap.sh`. GitLab's own OIDC exchange to AWS
+is still unexercised and Forgejo issues no OIDC token at all - both remain open as
+Q2 of issue #807.
+
+`.github/workflows/ci-pipelines-smoke.yml`
 has a `target: real-aws` mode (`workflow_dispatch`, choices `emulator` default and
 `real-aws`) that does: it needs the three roles the table above already names to
 exist, and two repository variables, on `INTENTIUS/choudoufu`, in account
@@ -697,34 +708,44 @@ Once the variables are set, `gh workflow run ci-pipelines-smoke.yml --ref <branc
 target=real-aws` runs the same five Ops as the emulator path, against the real
 account, through `aws-actions/configure-aws-credentials` assuming
 `CHOUDOUFU_APPLY_ROLE_ARN` (the widest of the three, since this smoke's own
-`live-apply` needs it) in `AWS_REGION`. Expect the same verdict-line shape "Running
-it locally, against the emulator" above shows, minus the emulator-specific ones
+`live-apply` needs it) in `AWS_REGION`. This is what run 34644390301 (main at
+`172bf2a390`, 2026-09-11) actually printed, minus the emulator-specific verdict
 (`floci-pin` does not run in the real-aws job at all - there is no service container to
 check the pin of):
 
 ```
+SMOKE op=choudoufu-pin verdict=pass version=v0.17.0
 SMOKE op=live-check verdict=pass status=ok
 SMOKE op=live-plan verdict=pass status=ok
 SMOKE op=live-apply verdict=pass status=gated
+SMOKE op=live-apply/gate-pending verdict=pass status=recorded
 SMOKE op=live-apply/approve verdict=pass status=resolved
 SMOKE op=live-apply verdict=pass status=ok
 SMOKE op=live-apply/plan-moved verdict=pass status=gated
 SMOKE op=live-adopt verdict=pass status=gated
+SMOKE op=live-adopt/gate-pending verdict=pass status=recorded
 SMOKE op=live-adopt/approve verdict=pass status=resolved
 SMOKE op=live-adopt verdict=pass status=ok
 SMOKE op=live-discover verdict=pass status=ok
 SMOKE op=apply-refusal verdict=pass status=exit3
+SMOKE op=orphan-warnings verdict=measured count=0 per-live-plan=0
+SMOKE total pass=13 fail=0
 ```
 
-One thing this section does not do: after `live-apply` runs `ok` against a real
-account, the CloudWatch log group and IAM role in "The estate" below are real and
-stay real - nothing in `scripts/smoke.sh` destroys them, on either target, and there
-is no `live-destroy` in the sequence. On the emulator this costs nothing because the
-whole container is thrown away after; against a real account a maintainer who
-dispatches `target: real-aws` more than once is re-applying the same estate, not
-creating a new one each time (the marker tags are how it recognizes its own prior
-run), but tearing it down afterward - `choudoufu destroy` in `terraform/`, using the
-apply role - is a manual step this issue does not automate.
+This section does not tear anything down: after `live-apply` runs `ok` against a real
+account, the CloudWatch log group, the IAM role, and the three SSM record-store
+entries in "The estate" below are real and stay real - nothing in `scripts/smoke.sh`
+destroys them, on either target, and there is no `live-destroy` in the sequence. On
+the emulator this costs nothing because the whole container is thrown away after;
+against a real account a maintainer who dispatches `target: real-aws` more than once
+is re-applying the same estate, not creating a new one each time (the marker tags are
+how it recognizes its own prior run). Run 34644390301 left exactly that behind - one
+log group, one IAM role, three SSM records, all free - and it is still there. Tearing
+it down is a manual step this issue does not automate:
+
+```bash
+cd terraform && choudoufu destroy   # using the apply role
+```
 
 ## The estate
 

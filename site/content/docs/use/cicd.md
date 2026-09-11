@@ -83,13 +83,15 @@ from what each forge's dialect can carry:
 | Apply gate | chant's gate, plus a `production` environment reviewer | chant's gate only - Forgejo Actions has no environments | chant's gate, plus `production`; an audit trail only on CE |
 | Reporting | `comment`/`issue`/`pull-request` via `gh` | `comment` via `gh`, built from `GITHUB_API_URL` (chant#2291); `issue` stays `report` | `comment`/`issue` via a plain REST call to GitLab's own API |
 
-All three have now been run, once each, against no real cloud account:
+All three have now been run, once each; the three below ran against no real cloud
+account, and GitHub has since had a fourth run against a real one:
 
 | | Stack | Result |
 |---|---|---|
 | GitHub | v0.16.0, [run 34313049854](https://github.com/INTENTIUS/choudoufu/actions/runs/34313049854), floci as a service container, all four triggers plus the gate/approve/re-run loop ([#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)) | `pass=12 fail=0` verdict lines - two jobs could not have started; see below |
 | Forgejo | 12.0.4+gitea-1.22.0, `forgejo-runner` v9.1.1, no cloud behind it ([#1027](https://github.com/INTENTIUS/choudoufu/issues/1027)) | checkout, `npm ci`, the pinned binary, `init` and `chant run` all worked; the run ended at the credential call |
 | GitLab | CE 17.11.0, `gitlab-runner` 17.11.0, docker executor, floci behind it, 10 pipelines / 17 jobs ([#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)) | `live-check`, `live-plan`, `live-discover` green unmodified; `live-apply` and `live-adopt` red, both fixed by setup steps below |
+| GitHub, real AWS | main at `172bf2a390`, [run 34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301), account `354867293429`, `us-east-1`, 2026-09-11, OIDC-minted credentials, no stored key ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)) | `pass=13 fail=0` - the gate recorded and resolved on the git ledger, the apply refusal returning exit 3 |
 
 What running rather than reading found:
 
@@ -137,10 +139,14 @@ What running rather than reading found:
   off an unprotected branch, the same symptom and the same 401, with no line
   naming either cause.
 
-None of the three runs had an AWS account behind it: the dialect is proven
-and the credential exchange is not. GitLab's `id_tokens:` role assumption
-follows GitHub's shape, but floci's static credentials shadowed it end to
-end, so no STS call was made ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)
+None of the three dialect-proof runs above had an AWS account behind it. GitHub's
+own OIDC exchange has since been verified for real, separately: run
+[34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301) (main
+at `172bf2a390`, 2026-09-11) minted a short-lived credential over
+`token.actions.githubusercontent.com` and applied against account `354867293429`
+with no stored key. GitLab's `id_tokens:` role assumption follows GitHub's shape,
+but floci's static credentials shadowed it end to end in the GitLab run above, so no
+STS call was made there ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)
 Q2 stays open). Forgejo has no OIDC surface to reach for at all - it ships
 static keys and says so - which is the credential model worth replacing
 outright rather than the one waiting on a proof. Since #1028, at least each
