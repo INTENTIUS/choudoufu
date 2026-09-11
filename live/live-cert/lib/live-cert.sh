@@ -272,6 +272,18 @@ livecert_sweep() {
 # treat the sibling LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY check the
 # same way, so this sits beside it rather than returning a value the caller
 # has to remember to check.
+#
+# teardown-only never needs this file: terralith-scale.sh's own
+# `teardown <work dir>` / LIVECERT_TEARDOWN_ONLY dispatch (#1032) does not
+# call this function at all, on purpose. That path only destroys resources
+# an EARLIER run already created and then verifies the account is empty -
+# it creates nothing new and keeps nothing live - so refusing it would do
+# the opposite of what this guard exists to prevent: it would leave a held,
+# billing estate stranded live rather than torn down. A full run, a held
+# run (LIVECERT_HOLD=1), and a resume (LIVECERT_RESUME) all still call this
+# function, because each of those creates or keeps real resources.
+# LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY is untouched by any of this -
+# teardown-only still requires it, same as every other TARGET=aws path.
 livecert_require_maintainer_allow() {
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     return 0

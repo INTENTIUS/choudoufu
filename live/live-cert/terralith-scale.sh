@@ -129,7 +129,14 @@ set -uo pipefail
 #                    and a rebuilt live block this dispatch does not
 #                    reconstruct. Still refuses TARGET=aws without
 #                    LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes, the
-#                    same spend guard every other entry point here keeps.
+#                    same spend guard every other entry point here keeps -
+#                    but, unlike every other entry point, does NOT require
+#                    the maintainer's allow file (see
+#                    livecert_require_maintainer_allow's own doc comment in
+#                    lib/live-cert.sh): it only destroys resources an
+#                    earlier run already created and verifies the account
+#                    empty, so refusing it would strand a held estate live,
+#                    the opposite of what that guard is for.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -262,7 +269,19 @@ case "$TARGET" in
     # before the env-var key below, and independent of it - see
     # livecert_require_maintainer_allow's own doc comment in
     # lib/live-cert.sh for why the env var alone is not a guard.
-    livecert_require_maintainer_allow
+    #
+    # teardown-only (TEARDOWN_ONLY_DIR, set by part 1 of the teardown-only
+    # dispatch above, before TARGET/SCALE/etc even get their fresh-run
+    # defaults) is exempt - see livecert_require_maintainer_allow's own doc
+    # comment for why: it only destroys resources an earlier run already
+    # created and verifies the account is empty, so refusing it would
+    # strand a held, billing estate live instead of tearing it down, which
+    # is the opposite of what this guard is for. A full run, a held run,
+    # and a resume all still go through this call, since each of those
+    # creates or keeps real resources.
+    if [ -z "$TEARDOWN_ONLY_DIR" ]; then
+      livecert_require_maintainer_allow
+    fi
     if [ "${LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY:-}" != "yes" ]; then
       echo "refusing: TARGET=aws needs LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes - nothing has been created" >&2
       exit 2
