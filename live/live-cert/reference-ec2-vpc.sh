@@ -476,16 +476,12 @@ gauntlet_stage test_plan pass "post-migrate plan is empty; aws_instance.main's t
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_apply
 log "=== 5. test_apply: the empty plan applies as a genuine no-op ==="
-BEFORE_N="$(livecert_aws resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+BEFORE_N="$(livecert_rgta_count tofu-estate "$ESTATE")"
 NOOP_OUT="$(cd "$ADOPTED_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_RC=$?
 [ "$NOOP_RC" -eq 0 ] || { printf '%s\n' "$NOOP_OUT" | tail -30; fail "the no-op apply exited $NOOP_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_OUT" \
   || { grep -E 'Apply complete' <<< "$NOOP_OUT"; fail "the no-op apply was not a genuine no-op"; }
-AFTER_N="$(livecert_aws resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+AFTER_N="$(livecert_rgta_count tofu-estate "$ESTATE")"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"

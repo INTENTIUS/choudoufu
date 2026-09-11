@@ -35,6 +35,19 @@ LOG="$WORK/harness.log"
 log() { printf '%s\n' "$*"; }
 pass=1
 
+# rgta_count: same fix as lib/live-cert.sh's livecert_rgta_count (#1047) -
+# `--query 'length(ResourceTagMappingList)' --output text` prints one
+# number PER PAGE, not one total, so this driver counts the ARN array
+# (which --output text correctly concatenates across every page) instead.
+# This script does not source lib/live-cert.sh (it drives the harness as an
+# external process), so the fix is duplicated here rather than shared.
+rgta_count() {
+  aws --endpoint-url "$ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=$1,Values=$2" \
+    --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null \
+    | tr '\t' '\n' | grep -c . || true
+}
+
 cleanup() {
   # This driver's own belt-and-suspenders: if the assertions below somehow
   # leave the harness process or its container alive, clean up rather than
@@ -142,8 +155,7 @@ fi
 # had to find). Only treat a listing failure as a hard FAIL when the
 # container is still reachable but reports something left over.
 if curl -fs "${ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
-  N="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
-    --tag-filters "Key=tofu-cert-run,Values=$RUN_ID" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo unknown)"
+  N="$(rgta_count tofu-cert-run "$RUN_ID")"
   VPCS="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters "Name=tag:tofu-cert-run,Values=$RUN_ID" --query 'Vpcs[].VpcId' --output text 2>/dev/null || true)"
   IGWS="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-internet-gateways --filters "Name=tag:tofu-cert-run,Values=$RUN_ID" --query 'InternetGateways[].InternetGatewayId' --output text 2>/dev/null || true)"
   if [ "$N" = "0" ] && [ -z "$VPCS" ] && [ -z "$IGWS" ]; then

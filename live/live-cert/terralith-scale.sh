@@ -67,6 +67,12 @@ set -uo pipefail
 #                    read and sweep passes that #683 took by hand on a branch
 #                    that no longer exists. Six extra plans, no extra objects
 #                    created, and nothing gates on it.
+#   UNTRUSTED_TEARDOWN_TIMEOUT_S  180 (default) seconds. Bounds teardown()'s
+#                    best-effort "choudoufu's own destroy path" step, which
+#                    is explicitly NOT the trusted path (see teardown()'s
+#                    own comment, #1048) - a hang there must never block or,
+#                    via the TEARDOWN_DONE re-entry guard, skip the trusted
+#                    terraform destroy that runs after it.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -153,6 +159,15 @@ esac
 # ── teardown ────────────────────────────────────────────────────────────
 TEARDOWN_DONE=0
 MIGRATE_DONE=0
+# Bounds the best-effort "choudoufu's own destroy path" step inside
+# teardown() below (issue #1048): that step is explicitly NOT the trusted
+# path, and on the 2026-09-11 scale-50 run it blocked for ~40 minutes at 0%
+# CPU on CreatePolicy/EntityAlreadyExists, unblocked only by a hand SIGTERM.
+# Left alone it would have run to this script's own 25,200s process
+# ceiling with the trusted terraform destroy never reached. A few minutes
+# is generous for a step whose own job is to finish fast or get out of the
+# way; override for a slower account.
+UNTRUSTED_TEARDOWN_TIMEOUT_S="${UNTRUSTED_TEARDOWN_TIMEOUT_S:-180}"
 
 # ssm_prefix_count counts parameters under a path. NOT `--query
 # 'length(Parameters)'`: the CLI applies that per RESULT PAGE, so a prefix
@@ -169,11 +184,10 @@ ssm_prefix_count() {
 
 teardown() {
   [ "$TEARDOWN_DONE" = "1" ] && return 0
-  TEARDOWN_DONE=1
   log "=== TEARDOWN (target=$TARGET run=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
 
   if [ "$MIGRATE_DONE" = "1" ] && [ -d "$ADOPTED_DIR" ]; then
-    log "  attempting choudoufu's own destroy path ($ADOPTED_DIR): best effort, NOT the trusted path - see below"
+    log "  attempting choudoufu's own destroy path ($ADOPTED_DIR): best effort, NOT the trusted path - bounded to ${UNTRUSTED_TEARDOWN_TIMEOUT_S}s (#1048) so a hang here can never block or skip the trusted destroy below"
     {
       cat <<EOF
 terraform {
@@ -194,10 +208,14 @@ $RECORD_STORE_ARGS
 EOF
       provider_block
     } > "$ADOPTED_DIR/versions.tf"
-    ( cd "$ADOPTED_DIR" && "${TOFU:-}" apply -input=false -auto-approve -no-color ) \
+    ( cd "$ADOPTED_DIR" && timeout "${UNTRUSTED_TEARDOWN_TIMEOUT_S}s" "${TOFU:-}" apply -input=false -auto-approve -no-color ) \
       > "$WORK/teardown_choudoufu_destroy.out" 2>&1
     cd_rc=$?
-    log "    exit=$cd_rc (see $WORK/teardown_choudoufu_destroy.out) - not trusted alone"
+    if [ "$cd_rc" -eq 124 ]; then
+      log "    exit=124: TIMED OUT after ${UNTRUSTED_TEARDOWN_TIMEOUT_S}s (see $WORK/teardown_choudoufu_destroy.out) - not trusted alone, and never trusted to block what follows; proceeding to the trusted destroy regardless"
+    else
+      log "    exit=$cd_rc (see $WORK/teardown_choudoufu_destroy.out) - not trusted alone"
+    fi
     [ "$cd_rc" -ne 0 ] && tail -15 "$WORK/teardown_choudoufu_destroy.out" | sed 's/^/    | /'
   fi
 
@@ -209,6 +227,17 @@ EOF
     log "    exit=$sd_rc (see $WORK/teardown_stock_destroy.out) - not trusted alone, verifying by listing next"
     [ "$sd_rc" -ne 0 ] && tail -30 "$WORK/teardown_stock_destroy.out" | sed 's/^/    | /'
   fi
+  # #1048: the guard now marks completion of the TRUSTED destroy attempt
+  # above, not entry into this function. It used to be set at the very top,
+  # before either destroy path ran, so a second signal arriving while THIS
+  # call was still blocked inside the (formerly unbounded) untrusted step
+  # made a re-entrant teardown() call return immediately at the guard -
+  # skipping the trusted destroy on every invocation, not just the first.
+  # It is set here unconditionally (whether or not COLD_DIR existed to
+  # destroy) because by this point the trusted destroy has been attempted
+  # to the extent it ever will be for this run; everything below is
+  # best-effort verification/cleanup that is safe to repeat.
+  TEARDOWN_DONE=1
 
   # The record store is not tagged and no destroy reaches it, so it needs its
   # own teardown. Doing it here rather than in sweep() because it must run on
@@ -438,10 +467,8 @@ verify_empty() {
   DIRTY=0
 
   local rgta_n
-  rgta_n="$(livecert_aws resourcegroupstaggingapi get-resources \
-    --tag-filters "Key=tofu-cert-run,Values=$RUN_ID" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo unknown)"
-  if [ "$rgta_n" != "0" ]; then
+  rgta_n="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
+  if [ "${rgta_n:-0}" != "0" ]; then
     printf '  verify_empty: resourcegroupstaggingapi reports %s resource(s) tagged tofu-cert-run=%s (informational - per-service checks below gate the verdict)\n' "$rgta_n" "$RUN_ID"
   fi
 
@@ -578,6 +605,7 @@ sweep() {
 log "=== 0. tools (target=$TARGET run_id=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
 command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
 command -v "${TF_COLD_BIN:-terraform}" >/dev/null 2>&1 || fail "${TF_COLD_BIN:-terraform} is not on PATH (needed for cold_deploy's stock apply)"
+command -v timeout >/dev/null 2>&1 || fail "timeout is not on PATH (needed to bound teardown's best-effort destroy step, #1048)"
 TF_COLD="${TF_COLD_BIN:-terraform}"
 
 if [ -n "${TOFU_BIN:-}" ]; then
@@ -1086,9 +1114,7 @@ log "=== 4a2. state model: prove each piece was actually exercised, not just con
 # not asserted here: this fixture declares none, so an assertion would be
 # vacuously green and worse than no assertion at all.
 if [ "$TARGET" = "aws" ]; then
-  ident_n="$(aws resourcegroupstaggingapi get-resources --region "$REGION" \
-    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  ident_n="$(livecert_rgta_count tofu-estate "$ESTATE")"
   log "  identity (tofu-estate=$ESTATE tags in the cloud): $ident_n resource(s)"
   [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
 
@@ -1226,16 +1252,12 @@ fi
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_apply
 log "=== 5. test_apply: the empty plan applies as a genuine no-op ==="
-BEFORE_N="$(livecert_aws resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-cert-run,Values=$RUN_ID" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+BEFORE_N="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
 NOOP_OUT="$(cd "$ADOPTED_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_RC=$?
 [ "$NOOP_RC" -eq 0 ] || { printf '%s\n' "$NOOP_OUT" | tail -30; fail "the no-op apply exited $NOOP_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_OUT" \
   || { grep -E 'Apply complete' <<< "$NOOP_OUT"; fail "the no-op apply was not a genuine no-op"; }
-AFTER_N="$(livecert_aws resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-cert-run,Values=$RUN_ID" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+AFTER_N="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
