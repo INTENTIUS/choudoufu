@@ -762,10 +762,14 @@ is always refused with a stated reason.
 
 ## Other providers
 
-AWS is the only provider today, and there is no second cloud on the
+This table is the AWS provider's. There is no second cloud on the
 roadmap: [#5](https://github.com/INTENTIUS/choudoufu/issues/5) closed
-without extending the admission model to Azure or GCP, the same answer
-the docs site's [Compatibility
+without extending the admission model to Azure or GCP. A type from another
+provider is admitted only where its identity derives from configuration -
+the schema fallback for eleven `google_*` types (#243), ratified rows for
+four `kubernetes_*` types (#326) - and such an instance plans without a
+marker, outside the sweep and outside any ownership grant. Kubernetes as a
+substrate with a marker of its own is the open design in #1016. The docs
+site's [Compatibility
 reference](https://github.com/INTENTIUS/choudoufu/blob/main/site/content/docs/use/compatibility.md#your-provider)
-gives. There is no Azure or Google Cloud entry, greyed out or otherwise,
-in the docs navigation.
+states the same three cases.

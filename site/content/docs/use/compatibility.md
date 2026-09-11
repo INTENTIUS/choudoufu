@@ -15,9 +15,37 @@ before migrating]({{< relref "/docs/use/check-a-config" >}}).
 
 ## Your provider
 
-AWS only. Every `google_*`, `azurerm_*`, `kubernetes_*` and `helm_*` resource
-is refused. There is no second cloud on the roadmap
-([#5](https://github.com/INTENTIUS/choudoufu/issues/5)).
+The admission table, the marker carrier, the estate sweep and the governance
+grant are all built for AWS. A resource from another provider is not refused
+on sight, though, and the page used to say it was. What decides is whether
+the type's identity can be derived from your configuration:
+
+- A type whose provider publishes an identity schema that resolves from
+  configuration is admitted through the schema fallback. Eleven `google_*`
+  types pass `live-check` this way today
+  ([#243](https://github.com/INTENTIUS/choudoufu/issues/243)). They plan;
+  they are deliberately never stamped, because their `tags` map is not a
+  marker surface.
+- Four `kubernetes_*` types (`kubernetes_config_map`,
+  `kubernetes_cluster_role_binding`, `kubernetes_namespace`,
+  `kubernetes_storage_class`) carry ratified rows and resolve from
+  `metadata.name` and `metadata.namespace`
+  ([#326](https://github.com/INTENTIUS/choudoufu/issues/326)). They plan
+  too. They carry no marker, the sweep does not reach them, and no ownership
+  condition governs them, so deleting one of those blocks from source leaves
+  the live object with no run that will ever propose removing it. Kubernetes
+  as a substrate in its own right, with a marker, a sweep and an admission
+  policy, is the open design in
+  [#1016](https://github.com/INTENTIUS/choudoufu/issues/1016).
+- A type whose provider publishes no identity at all, `github_*` and
+  `fastly_*` among them
+  ([#223](https://github.com/INTENTIUS/choudoufu/issues/223)), is refused
+  as `unadmitted-type`. A root made only of such resources is blocked as a
+  whole, and a mixed estate is reported root by root.
+
+There is no second cloud on the roadmap
+([#5](https://github.com/INTENTIUS/choudoufu/issues/5)): no Azure or GCP
+admission table, marker carrier or emulator.
 
 ## Your resource types
 
