@@ -19,6 +19,14 @@
 # every `gh variable set` is a plain overwrite (repository variables have no
 # create-vs-update distinction worth guarding). Safe to re-run.
 #
+# The trust policy's subject condition accounts for GitHub's immutable-subject
+# setting (repos/OWNER/NAME/actions/oidc/customization/sub): when a repo has
+# it on, every token's `sub` claim carries the numeric-id form
+# (repo:OWNER@<id>/NAME@<id>:...) instead of the plain repo:OWNER/NAME:...
+# form, and a trust policy that only lists the plain form then refuses every
+# AssumeRoleWithWebIdentity call. This script reads that setting and keeps
+# both forms in the StringLike condition.
+#
 # Usage:
 #   scripts/oidc-bootstrap.sh --dry-run           # print every command, run none
 #   scripts/oidc-bootstrap.sh                     # do it for real
@@ -92,12 +100,44 @@ run()  {
   fi
 }
 
+# ------------------------------------------------ the OIDC subject pattern(s)
+
+# GitHub's immutable-subject setting rewrites the `sub` claim every token
+# carries: instead of "repo:OWNER/NAME:ref:refs/heads/main" it becomes
+# "repo:OWNER@<id>/NAME@<id>:ref:refs/heads/main", and a trust policy
+# StringLike-matching only the plain form then refuses every token with
+# "Not authorized to perform sts:AssumeRoleWithWebIdentity" - the setting
+# changed the token, not the policy, so nothing but the trust policy has to
+# know about it. Keep both forms in the StringLike list regardless, so a
+# repo that later turns the setting back off still matches.
+SUBJECT_PATTERNS=("$SUBJECT_PATTERN")
+if OIDC_SUB_JSON="$(gh api "repos/${REPO}/actions/oidc/customization/sub" 2>/dev/null)"; then
+  USE_IMMUTABLE="$(printf '%s' "$OIDC_SUB_JSON" | jq -r '.use_immutable_subject // empty' 2>/dev/null || true)"
+  if [ "$USE_IMMUTABLE" = "true" ]; then
+    SUB_CLAIM_PREFIX="$(printf '%s' "$OIDC_SUB_JSON" | jq -r '.sub_claim_prefix // empty' 2>/dev/null || true)"
+    if [ -n "$SUB_CLAIM_PREFIX" ]; then
+      SUBJECT_PATTERNS=("${SUB_CLAIM_PREFIX}:*" "$SUBJECT_PATTERN")
+    else
+      echo "gh api repos/${REPO}/actions/oidc/customization/sub reported use_immutable_subject=true with no sub_claim_prefix; trust policy falls back to the plain subject form $SUBJECT_PATTERN only" >&2
+    fi
+  fi
+else
+  echo "could not query repos/${REPO}/actions/oidc/customization/sub (gh api failed); trust policy falls back to the plain subject form $SUBJECT_PATTERN only" >&2
+fi
+
+if [ "${#SUBJECT_PATTERNS[@]}" -eq 1 ]; then
+  SUBJECT_CONDITION="$(jq -n --arg s "${SUBJECT_PATTERNS[0]}" '$s')"
+else
+  SUBJECT_CONDITION="$(printf '%s\n' "${SUBJECT_PATTERNS[@]}" | jq -R . | jq -s .)"
+fi
+
 echo "account:      $ACCOUNT_ID"
 echo "region:       $REGION"
 echo "name_prefix:  $NAME_PREFIX  (from $TF_MAIN)"
 echo "log group:    $LOG_GROUP_ARN"
 echo "iam role:     $IAM_ROLE_ARN"
 echo "ssm prefix:   $SSM_RESOURCE_ARN"
+echo "subject(s):   ${SUBJECT_PATTERNS[*]}"
 [ "$DRY_RUN" = "1" ] && echo "MODE:         dry-run - printing every command, running none"
 echo
 
@@ -119,22 +159,24 @@ echo
 # --------------------------------------------------------------- trust policy
 
 TRUST_POLICY="$WORKDIR/trust.json"
-cat > "$TRUST_POLICY" <<JSON
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": { "Federated": "$OIDC_PROVIDER_ARN" },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-        "StringLike":   { "token.actions.githubusercontent.com:sub": "$SUBJECT_PATTERN" }
+jq -n \
+  --arg provider "$OIDC_PROVIDER_ARN" \
+  --arg aud "sts.amazonaws.com" \
+  --argjson sub "$SUBJECT_CONDITION" \
+  '{
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Effect: "Allow",
+        Principal: { Federated: $provider },
+        Action: "sts:AssumeRoleWithWebIdentity",
+        Condition: {
+          StringEquals: { "token.actions.githubusercontent.com:aud": $aud },
+          StringLike:   { "token.actions.githubusercontent.com:sub": $sub }
+        }
       }
-    }
-  ]
-}
-JSON
+    ]
+  }' > "$TRUST_POLICY"
 
 # describe_read <sid> - the read-only statement every one of the three
 # roles' policy starts with: describe the two resources by ARN, the
@@ -257,7 +299,7 @@ ensure_role() {
     run aws iam update-assume-role-policy --role-name "$role" \
       --policy-document "file://$TRUST_POLICY"
   else
-    echo "  creating, trust scoped to $SUBJECT_PATTERN on $OIDC_PROVIDER_ARN"
+    echo "  creating, trust scoped to ${SUBJECT_PATTERNS[*]} on $OIDC_PROVIDER_ARN"
     run aws iam create-role --role-name "$role" \
       --assume-role-policy-document "file://$TRUST_POLICY" \
       --description "choudoufu ci-pipelines example (#807): $policy_name"

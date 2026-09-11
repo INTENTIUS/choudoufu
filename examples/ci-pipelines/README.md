@@ -556,6 +556,37 @@ exist, and two repository variables, on `INTENTIUS/choudoufu`, in account
 OIDC provider - this bootstrap never creates that provider, only a trust policy
 that points at it.
 
+**Immutable subjects.** GitHub Actions has an opt-in repository setting,
+"immutable OIDC subject", that rewrites the `sub` claim every token carries:
+`repo:OWNER/NAME:ref:refs/heads/main` becomes
+`repo:OWNER@<owner-id>/NAME@<repo-id>:ref:refs/heads/main`. Check whether a
+repository has it on with:
+
+```bash
+gh api repos/INTENTIUS/choudoufu/actions/oidc/customization/sub
+# {"use_default":true,"use_immutable_subject":true,"sub_claim_prefix":"repo:INTENTIUS@259705176/choudoufu@1332291567"}
+```
+
+A trust policy whose `StringLike` condition only ever lists the plain
+`repo:OWNER/NAME:*` form does not match a token minted under that setting, and
+every `AssumeRoleWithWebIdentity` call then fails with exactly:
+
+```
+An error occurred (AccessDenied) when calling the AssumeRoleWithWebIdentity operation: Not authorized to perform sts:AssumeRoleWithWebIdentity
+```
+
+`INTENTIUS/choudoufu` has the setting on (as the `gh api` call above shows),
+which is what broke the three `choudoufu-ci-pipelines-*` roles' trust
+policies the first time this bootstrap ran against them; they were repaired
+by hand with a `StringLike` list holding both subject forms.
+`scripts/oidc-bootstrap.sh` now queries that same endpoint itself and puts
+both forms in the trust policy it writes - the immutable-subject form when
+the setting is on, and the plain form always, so a repository that later
+turns the setting back off keeps matching too. If the `gh api` call fails
+(no `oidc/customization` scope, a network hiccup), it falls back to the
+plain form alone and says so on stderr, rather than failing the whole
+bootstrap over a read it can survive without.
+
 The maintainer runs this once, by hand, from a shell with an AWS identity that can
 create IAM roles in that account and a `gh` authenticated against the repository:
 
@@ -567,8 +598,12 @@ PREFIX=choudoufu-ci-pipelines-example    # terraform/main.tf's name_prefix defau
 # 1. Confirm the account already has the provider (never creates one).
 aws iam list-open-id-connect-providers
 
-# 2. The trust policy all three roles share: repo:INTENTIUS/choudoufu:* on that
-#    provider, no branch or ref restriction (issue #807 asks for the whole repo).
+# 2. The trust policy all three roles share, on that provider, no branch or
+#    ref restriction (issue #807 asks for the whole repo). Both subject forms
+#    are listed because this repository has the immutable-subject setting on
+#    (see "Immutable subjects" above) - a token's `sub` claim only ever
+#    carries one of the two, but a repo that later turns the setting off
+#    would then need the plain form, so both stay in the list.
 cat > /tmp/choudoufu-ci-pipelines-trust.json <<'JSON'
 {
   "Version": "2012-10-17",
@@ -579,7 +614,10 @@ cat > /tmp/choudoufu-ci-pipelines-trust.json <<'JSON'
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-        "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:INTENTIUS/choudoufu:*" }
+        "StringLike":   { "token.actions.githubusercontent.com:sub": [
+          "repo:INTENTIUS@259705176/choudoufu@1332291567:*",
+          "repo:INTENTIUS/choudoufu:*"
+        ] }
       }
     }
   ]
@@ -622,8 +660,10 @@ gh workflow run ci-pipelines-smoke.yml -R INTENTIUS/choudoufu --ref <branch> -f 
 `scripts/oidc-bootstrap.sh` is the same five steps as one idempotent script - it reads
 `REGION` and `PREFIX` above out of `terraform/main.tf` itself rather than repeating
 them, skips `create-role` for a role that already exists (calling `update-assume-role-policy`
-and `put-role-policy` instead, so it is safe to re-run after a policy change), and refuses
-to run at all if the OIDC provider is missing rather than creating one:
+and `put-role-policy` instead, so it is safe to re-run after a policy change), queries
+`repos/$REPO/actions/oidc/customization/sub` itself to build the two-subject-form
+`StringLike` list above rather than hand-composing it, and refuses to run at all if
+the OIDC provider is missing rather than creating one:
 
 ```bash
 scripts/oidc-bootstrap.sh --dry-run   # prints every aws/gh command it would run
