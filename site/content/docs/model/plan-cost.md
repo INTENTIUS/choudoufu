@@ -178,9 +178,18 @@ this run's 301- and 745-instance figures are not flat with each other or
 with the 79-instance row. What changed between `5ff7f43f5b` and `56099dcd63`
 that moved it has not been isolated - `git log --oneline
 5ff7f43f5b..56099dcd63 -- internal/live/discovery/` lists 58 commits, wider
-than this measurement's scope to bisect - so this is
+than this measurement's scope to bisect - so this was
 [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) rather than
-explained here.
+explained here. It no longer needs isolating: #1037 and
+[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) found and fixed
+the mechanism without bisecting the fifty-eight - it was two things the
+native leg was doing regardless of which commit last touched it, not a
+regression introduced by one of them - and the native leg is flat again as
+of `c0632fa3b7`; see
+["The native leg is flat across slices but not across scale"](#the-native-leg-is-flat-across-slices-but-not-across-scale)
+below for the fixed numbers. The rows and fits in the rest of this section
+describe the broken state that measurement predates and are kept as the
+historical record rather than corrected in place.
 
 The two legs do not add up to the sweep on their own. At `56099dcd63`, the
 rest of it is the configuration scan (60 at 301 instances, 128 at 745,
@@ -209,26 +218,38 @@ are not equal either - 0.71 per instance from 79 to 301, 0.57 from 301 to
 straight approximation of that curve meets the read pass rather than a
 crossing this page has independently confirmed.
 
-What is driving the growth is named, if not yet isolated.
-[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) found the native
-leg is no longer flat and has not yet found which of the fifty-eight commits
-between the two measurement runs moved it.
+What was driving the growth is now named and isolated, not merely named.
 [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039), filed from this
-same unit's foreign-load side, traces the account-tracking term to three
-types - `aws_iam_policy`, `aws_iam_role`, `aws_ecs_service` - whose provider
-list resource carries no filter block, so their cost tracks how many of them
-exist rather than how many types are admitted. In the table above the
-account holds nothing but the estate under test, so a bigger N means more of
-those objects and a fatter unfiltered list; that is the same mechanism the
-claims page's [foreign-load
+same unit's foreign-load side, traced part of the account-tracking term to
+three types - `aws_iam_policy`, `aws_iam_role`, `aws_ecs_service` - whose
+provider list resource carries no filter block, so their cost tracks how
+many of them exist rather than how many types are admitted. In the table
+above the account holds nothing but the estate under test, so a bigger N
+means more of those objects and a fatter unfiltered list; that is the same
+mechanism the claims page's [foreign-load
 table]({{< relref "/docs/claims#claim-20-scale---the-estate-boundary-holds-when-the-account-is-a-terralith" >}})
 shows from the other side, growing a neighboring estate instead of this one
 - there the analogous column, the plan calls rather than the flat Cloud
 Control list, climbs 187, 197 and 687 for the same reason.
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037)'s own bisect
+turned up the rest: `e15b23eb7b` (2026-09-01, `[issue:692] the vouching
+set, the unserved-service routing, and the cache-vouch listing pass`), one
+of the fifty-eight commits in the range above, is what made `sweepTypes`
+add a DECLARED `aws_iam_policy`/`aws_iam_role` back into the native sweep
+universe even when the config-driven scan had already listed the whole
+account for it - a call `#692` needed for a type with no needs-discovery
+instance at all (the entirely-record-backed case it was written for) but
+paid a second time, for nothing, for a type that also has one. Both causes
+are fixed at `c0632fa3b7`; see the flat-again table two sections up.
 
-Below 413 a plan is mostly the fixed sweep; above it, cost tracks the estate
-more than the sweep does - but that boundary is provisional until #1037
-explains the mechanism, not a settled property of this re-fit. This is
+Below 413 a plan was mostly the fixed sweep; above it, cost tracked the
+estate more than the sweep did - but that boundary rested on a native leg
+that is no longer growing the way this fit assumed, so it is retired along
+with the fit rather than restated as settled. A fresh crossover, refit
+against the flat native leg, is not this page's job today: re-fitting the
+sweep also means re-measuring the configuration scan, boundary and
+post-sweep terms this section's own fit drew on, together, which nothing
+in this unit did. This is
 still a crossover between choudoufu's *own* two terms on a full-sweep run,
 not between choudoufu and stock - there is no such crossing, as
 [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets out.
@@ -301,15 +322,38 @@ that work was published, and 512 on the re-measure at `5ff7f43f5b`; the
 split table above accounts for the nine calls.) That finding stands - the
 slicing measurement has never been re-run at a scale other than 79.
 
-Held at one slice and varied by estate scale, it is not flat. The measured
-split above gives 512, 552 and 612 at 79, 301 and 745 instances - up 40 and
-up 100 from the 79-instance row. This section used to call the leg flat
-without that qualifier; it does not any more, and
-[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) is open on why,
-with [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) naming the
-likely mechanism: three types with no server-side filter on their list
-resource, whose cost tracks how many of them exist rather than how many
-types are admitted.
+Held at one slice and varied by estate scale, this used to grow: the split
+table above gave 512, 552 and 612 at 79, 301 and 745 instances before
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) and
+[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) were fixed. Two
+causes, both isolated by measurement rather than argued: `aws_iam_policy`
+and `aws_iam_role` are in the service the Resource Groups Tagging API never
+indexes ("aws_iam_"), so a DECLARED instance of either was listed a second
+time by the native sweep even though the config-driven scan had already
+listed the whole account for it a call earlier - every finding of the
+second call was already in `res.Orphans`, deduped and discarded, so it paid
+a full per-object provider Read (`GetPolicyVersion` per policy) for
+nothing. `aws_ecs_service` had no `arnJoinTable` row for its "service" ARN
+segment, so it took the whole-account native leg too even though the
+Tagging API genuinely serves ECS. `dedupAlreadyConfigScanned` (the first) and
+the `ecs`/`service` row (the second) fixed both, at `c0632fa3b7`
+(2026-09-11), floci pin `sha256:9ec3fa64...` (`live/floci-image`), the same
+harness as above (`TestSlicingMatrixAgainstFloci`, `SLICE_K=1`):
+
+| Instances | Native leg, before the fix | Native leg, after |
+|---|---|---|
+| 79 | 521 | 508 |
+| 301 | 548 | 510 |
+| 745 | 612 | 510 |
+
+Flat again, to within the 2-call spread the tagging leg's own page size
+(floci's 100) would explain as noise - not a residual of the mechanism
+#1037 found, which is now gone. Two offline unit tests (a fake provider
+handle, no emulator) pin each
+mechanism by value against a deliberate revert:
+`TestSweepDoesNotReListAConfigScannedUnservedType` (the duplicate listing)
+and `TestECSServiceRoutesThroughTheTaggingLeg` (the missing join row), both
+in `internal/live/discovery`.
 
 The mechanism behind the flat-across-slices half runs the wrong way round
 from most people's intuition, so here it is. `sweepTypes` builds its
@@ -600,13 +644,14 @@ passes through once.
   sets no `ResourcesPerPage`, so the real page size is the Resource Groups
   Tagging API's own default and no emulator-backed run can report it.
 - **One fixture, one composition** - the native leg is mostly a property of
-  the admission table and the ARN join table rather than of the estate, but
-  not entirely: [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037)
-  measured it growing with estate scale (512, 552, 612 at 79, 301 and 745
+  the admission table and the ARN join table rather than of the estate.
+  [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) measured it
+  growing with estate scale instead (521, 548, 612 at 79, 301 and 745
   instances) and [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039)
-  traces part of that growth to three types whose list calls track
-  population rather than type count. Only this estate was measured, and it
-  declares thirteen types.
+  traced part of that growth to three types whose list calls tracked
+  population rather than type count; both are fixed at `c0632fa3b7`
+  (508, 510, 510 on the same three rows). Only this estate was measured, and
+  it declares thirteen types.
 - **AWS only** - nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
