@@ -1034,6 +1034,29 @@ type fakeCloud struct {
 	identityAttrs map[string][]string
 	accountID     string
 
+	// truncateAt is issue #1046's fixture knob: when set for a type, the
+	// stream stops after that many matching objects have been emitted and
+	// sends one final event in place of everything after it - no identity,
+	// no resource, an error diagnostic only. This is the exact shape
+	// terraform-provider-aws v6.59.0's aws_iam_policy/aws_iam_role list
+	// resources produce on a mid-enumeration failure (a ListPolicies/
+	// ListRoles page fetch, or a per-object read like GetPolicyVersion,
+	// erroring with anything other than NotFound): the failing library call
+	// yields fwdiag.NewListResultErrorDiagnostic(err) - a bare
+	// list.ListResult carrying only Diagnostics - and then returns,
+	// terminating the Go range loop over the paginator for good. Every
+	// object that would have come from a later page is simply never
+	// produced; nothing in the wire protocol says the stream was cut short
+	// rather than exhausted.
+	truncateAt map[string]int
+	// truncateSilent, alongside truncateAt, drops even that final error
+	// event: the stream just ends, with no diagnostic of any kind. Nothing
+	// found in terraform-provider-aws v6.59.0's source produces this shape
+	// (see truncateAt's own doc comment - every failure path there yields
+	// an error placeholder first) - it exists to test whether discovery has
+	// any defense left when a provider gives literally no signal at all.
+	truncateSilent map[string]bool
+
 	// mu guards requests only. See ListResourceStream.
 	mu       sync.Mutex
 	requests []providers.ListResourceRequest
@@ -1041,11 +1064,13 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		extraAttr:     make(map[string]map[string]bool),
-		extraListAttr: make(map[string]map[string]bool),
-		requiredAttr:  make(map[string]map[string]bool),
-		identityAttrs: make(map[string][]string),
-		objects:       make(map[string][]*fakeObject),
+		extraAttr:      make(map[string]map[string]bool),
+		extraListAttr:  make(map[string]map[string]bool),
+		requiredAttr:   make(map[string]map[string]bool),
+		identityAttrs:  make(map[string][]string),
+		truncateAt:     make(map[string]int),
+		truncateSilent: make(map[string]bool),
+		objects:        make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
@@ -1227,6 +1252,19 @@ func (c *fakeCloud) ownResultError(typeName, id, address string) {
 	objs[len(objs)-1].resultError = true
 }
 
+// truncateAfter is issue #1046's fixture knob - see truncateAt's own doc
+// comment on the field.
+func (c *fakeCloud) truncateAfter(typeName string, n int) {
+	c.truncateAt[typeName] = n
+}
+
+// truncateAfterSilently is truncateAfter's no-signal-at-all variant - see
+// truncateSilent's own doc comment on the field.
+func (c *fakeCloud) truncateAfterSilently(typeName string, n int) {
+	c.truncateAt[typeName] = n
+	c.truncateSilent[typeName] = true
+}
+
 // drop removes one object from the fake cloud, which is how a test says "this
 // live resource is gone" without rebuilding the whole estate.
 func (c *fakeCloud) drop(typeName, id string) {
@@ -1330,10 +1368,33 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 	c.requests = append(c.requests, req)
 	c.mu.Unlock()
 
+	truncateAt, truncating := c.truncateAt[req.TypeName]
+	emitted := 0
 	for _, o := range c.objects[req.TypeName] {
 		if !c.matchesFilter(req.Config, o) {
 			continue
 		}
+		if truncating && emitted >= truncateAt {
+			if c.truncateSilent[req.TypeName] {
+				// No placeholder at all: the stream just ends. See
+				// truncateSilent's own doc comment.
+				return diags
+			}
+			// Mimic fwdiag.NewListResultErrorDiagnostic(err) followed by the
+			// provider's own list generator returning: one bare event
+			// carrying only an error diagnostic, then nothing more, ever -
+			// not even the objects still left in c.objects that would have
+			// matched. See truncateAt's own doc comment.
+			emit(providers.ListResourceEvent{
+				Diagnostics: tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"Simulated mid-list failure",
+					fmt.Sprintf("fakeCloud: %s enumeration failed after %d object(s) (issue #1046 fixture, modeling a ListPolicies/ListRoles page fetch or per-object read erroring mid-stream).", req.TypeName, truncateAt),
+				)),
+			})
+			return diags
+		}
+		emitted++
 		ev := providers.ListResourceEvent{DisplayName: o.displayName}
 		if o.resultError {
 			ev.Diagnostics = ev.Diagnostics.Append(tfdiags.Sourceless(
