@@ -582,6 +582,28 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// admission table rather than the estate. See nativesweep.go
 			// for what that gives up and why it fails toward sweeping.
 			nativeUniverse, res.NativeSweepSkipped = estateScopedNativeSweep(ctx, req, decl, nativeUniverse)
+			// GitHub issue #1037/#1039: a type sweepTypes() adds back purely
+			// for being a taggingAPIUnservedType (today, every aws_iam_*
+			// type) was ALSO scanned a moment ago by the config-driven loop
+			// above whenever the configuration declares a needs-discovery
+			// instance of it - decl.types[typeName] != nil is exactly that
+			// condition (declared.typeNames(), the loop's own universe). That
+			// scan already ran with scan.Scope = ScopeAll (supportsTagFilter
+			// is false for these types regardless of sweep=true/false, so the
+			// two calls would build the identical list configuration) and
+			// already appends every one of this estate's own markers found on
+			// an undeclared address to res.Orphans - res.Orphans is filled
+			// without a `sweep` gate anywhere above line ~2420 - so listing
+			// the same type again here would refetch the whole account
+			// (paying its per-object provider Read a second time, in
+			// aws_iam_policy's case a GetPolicyVersion per policy on top of
+			// the config-driven pass's own) and then discard every result:
+			// orphanAlreadyPresent's dedup guard rejects a repeat orphan
+			// and decl.entryFor/decl.declares handle a repeat claimant the
+			// same way. Removed from nativeUniverse before the prefetch
+			// plans anything, not skipped in the consuming loop below, so
+			// [sweepPrefetch.finish] never reports a wasted plan for it.
+			nativeUniverse = dedupAlreadyConfigScanned(nativeUniverse, decl, res)
 			// GitHub issue #605: the list calls this loop is about to make
 			// go out concurrently, up to [Request.SweepParallelism] at a
 			// time, and the loop below is unchanged - it consumes each
@@ -814,6 +836,47 @@ func sweepTypes(req Request, decl *declared) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// dedupAlreadyConfigScanned removes from universe every type the
+// config-driven loop (decl.typeNames(), scanned before the sweep ever
+// starts - see [Discover]'s own comment on the ordering) already listed in
+// full.
+//
+// [sweepTypes] adds a taggingAPIUnservedType back into the sweep universe
+// unconditionally, including when the configuration ALSO declares a
+// needs-discovery instance of it: that type's decl.types entry is non-empty,
+// which is what decl.typeNames() iterates and what already ran scanType with
+// scan.Scope = ScopeAll (supportsTagFilter is false for these types
+// regardless of the sweep argument, so the two calls build the identical list
+// configuration and would return the identical answer). A repeat here pays
+// the type's whole per-object provider Read again - for aws_iam_policy,
+// GitHub issue #1039's GetPolicyVersion, once per policy in the account,
+// again - and every result it finds is one [scanType] already filed:
+// res.Orphans is appended without a `sweep` gate, and orphanAlreadyPresent /
+// decl.entryFor's own dedup guards exist for exactly this repeat.
+//
+// A type whose decl.types entry is EMPTY is left alone - that is
+// [sweepTypes]'s original case (issue #692, GitHub issue #388's edge 3): a
+// type every needs-discovery instance of which is record-backed never
+// reaches the config-driven loop at all (decl.typeNames() has no entry for
+// it), so nothing here duplicates a call that was never made, and this
+// type's only enumeration remains the one the sweep is about to make.
+//
+// res.SweepCovered still gets the type's name for every one skipped here, so
+// the "Foreign resources" narrowing message ([Result.NativeSweepSkipped]'s
+// own reporting) does not read a type as never having been looked at when the
+// config-driven pass already looked at the whole account for it.
+func dedupAlreadyConfigScanned(universe []string, decl *declared, res *Result) []string {
+	out := make([]string, 0, len(universe))
+	for _, typeName := range universe {
+		if len(decl.types[typeName]) > 0 {
+			res.SweepCovered = append(res.SweepCovered, typeName)
+			continue
+		}
+		out = append(out, typeName)
+	}
 	return out
 }
 
