@@ -1103,6 +1103,27 @@ const (
 	// supposed to make impossible - seeing it anyway means the evidence
 	// was wrong for this account, not that a winner should be guessed.
 	ProblemAmbiguousContentMatch ProblemKind = "AMBIGUOUS_CONTENT_MATCH"
+
+	// ProblemDirectReadUnresolved is issue #1046's escalation of
+	// [ProblemUnreadableMarker] for the narrow population whose live ARN
+	// this package can compose from configuration alone (aws_iam_policy
+	// today; see internal/live/discovery/directread.go's directReadTypes).
+	// Rather than warn and let the plan propose a create the provider will
+	// reject, a declared instance in that population refuses outright when
+	// a targeted direct read either could not be attempted (no per-instance
+	// static name or path, no AWS account ID yet, a provider or read error)
+	// or found a live object at the composed identity that does not carry
+	// this estate's marker for this exact address.
+	//
+	// Both mean this run had a cheaper way to settle "does this address's
+	// live object exist" than the general population has and still could
+	// not - a materially stronger signal than [ProblemUnreadableMarker]'s
+	// ordinary silence, which is why this is an error rather than a
+	// warning: applying the create a warning would have let through fails
+	// at the provider with EntityAlreadyExists whenever the guess about
+	// unavailability was wrong, and HANDOFF's safety rule prefers the loud,
+	// reversible refusal over that.
+	ProblemDirectReadUnresolved ProblemKind = "DIRECT_READ_UNRESOLVED"
 )
 
 // Severity is the diagnostic severity a problem of this kind carries.
@@ -1320,6 +1341,16 @@ type TypeScan struct {
 	// a type the configuration does not mention has no declared instance a
 	// foreign resource could be offered for.
 	Sweep bool
+
+	// DirectRead is the number of declared instances of this type
+	// [directReadFallback] performed a targeted Import+Read against (issue
+	// #1046), for the narrow population whose live ARN can be composed from
+	// configuration alone when the estate's tag index is lagging behind a
+	// recent migration. Reported beside Joined and NameBound for the same
+	// reason: it is a bind (or a refusal) made on an exception to the
+	// ordinary tag-index path, and an operator reading a scan line should be
+	// able to see how many of them a run made.
+	DirectRead int
 }
 
 // String renders a scan on one line.
@@ -1348,6 +1379,9 @@ func (s TypeScan) String() string {
 	}
 	if s.NameBound > 0 {
 		joined += fmt.Sprintf(" name-bound=%d", s.NameBound)
+	}
+	if s.DirectRead > 0 {
+		joined += fmt.Sprintf(" direct-read=%d", s.DirectRead)
 	}
 	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d%s%s",
 		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed, source, joined)

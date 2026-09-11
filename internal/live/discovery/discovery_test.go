@@ -984,6 +984,14 @@ type fakeObject struct {
 	id          string
 	displayName string
 	tags        map[string]string
+	// readTags, when non-nil, is what [fakeCloud.ReadResource] returns
+	// instead of tags - issue #1046's direct-read fallback needs a way to
+	// model a provider whose single-object Read (ListPolicyTags, for
+	// aws_iam_policy) still returns an object's real tags after the list
+	// call ([fakeCloud.ListResourceStream]) already dropped them via
+	// [stripTags]. Nil (the default) falls back to tags, so every existing
+	// object behaves exactly as before this field existed.
+	readTags map[string]string
 	// extra are string attributes on the object's FULL resource value,
 	// beyond the id and tags every object carries. Issue #302's repro needs
 	// a listed object with a real arn attribute the way aws_iam_role's
@@ -1199,6 +1207,23 @@ func (c *fakeCloud) ownWithARN(typeName, id, arn, address string) {
 	c.ownWithAttrs(typeName, id, address, map[string]string{"arn": arn})
 }
 
+// withDirectReadTags sets the tags [fakeCloud.ReadResource] returns for one
+// object, independent of what its list-visible tags are - issue #1046's
+// direct-read fallback models a provider whose list call
+// ([fakeCloud.ListResourceStream]) drops an object's tags (see [stripTags])
+// while its own single-object Read (ListPolicyTags, for aws_iam_policy)
+// still returns them.
+func (c *fakeCloud) withDirectReadTags(t *testing.T, typeName, id string, tags map[string]string) {
+	t.Helper()
+	for _, o := range c.objects[typeName] {
+		if o.id == id {
+			o.readTags = tags
+			return
+		}
+	}
+	t.Fatalf("no %s %q in the fake cloud to set direct-read tags on", typeName, id)
+}
+
 // noFilter makes a type's list schema offer no filter argument, the way the
 // real provider's aws_eip list schema does.
 func (c *fakeCloud) noFilter(typeName string) { c.unfilter[typeName] = true }
@@ -1284,6 +1309,57 @@ func (c *fakeCloud) requestFor(typeName string) (providers.ListResourceRequest, 
 		}
 	}
 	return providers.ListResourceRequest{}, false
+}
+
+// ImportResourceState and ReadResource are issue #1046's directReader
+// subset (internal/live/discovery/directread.go): the fake cloud's own
+// Import+Read pair for a candidate identity, matched by [fakeObject.id] the
+// same way every list-shaped lookup here already is. They exist so the
+// direct-read fallback's unit tests can drive a real Import/Read round
+// trip without a provider interface any wider than the two RPCs that leg
+// actually calls.
+func (c *fakeCloud) ImportResourceState(_ context.Context, req providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+	for _, o := range c.objects[req.TypeName] {
+		if o.id == req.Target.ID {
+			return providers.ImportResourceStateResponse{
+				ImportedResources: []providers.ImportedResource{{
+					TypeName: req.TypeName,
+					State:    cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal(o.id)}),
+				}},
+			}
+		}
+	}
+	return providers.ImportResourceStateResponse{}
+}
+
+func (c *fakeCloud) ReadResource(_ context.Context, req providers.ReadResourceRequest) providers.ReadResourceResponse {
+	id := ""
+	if ty := req.PriorState.Type(); ty.IsObjectType() && ty.HasAttribute("id") {
+		id = req.PriorState.GetAttr("id").AsString()
+	}
+	for _, o := range c.objects[req.TypeName] {
+		if o.id == id {
+			src := o.tags
+			if o.readTags != nil {
+				src = o.readTags
+			}
+			tagVals := map[string]cty.Value{}
+			for k, v := range src {
+				tagVals[k] = cty.StringVal(v)
+			}
+			tagsCty := cty.MapValEmpty(cty.String)
+			if len(tagVals) > 0 {
+				tagsCty = cty.MapVal(tagVals)
+			}
+			return providers.ReadResourceResponse{
+				NewState: cty.ObjectVal(map[string]cty.Value{
+					"id":   cty.StringVal(o.id),
+					"tags": tagsCty,
+				}),
+			}
+		}
+	}
+	return providers.ReadResourceResponse{NewState: cty.NullVal(cty.EmptyObject)}
 }
 
 func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSchemaResponse {
@@ -1693,6 +1769,7 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 		ProblemAmbiguousContentMatch,
 		ProblemLocatedRecordUnreadable,
 		ProblemRecordStoreListFailed,
+		ProblemDirectReadUnresolved,
 	}
 	for _, kind := range kinds {
 		if problemSummaries[kind] == "" {
