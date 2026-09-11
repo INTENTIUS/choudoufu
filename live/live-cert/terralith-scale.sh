@@ -73,6 +73,18 @@ set -uo pipefail
 #                    own comment, #1048) - a hang there must never block or,
 #                    via the TEARDOWN_DONE re-entry guard, skip the trusted
 #                    terraform destroy that runs after it.
+#   LIVECERT_INDEX_WAIT_S  1800 (default) seconds. Bounds the index-wait
+#                    step between migrate and test_plan (#1046, #1049): the
+#                    2026-09-11 scale-50 run found the Resource Groups
+#                    Tagging API's search index held 104 of 1,655 resources
+#                    migrate had just verified and stamped, 21 minutes after
+#                    migrate finished, and the product now refuses
+#                    (DIRECT_READ_UNRESOLVED) rather than proposing creates
+#                    while that index lags - see the index-wait step's own
+#                    comment below for what it polls and records.
+#   LIVECERT_INDEX_POLL_S  30 (default) seconds between polls of the index
+#                    during that wait. Overridable so a self-test can drive
+#                    the same loop on a 1-second clock instead of a 30s one.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -1044,6 +1056,66 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$WORK/migrate_approve.debug.log" ]; then
 fi
 gauntlet_stage migrate pass "${VERIFIED} of ${EXPECTED} verified, ${VERIFIED} stamped, ${SKIPPED} skipped, in ${MIGRATE_S}s, debug log ${MIGRATE_LOG_BYTES}B/${MIGRATE_THROTTLE_HITS} throttle/${MIGRATE_RETRY_LINES} retry"
 
+# index_wait (#1046, #1049): migrate's ${VERIFIED} tag writes above are
+# verified against the account at write time, but the Resource Groups
+# Tagging API's own SEARCH INDEX is a separate, eventually-consistent copy -
+# the 2026-09-11 scale-50 run read it about 21 minutes after migrate had
+# verified and stamped all 1,655 taggable resources with zero failures, and
+# it held 104 of them. Discovery's direct-read fallback (#1046) now refuses
+# a count/for_each aws_iam_policy instance with DIRECT_READ_UNRESOLVED
+# rather than proposing a create while the index is silent for it (#1049),
+# which is the safe outcome - but a test_plan that walks straight into a
+# cold index at scale would spend its whole run recording a lag it never
+# measured, instead of the plan choudoufu actually produces once the
+# account is consistent.
+#
+# This polls the SAME index test_plan itself will read (livecert_rgta_count
+# against tofu-estate=$ESTATE, exactly 4a2's own query) every
+# LIVECERT_INDEX_POLL_S seconds until it reaches $VERIFIED stamped, or
+# LIVECERT_INDEX_WAIT_S runs out. It never fails the run: a lagged index
+# after the bound is exactly the condition #1046/#1049 are about, and the
+# product's own refusal at test_plan is what records it, not this step -
+# the caller is expected to run this unattributed (CURRENT_STAGE cleared),
+# since it is a measurement, not a gated stage. Sets the caller's
+# INDEX_LAG_S to the elapsed seconds either way (converged or bound-tripped)
+# so it can ride along in test_plan's own detail line, on both the pass and
+# the refusal path.
+#
+# Kept as its own function, rather than inlined at the call site, so
+# selftest-index-wait.sh can extract it verbatim (the same pattern
+# selftest-teardown-timeout.sh already uses for teardown()) and drive it
+# against a stubbed `aws` with no real AWS calls.
+index_wait() {
+  log "=== 3c. index wait: polling the tag index for tofu-estate=$ESTATE every ${LIVECERT_INDEX_POLL_S}s, bound ${LIVECERT_INDEX_WAIT_S}s (#1046) ==="
+  local idx_n elapsed start
+  start=$(date +%s)
+  while :; do
+    idx_n="$(livecert_rgta_count tofu-estate "$ESTATE")"
+    elapsed=$(( $(date +%s) - start ))
+    log "  index wait: t=${elapsed}s tag index holds ${idx_n:-0} of ${VERIFIED} stamped"
+    if [ "${idx_n:-0}" -ge "$VERIFIED" ]; then
+      INDEX_LAG_S=$elapsed
+      log "index converged after ${INDEX_LAG_S}s: ${idx_n} of ${VERIFIED}"
+      return 0
+    fi
+    if [ "$elapsed" -ge "$LIVECERT_INDEX_WAIT_S" ]; then
+      INDEX_LAG_S=$elapsed
+      log "index still at ${idx_n:-0} of ${VERIFIED} after ${LIVECERT_INDEX_WAIT_S}s, proceeding"
+      return 0
+    fi
+    sleep "$LIVECERT_INDEX_POLL_S"
+  done
+}
+
+LIVECERT_INDEX_WAIT_S="${LIVECERT_INDEX_WAIT_S:-1800}"
+LIVECERT_INDEX_POLL_S="${LIVECERT_INDEX_POLL_S:-30}"
+INDEX_LAG_S=0
+if [ "$TARGET" = "aws" ]; then
+  index_wait
+else
+  log "=== 3c. index wait: target=$TARGET - the tag index lag is not under test here, skipping ==="
+fi
+
 # ══════════════════════════════════════════════════════════════════════
 # test_plan: replan from nothing; identities checked against the AWS CLI;
 # this is also where the throttling/pagination measurement runs, since it
@@ -1164,7 +1236,13 @@ if [ -n "$TP_FAIL" ]; then
   log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) - PARTIAL ==="
   printf '%s\n' "$API_CALL_REPORT"
   CURRENT_STAGE=test_plan
-  fail "$TP_FAIL"
+  # index_lag_s (#1046, #1049) rides along on the SAME detail string a
+  # refusal already carries, so a row that reads DIRECT_READ_UNRESOLVED
+  # also names how long the index had been given to catch up before this
+  # plan ran, without a second field the runner would need to know about -
+  # gauntlet_stage's own detail is free text to end of line (see
+  # live/e2e/lib/gauntlet.sh), so this needs no change there.
+  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S}"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="
@@ -1177,7 +1255,7 @@ ROLEARN="$(livecert_aws iam get-role --role-name "${PREFIX}-team-0000-role" --qu
 RTAG="$(livecert_aws iam list-role-tags --role-name "${PREFIX}-team-0000-role" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$RTAG" = "aws_iam_role.team_0000_role" ] || fail "the role carries tofu-address=$RTAG, not aws_iam_role.team_0000_role"
 log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI directly"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s)"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S}"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and
