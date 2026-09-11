@@ -435,6 +435,26 @@ Teardown ran to completion and is independently confirmed empty - see
 ["What evaluating this costs in money"](#what-evaluating-this-costs-in-money)
 below.
 
+[#1049](https://github.com/INTENTIUS/choudoufu/issues/1049) closes the gap
+`#1046`'s per-instance Import+Read cannot reach on its own: composing a
+`count`/`for_each` policy's own ARN needs a per-instance static scope
+(`count.index`, `each.key`/`each.value`) the fallback did not have, so those
+160 addresses at this scale land on `directReadUnavailable` and the plan
+refuses with `DIRECT_READ_UNRESOLVED` rather than proposing the create -
+the safe outcome `#1046` already established, just reached by a different
+path. That refusal is exactly what a `test_plan` run should see and record
+while the index is still catching up; running straight into a cold index
+would waste the whole certification on a result the harness already knows
+the reason for. `live/live-cert/terralith-scale.sh` (`#1032`) now polls the
+same tag index `test_plan` itself reads, between `migrate` and `test_plan`,
+every 30 seconds up to a 1,800-second bound, and proceeds either way -
+converged or not - so `test_plan` always runs against a measured account
+state instead of an arbitrary one. The lag itself is recorded as its own
+number, `index_lag_s`, in `test_plan`'s own stage detail: how long the
+index took to reach `migrate`'s stamped count, or how far it still was from
+it when the bound gave up. A clear row at this scale needs both `#1046` and
+`#1049` landed and one more real-AWS run.
+
 ### The old state file stops being a safe fallback
 
 This is the part of migration that costs something, and it is worth knowing
