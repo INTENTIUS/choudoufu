@@ -311,6 +311,19 @@ var (
 	tokenRetry     = tokenRe("retry")
 	tokenObjects   = tokenRe("objects")
 	tokenIndexLag  = tokenRe("index_lag_s")
+	// tokenPlanCallsChoudoufu/tokenPlanCallsStock (issue #1053, this file's
+	// real-AWS half of #1051/INTENTIUS/chant-bench#33): terralith-scale.sh's
+	// analyze_api_calls, real-AWS only, computes an exact provider-mediated
+	// request TOTAL for one plan - no sweep/read-pass leg split, unlike the
+	// emulator-side slicing bench (scaleslice.go), because the shell harness
+	// never separates the two (see ScalePlanCalls's own doc comment: "a run
+	// instrumented only for a total call count ... has no leg split to
+	// report at all"). Both tokens ride on test_plan's own detail, choudoufu's
+	// from the stage-gating plan's own debug log and stock's from 2d's
+	// pre-migrate instrumented plan on the SAME estate - see
+	// terralith-scale.sh's own comments at STOCK_PLAN_CALLS/CHOUDOUFU_PLAN_CALLS.
+	tokenPlanCallsChoudoufu = tokenRe("plan_calls_choudoufu")
+	tokenPlanCallsStock     = tokenRe("plan_calls_stock")
 )
 
 // Prose fallback patterns: the exact sentence shapes
@@ -505,6 +518,34 @@ func parseTestApplyDetail(detail string) *int {
 	return nil
 }
 
+// parsePlanCallsDetail extracts the plan's own API-call total from a
+// test_plan stage detail's plan_calls_choudoufu=/plan_calls_stock= tokens
+// (issue #1053) - real-AWS's own analyze_api_calls has no leg split (see
+// tokenPlanCallsChoudoufu's own doc comment above), so only Total is ever
+// populated here; Sweep and ReadPass stay nil for every target=aws record,
+// which is exactly what the emulator-side scaleslice.go's own doc comment on
+// scalePlanCallsFromSlice contrasts this against. Returns nil, not a
+// zero-valued ScalePlanCalls, when the choudoufu token is absent - there is
+// no prose fallback for this pair (unlike every other parseXDetail function
+// here): no live_cert/estates row predates the tokens with an equivalent
+// sentence to fall back to, because analyze_api_calls' own total was never
+// folded into a sentence at all before this issue. A ScaleCallPair's own
+// Choudoufu field is a plain int, never a pointer (see its doc comment), so
+// a present pair always means choudoufu's side was actually measured; stock's
+// token is read only when choudoufu's is, for the same reason.
+func parsePlanCallsDetail(detail string) *ScalePlanCalls {
+	m := tokenPlanCallsChoudoufu.FindStringSubmatch(detail)
+	if m == nil {
+		return nil
+	}
+	total := &ScaleCallPair{Choudoufu: mustAtoi(m[1])}
+	if ms := tokenPlanCallsStock.FindStringSubmatch(detail); ms != nil {
+		stock := mustAtoi(ms[1])
+		total.Stock = &stock
+	}
+	return &ScalePlanCalls{Total: total}
+}
+
 // ---------------------------------------------------------------------------
 // Building a record from an existing artifact row
 // ---------------------------------------------------------------------------
@@ -556,6 +597,9 @@ func BuildScaleRecordFromLiveCert(r LiveCertResult, source string) ScaleRecord {
 			st.Seconds, st.Throttle, st.Retry = seconds, throttle, retry
 			if indexLag != nil {
 				rec.IndexLagS = indexLag
+			}
+			if pc := parsePlanCallsDetail(detail); pc != nil {
+				rec.PlanCalls = pc
 			}
 		case "test_apply":
 			// Nothing promoted to a ScaleRecord field - see

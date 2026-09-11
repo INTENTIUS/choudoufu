@@ -41,12 +41,21 @@ a run does take it.
 > counts this page and
 > [what you pay]({{< relref "/docs/what-you-pay" >}}) describe in words are
 > also emitted as structured records there, one per (estate, target, scale) -
-> `terralith-scale` at 79, 301, 745 and 3,705 resources today. The 79/301/745
-> sweep-versus-read-pass split below is the one set of numbers on this page
-> that record does NOT yet carry: `internal/live/discovery/slicing_bench_test.go`
-> measures it but only writes it to `SLICE_OUT`, a path nothing commits -
-> re-running that bench with its output converted into a record is still
-> open.
+> `terralith-scale` at 79, 301, 745 and 3,705 resources today. The
+> sweep-versus-read-pass split ([issue #1053](https://github.com/INTENTIUS/choudoufu/issues/1053))
+> is now one of them, for the emulator side: `gauntlet scale-import-slice`
+> converts `internal/live/discovery/slicing_bench_test.go`'s own `SLICE_OUT`
+> report into the record's `plan_calls` field (`sweep`/`read_pass`/`total`,
+> each a choudoufu-and-stock pair), merged into the estate's existing floci
+> row rather than replacing it. The 79-instance point is recorded this way
+> today; 301 and 745 still want a re-run of the bench to land the same way.
+> The real-AWS side is not yet in the committed file: `terralith-scale.sh`'s
+> `analyze_api_calls` now emits its own `plan_calls_choudoufu=`/
+> `plan_calls_stock=` tokens on `test_plan`'s stage detail and
+> `scalerecord.go` reads them (a total only - the shell harness has no leg
+> split to give), but landing an actual real-AWS number needs a
+> certification run, which is the next one this estate runs, not this
+> change.
 
 ## The two terms
 

@@ -912,6 +912,20 @@ if [ -n "${LIVECERT_RESUME:-}" ]; then
   resume_verify
 fi
 
+# STOCK_PLAN_CALLS/CHOUDOUFU_PLAN_CALLS (#1051, INTENTIUS/chant-bench#33):
+# each side's exact provider-mediated request count for its OWN plan of the
+# converged, no-change estate - stock's at 2d below (its plan makes no other
+# kind of call, so this total already IS "what a plan costs" for stock, the
+# same reading plan-cost.md's own stock-vs-read-pass table gives it), and
+# choudoufu's at 4b2 (the FIRST post-migration plan, the same one every
+# other test_plan number describes). Left empty rather than 0 until each is
+# actually measured - a RESUMED run skips 2d entirely (it is inside the
+# RESUMED==0 span below) and leaves STOCK_PLAN_CALLS empty on purpose, so
+# the token this stage appends is simply omitted rather than lying with a
+# zero.
+STOCK_PLAN_CALLS=""
+CHOUDOUFU_PLAN_CALLS=""
+
 # ══════════════════════════════════════════════════════════════════════
 # Plan wall-clock instrumentation (issue #578).
 #
@@ -1083,6 +1097,15 @@ AWKEOF
 analyze_api_calls() {
   local label="$1" f="$2"
   local prog total refined listings tagsweeps joins
+  # API_CALLS_LAST_TOTAL (#1051, INTENTIUS/chant-bench#33) is this call's own
+  # exact total, for whichever caller invoked us to read right afterward -
+  # bash 3.2 (macOS's /bin/bash, see the ${arr[@]+...} comment further down
+  # this file) has no associative arrays, so a single "last result" global,
+  # copied into a caller-named variable immediately after the call returns,
+  # is the plain way to thread one number out of a function here. Cleared
+  # first so a "not instrumented" return (below) cannot leave a caller
+  # reading a PREVIOUS call's total as if it were this one's.
+  API_CALLS_LAST_TOTAL=""
   if [ ! -f "$f" ]; then
     log "  ${label}: no debug log at $f - not instrumented"
     return 0
@@ -1092,6 +1115,7 @@ analyze_api_calls() {
   awk -f "$prog" "$f" > "$WORK/apicalls_${label}.counts" 2>/dev/null
   total="$(awk -F'\t' '$1=="TOTAL"{print $2}' "$WORK/apicalls_${label}.counts")"
   [ -n "$total" ] || total=0
+  API_CALLS_LAST_TOTAL="$total"
 
   # One line per GetResource refinement, printed beside scan.Refined++.
   refined="$(grep -cF 'refined with GetResource' "$f" 2>/dev/null || true)"
@@ -1243,6 +1267,10 @@ timed_plans "stock-terraform" "$COLD_DIR" "$TF_COLD"
 
 log "=== 2d. API calls: one EXTRA stock plan with TF_LOG=DEBUG, outside every timed region ==="
 instrumented_plan "stock-terraform" "$COLD_DIR" "$TF_COLD"
+# Stock has no sweep leg at all (it trusts its state file outright), so this
+# total already is stock's whole plan-call cost, unambiguous and not a leg
+# split. Captured immediately after the call above sets it (#1051).
+STOCK_PLAN_CALLS="$API_CALLS_LAST_TOTAL"
 
 # ══════════════════════════════════════════════════════════════════════
 # WALLCLOCK_TRACE (issue #867): the stock half of the idle-gap comparison.
@@ -1513,6 +1541,10 @@ else
   log "  THROTTLE_LOG=$THROTTLE_LOG - not instrumented for this stage"
 fi
 
+log "=== 4b2. test_plan: API call total (#1051, INTENTIUS/chant-bench#33) - moved ahead of the pass/fail split below, not after it as 4e used to run this same analysis, so BOTH the pass and the deferred-failure path get the number rather than only whichever one used to run analyze_api_calls second ==="
+analyze_api_calls "choudoufu-first" "$PLAN_LOG"
+CHOUDOUFU_PLAN_CALLS="$API_CALLS_LAST_TOTAL"
+
 # The deferred failure from the gating plan (see TP_FAIL above) is taken
 # HERE, after the plan-timing measurement has had its chance to run. This is
 # the stage's real failure: same message, same fail(), verdict still `fail`.
@@ -1524,10 +1556,10 @@ if [ -n "$TP_FAIL" ]; then
   log "  WARNING: choudoufu's gating plan was NOT a no-change plan, so the two sides below are NOT like-for-like. Read each run's own verdict, not the seconds alone."
   printf '%s\n' "$PLAN_TIMING_REPORT"
   log "  stage-gating choudoufu plan, measured separately WITH TF_LOG=DEBUG: ${PLAN_S}s (${PLAN_LOG_BYTES} bytes of debug log written inside that region)"
-  # Same reasoning as the timing measurement above: #622's refinement count
-  # is a property of the sweep, not of whether the plan came back empty, so
-  # a run that is about to fail this stage still yields it.
-  analyze_api_calls "choudoufu-first" "$PLAN_LOG"
+  # #622's refinement count is a property of the sweep, not of whether the
+  # plan came back empty, so a run that is about to fail this stage still
+  # yields it - already computed at 4b2 above (CHOUDOUFU_PLAN_CALLS), before
+  # this branch even ran, for exactly that reason; not re-run here.
   instrumented_plan "choudoufu-steady" "$ADOPTED_DIR" "$TOFU"
   log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) - PARTIAL ==="
   printf '%s\n' "$API_CALL_REPORT"
@@ -1540,8 +1572,17 @@ if [ -n "$TP_FAIL" ]; then
   # live/e2e/lib/gauntlet.sh), so this needs no change there. seconds=/
   # throttle=/retry= (issue #1051) ride the same way: 4b above already
   # measured them before TP_FAIL was ever checked, so a refused plan still
-  # reports whatever it cost up to the refusal.
-  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES}"
+  # reports whatever it cost up to the refusal. plan_calls_choudoufu=/
+  # plan_calls_stock= (#1051, INTENTIUS/chant-bench#33) are the same idea for
+  # the plan's own API-call total: each is appended only when its own
+  # variable is non-empty (THROTTLE_LOG=0 leaves no debug log for 4b2 to
+  # read, and a RESUMED run skips 2d entirely) - an absent token is what
+  # tools/gauntlet/scalerecord.go's parser then leaves absent, never reading
+  # it as a zero that was never measured.
+  PLAN_CALLS_TOKENS=""
+  [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
+  [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
+  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="
@@ -1554,7 +1595,14 @@ ROLEARN="$(livecert_aws iam get-role --role-name "${PREFIX}-team-0000-role" --qu
 RTAG="$(livecert_aws iam list-role-tags --role-name "${PREFIX}-team-0000-role" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$RTAG" = "aws_iam_role.team_0000_role" ] || fail "the role carries tofu-address=$RTAG, not aws_iam_role.team_0000_role"
 log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI directly"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES}$HOLD_TAG"
+# plan_calls_choudoufu=/plan_calls_stock= (#1051, INTENTIUS/chant-bench#33):
+# see the identical construction and its comment on the TP_FAIL/fail() path
+# above - same two variables, same "only append what was actually measured"
+# rule, just on the pass path instead of the refusal path.
+PLAN_CALLS_TOKENS=""
+[ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
+[ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and
@@ -1573,8 +1621,7 @@ log "  stage-gating choudoufu plan, measured separately WITH TF_LOG=DEBUG: ${PLA
 # is supposed to have narrowed. #622 asks about the steady state, but the
 # first plan is the only thing the difference can be read against, so both
 # are counted and reported separately.
-log "=== 4e. API calls: the FIRST post-migration plan (stage-gating, already TF_LOG=DEBUG) ==="
-analyze_api_calls "choudoufu-first" "$PLAN_LOG"
+log "=== 4e. API calls: the FIRST post-migration plan (stage-gating, already TF_LOG=DEBUG) - computed at 4b2 above, before the pass/fail split, not re-run here (its line is already in API_CALL_REPORT, printed below) ==="
 log "=== 4f. API calls: one EXTRA steady-state choudoufu plan with TF_LOG=DEBUG, outside every timed region ==="
 instrumented_plan "choudoufu-steady" "$ADOPTED_DIR" "$TOFU"
 log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) ==="
