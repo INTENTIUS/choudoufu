@@ -111,6 +111,23 @@ const estateGenCohortReason = "estate-gen per-cohort typeOverrides: Data entries
 // argue for.
 var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	// ---- product path -------------------------------------------------
+	"internal/live/discovery/directread.go": {
+		Reason: "directReadTypes (issue #1046): the narrow, hand-verified registry of ServerAssigned types whose live " +
+			"ARN a service mints deterministically from configuration's own arguments alone, so a targeted Import+Read " +
+			"can settle a tag-index-lagged instance no listed object or estate-wide tag index can currently reach. " +
+			"aws_iam_policy is the one entry: its own identity/table_generated.go row already says its ARN 'embeds the " +
+			"name argument and, when path is set, that too', which is a fact about IAM's own ARN-minting behaviour, " +
+			"not something a provider schema states as composable - the same class of hand-verified provider fact " +
+			"internal/live/identity/parent.go's parentReadRemovable and internal/live/identity/docimportid.go's " +
+			"VariadicTrailingImportIDTypes already carry a row each for. aws_iam_role was deliberately left out after " +
+			"checking it: its own table row already reaches ClassConcrete through Components when `name` is present, " +
+			"and reaches ClassNeedsDiscovery only when `name` is entirely absent (ServerAssignedIfAbsent) - in which " +
+			"case configuration states no name to compose a candidate ARN from at all, so a row for it would be inert. " +
+			"Growing this map past one entry is the same per-type provider-ARN verification, never a blanket " +
+			"'ServerAssigned + Reason mentions ARN' string match, which the file's own comment on directReadTypes " +
+			"explains is exactly the kind of guess this package refuses to make.",
+		Data: 1, Code: 0,
+	},
 	"internal/live/discovery/discovery.go": {
 		Reason: "iamServiceLinkedRoleSibling names the one pair, aws_iam_role and aws_iam_service_linked_role (issue #302). " +
 			"IAM has no ListServiceLinkedRoles operation, so aws_iam_role's own native list call returns every " +
@@ -529,7 +546,12 @@ const (
 	// Go, so the names became visible here. Read Code, not Data, for the
 	// signal this file exists to carry: Code is the standing rule's number
 	// and it did not move.
-	typeLiteralDataTotal = 1165
+	// 1165 -> 1166 data, code unchanged at 129, on 2026-09-11 (issue
+	// #1046): internal/live/discovery/directread.go registered for the
+	// first time, one Data literal ("aws_iam_policy" as directReadTypes'
+	// sole map key) and no Code literal - the fallback dispatches on the
+	// map, never on a name compared inline.
+	typeLiteralDataTotal = 1166
 	typeLiteralCodeTotal = 129
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
