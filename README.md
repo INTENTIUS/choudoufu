@@ -2,13 +2,15 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu plus identity hooks.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+**OpenTofu, with your platform holding the record of what you own.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
-Each resource carries its own identity in the cloud, as two AWS tags. The
-apply writes them and the next plan reads them back live. The state file is
-therefore a cache you are allowed to lose, and the IAM you already run
-decides who may read or change what. This fork is experimental, and it
-supports AWS only.
+Each resource carries its own identity on the resource itself, as a marker
+the platform can select on: on AWS, two resource tags. The apply writes it
+and the next plan reads it back live. The state file is therefore a cache
+you are allowed to lose, and the policy engine you already run decides who
+may read or change what. This fork is experimental. AWS is proven;
+Kubernetes is in design ([#1016](https://github.com/INTENTIUS/choudoufu/issues/1016));
+no other platform is planned.
 
 There are two ways in. Read [Migrate an existing
 estate](https://intentius.io/choudoufu/docs/use/migrate/) if AWS already holds

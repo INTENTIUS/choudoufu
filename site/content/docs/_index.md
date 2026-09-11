@@ -1,6 +1,7 @@
 ---
-title: Docs
+title: "Evidence"
 weight: 1
+lead: "Everything the six-page hubs summarise, at full depth: the runnable claims, the gauntlet over real estates, the measured costs, the per-type lookup, and the model the hooks implement. Nothing here is a claim you have to take on faith; every figure names its fixture and its commit."
 ---
 
 # See it work before reading about it
@@ -39,8 +40,9 @@ version, and the optional request-count instrumentation.
 
 **OpenTofu plus identity hooks.** Almost everything in this fork is stock
 OpenTofu, unmodified. On top of that base it adds a set of hooks that put a
-resource's identity on the resource itself, as AWS tags, so that a state file
-becomes a cache rather than the record of what you own.
+resource's identity on the resource itself, as a marker the platform can
+select on (two tags, on AWS), so that a state file becomes a cache rather
+than the record of what you own.
 
 The promise this buys is that **if OpenTofu runs an estate, choudoufu runs it too.**
 Migration from a stock state file is lossless and a greenfield apply is

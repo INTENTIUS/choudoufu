@@ -1,0 +1,34 @@
+{{- /* The section's own tree: pages of the top-level section, then each
+       subsection with its pages, two levels deep. A provider hub shows its
+       six slots; the evidence tier shows its subsections. */ -}}
+{{- $top := .FirstSection -}}
+{{- $cur := . -}}
+<nav class="sidebar" aria-label="Section">
+  <a class="sidebar-top{{ if eq $cur $top }} active{{ end }}" href="{{ $top.RelPermalink }}">{{ $top.Title }}</a>
+  <ul>
+  {{- range $top.RegularPages.ByWeight }}
+    <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
+  {{- end }}
+  </ul>
+  {{- range $top.Sections.ByWeight }}
+  {{- $sec := . }}
+  <details{{ if or (eq $sec $cur) ($cur.IsDescendant $sec) }} open{{ end }}>
+    <summary><a href="{{ $sec.RelPermalink }}"{{ if eq $sec $cur }} class="active"{{ end }}>{{ $sec.Title }}</a></summary>
+    <ul>
+    {{- range $sec.RegularPages.ByWeight }}
+      <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
+    {{- end }}
+    {{- range $sec.Sections.ByWeight }}
+      {{- $sub := . }}
+      <li class="sub"><a href="{{ $sub.RelPermalink }}"{{ if eq $sub $cur }} class="active"{{ end }}>{{ $sub.Title }}</a>
+        <ul>
+        {{- range $sub.RegularPages.ByWeight }}
+          <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
+        {{- end }}
+        </ul>
+      </li>
+    {{- end }}
+    </ul>
+  </details>
+  {{- end }}
+</nav>

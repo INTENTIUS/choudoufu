@@ -1,0 +1,14 @@
+<header class="site-header">
+  <a class="brand" href="{{ "/" | relURL }}">
+    <img src="{{ (resources.Get "choudoufu-inline-64.png").RelPermalink }}" width="28" height="28" alt="">
+    <span>choudoufu</span>
+  </a>
+  <nav class="site-nav" aria-label="Primary">
+    {{ $cur := . }}
+    {{ range site.Menus.main }}
+    <a href="{{ .URL }}"{{ if or ($cur.IsMenuCurrent "main" .) ($cur.HasMenuCurrent "main" .) }} aria-current="page"{{ end }}>{{ .Name }}</a>
+    {{ end }}
+    <a href="{{ site.Params.repo }}" rel="noopener">GitHub</a>
+    <button class="search-toggle" type="button" aria-label="Search" data-search-open>Search</button>
+  </nav>
+</header>

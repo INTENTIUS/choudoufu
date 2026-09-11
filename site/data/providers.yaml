@@ -1,0 +1,48 @@
+# The platforms choudoufu runs on, and the one place each platform's answer
+# to a concept is written down (#1055). The providers shortcode renders a
+# row per platform for one key; live/site_slots_test.go requires every
+# platform whose status is not not-planned to have a hub with the six slots.
+keys:
+  identity: Where a resource's identity lives
+  values: Where values the platform cannot hold go
+  effects: How an effect with nothing to read back is recorded
+  cache: What the state file is
+  gate: What fences a write
+  inventory: How anyone lists an estate without the tool
+  sweep: What adoption and discovery cost
+  delete: What happens to a marked object nobody declares
+providers:
+  - id: aws
+    name: AWS
+    status: proven
+    status_label: "Proven. Every headline stage passes on every core estate against the pinned emulator, and two estates have run on a real account."
+    cells:
+      identity: "Two resource tags, `tofu-estate` and `tofu-address`, written on the create call. About half the provider's types have no tag surface; those derive their identity from configuration or hold it in the record store."
+      values: "A record store you declare or get by default: Parameter Store, S3, or a local directory, one record per instance under your IAM."
+      effects: "A receipt: an ordinary resource, by convention an SSM parameter holding a hash of the effect's input, that appears in your plan."
+      cache: "`choudoufu-cache.tfstate` under the data dir. Never consulted for ownership; when it and the live system disagree, live wins; losing it costs a read."
+      gate: "IAM conditions on `aws:ResourceTag/tofu-estate` and `aws:RequestTag/tofu-estate`. They fence reads and writes, per resource, and bind the credential rather than the binary."
+      inventory: "`aws resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=<estate>`"
+      sweep: "One `GetResources` call filtered on the marker, whatever else the account holds. The estate sweep on adoption is the expensive step; a plan of an adopted estate is at call parity with stock."
+      delete: "Proposed for deletion under the default policy, because the marker is its own scope."
+  - id: kubernetes
+    name: Kubernetes
+    status: design
+    status_label: "In design. Four types resolve and plan today; the marker, the sweep and the gate are the open decision in #1016."
+    cells:
+      identity: "Proposed: one label, `tofu-estate`, with the object re-bound through group, kind, namespace and name. A label value is capped at 63 characters and cannot carry a config address, so the address stays off the object. `generateName` is refused."
+      values: "Not yet designed."
+      effects: "Not yet designed."
+      cache: "The same file and the same three rules."
+      gate: "A `ValidatingAdmissionPolicy` whose CEL reads the label off `oldObject`. It fences create, update and delete only, never list or get, and it is a cluster-wide object a cluster admin installs. Until one is installed the label is advisory."
+      inventory: "`kubectl get <kind> -A -l tofu-estate=<estate>`, one kind at a time; `/apis` lists every kind the cluster serves, CRDs included."
+      sweep: "No cross-kind label-filtered list exists. A sweep is one list per kind per namespace; each list is label-selected, so it returns only the estate's objects and does not grow with the cluster."
+      delete: "Refused, until controller-created objects (Pods, ReplicaSets, PVCs from templates) can be excluded by owner reference. A controller copies template labels, so a marker in a pod template would land on objects nobody declared."
+  - id: azure
+    name: Azure
+    status: not-planned
+    status_label: "Not planned. No admission table, marker carrier or emulator; #5 closed without extending the model."
+  - id: gcp
+    name: Google Cloud
+    status: not-planned
+    status_label: "Not planned. Eleven google_* types plan through the schema fallback and are never stamped; GCP labels cannot carry a dot, so a marker would need a different carrier (#5, #243)."

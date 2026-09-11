@@ -1,0 +1,24 @@
+{{- /*
+  The per-provider table from site/data/providers.yaml (#1055): one row per
+  platform, the cell named by key. This is the one place a platform's
+  answer to a concept is written down, so every concept page renders the
+  same answer.
+
+    {{< providers key="identity" >}}
+*/ -}}
+{{- $key := .Get "key" -}}
+{{- $d := hugo.Data.providers -}}
+<div class="table-wrap">
+<table class="providers">
+<thead><tr><th>Platform</th><th>{{ index $d.keys $key | default $key }}</th></tr></thead>
+<tbody>
+{{- range $d.providers }}
+{{- $cell := "" }}{{ with .cells }}{{ $cell = index . $key }}{{ end }}
+{{- if $cell }}
+{{- $hub := site.GetPage (printf "/%s" .id) }}
+<tr><td>{{ with $hub }}<a href="{{ .RelPermalink }}">{{ end }}{{ .name }}{{ if $hub }}</a>{{ end }} <span class="status-dot status-{{ .status }}" title="{{ .status_label }}"></span></td><td>{{ $cell | markdownify }}</td></tr>
+{{- end }}
+{{- end }}
+</tbody>
+</table>
+</div>

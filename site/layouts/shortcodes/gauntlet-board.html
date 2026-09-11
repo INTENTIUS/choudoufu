@@ -46,7 +46,7 @@
 <tbody>
 {{- range $b.estates }}
 {{- $p := site.GetPage (printf "/docs/progress/%s" .name) }}
-<tr><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ $.Page.Scratch.Set "n" .Title }}{{ .Title }}</a>{{ else }}{{ .name }}{{ end }}</td><td>{{ .set }}</td><td>{{ .lane }}</td><td>{{ if .clear }}yes{{ else }}no{{ end }}</td><td class="cells">{{ range .cells }}<span class="cell cell-{{ replace . " " "-" | lower }}">{{ . }}</span> {{ end }}</td></tr>
+<tr><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ else }}{{ .name }}{{ end }}</td><td>{{ .set }}</td><td>{{ .lane }}</td><td>{{ if .clear }}yes{{ else }}no{{ end }}</td><td class="cells">{{ range .cells }}<span class="cell cell-{{ replace . " " "-" | lower }}">{{ . }}</span> {{ end }}</td></tr>
 {{- end }}
 </tbody>
 </table>

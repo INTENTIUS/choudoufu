@@ -1,0 +1,23 @@
+{{ define "main" }}
+{{- $p := index (where hugo.Data.providers.providers "id" .Section) 0 -}}
+<div class="hub">
+  <header class="hub-head">
+    <p class="eyebrow">Platform</p>
+    <h1>{{ .Title }}</h1>
+    {{ with $p }}<p class="status status-{{ .status }}">{{ .status_label }}</p>{{ end }}
+    {{ with .Params.lead }}<p class="lead">{{ . | markdownify }}</p>{{ end }}
+    {{ .Content }}
+  </header>
+  <ol class="slots">
+    {{ range .RegularPages.ByWeight }}
+    <li class="slot">
+      <a href="{{ .RelPermalink }}">
+        <span class="slot-name">{{ .Title }}</span>
+        <span class="slot-desc">{{ .Description }}</span>
+      </a>
+    </li>
+    {{ end }}
+  </ol>
+  <p class="hub-foot">Everything on these six pages links down into <a href="{{ "docs/" | relURL }}">the evidence</a>: the runnable claims, the gauntlet, the measurements, and the per-type lookup.</p>
+</div>
+{{ end }}

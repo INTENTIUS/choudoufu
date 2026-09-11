@@ -1,0 +1,43 @@
+<div class="search-panel" hidden data-search-panel>
+  <div class="search-box">
+    <input type="search" placeholder="Search the site" aria-label="Search the site" data-search-input autocomplete="off">
+    <button type="button" aria-label="Close search" data-search-close>Close</button>
+  </div>
+  <ol class="search-results" data-search-results></ol>
+</div>
+<script>
+(function () {
+  var panel = document.querySelector('[data-search-panel]');
+  var input = document.querySelector('[data-search-input]');
+  var results = document.querySelector('[data-search-results]');
+  var index = null;
+  function open() {
+    panel.hidden = false; input.focus();
+    if (!index) fetch('{{ "searchindex.json" | relURL }}').then(function (r) { return r.json(); }).then(function (d) { index = d; run(); });
+  }
+  function close() { panel.hidden = true; }
+  function run() {
+    var q = input.value.trim().toLowerCase();
+    results.innerHTML = '';
+    if (!index || q.length < 2) return;
+    var terms = q.split(/\s+/);
+    var hits = index.filter(function (p) {
+      var hay = (p.title + ' ' + p.section + ' ' + p.body).toLowerCase();
+      return terms.every(function (t) { return hay.indexOf(t) >= 0; });
+    }).slice(0, 12);
+    hits.forEach(function (p) {
+      var li = document.createElement('li');
+      var a = document.createElement('a'); a.href = p.url; a.textContent = p.title;
+      var s = document.createElement('span'); s.className = 'search-section'; s.textContent = p.section;
+      li.appendChild(a); li.appendChild(s); results.appendChild(li);
+    });
+  }
+  document.querySelectorAll('[data-search-open]').forEach(function (b) { b.addEventListener('click', open); });
+  document.querySelector('[data-search-close]').addEventListener('click', close);
+  input.addEventListener('input', run);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') close();
+    if (e.key === '/' && document.activeElement !== input && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); open(); }
+  });
+})();
+</script>
