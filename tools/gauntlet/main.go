@@ -235,16 +235,24 @@ func cmdRender(root string) error {
 }
 
 func cmdRun(root string, args []string) error {
+	// The maintainer-run-guard (issue: 2026-09-11 incident, see CLAUDE.md):
+	// a local `run` (CI unset, GITHUB_ACTIONS unset) is a heavy run - real
+	// containers, real wall-clock minutes - that only the maintainer's own
+	// hand should start. Checked before flag parsing even finishes reading
+	// estate names, so a malformed invocation never races the refusal.
+	// withDispatchHint (heavyrun.go) adds the one thing CheckMaintainerAllow
+	// itself cannot know: which workflow runs this for real, and the exact
+	// `gh workflow run` line that dispatches it.
+	if err := CheckMaintainerAllow(); err != nil {
+		return withDispatchHint(err, "gauntlet.yml",
+			`gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates="name1 name2"`)
+	}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
 	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, one estate at a time. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
 	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if err := refuseLocalHeavyRun(os.Getenv, "gauntlet.yml",
-		"gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates=\"name1 name2\""); err != nil {
 		return err
 	}
 	m, a, err := loadAll(root)
@@ -420,11 +428,10 @@ func cmdLiveCert(root string, args []string) error {
 		return fmt.Errorf("live-cert needs exactly one estate name, got %d", fs.NArg())
 	}
 	estate := fs.Arg(0)
-	if err := refuseLocalHeavyRun(os.Getenv, "live-cert.yml",
-		"gh workflow run live-cert.yml -R INTENTIUS/choudoufu -f estate="+estate+" -f scale=1 -f ceiling_usd=15"); err != nil {
-		return err
-	}
-
+	// RunLiveCert's own CheckMaintainerAllow call (livecert.go) already
+	// refuses this outside CI without the maintainer's hand-run allow file,
+	// wrapped there with the live-cert.yml dispatch hint - nothing to add
+	// here.
 	r, res, exit, err := RunLiveCert(root, estate, *target, *region, *ceilingUSD, *timeoutSeconds, *confirm)
 	if err != nil {
 		return err

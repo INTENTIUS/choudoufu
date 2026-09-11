@@ -147,6 +147,20 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	if target != "floci" && target != "aws" {
 		return nil, nil, 0, fmt.Errorf("target must be floci or aws, got %q", target)
 	}
+	// The maintainer-run-guard (2026-09-11 incident, CLAUDE.md): a live-cert
+	// run is heavy even at target=floci (a real container, real minutes)
+	// and paid at target=aws, so it needs the maintainer's own hand-run
+	// allow file regardless of target - checked first, before the
+	// target=aws confirm key below, so a missing allow file is reported on
+	// its own rather than folded into "confirm" language that belongs to a
+	// different check. withDispatchHint (heavyrun.go) adds the one thing
+	// CheckMaintainerAllow itself cannot know: .github/workflows/live-cert.yml
+	// runs this for real, gated on the maintainer's own approval click, and
+	// the exact `gh workflow run` line that gets a run there.
+	if err := CheckMaintainerAllow(); err != nil {
+		return nil, nil, 0, withDispatchHint(err, "live-cert.yml",
+			fmt.Sprintf("gh workflow run live-cert.yml -R INTENTIUS/choudoufu -f estate=%s -f scale=1 -f ceiling_usd=15", estate))
+	}
 	if target == "aws" && confirm != "yes" {
 		return nil, nil, 0, fmt.Errorf("target=aws needs -confirm yes (from LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY); refusing before starting anything")
 	}

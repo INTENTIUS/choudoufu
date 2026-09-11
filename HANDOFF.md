@@ -313,21 +313,49 @@ Rules are tests. The ones that hold this document to the tree:
   or in a personal, uncommitted local settings file's `env` block, before
   editing.
 
+### Heavy runs are the maintainer's, by hand
+
+`tools/gauntlet run` (locally, outside CI) and `tools/gauntlet live-cert`
+refuse before starting any container or making any cloud call unless
+`~/.config/choudoufu/allow-heavy-runs` exists and its one line reads
+`until <RFC3339 or YYYY-MM-DDTHH:MM>` (local time) still in the future;
+`live/live-cert/terralith-scale.sh` and `reference-ec2-vpc.sh` enforce the
+identical rule for themselves via `livecert_require_maintainer_allow`
+(`live/live-cert/lib/live-cert.sh`) when run directly with `TARGET=aws`, so
+there is no path around the Go runner either. The file lives outside the
+repository on purpose: nothing here creates it, checking out a branch or
+worktree never carries it along, and it expires on its own rather than
+staying enabled forever. `just allow-heavy-runs 2h` (or `90m`, `1d`, ...)
+computes the instant and prints the exact command —
+
+```
+mkdir -p ~/.config/choudoufu && echo 'until <instant>' > ~/.config/choudoufu/allow-heavy-runs
+```
+
+— for the maintainer to paste by hand; the recipe never runs it itself. CI
+is unaffected: a workflow run has `GITHUB_ACTIONS=true` set for it already,
+which both the Go and shell guards treat as the maintainer's decision
+already made when the workflow was scheduled or dispatched. See CLAUDE.md's
+"Heavy and paid runs are the maintainer's, by hand" for the rule agents
+follow, and the 2026-09-11 incident that made it a rule.
+
 ### Heavy runs are dispatched, approved and never local
 
 A "heavy run" is `go run ./tools/gauntlet run` (a full estate pass, minutes
 to hours) or `go run ./tools/gauntlet live-cert -target aws` (spends real
-account money). Rule added 2026-09-11, worker-common.md: these are the
-maintainer's, never a local session's, "not because compute is scarce but
-because the time it takes slows development down." Two independent layers
-enforce it:
+account money). The section above is the refusal itself (CI-only, otherwise
+`CheckMaintainerAllow`); this one is where a heavy run actually happens now
+that a laptop is refused: GitHub Actions, dispatched by hand, and still
+gated on the maintainer's own approval click, so `CHOUDOUFU_LOCAL_HEAVY_RUN`
+or any other agent-settable variable was never in the loop for this half
+either - only a repository-level required reviewer, which nothing this
+repository generates can set for itself. Two things enforce the "dispatched
+and approved" half:
 
-- **The command itself refuses outside CI.** `tools/gauntlet/heavyrun.go`'s
-  `refuseLocalHeavyRun` refuses both subcommands unless `GITHUB_ACTIONS=true`
-  / `CI=true` is set (true on every GitHub Actions runner) or a human has set
-  `CHOUDOUFU_LOCAL_HEAVY_RUN=maintainer` by hand. The maintainer allow-file
-  half of this guard (the live/maintainer-run-guard branch) lands separately; until it
-  merges, the env var alone is what a maintainer sets to run one locally.
+- **The command runs unattended only in CI.** `inCI()`
+  (`tools/gauntlet/maintainerguard.go`) is what exempts a GitHub Actions
+  runner from the allow-file check above - `GITHUB_ACTIONS`/`CI` being set
+  there already, on every runner, with no agent action needed.
 - **The workflow itself waits for a click.** `.github/workflows/live-cert.yml`
   runs in the `real-aws` GitHub environment; `.github/workflows/gauntlet.yml`'s
   `dispatch-approval` job (added 2026-09-11, gating only its own

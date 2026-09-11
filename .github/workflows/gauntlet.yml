@@ -8,11 +8,12 @@ name: Gauntlet
 #
 #   go run ./tools/gauntlet run -set core
 #
-# but as of the 2026-09-11 "heavy runs are the maintainer's, never yours"
-# rule (worker-common.md), that command refuses to run at all outside CI
-# unless CHOUDOUFU_LOCAL_HEAVY_RUN=maintainer is set by hand
-# (tools/gauntlet/heavyrun.go) - this workflow, not a laptop, is the normal
-# way it runs. The nightly `schedule` trigger is unaffected (it always was
+# but as of CLAUDE.md's "Heavy and paid runs are the maintainer's, by hand"
+# rule (the 2026-09-11 incident it records), that command refuses to run at
+# all outside CI unless ~/.config/choudoufu/allow-heavy-runs names a
+# still-future instant (CheckMaintainerAllow, tools/gauntlet/maintainerguard.go)
+# - a file nothing in this repository ever creates - so this workflow, not
+# a laptop, is the normal way it runs. The nightly `schedule` trigger is unaffected (it always was
 # unattended CI, never a local session); a manual `workflow_dispatch` run
 # additionally waits at the `dispatch-approval` job below for the
 # maintainer's own approval on the `corpus` environment before `run` starts -

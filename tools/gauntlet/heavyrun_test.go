@@ -6,76 +6,46 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
 
-// fakeEnv drives localHeavyRunAllowed/refuseLocalHeavyRun against a fixed
-// map rather than the real process environment, so this test never reads or
-// mutates os.Environ() - it must pass identically whether or not it happens
-// to run inside actual CI.
-func fakeEnv(vars map[string]string) func(string) string {
-	return func(k string) string { return vars[k] }
-}
-
-func TestLocalHeavyRunAllowed(t *testing.T) {
-	cases := []struct {
-		name string
-		env  map[string]string
-		want bool
-	}{
-		{
-			name: "CI env present (GITHUB_ACTIONS=true)",
-			env:  map[string]string{"GITHUB_ACTIONS": "true"},
-			want: true,
-		},
-		{
-			name: "CI env present (generic CI=true)",
-			env:  map[string]string{"CI": "true"},
-			want: true,
-		},
-		{
-			name: "maintainer env var present, no CI",
-			env:  map[string]string{"CHOUDOUFU_LOCAL_HEAVY_RUN": "maintainer"},
-			want: true,
-		},
-		{
-			name: "neither present",
-			env:  map[string]string{},
-			want: false,
-		},
-		{
-			name: "env var present but wrong value",
-			env:  map[string]string{"CHOUDOUFU_LOCAL_HEAVY_RUN": "yes"},
-			want: false,
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := localHeavyRunAllowed(fakeEnv(c.env))
-			if got != c.want {
-				t.Errorf("localHeavyRunAllowed(%v) = %v, want %v", c.env, got, c.want)
-			}
-		})
+// TestWithDispatchHintNil proves the wrapper is a true no-op on success: a
+// caller that always wraps CheckMaintainerAllow's return value must not
+// turn a nil (allowed) result into a non-nil one.
+func TestWithDispatchHintNil(t *testing.T) {
+	if got := withDispatchHint(nil, "live-cert.yml", "irrelevant"); got != nil {
+		t.Errorf("withDispatchHint(nil, ...) = %v, want nil", got)
 	}
 }
 
-func TestRefuseLocalHeavyRunNamesTheWorkflowAndDispatchLine(t *testing.T) {
-	err := refuseLocalHeavyRun(fakeEnv(map[string]string{}), "live-cert.yml", "gh workflow run live-cert.yml -f estate=reference-ec2-vpc")
-	if err == nil {
-		t.Fatal("refuseLocalHeavyRun with neither CI nor the maintainer env var set: got nil error, want a refusal")
+// TestWithDispatchHintNamesWorkflowAndDispatchLine is the actual contract
+// item 3 of this unit asks for: the refusal a maintainer or an agent sees
+// must name the workflow file and the exact `gh workflow run` line, on top
+// of whatever the underlying guard already said.
+func TestWithDispatchHintNamesWorkflowAndDispatchLine(t *testing.T) {
+	base := errors.New("refusing: the allow file does not exist")
+	dispatchLine := "gh workflow run live-cert.yml -R INTENTIUS/choudoufu -f estate=reference-ec2-vpc -f scale=1 -f ceiling_usd=15"
+
+	got := withDispatchHint(base, "live-cert.yml", dispatchLine)
+	if got == nil {
+		t.Fatal("withDispatchHint(non-nil error, ...) = nil, want a wrapped refusal")
 	}
-	msg := err.Error()
-	for _, want := range []string{"live-cert.yml", "gh workflow run live-cert.yml -f estate=reference-ec2-vpc", "CHOUDOUFU_LOCAL_HEAVY_RUN"} {
+	msg := got.Error()
+	for _, want := range []string{
+		"refusing: the allow file does not exist", // the original reason is preserved
+		"live-cert.yml", // the workflow file
+		dispatchLine,    // the exact dispatch line
+	} {
 		if !strings.Contains(msg, want) {
-			t.Errorf("refusal message missing %q: %q", want, msg)
+			t.Errorf("wrapped refusal missing %q: %q", want, msg)
 		}
 	}
 
-	if err := refuseLocalHeavyRun(fakeEnv(map[string]string{"GITHUB_ACTIONS": "true"}), "live-cert.yml", "irrelevant"); err != nil {
-		t.Errorf("refuseLocalHeavyRun inside CI: got %v, want nil", err)
-	}
-	if err := refuseLocalHeavyRun(fakeEnv(map[string]string{"CHOUDOUFU_LOCAL_HEAVY_RUN": "maintainer"}), "live-cert.yml", "irrelevant"); err != nil {
-		t.Errorf("refuseLocalHeavyRun with the maintainer env var: got %v, want nil", err)
+	// The wrap must be a real error-wrap, not just string concatenation, so
+	// errors.Is/As still sees the original cause.
+	if !errors.Is(got, base) {
+		t.Error("withDispatchHint's result does not wrap the original error (errors.Is failed) - it must wrap the base error, not just format it into a new string")
 	}
 }

@@ -2,14 +2,17 @@ name: Live cert
 
 # A real-AWS certification run (issue #440, #567, #1032, #1046) - the one
 # kind of gauntlet evidence that spends real account money. `workflow_dispatch`
-# only, on purpose: this is a "heavy run" under worker-common.md's
-# 2026-09-11 rule ("Heavy runs are the maintainer's, never yours"), and this
-# workflow is the ONLY place `go run ./tools/gauntlet live-cert -target aws`
-# is allowed to execute for real. tools/gauntlet's own refuseLocalHeavyRun
-# (heavyrun.go) refuses that command everywhere else unless
-# CHOUDOUFU_LOCAL_HEAVY_RUN=maintainer is set by hand - the second,
-# independent layer, the same "belt and suspenders" shape
-# LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY already uses.
+# only, on purpose: this is a "heavy run" under CLAUDE.md's "Heavy and paid
+# runs are the maintainer's, by hand" rule (the 2026-09-11 incident: three
+# real-AWS certification cycles and two corpus runs went out overnight on
+# an inferred authorization). Outside CI, `go run ./tools/gauntlet
+# live-cert -target aws` refuses on its own before starting anything -
+# CheckMaintainerAllow (tools/gauntlet/maintainerguard.go) requires
+# ~/.config/choudoufu/allow-heavy-runs to name a still-future instant, a
+# file nothing in this repository ever creates - so this workflow, not a
+# laptop, is the normal way a real run happens. The same "belt and
+# suspenders" shape LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY already
+# uses for -target aws specifically.
 #
 # `environment: real-aws` is what makes a dispatch wait: a GitHub
 # environment with a required reviewer blocks the job at its first step
