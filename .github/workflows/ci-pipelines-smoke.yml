@@ -126,7 +126,27 @@ jobs:
       - name: run the five Ops
         env:
           CHOUDOUFU_BIN: /usr/local/bin/choudoufu
+          # Keeps the scratch repository (smoke.sh's $WORK, $OUT under it) on
+          # disk after the script exits instead of its own cleanup trap
+          # deleting it, so the upload step below has something to read. The
+          # job container is thrown away either way; nothing here outlives it.
+          KEEP: 1
         run: bash examples/ci-pipelines/scripts/smoke.sh
+
+      # $OUT is a fresh `mktemp -d` path smoke.sh alone knows, so it writes it
+      # to $GITHUB_ENV itself (see smoke.sh's own comment on SMOKE_OUT_DIR)
+      # rather than this step trying to guess it. `if: always()` is the whole
+      # point - a `live-plan` failure with "no evidence in the log" (#807's
+      # first real-AWS dispatch) is exactly the case with nothing to see
+      # without this, since the job step's own log only ever showed the
+      # 25-then-60-line tail, never the full per-Op JSON.
+      - name: upload smoke output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-pipelines-smoke-output
+          path: ${{ env.SMOKE_OUT_DIR }}
+          if-no-files-found: warn
 
   # target: real-aws. No floci, no endpoint override, no static credential:
   # aws-actions/configure-aws-credentials mints a short-lived credential by
@@ -184,4 +204,19 @@ jobs:
         env:
           CHOUDOUFU_BIN: /usr/local/bin/choudoufu
           SMOKE_TARGET: real-aws
+          # See the `smoke` job's own "run the five Ops" step: keeps $OUT
+          # around for the upload step below instead of smoke.sh's cleanup
+          # trap deleting it.
+          KEEP: 1
         run: bash examples/ci-pipelines/scripts/smoke.sh
+
+      # See the `smoke` job's identical step: this is the one issue #807's
+      # own dispatch (run 34632345663) needed and did not have - `live-plan`
+      # failed with nothing uploaded to read.
+      - name: upload smoke output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-pipelines-smoke-output-real-aws
+          path: ${{ env.SMOKE_OUT_DIR }}
+          if-no-files-found: warn

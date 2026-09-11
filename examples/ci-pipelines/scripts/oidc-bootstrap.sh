@@ -178,24 +178,100 @@ jq -n \
     ]
   }' > "$TRUST_POLICY"
 
-# describe_read <sid> - the read-only statement every one of the three
-# roles' policy starts with: describe the two resources by ARN, the
-# Resource Groups Tagging API's own reads (discovery has no per-resource
-# ARN to scope to), and the STS identity call the smoke script itself makes.
+# describe_read <sid> - the read-only statements every one of the three
+# roles' policy starts with.
+#
+# issue #807's real-AWS dispatch (run 34632345663) got past `live-check` and
+# then failed `live-plan` with no evidence in the log; `aws iam
+# simulate-principal-policy` on the apply role showed why:
+# `iam:ListPolicies`, `iam:ListRoles`, `logs:DescribeLogGroups` and Cloud
+# Control's own `cloudformation:ListResources`/`GetResource` all came back
+# implicitly denied. Every action below is one this example's two resource
+# types, or the sweep discovery runs across the account to find them, is
+# proven to call - never guessed:
+#
+#   - `cloudformation:ListResources`, `cloudformation:GetResource` - choudoufu's
+#     OWN calls, not the provider's: this is the Cloud Control fallback
+#     transport internal/live/cloudcontrol/client.go speaks (see its own doc.go
+#     and site/content/docs/use/reference.md's "Permissions a run needs" table,
+#     which names these two actions for that file with no ARN scoping - the
+#     account had granted this example's roles *none* of them before this fix,
+#     which is the root cause `live-plan` never got past). List-style AWS
+#     actions take no resource identifier to scope to, and GetResource is
+#     called during discovery against identifiers this run does not know
+#     ahead of time (an unowned candidate somewhere else in the account), so
+#     both stay on Resource "*" rather than the two ARNs below.
+#   - `iam:ListRoles` - live/registry-schema-facts.json's AWS::IAM::Role entry
+#     lists this as its "list" handler_permissions entry, and GitHub issue
+#     #1039 is the account-wide-unfiltered-list finding by name: the
+#     provider's own list resource for aws_iam_role carries no filter
+#     argument (also internal/live/discovery/discovery.go's comments at
+#     "one iam:ListRoles-shaped call" and "IAM has no ListServiceLinkedRoles,
+#     so iam:ListRoles returns both" - the ordinary roles and any
+#     service-linked ones together). Every role in the account, not just
+#     $IAM_ROLE_ARN, so Resource "*".
+#   - `iam:ListPolicies`, `iam:GetPolicy`, `iam:GetPolicyVersion` -
+#     live/registry-schema-facts.json's AWS::IAM::ManagedPolicy entry lists
+#     `iam:ListPolicies` as its "list" permission and `iam:GetPolicy`,
+#     `iam:GetPolicyVersion` (metadata, then the version's document) as its
+#     "read" pair; GitHub issue #1039 names aws_iam_policy as the second of
+#     the three types whose provider list resource has no filter argument
+#     and measures the cost in exactly this shape: "every call of that
+#     growth is GetPolicyVersion" once per policy in the whole account.
+#     None of these policies are this estate's own (main.tf attaches none to
+#     $IAM_ROLE_ARN), so there is no ARN to scope any of the three to.
+#   - `logs:DescribeLogGroups` - live/registry-schema-facts.json's
+#     AWS::Logs::LogGroup entry lists this as its "list" permission too.
+#     Unlike the read-only pair below, DescribeLogGroups is what enumerates
+#     the account's log groups in the first place (no log-group-name
+#     argument narrows a list call to one group's ARN), so the ARN-scoped
+#     grant this line used to carry never did anything; moved here.
+#
+# The pair below stays scoped to the two ARNs because both DO support
+# resource-level permissions once an object is already identified by name:
+# live/registry-schema-facts.json's AWS::IAM::Role "read" entry also lists
+# `iam:GetRolePolicy`, `iam:ListAttachedRolePolicies` and
+# `iam:ListRolePolicies` alongside `iam:GetRole` - added here too, since a
+# role's own read is incomplete without them even though this example's role
+# attaches nothing today - and its AWS::Logs::LogGroup "read"/"list" entries
+# both carry `logs:ListTagsForResource` beside `logs:ListTagsLogGroup`,
+# the older, still-live alias the AWS provider itself calls.
+discover_account_statement() {
+  cat <<JSON
+    {
+      "Sid": "DiscoverTheAccount",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ListResources",
+        "cloudformation:GetResource",
+        "iam:ListRoles",
+        "iam:ListPolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "logs:DescribeLogGroups"
+      ],
+      "Resource": "*"
+    }
+JSON
+}
+
 describe_read_statements() {
   cat <<JSON
     {
       "Sid": "DescribeTheEstate",
       "Effect": "Allow",
       "Action": [
-        "logs:DescribeLogGroups",
         "logs:ListTagsForResource",
         "logs:ListTagsLogGroup",
         "iam:GetRole",
-        "iam:ListRoleTags"
+        "iam:ListRoleTags",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies"
       ],
       "Resource": ["$LOG_GROUP_ARN", "$IAM_ROLE_ARN"]
     },
+    $(discover_account_statement),
     {
       "Sid": "TaggingApiReads",
       "Effect": "Allow",
