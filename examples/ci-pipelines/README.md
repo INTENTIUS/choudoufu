@@ -545,6 +545,124 @@ holds, in which case drop these secrets from `generate.ts` and give the credenti
 the runner instead. That trades a repository secret for a runner-level one and is not
 obviously better; it is stated because it is the other real option.
 
+### Setting up OIDC for the real-AWS smoke (issue #807)
+
+Everything above this point runs against floci; nothing in this repository's own CI
+has ever assumed one of these roles against a real account. `.github/workflows/ci-pipelines-smoke.yml`
+has a `target: real-aws` mode (`workflow_dispatch`, choices `emulator` default and
+`real-aws`) that does: it needs the three roles the table above already names to
+exist, and two repository variables, on `INTENTIUS/choudoufu`, in account
+`354867293429`, which already carries the `token.actions.githubusercontent.com`
+OIDC provider - this bootstrap never creates that provider, only a trust policy
+that points at it.
+
+The maintainer runs this once, by hand, from a shell with an AWS identity that can
+create IAM roles in that account and a `gh` authenticated against the repository:
+
+```bash
+ACCOUNT=354867293429
+REGION=us-east-1                        # terraform/main.tf's aws_region default
+PREFIX=choudoufu-ci-pipelines-example    # terraform/main.tf's name_prefix default
+
+# 1. Confirm the account already has the provider (never creates one).
+aws iam list-open-id-connect-providers
+
+# 2. The trust policy all three roles share: repo:INTENTIUS/choudoufu:* on that
+#    provider, no branch or ref restriction (issue #807 asks for the whole repo).
+cat > /tmp/choudoufu-ci-pipelines-trust.json <<'JSON'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Federated": "arn:aws:iam::354867293429:oidc-provider/token.actions.githubusercontent.com" },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+        "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:INTENTIUS/choudoufu:*" }
+      }
+    }
+  ]
+}
+JSON
+
+# 3. Three roles, three inline policies, least-privilege per the table above:
+#    read (describe the log group and the role by ARN, tag:GetResources/GetTagKeys/
+#    GetTagValues, sts:GetCallerIdentity) for plan; read plus the marker-writing tag
+#    calls for adopt; read plus marker-writing plus create/update/delete on the two
+#    resource types and the SSM record store's own prefix for apply.
+#    scripts/oidc-bootstrap.sh (below) generates exactly these three documents from
+#    this same terraform root - the commands here are what it runs.
+aws iam create-role --role-name choudoufu-ci-pipelines-plan \
+  --assume-role-policy-document file:///tmp/choudoufu-ci-pipelines-trust.json
+aws iam put-role-policy --role-name choudoufu-ci-pipelines-plan \
+  --policy-name read-the-estate --policy-document file:///tmp/choudoufu-ci-pipelines-plan-policy.json
+
+aws iam create-role --role-name choudoufu-ci-pipelines-adopt \
+  --assume-role-policy-document file:///tmp/choudoufu-ci-pipelines-trust.json
+aws iam put-role-policy --role-name choudoufu-ci-pipelines-adopt \
+  --policy-name adopt-the-estate --policy-document file:///tmp/choudoufu-ci-pipelines-adopt-policy.json
+
+aws iam create-role --role-name choudoufu-ci-pipelines-apply \
+  --assume-role-policy-document file:///tmp/choudoufu-ci-pipelines-trust.json
+aws iam put-role-policy --role-name choudoufu-ci-pipelines-apply \
+  --policy-name apply-the-estate --policy-document file:///tmp/choudoufu-ci-pipelines-apply-policy.json
+
+# 4. The repository variables the generated workflows and ci-pipelines-smoke.yml's
+#    real-aws job both read.
+gh variable set -R INTENTIUS/choudoufu AWS_REGION --body "$REGION"
+gh variable set -R INTENTIUS/choudoufu CHOUDOUFU_PLAN_ROLE_ARN  --body "arn:aws:iam::$ACCOUNT:role/choudoufu-ci-pipelines-plan"
+gh variable set -R INTENTIUS/choudoufu CHOUDOUFU_ADOPT_ROLE_ARN --body "arn:aws:iam::$ACCOUNT:role/choudoufu-ci-pipelines-adopt"
+gh variable set -R INTENTIUS/choudoufu CHOUDOUFU_APPLY_ROLE_ARN --body "arn:aws:iam::$ACCOUNT:role/choudoufu-ci-pipelines-apply"
+
+# 5. Run the smoke against the real account.
+gh workflow run ci-pipelines-smoke.yml -R INTENTIUS/choudoufu --ref <branch> -f target=real-aws
+```
+
+`scripts/oidc-bootstrap.sh` is the same five steps as one idempotent script - it reads
+`REGION` and `PREFIX` above out of `terraform/main.tf` itself rather than repeating
+them, skips `create-role` for a role that already exists (calling `update-assume-role-policy`
+and `put-role-policy` instead, so it is safe to re-run after a policy change), and refuses
+to run at all if the OIDC provider is missing rather than creating one:
+
+```bash
+scripts/oidc-bootstrap.sh --dry-run   # prints every aws/gh command it would run
+scripts/oidc-bootstrap.sh             # does it for real
+```
+
+Once the variables are set, `gh workflow run ci-pipelines-smoke.yml --ref <branch> -f
+target=real-aws` runs the same five Ops as the emulator path, against the real
+account, through `aws-actions/configure-aws-credentials` assuming
+`CHOUDOUFU_APPLY_ROLE_ARN` (the widest of the three, since this smoke's own
+`live-apply` needs it) in `AWS_REGION`. Expect the same verdict-line shape "Running
+it locally, against the emulator" above shows, minus the emulator-specific ones
+(`floci-pin` does not run in the real-aws job at all - there is no service container to
+check the pin of):
+
+```
+SMOKE op=live-check verdict=pass status=ok
+SMOKE op=live-plan verdict=pass status=ok
+SMOKE op=live-apply verdict=pass status=gated
+SMOKE op=live-apply/approve verdict=pass status=resolved
+SMOKE op=live-apply verdict=pass status=ok
+SMOKE op=live-apply/plan-moved verdict=pass status=gated
+SMOKE op=live-adopt verdict=pass status=gated
+SMOKE op=live-adopt/approve verdict=pass status=resolved
+SMOKE op=live-adopt verdict=pass status=ok
+SMOKE op=live-discover verdict=pass status=ok
+SMOKE op=apply-refusal verdict=pass status=exit3
+```
+
+One thing this section does not do: after `live-apply` runs `ok` against a real
+account, the CloudWatch log group and IAM role in "The estate" below are real and
+stay real - nothing in `scripts/smoke.sh` destroys them, on either target, and there
+is no `live-destroy` in the sequence. On the emulator this costs nothing because the
+whole container is thrown away after; against a real account a maintainer who
+dispatches `target: real-aws` more than once is re-applying the same estate, not
+creating a new one each time (the marker tags are how it recognizes its own prior
+run), but tearing it down afterward - `choudoufu destroy` in `terraform/`, using the
+apply role - is a manual step this issue does not automate.
+
 ## The estate
 
 `terraform/` is an ordinary AWS root that stock OpenTofu runs unchanged: a CloudWatch
