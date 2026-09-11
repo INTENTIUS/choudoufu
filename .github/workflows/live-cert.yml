@@ -1,0 +1,182 @@
+name: Live cert
+
+# A real-AWS certification run (issue #440, #567, #1032, #1046) - the one
+# kind of gauntlet evidence that spends real account money. `workflow_dispatch`
+# only, on purpose: this is a "heavy run" under worker-common.md's
+# 2026-09-11 rule ("Heavy runs are the maintainer's, never yours"), and this
+# workflow is the ONLY place `go run ./tools/gauntlet live-cert -target aws`
+# is allowed to execute for real. tools/gauntlet's own refuseLocalHeavyRun
+# (heavyrun.go) refuses that command everywhere else unless
+# CHOUDOUFU_LOCAL_HEAVY_RUN=maintainer is set by hand - the second,
+# independent layer, the same "belt and suspenders" shape
+# LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY already uses.
+#
+# `environment: real-aws` is what makes a dispatch wait: a GitHub
+# environment with a required reviewer blocks the job at its first step
+# until the maintainer approves it by hand, in the Actions UI, no matter who
+# or what dispatched the run. That protection rule and the CHOUDOUFU_LIVECERT_ROLE_ARN
+# / AWS_REGION repository variables are a repository setting, not code - see
+# HANDOFF.md "Heavy runs are dispatched, approved and never local" for the
+# exact one-time `gh api`/`gh variable set` calls, also echoed by
+# `just heavy-runs-setup`.
+#
+# Only reference-ec2-vpc and terralith-scale have a live/live-cert/<estate>.sh
+# script today (LiveCertScript, tools/gauntlet/livecert.go); the `estate`
+# choice below is exactly that list. -ceiling-usd is informational to the
+# tool itself (RunLiveCert's own doc comment) - the account's AWS Budgets
+# alarm and this job's timeout-minutes are the real backstops.
+#
+# Never pushes main: the result lands on a fresh live-cert/<run id> branch
+# and a pull request, the same shape gauntlet.yml uses for its nightly
+# artifact, so a maintainer still reviews what a real account run recorded
+# before it reaches live/gauntlet.json on main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      estate:
+        description: "which live-cert estate to certify"
+        type: choice
+        options:
+          - terralith-scale
+          - reference-ec2-vpc
+        default: reference-ec2-vpc
+      scale:
+        description: "terralith-gen's -scale (terralith-scale only; SCALE env var, ignored by reference-ec2-vpc)"
+        default: "1"
+      ceiling_usd:
+        description: "cost ceiling this run is certifying under (informational here; enforced by the account's own AWS Budgets alarm)"
+        default: "15"
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: live-cert
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: real-aws
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # Pinned, not "latest" - see the identical comment in gauntlet.yml
+          # and ci.yml (issue #544, root cause of #498). This is TF_COLD_BIN's
+          # implicit default ("terraform" on PATH) for cold_deploy's stock
+          # apply; the estate scripts fail loudly if it is missing.
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
+
+      # Short-lived, OIDC-minted credentials for the one live-cert role -
+      # examples/ci-pipelines/README.md's "Setting up OIDC for this smoke"
+      # is the same shape (three roles instead of one, same provider,
+      # same account). No stored key: the run mints a token, this action
+      # exchanges it for credentials that expire with the job.
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.CHOUDOUFU_LIVECERT_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Build choudoufu
+        # CGO_ENABLED=0 for the same reason as gauntlet.yml's identical step
+        # (issue #946): a static binary, no glibc dependency.
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
+
+      - name: Run the live-cert certification
+        id: livecert
+        env:
+          # TOFU_BIN skips live/live-cert/<estate>.sh's own `go build` step
+          # (that script's doc comment) in favor of the binary just built.
+          TOFU_BIN: ${{ runner.temp }}/choudoufu
+          # A known path, not the script's default mktemp -d, so the upload
+          # step below can find it after the process exits either way.
+          LIVECERT_WORK_DIR: ${{ runner.temp }}/livecert-work
+          # This IS the maintainer's approval: reaching this step already
+          # required the real-aws environment's required reviewer to click
+          # approve. `-confirm yes` below is the belt-and-suspenders half
+          # RunLiveCert's own doc comment describes.
+          LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY: "yes"
+          SCALE: ${{ github.event.inputs.scale }}
+        run: |
+          set -o pipefail
+          mkdir -p "$LIVECERT_WORK_DIR"
+          go run ./tools/gauntlet live-cert \
+            -target aws \
+            -region "${{ vars.AWS_REGION }}" \
+            -ceiling-usd "${{ github.event.inputs.ceiling_usd }}" \
+            -confirm yes \
+            "${{ github.event.inputs.estate }}" | tee live-cert-run.log
+
+      - name: Keep the work dir and the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-cert-${{ github.event.inputs.estate }}-${{ github.run_id }}
+          path: |
+            live-cert-run.log
+            live/gauntlet/logs/live-cert-${{ github.event.inputs.estate }}.log
+            ${{ runner.temp }}/livecert-work
+          if-no-files-found: warn
+
+      - name: Verdict lines for the pull request body
+        if: always()
+        run: |
+          {
+            echo "live-cert run for \`${{ github.event.inputs.estate }}\` (run ${{ github.run_id }}, scale=${{ github.event.inputs.scale }}, ceiling_usd=${{ github.event.inputs.ceiling_usd }})."
+            echo
+            echo "Read these lines, not the job's exit code (HANDOFF.md/worker-common.md: a check that cannot fail is not a check)."
+            echo
+            echo '```'
+            grep '^live-cert ' live-cert-run.log || echo "(no live-cert verdict lines found in the run log - see the uploaded artifact)"
+            echo '```'
+          } > pr-body.md
+
+      # Only the certification artifact and what it renders, never source -
+      # the same add-paths shape gauntlet.yml's own PR step uses.
+      - name: Open a pull request with the recorded certification
+        id: open_pr
+        continue-on-error: true
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GAUNTLET_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: live-cert/${{ github.run_id }}
+          title: "live-cert: ${{ github.event.inputs.estate }} certification (run ${{ github.run_id }})"
+          commit-message: "live-cert: ${{ github.event.inputs.estate }} certification (run ${{ github.run_id }})"
+          body-path: pr-body.md
+          add-paths: |
+            live/gauntlet.json
+            site/data/gauntlet.json
+            live/GAUNTLET.md
+            site/content/docs/progress/
+          delete-branch: true
+
+      - name: Fail loudly if the certification PR did not open
+        # Same reasoning as gauntlet.yml's identical step (issue #496): the
+        # run itself, and any real-AWS spend it incurred, happened either
+        # way: only landing the evidence on main failed, and that must not
+        # be silent.
+        if: steps.open_pr.outcome == 'failure'
+        run: |
+          MSG="live-cert PR did not open for run ${{ github.run_id }}: the certification ran (see the uploaded log/work-dir artifacts) but opening the pull request failed - GAUNTLET_PR_TOKEN unset/expired/mis-scoped, or org policy blocks PR creation (see gauntlet.yml issue #496)"
+          echo "::error title=live-cert PR did not open::$MSG"
+          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 1

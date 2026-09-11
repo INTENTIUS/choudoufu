@@ -96,6 +96,46 @@ smoke-ci-pipelines:
     @docker info >/dev/null 2>&1 || { echo "SMOKE skipped: the docker daemon is not running, and this smoke needs the pinned floci emulator. Start Docker and re-run, or dispatch .github/workflows/ci-pipelines-smoke.yml." >&2; exit 1; }
     bash examples/ci-pipelines/scripts/smoke.sh
 
+# Prints (never runs) the maintainer's one-time setup for the two
+# approval-gated heavy-run workflows, live-cert.yml and gauntlet.yml's
+# dispatch-approval job: the `gh api` calls that create the `real-aws` and
+# `corpus` GitHub environments with the maintainer as required reviewer, and
+# the `gh variable set` calls those workflows read. This recipe only echoes;
+# it changes no repository setting, secret or variable itself. The exact
+# same block lives in HANDOFF.md's "Heavy runs are dispatched, approved and
+# never local" - keep the two in sync by hand if either changes.
+heavy-runs-setup:
+    #!/usr/bin/env bash
+    cat <<'SETUP'
+    REPO="INTENTIUS/choudoufu"
+    MAINTAINER_LOGIN="lex00"                 # the required reviewer on both environments
+    MAINTAINER_ID="$(gh api "users/$MAINTAINER_LOGIN" --jq .id)"
+
+    # 1. Create (or update) the two protected environments, each gated on the
+    #    maintainer approving every run, no branch restriction.
+    for ENV in real-aws corpus; do
+      gh api --method PUT -H "Accept: application/vnd.github+json" \
+        "/repos/$REPO/environments/$ENV" \
+        --input - <<JSON
+    {
+      "reviewers": [ { "type": "User", "id": $MAINTAINER_ID } ],
+      "deployment_branch_policy": null
+    }
+    JSON
+    done
+
+    # 2. The repository variables live-cert.yml reads. CHOUDOUFU_LIVECERT_ROLE_ARN
+    #    needs its IAM role created first, same pattern as the three roles
+    #    examples/ci-pipelines/scripts/oidc-bootstrap.sh creates. AWS_REGION
+    #    may already be set from that same bootstrap; this is a plain
+    #    overwrite either way.
+    ACCOUNT=354867293429
+    REGION=us-east-1
+    gh variable set -R "$REPO" AWS_REGION --body "$REGION"
+    gh variable set -R "$REPO" CHOUDOUFU_LIVECERT_ROLE_ARN \
+      --body "arn:aws:iam::$ACCOUNT:role/choudoufu-livecert"
+    SETUP
+
 # One recipe for every named e2e demo: `just demo-run corpus-vpc-complete`
 # runs live/e2e/corpus-vpc-complete/run.sh. This replaced ~54 hand-cloned
 # demo-<name> recipes (issue #700), so adding an estate touches zero

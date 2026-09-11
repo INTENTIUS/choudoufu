@@ -243,6 +243,10 @@ func cmdRun(root string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := refuseLocalHeavyRun(os.Getenv, "gauntlet.yml",
+		"gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates=\"name1 name2\""); err != nil {
+		return err
+	}
 	m, a, err := loadAll(root)
 	if err != nil {
 		return err
@@ -416,6 +420,10 @@ func cmdLiveCert(root string, args []string) error {
 		return fmt.Errorf("live-cert needs exactly one estate name, got %d", fs.NArg())
 	}
 	estate := fs.Arg(0)
+	if err := refuseLocalHeavyRun(os.Getenv, "live-cert.yml",
+		"gh workflow run live-cert.yml -R INTENTIUS/choudoufu -f estate="+estate+" -f scale=1 -f ceiling_usd=15"); err != nil {
+		return err
+	}
 
 	r, res, exit, err := RunLiveCert(root, estate, *target, *region, *ceilingUSD, *timeoutSeconds, *confirm)
 	if err != nil {
