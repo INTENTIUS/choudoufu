@@ -78,8 +78,67 @@ done
 
 LOG_GROUP_NAME="/${NAME_PREFIX}/app"
 ROLE_NAME_APP="${NAME_PREFIX}-app"
+# CloudWatch Logs has one log group but authorizes against it under two
+# different ARN spellings depending on the action, and the two are NOT
+# interchangeable - IAM's Resource matching is a literal glob, so a Resource
+# entry ending "...:*" never matches a candidate ARN that has no trailing
+# colon at all, and vice versa. Grant whichever of the two a given action's
+# resource type actually needs; where that is genuinely ambiguous, grant
+# both rather than guess (still scoped to this one log group either way).
+#
+#   - LOG_GROUP_ARN (":*"): the form the CloudWatch Logs API itself decorates
+#     a log group's own Arn field with (see the "arn" attribute note on
+#     hashicorp/terraform-provider-aws's aws_cloudwatch_log_group resource:
+#     "[a]ny :* suffix added by the API ... is removed [by the provider] for
+#     greater compatibility with other AWS services that do not accept the
+#     suffix" - i.e. AWS hands this form back by default). CreateLogGroup,
+#     DeleteLogGroup and PutRetentionPolicy (manage_estate_statement) all
+#     authorize against this decorated form.
+#   - LOG_GROUP_ARN_BASE (no suffix): issue #807's run 34640702934 is the
+#     proof - live-apply's fatal error named the log group ARN with no
+#     trailing ":*" verbatim ("AccessDeniedException: ... is not authorized
+#     to perform: logs:ListTagsForResource on resource:
+#     arn:...:log-group:/choudoufu-ci-pipelines-example/app") while the
+#     policy only ever granted the ":*" form. This is a documented AWS
+#     exception, not a typo in that one error: AWS's own CloudWatch Logs IAM
+#     guide (docs "Using identity-based policies (IAM policies) for
+#     CloudWatch Logs", "Example 3: Allow access to one log group / log
+#     stream") authorizes log-group-level actions like DeleteLogGroup and
+#     PutRetentionPolicy against the bare ARN and reserves the ":*" form for
+#     log-stream-level actions - and the newer, cross-service "Resource"
+#     tagging trio (TagResource/UntagResource/ListTagsForResource) is
+#     called out repeatedly (this repo's own smoke run above; the
+#     hashicorp/terraform-provider-aws#28422 "CloudWatch resources can no
+#     longer be refreshed with default ReadOnlyAccess policy" report) as
+#     needing this bare form specifically, unlike most other log-group
+#     actions. The older, still-live LogGroup-suffixed aliases
+#     (ListTagsLogGroup/TagLogGroup/UntagLogGroup) sit in the same
+#     Sid/Resource list as their Resource-suffixed replacements below and
+#     the Service Authorization Reference's own resource-type column lists
+#     all six under the same "log-group" (bare-ARN) resource type, so they
+#     get the same bare grant rather than a guess about which alias a given
+#     provider version still calls.
 LOG_GROUP_ARN="arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:${LOG_GROUP_NAME}:*"
+LOG_GROUP_ARN_BASE="arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:${LOG_GROUP_NAME}"
+# IAM role ARNs carry no such split: "arn:aws:iam::account:role/name" is the
+# one and only resource-type ARN format IAM defines for the role resource
+# type (Service Authorization Reference's "Resource types defined by AWS
+# Identity and Access Management" table has no wildcard-suffixed sibling
+# for it), and every IAM action below (GetRole, ListRoleTags, TagRole,
+# UntagRole, CreateRole, DeleteRole, UpdateAssumeRolePolicy, ...) authorizes
+# against exactly this bare form - already what this line produces, so
+# there is nothing here to split.
 IAM_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME_APP}"
+# SSM parameter ARNs have no CloudWatch-Logs-style with/without-suffix split
+# either: a parameter resource type's ARN is always
+# "arn:aws:ssm:region:account:parameter/name" (Service Authorization
+# Reference's "parameter" resource type), and the "*" characters below are
+# ordinary IAM wildcard globbing inside that one shape, not a second ARN
+# form the way log-group vs. log-stream is - the leaf-vs-path split that
+# matters for SSM is which ARGUMENT (parameter name vs. path) an action
+# authorizes against, covered by SSM_RESOURCE_ARN vs. SSM_RECORD_PATH_ARN
+# below, not by the ARN's own spelling.
+#
 # The leaf ARN: GetParameter, PutParameter, DeleteParameter and the batch
 # GetParameters/DeleteParameters all take a parameter NAME and are
 # authorized resource-level against that name's own ARN. Every record or
@@ -171,7 +230,7 @@ fi
 echo "account:      $ACCOUNT_ID"
 echo "region:       $REGION"
 echo "name_prefix:  $NAME_PREFIX  (from $TF_MAIN)"
-echo "log group:    $LOG_GROUP_ARN"
+echo "log group:    $LOG_GROUP_ARN  (tag ops also granted on $LOG_GROUP_ARN_BASE)"
 echo "iam role:     $IAM_ROLE_ARN"
 echo "ssm prefix:   $SSM_RESOURCE_ARN"
 echo "ssm path:     $SSM_RECORD_PATH_ARN (+ /*)"
@@ -307,7 +366,7 @@ describe_read_statements() {
         "iam:ListAttachedRolePolicies",
         "iam:ListRolePolicies"
       ],
-      "Resource": ["$LOG_GROUP_ARN", "$IAM_ROLE_ARN"]
+      "Resource": ["$LOG_GROUP_ARN", "$LOG_GROUP_ARN_BASE", "$IAM_ROLE_ARN"]
     },
     $(discover_account_statement),
     {
@@ -338,11 +397,18 @@ write_marker_statement() {
         "iam:TagRole",
         "iam:UntagRole"
       ],
-      "Resource": ["$LOG_GROUP_ARN", "$IAM_ROLE_ARN"]
+      "Resource": ["$LOG_GROUP_ARN", "$LOG_GROUP_ARN_BASE", "$IAM_ROLE_ARN"]
     }
 JSON
 }
 
+# Every logs: action here (CreateLogGroup, DeleteLogGroup, PutRetentionPolicy)
+# is a true log-group-level action, none of them the Resource-suffixed
+# tagging trio - so, unlike DescribeTheEstate and WriteTheMarker above,
+# this statement's Resource list stays just $LOG_GROUP_ARN (the ":*" form;
+# see that variable's own comment) plus $IAM_ROLE_ARN. Adding
+# $LOG_GROUP_ARN_BASE here would not be wrong, but there is no denial or
+# documented exception motivating it the way there is for the tag ops.
 manage_estate_statement() {
   cat <<JSON
     {
