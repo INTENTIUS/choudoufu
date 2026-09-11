@@ -70,6 +70,27 @@ livecert_aws() {
   fi
 }
 
+# livecert_rgta_count prints how many resources resourcegroupstaggingapi
+# get-resources reports for one tag filter, counting across EVERY page.
+# NOT `--query 'length(ResourceTagMappingList)' --output text`: the CLI
+# applies length() PER RESULT PAGE (get-resources pages at 50 by default),
+# so a filter matching more than one page prints one number per page - e.g.
+# "50\n50\n4" for 104 matches at scale=50 - and every numeric comparison
+# against that string errors, which made a real run wrongly conclude the
+# tagging piece was never exercised (issue #1047). This is the exact bug
+# terralith-scale.sh's own ssm_prefix_count already avoids for `ssm
+# get-parameters-by-path`, and the fix is the same one applied here:
+# --output text DOES correctly concatenate a plain (non-length) array query
+# across every page, tab- and newline-separated, so querying the ARNs and
+# counting lines counts the whole paginated result exactly once.
+# Args: <tag-key> <tag-value>
+livecert_rgta_count() {
+  livecert_aws resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=$1,Values=$2" \
+    --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null \
+    | tr '\t' '\n' | grep -c . || true
+}
+
 # livecert_ami prints a real, region-valid Amazon Linux AMI id on stdout via
 # the SSM public parameter AWS documents for exactly this purpose. Answered
 # by floci too (a fake but syntactically valid id, confirmed empirically
@@ -119,10 +140,8 @@ livecert_verify_empty() {
   local dirty=0
 
   local rgta_n
-  rgta_n="$(livecert_aws resourcegroupstaggingapi get-resources \
-    --tag-filters "Key=$tag,Values=$RUN_ID" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo unknown)"
-  if [ "$rgta_n" != "0" ]; then
+  rgta_n="$(livecert_rgta_count "$tag" "$RUN_ID")"
+  if [ "${rgta_n:-0}" != "0" ]; then
     printf '  livecert_verify_empty: resourcegroupstaggingapi reports %s resource(s) tagged %s=%s (informational only - a just-terminated instance can linger here; the per-service checks below are what actually gates the verdict)\n' "$rgta_n" "$tag" "$RUN_ID"
     livecert_aws resourcegroupstaggingapi get-resources --tag-filters "Key=$tag,Values=$RUN_ID" \
       --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/    /'
