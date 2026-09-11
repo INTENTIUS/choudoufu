@@ -57,6 +57,17 @@ a run does take it.
 > certification run, which is the next one this estate runs, not this
 > change.
 
+The one recorded point reads, straight from that file rather than typed
+here: at the 79-instance point the sweep cost
+{{< scale-num scale="1" path="plan_calls.sweep.choudoufu" >}} calls, the read
+pass {{< scale-num scale="1" path="plan_calls.read_pass.choudoufu" >}} against
+stock's {{< scale-num scale="1" path="plan_calls.read_pass.stock" >}}, for a
+total of {{< scale-num scale="1" path="plan_calls.total.choudoufu" >}} against
+{{< scale-num scale="1" path="plan_calls.total.stock" >}}, measured at commit
+`{{< scale-num scale="1" path="commit" short="true" >}}` on
+{{< scale-num scale="1" path="date" >}}. When a re-run lands a newer record
+for the same scale, this sentence follows it with no edit.
+
 ## The two terms
 
 **The sweep asks what this estate owns, and it is O(types).** One estate-filtered

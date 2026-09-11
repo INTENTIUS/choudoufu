@@ -1,6 +1,7 @@
 ---
 title: "Evidence"
 weight: 1
+aliases: ["/evidence/"]
 lead: "Everything the six-page hubs summarise, at full depth: the runnable claims, the gauntlet over real estates, the measured costs, the per-type lookup, and the model the hooks implement. Nothing here is a claim you have to take on faith; every figure names its fixture and its commit."
 ---
 

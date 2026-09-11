@@ -1,0 +1,44 @@
+{{- /*
+  Prints one figure out of site/data/gauntlet_scale.json, the copy of
+  live/gauntlet-scale.json that `go run ./tools/gauntlet render` writes
+  (#1051, #1055): the newest record for the given estate and scale that
+  carries the dotted path, e.g.
+
+    {{< scale-num scale="1" path="plan_calls.sweep.choudoufu" >}}
+    {{< scale-num scale="1" path="plan_calls.read_pass.stock" >}}
+    {{< scale-num scale="1" path="commit" short="true" >}}
+
+  so prose can quote a measured plan-call split without typing it. A
+  missing file, record or path renders "?" rather than a number nobody
+  measured. The commit is the record's own, so a figure printed this way
+  carries its provenance from the same row.
+*/ -}}
+{{- $estate := .Get "estate" | default "terralith-scale" -}}
+{{- $scale := int (.Get "scale") -}}
+{{- $path := .Get "path" -}}
+{{- $short := eq (.Get "short") "true" -}}
+{{- $d := hugo.Data.gauntlet_scale -}}
+{{- $out := "?" -}}
+{{- if $d -}}
+  {{- $best := dict -}}
+  {{- range $d.records -}}
+    {{- if and (eq .estate $estate) (eq (int .scale) $scale) -}}
+      {{- $val := . -}}
+      {{- $ok := true -}}
+      {{- range split $path "." -}}
+        {{- if $ok -}}
+          {{- if and (reflect.IsMap $val) (isset $val .) -}}{{- $val = index $val . -}}{{- else -}}{{- $ok = false -}}{{- end -}}
+        {{- end -}}
+      {{- end -}}
+      {{- if $ok -}}
+        {{- if or (not $best.date) (gt .date $best.date) -}}{{- $best = dict "date" .date "val" $val -}}{{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- with $best.date -}}
+    {{- $v := $best.val -}}
+    {{- if $short -}}{{- $v = substr (printf "%v" $v) 0 10 -}}{{- end -}}
+    {{- $out = printf "%v" $v -}}
+  {{- end -}}
+{{- end -}}
+{{- $out -}}
