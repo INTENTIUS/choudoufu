@@ -11,8 +11,9 @@ shows the tag-based split. Neither shows `chant operator` ticking on its own
 interval, off git alone, with nothing watching it fire — that is this project's
 whole point (issue #1033, refs chant#2314).
 
-This project pins chant **0.63.0**, the same version `examples/ci-pipelines`
-pins (`package.json`).
+This project pins chant **0.68.1**, which carries the fixes for both
+upstream findings below (chant#2395, chant#2396) — `examples/ci-pipelines`
+still pins 0.63.0, unrelated to this repin.
 
 ## The project
 
@@ -80,14 +81,17 @@ image `live/floci-image` pins), inits and applies the root, starts
 loop through to convergence — see the verdict lines below for exactly what
 it proves, and the script's own header comment for exactly how.
 
-## Two upstream findings, and how this example handles each
+## Two upstream findings, both fixed in chant 0.68.1
 
 Both were found by actually running this example against a real floci while
-building it — not read off the docs. Neither is filed anywhere by this
-worker, per this repository's own rule for every example: chant is a pinned
-dependency here, never something this project edits.
+building it against chant 0.63.0 — not read off the docs. Both were filed
+upstream (chant#2395, chant#2396) and are now closed; this project's 0.68.1
+pin carries both fixes, so neither needs a workaround any more. The
+narrative and verbatim output below are kept as a record of what this
+example found and how it was diagnosed, not as a live description of the
+example's current behavior.
 
-### Finding 1 — `chant lifecycle plan`/`chant components status --live --json` double-print, and `convergeTick` can't parse it — **worked around**
+### Finding 1 — `chant lifecycle plan`/`chant components status --live --json` double-print, and `convergeTick` can't parse it — **chant#2395, fixed in 0.68.1**
 
 Against a live/choudoufu root, `chant lifecycle plan <env> --live --json` and
 `chant components status <env> --live --json` print two concatenated
@@ -115,10 +119,10 @@ own `report(stdout, stderr)` helper — a helper meant for a human-facing
 read. The second is chant's own document.
 
 chant's own `convergeTick` activity (`@intentius/chant`'s
-`src/op/activities/converge.ts`, `observeChangeSet`/`observeStatusRows`) does
+`src/op/activities/converge.ts`, `observeChangeSet`/`observeStatusRows`) did
 a bare `JSON.parse(stdout)` on exactly these two commands, with no defense
-against this. The exact, reproduced failure, before this example worked
-around it:
+against this. The exact, reproduced failure, against chant 0.63.0, before
+chant#2395 was fixed:
 
 ```
 $ chant run dev-converge --json
@@ -133,25 +137,26 @@ $ chant run dev-converge --json
  ]}
 ```
 
-`scripts/chant-json-shim` is the workaround — a PATH-level wrapper, never a
-chant edit. For exactly `lifecycle plan`/`components status --json`, it takes
-the *last* top-level JSON object on stdout (the same fix a human reading
-either command's output by hand already has to apply) and passes every other
-subcommand through untouched. `scripts/demo.sh` installs it at
-`node_modules/.bin/chant`, replacing the real symlink there, rather than
-merely putting it earlier on `$PATH` — measured while building this example:
-`chant run`'s own `bin/chant` shells to `npx tsx`, and `npx` re-resolves
-`chant` from `node_modules/.bin` for every subprocess `convergeTick` shells
-out to in turn, which shadows a plain `$PATH` prefix. See the shim's own doc
-comment for the full reasoning and the exact repro that pinned this down.
+This example used to carry `scripts/chant-json-shim`, a PATH-level wrapper
+(never a chant edit) that took the *last* top-level JSON object on stdout
+for exactly `lifecycle plan`/`components status --json` and passed every
+other subcommand through untouched — installed at `node_modules/.bin/chant`
+rather than merely earlier on `$PATH`, because `chant run`'s own `bin/chant`
+shells to `npx tsx`, and `npx` re-resolves `chant` from `node_modules/.bin`
+for every subprocess `convergeTick` shells out to in turn, which shadows a
+plain `$PATH` prefix. chant 0.68.1 no longer echoes the subprocess's stdout
+ahead of its own document, so the shim is gone from this project entirely
+(`scripts/chant-json-shim` deleted, `scripts/demo.sh` no longer installs
+it).
 
-### Finding 2 — `classifyDispatchFailure` checks the wrong field name — **not worked around, reported here**
+### Finding 2 — `classifyDispatchFailure` checks the wrong field name — **chant#2396, fixed in 0.68.1**
 
 A gated dispatch is completely real: `dev-apply`'s own run genuinely stops at
 its gate, exit 3, and a genuine pending fact lands on
 `_gates/dev-apply.jsonl` — `chant operator status` and `chant run log
-dev-apply` both show it. But `dev-converge`'s own tick record calls the
-outcome `"reported"` rather than `"gated"`, with an empty reason:
+dev-apply` both show it. But against chant 0.63.0, `dev-converge`'s own tick
+record called the outcome `"reported"` rather than `"gated"`, with an empty
+reason:
 
 ```
 $ chant operator log --op dev-converge
@@ -163,7 +168,7 @@ $ chant operator log --op dev-converge
 ```
 
 The cause: chant's own `classifyDispatchFailure`
-(`@intentius/chant`'s `src/op/activities/converge.ts`) reads a dispatched
+(`@intentius/chant`'s `src/op/activities/converge.ts`) read a dispatched
 op's `--json` record looking for `parsed.gate?.gate`, but a gated
 `TerraformApplyOp` run's own record carries `gate: { name, since }` — the
 field is `gate.name`:
@@ -174,34 +179,30 @@ field is `gate.name`:
  "approve":"chant approve dev-apply approve-dev-apply"}
 ```
 
-`typeof parsed.gate?.gate === "string"` is `typeof undefined === "string"` —
-always false — so the check falls through to a regex fallback
-(`/is gated on "([^"]+)"/`) that also never matches, because that phrase
+`typeof parsed.gate?.gate === "string"` was `typeof undefined === "string"` —
+always false — so the check fell through to a regex fallback
+(`/is gated on "([^"]+)"/`) that also never matched, because that phrase
 belongs to the human-readable render `--json` mode suppresses. The result:
-every `run()` dispatch this rule table (or any `ConvergeOp`'s) makes to a
-gated `TerraformApplyOp` is misclassified as an ordinary failure.
+every `run()` dispatch this rule table (or any `ConvergeOp`'s) made to a
+gated `TerraformApplyOp` was misclassified as an ordinary failure.
 
-This example does not work around it. Patching a dispatched op's own
-`--json` output to add a `gate.gate` alias would be plausible and narrow, but
-it would mean this example silently repairs chant's own dispatch-classification
-logic rather than exercising it — the opposite of what `scripts/demo.sh` is
-for. `scripts/demo.sh` prints both sides instead: the tick's own (mislabeled)
-`"reported"` outcome, and the real pending gate read straight from
-`chant operator status`/`chant run log dev-apply`, so a reader sees the
-actual state of the world rather than the tick's own bookkeeping of it. One
-practical consequence this example ran into and worked around on its own
-side: since the ledger's `firedRuleIds` — not the outcome — drives
-flap-damping, a rule stuck at an unresolved gate for more than the default
-`flapThreshold` (3) of its own ticks reads as "never clearing" and stops
-dispatching (`skipped-flap`) regardless of the gate; `recreate-deleted` raises
-its own `flapThreshold` to 20 so this demo's own scripted approval delay
-doesn't race chant's default (see the Op's doc comment).
-
-**Open question for the chant maintainer** (reported here, filed nowhere, per
-this repository's rule): `classifyDispatchFailure` in
-`packages/core/src/op/activities/converge.ts` should read
-`parsed.gate?.name`, not `parsed.gate?.gate` — exact repro above, both the
-failing check and the record shape it is checking against quoted verbatim.
+This example did not work around it at the time: patching a dispatched op's
+own `--json` output to add a `gate.gate` alias would have been plausible and
+narrow, but it would have meant this example silently repairing chant's own
+dispatch-classification logic rather than exercising it. Instead this was
+filed as chant#2396 and fixed upstream — `classifyDispatchFailure` now reads
+`parsed.gate?.name`, keeping the regex fallback for human-mode output. On
+this project's 0.68.1 pin, `dev-converge`'s own tick summary reads
+`gated=1` for a genuinely gated dispatch, matching what `chant operator
+status`/`chant run log dev-apply` already showed independently — see the
+verdict lines below. One practical consequence this example ran into and
+still works around on its own side: since the ledger's `firedRuleIds` — not
+the outcome — drives flap-damping, a rule stuck at an unresolved gate for
+more than the default `flapThreshold` (3) of its own ticks reads as "never
+clearing" and stops dispatching (`skipped-flap`) regardless of the gate;
+`recreate-deleted` raises its own `flapThreshold` to 20 so this demo's own
+scripted approval delay doesn't race chant's default (see the Op's doc
+comment).
 
 ## The verdict lines
 
@@ -239,8 +240,10 @@ Reading them against the issue's own ask:
 - `classify-fired` is the next tick after the CLI deletes `app`: its
   `firedRuleIds`/outcomes name `recreate-deleted`.
 - `gate-run-status` is the dispatch itself: `chant run log dev-apply`'s
-  newest row reads `gated`, read independently of the tick's own
-  (mislabeled, per finding 2) summary.
+  newest row reads `gated`, read independently of the tick's own summary —
+  which, on this project's 0.68.1 pin (chant#2396 fixed), agrees: `chant
+  operator log --op dev-converge` now reads `gated=1` for this tick rather
+  than the `reported=1`/`gated=0` chant 0.63.0 quoted above.
 - `gate-pending` is the gate: `chant operator status` shows
   `dev-apply gate "approve-dev-apply"` pending, with its `expires:` line.
 - `gate-held-no-daemon` and `gate-held-after-restart` are the restart proof:
@@ -265,10 +268,11 @@ deleted resource moves a count a live root's `ConvergeSymptom` can actually
 see, for reasons that doc comment also covers, including what a live root's
 own observation channel can and cannot report.
 
-Neither upstream finding above is patched into chant itself. Both are worked
-around, or deliberately left unworked-around and reported instead, entirely
-from this project's own `scripts/`/`node_modules/.bin` — nothing under
-`node_modules/@intentius/chant` is ever touched. And the `chant/lifecycle`
+Both upstream findings above were fixed in chant itself (chant#2395,
+chant#2396), never patched around from this project's side — this project's
+own `scripts/`/`node_modules/.bin` carries no workaround for either any
+more; `scripts/chant-json-shim` is gone, and `node_modules/@intentius/chant`
+is never touched by this project regardless. And the `chant/lifecycle`
 ledger this example writes never reaches a remote: `scripts/demo.sh` builds
 its own throwaway git repository with no remote configured, the same reason
 `examples/ci-pipelines/scripts/smoke.sh` does — see that script's own doc
@@ -277,10 +281,12 @@ comment, quoted in this project's `scripts/demo.sh` too.
 ## Pinning
 
 `package.json` pins `@intentius/chant` and `@intentius/chant-lexicon-terraform`
-to `0.63.0`, the version `examples/ci-pipelines` pins. `@cdktf/hcl2json` is a
-`devDependency` here (not a chant dependency — chant's own `terraform/parse.ts`
-deliberately does not carry the ~1.8MB wasm blob it needs) because without it
-`chant build` cannot parse `terraform/*.tf` into entities at all: `chant.build`
-warns `Terraform carve-out needs the HCL parser, which is not installed` and
-every terraform entity in the project silently fails to build — measured while
-building this example, and the same install line chant's own warning names.
+to `0.68.1`, which carries the fixes for chant#2395 and chant#2396 (closed);
+`examples/ci-pipelines` still pins `0.63.0`, unaffected by this repin.
+`@cdktf/hcl2json` is a `devDependency` here (not a chant dependency — chant's
+own `terraform/parse.ts` deliberately does not carry the ~1.8MB wasm blob it
+needs) because without it `chant build` cannot parse `terraform/*.tf` into
+entities at all: `chant.build` warns `Terraform carve-out needs the HCL
+parser, which is not installed` and every terraform entity in the project
+silently fails to build — measured while building this example, and the
+same install line chant's own warning names.

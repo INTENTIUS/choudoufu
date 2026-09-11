@@ -9,8 +9,8 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@intentius/chant": "0.63.0",
-    "@intentius/chant-lexicon-terraform": "0.63.0",
+    "@intentius/chant": "0.68.1",
+    "@intentius/chant-lexicon-terraform": "0.68.1",
     "tsx": "4.20.6"
   },
   "devDependencies": {
