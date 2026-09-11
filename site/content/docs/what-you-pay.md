@@ -300,9 +300,9 @@ of them content-duplicate per `tools/terralith-gen`'s own count) for the gap
 to be reachable. It did not reproduce at 79 or 745 resources in this same
 harness.
 
-A second, separate problem sits on top of the first and very nearly hid it.
-The harness's own `test_plan` state-model check
-(`live/live-cert/terralith-scale.sh`, "4a2. state model") counts tagged
+A second, separate problem sat on top of the first on that first run and
+very nearly hid it. The harness's own `test_plan` state-model check
+(`live/live-cert/terralith-scale.sh`, "4a2. state model") counted tagged
 resources with `aws resourcegroupstaggingapi get-resources ... --query
 'length(ResourceTagMappingList)' --output text`, the same per-page-not-total
 counting bug this script had already fixed once, for `ssm_prefix_count`, in
@@ -312,31 +312,112 @@ comparison errored ("integer expression expected"), and the stage recorded
 **"identity piece unused: no resource in the account carries
 tofu-estate=..."** - false: `migrate` had just stamped 1,655 resources, and
 the account tagging query itself paged because there were multiple hundreds
-of them, not zero. The recorded failure detail names the wrong defect. The
-real one is the `aws_iam_policy` recreation above, read from the gating
-plan's own preview lines, not from the stage's recorded message. This script
-bug is unfixed here, per this run's own scope (report the defect, do not
-repair the harness mid-run); a future unit should fix `ssm_prefix_count`'s
-sibling in the identity check the same way.
+of them, not zero. The recorded failure detail named the wrong defect: the
+real one was the `aws_iam_policy` recreation above, read from the gating
+plan's own preview lines, not from the stage's recorded message. Also found
+that run: teardown's best-effort "choudoufu's own destroy path" step, not
+bounded, hung for about forty minutes re-issuing `CreatePolicy` against
+policy names that already existed (`EntityAlreadyExists`), which would have
+run the whole script into its 25,200 s process ceiling with the trusted
+`terraform destroy` never reached. Both were filed
+([#1047](https://github.com/INTENTIUS/choudoufu/issues/1047),
+[#1048](https://github.com/INTENTIUS/choudoufu/issues/1048)) rather than
+repaired mid-run, per this harness's own rule.
+
+#### The second run: the harness fixes hold, and the real mechanism is not what it looked like
+
+[#1047](https://github.com/INTENTIUS/choudoufu/issues/1047) and
+[#1048](https://github.com/INTENTIUS/choudoufu/issues/1048) landed
+(`ab70b1018d`) before a second scale-50 real-AWS run, same harness, same
+$100 ceiling, commit `8bbef274d6`, 2026-09-11:
+
+| Stage | Result |
+|---|---|
+| `cold_deploy` | 3,705 resources in 2,023 s, 347 throttling-error lines and 347 retries, all absorbed |
+| `migrate` | 1,655 of 3,705 verified, **1,655 stamped**, 2,050 skipped, in 1,214 s, 600 throttling-error lines and 600 retries |
+| `test_plan` | **Not empty**, again: `Plan: 358 to add, 0 to change, 4 to destroy` |
+| `test_apply` | Not reached; `test_plan` gates it |
+
+Both harness fixes held. `livecert_rgta_count` (#1047's paginated helper)
+reported the "4a2. state model" identity check's own number correctly this
+time - **104 resource(s)** tagged `tofu-estate` at the moment it ran,
+[more on that number below](#the-real-mechanism-a-cross-service-indexing-lag-not-a-page-size)
+- so the stage failed for its real reason and nothing masked it. Teardown's
+bounded untrusted step (#1048) hit its 180 s timeout cleanly this time
+(`exit=124: TIMED OUT after 180s ... proceeding to the trusted destroy
+regardless`) instead of hanging for forty minutes, and the trusted
+`terraform destroy` then ran to completion by itself: `Destroy complete!
+Resources: 3705 destroyed.`
+
+#### The real mechanism: a cross-service indexing lag, not a page size
+
+The plan's own text names 160 distinct `aws_iam_policy` addresses (both
+`count_team_policy[N]` and named `team_NNNN_policy` instances) as unbound,
+each with the same warning:
+
+```
+Warning: Unbound instance with unreadable live markers of its type
+
+Nothing bound to aws_iam_policy.team_0002_policy, so the plan below proposes
+creating it - but 500 live aws_iam_policy resource(s) this run listed came
+back with no readable ownership marker, and the estate's tag index holds no
+marker for this address either.
+```
+
+Four more `aws_iam_role_policy_attachment` instances are forced to replace
+as a direct consequence (their `policy_arn` points at one of the same
+unbound policies, so a new policy ARN forces the attachment to follow) -
+accounting for the `358 to add` (354 straight creates + 4 replacement
+creates) and `4 to destroy` in the plan summary; no other resource type is
+touched.
+
+Both hypotheses on record before this run are now ruled out by direct
+evidence, not argument. [#1046](https://github.com/INTENTIUS/choudoufu/issues/1046)'s
+own page-100 hypothesis was already refuted by reading the pinned provider's
+source (`0a0b2275e9`): `terraform-provider-aws` v6.59.0 walks its paginator
+to exhaustion for `aws_iam_policy`. This run's own debug log confirms it
+operationally too: the `aws_iam_policy` listing window (`test_plan.debug.log`,
+lines 917-12421) issued 25 `IAM/ListPolicies` calls (fully paginated) and
+3,500 `IAM/GetPolicyVersion` calls with **zero** throttling-error or error
+lines in that window - the list call itself never failed or truncated. The
+mid-list-truncation safety net `0a0b2275e9` also pinned (a `GetPolicyVersion`
+throttle mid-page aborting the whole list stream) is likewise absent: that
+shape fires as a plan-aborting `ProblemNoTags` ERROR, and this plan carries
+zero occurrences of `ProblemNoTags` anywhere in its output or debug log - it
+completed normally and proposed creates, which is a different code path.
+
+What actually happened is visible in one line of the same debug log, at
+`04:39:08.414`, about 21 minutes after `migrate`'s last tag-write call
+returned:
+
+```
+stateless/discovery: tag index for estate "tl-livecert-lc1032s50b" holds 104 resources
+```
+
+That line is `internal/live/discovery/bindtags.go`'s `markerIndex.fetch`
+logging the one `resourcegroupstaggingapi GetResources` call (correctly
+paginated - `internal/live/cloudcontrol/tagging.go`'s `GetResources` loops
+`PaginationToken` to exhaustion and returns nothing at all if any page
+errors) that this run's join path uses as its fallback when a listed
+`aws_iam_policy` object's own tags come back empty. `migrate` had, by then,
+verified and stamped 1,655 resources with both markers, tag by tag, 21
+minutes earlier and with zero failures - but AWS's own cross-service tagging
+search index (the backend `resourcegroupstaggingapi` queries) had indexed
+only 104 of them by the time this call ran, a real AWS eventual-consistency
+lag between an IAM tag write and that write's visibility to a tagging-wide
+search index, not a bug in this call's own pagination. 160 addresses landing
+on the unlucky side of that lag, at this write volume (1,655 sequential
+tag-write calls) and only at this scale, is `#1046`'s actual mechanism -
+not a page size, and not a code defect in the list or the join. What still
+needs a decision is what choudoufu should do about it: retry-with-backoff on
+the tag index before trusting it empty, prefer a resource type's own List
+response tags over a cross-service index for the types that carry them
+directly, or something else - filed on `#1046` rather than decided here, per
+this unit's own scope.
 
 Teardown ran to completion and is independently confirmed empty - see
 ["What evaluating this costs in money"](#what-evaluating-this-costs-in-money)
-below - but not unattended: the teardown function's own "choudoufu's own
-destroy path" step (`terralith-scale.sh`'s teardown, explicitly commented
-"best effort, NOT the trusted path") is exactly the post-migrate `apply`
-above, re-run, and it hung for about forty minutes issuing `CreatePolicy`
-calls against IAM policy names that already existed
-(`EntityAlreadyExists`) at 0% CPU with no output growth, rather than
-finishing or failing outright. Terminating that one child process let the
-script's own trusted path - a plain `terraform destroy` against the
-untouched `cold_deploy` state file - run and finish normally. Left alone,
-this would have run into the harness's own 25,200 s process ceiling, whose
-`SIGTERM` lands on the whole script while it is blocked inside this same
-first call to its `teardown()` function - which the function's own
-`TEARDOWN_DONE` re-entry guard would then have made a no-op, skipping the
-trusted destroy path entirely. That is a second, independent finding worth
-its own fix: the untrusted best-effort step should not be able to block the
-trusted one.
+below.
 
 ### The old state file stops being a safe fallback
 
@@ -660,6 +741,30 @@ assumed: `aws ecs describe-clusters` reports the cluster `INACTIVE` at 0
 running/pending/active-services, `aws ecs list-task-definitions
 -status ACTIVE` for the family prefix returns nothing, and a sample of five
 services across the run all read `INACTIVE` at 0 running/0 desired.
+
+The second run (`8bbef274d6`, 2026-09-11, prefix `lc1032s50b`) cost the same
+**$0.00** against the same $100 ceiling, for the same reason - every
+resource type this estate creates is free at this run's usage. Teardown's
+bounded untrusted step (#1048) timed out cleanly at 180 s instead of hanging,
+the trusted `terraform destroy` then reported `Destroy complete! Resources:
+3705 destroyed`, and the harness's own listing agreed: `VERIFIED EMPTY by
+listing: nothing matching prefix=lc1032s50b or tag
+tofu-cert-run=lc1032s50b-run remains`. Confirmed independently, by hand,
+afterward:
+
+```
+$ aws resourcegroupstaggingapi get-resources --region us-east-2 --tag-filters Key=tofu-cert-run,Values=lc1032s50b-run --query 'ResourceTagMappingList[].ResourceARN' --output text | tr '\t' '\n' | grep -c .
+101
+$ aws iam list-roles --query "Roles[?starts_with(RoleName, 'lc1032s50b-')].RoleName" --output text | tr '\t' '\n' | grep -c .
+0
+$ aws iam list-policies --scope Local --query "Policies[?starts_with(PolicyName, 'lc1032s50b')].PolicyName" --output text | tr '\t' '\n' | grep -c .
+0
+```
+
+The same 101 ECS ARNs (1 cluster, 50 services, 50 task definitions) answer
+the tagging query for the same reason as the first run - `INACTIVE`,
+tag-visible, not live and not billable - while IAM roles and policies under
+the prefix are unconditionally zero.
 
 ## Where the mechanism is
 
