@@ -16,7 +16,7 @@ the cache only remembers attributes.
 
 A read. Delete the file, corrupt it, or let it go stale for a month,
 and the next plan answers identically to a fresh one - the
-[staleness claim]({{< relref "/docs/claims#claim-3-staleness-costs-reads-never-results" >}})
+[staleness claim]({{< relref "/docs/claims/staleness-costs-reads" >}})
 runs that experiment on every smoke, with a cache full of dead ids.
 Stale is the expected condition here; the name of the project is
 fermented tofu.
@@ -30,7 +30,7 @@ can vouch for - its marker verified by this run's sweep, or its
 ownership attested by the record store while this run's own listing
 proves it exists - is served from the cache and its wire reads are
 never made. The
-[unchanged-is-free claim]({{< relref "/docs/claims#claim-9-unchanged-is-free" >}})
+[unchanged-is-free claim]({{< relref "/docs/claims/unchanged-is-free" >}})
 measures the saving, and the live block's `reads = "full"` argument
 turns the whole pass off
 ([reference]({{< relref "/docs/use/reference" >}})).
@@ -40,7 +40,7 @@ turns the whole pass off
 The file is a stock-format state file, deliberately. Copy it to
 `terraform.tfstate`, remove the live block, and stock OpenTofu plans,
 converges and destroys with it - the
-[roundtrip claim]({{< relref "/docs/claims#claim-6-the-roundtrip---one-command-in-one-file-out" >}})
+[roundtrip claim]({{< relref "/docs/claims/roundtrip" >}})
 walks the whole loop and lets stock do the teardown. A cache you may
 lose without cost is also a state file you may keep without ceremony,
 and that symmetry is what makes leaving cheap.

@@ -25,7 +25,7 @@ import (
 
 // GitHub issue #969: three pages said, in three wordings, that every count
 // instance carries a tofu-slot marker. live/MARKERS.md's tag table gave the
-// key's "Present on" as "`count` instances only"; site/content/docs/claims.md
+// key's "Present on" as "`count` instances only"; site/content/docs/claims/count-is-a-fungible-set.md
 // said choudoufu "names each member with a tofu-slot marker" and that the
 // lint boundary "forbids any argument from reading count.index";
 // internal/live/doc.go said "Each instance carries a tofu-slot marker" and
@@ -122,7 +122,7 @@ func TestSlotPresenceDocsMatchTheCode(t *testing.T) {
 // tofu-slot. MARKERS.md is first because the test reads it again by name.
 var slotPresenceDocs = []string{
 	"MARKERS.md",
-	"../site/content/docs/claims.md",
+	"../site/content/docs/claims/count-is-a-fungible-set.md",
 	"../internal/live/doc.go",
 }
 

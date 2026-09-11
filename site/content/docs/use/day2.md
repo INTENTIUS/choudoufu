@@ -49,7 +49,7 @@ check against its own fresh plan, and
 [#878](https://github.com/INTENTIUS/choudoufu/issues/878) shipped a comparison
 of the two plans instead, so that a refusal can name the address and the
 attribute that moved.
-[Claim 15]({{< relref "/docs/claims#claim-15-apply-exactly-what-was-approved" >}})
+[Claim 15]({{< relref "/docs/claims/apply-what-was-approved" >}})
 is the runnable version, and the gauntlet's `plan_approval` stage measures both
 halves of it on every estate: the matched file that applies and the moved world
 that refuses. See [the stage table]({{< relref "/docs/progress#the-stages" >}}).

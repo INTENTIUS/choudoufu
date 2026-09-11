@@ -250,7 +250,7 @@ many of them exist rather than how many types are admitted. In the table
 above the account holds nothing but the estate under test, so a bigger N
 means more of those objects and a fatter unfiltered list; that is the same
 mechanism the claims page's [foreign-load
-table]({{< relref "/docs/claims#claim-20-scale---the-estate-boundary-holds-when-the-account-is-a-terralith" >}})
+table]({{< relref "/docs/claims/plan-cost-under-foreign-load" >}})
 shows from the other side, growing a neighboring estate instead of this one
 - there the analogous column, the plan calls rather than the flat Cloud
 Control list, climbs 187, 197 and 687 for the same reason.
@@ -329,7 +329,7 @@ the record store attests while the run's own listing proves it exists);
 everything else still reads. The state cache supplies attributes for what is
 vouched, the plan launcher never plans those wire reads, and `reads = "full"`
 turns the whole pass off. The
-[unchanged-is-free claim]({{< relref "/docs/claims#claim-9-unchanged-is-free" >}})
+[unchanged-is-free claim]({{< relref "/docs/claims/unchanged-is-free" >}})
 measures it; default plans are untouched, since the read is drift detection.
 
 ### The native leg is flat across slices but not across scale

@@ -550,7 +550,7 @@ A negative control ran at scale 50 too: `BREAK_APPROVAL=1` expects the
 post-approval apply to wrongly succeed, and choudoufu still refused it, so
 only that wrong expectation failed while `cold_deploy` through
 `plan_approval` passed exactly as the row above. The refusal
-[claim 15]({{< relref "/docs/claims#claim-15-apply-exactly-what-was-approved" >}})
+[claim 15]({{< relref "/docs/claims/apply-what-was-approved" >}})
 covers still holds at 3,705 resources.
 
 ## Splitting an estate into several states
