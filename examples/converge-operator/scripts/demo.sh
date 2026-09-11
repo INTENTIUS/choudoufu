@@ -21,43 +21,23 @@
 # push is a local no-op, and the ledger stays on disk where every check below
 # reads it straight back.
 #
-# ## Two upstream findings this script works around, and one it does not
+# ## Two upstream findings, both fixed in chant 0.68.1 (this project's pin)
 #
-# Both discovered by running this example against a real floci, quoted in
-# full in README.md's "Two upstream findings" section:
-#
-# 1. `chant lifecycle plan <env> --live --json` and `chant components status
-#    <env> --live --json`, against a live/choudoufu root, print the raw
-#    stdout of the `choudoufu live-plan -json` subprocess they shell out to
-#    internally *ahead of* their own JSON document — two concatenated JSON
-#    values on one stream. chant's own `convergeTick` activity does a bare
-#    `JSON.parse(stdout)` on exactly these two commands with no defense
-#    against it, so every tick fails before this script installs the fix
-#    below. `scripts/chant-json-shim` (this directory) is a PATH-level
-#    wrapper — never a chant edit — that strips everything before the last
-#    top-level JSON object on stdout for these two subcommands and passes
-#    every other subcommand through untouched. This script installs it at
-#    `node_modules/.bin/chant` (not merely earlier on `$PATH`) because `chant
-#    run`'s own `npx tsx` re-resolves `chant` from `node_modules/.bin` for
-#    every subprocess it shells out to, which shadows a plain `$PATH` prefix
-#    — measured directly while building this example, see the shim's own
-#    doc comment for the exact repro.
-# 2. `classifyDispatchFailure` (chant's own `converge.ts`) checks
-#    `parsed.gate?.gate` on a dispatched op's `--json` record, but a gated
-#    `TerraformApplyOp` run's record carries `gate: { name, since }` — the
-#    field is `gate.name`. This one is NOT worked around here: the gate
-#    itself is completely real (the dispatched run genuinely stops at exit
-#    3, and a genuine pending fact lands on the ledger), but `dev-converge`'s
-#    own tick record calls the outcome `"reported"` rather than `"gated"`.
-#    This script prints both: the tick's own (mislabeled) summary line, and
-#    the real pending-gate read from `chant operator status` / `chant run
-#    log dev-apply`, so the reader sees the actual gate rather than the
-#    tick's own bookkeeping of it.
+# Both discovered by running this example against a real floci while it
+# pinned chant 0.63.0; both closed upstream now — chant#2395 and chant#2396,
+# quoted in full in README.md's "Two upstream findings" section. The
+# `convergeTick` JSON parse (chant#2395) and the `classifyDispatchFailure`
+# gate misclassification (chant#2396) are both fixed as of this pin, so this
+# script needs no workaround for either: the tick's own summary line reads
+# `gated=1` for a genuinely gated dispatch, matching the real pending gate
+# this script also reads independently from `chant operator status` / `chant
+# run log dev-apply`.
 #
 # Env:
 #   CHOUDOUFU_BIN   an existing choudoufu binary; default builds ./cmd/choudoufu
 #   FLOCI_PORT      host port for the emulator (default 4671, issue #1033's own)
 #   FLOCI_IMAGE     override the pin in live/floci-image
+#   CONTAINER       emulator container name (default wt-1033-floci)
 #   OPERATOR_INTERVAL  chant operator's --interval (default 10s)
 #   KEEP            1 leaves the scratch repository and the container up
 set -uo pipefail
@@ -68,7 +48,7 @@ ROOT="$(cd "$EXAMPLE_DIR/../.." && pwd)"
 
 FLOCI_PORT="${FLOCI_PORT:-4671}"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
-CONTAINER="wt-1033-floci"
+CONTAINER="${CONTAINER:-wt-1033-floci}"
 OPERATOR_INTERVAL="${OPERATOR_INTERVAL:-10s}"
 # Short on purpose: chant's own lease default (5m, `DEFAULT_LEASE_TTL_MS`) is
 # sized for a real environment, where nothing else is about to grab the
@@ -122,12 +102,10 @@ verdict() {
 # run_status <file>: the run record chant writes as the last JSON *line* of
 # a `chant run <op> --json` invocation's stdout — the same convention
 # ci-pipelines/scripts/smoke.sh reads by, and for the same reason: the
-# human-readable render `report()` echoes ahead of it (this script's node
-#_modules/.bin/chant shim fixes the *lifecycle plan*/*components status*
-# case, finding 1 in this file's header, but a plain `chant run <op> --json`
-# was never broken in the first place — its own final record is already one
-# minified line, so scanning backward for the last line starting with `{`
-# that parses as a run record is sufficient here, same as smoke.sh).
+# human-readable render `report()` echoes ahead of it, and `chant run
+# <op> --json`'s own final record is already one minified line, so scanning
+# backward for the last line starting with `{` that parses as a run record
+# is sufficient here, same as smoke.sh.
 run_status() {
   node -e '
     const fs = require("fs");
@@ -144,11 +122,12 @@ run_status() {
   ' "$1"
 }
 
-# last_top_level_json <file>: chant's `--json` output for a live root can
-# carry the leaked subprocess blob ahead of chant's own document (finding 1
-# above); this script's own direct reads defend against it the same way
-# ci-pipelines' smoke.sh defends against a multi-line `--json` stream, just
-# at the object level rather than the line level.
+# last_top_level_json <file>: takes the last top-level JSON object on
+# stdout, the same defense ci-pipelines' smoke.sh applies at the line level
+# for a multi-line `--json` stream, just at the object level. Unused now
+# that chant 0.68.1 (chant#2395) no longer echoes a subprocess blob ahead of
+# its own document on a live root's `--json` read; kept for any subcommand
+# that still concatenates documents on stdout.
 last_top_level_json() {
   node -e '
     const fs = require("fs");
@@ -221,13 +200,6 @@ tar -C "$EXAMPLE_DIR" -cf - \
   cd "$WORK/repo"
   npm ci --no-audit --no-fund >/dev/null
 ) || die "npm ci failed"
-
-REAL_CHANT="$WORK/repo/node_modules/@intentius/chant/bin/chant"
-[ -x "$REAL_CHANT" ] || die "expected $REAL_CHANT to exist after npm ci"
-rm -f "$WORK/repo/node_modules/.bin/chant"
-install -m 755 "$SCRIPT_DIR/chant-json-shim" "$WORK/repo/node_modules/.bin/chant"
-export CHANT_JSON_SHIM_REAL_BIN="$REAL_CHANT"
-log "node_modules/.bin/chant replaced with scripts/chant-json-shim (finding 1 above)"
 
 (
   cd "$WORK/repo"

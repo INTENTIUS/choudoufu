@@ -79,28 +79,30 @@
  * refusal applies here; both are exercised by chant's own test suite, not
  * this project's.
  *
- * ## An open question this rule table's own dispatch runs into
+ * ## A dispatch-classification bug this rule table's own dispatch ran into (chant#2396, fixed)
  *
  * `dev-apply` is `gate: "always"`, so this table's whole live proof runs
- * through a dispatch that stops at a gate — and measuring that dispatch
- * surfaced a second finding beyond the two above. chant's own
- * `classifyDispatchFailure` (`@intentius/chant`'s
- * `src/op/activities/converge.ts`) reads a dispatched op's `--json` record
+ * through a dispatch that stops at a gate — and measuring that dispatch,
+ * against chant 0.63.0, surfaced a second finding beyond the one above.
+ * chant's own `classifyDispatchFailure` (`@intentius/chant`'s
+ * `src/op/activities/converge.ts`) read a dispatched op's `--json` record
  * looking for `parsed.gate?.gate`, but a gated `TerraformApplyOp` run's own
  * record carries `gate: { name: "<gate>", since: "<iso>" }` — the field is
- * `gate.name`, and `classifyDispatchFailure`'s regex fallback
- * (`/is gated on "([^"]+)"/`) never matches either, because that phrase
- * belongs to the human render `--json` mode suppresses. So every dispatch
- * this rule table makes to a gated `TerraformApplyOp` is misclassified: the
- * gate is real (`dev-apply`'s own run genuinely stops there, exit 3, a
- * genuine pending fact lands on `_gates/dev-apply.jsonl`, and `chant
- * operator status` genuinely shows it pending), but `dev-converge`'s own
- * tick record calls the outcome `"reported"` rather than `"gated"`, with an
- * empty `reason` (`dispatch of "dev-apply" failed: `). See the README's
- * "Two upstream findings" section for the exact commands and quoted output
- * that pinned this down, and for why this example does not attempt to work
- * around it: the fix belongs in `classifyDispatchFailure` itself, not in a
- * rewrite of what a project's own dispatched Op prints.
+ * `gate.name`, and the regex fallback (`/is gated on "([^"]+)"/`) never
+ * matched either, because that phrase belongs to the human render `--json`
+ * mode suppresses. So every dispatch this rule table made to a gated
+ * `TerraformApplyOp` was misclassified: the gate was real (`dev-apply`'s own
+ * run genuinely stops there, exit 3, a genuine pending fact lands on
+ * `_gates/dev-apply.jsonl`, and `chant operator status` genuinely shows it
+ * pending), but `dev-converge`'s own tick record called the outcome
+ * `"reported"` rather than `"gated"`, with an empty `reason` (`dispatch of
+ * "dev-apply" failed: `). Filed as chant#2396 and fixed upstream:
+ * `classifyDispatchFailure` now reads `parsed.gate?.name`. On this project's
+ * 0.68.1 pin, `dev-converge`'s own tick summary reads `gated=1` for this
+ * dispatch, agreeing with what `chant operator status`/`chant run log
+ * dev-apply` already showed independently. See the README's "Two upstream
+ * findings" section for the exact commands and quoted output that pinned
+ * this down.
  *
  * ## No `schedule`
  *
