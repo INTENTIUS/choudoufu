@@ -94,8 +94,20 @@ const ScaleRecordsPath = "live/gauntlet-scale.json"
 // history) - never hand-edited, the same discipline live/gauntlet.json
 // itself documents on Artifact's own doc comment.
 type ScaleArtifact struct {
-	Schema  int           `json:"schema"`
-	Records []ScaleRecord `json:"records"`
+	Schema int `json:"schema"`
+	// Emulator mirrors Artifact.Emulator's own meaning exactly (see that
+	// field's doc comment, artifact.go): a plain copy of live/floci-image at
+	// the moment this file was last (re)written - CONFIGURATION, the pin the
+	// NEXT floci-target run will use, never a claim about what any past
+	// record here actually measured against (each record's own, per-row
+	// `emulator` field is that evidence). Kept here, at the top level,
+	// purely so live/flociimage_test.go's flociImageFields guard - the one
+	// mechanism this repository already has for "does a committed artifact
+	// name the emulator it goes with" - has a single, flat field to check
+	// this file against, the same way it checks live/gauntlet.json's own
+	// top-level Emulator.
+	Emulator string        `json:"emulator,omitempty"`
+	Records  []ScaleRecord `json:"records"`
 }
 
 // ScaleRecord is one measured run of one estate at one scale, against one
@@ -665,7 +677,11 @@ func LoadScaleArtifact(root string) (*ScaleArtifact, error) {
 
 // SaveScaleArtifact writes a to live/gauntlet-scale.json, sorted by
 // (Estate, Target, Scale) so a diff shows only what actually changed.
+// a.Emulator is stamped fresh from live/floci-image on every call - see its
+// own doc comment for why this, like Artifact.Emulator, is always the
+// CURRENT pin rather than whatever the caller happened to leave it at.
 func SaveScaleArtifact(root string, a *ScaleArtifact) error {
+	a.Emulator = emulatorPin(root)
 	sortScaleRecords(a.Records)
 	b, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {

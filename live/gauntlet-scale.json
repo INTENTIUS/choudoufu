@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
   "records": [
     {
       "schema": 1,
@@ -160,7 +161,7 @@
           "detail": "the post-migrate plan is not empty - see /private/tmp/claude-501/-Users-alex-Documents-checkouts-intentius-choudoufu/aefed153-1ee1-4e68-9a5a-49f6e3e1cf34/scratchpad/scale50b/work/test_plan.out"
         }
       },
-      "source": "git show fc336da87a5b079dabdf0c0b67ee8c45b032dcee:live/gauntlet.json"
+      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json"
     },
     {
       "schema": 1,
@@ -247,7 +248,7 @@
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         }
       },
-      "source": "git show fc336da87a5b079dabdf0c0b67ee8c45b032dcee:live/gauntlet.json"
+      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json"
     }
   ]
 }

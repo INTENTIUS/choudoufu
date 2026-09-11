@@ -87,6 +87,7 @@ var writtenArtifacts = []string{
 	"live/estate-types.json",
 	"live/floci-capabilities.json",
 	"live/fork-surface.json",
+	"live/gauntlet-scale.json",
 	"live/gauntlet.json",
 	"live/gauntlet/estates.json",
 	"live/iam-reference.json",
