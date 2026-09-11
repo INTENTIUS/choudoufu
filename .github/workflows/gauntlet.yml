@@ -3,9 +3,26 @@ name: Gauntlet
 # Runs the core estates through every active stage against the pinned
 # emulator, nightly and on demand, and opens a pull request with the
 # regenerated artifact and docs when anything changed. live/GAUNTLET.md is
-# the contract; tools/gauntlet is the runner. The same command runs locally:
+# the contract; tools/gauntlet is the runner. The underlying command is the
+# one a human would type locally:
 #
 #   go run ./tools/gauntlet run -set core
+#
+# but as of CLAUDE.md's "Heavy and paid runs are the maintainer's, by hand"
+# rule (the 2026-09-11 incident it records), that command refuses to run at
+# all outside CI unless ~/.config/choudoufu/allow-heavy-runs names a
+# still-future instant (CheckMaintainerAllow, tools/gauntlet/maintainerguard.go)
+# - a file nothing in this repository ever creates - so this workflow, not
+# a laptop, is the normal way it runs. The nightly `schedule` trigger is unaffected (it always was
+# unattended CI, never a local session); a manual `workflow_dispatch` run
+# additionally waits at the `dispatch-approval` job below for the
+# maintainer's own approval on the `corpus` environment before `run` starts -
+# see HANDOFF.md "Heavy runs are dispatched, approved and never local".
+# This workflow's own `workflow_dispatch` (inputs `set`/`estates`) already
+# was the dispatch path issue #1032/#807's brief for "the corpus, gated"
+# describes, so that gate extends this job rather than a separate
+# gauntlet-corpus.yml duplicating its ~15 steps - see that section of
+# HANDOFF.md for why.
 #
 # The same run also carries the cohort acceptance pass (issue #433): 663
 # distinct AWS types for the cost of an apply and a replan per cohort, the
@@ -48,7 +65,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gates a manual dispatch, and only a manual dispatch, behind the `corpus`
+  # environment's required reviewer (a repository setting - see HANDOFF.md
+  # "Heavy runs are dispatched, approved and never local" for the one-time
+  # `gh api` calls that create it). `environment:` pauses the job it is set
+  # on at the very first step until a reviewer approves it in the Actions
+  # UI, so a trivial one-step job here is enough - the actual heavy work
+  # stays entirely in `run` below, unduplicated.
+  #
+  # `if:` scopes this to workflow_dispatch so the nightly cron keeps running
+  # unattended, exactly as it does today: the maintainer's rule is about a
+  # human (or an agent) choosing to start a run right now, not about the
+  # existing scheduled cadence.
+  dispatch-approval:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: corpus
+    steps:
+      - run: echo "approved by the corpus environment's required reviewer"
+
   run:
+    needs: [dispatch-approval]
+    # always() because `needs` on a job that only conditionally runs
+    # (dispatch-approval, above) otherwise makes THIS job skip too on a
+    # schedule trigger, where dispatch-approval itself skips. The explicit
+    # OR then re-implements the gate: a schedule run needs no approval, a
+    # workflow_dispatch run needs dispatch-approval to have actually
+    # succeeded (an approved, completed run), not merely to be absent.
+    if: always() && (github.event_name != 'workflow_dispatch' || needs.dispatch-approval.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:

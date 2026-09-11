@@ -240,8 +240,12 @@ func cmdRun(root string, args []string) error {
 	// containers, real wall-clock minutes - that only the maintainer's own
 	// hand should start. Checked before flag parsing even finishes reading
 	// estate names, so a malformed invocation never races the refusal.
+	// withDispatchHint (heavyrun.go) adds the one thing CheckMaintainerAllow
+	// itself cannot know: which workflow runs this for real, and the exact
+	// `gh workflow run` line that dispatches it.
 	if err := CheckMaintainerAllow(); err != nil {
-		return err
+		return withDispatchHint(err, "gauntlet.yml",
+			`gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates="name1 name2"`)
 	}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	set := fs.String("set", "all", "which set to run when no names are given: core or all")
@@ -424,7 +428,10 @@ func cmdLiveCert(root string, args []string) error {
 		return fmt.Errorf("live-cert needs exactly one estate name, got %d", fs.NArg())
 	}
 	estate := fs.Arg(0)
-
+	// RunLiveCert's own CheckMaintainerAllow call (livecert.go) already
+	// refuses this outside CI without the maintainer's hand-run allow file,
+	// wrapped there with the live-cert.yml dispatch hint - nothing to add
+	// here.
 	r, res, exit, err := RunLiveCert(root, estate, *target, *region, *ceilingUSD, *timeoutSeconds, *confirm)
 	if err != nil {
 		return err

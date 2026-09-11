@@ -352,6 +352,90 @@ already made when the workflow was scheduled or dispatched. See CLAUDE.md's
 "Heavy and paid runs are the maintainer's, by hand" for the rule agents
 follow, and the 2026-09-11 incident that made it a rule.
 
+### Heavy runs are dispatched, approved and never local
+
+A "heavy run" is `go run ./tools/gauntlet run` (a full estate pass, minutes
+to hours) or `go run ./tools/gauntlet live-cert -target aws` (spends real
+account money). The section above is the refusal itself (CI-only, otherwise
+`CheckMaintainerAllow`); this one is where a heavy run actually happens now
+that a laptop is refused: GitHub Actions, dispatched by hand, and still
+gated on the maintainer's own approval click, so `CHOUDOUFU_LOCAL_HEAVY_RUN`
+or any other agent-settable variable was never in the loop for this half
+either - only a repository-level required reviewer, which nothing this
+repository generates can set for itself. Two things enforce the "dispatched
+and approved" half:
+
+- **The command runs unattended only in CI.** `inCI()`
+  (`tools/gauntlet/maintainerguard.go`) is what exempts a GitHub Actions
+  runner from the allow-file check above - `GITHUB_ACTIONS`/`CI` being set
+  there already, on every runner, with no agent action needed.
+- **The workflow itself waits for a click.** `.github/workflows/live-cert.yml`
+  runs in the `real-aws` GitHub environment; `.github/workflows/gauntlet.yml`'s
+  `dispatch-approval` job (added 2026-09-11, gating only its own
+  `workflow_dispatch` path - the nightly `schedule` trigger is untouched)
+  runs in the `corpus` environment. Both environments have the maintainer as
+  a required reviewer, so a dispatch queues and does nothing until the
+  maintainer approves it by hand in the Actions UI - `gh workflow run`
+  starts the wait, not the run.
+
+`gauntlet-corpus.yml` was not created as a second file: `gauntlet.yml`'s own
+`workflow_dispatch` (inputs `set` core/all, `estates`) already ran the corpus
+the way a new file would have, so the approval gate extends that job instead
+of duplicating its ~15 steps. See that workflow's own header comment.
+
+Dispatching one:
+
+```bash
+# A real-AWS certification. estate is terralith-scale or reference-ec2-vpc.
+gh workflow run live-cert.yml -R INTENTIUS/choudoufu --ref <branch> \
+  -f estate=reference-ec2-vpc -f scale=1 -f ceiling_usd=15
+
+# The full corpus (gauntlet.yml's own dispatch path, now gated).
+gh workflow run gauntlet.yml -R INTENTIUS/choudoufu --ref <branch> -f set=all
+```
+
+Each queues in "Waiting" state against its environment until the maintainer
+opens the run in the Actions UI and clicks Approve and deploy - nothing
+executes before that click, no matter who or what ran the `gh workflow run`
+line above.
+
+**One-time setup** (repository settings/secrets/variables - a maintainer
+runs this by hand; no worker or agent changes these). `just heavy-runs-setup`
+prints the same block without running any of it:
+
+```bash
+REPO="INTENTIUS/choudoufu"
+MAINTAINER_LOGIN="lex00"                 # the required reviewer on both environments
+MAINTAINER_ID="$(gh api "users/$MAINTAINER_LOGIN" --jq .id)"
+
+# 1. Create (or update) the two protected environments, each gated on the
+#    maintainer approving every run, no branch restriction.
+for ENV in real-aws corpus; do
+  gh api --method PUT -H "Accept: application/vnd.github+json" \
+    "/repos/$REPO/environments/$ENV" \
+    --input - <<JSON
+{
+  "reviewers": [ { "type": "User", "id": $MAINTAINER_ID } ],
+  "deployment_branch_policy": null
+}
+JSON
+done
+
+# 2. The repository variables live-cert.yml reads. CHOUDOUFU_LIVECERT_ROLE_ARN
+#    needs its IAM role created first, same pattern as the three roles
+#    examples/ci-pipelines/scripts/oidc-bootstrap.sh creates (trust policy
+#    scoped to repo:INTENTIUS/choudoufu:* on the account's existing
+#    token.actions.githubusercontent.com provider) - least-privilege for
+#    LiveCertScopeStages (cold_deploy, migrate, test_plan, test_apply) on
+#    whichever estate(s) are dispatched. AWS_REGION may already be set from
+#    that same bootstrap; this is a plain overwrite either way.
+ACCOUNT=354867293429
+REGION=us-east-1
+gh variable set -R "$REPO" AWS_REGION --body "$REGION"
+gh variable set -R "$REPO" CHOUDOUFU_LIVECERT_ROLE_ARN \
+  --body "arn:aws:iam::$ACCOUNT:role/choudoufu-livecert"
+```
+
 ## Retired
 
 The old stock-comparison score and its three labels, the decision matrix and its `RULE` row,
