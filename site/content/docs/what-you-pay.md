@@ -23,7 +23,7 @@ on which of three things the run is doing:
 **Every figure on this page describes choudoufu {{< version >}}.** Each one
 names its fixture, its commit, and whether it came from the pinned AWS
 emulator or from a real AWS account. The two are not interchangeable and are
-never combined.
+never combined. Certification rows come only from an unheld run: `LIVECERT_HOLD=1` (`live/live-cert/terralith-scale.sh`, #1032) skips teardown to make real-account iteration affordable, and marks every stage it reports `held: true` for exactly this reason - a held run's account was never verified empty afterward, so it never counts as evidence here.
 
 **There is currently no wall-clock figure on this page.** The three real-AWS
 sessions that produced one were comparing a cached plan against an uncached

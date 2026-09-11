@@ -85,6 +85,51 @@ set -uo pipefail
 #   LIVECERT_INDEX_POLL_S  30 (default) seconds between polls of the index
 #                    during that wait. Overridable so a self-test can drive
 #                    the same loop on a 1-second clock instead of a 30s one.
+#   LIVECERT_HOLD    0 (default) or 1. The maintainer's own words, verbatim
+#                    (#1032): "its not about compute its about the time it
+#                    takes and it slows down my development" - three
+#                    scale-50 cycles in one night each spent 35 min on
+#                    cold_deploy, 40 on migrate and 40 on teardown to look
+#                    at ONE plan. LIVECERT_HOLD=1 skips teardown (the EXIT
+#                    trap still fires; teardown() itself becomes a no-op
+#                    that prints where everything is and how to tear it
+#                    down later) so a real account can be inspected, or
+#                    resumed against (LIVECERT_RESUME below), in minutes
+#                    instead of a full cycle. A held run's gauntlet row
+#                    carries "held: true" in every stage's own detail, so
+#                    nothing that reads live/gauntlet.json can mistake it
+#                    for a finished (torn-down, verified-empty)
+#                    certification - see what-you-pay.md.
+#   LIVECERT_RESUME  <work dir>. Skips cold_deploy and migrate entirely and
+#                    runs from index_wait onward against a work dir a
+#                    previous LIVECERT_HOLD=1 run left standing - the two
+#                    stages that spend the 75 minutes in the maintainer's
+#                    complaint above, for a plan-only iteration that does
+#                    not need to re-verify either of them. Refuses (before
+#                    touching anything) if the work dir's own recorded
+#                    PREFIX or SCALE disagrees with this run's environment -
+#                    the resumed state names real objects by PREFIX, so a
+#                    mismatch would silently plan against the wrong
+#                    account's naming. The caller must export the SAME
+#                    PREFIX/SCALE (and RECORD_STORE_BACKEND, if set
+#                    non-default) the held run used; a resumed run's
+#                    cold_deploy/migrate stages are logged as
+#                    "verdict=skipped", never "pass" - they are not
+#                    GAUNTLET protocol lines and never reach
+#                    live/gauntlet.json, so a resumed run's Clear can never
+#                    read true on a stage this run did not actually verify.
+#   LIVECERT_TEARDOWN_ONLY  <work dir>. Equivalent to running this script as
+#                    `terralith-scale.sh teardown <work dir>` (the positional
+#                    form is checked first): tears down a held work dir on
+#                    its own, without paying for cold_deploy or migrate
+#                    again. Runs only the trusted stock destroy plus the
+#                    verify-empty listing (and the raw-CLI sweep if anything
+#                    survives) - not the best-effort "choudoufu's own
+#                    destroy path" step, which needs a freshly built binary
+#                    and a rebuilt live block this dispatch does not
+#                    reconstruct. Still refuses TARGET=aws without
+#                    LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes, the
+#                    same spend guard every other entry point here keeps.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -93,12 +138,65 @@ source "$ROOT/live/e2e/lib/gauntlet.sh"
 # shellcheck source=live/live-cert/lib/live-cert.sh
 source "$LIB/live-cert.sh"
 
+# ── teardown-only dispatch, part 1 (issue #1032) ───────────────────────
+# `terralith-scale.sh teardown <work dir>` (or LIVECERT_TEARDOWN_ONLY=<work
+# dir>) tears down a held work dir without paying for cold_deploy or migrate
+# again - that is the whole point of holding one in the first place. This
+# half only READS the work dir's own cold-deploy marker (written below, once
+# cold_deploy's own resource-count assertion passes - grep this file for
+# .livecert-cold-state) and seeds
+# PREFIX/RUN_ID/TARGET/REGION/RECORD_STORE_BACKEND/SCALE from it, before any
+# of those get their normal fresh-run defaults a few lines down - the rest
+# of the cascade below (ESTATE, RECORD_STORE_ARGS, SSM_PREFIX, WORK,
+# COLD_DIR, ADOPTED_DIR) then resolves against the resumed values for free,
+# through the same "${VAR:-default}" form every one of them already uses.
+# Part 2, which actually runs the destroy, sits right before "0. tools"
+# below - it needs teardown()/verify_empty()/sweep() already defined.
+livecert_marker_get() {
+  grep -m1 "^$2=" "$1" 2>/dev/null | cut -d= -f2-
+}
+
+TEARDOWN_ONLY_DIR=""
+if [ "${1:-}" = "teardown" ] && [ -n "${2:-}" ]; then
+  TEARDOWN_ONLY_DIR="$2"
+elif [ -n "${LIVECERT_TEARDOWN_ONLY:-}" ]; then
+  TEARDOWN_ONLY_DIR="$LIVECERT_TEARDOWN_ONLY"
+fi
+if [ -n "$TEARDOWN_ONLY_DIR" ]; then
+  COLD_MARKER_EARLY="$TEARDOWN_ONLY_DIR/.livecert-cold-state"
+  [ -f "$COLD_MARKER_EARLY" ] || { echo "teardown: $TEARDOWN_ONLY_DIR has no $COLD_MARKER_EARLY - nothing recorded here to tear down (was cold_deploy ever completed in this work dir?)" >&2; exit 2; }
+  PREFIX="${PREFIX:-$(livecert_marker_get "$COLD_MARKER_EARLY" PREFIX)}"
+  RUN_ID="${RUN_ID:-$(livecert_marker_get "$COLD_MARKER_EARLY" RUN_ID)}"
+  TARGET="${TARGET:-$(livecert_marker_get "$COLD_MARKER_EARLY" TARGET)}"
+  REGION="${REGION:-$(livecert_marker_get "$COLD_MARKER_EARLY" REGION)}"
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-$(livecert_marker_get "$COLD_MARKER_EARLY" RECORD_STORE_BACKEND)}"
+  SCALE="${SCALE:-$(livecert_marker_get "$COLD_MARKER_EARLY" SCALE)}"
+  [ -n "$PREFIX" ] && [ -n "$TARGET" ] && [ -n "$REGION" ] \
+    || { echo "teardown: $COLD_MARKER_EARLY is missing PREFIX/TARGET/REGION - a marker from an older script version?" >&2; exit 2; }
+  LIVECERT_WORK_DIR="${LIVECERT_WORK_DIR:-$TEARDOWN_ONLY_DIR}"
+fi
+
 TARGET="${TARGET:-floci}"
 REGION="${REGION:-us-east-1}"
 SCALE="${SCALE:-1}"
 RUN_ID="${RUN_ID:-lc$(date +%s)-$$}"
 PREFIX="${PREFIX:-lc$(date +%s)$$}"
 ESTATE="tl-livecert-$PREFIX"
+
+# LIVECERT_HOLD (#1032, see this file's own doc comment above): HOLD_TAG is
+# appended to every GAUNTLET stage detail this run reports, pass or fail, so
+# a held run's row in live/gauntlet.json can never be mistaken for a
+# finished, torn-down, verified-empty certification by anything that reads
+# per-stage detail - fail() (below) and the four gauntlet_stage call sites
+# each append it themselves; there is no single choke point that already
+# sees every stage's detail text.
+LIVECERT_HOLD="${LIVECERT_HOLD:-0}"
+case "$LIVECERT_HOLD" in
+  0|1) ;;
+  *) echo "LIVECERT_HOLD must be 0 or 1, got $LIVECERT_HOLD" >&2; exit 2 ;;
+esac
+HOLD_TAG=""
+[ "$LIVECERT_HOLD" = "1" ] && HOLD_TAG=" held: true"
 
 # Which record_store backend the adopted estate declares. Until now this was
 # hardcoded to "local", a directory on disk beside the module - which means
@@ -133,7 +231,7 @@ case "$RECORD_STORE_BACKEND" in
   *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND" >&2; exit 2 ;;
 esac
 SSM_PREFIX="/choudoufu/livecert/$PREFIX"
-WORK="${LIVECERT_WORK_DIR:-$(mktemp -d)}"
+WORK="${LIVECERT_WORK_DIR:-${LIVECERT_RESUME:-$(mktemp -d)}}"
 mkdir -p "$WORK"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
 FLOCI_NAME="choudoufu-livecert-terralith-scale-$$"
@@ -202,6 +300,34 @@ ssm_prefix_count() {
 teardown() {
   [ "$TEARDOWN_DONE" = "1" ] && return 0
   log "=== TEARDOWN (target=$TARGET run=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
+
+  # LIVECERT_HOLD=1 (#1032): the maintainer's own complaint, verbatim -
+  # "its not about compute its about the time it takes and it slows down my
+  # development" - three scale-50 cycles in one night each spent 35 min on
+  # cold_deploy, 40 on migrate and 40 on teardown to look at ONE plan. This
+  # applies uniformly to every path that reaches teardown() (a clean finish,
+  # fail()'s exit, or a caught signal): whatever stages ran, their resources
+  # stay live, and nothing below this block - the untrusted destroy attempt,
+  # the trusted stock destroy, the record-store cleanup, verify_empty,
+  # sweep, docker rm, and WORK's own removal at the very end - ever runs.
+  # HOLD_TAG (set once, near PREFIX/ESTATE above) already marked every
+  # GAUNTLET stage detail this run reported with "held: true"; this is the
+  # human-facing side of the same fact.
+  if [ "${LIVECERT_HOLD:-0}" = "1" ]; then
+    log "================================================================"
+    log "  LIVECERT_HOLD=1: teardown SKIPPED - every resource this run created is still live and still billing"
+    log "    work dir : $WORK"
+    log "    estate   : $ESTATE"
+    log "    prefix   : $PREFIX"
+    log "  resume this estate (skips cold_deploy/migrate, runs from index_wait on):"
+    log "    PREFIX=$PREFIX SCALE=$SCALE TARGET=$TARGET REGION=$REGION LIVECERT_RESUME=$WORK bash ${BASH_SOURCE[0]}"
+    log "  tear it down later, on its own, once you are done iterating:"
+    log "    LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes LIVECERT_TEARDOWN_ONLY=$WORK bash ${BASH_SOURCE[0]}"
+    log "  (equivalently: bash ${BASH_SOURCE[0]} teardown $WORK)"
+    log "================================================================"
+    TEARDOWN_DONE=1
+    return 0
+  fi
 
   if [ "$MIGRATE_DONE" = "1" ] && [ -d "$ADOPTED_DIR" ]; then
     log "  attempting choudoufu's own destroy path ($ADOPTED_DIR): best effort, NOT the trusted path - bounded to ${UNTRUSTED_TEARDOWN_TIMEOUT_S}s (#1048) so a hang here can never block or skip the trusted destroy below"
@@ -301,7 +427,7 @@ EOF
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
-  [ -n "$CURRENT_STAGE" ] && gauntlet_stage "$CURRENT_STAGE" fail "$*"
+  [ -n "$CURRENT_STAGE" ] && gauntlet_stage "$CURRENT_STAGE" fail "$*$HOLD_TAG"
   exit 1
 }
 
@@ -618,6 +744,37 @@ sweep() {
   done
 }
 
+# ── teardown-only dispatch, part 2 (issue #1032) ───────────────────────
+# Part 1 (right after this script's own `source` lines, above) seeded
+# PREFIX/RUN_ID/TARGET/REGION/RECORD_STORE_BACKEND/SCALE, and therefore
+# ESTATE/RECORD_STORE_ARGS/SSM_PREFIX/WORK/COLD_DIR/ADOPTED_DIR, from the
+# work dir's own cold-deploy marker. Everything teardown()/verify_empty()/
+# sweep() need is now defined above and the spend guard (the TARGET case
+# block, above) has already run - so this is the earliest point this
+# dispatch can actually tear anything down, and the latest point it can do
+# so before "0. tools" below builds a binary and starts a floci container
+# that a plain teardown has no use for. Deliberately does NOT attempt the
+# best-effort "choudoufu's own destroy path" step inside teardown(): that
+# step rebuilds $ADOPTED_DIR/versions.tf from a live TOFU binary and a
+# fully-reconstructed live block, which this dispatch has no reason to pay
+# for when the trusted stock destroy plus the independent verify-empty
+# listing (and the raw-CLI sweep, if anything survives) is what "tear this
+# down" actually needs.
+if [ -n "$TEARDOWN_ONLY_DIR" ]; then
+  log "=== teardown-only: $TEARDOWN_ONLY_DIR (target=$TARGET region=$REGION prefix=$PREFIX scale=$SCALE run_id=$RUN_ID) ==="
+  log "  running the bounded, trusted stock destroy plus the verify-empty listing only - not the best-effort choudoufu destroy path (see this dispatch's own comment above)"
+  command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
+  command -v "${TF_COLD_BIN:-terraform}" >/dev/null 2>&1 || fail "${TF_COLD_BIN:-terraform} is not on PATH (needed for the trusted stock destroy)"
+  command -v timeout >/dev/null 2>&1 || fail "timeout is not on PATH"
+  TF_COLD="${TF_COLD_BIN:-terraform}"
+  MIGRATE_DONE=0   # deliberately: see this dispatch's own comment above
+  LIVECERT_HOLD=0  # teardown-only means tear down NOW, even if LIVECERT_HOLD=1 is still set in the environment from the run that created this work dir
+  teardown
+  trap - EXIT INT TERM
+  log "=== teardown-only: done ==="
+  exit 0
+fi
+
 # ── 0. tools ────────────────────────────────────────────────────────────
 log "=== 0. tools (target=$TARGET run_id=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
 command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
@@ -665,6 +822,75 @@ else
     || fail "aws sts get-caller-identity failed - no usable credentials for a real run: $IDENTITY"
   log "  caller account ...${IDENTITY: -4} (only the last 4 digits are ever logged or recorded)"
   CALLER_ACCOUNT_ID="$IDENTITY"
+fi
+
+# ══════════════════════════════════════════════════════════════════════
+# LIVECERT_RESUME (#1032): verify a held work dir before trusting it, then
+# skip cold_deploy and migrate and run from index_wait on. See this file's
+# own doc comment (top) for what it is for and what it does not attempt
+# (a resumed run's cold_deploy/migrate stages are logged skipped, never
+# pass - never GAUNTLET protocol lines, never in live/gauntlet.json).
+#
+# Verified by READING, not by trusting a directory's mere existence: the
+# stock state's own resource count (the cold-deploy marker, written right
+# after cold_deploy's own "Apply complete! Resources: N added" assertion
+# already confirmed it) and the migrate stage's own record (the migrate
+# marker, written right after live-import -approve's own stamp-count
+# assertion already confirmed it) - both markers are written by a
+# COMPLETED, already-verified stage in THIS SAME script, never invented
+# here, so this step re-reads evidence rather than re-deriving it.
+#
+# Refuses outright on any PREFIX or SCALE mismatch between what the work
+# dir recorded and what this run's own environment names: the resumed
+# state names real objects (IAM roles, an S3-incompatible Route 53 zone,
+# an ECS cluster) by PREFIX, so proceeding on a mismatch would silently
+# plan (or, worse, later tear down) a PREFIX this run never touched.
+#
+# Kept as its own function, the same reason index_wait() and teardown() are
+# (see their own comments above): so selftest-hold-resume.sh can extract it
+# verbatim and drive it against fixture marker files - no AWS calls, no
+# docker, no terraform, no go build.
+# ══════════════════════════════════════════════════════════════════════
+resume_verify() {
+  log "=== resume: verifying $LIVECERT_RESUME holds a completed cold_deploy + migrate for prefix=$PREFIX scale=$SCALE ==="
+  COLD_MARKER="$WORK/.livecert-cold-state"
+  MIGRATE_MARKER="$WORK/.livecert-migrate-state"
+  [ -f "$COLD_MARKER" ] || fail "LIVECERT_RESUME=$LIVECERT_RESUME has no cold-deploy record at $COLD_MARKER - cold_deploy was never completed (or held) here"
+  [ -f "$MIGRATE_MARKER" ] || fail "LIVECERT_RESUME=$LIVECERT_RESUME has no migrate record at $MIGRATE_MARKER - migrate was never completed here"
+  [ -f "$COLD_DIR/terraform.tfstate" ] || fail "LIVECERT_RESUME=$LIVECERT_RESUME has a cold-deploy record but no state file at $COLD_DIR/terraform.tfstate"
+
+  R_PREFIX="$(livecert_marker_get "$COLD_MARKER" PREFIX)"
+  R_SCALE="$(livecert_marker_get "$COLD_MARKER" SCALE)"
+  R_EXPECTED="$(livecert_marker_get "$COLD_MARKER" EXPECTED)"
+  R_TS="$(livecert_marker_get "$COLD_MARKER" TIMESTAMP)"
+  M_PREFIX="$(livecert_marker_get "$MIGRATE_MARKER" PREFIX)"
+  M_SCALE="$(livecert_marker_get "$MIGRATE_MARKER" SCALE)"
+  M_EXPECTED="$(livecert_marker_get "$MIGRATE_MARKER" EXPECTED)"
+  M_VERIFIED="$(livecert_marker_get "$MIGRATE_MARKER" VERIFIED)"
+  M_TS="$(livecert_marker_get "$MIGRATE_MARKER" TIMESTAMP)"
+
+  [ "$R_PREFIX" = "$PREFIX" ] && [ "$M_PREFIX" = "$PREFIX" ] \
+    || fail "LIVECERT_RESUME=$LIVECERT_RESUME was recorded under prefix cold=$R_PREFIX/migrate=$M_PREFIX, this run's PREFIX is $PREFIX - export PREFIX=$R_PREFIX to resume it, or point LIVECERT_RESUME at the right work dir"
+  [ "$R_SCALE" = "$SCALE" ] && [ "$M_SCALE" = "$SCALE" ] \
+    || fail "LIVECERT_RESUME=$LIVECERT_RESUME was recorded at scale cold=$R_SCALE/migrate=$M_SCALE, this run's SCALE is $SCALE - export SCALE=$R_SCALE to resume it"
+  [ "$R_EXPECTED" = "$EXPECTED" ] \
+    || fail "LIVECERT_RESUME=$LIVECERT_RESUME's cold apply recorded ${R_EXPECTED} resources, this environment computes ${EXPECTED} at scale=$SCALE - refusing a stale or mismatched cold state"
+  [ "$M_EXPECTED" = "$EXPECTED" ] && [ "$M_VERIFIED" = "$VERIFIED" ] \
+    || fail "LIVECERT_RESUME=$LIVECERT_RESUME's migrate recorded ${M_VERIFIED} of ${M_EXPECTED}, this environment computes ${VERIFIED} of ${EXPECTED} at scale=$SCALE - refusing a stale or mismatched migrate record"
+
+  log "  stock state ok: ${R_EXPECTED} resources (recorded $R_TS)"
+  log "  migrate record ok: ${M_VERIFIED} of ${M_EXPECTED} stamped (recorded $M_TS)"
+  log "stage=cold_deploy verdict=skipped detail=resumed from $LIVECERT_RESUME"
+  log "stage=migrate verdict=skipped detail=resumed from $LIVECERT_RESUME"
+  MIGRATE_DONE=1
+  COLD_APPLY_S=0 COLD_LOG_BYTES=0 COLD_THROTTLE_HITS=0 COLD_RETRY_LINES=0
+  MIGRATE_S=0 MIGRATE_LOG_BYTES=0 MIGRATE_THROTTLE_HITS=0 MIGRATE_RETRY_LINES=0
+  RESUMED=1
+}
+
+RESUMED=0
+if [ -n "${LIVECERT_RESUME:-}" ]; then
+  resume_verify
 fi
 
 # ══════════════════════════════════════════════════════════════════════
@@ -919,9 +1145,14 @@ instrumented_plan() {
 }
 
 # ══════════════════════════════════════════════════════════════════════
-# cold_deploy: stock applies the unmodified (AZ/provider-corrected)
-# generator output for real.
+# cold_deploy + migrate: stock applies the unmodified (AZ/provider-corrected)
+# generator output for real, then choudoufu adopts it. Wrapped in "if not
+# RESUMED" as one span (#1032): a resumed run already verified both stages'
+# evidence by reading their markers above and logged them skipped, so
+# neither stage's real work - nor its own gauntlet_stage pass call - runs a
+# second time.
 # ══════════════════════════════════════════════════════════════════════
+if [ "$RESUMED" = "0" ]; then
 CURRENT_STAGE=cold_deploy
 log "=== 1. terralith-gen -scale $SCALE -prefix $PREFIX -> $COLD_DIR ==="
 generate_estate "$COLD_DIR"
@@ -950,6 +1181,22 @@ APPLY_PID=""
 grep -qE "Apply complete! Resources: ${EXPECTED} added" "$WORK/cold_deploy_apply.out" \
   || { grep -E 'Apply complete' "$WORK/cold_deploy_apply.out"; fail "stock apply did not create exactly ${EXPECTED} resources"; }
 [ -f "$COLD_DIR/terraform.tfstate" ] || fail "stock apply left no state file to migrate from"
+
+# The cold-deploy marker (#1032): written the instant the assertion two
+# lines above has confirmed the stock state is real and matches EXPECTED
+# exactly, so LIVECERT_RESUME/LIVECERT_TEARDOWN_ONLY never trust a directory
+# that merely exists - they trust this file, which exists only because the
+# same check every normal run already relies on just passed.
+{
+  printf 'PREFIX=%s\n' "$PREFIX"
+  printf 'SCALE=%s\n' "$SCALE"
+  printf 'TARGET=%s\n' "$TARGET"
+  printf 'REGION=%s\n' "$REGION"
+  printf 'RUN_ID=%s\n' "$RUN_ID"
+  printf 'RECORD_STORE_BACKEND=%s\n' "$RECORD_STORE_BACKEND"
+  printf 'EXPECTED=%s\n' "$EXPECTED"
+  printf 'TIMESTAMP=%s\n' "$(date -u +%FT%TZ)"
+} > "$WORK/.livecert-cold-state"
 COLD_APPLY_S=$((COLD_APPLY_END - COLD_APPLY_START))
 log "  $(grep -E 'Apply complete' "$WORK/cold_deploy_apply.out") in ${COLD_APPLY_S}s"
 COLD_LOG_BYTES=0 COLD_THROTTLE_HITS=0 COLD_RETRY_LINES=0 COLD_PAGINATION_HITS=0
@@ -957,7 +1204,7 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$WORK/cold_deploy_apply.debug.log" ]; then
   read -r COLD_LOG_BYTES COLD_THROTTLE_HITS COLD_RETRY_LINES COLD_PAGINATION_HITS <<< "$(analyze_debug_log "$WORK/cold_deploy_apply.debug.log")"
   log "  cold_deploy debug log: ${COLD_LOG_BYTES} bytes, ${COLD_THROTTLE_HITS} throttling-error line(s), ${COLD_RETRY_LINES} genuine-retry line(s) - this is the parallelism=10, single-zone Route53 record fan-out, the most plausible place in this pipeline to see ChangeResourceRecordSets pushed back on"
 fi
-gauntlet_stage cold_deploy pass "${EXPECTED} resources from stock $TF_COLD against $TARGET at scale=$SCALE in ${COLD_APPLY_S}s, tofu-cert-run=$RUN_ID, debug log ${COLD_LOG_BYTES}B/${COLD_THROTTLE_HITS} throttle/${COLD_RETRY_LINES} retry"
+gauntlet_stage cold_deploy pass "${EXPECTED} resources from stock $TF_COLD against $TARGET at scale=$SCALE in ${COLD_APPLY_S}s, tofu-cert-run=$RUN_ID, debug log ${COLD_LOG_BYTES}B/${COLD_THROTTLE_HITS} throttle/${COLD_RETRY_LINES} retry$HOLD_TAG"
 
 # Issue #578: stock's own plan on its own state, AFTER the apply has
 # converged and BEFORE anything migrates it - a refresh-and-diff of an
@@ -1052,6 +1299,19 @@ SKIPPED=$((EXPECTED - VERIFIED))  # UNTAGGABLE instances (no tags argument in th
 grep -qF "${VERIFIED} resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, ${SKIPPED} skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve did not stamp exactly ${VERIFIED} resources cleanly (expected ${SKIPPED} skipped/untaggable) - see $WORK/migrate_approve.out"; }
 MIGRATE_DONE=1
+
+# The migrate marker (#1032): written the instant the assertion above has
+# confirmed every eligible resource was actually stamped, same discipline
+# as the cold-deploy marker above - LIVECERT_RESUME's own verification reads
+# this file, never a directory's mere existence.
+{
+  printf 'PREFIX=%s\n' "$PREFIX"
+  printf 'SCALE=%s\n' "$SCALE"
+  printf 'ESTATE=%s\n' "$ESTATE"
+  printf 'EXPECTED=%s\n' "$EXPECTED"
+  printf 'VERIFIED=%s\n' "$VERIFIED"
+  printf 'TIMESTAMP=%s\n' "$(date -u +%FT%TZ)"
+} > "$WORK/.livecert-migrate-state"
 MIGRATE_S=$((MIGRATE_END - MIGRATE_START))
 log "  ${VERIFIED} of ${EXPECTED} stamped in ${MIGRATE_S}s"
 MIGRATE_LOG_BYTES=0 MIGRATE_THROTTLE_HITS=0 MIGRATE_RETRY_LINES=0
@@ -1059,7 +1319,8 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$WORK/migrate_approve.debug.log" ]; then
   read -r MIGRATE_LOG_BYTES MIGRATE_THROTTLE_HITS MIGRATE_RETRY_LINES _ <<< "$(analyze_debug_log "$WORK/migrate_approve.debug.log")"
   log "  migrate debug log: ${MIGRATE_LOG_BYTES} bytes, ${MIGRATE_THROTTLE_HITS} throttling-error line(s), ${MIGRATE_RETRY_LINES} genuine-retry line(s) - this is ${VERIFIED} sequential tag-write API calls (one per resource, not batched), the most plausible place to see a WRITE-side rate limit"
 fi
-gauntlet_stage migrate pass "${VERIFIED} of ${EXPECTED} verified, ${VERIFIED} stamped, ${SKIPPED} skipped, in ${MIGRATE_S}s, debug log ${MIGRATE_LOG_BYTES}B/${MIGRATE_THROTTLE_HITS} throttle/${MIGRATE_RETRY_LINES} retry"
+gauntlet_stage migrate pass "${VERIFIED} of ${EXPECTED} verified, ${VERIFIED} stamped, ${SKIPPED} skipped, in ${MIGRATE_S}s, debug log ${MIGRATE_LOG_BYTES}B/${MIGRATE_THROTTLE_HITS} throttle/${MIGRATE_RETRY_LINES} retry$HOLD_TAG"
+fi # RESUMED == 0 (cold_deploy + migrate)
 
 # index_wait (#1046, #1049): migrate's ${VERIFIED} tag writes above are
 # verified against the account at write time, but the Resource Groups
@@ -1260,7 +1521,7 @@ ROLEARN="$(livecert_aws iam get-role --role-name "${PREFIX}-team-0000-role" --qu
 RTAG="$(livecert_aws iam list-role-tags --role-name "${PREFIX}-team-0000-role" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$RTAG" = "aws_iam_role.team_0000_role" ] || fail "the role carries tofu-address=$RTAG, not aws_iam_role.team_0000_role"
 log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI directly"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S}"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S}$HOLD_TAG"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and
@@ -1343,7 +1604,7 @@ grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_OUT" \
 AFTER_N="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after"
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N$HOLD_TAG"
 
 log "=== 5b. state cache: written by the apply, and USED by the plan after it (#685) ==="
 # Placement matters and the first attempt got it wrong. test_apply (stage 5)
