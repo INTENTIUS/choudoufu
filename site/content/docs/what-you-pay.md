@@ -30,6 +30,19 @@ sessions that produced one were comparing a cached plan against an uncached
 one, and [Wall clock](#wall-clock-withdrawn-because-the-comparison-was-not-like-for-like)
 sets out why they are withdrawn rather than restated.
 
+**This page is prose; `live/gauntlet-scale.json` is the same evidence as a
+record.** ([#1051](https://github.com/INTENTIUS/choudoufu/issues/1051),
+[chant-bench#33](https://github.com/INTENTIUS/chant-bench/issues/33)) Every
+real-AWS resource/taggable count, per-stage seconds, and throttle/retry count
+this page names for `terralith-scale` - at 79, 301, 745 and 3,705 resources -
+is also a structured field there, keyed by estate/target/scale rather than
+transcribed into a table a reader has to parse. The API-call pairs this page
+states in prose below (149 vs. 155 at 79 resources, the 1416/1449 pairs at
+745) are NOT yet in that record: they were never recorded as a
+`gauntlet_stage` detail, only logged to a run's own stdout, so recovering
+them needs a re-run, not a bigger backfill - see the worker's own report on
+issue #1051 for exactly which points still need one.
+
 ## With no live block, nothing at all
 
 A configuration with no `live` block and no `estate.chdf.hcl` sidecar runs as

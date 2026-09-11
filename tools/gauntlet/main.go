@@ -17,6 +17,7 @@
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
+//	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
 package main
 
 import (
@@ -62,6 +63,8 @@ func main() {
 		fatalIf(cmdNotes(root, os.Args[2:]))
 	case "merge-artifact":
 		fatalIf(cmdMergeArtifact(root, os.Args[2:]))
+	case "scale-backfill":
+		fatalIf(cmdScaleBackfill(root, os.Args[2:]))
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
@@ -79,7 +82,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -464,6 +467,34 @@ func cmdLiveCert(root string, args []string) error {
 		return err
 	}
 	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
+
+	// Issue #1051: every real-AWS run also upserts its own structured
+	// ScaleRecord into live/gauntlet-scale.json, the same instant its prose
+	// detail lands in live/gauntlet.json - so a NEW scale point (the
+	// eventual 10,000+ resource run this issue is for) never needs a
+	// separate backfill step the way the points `gauntlet scale-backfill`
+	// recovers today did. Skipped (with a note, not silently) for an estate
+	// this schema recognizes no scale for - a live-aws certification that
+	// is not about scale, e.g. reference-ec2-vpc, has nothing for this file
+	// to add.
+	scaleSource := fmt.Sprintf("gauntlet live-cert %s (commit %s)", estate, r.Commit)
+	scaleRec := BuildScaleRecordFromLiveCert(*r, scaleSource)
+	if scaleRec.Scale == 0 && scaleRec.Resources == nil {
+		fmt.Printf("live-cert %s: no scale/resources recognized in this run's own detail text - live/gauntlet-scale.json left unchanged\n", estate)
+		return nil
+	}
+	if err := ValidateScaleRecord(scaleRec); err != nil {
+		return fmt.Errorf("live-cert %s: built an invalid scale record: %w", estate, err)
+	}
+	sa, err := LoadScaleArtifact(root)
+	if err != nil {
+		return err
+	}
+	sa.UpsertScaleRecord(scaleRec)
+	if err := SaveScaleArtifact(root, sa); err != nil {
+		return err
+	}
+	fmt.Printf("recorded scale measurement for %s at scale=%d (%s)\n", estate, scaleRec.Scale, ScaleRecordsPath)
 	return nil
 }
 

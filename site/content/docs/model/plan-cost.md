@@ -34,6 +34,20 @@ a run does take it.
 > costs and what is still outstanding is on
 > [what you pay, and when]({{< relref "/docs/what-you-pay" >}}).
 
+> **This page is prose; a machine reader wants `live/gauntlet-scale.json`.**
+> ([issue #1051](https://github.com/INTENTIUS/choudoufu/issues/1051),
+> [chant-bench#33](https://github.com/INTENTIUS/chant-bench/issues/33)) The
+> real-AWS resource/taggable counts, per-stage seconds, and throttle/retry
+> counts this page and
+> [what you pay]({{< relref "/docs/what-you-pay" >}}) describe in words are
+> also emitted as structured records there, one per (estate, target, scale) -
+> `terralith-scale` at 79, 301, 745 and 3,705 resources today. The 79/301/745
+> sweep-versus-read-pass split below is the one set of numbers on this page
+> that record does NOT yet carry: `internal/live/discovery/slicing_bench_test.go`
+> measures it but only writes it to `SLICE_OUT`, a path nothing commits -
+> re-running that bench with its output converted into a record is still
+> open.
+
 ## The two terms
 
 **The sweep asks what this estate owns, and it is O(types).** One estate-filtered
