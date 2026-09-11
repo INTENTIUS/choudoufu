@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.chant/
+terraform/.terraform/
+terraform/chant.tfplan
+terraform/.tofu-records/

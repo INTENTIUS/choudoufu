@@ -1,0 +1,19 @@
+{
+  "name": "choudoufu-example-converge-operator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "chant's ConvergeOp and `chant operator` ticking a choudoufu root: drift observed live, classified against a typed rule table, dispatched to a gated apply, with the gate held as a fact on the chant/lifecycle ledger across a restart.",
+  "scripts": {
+    "build": "npx chant build",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@intentius/chant": "0.63.0",
+    "@intentius/chant-lexicon-terraform": "0.63.0",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@cdktf/hcl2json": "^0.21.0"
+  }
+}

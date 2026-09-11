@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# A PATH shim ahead of the real `chant`, only for `chant operator`'s own
+# child-process invocations. See the README's "A stdout leak this example
+# works around" section for the full writeup; the short version:
+#
+# `chant lifecycle plan <env> --live --json` and `chant components status
+# <env> --live --json`, against a live/choudoufu terraform root, print TWO
+# concatenated JSON documents on stdout instead of one. The first is the raw
+# stdout of the `choudoufu live-plan -json` subprocess chant's terraform
+# lexicon shells out to internally (`describe-resources.ts`'s live reader
+# calls the `choudoufuLivePlan` Op *activity*, and that activity
+# unconditionally echoes its subprocess's stdout via a `report()` helper
+# meant for a human-facing `chant run` step — @intentius/chant-lexicon-terraform's
+# `src/op/activities/terraform.ts`, the `report(stdout, stderr)` call inside
+# `choudoufuLivePlan`). The second is chant's own `{ env, entries }` (or
+# component-status array) document. `chant run <op> --json` next to it is
+# fine — its own JSON record is one single minified line, and every reader
+# in this repository and in `examples/ci-pipelines` already scans backward
+# for the last JSON *line* for exactly this reason — but `chant lifecycle
+# plan`/`chant components status --json` pretty-print, and their own CLI
+# handler does not clear the echo before adding its own document.
+#
+# That would be a curiosity a human script works around (as this project's
+# own `scripts/demo.sh` does for its direct calls), except `chant`'s own
+# `convergeTick` activity (`@intentius/chant`'s `src/op/activities/converge.ts`,
+# `observeChangeSet`/`observeStatusRows`) does a bare `JSON.parse(stdout)` on
+# exactly these two commands, with no defense at all — so a `ConvergeOp`
+# tick against a live/choudoufu root fails outright, every time, before this
+# shim existed to fix it. See the README for the exact failure this shim
+# was written to make disappear, quoted verbatim, and for why this is
+# reported upstream as an open question rather than patched in chant itself
+# (this repository's rule for every example: never modify the chant
+# checkout or the installed package).
+#
+# The fix here is the same one a human already has to apply by hand when
+# reading either command's `--json` output directly: take the *last*
+# top-level JSON object on stdout, which is chant's own document, and
+# discard whatever came before it. `awk` finds the last line that is
+# exactly `{` at column 0 (a real pretty-printed top-level object always
+# starts a line that way; nothing inside chant's own document ever
+# dedents back to column 0) and prints from there to the end. A command
+# whose output was never doubled in the first place still has exactly one
+# such line, so this is a no-op for every other subcommand this shim
+# forwards untouched, and would become a no-op for these two as well the
+# day chant stops echoing the subprocess.
+#
+# `CHANT_JSON_SHIM_REAL_BIN` names the real chant entrypoint
+# (node_modules/@intentius/chant/bin/chant) — set by the script that puts
+# this shim's directory on PATH, never resolved by searching PATH itself,
+# so this shim can never call itself.
+set -euo pipefail
+
+REAL_BIN="${CHANT_JSON_SHIM_REAL_BIN:?CHANT_JSON_SHIM_REAL_BIN must name the real chant entrypoint}"
+
+wants_json=0
+for arg in "$@"; do
+  if [ "$arg" = "--json" ]; then wants_json=1; fi
+done
+
+intercept=0
+if [ "$wants_json" = "1" ] && [ "${1:-}" = "lifecycle" ] && [ "${2:-}" = "plan" ]; then intercept=1; fi
+if [ "$wants_json" = "1" ] && [ "${1:-}" = "components" ] && [ "${2:-}" = "status" ]; then intercept=1; fi
+
+if [ "$intercept" = "1" ]; then
+  set +e
+  out="$("$REAL_BIN" "$@")"
+  rc=$?
+  set -e
+  printf '%s\n' "$out" | awk '
+    $0 == "{" { start = NR }
+    { line[NR] = $0 }
+    END { for (i = start; i <= NR; i++) print line[i] }
+  '
+  exit "$rc"
+fi
+
+exec "$REAL_BIN" "$@"
