@@ -210,9 +210,71 @@ else
   done
 fi
 
+echo "== case: the record store's GetParametersByPath is scoped to the path ARN, not the leaf (#807) =="
+# issue #807's run 34636502021: live-plan failed with `ssm:GetParametersByPath`
+# denied on "arn:...:parameter/tofu-records" - the account-wide record
+# namespace root, not this estate's own leaf pattern. internal/live/staterecord/ssm.go's
+# List and GetAll both authorize that call against the ENCLOSING FOLDER of
+# the keyPrefix they are asked for, never against the leaf parameter name,
+# so a policy that only grants the leaf ARN (the shape every other SSM
+# record-store action uses) refuses it no matter how the leaf pattern is
+# widened. Prove APPLY_POLICY's TheRecordStorePathListing statement grants
+# GetParametersByPath on both the bare path ARN and its "/*" child, and
+# that TheRecordStore (the leaf statement) does NOT also claim
+# GetParametersByPath - if it did, the leaf-scoped policy would look
+# sufficient by itself and this exact bug would still ship silently.
+write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
+runner="$WORK/run-recordstore.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$SCRIPT_PATH" --dry-run >"$WORK/recordstore.out" 2>"$WORK/recordstore.err"
+jq -c '.Statement[] | select(.Sid=="TheRecordStorePathListing")' "\$APPLY_POLICY" > "$WORK/recordstore.pathlisting.json" || true
+jq -c '.Statement[] | select(.Sid=="TheRecordStore")'            "\$APPLY_POLICY" > "$WORK/recordstore.leaf.json"        || true
+echo "\$SSM_RECORD_PATH_ARN" > "$WORK/recordstore.patharn"
+echo "\$SSM_RESOURCE_ARN"    > "$WORK/recordstore.leafarn"
+RUNEOF
+chmod +x "$runner"
+if ! PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL (recordstore): oidc-bootstrap.sh --dry-run exited non-zero. stderr:" >&2
+  cat "$WORK/recordstore.err" >&2 2>/dev/null || true
+  FAILURES=$((FAILURES + 1))
+else
+  PATH_ARN="$(cat "$WORK/recordstore.patharn")"
+  LEAF_ARN="$(cat "$WORK/recordstore.leafarn")"
+  PATHLISTING_STMT="$(cat "$WORK/recordstore.pathlisting.json" 2>/dev/null || true)"
+  LEAF_STMT="$(cat "$WORK/recordstore.leaf.json" 2>/dev/null || true)"
+  echo "  TheRecordStorePathListing: ${PATHLISTING_STMT:-<absent>}"
+  echo "  TheRecordStore:            ${LEAF_STMT:-<absent>}"
+
+  if [ -z "$PATHLISTING_STMT" ]; then
+    echo "FAIL: APPLY_POLICY carries no Sid==\"TheRecordStorePathListing\" statement" >&2
+    FAILURES=$((FAILURES + 1))
+  else
+    if ! echo "$PATHLISTING_STMT" | jq -e --arg arn "$PATH_ARN" \
+        '.Effect == "Allow" and (.Action == "ssm:GetParametersByPath" or (.Action | type == "array" and index("ssm:GetParametersByPath") != null)) and (.Resource | type == "array") and (.Resource | index($arn) != null) and (.Resource | index($arn + "/*") != null)' \
+        > /dev/null 2>&1; then
+      echo "FAIL: TheRecordStorePathListing does not grant ssm:GetParametersByPath on both $PATH_ARN and $PATH_ARN/*: $PATHLISTING_STMT" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  fi
+
+  if [ -z "$LEAF_STMT" ]; then
+    echo "FAIL: APPLY_POLICY carries no Sid==\"TheRecordStore\" statement" >&2
+    FAILURES=$((FAILURES + 1))
+  else
+    if ! echo "$LEAF_STMT" | jq -e --arg arn "$LEAF_ARN" \
+        '.Effect == "Allow" and (.Action | index("ssm:GetParametersByPath")) == null and .Resource == $arn' \
+        > /dev/null 2>&1; then
+      echo "FAIL: TheRecordStore should grant the leaf ARN $LEAF_ARN with no ssm:GetParametersByPath in its actions: $LEAF_STMT" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  fi
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, and all three policies carry the DiscoverTheAccount statement."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, and the record store's GetParametersByPath is scoped to the path ARN rather than the leaf."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."

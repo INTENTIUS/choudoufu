@@ -80,7 +80,44 @@ LOG_GROUP_NAME="/${NAME_PREFIX}/app"
 ROLE_NAME_APP="${NAME_PREFIX}-app"
 LOG_GROUP_ARN="arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:${LOG_GROUP_NAME}:*"
 IAM_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME_APP}"
+# The leaf ARN: GetParameter, PutParameter, DeleteParameter and the batch
+# GetParameters/DeleteParameters all take a parameter NAME and are
+# authorized resource-level against that name's own ARN. Every record or
+# hint key this example's estate writes is
+# "/tofu-records/ci-pipelines-example/..." or
+# "/tofu-hints/ci-pipelines-example/..." (internal/live/projection/record.go's
+# recordNamespaceRoot + RecordKeyPrefix, internal/live/projection/hint_store.go's
+# hintNamespaceRoot + HintKey) - the "tofu-*" segment covers both roots at
+# once, "ci-pipelines-example*" keeps every write scoped to this estate.
 SSM_RESOURCE_ARN="arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/tofu-*/ci-pipelines-example*"
+# The path ARN: GetParametersByPath is authorized against the ARN built
+# from its own Path argument, never against the leaf pattern above -
+# issue #807's run 34636502021 is exactly this: live-plan's own error
+# named "arn:...:parameter/tofu-records" verbatim, not the estate-scoped
+# leaf. That Path argument is not this estate's own prefix either; it is
+# always one directory entry short of it, because
+# internal/live/staterecord/ssm.go's List and GetAll both compute the
+# GetParametersByPath folder by trimming the LAST "/"-segment off the
+# keyPrefix they are asked for (GetParametersByPath matches whole
+# hierarchy segments, not an arbitrary string prefix - see that file's
+# "List's approximation" doc). Two call shapes reach it, both rooted here:
+#   - internal/live/discovery/recordorphan_read.go's "Listing the record
+#     store to find untaggable resources whose configuration block was
+#     removed failed" (the run's own error text) lists
+#     projection.RecordKeyPrefix(estate), i.e. "tofu-records/ci-pipelines-example"
+#     with no trailing slash, so the last segment trimmed off is
+#     "ci-pipelines-example" itself and the folder queried is the bare,
+#     account-wide "/tofu-records" - the namespace root every estate
+#     shares, not this one alone. GetParametersByPath has no way to filter
+#     its own listing to one estate; that filtering happens client-side
+#     in Go after the call, which is why this grant cannot be narrowed
+#     past the shared root.
+#   - internal/live/projection/store.go's provisionStoreSentinel lists
+#     recordStoreKeyPrefix(rs, estate) + "/" (a trailing slash), so the
+#     last segment trimmed off is empty and the folder queried is one
+#     level DEEPER: "/tofu-records/ci-pipelines-example" - a child of the
+#     root above, needing the "/*" form.
+SSM_RECORD_PATH_ARN="arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/tofu-records"
 
 PLAN_ROLE="choudoufu-ci-pipelines-plan"
 ADOPT_ROLE="choudoufu-ci-pipelines-adopt"
@@ -137,6 +174,7 @@ echo "name_prefix:  $NAME_PREFIX  (from $TF_MAIN)"
 echo "log group:    $LOG_GROUP_ARN"
 echo "iam role:     $IAM_ROLE_ARN"
 echo "ssm prefix:   $SSM_RESOURCE_ARN"
+echo "ssm path:     $SSM_RECORD_PATH_ARN (+ /*)"
 echo "subject(s):   ${SUBJECT_PATTERNS[*]}"
 [ "$DRY_RUN" = "1" ] && echo "MODE:         dry-run - printing every command, running none"
 echo
@@ -326,12 +364,17 @@ manage_estate_statement() {
       "Action": [
         "ssm:GetParameter",
         "ssm:GetParameters",
-        "ssm:GetParametersByPath",
         "ssm:PutParameter",
         "ssm:DeleteParameter",
         "ssm:DeleteParameters"
       ],
       "Resource": "$SSM_RESOURCE_ARN"
+    },
+    {
+      "Sid": "TheRecordStorePathListing",
+      "Effect": "Allow",
+      "Action": "ssm:GetParametersByPath",
+      "Resource": ["$SSM_RECORD_PATH_ARN", "$SSM_RECORD_PATH_ARN/*"]
     }
 JSON
 }
