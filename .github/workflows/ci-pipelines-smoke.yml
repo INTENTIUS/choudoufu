@@ -109,8 +109,8 @@ jobs:
         working-directory: examples/ci-pipelines
         run: |
           set -euo pipefail
-          ver="$(sed -n 's/^const CHOUDOUFU_VERSION = "\(.*\)";$/\1/p' generate.ts)"
-          sha="$(sed -n 's/^const CHOUDOUFU_SHA256 = "\(.*\)";$/\1/p' generate.ts)"
+          ver="$(sed -n 's/^\(export \)\{0,1\}const CHOUDOUFU_VERSION = "\(.*\)";$/\2/p' generate.ts)"
+          sha="$(sed -n 's/^\(export \)\{0,1\}const CHOUDOUFU_SHA256 = "\(.*\)";$/\2/p' generate.ts)"
           if [ -z "$ver" ] || [ -z "$sha" ]; then
             echo "SMOKE op=choudoufu-pin verdict=fail reason=unreadable-generate.ts"
             exit 1
@@ -166,8 +166,8 @@ jobs:
         working-directory: examples/ci-pipelines
         run: |
           set -euo pipefail
-          ver="$(sed -n 's/^const CHOUDOUFU_VERSION = "\(.*\)";$/\1/p' generate.ts)"
-          sha="$(sed -n 's/^const CHOUDOUFU_SHA256 = "\(.*\)";$/\1/p' generate.ts)"
+          ver="$(sed -n 's/^\(export \)\{0,1\}const CHOUDOUFU_VERSION = "\(.*\)";$/\2/p' generate.ts)"
+          sha="$(sed -n 's/^\(export \)\{0,1\}const CHOUDOUFU_SHA256 = "\(.*\)";$/\2/p' generate.ts)"
           if [ -z "$ver" ] || [ -z "$sha" ]; then
             echo "SMOKE op=choudoufu-pin verdict=fail reason=unreadable-generate.ts"
             exit 1
