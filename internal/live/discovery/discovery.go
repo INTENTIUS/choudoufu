@@ -3882,6 +3882,27 @@ func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags
 				// unless the run listed resources of this type it could not
 				// read a marker off, in which case absence is one of two
 				// answers and #266 says which one out loud.
+				//
+				// Issue #1046: for the narrow population whose live ARN can
+				// be composed from configuration alone (see directread.go),
+				// a targeted direct read gets a third answer - bound, or a
+				// refusal stronger than the ordinary warning - before this
+				// falls through to #266's own wording. directReadFallbackEnabled
+				// is a test-only toggle (see directread_test.go); every real
+				// run leaves it true.
+				if directReadFallbackEnabled {
+					switch outcome, cl, why := directReadFallback(ctx, req, decl, res, typeName, escaped, entry.res.Addr); outcome {
+					case directReadBound:
+						if diag, hasProblem := bindClaimant(res, bound, typeName, escaped, entry.res.Addr, *cl); hasProblem {
+							diags = diags.Append(diag)
+						}
+						continue
+					case directReadForeign, directReadUnavailable:
+						res.Unbound = append(res.Unbound, entry.res.Addr)
+						diags = diags.Append(problemDiag(res, directReadRefusalProblem(req, typeName, entry.res.Addr, why)))
+						continue
+					}
+				}
 				res.Unbound = append(res.Unbound, entry.res.Addr)
 				if p, ok := unreadableMarkerProblem(req, decl, typeName, escaped, entry.res.Addr); ok {
 					diags = diags.Append(problemDiag(res, p))
@@ -4372,4 +4393,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemAmbiguousTagJoin:          "Listed resource matched more than one tagged resource",
 	ProblemUnreadableMarker:          "Unbound instance with unreadable live markers of its type",
 	ProblemAmbiguousContentMatch:     "Content match found more than one live candidate",
+	ProblemDirectReadUnresolved:      "Direct read could not settle a tag-index-lagged instance",
 }

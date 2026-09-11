@@ -254,6 +254,7 @@ func resolutionFor(res *Result, addr string) (identity.Resolution, bool) {
 var identityProvenanceSites = map[string]string{
 	// claimant.identity - the declared instance's carrier.
 	"cloudcontrol.go|claimant.identity|cty.NilVal":       "Cloud Control fallback: the identity is recomposed by hand from a CFN identifier, so no schema-matched object exists to carry.",
+	"directread.go|claimant.identity|cty.NilVal":         "issue #1046's direct-read fallback: the ARN is composed by hand from configuration (account id, name, path) and read once as a targeted probe, never the provider's own ListResource enumeration.",
 	"contentmatch.go|claimant.identity|cty.NilVal":       "content matching: same, and the match is on an argument value rather than on a marker.",
 	"locatedfallback.go|claimant.identity|cty.NilVal":    "the record store: an identity read out of a local record, never off a live object.",
 	"tagging.go|claimant.identity|cty.NilVal":            "THE TAG INDEX. See TestTagIndexBoundInstanceCarriesNoProviderIdentity and TestTagSweptOrphanCarriesNoProviderIdentity - fileTaggingCandidate serves both #51's estate sweep and #293's marker fallback.",

@@ -82,6 +82,10 @@ var refusals = []Refusal{
 		What:    "The estate-wide sweep found a live resource of a type this configuration declares no instance of, carrying this estate's ownership marker for an address of another type - ordinarily a tag AWS copied from a marked resource onto a dependent object it created for it. A warning: nothing in the run binds it, destroys it or retags it.",
 	},
 	{
+		Summary: "Direct read could not settle a tag-index-lagged instance",
+		What:    "A declared instance of a type whose live ARN can be composed from configuration alone (issue #1046) went unbound while the estate's tag index held no marker for its address and this run listed unreadable objects of its type. A targeted direct read at the composed identity either could not be attempted or found a live object that does not carry this estate's marker for this address, so this run refuses rather than propose a create the provider would reject.",
+	},
+	{
 		Summary: "Failed to list a resource type",
 		What:    "Listing one resource type failed - most often a permission the run does not have, or a service not available in the region. Discovery continues with the types it could list, so an estate spanning that type is only partly seen.",
 	},

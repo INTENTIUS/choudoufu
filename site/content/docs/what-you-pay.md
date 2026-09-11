@@ -408,12 +408,28 @@ lag between an IAM tag write and that write's visibility to a tagging-wide
 search index, not a bug in this call's own pagination. 160 addresses landing
 on the unlucky side of that lag, at this write volume (1,655 sequential
 tag-write calls) and only at this scale, is `#1046`'s actual mechanism -
-not a page size, and not a code defect in the list or the join. What still
-needs a decision is what choudoufu should do about it: retry-with-backoff on
-the tag index before trusting it empty, prefer a resource type's own List
-response tags over a cross-service index for the types that carry them
-directly, or something else - filed on `#1046` rather than decided here, per
-this unit's own scope.
+not a page size, and not a code defect in the list or the join.
+
+`#1046`'s fix does not retry the index: nothing bounds how long the lag
+lasts, so a retry-with-backoff only trades a fast wrong answer for a slow
+one. For the narrow population whose live ARN a service mints
+deterministically from configuration alone - `aws_iam_policy` today, whose
+ARN embeds the account, the `path` and the `name` argument verbatim - a
+declared instance stuck in exactly this shape (the index silent for its
+address, this run's own listing carrying unreadable objects of its type)
+gets a targeted, per-instance Import+Read against the identity this run
+composes itself, entirely bypassing both the list call and the lagging
+index. If the live object it finds carries this estate's marker for that
+exact address, it binds - the tag-index catch-up never has to happen for
+the plan to be correct. If the read cannot even be attempted (a
+`count`/`for_each` instance with no per-instance static scope, a `name` or
+`path` argument this run cannot evaluate from configuration alone, no
+resolved account ID yet) or it finds a live object that is provably not
+this instance's, the plan refuses outright rather than propose the create
+this incident shows the provider will reject with `EntityAlreadyExists` -
+HANDOFF.md's safety rule read the way this trade wants it read: a refusal
+is loud and reversible, and a create the provider is guaranteed to bounce
+is not even a wrong marker, it is a failure this run can see coming.
 
 Teardown ran to completion and is independently confirmed empty - see
 ["What evaluating this costs in money"](#what-evaluating-this-costs-in-money)
