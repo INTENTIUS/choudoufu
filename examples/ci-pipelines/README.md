@@ -475,9 +475,31 @@ Three roles, not one, which is the whole reason `setup` is a per-Op option:
 | Job | Repository/project variable | What its role needs |
 |---|---|---|
 | `live-check` | none | nothing. It makes no cloud call |
-| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, and `tag:GetResources` |
+| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, and discover the account (below) |
 | `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker |
 | `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and read/write on the record store's SSM prefix |
+
+**Discover the account.** Issue #807's first real-AWS dispatch (run
+34632345663) got past `live-check` and then failed `live-plan` with no
+evidence in the log; `aws iam simulate-principal-policy` on the apply role
+showed why. `live-plan`, `live-check` and `live-ls` read live state through
+two paths that neither "describe the declared types" nor `tag:GetResources`
+covers: choudoufu's own Cloud Control fallback
+(`cloudformation:ListResources`, `cloudformation:GetResource` -
+`internal/live/cloudcontrol/client.go`, also in "Permissions a run needs"
+below), and the AWS provider's own list resource for `aws_iam_role` and
+`aws_iam_policy`, which GitHub issue #1039 found carries no filter argument
+and therefore lists the *whole account's* roles and policies
+(`iam:ListRoles`, `iam:ListPolicies`, plus `iam:GetPolicy`/
+`iam:GetPolicyVersion` per policy found) - and `aws_cloudwatch_log_group`'s
+own list call, `logs:DescribeLogGroups`, which (like every List/Describe-many
+AWS action) accepts no resource identifier to scope to at all, so the
+ARN-scoped grant it used to carry here never did anything. All of these are
+account-wide by nature, not this estate's own two resources, so all three
+roles' policies carry one more statement, `DiscoverTheAccount`, granting
+exactly these seven actions on `Resource: "*"` -
+`scripts/oidc-bootstrap.sh`'s `discover_account_statement` generates it, with
+the citation for each action in its own doc comment.
 
 `AWS_REGION` is a fourth repository variable, and it is set once in the workflow's
 `env:` as both `AWS_REGION` and `TF_VAR_aws_region`. The provider reads the Terraform
@@ -626,9 +648,10 @@ JSON
 
 # 3. Three roles, three inline policies, least-privilege per the table above:
 #    read (describe the log group and the role by ARN, tag:GetResources/GetTagKeys/
-#    GetTagValues, sts:GetCallerIdentity) for plan; read plus the marker-writing tag
-#    calls for adopt; read plus marker-writing plus create/update/delete on the two
-#    resource types and the SSM record store's own prefix for apply.
+#    GetTagValues, sts:GetCallerIdentity, and the account-wide DiscoverTheAccount
+#    statement below) for plan; read plus the marker-writing tag calls for adopt;
+#    read plus marker-writing plus create/update/delete on the two resource types
+#    and the SSM record store's own prefix for apply.
 #    scripts/oidc-bootstrap.sh (below) generates exactly these three documents from
 #    this same terraform root - the commands here are what it runs.
 aws iam create-role --role-name choudoufu-ci-pipelines-plan \

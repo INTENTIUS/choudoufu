@@ -166,9 +166,53 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+echo "== case: DiscoverTheAccount is present, with the same seven actions, in all three policies (#807) =="
+# The account-wide read statement issue #807's real-AWS dispatch (run
+# 34632345663) found missing: `live-plan` failed with `iam:ListPolicies`,
+# `iam:ListRoles`, `logs:DescribeLogGroups` and Cloud Control's own
+# `cloudformation:ListResources`/`GetResource` all implicitly denied. Every
+# action here is cited to a file in oidc-bootstrap.sh's own
+# discover_account_statement doc comment - this test only proves the
+# generator actually emits what that comment promises, in all three
+# policies (describe_read_statements is shared by all three), on
+# Resource "*".
+DISCOVER_ACTIONS='["cloudformation:ListResources","cloudformation:GetResource","iam:ListRoles","iam:ListPolicies","iam:GetPolicy","iam:GetPolicyVersion","logs:DescribeLogGroups"]'
+write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
+runner="$WORK/run-discover.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$SCRIPT_PATH" --dry-run >"$WORK/discover.out" 2>"$WORK/discover.err"
+jq -c '.Statement[] | select(.Sid=="DiscoverTheAccount")' "\$PLAN_POLICY"  > "$WORK/discover.plan.json"  || true
+jq -c '.Statement[] | select(.Sid=="DiscoverTheAccount")' "\$ADOPT_POLICY" > "$WORK/discover.adopt.json" || true
+jq -c '.Statement[] | select(.Sid=="DiscoverTheAccount")' "\$APPLY_POLICY" > "$WORK/discover.apply.json" || true
+RUNEOF
+chmod +x "$runner"
+if ! PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL (discover): oidc-bootstrap.sh --dry-run exited non-zero. stderr:" >&2
+  cat "$WORK/discover.err" >&2 2>/dev/null || true
+  FAILURES=$((FAILURES + 1))
+else
+  for role in plan adopt apply; do
+    stmt="$(cat "$WORK/discover.$role.json" 2>/dev/null || true)"
+    echo "  $role DiscoverTheAccount: ${stmt:-<absent>}"
+    if [ -z "$stmt" ]; then
+      echo "FAIL: the $role policy carries no Sid==\"DiscoverTheAccount\" statement" >&2
+      FAILURES=$((FAILURES + 1))
+      continue
+    fi
+    if ! echo "$stmt" | jq -e --argjson want "$DISCOVER_ACTIONS" \
+        '.Effect == "Allow" and .Resource == "*" and ((.Action | sort) == ($want | sort))' \
+        > /dev/null 2>&1; then
+      echo "FAIL: the $role policy's DiscoverTheAccount statement does not match Effect=Allow, Resource=\"*\", Action=$DISCOVER_ACTIONS exactly: $stmt" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, and all three policies carry the DiscoverTheAccount statement."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."

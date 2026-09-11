@@ -91,7 +91,11 @@ die()  { echo "SMOKE fatal: $*" >&2; cleanup; exit 1; }
 
 cleanup() {
   if [ "$SMOKE_TARGET" = "real-aws" ] || [ -n "${SMOKE_ENDPOINT:-}" ]; then
-    [ -n "$WORK" ] && [ "${KEEP:-0}" != "1" ] && rm -rf "$WORK"
+    if [ -n "$WORK" ] && [ "${KEEP:-0}" != "1" ]; then
+      rm -rf "$WORK"
+    elif [ -n "$WORK" ]; then
+      echo "KEEP=1: scratch repo and \$OUT ($OUT) left up." >&2
+    fi
     return
   fi
   if [ "${KEEP:-0}" = "1" ]; then
@@ -132,6 +136,37 @@ run_status() {
       } catch { /* not the record */ }
     }
     console.log("no-run-record");
+  ' "$file"
+}
+
+# The same run record [run_status] reads, printed for its own `error` field
+# (node_modules/@intentius/chant/src/lifecycle/run-ledger.ts's ledger record
+# carries `error?: string` when the run's own local-executor.ts recorded one -
+# a `RunOpFailure`/step failure's message, not the human-readable progress
+# lines around it) rather than left for a reader to notice under a pile of
+# `[phase]`/`✓`/`✗` lines. Prints nothing when the record carries none -
+# a `gated` or `ok` run has nothing to say here, and this is not the place to
+# invent something. Defensive against an `errors` array too, in case a chant
+# upgrade ever carries more than one.
+run_error_fields() {
+  local file="$1"
+  node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line.startsWith("{")) continue;
+      try {
+        const r = JSON.parse(line);
+        if (r && r.op && r.status) {
+          if (r.error !== undefined) console.log("error: " + r.error);
+          if (Array.isArray(r.errors)) {
+            for (const e of r.errors) console.log("error: " + e);
+          }
+          process.exit(0);
+        }
+      } catch { /* not the record */ }
+    }
   ' "$file"
 }
 
@@ -233,6 +268,16 @@ export CHANT_FINDING_MODE=report
 export CHECKPOINT_DISABLE=1
 
 OUT="$WORK/out"; mkdir -p "$OUT"
+log "\$OUT=$OUT"
+# Named for a workflow step after this one to pick up (actions/upload-artifact
+# needs a path, and $OUT lives under a fresh mktemp dir this script alone
+# knows the name of). GITHUB_ENV lines apply to every later step in the same
+# job, which is exactly the lifetime an "upload what this run produced" step
+# needs. A local run (no GITHUB_ENV) just skips this - the log line above is
+# where a human finds the same path.
+if [ -n "${GITHUB_ENV:-}" ]; then
+  echo "SMOKE_OUT_DIR=$OUT" >> "$GITHUB_ENV"
+fi
 cd "$WORK/repo" || die "cannot enter the scratch repository"
 
 # op <name> <expected-status> [extra chant args...]
@@ -242,7 +287,11 @@ op() {
   npx chant run "$name" --json "$@" > "$OUT/$name.$want.log" 2>&1
   local got; got="$(run_status "$OUT/$name.$want.log")"
   verdict "$name" "$want" "$got"
-  [ "$got" = "$want" ] || tail -25 "$OUT/$name.$want.log" | sed 's/^/    /'
+  if [ "$got" != "$want" ]; then
+    echo "--- $name log ---"
+    tail -60 "$OUT/$name.$want.log" | sed 's/^/    /'
+    run_error_fields "$OUT/$name.$want.log" | sed 's/^/    /'
+  fi
 }
 
 # The pending gate the last run left on the ledger branch, and the
