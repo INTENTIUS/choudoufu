@@ -57,6 +57,7 @@ var flociImageFields = map[string]string{
 	"plan-budget.json":       "measured_against",
 	"cohort-acceptance.json": "image",
 	"gauntlet.json":          "emulator",
+	"gauntlet-scale.json":    "emulator",
 	"cohort-triage.json":     "image",
 }
 

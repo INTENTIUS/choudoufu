@@ -1223,7 +1223,14 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$WORK/cold_deploy_apply.debug.log" ]; then
   read -r COLD_LOG_BYTES COLD_THROTTLE_HITS COLD_RETRY_LINES COLD_PAGINATION_HITS <<< "$(analyze_debug_log "$WORK/cold_deploy_apply.debug.log")"
   log "  cold_deploy debug log: ${COLD_LOG_BYTES} bytes, ${COLD_THROTTLE_HITS} throttling-error line(s), ${COLD_RETRY_LINES} genuine-retry line(s) - this is the parallelism=10, single-zone Route53 record fan-out, the most plausible place in this pipeline to see ChangeResourceRecordSets pushed back on"
 fi
-gauntlet_stage cold_deploy pass "${EXPECTED} resources from stock $TF_COLD against $TARGET at scale=$SCALE in ${COLD_APPLY_S}s, tofu-cert-run=$RUN_ID, debug log ${COLD_LOG_BYTES}B/${COLD_THROTTLE_HITS} throttle/${COLD_RETRY_LINES} retry$HOLD_TAG"
+# The prose above is for a human tailing this run; the key=value tokens
+# below are for a machine (issue #1051, INTENTIUS/chant-bench#33) - the same
+# numbers the sentence already names, appended rather than replacing it, the
+# same pattern index_lag_s= already used at test_plan before this issue.
+# tools/gauntlet/scalerecord.go's parseColdDeployDetail reads these in
+# preference to the sentence shape, which stays there as its fallback for
+# every row recorded before this line existed.
+gauntlet_stage cold_deploy pass "${EXPECTED} resources from stock $TF_COLD against $TARGET at scale=$SCALE in ${COLD_APPLY_S}s, tofu-cert-run=$RUN_ID, debug log ${COLD_LOG_BYTES}B/${COLD_THROTTLE_HITS} throttle/${COLD_RETRY_LINES} retry resources=${EXPECTED} taggable=${VERIFIED} seconds=${COLD_APPLY_S} throttle=${COLD_THROTTLE_HITS} retry=${COLD_RETRY_LINES}$HOLD_TAG"
 
 # Issue #578: stock's own plan on its own state, AFTER the apply has
 # converged and BEFORE anything migrates it - a refresh-and-diff of an
@@ -1338,7 +1345,11 @@ if [ "$THROTTLE_LOG" = "1" ] && [ -f "$WORK/migrate_approve.debug.log" ]; then
   read -r MIGRATE_LOG_BYTES MIGRATE_THROTTLE_HITS MIGRATE_RETRY_LINES _ <<< "$(analyze_debug_log "$WORK/migrate_approve.debug.log")"
   log "  migrate debug log: ${MIGRATE_LOG_BYTES} bytes, ${MIGRATE_THROTTLE_HITS} throttling-error line(s), ${MIGRATE_RETRY_LINES} genuine-retry line(s) - this is ${VERIFIED} sequential tag-write API calls (one per resource, not batched), the most plausible place to see a WRITE-side rate limit"
 fi
-gauntlet_stage migrate pass "${VERIFIED} of ${EXPECTED} verified, ${VERIFIED} stamped, ${SKIPPED} skipped, in ${MIGRATE_S}s, debug log ${MIGRATE_LOG_BYTES}B/${MIGRATE_THROTTLE_HITS} throttle/${MIGRATE_RETRY_LINES} retry$HOLD_TAG"
+# Tokens for the same reason cold_deploy's own gauntlet_stage call above
+# carries them now (issue #1051): resources/taggable/skipped/seconds/
+# throttle/retry, read by tools/gauntlet/scalerecord.go's parseMigrateDetail
+# in preference to the sentence.
+gauntlet_stage migrate pass "${VERIFIED} of ${EXPECTED} verified, ${VERIFIED} stamped, ${SKIPPED} skipped, in ${MIGRATE_S}s, debug log ${MIGRATE_LOG_BYTES}B/${MIGRATE_THROTTLE_HITS} throttle/${MIGRATE_RETRY_LINES} retry resources=${EXPECTED} taggable=${VERIFIED} skipped=${SKIPPED} seconds=${MIGRATE_S} throttle=${MIGRATE_THROTTLE_HITS} retry=${MIGRATE_RETRY_LINES}$HOLD_TAG"
 fi # RESUMED == 0 (cold_deploy + migrate)
 
 # index_wait (#1046, #1049): migrate's ${VERIFIED} tag writes above are
@@ -1526,8 +1537,11 @@ if [ -n "$TP_FAIL" ]; then
   # also names how long the index had been given to catch up before this
   # plan ran, without a second field the runner would need to know about -
   # gauntlet_stage's own detail is free text to end of line (see
-  # live/e2e/lib/gauntlet.sh), so this needs no change there.
-  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S}"
+  # live/e2e/lib/gauntlet.sh), so this needs no change there. seconds=/
+  # throttle=/retry= (issue #1051) ride the same way: 4b above already
+  # measured them before TP_FAIL was ever checked, so a refused plan still
+  # reports whatever it cost up to the refusal.
+  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES}"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="
@@ -1540,7 +1554,7 @@ ROLEARN="$(livecert_aws iam get-role --role-name "${PREFIX}-team-0000-role" --qu
 RTAG="$(livecert_aws iam list-role-tags --role-name "${PREFIX}-team-0000-role" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$RTAG" = "aws_iam_role.team_0000_role" ] || fail "the role carries tofu-address=$RTAG, not aws_iam_role.team_0000_role"
 log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI directly"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S}$HOLD_TAG"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES}$HOLD_TAG"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and
@@ -1623,7 +1637,7 @@ grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_OUT" \
 AFTER_N="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after"
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N$HOLD_TAG"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N objects=$BEFORE_N$HOLD_TAG"
 
 log "=== 5b. state cache: written by the apply, and USED by the plan after it (#685) ==="
 # Placement matters and the first attempt got it wrong. test_apply (stage 5)

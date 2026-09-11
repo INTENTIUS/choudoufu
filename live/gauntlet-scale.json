@@ -1,0 +1,254 @@
+{
+  "schema": 1,
+  "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
+  "records": [
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
+      "target": "aws",
+      "scale": 1,
+      "commit": "da61fc08634970c2f63213029764277e2f9394ab",
+      "date": "2026-08-31T02:28:18Z",
+      "region": "us-east-2",
+      "resources": {
+        "total": 79,
+        "taggable": 38,
+        "skipped": 41
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 68,
+          "throttle": 4,
+          "retry": 4,
+          "detail": "79 resources from stock terraform against aws at scale=1 in 68s, tofu-cert-run=lc1788142850-14093, debug log 1426420B/4 throttle/4 retry"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 25,
+          "throttle": 3,
+          "retry": 3,
+          "detail": "38 of 79 verified, 38 stamped, 41 skipped, in 25s, debug log 2093233B/3 throttle/3 retry"
+        },
+        "test_apply": {
+          "verdict": "pass",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 6"
+        },
+        "test_plan": {
+          "verdict": "pass",
+          "seconds": 17,
+          "throttle": 0,
+          "retry": 0,
+          "detail": "post-migrate plan is empty in 17s; zone/role tofu-address confirmed via the AWS CLI; debug log 758890 bytes, 0 throttling-error line(s), 0 retry line(s)"
+        }
+      },
+      "source": "git show 1d06e1d1774d4e38ff6836e56213e5a5272d44b8:live/gauntlet.json"
+    },
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
+      "target": "aws",
+      "scale": 4,
+      "commit": "420d460c047132624e7a565fd8dc8803fd372ee2",
+      "date": "2026-08-30T20:00:52Z",
+      "region": "us-east-2",
+      "resources": {
+        "total": 301,
+        "taggable": 137,
+        "skipped": 164
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 174,
+          "throttle": 27,
+          "retry": 27,
+          "detail": "301 resources from stock terraform against aws at scale=4 in 174s, tofu-cert-run=lc1788117668-6931, debug log 5224563B/27 throttle/27 retry"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 77,
+          "throttle": 38,
+          "retry": 38,
+          "detail": "137 of 301 verified, 137 stamped, 164 skipped, in 77s, debug log 7772716B/38 throttle/38 retry"
+        },
+        "test_apply": {
+          "verdict": "pass",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 12"
+        },
+        "test_plan": {
+          "verdict": "pass",
+          "seconds": 267,
+          "throttle": 3,
+          "retry": 3,
+          "detail": "post-migrate plan is empty in 267s; zone/role tofu-address confirmed via the AWS CLI; debug log 3279469 bytes, 3 throttling-error line(s), 3 retry line(s)"
+        }
+      },
+      "source": "git show 33bea201e561cc2426c08aa3b5a69419f8e6b659:live/gauntlet.json"
+    },
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
+      "target": "aws",
+      "scale": 10,
+      "commit": "1d06e1d1774d4e38ff6836e56213e5a5272d44b8",
+      "date": "2026-08-31T03:20:33Z",
+      "region": "us-east-2",
+      "resources": {
+        "total": 745,
+        "taggable": 335,
+        "skipped": 410
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 413,
+          "throttle": 86,
+          "retry": 86,
+          "detail": "745 resources from stock terraform against aws at scale=10 in 413s, tofu-cert-run=lc1788143435-19631, debug log 13058408B/86 throttle/86 retry"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 222,
+          "throttle": 190,
+          "retry": 190,
+          "detail": "335 of 745 verified, 335 stamped, 410 skipped, in 222s, debug log 19403609B/190 throttle/190 retry"
+        },
+        "test_apply": {
+          "verdict": "pass",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 24"
+        },
+        "test_plan": {
+          "verdict": "pass",
+          "seconds": 129,
+          "throttle": 2,
+          "retry": 2,
+          "detail": "post-migrate plan is empty in 129s; zone/role tofu-address confirmed via the AWS CLI; debug log 5744376 bytes, 2 throttling-error line(s), 2 retry line(s)"
+        }
+      },
+      "source": "git show 601990f0ae81eb16ae0a637c88b565b447850e66:live/gauntlet.json"
+    },
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
+      "target": "aws",
+      "scale": 50,
+      "commit": "8bbef274d671b61342db452436abeb84820578a0",
+      "date": "2026-09-11T12:31:25Z",
+      "region": "us-east-2",
+      "resources": {
+        "total": 3705,
+        "taggable": 1655,
+        "skipped": 2050
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 2023,
+          "throttle": 347,
+          "retry": 347,
+          "detail": "3705 resources from stock terraform against aws at scale=50 in 2023s, tofu-cert-run=lc1032s50b-run, debug log 70521448B/347 throttle/347 retry"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 1214,
+          "throttle": 600,
+          "retry": 600,
+          "detail": "1655 of 3705 verified, 1655 stamped, 2050 skipped, in 1214s, debug log 94226106B/600 throttle/600 retry"
+        },
+        "test_plan": {
+          "verdict": "fail",
+          "detail": "the post-migrate plan is not empty - see /private/tmp/claude-501/-Users-alex-Documents-checkouts-intentius-choudoufu/aefed153-1ee1-4e68-9a5a-49f6e3e1cf34/scratchpad/scale50b/work/test_plan.out"
+        }
+      },
+      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json"
+    },
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
+      "target": "floci",
+      "scale": 1,
+      "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+      "date": "2026-09-10T07:49:05Z",
+      "emulator": "ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264",
+      "oracle": {
+        "terraform": "1.15.8",
+        "tofu": "1.12.5"
+      },
+      "resources": {
+        "total": 79,
+        "taggable": 38,
+        "skipped": 41
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 121,
+          "detail": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 34 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
+        },
+        "day2_count": {
+          "verdict": "pass",
+          "seconds": 16,
+          "detail": "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
+        },
+        "day2_crash": {
+          "verdict": "not_run"
+        },
+        "day2_remove": {
+          "verdict": "pass",
+          "seconds": 7,
+          "detail": "deleting two blocks - the taggable, marked aws_iam_instance_profile.team_0002_profile and the UNTAGGABLE aws_iam_role_policy.team_0002_inline, whose parent role stays declared - proposed exactly two destroys (0 add, 0 change, 2 destroy) in an order the cloud accepted, matching stock's own plan for the same two removals on cold_deploy's state (B2); the apply destroyed exactly two, both objects are confirmed gone and the parent role confirmed still live via the AWS CLI, and the next plan is empty"
+        },
+        "day2_rename": {
+          "verdict": "pass",
+          "seconds": 18,
+          "detail": "moved block: aws_iam_instance_profile.team_0000_profile renamed with zero churn (0 add, 1 change, 0 destroy) and the plan itself showed the tofu-address marker being rewritten in place; live-mv: team_0001_profile renamed with no moved block at all, reported as a real cloud write; both live instance-profile ids unchanged and both markers read back at the NEW address via the AWS CLI; stock's own oracle over the identical two renames on cold_deploy's state (B1) is also zero churn (No changes., both moves reported); the plan after both renames is empty"
+        },
+        "day2_replace": {
+          "verdict": "pass",
+          "seconds": 12,
+          "detail": "changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision"
+        },
+        "day2_teardown": {
+          "verdict": "not_run"
+        },
+        "drift_reconverge": {
+          "verdict": "pass",
+          "seconds": 33,
+          "detail": "one live object mutated out of band through the AWS CLI; choudoufu's next plan proposed fixing exactly aws_vpc.main and nothing else (0 add, 1 change, 0 destroy), matching stock's own plan for the identical mutation on cold_deploy's own state (B4, taken before any marker existed); the apply changed exactly 1 resource, the Name tag reads back as configured and the tofu-address marker is unchanged"
+        },
+        "greenfield": {
+          "verdict": "pass",
+          "seconds": 60,
+          "detail": "choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 40,
+          "detail": "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
+        },
+        "plan_approval": {
+          "verdict": "pass",
+          "seconds": 12,
+          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 31893-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-ac3a2f89's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-ac3a2f89 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-50791692 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-50791692 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+        },
+        "strict": {
+          "verdict": "not_run",
+          "seconds": 0,
+          "detail": "this crossing script does not exercise the strict toggles: strict is Headline:false in tools/gauntlet/stages.go so it moves neither bar, and a toggle-by-toggle refusal fixture is a separate unit from the crossing this script exists to be. live/e2e/reference-ec2-vpc/run.sh's PART G is the pattern for the estate that does carry one"
+        },
+        "test_apply": {
+          "verdict": "pass",
+          "seconds": 5,
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 38"
+        },
+        "test_plan": {
+          "verdict": "pass",
+          "seconds": 3,
+          "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
+        }
+      },
+      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json"
+    }
+  ]
+}
