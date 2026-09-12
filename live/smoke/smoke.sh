@@ -5,6 +5,7 @@
 #   bash live/smoke/smoke.sh greenfield
 #   bash live/smoke/smoke.sh import
 #   bash live/smoke/smoke.sh full
+#   bash live/smoke/smoke.sh k8s-greenfield   (a kind cluster, no emulator)
 #
 # Knobs (all optional):
 #   CHOUDOUFU_VERSION=v0.8.0   run a pinned release instead of source
@@ -47,7 +48,7 @@ export SMOKE_WORKROOT
 # shellcheck source=lib.sh
 . "$HERE/lib.sh"
 
-cleanup() { stack_down; rm -rf "$SMOKE_WORKROOT"; }
+cleanup() { stack_down; cluster_down; rm -rf "$SMOKE_WORKROOT"; }
 trap cleanup EXIT
 
 resolve_choudoufu

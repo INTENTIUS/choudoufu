@@ -37,7 +37,11 @@ const (
 // smokeDemoScenarios are the scenarios that are demos, not claims. They
 // carry no CLAIM header and no row; anything else under the scenario
 // directory must have both.
-var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true}
+// k8s-greenfield is a demo until the label carrier lands (#1057): it can
+// read a ConfigMap back but has no marker to read, so its BREAK=1 deletes
+// the object rather than stripping a label. When it can strip a label it
+// becomes a claim and leaves this list.
+var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true, "k8s-greenfield": true}
 
 type smokeClaimsFile struct {
 	Themes        map[string]string `json:"themes"`
