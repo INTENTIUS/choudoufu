@@ -360,7 +360,7 @@
     "kubernetes": {
       "label": "kubernetes lane",
       "estates": 1,
-      "clear": 0,
+      "clear": 1,
       "stages": {
         "cold_deploy": {
           "pass": 1,
@@ -410,8 +410,8 @@
           "not_run": 0
         },
         "migrate": {
-          "pass": 0,
-          "fail": 1,
+          "pass": 1,
+          "fail": 0,
           "not_run": 0
         },
         "plan_approval": {
@@ -430,8 +430,8 @@
           "not_run": 0
         },
         "test_plan": {
-          "pass": 0,
-          "fail": 1,
+          "pass": 1,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -2479,17 +2479,17 @@
         "day2_teardown": "pass",
         "drift_reconverge": "pass",
         "greenfield": "pass",
-        "migrate": "fail",
+        "migrate": "pass",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
-        "test_plan": "fail"
+        "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "c4eea79beec59d320674fb557a97e2147b97e119",
-        "date": "2026-09-12T06:56:04Z",
+        "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+        "date": "2026-09-12T14:41:53Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -2504,25 +2504,25 @@
           "day2_teardown": "apply -destroy removed exactly the 6 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 6 its state held",
           "drift_reconverge": "one ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the value reads back as configured. BREAK=1 tampers a second object and the single-object assertion correctly fails",
           "greenfield": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, five kinds); the record store held 8 file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails",
-          "migrate": "live-import -approve wrote no label: 0 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 7 skipped. It classes every kubernetes_* type as UNTAGGABLE (\"has no tags argument in the provider's schema\") because ratify.go's carrier is the AWS tags surface and does not know the label surface markers.LabelSurface added in #1061; a Kubernetes object binds by namespace and name, and the next plan proposes writing the label itself (marker repair), so adoption here is one apply away rather than one live-import away (#1073)",
+          "migrate": "7 of 7 stamped, 0 skipped; every object carries tofu-estate=reference-k8s, read back with kubectl",
           "plan_approval": "plan -out wrote one update (app-config gains reviewed=yes); the world then moved out of band (a stray label on shard-0, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed key); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails",
           "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the estate's five kinds, counted with kubectl",
-          "test_plan": "the plan with no state file is not empty: Plan: 0 to add, 7 to change, 0 to destroy. Every object bound by namespace and name (identities confirmed with kubectl: 1), and the changes are the tofu-estate label live-import never wrote (see migrate)"
+          "test_plan": "the plan with no state file is empty; all 7 identities (NAMESPACE/NAME) confirmed present with kubectl"
         },
-        "duration_s": 215.1,
+        "duration_s": 203.2,
         "stage_seconds": {
-          "cold_deploy": 65,
-          "day2_count": 25,
+          "cold_deploy": 62,
+          "day2_count": 26,
           "day2_remove": 16,
           "day2_rename": 10,
-          "day2_teardown": 19,
+          "day2_teardown": 18,
           "drift_reconverge": 10,
-          "greenfield": 16,
-          "migrate": 3,
+          "greenfield": 17,
+          "migrate": 4,
           "plan_approval": 16,
-          "strict": 13,
-          "test_apply": 16,
+          "strict": 12,
+          "test_apply": 6,
           "test_plan": 5
         }
       }

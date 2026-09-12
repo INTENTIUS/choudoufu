@@ -34,6 +34,23 @@ of them is fenced by the label it carries ([claim
 gate]({{< relref "/kubernetes/gate" >}}) says what that fence does not
 reach).
 
+## From a stock state file
+
+```
+choudoufu live-import -approve
+```
+
+The same bulk path as on AWS ([#1073](https://github.com/INTENTIUS/choudoufu/issues/1073)):
+the stock state is read once, each object is verified by namespace and
+name, and the `tofu-estate` label is written into `metadata.labels`
+through a labels-only plan and apply. A plan that would also rename the
+object, move it between namespaces or change anything outside the labels
+map is refused, and so is an object already labelled for another estate.
+Then delete the state file and plan: the plan is empty, because every
+object is found again by its name and carries the label. The gauntlet's
+`reference-k8s` estate measures exactly this at its `migrate` and
+`test_plan` stages.
+
 ## The marker
 
 On AWS the marker carries the config address, because AWS hands back opaque
