@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -49,7 +50,7 @@ func cloudControlSource(req Request, typeName string) (cfnType string, ok bool) 
 // candidate to refine when it did not. The refinement count rides on
 // [TypeScan.Refined] rather than staying invisible, and is logged per call
 // at [DEBUG] the same way [scanType]'s own client-side fallback is.
-func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, typeName, cfnType string, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
+func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName, cfnType string, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	scan := TypeScan{
@@ -65,7 +66,35 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			typeName, cfnType),
 	}
 
-	if taggable, known := req.Roster.TaggableKnown(cfnType); sweep && !taggable {
+	// live/registry.json's tagging.taggable is CloudFormation's claim about
+	// whether CLOUD CONTROL's own update-tags API can write this type's
+	// tags. It is not the question this guard needs answered, which is
+	// whether a live object of the type can CARRY the marker at all - and
+	// the two disagree: AWS::IAM::InstanceProfile is taggable:false with
+	// handlers.list:true, while the AWS provider gives
+	// aws_iam_instance_profile a tags argument, internal/live/stamp writes
+	// the marker onto it, and the terralith's stage J0 confirms the live
+	// profile carries this estate's marker. Trusting the registry alone
+	// returned before ListResources was ever called, filed a
+	// [SweepGapNotTaggable] that [sweepGapDiag] suppresses, and left a
+	// deleted block's live, marked instance profile with no destroy
+	// proposed and nothing said - issue #881's second half.
+	//
+	// [sweepViaTagging] already declines to trust the flag this way (its
+	// own untaggable case fires only when the joined candidate list is ALSO
+	// empty, so a real response refutes the registry empirically). This
+	// leg cannot refute it after the fact, because it declines before
+	// listing - so it consults the provider's own schema instead, which is
+	// the authoritative answer to "can this object carry a tag" and the
+	// same evidence [scanTypeMarkerFallback] already gates on.
+	//
+	// The early return survives for a type BOTH sources call untaggable:
+	// that one genuinely could never have been marked and listing it is
+	// waste. Cost of the change is at most one extra ListResources per
+	// affected TYPE per sweep - never one per resource - so the sweep stays
+	// flat in estate size, which is #1037/#1039's published claim and must
+	// not regress.
+	if taggable, known := req.Roster.TaggableKnown(cfnType); sweep && !taggable && !typeTaggable(schemas, typeName) {
 		res.Scans = append(res.Scans, scan)
 		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
 	}
