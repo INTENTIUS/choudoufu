@@ -26,17 +26,35 @@
 
 <section class="platforms">
   <h2>Pick your platform</h2>
-  <ul class="platform-list">
-    {{ range $prov }}
-    {{ $hub := site.GetPage (printf "/%s" .id) }}
-    <li class="platform status-{{ .status }}">
-      {{ with $hub }}<a href="{{ .RelPermalink }}"><span class="platform-name">{{ .Title }}</span></a>{{ else }}<span class="platform-name">{{ .name }}</span>{{ end }}
-      {{ if eq .status "soon" }}<span class="badge">coming soon</span>{{ end }}
-      <span class="platform-status">{{ .status_label | markdownify }}</span>
-    </li>
-    {{ end }}
-  </ul>
+  <div class="picker" data-picker>
+    <input type="search" placeholder="Find a platform" aria-label="Find a platform" data-picker-filter autocomplete="off">
+    <ul class="picker-list">
+      {{ range $prov }}
+      {{ $hub := site.GetPage (printf "/%s" .id) }}
+      <li class="picker-row status-{{ .status }}" data-name="{{ .name | lower }}">
+        {{ with $hub }}<a href="{{ .RelPermalink }}">{{ end }}<span class="picker-name">{{ .name }}</span>{{ if $hub }}</a>{{ end }}
+        {{ if eq .status "soon" }}<span class="badge">coming soon</span>{{ else if eq .status "proven" }}<span class="badge badge-proven">proven</span>{{ end }}
+        <span class="picker-status">{{ .status_label | markdownify }}</span>
+      </li>
+      {{ end }}
+    </ul>
+    <p class="picker-empty" hidden data-picker-empty>No platform by that name yet. <a href="{{ site.Params.repo }}/issues">Ask for one.</a></p>
+  </div>
 </section>
+<script>
+(function () {
+  var box = document.querySelector('[data-picker]'); if (!box) return;
+  var input = box.querySelector('[data-picker-filter]');
+  var rows = box.querySelectorAll('.picker-row');
+  var empty = box.querySelector('[data-picker-empty]');
+  if (rows.length < 6) input.hidden = true;
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase(), n = 0;
+    rows.forEach(function (r) { var hit = !q || r.dataset.name.indexOf(q) >= 0; r.hidden = !hit; if (hit) n++; });
+    empty.hidden = n > 0;
+  });
+})();
+</script>
 
 <section class="proof-strip">
   <h2>What stands behind it</h2>

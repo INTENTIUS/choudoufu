@@ -12,16 +12,9 @@ disableKinds = ["taxonomy", "term"]
   repo = "https://github.com/INTENTIUS/choudoufu"
   description = "OpenTofu with the record of what you own held by your platform, not a state file. Adopt live infrastructure, gate it with the policy engine you already run, and treat the state file as a cache."
 
-# The funnel's top level. Every provider hub is a first-class entry; the
-# evidence tier is one entry, off to the side.
-[[menus.main]]
-  name = "AWS"
-  pageRef = "/aws"
-  weight = 10
-[[menus.main]]
-  name = "Kubernetes"
-  pageRef = "/kubernetes"
-  weight = 20
+# The header's fixed entries. Platforms are not listed here: the header
+# renders a Platforms menu from site/data/providers.yaml, so a new platform
+# is a roster entry, never a menu edit.
 [[menus.main]]
   name = "How it works"
   pageRef = "/how-it-works"

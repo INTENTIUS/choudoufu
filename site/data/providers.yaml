@@ -15,7 +15,7 @@ providers:
   - id: aws
     name: AWS
     status: proven
-    status_label: "Proven. Every headline stage passes on every core estate against the pinned emulator, and two estates have run on a real account."
+    status_label: "Every headline stage passes on every core estate against the pinned emulator, and two estates have run on a real account."
     cells:
       identity: "Two resource tags, `tofu-estate` and `tofu-address`, written on the create call. About half the provider's types have no tag surface; those derive their identity from configuration or hold it in the record store."
       values: "A record store you declare or get by default: Parameter Store, S3, or a local directory, one record per instance under your IAM."

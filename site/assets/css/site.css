@@ -101,16 +101,37 @@ th { background: var(--surface-2); font-weight: 600; }
 .beat p { margin: 0; color: var(--ink-2); font-size: 0.97rem; }
 .platforms, .proof-strip { max-width: 60rem; margin: 2.5rem auto 0; padding: 0 clamp(1rem, 4vw, 2.5rem); }
 .platforms h2, .proof-strip h2 { margin-top: 0; font-size: 1.15rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-.platform-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.8rem; }
-.platform { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; }
-.platform-name { display: block; font-weight: 650; font-size: 1.1rem; margin-bottom: 0.25rem; }
-.platform a { text-decoration: none; color: var(--ink); }
-.platform a:hover .platform-name { color: var(--accent-ink); }
-.platform-status { display: block; color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
-.platform-status p { margin: 0; }
-.platform.status-proven { border-left: 4px solid var(--pass); }
-.platform.status-soon { border-left: 4px solid var(--warn-line); }
-.platform.status-not-planned { border-left: 4px solid var(--notrun); opacity: 0.85; }
+.picker { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0.6rem 0.6rem 0.4rem; max-width: 40rem; }
+.picker input { width: 100%; font: inherit; padding: 0.5rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); margin-bottom: 0.4rem; }
+.picker input[hidden] { display: none; }
+.picker-list { list-style: none; margin: 0; padding: 0; max-height: 24rem; overflow: auto; }
+.picker-row { display: grid; grid-template-columns: auto auto 1fr; align-items: baseline; gap: 0.6rem; padding: 0.6rem 0.6rem; border-top: 1px solid var(--line); }
+.picker-row:first-child { border-top: 0; }
+.picker-row[hidden] { display: none; }
+.picker-row a { text-decoration: none; color: var(--ink); }
+.picker-row a:hover .picker-name { color: var(--accent-ink); }
+.picker-name { font-weight: 650; font-size: 1.05rem; }
+.picker-status { color: var(--muted); font-size: 0.88rem; line-height: 1.4; grid-column: 1 / -1; }
+.picker-status p { margin: 0; }
+.picker-row.status-soon .picker-name { color: var(--ink-2); }
+.picker-empty { color: var(--muted); font-size: 0.9rem; margin: 0.4rem 0.6rem; }
+.badge-proven { color: var(--pass); border-color: var(--pass); }
+/* header platforms menu */
+.menu { position: relative; }
+.menu summary { list-style: none; cursor: pointer; color: var(--ink-2); font-size: 0.95rem; padding: 0.2rem 0; border-bottom: 2px solid transparent; }
+.menu summary::-webkit-details-marker { display: none; }
+.menu summary::after { content: " ▾"; font-size: 0.8em; color: var(--muted); }
+.menu summary:hover, .menu[data-current] summary { color: var(--ink); border-bottom-color: var(--accent); }
+.menu-list { position: absolute; left: 0; top: 2rem; min-width: 14rem; max-height: 22rem; overflow: auto; list-style: none; margin: 0; padding: 0.4rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.08); z-index: 6; }
+.menu-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.95rem; }
+.menu-list li.current { background: var(--accent-soft); }
+.menu-list li a { color: var(--ink); text-decoration: none; border: 0; padding: 0; }
+.menu-list li:hover { background: var(--surface-2); }
+.menu-list .badge { margin: 0; }
+/* platform switcher at the top of a hub's sidebar */
+.switcher { display: block; margin-bottom: 0.6rem; }
+.switcher span { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 0.2rem; }
+.switcher select { width: 100%; font: inherit; font-weight: 600; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
 .stats { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.8rem; }
 .stats li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; font-size: 0.95rem; color: var(--ink-2); }
 .stats a { text-decoration: none; color: inherit; }

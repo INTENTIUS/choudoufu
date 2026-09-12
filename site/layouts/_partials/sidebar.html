@@ -3,8 +3,29 @@
        six slots; the evidence tier shows its subsections. */ -}}
 {{- $top := .FirstSection -}}
 {{- $cur := . -}}
+{{- $provs := hugo.Data.providers.providers -}}
+{{- $isHub := false -}}
+{{- range $provs }}{{ if eq $top.Section .id }}{{ $isHub = true }}{{ end }}{{ end -}}
 <nav class="sidebar" aria-label="Section">
+  {{- if $isHub }}
+  {{- /* A platform switcher: the same slot on another platform, when it has one. */ -}}
+  {{- $slot := "" }}{{ if ne $cur $top }}{{ $slot = path.Base $cur.File.Path | strings.TrimSuffix ".md" }}{{ end }}
+  <label class="switcher"><span>Platform</span>
+    <select data-switch>
+      {{- range $provs }}
+      {{- $hub := site.GetPage (printf "/%s" .id) }}
+      {{- if $hub }}
+      {{- $target := $hub }}
+      {{- if $slot }}{{ with site.GetPage (printf "/%s/%s" .id $slot) }}{{ $target = . }}{{ end }}{{ end }}
+      <option value="{{ $target.RelPermalink }}"{{ if eq .id $top.Section }} selected{{ end }}>{{ .name }}{{ if eq .status "soon" }} (coming soon){{ end }}</option>
+      {{- end }}
+      {{- end }}
+    </select>
+  </label>
+  <script>document.querySelector('[data-switch]').addEventListener('change', function () { location.href = this.value; });</script>
+  {{- else }}
   <a class="sidebar-top{{ if eq $cur $top }} active{{ end }}" href="{{ $top.RelPermalink }}">{{ $top.Title }}</a>
+  {{- end }}
   <ul>
   {{- range $top.RegularPages.ByWeight }}
     <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
