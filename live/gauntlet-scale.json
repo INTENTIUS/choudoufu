@@ -169,7 +169,7 @@
       },
       "total_seconds": 11180.5,
       "unaccounted_seconds": 11180.5,
-      "source": "git show a3bf9756b8c959a02b20a3793987573e749103a9:live/gauntlet.json"
+      "source": "git show fce6b53e202878c2b21f0539af5026095a5fddcb:live/gauntlet.json"
     },
     {
       "schema": 1,
@@ -333,31 +333,9 @@
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         }
       },
-      "plan_calls": {
-        "cold": {
-          "choudoufu": 21423,
-          "stock": 17422
-        },
-        "warm": {
-          "choudoufu": 21620
-        }
-      },
-      "audit_calls": {
-        "sweep": {
-          "choudoufu": 12467
-        },
-        "read_pass": {
-          "choudoufu": 17429,
-          "stock": 17422
-        },
-        "total": {
-          "choudoufu": 29896,
-          "stock": 17422
-        }
-      },
       "total_seconds": 13919.9,
       "unaccounted_seconds": 0.9,
-      "source": "git show a3bf9756b8c959a02b20a3793987573e749103a9:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9bd278a2926ba2783ae72d2ee1e9d74ddc4aa7e1"
+      "source": "git show fce6b53e202878c2b21f0539af5026095a5fddcb:live/gauntlet.json"
     },
     {
       "schema": 1,
