@@ -51,11 +51,37 @@ func Count(ctx context.Context, mod *configs.Module, expr hcl.Expression) (int, 
 // ForEachKeys computes the instance keys a for_each expression produces, or
 // reports that they are not computable here.
 //
+// It is [ForEachElements] with the values dropped - kept as its own
+// function because most callers (a lint pass, an address-length check) only
+// ever wanted the key set, sorted, and never needed each.value at all.
+func ForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expression) ([]string, bool) {
+	elems, ok := ForEachElements(ctx, mod, expr)
+	if !ok {
+		return nil, false
+	}
+	keys := make([]string, 0, len(elems))
+	for k := range elems {
+		keys = append(keys, k)
+	}
+	// Sorted so that two runs over one configuration report the same issues
+	// in the same order; cty iterates a map in key order already, but an
+	// object type's attribute order is not something to rely on here.
+	sort.Strings(keys)
+	return keys, true
+}
+
+// ForEachElements computes the (key, each.value) pairs a for_each
+// expression produces, or reports that they are not computable here. It is
+// the wider sibling [ForEachKeys] delegates to: a caller building one
+// instance's own count.index/each.key/each.value scope (see
+// internal/live/discovery's directread.go) needs the value half too, not
+// only the key set.
+//
 // The traversal pre-filter is not an optimization: staticScopeData panics by
 // contract on repetition, resource, module, output and check references
 // ("Not Available in Static Context"), so an expression mentioning one must
 // not be handed to the static evaluator at all.
-func ForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expression) ([]string, bool) {
+func ForEachElements(ctx context.Context, mod *configs.Module, expr hcl.Expression) (map[string]cty.Value, bool) {
 	if mod == nil || mod.StaticEvaluator == nil {
 		return nil, false
 	}
@@ -69,15 +95,15 @@ func ForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expression) 
 	}
 
 	ty := val.Type()
-	var keys []string
+	elems := make(map[string]cty.Value)
 	switch {
 	case ty.IsMapType(), ty.IsObjectType():
 		for it := val.ElementIterator(); it.Next(); {
-			k, _ := it.Element()
+			k, v := it.Element()
 			if k.Type() != cty.String || k.IsNull() {
 				return nil, false
 			}
-			keys = append(keys, k.AsString())
+			elems[k.AsString()] = v
 		}
 	case ty.IsSetType(), ty.IsListType(), ty.IsTupleType():
 		for it := val.ElementIterator(); it.Next(); {
@@ -97,15 +123,14 @@ func ForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expression) 
 			if v.IsMarked() {
 				return nil, false
 			}
-			keys = append(keys, v.AsString())
+			// A set/list/tuple for_each has no separate key: each.key and
+			// each.value are the same string, exactly as
+			// [instances.RepetitionData]'s own doc for a set-backed for_each
+			// describes.
+			elems[v.AsString()] = v
 		}
 	default:
 		return nil, false
 	}
-
-	// Sorted so that two runs over one configuration report the same issues
-	// in the same order; cty iterates a map in key order already, but an
-	// object type's attribute order is not something to rely on here.
-	sort.Strings(keys)
-	return keys, true
+	return elems, true
 }

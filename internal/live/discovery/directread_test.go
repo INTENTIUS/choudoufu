@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -47,6 +48,15 @@ func withDirectReadWiringRemoved(t *testing.T) {
 // 21 minutes after migrate, without yet knowing about this address.
 func directReadFixtureRequest(t *testing.T, cloud *fakeCloud) Request {
 	t.Helper()
+	return directReadFixtureRequestDir(t, cloud, "testdata/iam-policy-direct-read")
+}
+
+// directReadFixtureRequestDir is [directReadFixtureRequest] against an
+// arbitrary fixture directory, for issue #1049's count and for_each
+// variants: same settled-but-silent tag index, same shape, a different
+// configuration.
+func directReadFixtureRequestDir(t *testing.T, cloud *fakeCloud, dir string) Request {
+	t.Helper()
 	srv := &taggingServer{}
 	// The index has caught up on some OTHER resource, never this one - what
 	// makes this a lag rather than an outage: [markerIndex.available]
@@ -55,7 +65,7 @@ func directReadFixtureRequest(t *testing.T, cloud *fakeCloud) Request {
 	req := taggingRequest(t, srv)
 	req.Provider = cloud
 
-	cfg := loadConfig(t, "testdata/iam-policy-direct-read")
+	cfg := loadConfig(t, dir)
 	req.Estate = estateName
 	req.Config = cfg
 	req.Resolutions = resolveOrFail(t, cfg).All()
@@ -175,6 +185,207 @@ func TestDirectReadRefusesAForeignMarker(t *testing.T) {
 		}
 		if got := found[0].Addr.String(); got != `aws_iam_policy.team_0002_policy` {
 			t.Errorf("the refusal names %s, want aws_iam_policy.team_0002_policy", got)
+		}
+		t.Logf("GREEN, quoted verbatim: %s", found[0].Detail)
+	})
+}
+
+// TestDirectReadBindsATagIndexLaggedCountInstance is issue #1049's primary
+// fix: a terralith is mostly count-expanded IAM policies, and #1046's
+// scalar-only fallback refused every one of them outright. Instance [1]'s
+// own name argument reads count.index, so composing its candidate ARN needs
+// [instanceRepetitionData] to bind count.index = 1 for this instance
+// specifically - not 0, not 2 - before [composeIAMPolicyARN] can evaluate
+// "team-${count.index}-policy".
+func TestDirectReadBindsATagIndexLaggedCountInstance(t *testing.T) {
+	const arn = "arn:aws:iam::000000000000:policy/team-1-policy"
+
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+
+	cloud.own("aws_iam_policy", arn, `aws_iam_policy.team_policy[1]`)
+	// iam:ListPolicies returns no tags at all; stripTags reproduces that on
+	// the list path while leaving the object itself listed and listable.
+	stripTags(t, cloud, "aws_iam_policy", arn)
+	cloud.withDirectReadTags(t, "aws_iam_policy", arn, map[string]string{
+		TagEstate:  estateName,
+		TagAddress: `aws_iam_policy.team_policy[1]`,
+	})
+	// Filler stands in for team_policy[0] and team_policy[2] plus the rest
+	// of a large account's other policies, also unreadable - the ordinary
+	// shape this run has to see past, not this test's point. Neither [0]
+	// nor [2] has a live object in this fake cloud at all, so their own
+	// direct reads come back "absent" and they keep the ordinary warning -
+	// asserted below by name, so a regression that also binds them wrongly
+	// would be caught.
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+
+	req := directReadFixtureRequestDir(t, cloud, "testdata/iam-policy-direct-read-count")
+
+	t.Run("RED: without the fallback wired into bind, the plan proposes a duplicate create with no warning at all", func(t *testing.T) {
+		withDirectReadWiringRemoved(t)
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+		if _, ok := res.BindingFor(mustAddr(t, "aws_iam_policy.team_policy[1]")); ok {
+			t.Fatal("bound with the fallback's own bind()-site removed - this RED proof no longer isolates anything")
+		}
+		// A count block's own zero-claimant case never produces
+		// ProblemUnreadableMarker at all - see bindtags.go's own doc
+		// comment ("A count instance going unbound over an unreadable
+		// object of its type is still silent") - so today's behaviour here
+		// is not a warning to quote, it is the complete absence of one: the
+		// plan simply proposes a create over an address whose live object
+		// already exists.
+		if found := problemsOfKind(res, ProblemUnreadableMarker); len(found) != 0 {
+			t.Fatalf("want no UNREADABLE_MARKER problems (count blocks never produce one), got %d:\n%s", len(found), res)
+		}
+		if found := problemsOfKind(res, ProblemDirectReadUnresolved); len(found) != 0 {
+			t.Fatalf("want no DIRECT_READ_UNRESOLVED refusals with the fallback's own wiring removed, got %d:\n%s", len(found), res)
+		}
+		unbound := 0
+		for _, u := range res.Unbound {
+			if u.String() == "aws_iam_policy.team_policy[1]" {
+				unbound++
+			}
+		}
+		if unbound != 1 {
+			t.Fatalf("want aws_iam_policy.team_policy[1] reported Unbound exactly once with no explanation, got %d\n%s", unbound, res)
+		}
+		t.Logf("RED, quoted verbatim: aws_iam_policy.team_policy[1] is Unbound with zero diagnostics - a silent create over a live object that already carries this estate's marker")
+	})
+
+	t.Run("GREEN: the direct read finds the real marker and binds instance [1] only", func(t *testing.T) {
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+
+		binding, ok := res.BindingFor(mustAddr(t, "aws_iam_policy.team_policy[1]"))
+		if !ok || binding.ImportID != arn {
+			t.Fatalf("aws_iam_policy.team_policy[1] did not bind via the direct-read fallback: ok=%v binding=%+v\n%s", ok, binding, res)
+		}
+		if _, ok := res.BindingFor(mustAddr(t, "aws_iam_policy.team_policy[0]")); ok {
+			t.Error("team_policy[0] bound too - it has no live object at its own composed ARN")
+		}
+		if _, ok := res.BindingFor(mustAddr(t, "aws_iam_policy.team_policy[2]")); ok {
+			t.Error("team_policy[2] bound too - it has no live object at its own composed ARN")
+		}
+		scan, ok := res.ScanFor("aws_iam_policy")
+		if !ok || scan.DirectRead != 3 {
+			t.Errorf("aws_iam_policy scan = %+v, want DirectRead=3 (one attempt per count instance)", scan)
+		}
+	})
+}
+
+// TestDirectReadBindsATagIndexLaggedForEachInstance is #1049's for_each
+// sibling: the collection (toset(["ops", "dev"])) is fully static, so
+// [staticeval.ForEachElements] can enumerate it and bind each.key/each.value
+// for one specific key ("ops") without touching the other ("dev").
+func TestDirectReadBindsATagIndexLaggedForEachInstance(t *testing.T) {
+	const arn = "arn:aws:iam::000000000000:policy/team-ops-policy"
+
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+
+	cloud.own("aws_iam_policy", arn, `aws_iam_policy.team_policy["ops"]`)
+	stripTags(t, cloud, "aws_iam_policy", arn)
+	cloud.withDirectReadTags(t, "aws_iam_policy", arn, map[string]string{
+		TagEstate:  estateName,
+		TagAddress: `aws_iam_policy.team_policy["ops"]`,
+	})
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+
+	req := directReadFixtureRequestDir(t, cloud, "testdata/iam-policy-direct-read-foreach")
+
+	t.Run("RED: without the fallback wired into bind, the plan proposes a duplicate create", func(t *testing.T) {
+		withDirectReadWiringRemoved(t)
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+		if _, ok := res.BindingFor(mustAddr(t, `aws_iam_policy.team_policy["ops"]`)); ok {
+			t.Fatal("bound with the fallback's own bind()-site removed - this RED proof no longer isolates anything")
+		}
+		found := problemsOfKind(res, ProblemUnreadableMarker)
+		if len(found) != 2 {
+			t.Fatalf("want one UNREADABLE_MARKER warning per for_each instance (today's behaviour), got %d:\n%s", len(found), res)
+		}
+		t.Logf("RED, quoted verbatim: %s", found[0].Detail)
+	})
+
+	t.Run("GREEN: the direct read finds the real marker and binds the \"ops\" key only", func(t *testing.T) {
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+
+		binding, ok := res.BindingFor(mustAddr(t, `aws_iam_policy.team_policy["ops"]`))
+		if !ok || binding.ImportID != arn {
+			t.Fatalf(`aws_iam_policy.team_policy["ops"] did not bind via the direct-read fallback: ok=%v binding=%+v`+"\n%s", ok, binding, res)
+		}
+		if _, ok := res.BindingFor(mustAddr(t, `aws_iam_policy.team_policy["dev"]`)); ok {
+			t.Error(`team_policy["dev"] bound too - it has no live object at its own composed ARN`)
+		}
+		scan, ok := res.ScanFor("aws_iam_policy")
+		if !ok || scan.DirectRead != 2 {
+			t.Errorf("aws_iam_policy scan = %+v, want DirectRead=2 (one attempt per for_each instance)", scan)
+		}
+	})
+}
+
+// TestDirectReadRefusesADynamicForEachCollection is #1049's negative proof:
+// a for_each over another managed resource (aws_subnet.this) produces real,
+// addressable instances - identity.Resolve derives their keys from the
+// parent block's own expansion, never from a read - but the collection
+// itself is not evaluable through [staticeval.ForEachElements] (its root is
+// a managed resource, not var/local/path/terraform), so
+// [instanceRepetitionData] cannot bind each.key/each.value from
+// configuration alone. This population must keep refusing exactly like
+// #1046's original scalar-only restriction did, and the refusal must say
+// WHY: the collection is not statically known, not merely "no scope".
+func TestDirectReadRefusesADynamicForEachCollection(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+	// noFilter, same as stripTags uses: an untagged filler object is exactly
+	// what a server-side estate filter would otherwise drop before this run
+	// ever saw it, and decl.unreadable (this fallback's own precondition)
+	// needs at least one unreadable LISTED object of the type, not merely
+	// one that exists.
+	cloud.noFilter("aws_iam_policy")
+	// No live object at all for either key: this test is about the refusal
+	// firing before any read is even attempted, not about what a read would
+	// have found.
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+
+	req := directReadFixtureRequestDir(t, cloud, "testdata/iam-policy-direct-read-foreach-dynamic")
+
+	t.Run("RED: without the fallback wired into bind, this still just warns and proposes a create", func(t *testing.T) {
+		withDirectReadWiringRemoved(t)
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+		found := problemsOfKind(res, ProblemUnreadableMarker)
+		if len(found) != 2 {
+			t.Fatalf("want one UNREADABLE_MARKER warning per for_each instance (today's behaviour), got %d:\n%s", len(found), res)
+		}
+		t.Logf("RED, quoted verbatim: %s", found[0].Detail)
+	})
+
+	t.Run("GREEN: the fallback refuses both instances, naming the collection as the reason", func(t *testing.T) {
+		res, diags := Discover(context.Background(), req)
+		if !diags.HasErrors() {
+			t.Fatalf("a dynamic for_each collection produced no error:\n%s", res)
+		}
+		for _, key := range []string{`"a"`, `"b"`} {
+			addr := mustAddr(t, `aws_iam_policy.dynamic_policy[`+key+`]`)
+			if _, ok := res.BindingFor(addr); ok {
+				t.Errorf("%s bound despite its collection not being statically known", addr)
+			}
+		}
+		found := problemsOfKind(res, ProblemDirectReadUnresolved)
+		if len(found) != 2 {
+			t.Fatalf("want one DIRECT_READ_UNRESOLVED refusal per instance, got %d:\n%s", len(found), res)
+		}
+		for _, p := range found {
+			if p.Kind.Severity() != SeverityError {
+				t.Error("the refusal is a warning; it must be an error")
+			}
+			if !strings.Contains(p.Detail, "not itself statically known") {
+				t.Errorf("refusal does not name the collection as the reason: %s", p.Detail)
+			}
 		}
 		t.Logf("GREEN, quoted verbatim: %s", found[0].Detail)
 	})
