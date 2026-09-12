@@ -1,7 +1,7 @@
 ---
 title: "Proof"
 weight: 5
-description: "Which claims are restated for Kubernetes, which do not apply, what a sweep would cost, and what the evidence path would be."
+description: "Which claims are restated for Kubernetes, which do not apply, what a sweep would cost, and the kind-cluster harness the next units run against."
 deeper:
   - "[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016), \"The one-call sweep, and claim 14 with it\"."
   - "[The claims]({{< relref \"/docs/claims\" >}}): every claim's AWS scenario, and the Kubernetes note on each."
@@ -10,20 +10,31 @@ deeper:
 
 # Proof
 
-Nothing is proven on Kubernetes yet. What exists is a statement, per claim,
-of what would be true there, written into the claims data rather than left
-implicit. The table below shows only the claims whose Kubernetes cell is not
+Nothing is proven on Kubernetes yet. What exists is a harness, below, and a
+statement per claim of what would be true there, written into the claims
+data rather than left implicit. The table below shows only the claims whose Kubernetes cell is not
 still open; hover a cell for its note.
 
 {{< claims-table provider="kubernetes" >}}
 
-## The evidence path
+## The harness
 
-The AWS claims run against a local emulator in Docker. A kind or k3d cluster
-in Docker is a real API server, so the same scenario shape, verdict line per
-step and `BREAK=1` inversion, transfers without the emulator-fidelity question
-that stopped a second cloud. That is the plan, not a measurement; no scenario
-exists yet.
+```
+just smoke k8s-greenfield
+```
+
+The AWS claims run against a local emulator in Docker. This runs against a
+kind cluster in Docker, which is a real API server, so the same scenario
+shape carries over without the emulator-fidelity question that stopped a
+second cloud: a verdict line per step, exit 0 only when every claim held,
+`BREAK=1` manufacturing the fault. The scenario applies a namespace and a
+ConfigMap under a `live` block with no AWS provider anywhere, replans empty,
+loses its cache without consequence, and destroys exactly; its `BREAK=1`
+deletes the ConfigMap out of band and requires the replan to propose the
+create. It is a demo rather than a claim until the label carrier lands: the
+object it reads back carries no marker yet, and the scenario fails itself
+the day one appears, so its promotion to a claim cannot be forgotten
+([#1057](https://github.com/INTENTIUS/choudoufu/issues/1057)).
 
 A Kubernetes estate would enter the gauntlet manifest with its own lane, run
 the same stages against its own substrate, and count toward its own bar,

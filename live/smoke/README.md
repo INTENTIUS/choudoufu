@@ -33,6 +33,7 @@ real user path with a verdict line per step. The harness is versioned
 just smoke                # list scenarios
 just smoke greenfield     # a new estate from nothing
 just smoke import         # stock estate -> delete the state file -> adopt
+just smoke k8s-greenfield # the same life on a real kind cluster, no emulator (#1057)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -48,6 +49,22 @@ just smoke full           # the comprehensive 15-step harness (~6 minutes)
   plans empty from markers alone; one identity is asserted by value with
   the AWS CLI and no choudoufu in the loop.
 - **full** - wraps `live/e2e/run.sh --expect 5`, the 15-step harness.
+
+## Kubernetes
+
+`k8s-greenfield` is the first Kubernetes scenario and the harness every
+Kubernetes unit runs against (#1057, the order #1016's ruling set). It
+starts no emulator: `cluster_up` in `lib.sh` creates a kind cluster named
+by the run, writes its kubeconfig under the run's own work directory, and
+exports `KUBE_CONFIG_PATH` for the provider; `cluster_down` deletes it on
+exit. A kind cluster is a real API server, so what the scenario asserts is
+what any cluster answers. Needs `kind` and `kubectl` on PATH.
+
+It is a demo, not a claim, until the label carrier lands: the ConfigMap it
+creates carries no `tofu-estate` label yet, and the scenario says so in its
+own step 2 and fails itself the day one appears, so the promotion to a claim
+cannot be forgotten. Its `BREAK=1` deletes the object out of band and
+requires the replan to propose the create.
 
 ## Claim scenarios
 

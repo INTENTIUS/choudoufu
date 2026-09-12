@@ -102,6 +102,30 @@ stack_up() {
 
 stack_down() { "${COMPOSE[@]}" down --remove-orphans >/dev/null 2>&1 || true; }
 
+# cluster_up stands up a kind cluster for a Kubernetes scenario (#1057):
+# one per run, named by SMOKE_ID like the compose project, its kubeconfig
+# under SMOKE_WORKROOT and never the user's own. KUBE_CONFIG_PATH is what
+# the hashicorp/kubernetes provider reads, so a fixture needs no
+# config_path argument. A kind cluster is a real API server, not an
+# emulator: everything a scenario asserts against it is what any cluster
+# would answer. Needs kind (https://kind.sigs.k8s.io) and kubectl on PATH.
+CLUSTER_NAME=""
+cluster_up() {
+  command -v kind >/dev/null 2>&1 || fail "cluster" "kind is not installed; this scenario needs a kind cluster (brew install kind)"
+  command -v kubectl >/dev/null 2>&1 || fail "cluster" "kubectl is not installed"
+  CLUSTER_NAME="chdf-smoke-$(echo "$SMOKE_ID" | tr -c 'a-z0-9-\n' '-' | cut -c1-30)"
+  export KUBECONFIG="$SMOKE_WORKROOT/kubeconfig" KUBE_CONFIG_PATH="$SMOKE_WORKROOT/kubeconfig"
+  kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG" --wait 120s >"$SMOKE_WORKROOT/logs/kind.log" 2>&1 \
+    || fail "cluster" "kind create cluster failed: $(tail -5 "$SMOKE_WORKROOT/logs/kind.log")"
+  echo "  cluster up: kind $CLUSTER_NAME ($(kubectl version 2>/dev/null | grep -i server | head -1 || echo 'server version unknown'))"
+}
+
+cluster_down() {
+  [ -n "$CLUSTER_NAME" ] || return 0
+  kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
+  CLUSTER_NAME=""
+}
+
 # oracle_up prepares the stock leg: the shared plugin volume is created
 # root-owned by docker, and the oracle runs as the invoking user so the
 # files it writes into the mounted workdir stay deletable - so the volume
