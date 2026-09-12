@@ -74,6 +74,43 @@ func FirstDisallowed(expr hcl.Expression) (root string, found bool) {
 	return "", false
 }
 
+// AllowedScoped is [Allowed] widened to admit "count" and "each" as well: a
+// caller that already holds one resource instance's own
+// [instances.RepetitionData] - built the same way [Count] and
+// [ForEachElements] derive one, for a count or for_each whose whole
+// collection is itself in [Allowed]'s subset - can resolve those two roots
+// itself through [configs.StaticEvaluator.WithRepetitionData] and
+// [Scoped], without needing the wider module-tree resolver [Evaluable]
+// defers to.
+//
+// It stays narrower than [Evaluable]: module, data and self are still
+// refused here, because nothing in this leaf package resolves them, and
+// admitting the root name alone says nothing about whether the *value*
+// count.index/each.key/each.value carries is actually known - a reference
+// to "count" or "each" when the caller's own rep has no value bound for
+// that field surfaces as an ordinary evaluation diagnostic from
+// [configs.StaticEvaluator], never a panic, exactly like a reference to
+// something [Allowed] admits that turns out to be unknown.
+func AllowedScoped(root string) bool {
+	switch root {
+	case "count", "each":
+		return true
+	}
+	return Allowed(root)
+}
+
+// FirstDisallowedScoped is [FirstDisallowed] over [AllowedScoped]'s wider
+// root set - the pre-filter [ArgumentScoped] runs before handing an
+// expression to [Scoped].
+func FirstDisallowedScoped(expr hcl.Expression) (root string, found bool) {
+	for _, trav := range expr.Variables() {
+		if !AllowedScoped(trav.RootName()) {
+			return trav.RootName(), true
+		}
+	}
+	return "", false
+}
+
 // Evaluable is the wider root set: [Allowed] plus count, module, data and
 // self. It answers a different question - "will the evaluator deal with
 // this root itself" rather than "can the static scope produce a value for

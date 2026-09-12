@@ -2050,6 +2050,29 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				sawAccountID = true
 				scan.AccountID = acct
 			}
+		} else if scan.AccountID == "" {
+			// Issue #1054: some types' native list identity carries only
+			// "arn" - no separate "account_id" attribute at all. Confirmed
+			// against the real provider (TF_LOG=debug): aws_iam_policy's
+			// ListResource identity schema has exactly one attribute, arn,
+			// never account_id, on every digest - this is not something
+			// #1045's floci repin changed. Before that repin, aws_iam_policy
+			// was always found through the tag index (the Tagging API
+			// incorrectly served IAM), so directReadFallback's own account-
+			// ID read never had to work; the repin made floci match real
+			// AWS and stopped serving IAM through the tag index, and only
+			// then did this gap surface. The ARN already names the account,
+			// so parse it (cloudcontrol.ParseARN, the same parser the
+			// tagging sweep already trusts) rather than treating the type as
+			// accountless. Deliberately independent of sawAccountID/
+			// sawIdentity above, which mean something different for the
+			// FilterServerSide diagnostic below: whether the identity SCHEMA
+			// itself carries "account_id" at all.
+			if arnStr, ok := r.IdentityAttr("arn"); ok {
+				if a, ok := cloudcontrol.ParseARN(arnStr); ok && a.Account != "" {
+					scan.AccountID = a.Account
+				}
+			}
 		}
 
 		importID, idAttr, hasID := importIdentity(typeName, r)
@@ -3867,7 +3890,7 @@ func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags
 		// Count blocks first: their instances are a set, and the set matcher
 		// owns every one of them at once.
 		for _, cb := range sortedCountBlocks(decl.counts[typeName]) {
-			diags = diags.Append(bindCountBlock(req, cb, res, bound))
+			diags = diags.Append(bindCountBlock(ctx, req, decl, cb, res, bound))
 		}
 
 		for _, escaped := range decl.order[typeName] {

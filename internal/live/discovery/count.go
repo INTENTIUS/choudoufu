@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -188,11 +189,11 @@ func countBlockFor(blocks map[string]*countBlock, escaped string) *countBlock {
 // res.Orphans, removal planning's own business (P5.1), which is the same
 // mechanism that already destroys a shrunk, slotless estate's leftover
 // cleanly.
-func bindCountBlock(req Request, cb *countBlock, res *Result, bound map[string]Binding) tfdiags.Diagnostics {
+func bindCountBlock(ctx context.Context, req Request, decl *declared, cb *countBlock, res *Result, bound map[string]Binding) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if cb.hasRecordBackedEntry() {
-		return bindCountByAddress(req, cb, res, bound)
+		return bindCountByAddress(ctx, req, decl, cb, res, bound)
 	}
 
 	live := cb.claimants()
@@ -215,7 +216,7 @@ func bindCountBlock(req Request, cb *countBlock, res *Result, bound map[string]B
 		}))
 
 	case slots.ModeAll:
-		return bindCountBySlot(req, cb, res, bound, live, set)
+		return bindCountBySlot(ctx, req, decl, cb, res, bound, live, set)
 
 	default:
 		// ModeNone and ModeEmpty. An estate whose count instances are told
@@ -223,7 +224,7 @@ func bindCountBlock(req Request, cb *countBlock, res *Result, bound map[string]B
 		// existed - and the empty case, a set being created for the first
 		// time, which the same code covers because both assign slot i to
 		// index i.
-		return bindCountByAddress(req, cb, res, bound)
+		return bindCountByAddress(ctx, req, decl, cb, res, bound)
 	}
 }
 
@@ -237,7 +238,16 @@ func bindCountBlock(req Request, cb *countBlock, res *Result, bound map[string]B
 // the addresses already express - and it is visible in the plan as a
 // tofu-slot tag being added to each member, which is the only place a
 // one-time change to an estate's ownership records should ever be visible.
-func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[string]Binding) tfdiags.Diagnostics {
+//
+// GitHub issue #1049: a zero-claimant entry (case 0 below) is exactly the
+// population [directReadFallback] exists for - a count instance whose type
+// composes its own live ARN from configuration (see directread.go), unbound
+// here only because the estate's tag index has not caught up with a recent
+// migration yet. The fallback is tried per entry, the same way [bind]'s own
+// scalar/for_each loop tries it, before this falls back to the silent
+// Unbound [unreadableMarkerProblem]'s own doc comment describes for a count
+// block's ordinary case.
+func bindCountByAddress(ctx context.Context, req Request, decl *declared, cb *countBlock, res *Result, bound map[string]Binding) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	for i, entry := range cb.entries {
@@ -259,7 +269,23 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 			// carried - that half of this case is unrelated to Unbound and
 			// correct either way.
 			if !entry.recordBacked {
-				res.Unbound = append(res.Unbound, entry.res.Addr)
+				handled := false
+				if directReadFallbackEnabled {
+					switch outcome, cl, why := directReadFallback(ctx, req, decl, res, cb.typeName, entry.escaped, entry.res.Addr); outcome {
+					case directReadBound:
+						if diag, hasProblem := bindClaimant(res, bound, cb.typeName, entry.escaped, entry.res.Addr, *cl); hasProblem {
+							diags = diags.Append(diag)
+						}
+						handled = true
+					case directReadForeign, directReadUnavailable:
+						res.Unbound = append(res.Unbound, entry.res.Addr)
+						diags = diags.Append(problemDiag(res, directReadRefusalProblem(req, cb.typeName, entry.res.Addr, why)))
+						handled = true
+					}
+				}
+				if !handled {
+					res.Unbound = append(res.Unbound, entry.res.Addr)
+				}
 			}
 			res.Slots = append(res.Slots, SlotAssignment{
 				Addr: entry.res.Addr, Key: entry.escaped,
@@ -356,7 +382,14 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 // plan shows the tag moving, and an apply writes it. See the package doc
 // ("Slots bind; addresses follow") for why that is a repair rather than the
 // plan silently changing which resource a marker points at.
-func bindCountBySlot(req Request, cb *countBlock, res *Result, bound map[string]Binding, live []claimant, set []slots.Live) tfdiags.Diagnostics {
+//
+// GitHub issue #1049: [match.Deficit] is a slot-mode estate's own version of
+// [bindCountByAddress]'s zero-claimant case - a declared instance with no
+// live member at its slot, which after a migration is exactly what a
+// tag-index lag looks like for a type whose live ARN composes from
+// configuration (directread.go). The fallback is tried there too, before
+// falling back to the plain, silent Unbound this function already produced.
+func bindCountBySlot(ctx context.Context, req Request, decl *declared, cb *countBlock, res *Result, bound map[string]Binding, live []claimant, set []slots.Live) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	match, err := slots.Match(len(cb.entries), set)
@@ -436,7 +469,21 @@ func bindCountBySlot(req Request, cb *countBlock, res *Result, bound map[string]
 		if cb.entries[d.Index].recordBacked {
 			continue
 		}
-		res.Unbound = append(res.Unbound, cb.entries[d.Index].res.Addr)
+		entry := cb.entries[d.Index]
+		if directReadFallbackEnabled {
+			switch outcome, cl, why := directReadFallback(ctx, req, decl, res, cb.typeName, entry.escaped, entry.res.Addr); outcome {
+			case directReadBound:
+				if diag, hasProblem := bindClaimant(res, bound, cb.typeName, entry.escaped, entry.res.Addr, *cl); hasProblem {
+					diags = diags.Append(diag)
+				}
+				continue
+			case directReadForeign, directReadUnavailable:
+				res.Unbound = append(res.Unbound, entry.res.Addr)
+				diags = diags.Append(problemDiag(res, directReadRefusalProblem(req, cb.typeName, entry.res.Addr, why)))
+				continue
+			}
+		}
+		res.Unbound = append(res.Unbound, entry.res.Addr)
 	}
 
 	for i, entry := range cb.entries {

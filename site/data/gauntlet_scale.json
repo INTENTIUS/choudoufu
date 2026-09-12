@@ -249,6 +249,15 @@
         }
       },
       "plan_calls": {
+        "cold": {
+          "choudoufu": 186,
+          "stock": 150
+        },
+        "warm": {
+          "choudoufu": 186
+        }
+      },
+      "audit_calls": {
         "sweep": {
           "choudoufu": 588
         },
@@ -261,7 +270,7 @@
           "stock": 150
         }
       },
-      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json; plan_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 0fee6f5e09cb5600914f5ceccfaaf8ee0057df7a"
+      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json; plan_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 0fee6f5e09cb5600914f5ceccfaaf8ee0057df7a; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit f275cee79055948b08d77023946d479ec447a11f"
     }
   ]
 }

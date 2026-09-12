@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 26 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-10T07:49:05Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "27 of 27 estates have a recorded run duration, totaling 2h37m3.3s, but not from one sweep: 2h26m49.8s across 26 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 1 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T03:20:43Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "27 of 27 estates have a recorded run duration, totaling 2h35m27.3s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3341,7 +3341,7 @@
       "name": "terralith-scale",
       "set": "core",
       "lane": "reference",
-      "clear": true,
+      "clear": false,
       "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
       "reason": "the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim",
       "script": "live/e2e/terralith-scale/run.sh",
@@ -3359,33 +3359,33 @@
         "not run",
         "not run",
         "pass",
-        "pass",
+        "FAIL",
         "not run"
       ],
-      "runtime_total": "5m27.7s",
-      "runtime_cells": "cold_deploy 2m1s, migrate 40s, test_plan 3s, test_apply 5s, drift_reconverge 33s, day2_rename 18s, day2_remove 7s, day2_count 16s, day2_replace 12s, plan_approval 12s, greenfield 1m0s, strict -",
-      "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 5m27.7s.",
+      "runtime_total": "3m51.7s",
+      "runtime_cells": "cold_deploy 2m13s, migrate 44s, test_plan 4s, test_apply 5s, drift_reconverge 33s, day2_rename 18s, day2_remove 7s, day2_count 16s, day2_replace 12s, plan_approval 12s, greenfield 45s, strict -",
+      "last_run_note": "Last run at commit `a688371038` on 2026-09-12T03:20:43Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m51.7s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m1s",
+          "duration": "2m13s",
           "detail": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 34 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "40s",
+          "duration": "44s",
           "detail": "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "3s",
+          "duration": "4s",
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         },
         {
@@ -3393,7 +3393,7 @@
           "title": "No-op apply",
           "verdict": "pass",
           "duration": "5s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 38"
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 7"
         },
         {
           "id": "drift_reconverge",
@@ -3450,9 +3450,9 @@
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "pass",
-          "duration": "1m0s",
-          "detail": "choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
+          "verdict": "FAIL",
+          "duration": "45s",
+          "detail": "the greenfield plan with no local record store exited 1"
         },
         {
           "id": "strict",

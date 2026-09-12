@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
@@ -50,6 +51,16 @@ import (
 // no list, no index, one Import+Read for exactly the address that is
 // stuck, never for the account.
 //
+// "Statically from configuration alone" is not "scalar only": issue #1049
+// widens it to one instance of a count or for_each block whose whole
+// collection - not merely this one instance's name/path - is itself
+// statically known, so count.index or each.key/each.value can be bound the
+// same way [identity.Resolve] would bind them for the SAME instance's other
+// arguments, without needing the provider or the state to do it (see
+// [instanceRepetitionData]). A terralith is mostly count-expanded IAM
+// policies by construction, and every one of them needs exactly this leg,
+// not the scalar-only version #1046 shipped.
+//
 // # Why a wrong guess costs nothing
 //
 // The composed ARN is never trusted as identity by itself. It is read once,
@@ -80,14 +91,18 @@ import (
 
 // directReadType is one ServerAssigned type whose live ARN a service mints
 // deterministically from configuration alone, given the account ID this run
-// already resolved from an ordinary list. composeARN evaluates whatever
-// arguments that requires through mod's static evaluator, the same subset
-// [staticeval.Argument] admits everywhere else in this package
-// ([scanTypeContentMatch]); ok is false whenever any of them cannot be
-// evaluated that way, which [directReadFallback] treats as "cannot attempt
-// this", never as a value to guess at.
+// already resolved from an ordinary list, and rep - the composeARN caller's
+// own per-instance count.index/each.key/each.value scope, the zero value for
+// a scalar (non-repeated) instance. composeARN evaluates whatever arguments
+// that requires through mod's static evaluator, the same subset
+// [staticeval.ArgumentScoped] admits everywhere else in this package
+// ([scanTypeContentMatch] uses the unscoped [staticeval.Argument], since
+// that leg never reaches a count/for_each instance - see #272's own
+// restriction); ok is false whenever any of them cannot be evaluated that
+// way, which [directReadFallback] treats as "cannot attempt this", never as
+// a value to guess at.
 type directReadType struct {
-	composeARN func(ctx context.Context, mod *configs.Module, rc *configs.Resource, accountID string) (string, bool)
+	composeARN func(ctx context.Context, mod *configs.Module, rc *configs.Resource, accountID string, rep instances.RepetitionData) (string, bool)
 }
 
 // directReadTypes is deliberately a small, named, hand-maintained registry
@@ -122,13 +137,23 @@ var directReadTypes = map[string]directReadType{
 // trailing slashes of PATH collapsed against the literal "/" already
 // between "policy" and PATH.
 //
+// rep is the composeARN caller's own per-instance scope (see
+// [instanceRepetitionData]): the zero value for a scalar resource, and
+// count.index or each.key/each.value for one instance of a count or
+// for_each block whose whole collection [instanceRepetitionData] proved
+// statically known. name and path are evaluated through
+// [staticeval.ArgumentScoped], which admits "count" and "each" as
+// traversal roots on top of [staticeval.Argument]'s own subset precisely
+// because rep answers them here.
+//
 // ok is false whenever `name` cannot be evaluated from configuration alone
-// (absent, a data source or resource reference, count.index/each.key,
-// anything [staticeval.Argument]'s own subset does not admit), or when
-// `path` IS SET in configuration but cannot be. The second half matters
-// because path is not merely cosmetic - two policies can share a name at
-// different paths - so guessing "/" for a path this run cannot verify
-// risks the direct read finding a real, unrelated object and refusing
+// (absent, a data source or resource reference, a count.index/each.key
+// this instance's own rep does not carry, anything
+// [staticeval.ArgumentScoped]'s own subset does not admit), or when `path`
+// IS SET in configuration but cannot be. The second half matters because
+// path is not merely cosmetic - two policies can share a name at different
+// paths - so guessing "/" for a path this run cannot verify risks the
+// direct read finding a real, unrelated object and refusing
 // [directReadForeign] over it where the correct answer might have been
 // "create, this address's own policy does not exist yet". Failing closed
 // there costs a refusal instead of a silent create; guessing would risk
@@ -137,15 +162,15 @@ var directReadTypes = map[string]directReadType{
 // This never claims to be aws_iam_policy's identity for any purpose beyond
 // this one probe - see this file's own package doc comment for why a wrong
 // guess here is bounded.
-func composeIAMPolicyARN(ctx context.Context, mod *configs.Module, rc *configs.Resource, accountID string) (string, bool) {
-	name, why := staticeval.Argument(ctx, mod, rc, "name")
+func composeIAMPolicyARN(ctx context.Context, mod *configs.Module, rc *configs.Resource, accountID string, rep instances.RepetitionData) (string, bool) {
+	name, why := staticeval.ArgumentScoped(ctx, mod, rc, "name", rep)
 	if why != "" {
 		return "", false
 	}
 
 	path := "/"
 	if attrPresent(rc, "path") {
-		p, pathWhy := staticeval.Argument(ctx, mod, rc, "path")
+		p, pathWhy := staticeval.ArgumentScoped(ctx, mod, rc, "path", rep)
 		if pathWhy != "" {
 			return "", false
 		}
@@ -175,6 +200,98 @@ func attrPresent(rc *configs.Resource, name string) bool {
 	}
 	_, ok := content.Attributes[name]
 	return ok
+}
+
+// instanceRepetitionData builds the count.index/each.key/each.value scope
+// [composeIAMPolicyARN] needs for key, one specific instance of rc's own
+// count or for_each block - or reports that the block's whole collection is
+// not itself statically known, in which case there is no scope to build at
+// all.
+//
+// key == [addrs.NoKey] (the ordinary, non-repeated instance #1046 already
+// shipped for) always succeeds with the zero [instances.RepetitionData]:
+// nothing below this ever asks for count.index or each.key/each.value in
+// that case, so there is nothing to fail to resolve.
+//
+// For a real key, this recomputes rc's own count or for_each expression
+// through [staticeval.Count] / [staticeval.ForEachElements] - the same
+// var/local/path/terraform subset every other identity-bearing argument in
+// this fork is held to, never the richer scope [identity.Resolve] itself
+// uses to expand a for_each that iterates over another managed resource
+// (that population reaches here too, with a real key, precisely because
+// the KEY set can be known even when a VALUE cannot) - and only succeeds
+// when the whole collection resolves that way AND key is actually a member
+// of it. An address whose count/for_each depends on something richer (a
+// data source, another managed resource's attributes) may still exist and
+// be perfectly legitimate; this fallback is simply not able to vouch for
+// it from configuration alone, and refuses rather than guess at a
+// count.index or each.value it does not actually know.
+func instanceRepetitionData(ctx context.Context, mod *configs.Module, rc *configs.Resource, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+	return repetitionDataFor(ctx, mod, rc.Count, rc.ForEach, key)
+}
+
+// repetitionDataFor is the engine [instanceRepetitionData] runs for a
+// resource's own count/for_each block - pulled out, unchanged, so
+// modulescope.go's [moduleCallRepetitionData] can run the identical
+// var/local/path/terraform-only subset against a module CALL's own
+// count/for_each block instead, without a second, potentially divergent
+// implementation of the same rule (issue #1063: "extend that shape rather
+// than inventing a second mechanism"). mod is whichever module's own static
+// scope countExpr/forEachExpr are written in - the module that DECLARES the
+// block, a resource's own enclosing module for [instanceRepetitionData], or
+// that call's own PARENT module for [moduleCallRepetitionData], exactly as
+// [staticeval.Count]/[staticeval.ForEachElements] already require.
+func repetitionDataFor(ctx context.Context, mod *configs.Module, countExpr, forEachExpr hcl.Expression, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+	if key == addrs.NoKey {
+		return instances.RepetitionData{}, true
+	}
+	switch k := key.(type) {
+	case addrs.IntKey:
+		if countExpr == nil {
+			return instances.RepetitionData{}, false
+		}
+		n, ok := staticeval.Count(ctx, mod, countExpr)
+		if !ok || int(k) < 0 || int(k) >= n {
+			return instances.RepetitionData{}, false
+		}
+		return instances.RepetitionData{CountIndex: cty.NumberIntVal(int64(k))}, true
+	case addrs.StringKey:
+		if forEachExpr == nil {
+			return instances.RepetitionData{}, false
+		}
+		elems, ok := staticeval.ForEachElements(ctx, mod, forEachExpr)
+		if !ok {
+			return instances.RepetitionData{}, false
+		}
+		val, present := elems[string(k)]
+		if !present {
+			return instances.RepetitionData{}, false
+		}
+		return instances.RepetitionData{EachKey: cty.StringVal(string(k)), EachValue: val}, true
+	default:
+		return instances.RepetitionData{}, false
+	}
+}
+
+// collectionKind names which of count or for_each rc declares, for the
+// refusal [instanceRepetitionData] failure renders - "the collection" alone
+// would leave an operator to go check which one it was.
+func collectionKind(rc *configs.Resource) string {
+	return collectionKindFor(rc.Count, rc.ForEach)
+}
+
+// collectionKindFor is [collectionKind] generalized over a bare count/
+// for_each expression pair, so modulescope.go's own refusal - about a
+// module CALL's block, not a resource's - can name which one it was too.
+func collectionKindFor(countExpr, forEachExpr hcl.Expression) string {
+	switch {
+	case countExpr != nil:
+		return "count block"
+	case forEachExpr != nil:
+		return "for_each block"
+	default:
+		return "count or for_each block"
+	}
 }
 
 // directReadOutcome is what [directReadFallback] decided for one declared,
@@ -211,13 +328,14 @@ const (
 	directReadForeign
 
 	// directReadUnavailable means the read could not be attempted or could
-	// not be completed at all: no per-instance static scope (a count/
-	// for_each instance), the name (or a present path) could not be
-	// evaluated from configuration, no AWS account ID resolved yet, the
-	// provider handle does not support a direct read, or the read itself
-	// errored. Part 2's refusal - this run had a cheaper way to settle the
-	// question and it did not work, which is a stronger signal than
-	// [unreadableMarkerProblem]'s ordinary silence.
+	// not be completed at all: a count/for_each instance whose own
+	// collection is not itself statically known (see
+	// [instanceRepetitionData]), the name (or a present path) could not be
+	// evaluated from configuration even with a per-instance scope in hand,
+	// no AWS account ID resolved yet, the provider handle does not support a
+	// direct read, or the read itself errored. Part 2's refusal - this run
+	// had a cheaper way to settle the question and it did not work, which is
+	// a stronger signal than [unreadableMarkerProblem]'s ordinary silence.
 	directReadUnavailable
 )
 
@@ -260,11 +378,6 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 		return directReadSkipped, nil, ""
 	}
 
-	if addr.Resource.Key != addrs.NoKey {
-		return directReadUnavailable, nil, fmt.Sprintf(
-			"%s is one instance of a count or for_each block, and evaluating its own name and path arguments needs a per-instance static scope this fallback does not have (the same restriction issue #272's content match holds itself to)", addr)
-	}
-
 	modCfg, modOK := identity.ConfigForModule(req.Config, addr.Module)
 	if !modOK || modCfg.Module == nil {
 		return directReadUnavailable, nil, "the module that declares it could not be found"
@@ -274,14 +387,55 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 		return directReadUnavailable, nil, "its own resource block could not be found in the configuration"
 	}
 
+	// Issue #1063: a resource declared inside a module names itself from
+	// that module's own input variables, whose values come from the
+	// PARENT's own `module` block - itself possibly for_each'd or count'd -
+	// which [instanceRepetitionData] alone (the resource's own scope) has
+	// no way to answer. [moduleScope] rebuilds modCfg.Module's own
+	// StaticEvaluator so that var.* resolves against the caller's actual
+	// per-instance arguments, recursing outward through as many ancestor
+	// module calls as addr.Module has, the same way [instanceRepetitionData]
+	// itself only ever answers ONE level (a resource's own count/for_each) -
+	// see modulescope.go's own package doc for why unwinding the whole
+	// chain, rather than stopping at the immediate parent, is required for
+	// a doubly (or deeper) nested module to work at all.
+	scopedMod, scopeCause, scopeOK := moduleScope(ctx, req.Config, addr.Module)
+	if !scopeOK {
+		return directReadUnavailable, nil, scopeCause
+	}
+
+	// A resource argument that names a module variable can still fail for a
+	// reason [moduleScope] itself never sees: the collection that expands
+	// the module call is fine, but the SPECIFIC argument value the call
+	// passes down for that variable is not itself statically known (a data
+	// source, most concretely). Diagnosing that BEFORE composeARN runs is
+	// what lets the refusal say which side of the module boundary the
+	// problem is actually on - see [moduleVariableProblem]'s own doc for why
+	// this cannot simply be inferred after composeARN fails.
+	if cause, distinct := moduleVariableProblem(ctx, req.Config, addr, rc, "name"); distinct {
+		return directReadUnavailable, nil, cause
+	}
+	if attrPresent(rc, "path") {
+		if cause, distinct := moduleVariableProblem(ctx, req.Config, addr, rc, "path"); distinct {
+			return directReadUnavailable, nil, cause
+		}
+	}
+
+	rep, repOK := instanceRepetitionData(ctx, scopedMod, rc, addr.Resource.Key)
+	if !repOK {
+		return directReadUnavailable, nil, fmt.Sprintf(
+			"%s is one instance of a %s, and that block's own collection is not itself statically known from configuration alone, so there is no per-instance count.index/each.key/each.value scope to evaluate its name and path arguments with (a narrower restriction than issue #272's content match, which refuses every count or for_each instance outright regardless of whether its collection is statically known)",
+			addr, collectionKind(rc))
+	}
+
 	scan, _ := res.ScanFor(typeName)
 	if scan.AccountID == "" {
 		return directReadUnavailable, nil, fmt.Sprintf("this run resolved no AWS account ID from %s's own listing to compose a candidate ARN with", typeName)
 	}
 
-	candidateARN, composed := drt.composeARN(ctx, modCfg.Module, rc, scan.AccountID)
+	candidateARN, composed := drt.composeARN(ctx, scopedMod, rc, scan.AccountID, rep)
 	if !composed {
-		return directReadUnavailable, nil, "its name (or path) argument could not be evaluated from configuration alone"
+		return directReadUnavailable, nil, "its name (or path) argument could not be evaluated from configuration alone, even with its own per-instance scope in hand"
 	}
 
 	tags, taggable, found, readOK := directReadProbe(ctx, req, typeName, candidateARN)

@@ -428,23 +428,20 @@ func TestParsePlanCallsDetailReadsBothTokens(t *testing.T) {
 	if pc == nil {
 		t.Fatal("parsePlanCallsDetail returned nil for a detail string carrying both tokens")
 	}
-	if pc.Sweep != nil {
-		t.Errorf("Sweep = %+v, want nil - a real-AWS detail carries no leg split, only a total (see tokenPlanCallsChoudoufu's own doc comment)", pc.Sweep)
+	if pc.Warm != nil {
+		t.Errorf("Warm = %+v, want nil - terralith-scale.sh times only the first (cold) post-migrate plan, never a second", pc.Warm)
 	}
-	if pc.ReadPass != nil {
-		t.Errorf("ReadPass = %+v, want nil, same reason", pc.ReadPass)
+	if pc.Cold == nil {
+		t.Fatal("Cold is nil, want a populated pair")
 	}
-	if pc.Total == nil {
-		t.Fatal("Total is nil, want a populated pair")
+	if pc.Cold.Choudoufu != 8305 {
+		t.Errorf("Cold.Choudoufu = %d, want 8305 (from plan_calls_choudoufu=8305)", pc.Cold.Choudoufu)
 	}
-	if pc.Total.Choudoufu != 8305 {
-		t.Errorf("Total.Choudoufu = %d, want 8305 (from plan_calls_choudoufu=8305)", pc.Total.Choudoufu)
+	if pc.Cold.Stock == nil {
+		t.Fatal("Cold.Stock is nil, want 7207 - the parser dropped the plan_calls_stock= token it was given")
 	}
-	if pc.Total.Stock == nil {
-		t.Fatal("Total.Stock is nil, want 7207 - the parser dropped the plan_calls_stock= token it was given")
-	}
-	if *pc.Total.Stock != 7207 {
-		t.Errorf("Total.Stock = %d, want 7207 (from plan_calls_stock=7207)", *pc.Total.Stock)
+	if *pc.Cold.Stock != 7207 {
+		t.Errorf("Cold.Stock = %d, want 7207 (from plan_calls_stock=7207)", *pc.Cold.Stock)
 	}
 }
 
