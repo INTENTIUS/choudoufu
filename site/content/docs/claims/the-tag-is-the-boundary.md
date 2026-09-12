@@ -31,6 +31,10 @@ estate does not own. Read it as "this condition governs the actions it
 names, on the resources that carry the tag it names," never as a claim
 that IAM fences every write a tool-less actor could make.
 
+[Claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})
+is the Kubernetes sibling: one admission policy on the estate label,
+write-only and cluster-wide, with the grant an ordinary ClusterRole.
+
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
 (docker info) and the AWS CLI is installed. If Go is not installed,

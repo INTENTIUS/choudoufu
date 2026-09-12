@@ -15,6 +15,14 @@ With an estate-only label there is no address on the object to rewrite. A
 `moved` block is a config-line rename and the natural key is unchanged, so
 the plan is empty. `live-mv` has nothing governed to do and says so.
 
+Moving an object between estates is a relabel, `kubectl label --overwrite
+tofu-estate=<new>`, and with the admission policy installed it is a
+governed one: the caller must hold both the estate the object is leaving
+and the one it is entering ([claim
+23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
+Handing a whole estate over is an RBAC change, the grant's binding moving
+to the receiving principal, and nothing on the objects changes.
+
 An `api_version` change is not a move either. Uniqueness is per group,
 resource, namespace and name; the version is a representation. The rename
 rule has no vocabulary for that yet.

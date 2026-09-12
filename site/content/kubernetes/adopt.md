@@ -27,9 +27,12 @@ real cluster with a namespace, a ConfigMap, a ServiceAccount and a Service.
 Delete one of those blocks from source and the next plan finds the live
 object by its label, one cluster-wide list per kind, and proposes its
 removal, with a controller's copies of the label excluded first ([claim
-22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})). What they
-still do not do is fall under any ownership condition; that is the gate,
-the next unit.
+22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})). And once a
+cluster admin has installed the one admission policy, every write to one
+of them is fenced by the label it carries ([claim
+23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}}); [the
+gate]({{< relref "/kubernetes/gate" >}}) says what that fence does not
+reach).
 
 ## The marker
 

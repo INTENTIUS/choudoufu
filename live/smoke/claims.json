@@ -311,8 +311,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "restated",
-          "note": "RBAC has no attribute predicate. The fence is a ValidatingAdmissionPolicy on oldObject's label: write-only (no list or describe admission) and installed cluster-wide by a cluster admin, not two IAM changes (#1016)."
+          "status": "proven",
+          "note": "Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list. Claim 23 is the scenario (#1066)."
         }
       },
       "evidence": [
@@ -521,6 +521,29 @@
         "aws": {
           "status": "n/a",
           "note": "Claim 1 is the AWS shape: one estate-filtered GetResources call over the whole account, and no controller copies labels there."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 23,
+      "slug": "k8s-the-label-is-the-boundary",
+      "title": "The label is the boundary: one admission policy fences every write to an estate's objects",
+      "scenario": "live/smoke/scenarios/k8s-the-label-is-the-boundary.sh",
+      "command": "just smoke k8s-the-label-is-the-boundary",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "gate",
+      "break_mode": "BREAK=1 removes the policy and requires the writes it refused, through choudoufu and through plain kubectl, to go through",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "n/a",
+          "note": "Claim 13 is the AWS shape: an IAM condition on the ownership tag, which fences reads as well as writes and can name an address, not only an estate."
         },
         "kubernetes": {
           "status": "proven",
