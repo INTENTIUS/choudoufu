@@ -230,11 +230,16 @@ type ScaleRecord struct {
 	// A negative UnaccountedSeconds means the stages overcount the total,
 	// which is impossible for sequential slices of one run and is exactly
 	// what issue #1069 found in the terralith-scale/floci/scale-1 row: 329s
-	// of stage seconds against a 231.7s total. That is a genuine defect in
-	// the crossing script's own timers (concurrent stages each billing
-	// their own wall time, or a stale duration_s carried over from a prior
-	// run - #1069's own two candidates, neither confirmed), not something
-	// this schema should paper over by widening the tolerance everywhere.
+	// of stage seconds against a 231.7s total. The cause is known, and it
+	// was not the crossing script's timers: that run aborted at greenfield,
+	// and RunEstates used to merge a run's per-stage seconds into the
+	// previous row's map, so the nine stages this run never reached kept an
+	// older run's duration_s (98s) while the total came from this run's own
+	// wall clock. Fixed in run.go - LastRun.Seconds now holds only the
+	// stages a run itself emitted a duration_s for - so a record built after
+	// that fix cannot take this shape again. It remains a real defect to
+	// name, not something this schema should paper over by widening the
+	// tolerance everywhere.
 	UnaccountedSeconds *float64 `json:"unaccounted_seconds,omitempty"`
 	// UnaccountedDetail is free text naming what UnaccountedSeconds is
 	// believed to cover, when a record's own investigation identified
@@ -847,18 +852,46 @@ func BuildScaleRecordFromEstate(e EstateResult, source string) (ScaleRecord, boo
 			rec.Resources.Skipped = *resources - *taggable
 		}
 	}
-	if len(e.Stages) > 0 {
-		rec.Stages = map[string]ScaleStage{}
-	}
+	// Only the stages THIS run measured belong in a scale record, and
+	// LastRun.Seconds is the witness for which those are (issue #1069).
+	//
+	// EstateResult.Stages is merged across runs by RunEstates (run.go), so
+	// a stage this run never reached keeps an older run's verdict. On the
+	// board that is right: a stale verdict is still the best thing known
+	// about that stage. In a record keyed by (estate, target, SCALE) it is
+	// not, because a verdict measured at one size says nothing about
+	// another - and the merge is silent, so the record cannot tell the two
+	// apart by inspection.
+	//
+	// The run that forced this was terralith-scale at SCALE=136, 10,069
+	// resources: it aborted at test_plan having spoken three stages, into a
+	// row carrying eleven more from a scale-1 run eleven days older. Among
+	// them was test_apply, which chant-bench scores - so the published row
+	// would have claimed choudoufu's apply was verified at ten thousand
+	// resources when it was verified at seventy-nine.
+	//
+	// Seconds became a usable witness only when #1069's fix stopped it
+	// being merged too; it now holds exactly the stages this run emitted a
+	// duration_s for. A row that recorded no per-stage seconds at all has
+	// no witness, and there every stage is kept rather than the record
+	// being silently emptied - an older row with nothing to go on is a
+	// weaker record, not a false one.
+	measured := e.LastRun.Seconds
 	for id, verdict := range e.Stages {
+		if len(measured) > 0 {
+			if _, ok := measured[id]; !ok {
+				continue
+			}
+		}
 		st := ScaleStage{Verdict: verdict}
 		if e.LastRun.Detail != nil {
 			st.Detail = e.LastRun.Detail[id]
 		}
-		if e.LastRun.Seconds != nil {
-			if secs, ok := e.LastRun.Seconds[id]; ok {
-				st.Seconds = floatPtr(secs)
-			}
+		if secs, ok := measured[id]; ok {
+			st.Seconds = floatPtr(secs)
+		}
+		if rec.Stages == nil {
+			rec.Stages = map[string]ScaleStage{}
 		}
 		rec.Stages[id] = st
 	}
@@ -965,6 +998,40 @@ func (a *ScaleArtifact) UpsertScaleRecord(rec ScaleRecord) {
 	a.Records = append(a.Records, rec)
 }
 
+// UpsertScaleRecordKeepingCallCounts is UpsertScaleRecord for a caller whose
+// source cannot measure PlanCalls or AuditCalls at all - which is every
+// caller that rebuilds a record from live/gauntlet.json, because that
+// artifact has never held a call count. The rebuilt record wins everywhere
+// it has a value; the two call-count fields are filled from the existing
+// row when the rebuild has none, and overridden when it has one.
+//
+// Without this, `gauntlet scale-backfill` silently deleted numbers only
+// `gauntlet scale-import-slice` can produce. It did: the terralith-scale
+// floci/scale=128 record had cold 21,423 against stock's 17,422 imported,
+// and a backfill run seconds later for an unrelated reason left it with no
+// call counts and no complaint. A record without plan_calls is a legitimate
+// shape, so nothing downstream could have caught it either - the publishing
+// side would have gone on validating and simply stopped printing the number.
+//
+// scaleslice.go already reasoned about this hazard from the other side,
+// which is why scale-import-slice merges into an existing row rather than
+// replacing it. This is the same care owed in the other direction.
+func (a *ScaleArtifact) UpsertScaleRecordKeepingCallCounts(rec ScaleRecord) {
+	for i := range a.Records {
+		if a.Records[i].Estate != rec.Estate || a.Records[i].Target != rec.Target || a.Records[i].Scale != rec.Scale {
+			continue
+		}
+		if rec.PlanCalls == nil {
+			rec.PlanCalls = a.Records[i].PlanCalls
+		}
+		if rec.AuditCalls == nil {
+			rec.AuditCalls = a.Records[i].AuditCalls
+		}
+		break
+	}
+	a.UpsertScaleRecord(rec)
+}
+
 // ---------------------------------------------------------------------------
 // cmdScaleBackfill: `gauntlet scale-backfill [rev...]`
 // ---------------------------------------------------------------------------
@@ -1023,7 +1090,7 @@ func cmdScaleBackfill(root string, args []string) error {
 			if err := ValidateScaleRecord(rec); err != nil {
 				return fmt.Errorf("scale-backfill: %s: %w", rev, err)
 			}
-			sa.UpsertScaleRecord(rec)
+			sa.UpsertScaleRecordKeepingCallCounts(rec)
 			fmt.Printf("scale-backfill: %s live_cert estate=%s target=%s scale=%d at %s\n", rev, rec.Estate, rec.Target, rec.Scale, full)
 		}
 
@@ -1049,7 +1116,7 @@ func cmdScaleBackfill(root string, args []string) error {
 			if err := ValidateScaleRecord(rec); err != nil {
 				return fmt.Errorf("scale-backfill: %s: %w", rev, err)
 			}
-			sa.UpsertScaleRecord(rec)
+			sa.UpsertScaleRecordKeepingCallCounts(rec)
 			fmt.Printf("scale-backfill: %s estates estate=%s target=%s scale=%d at %s\n", rev, rec.Estate, rec.Target, rec.Scale, full)
 		}
 	}
