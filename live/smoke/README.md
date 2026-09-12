@@ -76,6 +76,13 @@ requires the replan to leave the object alone. The Deployment's container
 is `registry.k8s.io/pause`, which kind's node image already carries, and
 `wait_for_rollout` is off, so the scenario needs no image pull.
 
+All three Kubernetes scenarios run in CI on every pull request that touches
+the Kubernetes surface, each followed by its `BREAK=1` control, on a kind
+cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
+`live/k8s_ci_test.go` holds that matrix to this directory, so a new `k8s-*`
+scenario has to be added there too). The nightly gauntlet runs the
+kubernetes lane's estates the same way.
+
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs
 `live/kubernetes/estate-boundary.yaml`, one `ValidatingAdmissionPolicy`

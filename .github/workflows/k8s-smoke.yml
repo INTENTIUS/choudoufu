@@ -1,0 +1,74 @@
+# The Kubernetes smokes on a real API server in CI (issue #1080). The three
+# Kubernetes claims (21 k8s-greenfield, 22 k8s-no-silent-orphans, 23
+# k8s-the-label-is-the-boundary) run against a kind cluster that
+# live/smoke/lib.sh's cluster_up creates per run, each followed by its
+# BREAK=1 control, so a regression in the label carrier, the sweep or the
+# admission policy template is caught on the pull request that makes it
+# rather than on the maintainer's laptop. One job per scenario; each is a
+# few minutes.
+#
+# kind and kubectl come from helm/kind-action at a pinned release, with
+# install_only so the scenario, not the action, owns the cluster's life;
+# the node image is what that kind release ships (Kubernetes 1.30 or later
+# is what live/kubernetes/estate-boundary.yaml needs). live/k8s_ci_test.go
+# holds this file to the scenario directory: every k8s-* scenario under
+# live/smoke/scenarios must be in the matrix below, with its control.
+name: k8s-smoke
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/k8s-smoke.yml"
+      - "cmd/**"
+      - "internal/**"
+      - "live/smoke/**"
+      - "live/kubernetes/**"
+      - "live/e2e/lib/**"
+      - "live/e2e/estate-k8s/**"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/k8s-smoke.yml"
+      - "cmd/**"
+      - "internal/**"
+      - "live/smoke/**"
+      - "live/kubernetes/**"
+      - "live/e2e/lib/**"
+      - "live/e2e/estate-k8s/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: k8s-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - k8s-greenfield
+          - k8s-no-silent-orphans
+          - k8s-the-label-is-the-boundary
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: kind and kubectl, pinned
+        uses: helm/kind-action@v1.15.0
+        with:
+          version: v0.33.0
+          kubectl_version: v1.34.0
+          install_only: true
+      - name: the scenario
+        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+      - name: the BREAK=1 control
+        env:
+          BREAK: "1"
+        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
