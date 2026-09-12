@@ -101,7 +101,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .beat p { margin: 0; color: var(--ink-2); font-size: 0.97rem; }
 .platforms, .proof-strip { max-width: 60rem; margin: 2.5rem auto 0; padding: 0 clamp(1rem, 4vw, 2.5rem); }
 .platforms h2, .proof-strip h2 { margin-top: 0; font-size: 1.15rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-.platform-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.8rem; }
+.platform-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.8rem; }
 .platform { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; }
 .platform-name { display: block; font-weight: 650; font-size: 1.1rem; margin-bottom: 0.25rem; }
 .platform a { text-decoration: none; color: var(--ink); }
@@ -109,7 +109,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .platform-status { display: block; color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
 .platform-status p { margin: 0; }
 .platform.status-proven { border-left: 4px solid var(--pass); }
-.platform.status-design { border-left: 4px solid var(--warn-line); }
+.platform.status-soon { border-left: 4px solid var(--warn-line); }
 .platform.status-not-planned { border-left: 4px solid var(--notrun); opacity: 0.85; }
 .stats { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.8rem; }
 .stats li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; font-size: 0.95rem; color: var(--ink-2); }
@@ -122,7 +122,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; color: var(--muted); margin: 0 0 0.3rem; font-weight: 600; }
 .hub .status { display: inline-block; font-size: 0.9rem; padding: 0.3rem 0.7rem; border-radius: 6px; background: var(--surface-2); border-left: 4px solid var(--notrun); color: var(--ink-2); }
 .hub .status.status-proven { border-left-color: var(--pass); }
-.hub .status.status-design { border-left-color: var(--warn-line); }
+.hub .status.status-soon { border-left-color: var(--warn-line); }
 .lead { font-size: 1.12rem; color: var(--ink-2); }
 .slots { list-style: none; counter-reset: slot; margin: 2rem 0 1rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.9rem; }
 .slot a { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem 1.1rem; text-decoration: none; color: var(--ink); height: 100%; }
@@ -184,7 +184,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .needs-go { font-size: 0.75rem; color: var(--muted); }
 .status-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--notrun); vertical-align: middle; margin-left: 0.3rem; }
 .status-dot.status-proven { background: var(--pass); }
-.status-dot.status-design { background: var(--warn-line); }
+.status-dot.status-soon { background: var(--warn-line); }
 .gauntlet-missing, .data-missing { color: var(--muted); font-style: italic; }
 .gauntlet-bars { margin: 1rem 0; }
 .gauntlet-bar-block { margin-bottom: 1rem; }
@@ -214,3 +214,5 @@ th { background: var(--surface-2); font-weight: 600; }
 .chroma .m, .chroma .mi, .chroma .mf { color: var(--accent); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chroma .s, :root:not([data-theme="light"]) .chroma .s1, :root:not([data-theme="light"]) .chroma .s2, :root:not([data-theme="light"]) .chroma .sb, :root:not([data-theme="light"]) .chroma .dl { color: #b7c78f; } }
 :root[data-theme="dark"] .chroma .s, :root[data-theme="dark"] .chroma .s1, :root[data-theme="dark"] .chroma .s2, :root[data-theme="dark"] .chroma .sb, :root[data-theme="dark"] .chroma .dl { color: #b7c78f; }
+
+.badge { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warn-line); border: 1px solid var(--warn-line); border-radius: 999px; padding: 0.05rem 0.5rem; margin-bottom: 0.35rem; }

@@ -31,6 +31,7 @@
     {{ $hub := site.GetPage (printf "/%s" .id) }}
     <li class="platform status-{{ .status }}">
       {{ with $hub }}<a href="{{ .RelPermalink }}"><span class="platform-name">{{ .Title }}</span></a>{{ else }}<span class="platform-name">{{ .name }}</span>{{ end }}
+      {{ if eq .status "soon" }}<span class="badge">coming soon</span>{{ end }}
       <span class="platform-status">{{ .status_label | markdownify }}</span>
     </li>
     {{ end }}
