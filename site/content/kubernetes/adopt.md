@@ -24,10 +24,12 @@ the create. Strip it with kubectl and the next plan proposes restoring it.
 [Claim 21]({{< relref "/docs/claims/k8s-greenfield" >}}) runs that on a
 real cluster with a namespace, a ConfigMap, a ServiceAccount and a Service.
 
-What they still do not do: get reached by an estate sweep, or fall under
-any ownership condition. Delete one of those blocks from source and the
-live object is orphaned with no run that will ever propose removing it.
-That is the sweep gap, and it is the next unit.
+Delete one of those blocks from source and the next plan finds the live
+object by its label, one cluster-wide list per kind, and proposes its
+removal, with a controller's copies of the label excluded first ([claim
+22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})). What they
+still do not do is fall under any ownership condition; that is the gate,
+the next unit.
 
 ## The marker
 

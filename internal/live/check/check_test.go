@@ -131,7 +131,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// pure function over two strings; it refuses nothing itself, and
 		// the refusal it decides between is projection's own "Cannot import
 		// for projection", already classified there.
-		"absent":      true,
+		"absent": true,
+		// The Kubernetes estate sweep's client (GitHub issue #1065): one
+		// label-selected list per kind over client-go, consumed by
+		// internal/live/discovery's own Kubernetes leg, which is where
+		// every verdict about what it finds is made and classified.
+		"kubesweep":   true,
 		"markerstrip": true,
 		"marksafe":    true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
 		"mdspan":      true, // rewrites generated regions of a markdown doc

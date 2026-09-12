@@ -10,8 +10,9 @@ deeper:
 
 # Proof
 
-One claim is proven on a real cluster, the marker itself, and the rest are
-stated per claim in the claims data rather than left implicit. The table
+Two claims are proven on a real cluster, the marker itself and the sweep
+that finds a deleted block's object by it, and the rest are stated per
+claim in the claims data rather than left implicit. The table
 below shows only the claims whose Kubernetes cell is not still open; hover a
 cell for its note.
 
@@ -40,22 +41,24 @@ never toward the AWS ones.
 
 ## What it would cost
 
-Nothing has been measured on a cluster. What follows is the shape, from the
-API's own properties.
+What follows is the shape, from the API's own properties; no call count
+has been measured on a cluster yet.
 
 ### The sweep
 
 On AWS the estate sweep is a single `GetResources` call, filtered
 server-side on the marker, covering the whole admission table at once.
-Kubernetes has no cross-kind label-filtered list. A sweep there is discovery
-(`/apis` enumerates every kind the cluster serves, CRDs included) and then
-one list per kind per namespace.
+Kubernetes has no cross-kind label-filtered list. A sweep there is API
+discovery (`/api` and `/apis`, which say every kind the cluster serves)
+and then one cluster-wide, label-selected list per kind the provider has a
+type for - not one per kind per namespace, as the design first estimated:
+a namespaced kind lists across every namespace in one call.
 
 Two things survive. A label-selected list returns only the estate's objects
 and does not grow with the cluster, so "a plan costs its estate, not its
 account" holds in weakened form. And because the universe of kinds is asked
-rather than tabulated, the AWS failure mode where an admitted type outside
-the generated table is owned, orphaned and unreachable cannot occur.
+rather than tabulated, an admitted type the generated table did not know
+about cannot be owned, orphaned and unreachable.
 
 What does not survive is "one call", and the claims page marks claim 14
 restated rather than pretending otherwise.

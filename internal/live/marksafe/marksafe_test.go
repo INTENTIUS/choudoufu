@@ -78,6 +78,10 @@ var guardedPackages = []string{
 	// #1064). It touches no cty.Value at all, so it is held to zero rather
 	// than deferred.
 	"absent",
+	// The Kubernetes estate sweep (GitHub issue #1065): client-go
+	// unstructured objects and strings, never a cty.Value, so it is held
+	// to zero rather than deferred.
+	"kubesweep",
 	"mdspan",
 	"moved",
 	// Places a resolved identity's own already-computed string values onto

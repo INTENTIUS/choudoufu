@@ -102,6 +102,10 @@ var refusals = []Refusal{
 		What:    "The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).",
 	},
 	{
+		Summary: "Kubernetes sweep unavailable",
+		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.",
+	},
+	{
 		Summary: "Listed resource matched more than one tagged resource",
 		What:    "A live resource was listed with no ownership marker of its own, and its identifier matched more than one resource in the estate's tag index whose marker names this very type. Attaching either one's tags would risk adopting the other's resource, so none was attached.",
 	},
@@ -252,7 +256,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable {
 		// A gap in removal coverage, never a wrong plan: the run in front
 		// of the operator is correct and simply did not see everything.
 		return SeverityWarning
