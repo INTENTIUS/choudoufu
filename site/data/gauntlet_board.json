@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 2 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T14:41:53Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "28 of 28 estates have a recorded run duration, totaling 2h38m50.5s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 3 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T23:34:50Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "29 of 29 estates have a recorded run duration, totaling 2h44m37.6s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3586,6 +3586,136 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        }
+      ]
+    },
+    {
+      "name": "corpus-quickpizza",
+      "set": "growing",
+      "lane": "kubernetes",
+      "substrate": "kind",
+      "clear": true,
+      "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
+      "url": "https://github.com/grafana/quickpizza.git",
+      "pin": "v0.15.28",
+      "script": "live/e2e/corpus-quickpizza/run.sh",
+      "protocol": "gauntlet",
+      "cells": [
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "n/a",
+        "n/a",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "runtime_total": "5m47.1s",
+      "runtime_cells": "cold_deploy 2m25s, migrate 7s, test_plan 6s, test_apply 6s, drift_reconverge 12s, day2_rename 13s, day2_remove 18s, day2_count 36s, day2_teardown 32s, plan_approval 17s, greenfield 34s, strict 20s",
+      "last_run_note": "Last run at commit `79697017b6` on 2026-09-12T23:34:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 5m47.1s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "pass",
+          "duration": "2m25s",
+          "detail": "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind v1.36.1; a real terraform.tfstate with 26 instances, zero tofu-estate labels, 9 pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "pass",
+          "duration": "7s",
+          "detail": "26 of 26 stamped, 0 skipped, from the stock state file; every object carries tofu-estate=corpus-quickpizza, read back with kubectl across the estate's eight kinds"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "pass",
+          "duration": "6s",
+          "detail": "the plan with no state file is empty; a representative set of identities (the namespace, two Deployments, the StatefulSet, a Service, a ConfigMap, a Secret, the ServiceAccount, the ClusterRoleBinding) confirmed present by NAMESPACE/NAME with kubectl"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "pass",
+          "duration": "6s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=corpus-quickpizza unchanged at 26 across eight kinds, counted with kubectl"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "pass",
+          "duration": "12s",
+          "detail": "the alloy-config ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map_v1.alloy_config (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the config reads back as the file the root ships. BREAK=1 tampers postgres-init-script too and the single-object assertion correctly fails"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "pass",
+          "duration": "13s",
+          "detail": "moved block: kubernetes_service_account_v1.alloy -\u003e .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, zero churn (no add, no change, no destroy); the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg (#1066). BREAK=1 renames the object's own metadata.name and the zero-churn assertion correctly fails"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "pass",
+          "duration": "18s",
+          "detail": "deleting kubernetes_cluster_role_binding_v1.alloy's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's orphan address kubernetes_cluster_role_binding_v1.orphan_alloy - a cluster-scoped object found by its label, which carries no address - applied cleanly, the object gone (kubectl get clusterrolebinding: NotFound), the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployments' ReplicaSets and Pods and the StatefulSet's Pod and PVC, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "pass",
+          "duration": "36s",
+          "detail": "a two-instance count ConfigMap added beside the published root (the estate's own shape has no count block): scaling 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.orphan_quickpizza_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "n/a",
+          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash between create and destroy",
+          "verdict": "n/a",
+          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "pass",
+          "duration": "32s",
+          "detail": "apply -destroy removed exactly the 27 remaining objects in one apply, in an order the API server accepted (the namespace last), the namespace gone and no object of any of the estate's eight kinds carrying tofu-estate=corpus-quickpizza (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 27 its state held"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "pass",
+          "duration": "17s",
+          "detail": "plan -out wrote one update (the namespace gains reviewed=yes); the world then moved out of band (a stray label on the catalog Service, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "pass",
+          "duration": "34s",
+          "detail": "the published root applied fresh with a live block and no terraform.tfstate: 26 objects, every one labelled tofu-estate=corpus-quickpizza (kubectl, eight kinds); the record store held 24 file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap and Secret keys, every Service's ports and selector, every Deployment's replicas, containers and service account, the StatefulSet's containers and claim, the ClusterRoleBinding's role and subjects, the namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the StatefulSet from the expected inventory and the match correctly fails"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "pass",
+          "duration": "20s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
     },

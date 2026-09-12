@@ -67,7 +67,12 @@ There is no `tofu-address`, no continuation label and no `tofu-slot`. The
 object's own group, kind, namespace and name are the join key back to the
 configuration block that declares it, because those are authored in the
 configuration this fork already parses; the address never goes on the
-object. #1016 measured the alternative: nearly half of real addresses are
+object. The provider's `id` on such an object is that same join key (the
+name for a cluster-scoped kind, `NAMESPACE/NAME` for a namespaced one), so
+a sibling reading `kubernetes_namespace_v1.x.id` reads the parent's whole
+identity and resolves; grafana/quickpizza's root, the kubernetes lane's
+first published estate, writes exactly that on every namespaced object
+(#1067). #1016 measured the alternative: nearly half of real addresses are
 illegal as a label value (the instance-key `:`), and a 63-character cap
 binds at once on ordinary module-nested shapes.
 

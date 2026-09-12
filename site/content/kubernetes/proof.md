@@ -55,9 +55,16 @@ the crash between its create and its destroy, because a Kubernetes name
 is unique within its namespace and nothing can be created before the
 object it replaces is gone. Every other stage says in
 [`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
-how it reads on the kind substrate. The lane's first estate is
-`reference-k8s`, a hand-written shape kept in this repository; a
-published Kubernetes-only root is the next entry.
+how it reads on the kind substrate. Two estates run in it: `reference-k8s`,
+a hand-written shape kept in this repository, and `corpus-quickpizza`,
+Grafana Labs' own published deployment root for their QuickPizza demo
+application at a pinned tag - 26 objects over eight kinds, real images,
+no cloud provider - crossed with the same deltas every AWS estate gets
+for its emulator and one more for the Grafana Cloud token the run does
+not have. The published root found a real gap on the way in: every one of
+its namespaced objects reads the namespace's `id`, which identity
+resolution refused until the object-metadata rule learned that the
+provider's `id` is the object's own import id.
 
 ## What it would cost
 

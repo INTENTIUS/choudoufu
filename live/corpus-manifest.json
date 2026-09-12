@@ -249,7 +249,31 @@
     "the one this repository's own README documents (\"you can import them into",
     "your Tofu configuration like so: module ... source =",
     "github.com:evoteum/tofu-modules.git//aws/networking\"). The other nine AWS",
-    "modules are excluded for reasons that script's own header states in full."
+    "modules are excluded for reasons that script's own header states in full.",
+    "",
+    "quickpizza (added 2026-09-12, license checked same day: Apache-2.0) is",
+    "pinned by tag AND commit (v0.15.28, d5608ca0870d5cf58e911c64d227b9cfcfc94179)",
+    "and is the first Kubernetes-only source, for the gauntlet's kubernetes",
+    "lane (#1067): Grafana Labs' QuickPizza demo application, whose",
+    "deployments/terraform directory is one operator's own published",
+    "deployment root - a namespace, seven Deployments and their Services, a",
+    "Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a",
+    "ClusterRoleBinding, 27 hashicorp/kubernetes resources and no cloud",
+    "provider - plus one helm_release behind `count = var.enable_k8s_monitoring",
+    "? 1 : 0`, off by default. The repository is actively released (v0.15.28 on",
+    "2026-09-11) and its README documents this root as the way to run the app",
+    "on a cluster. Its kubernetes provider block names a minikube kubeconfig",
+    "context and two Grafana Cloud variables have no default; live/e2e/",
+    "corpus-quickpizza/run.sh applies three deltas of the kind every AWS",
+    "crossing applies for the emulator (the provider block's",
+    "config_path/config_context dropped so KUBE_CONFIG_PATH names the run's",
+    "kind cluster; placeholder values for the two secrets; and, because the",
+    "placeholder token means Alloy's pod never becomes ready,",
+    "wait_for_rollout = false on that one Deployment) and nothing else - see",
+    "that script's header.",
+    "Like the terraform-aws-modules examples this glob DOES match a real root",
+    "with its own provider block, so it contributes to a corpus-gen number; the",
+    "two unset Grafana Cloud variables read unset_var_only there, honestly."
   ],
   "sources": [
     {
@@ -530,6 +554,16 @@
         "dir": ".corpus/leynos-df12-www",
         "repo": "https://github.com/leynos/df12-www.git",
         "commit": "e59eabba112b2a4c731123f26845a20f0ae0d938"
+      }
+    },
+    {
+      "glob": ".corpus/quickpizza/deployments/terraform",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/quickpizza",
+        "repo": "https://github.com/grafana/quickpizza.git",
+        "tag": "v0.15.28",
+        "commit": "d5608ca0870d5cf58e911c64d227b9cfcfc94179"
       }
     }
   ],
