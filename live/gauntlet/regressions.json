@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "estate": "terralith-scale",
+    "stage": "greenfield",
+    "reason": "The #1045 repin (lex00/floci#202) stopped floci serving IAM through GetResources, matching real AWS, so the tag index no longer covers IAM and greenfield, which deletes the local record store and replans, is the first place that shows. Two of the three causes are now fixed: the scalar account-ID read in this commit, and count and for_each instances in #1049. What is left is a policy declared inside a for_each'd module, whose name interpolates a module input variable the composer has no scope for. The refusal is correct and names the gap itself.",
+    "issue": "#1063"
+  }
+]
