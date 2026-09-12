@@ -150,7 +150,6 @@
       "stages": {
         "cold_deploy": {
           "verdict": "pass",
-          "seconds": 2035,
           "operation_seconds": 2023,
           "throttle": 347,
           "retry": 347,
@@ -158,7 +157,6 @@
         },
         "migrate": {
           "verdict": "pass",
-          "seconds": 2371,
           "operation_seconds": 1214,
           "throttle": 600,
           "retry": 600,
@@ -166,14 +164,12 @@
         },
         "test_plan": {
           "verdict": "fail",
-          "seconds": 1867,
           "detail": "the post-migrate plan is not empty - see /private/tmp/claude-501/-Users-alex-Documents-checkouts-intentius-choudoufu/aefed153-1ee1-4e68-9a5a-49f6e3e1cf34/scratchpad/scale50b/work/test_plan.out"
         }
       },
       "total_seconds": 11180.5,
-      "unaccounted_seconds": 4907.5,
-      "unaccounted_detail": "remaining 4907.5s is post-test_plan teardown; this run predates index-wait instrumentation",
-      "source": "git show 03ddf92e09b31848c3616e0b83dcf31e8c1d5f79:live/gauntlet.json"
+      "unaccounted_seconds": 11180.5,
+      "source": "git show daeb81de6aa96d0cba0b0053d11605e29e9f1aff:live/gauntlet.json"
     },
     {
       "schema": 1,
@@ -287,6 +283,57 @@
       "unaccounted_detail": "fourteen stage timers sum to 329s against a 231.7s total (-97.3s unaccounted): the emulator crossing script's stage timers are believed to overlap concurrently, or a stage duration_s carries forward from a prior run - neither confirmed; tracked at #1069, real-AWS rows in this artifact all reconcile",
       "accounting_inconsistent": true,
       "source": "git show 7a68ac8b366ade6dbc5e975be01c27c430fbf1fa:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 0fee6f5e09cb5600914f5ceccfaaf8ee0057df7a"
+    },
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
+      "target": "floci",
+      "scale": 136,
+      "commit": "9525811174df01a74d374da31231102bbf598f5d",
+      "date": "2026-09-12T09:17:18Z",
+      "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
+      "oracle": {
+        "terraform": "1.15.8",
+        "tofu": "1.12.5"
+      },
+      "resources": {
+        "total": 10069,
+        "taggable": 4493,
+        "skipped": 5576
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 8735,
+          "detail": "stock terraform applied 10069 resources at scale=136 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 4219 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 1398,
+          "detail": "live-import ratified 4493 of 10069 instances as eligible and stamped all 4493 with 0 failed and 5576 skipped (untaggable, identity composed from an already-stamped parent); every one of the 10069 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
+        },
+        "test_plan": {
+          "verdict": "fail",
+          "seconds": 3,
+          "detail": "the post-migration plan exited 1, Rule: count-index - first: Error: count.index is not available in resource arguments"
+        }
+      },
+      "audit_calls": {
+        "sweep": {
+          "choudoufu": 13212
+        },
+        "read_pass": {
+          "choudoufu": 18508,
+          "stock": 18510
+        },
+        "total": {
+          "choudoufu": 31720,
+          "stock": 18510
+        }
+      },
+      "total_seconds": 10136.2,
+      "unaccounted_seconds": 0.2,
+      "source": "git show daeb81de6aa96d0cba0b0053d11605e29e9f1aff:live/gauntlet.json; audit_calls (plan_calls absent: slice \"s0\" plan[default/cold] exited 1 - a refused plan's call count is not a plan's cost, and cannot become plan_calls) from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9525811174df01a74d374da31231102bbf598f5d"
     }
   ]
 }

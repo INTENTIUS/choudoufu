@@ -5,7 +5,11 @@
 
 package main
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 // TestScaleAuditCallsFromSliceCarriesBothLegs is item 5's first RED-then-GREEN
 // proof - "a test that fails when audit_calls is present but a leg is
@@ -225,5 +229,69 @@ func TestScalePlanCallsNeverSourcedFromAuditSplit(t *testing.T) {
 	}
 	if ac.Total == nil || ac.Total.Choudoufu != auditTotal {
 		t.Errorf("audit Total.Choudoufu = %v, want %d", ac.Total, auditTotal)
+	}
+}
+
+// TestScaleImportSliceKeepsAuditCallsWhenThePlanWasRefused is the guard for
+// the asymmetry refusedPlanError exists to express: a refused plan must never
+// become plan_calls, and must not take audit_calls down with it.
+//
+// The two numbers come from different measurements. plan_calls is the bench's
+// own CLI `tofu plan`; audit_calls is measureLegs, run in process afterwards
+// with Request.CollectUnclaimed forced true, which does not care whether a
+// CLI plan succeeded. Before this, one refused plan discarded both.
+//
+// terralith-scale at SLICE_SCALE=136 is the run that found it. choudoufu's
+// plans were refused by the count-index rule at 10,069 resources - the
+// domain check is bounded at 256 and this estate's count is 2*SCALE - while
+// the same run measured the sweep and the read pass in full. Those are the
+// numbers issue #1051 named this size to collect, and they were nearly
+// thrown away because a neighbouring number could not be had.
+func TestScaleImportSliceKeepsAuditCallsWhenThePlanWasRefused(t *testing.T) {
+	row := sliceRowInput{
+		Slice:          "s0",
+		StateInstances: 10069,
+		StockPlanCalls: 18510,
+		Plans: []planRunInput{
+			{Variant: "default", Pass: "cold", Calls: 0, ExitCode: 1},
+			{Variant: "default", Pass: "warm", Calls: 0, ExitCode: 1},
+		},
+		Split: &legSplitInput{DiscoverCalls: 7636, PostSweepCalls: 5576, BuildCalls: 18508},
+	}
+
+	_, err := scalePlanCallsFromRow(row)
+	var refused *refusedPlanError
+	if !errors.As(err, &refused) {
+		t.Fatalf("scalePlanCallsFromRow error = %v, want a *refusedPlanError so the caller can tell a refused plan from a malformed report", err)
+	}
+	if refused.ExitCode != 1 {
+		t.Errorf("refusedPlanError.ExitCode = %d, want 1", refused.ExitCode)
+	}
+
+	audit, err := scaleAuditCallsFromSlice(row)
+	if err != nil {
+		t.Fatalf("scaleAuditCallsFromSlice returned %v - the audit legs are measured independently of the plan and must survive its refusal", err)
+	}
+	if audit.Sweep == nil || audit.Sweep.Choudoufu != 7636+5576 {
+		t.Errorf("Sweep = %+v, want choudoufu %d", audit.Sweep, 7636+5576)
+	}
+	if audit.ReadPass == nil || audit.ReadPass.Choudoufu != 18508 {
+		t.Errorf("ReadPass = %+v, want choudoufu 18508", audit.ReadPass)
+	}
+	if audit.ReadPass.Stock == nil || *audit.ReadPass.Stock != 18510 {
+		t.Errorf("ReadPass.Stock = %v, want 18510 - stock's whole plan cost IS its read pass", audit.ReadPass.Stock)
+	}
+	if audit.Total == nil || audit.Total.Choudoufu != 7636+5576+18508 {
+		t.Errorf("Total = %+v, want choudoufu %d", audit.Total, 7636+5576+18508)
+	}
+
+	// And the provenance must say why plan_calls is missing, so a reader of
+	// the artifact never has to guess.
+	src := freshSource("the bench at commit abc123", refused)
+	if !strings.Contains(src, "plan_calls absent") || !strings.Contains(src, "exited 1") {
+		t.Errorf("freshSource = %q, want it to name the refused plan as the reason plan_calls is absent", src)
+	}
+	if freshSource("measured", nil) != "measured" {
+		t.Error("freshSource must not decorate a source when no plan was refused")
 	}
 }

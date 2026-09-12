@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -90,7 +91,16 @@ func cmdScaleImportSlice(root string, args []string) error {
 		return fmt.Errorf("scale-import-slice: %s carries %d slice(s); only a k=1 (SLICE_K=1, the default - a single, unpartitioned estate) report becomes one ScaleRecord, because a partitioned run's slices each measure a FRACTION of the estate's cost, not the estate's own plan cost", path, len(report.Slices))
 	}
 	planCalls, err := scalePlanCallsFromRow(report.Slices[0])
-	if err != nil {
+	var refused *refusedPlanError
+	switch {
+	case errors.As(err, &refused):
+		// Loud, and it proceeds: audit_calls is still a real measurement.
+		// See refusedPlanError's own doc comment. plan_calls stays nil and
+		// is never written from a refused plan's count.
+		fmt.Printf("scale-import-slice: %v\n", refused)
+		fmt.Println("scale-import-slice: importing audit_calls only; plan_calls is left as it was, never derived from a refused plan")
+		planCalls = nil
+	case err != nil:
 		return fmt.Errorf("scale-import-slice: %w", err)
 	}
 	auditCalls, err := scaleAuditCallsFromSlice(report.Slices[0])
@@ -122,7 +132,7 @@ func cmdScaleImportSlice(root string, args []string) error {
 			Resources:  &ScaleResources{Total: report.Slices[0].StateInstances},
 			PlanCalls:  planCalls,
 			AuditCalls: auditCalls,
-			Source:     measuredBy,
+			Source:     freshSource(measuredBy, refused),
 		}
 		if err := ValidateScaleRecord(rec); err != nil {
 			return fmt.Errorf("scale-import-slice: built an invalid scale record: %w", err)
@@ -130,13 +140,22 @@ func cmdScaleImportSlice(root string, args []string) error {
 		sa.UpsertScaleRecord(rec)
 		fmt.Printf("scale-import-slice: created a new record for estate=%s target=floci scale=%d (%s)\n", *estate, report.Scale, ScaleRecordsPath)
 	} else {
-		existing.PlanCalls = planCalls
+		// A nil planCalls means this report's plan was refused. Leaving
+		// the field alone is the point: it must never be overwritten with
+		// nothing, and a value an earlier, successful bench measured is
+		// still true of that run.
+		what := "plan_calls and audit_calls"
+		if planCalls != nil {
+			existing.PlanCalls = planCalls
+		} else {
+			what = fmt.Sprintf("audit_calls (plan_calls absent: %v)", refused)
+		}
 		existing.AuditCalls = auditCalls
-		existing.Source = fmt.Sprintf("%s; plan_calls and audit_calls from %s", existing.Source, measuredBy)
+		existing.Source = fmt.Sprintf("%s; %s from %s", existing.Source, what, measuredBy)
 		if err := ValidateScaleRecord(*existing); err != nil {
 			return fmt.Errorf("scale-import-slice: merging would make the existing record invalid: %w", err)
 		}
-		fmt.Printf("scale-import-slice: merged plan_calls and audit_calls into the existing record for estate=%s target=floci scale=%d (%s)\n", *estate, report.Scale, ScaleRecordsPath)
+		fmt.Printf("scale-import-slice: merged %s into the existing record for estate=%s target=floci scale=%d (%s)\n", what, *estate, report.Scale, ScaleRecordsPath)
 	}
 
 	if err := SaveScaleArtifact(root, sa); err != nil {
@@ -219,6 +238,35 @@ type legSplitInput struct {
 // is nonzero is a REFUSED plan's cost, not a plan's cost (the bench's own
 // t.Errorf on this exact condition says so), so it is refused here too
 // rather than silently recorded as though it were a real measurement.
+// refusedPlanError is what scalePlanCallsFromRow returns when the bench's
+// own CLI plan exited non-zero. It is a distinct type rather than a plain
+// error because the two things this file imports have different fates when
+// that happens, and collapsing them loses a real measurement.
+//
+// A refused plan's call count is how far the plan got before giving up, not
+// what a plan costs, so plan_calls MUST NOT be written from it - that
+// refusal is absolute and is what TestScalePlanCallsFromRowRefusesARefusedPlan
+// pins. audit_calls is a different measurement entirely: measureLegs runs
+// in process with Request.CollectUnclaimed forced true, after the plan, and
+// does not care whether a CLI plan succeeded. Refusing to import it because
+// a neighbouring number is unavailable would discard a real account
+// inventory for no reason.
+//
+// terralith-scale at SLICE_SCALE=136 is why this exists. Its plans were
+// refused by the count-index rule at 10,069 resources, while the same run
+// measured the sweep and read pass in full - the numbers issue #1051 named
+// this size to collect.
+type refusedPlanError struct {
+	Slice    string
+	Variant  string
+	Pass     string
+	ExitCode int
+}
+
+func (e *refusedPlanError) Error() string {
+	return fmt.Sprintf("slice %q plan[%s/%s] exited %d - a refused plan's call count is not a plan's cost, and cannot become plan_calls", e.Slice, e.Variant, e.Pass, e.ExitCode)
+}
+
 func scalePlanCallsFromRow(row sliceRowInput) (*ScalePlanCalls, error) {
 	var cold, warm *ScaleCallPair
 	for _, p := range row.Plans {
@@ -226,7 +274,7 @@ func scalePlanCallsFromRow(row sliceRowInput) (*ScalePlanCalls, error) {
 			continue
 		}
 		if p.ExitCode != 0 {
-			return nil, fmt.Errorf("slice %q plan[%s/%s] exited %d - a refused plan's call count is not a plan's cost, and cannot become plan_calls", row.Slice, p.Variant, p.Pass, p.ExitCode)
+			return nil, &refusedPlanError{Slice: row.Slice, Variant: p.Variant, Pass: p.Pass, ExitCode: p.ExitCode}
 		}
 		switch p.Pass {
 		case "cold":
@@ -275,4 +323,14 @@ func scaleAuditCallsFromSlice(row sliceRowInput) (*ScaleAuditCalls, error) {
 		ReadPass: &ScaleCallPair{Choudoufu: readPass, Stock: &stock},
 		Total:    &ScaleCallPair{Choudoufu: sweep + readPass, Stock: &stock},
 	}, nil
+}
+
+// freshSource names a refused plan in a brand-new record's own provenance,
+// so a reader of live/gauntlet-scale.json never has to wonder why
+// plan_calls is missing from a row that carries audit_calls.
+func freshSource(measuredBy string, refused *refusedPlanError) string {
+	if refused == nil {
+		return measuredBy
+	}
+	return fmt.Sprintf("%s; plan_calls absent: %v", measuredBy, refused)
 }
