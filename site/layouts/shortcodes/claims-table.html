@@ -1,0 +1,41 @@
+{{- /*
+  Renders site/data/claims.json - the copy of live/smoke/claims.json that
+  live/smoke_claims_test.go holds to the scenario directory (#1055) - as the
+  claims index: one row per claim, the scenario that runs it, its time, and
+  one column per provider saying whether the claim is proven there,
+  restated, not applicable, or still open. A non-proven cell carries its
+  note as a title and, when the page has room, inline.
+
+    {{< claims-table >}}              every claim, grouped by theme
+    {{< claims-table provider="kubernetes" >}}  only the rows whose status for that provider is not "open"
+    {{< claims-table theme="gate" >}}  only one theme
+*/ -}}
+{{- $d := hugo.Data.claims -}}
+{{- $onlyProvider := .Get "provider" -}}
+{{- $onlyTheme := .Get "theme" -}}
+{{- if not $d -}}
+<p class="data-missing">No claims data yet; copy live/smoke/claims.json to site/data/claims.json.</p>
+{{- else -}}
+<div class="table-wrap">
+<table class="claims">
+<thead><tr><th>#</th><th>Claim</th><th>Run it</th><th>~min</th>{{ range $d.provider_order }}<th class="provider-{{ . }}">{{ . | upper }}</th>{{ end }}</tr></thead>
+<tbody>
+{{- range $d.claims }}
+{{- $row := . -}}
+{{- $show := true -}}
+{{- if and $onlyTheme (ne $onlyTheme $row.theme) }}{{ $show = false }}{{ end -}}
+{{- if $onlyProvider }}{{ with index $row.providers $onlyProvider }}{{ if eq .status "open" }}{{ $show = false }}{{ end }}{{ end }}{{ end -}}
+{{- if $show }}
+{{- $p := site.GetPage (printf "/docs/claims/%s" $row.slug) }}
+<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ $row.title }}</a>{{ else }}{{ $row.title }}{{ end }}</td><td><code>{{ $row.command }}</code>{{ if $row.needs_go }} <span class="needs-go">needs Go</span>{{ end }}</td><td>{{ $row.minutes }}</td>
+{{- range $d.provider_order }}
+{{- $pv := index $row.providers . }}
+<td class="status status-{{ replace $pv.status "/" "-" }}"{{ with $pv.note }} title="{{ . }}"{{ end }}>{{ $pv.status }}</td>
+{{- end }}
+</tr>
+{{- end }}
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- end -}}

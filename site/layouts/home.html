@@ -1,0 +1,70 @@
+{{ define "main" }}
+{{- $g := hugo.Data.gauntlet -}}
+{{- $prov := hugo.Data.providers.providers -}}
+<section class="hero">
+  <img class="hero-logo" src="{{ (resources.Get "choudoufu-inline-64.png").RelPermalink }}" width="64" height="64" alt="">
+  <h1>choudoufu</h1>
+  <p class="tagline">OpenTofu, with your platform holding the record of what you own.</p>
+  <p class="hero-lead">A fork of OpenTofu that puts each resource's identity on the resource itself, where the platform's own policy engine can see it. Adopt what already runs, gate it with the policy you already have, and treat the state file as a cache you are allowed to lose.</p>
+  <p class="hero-actions"><a class="button" href="{{ "aws/" | relURL }}">Start with AWS</a> <a class="button secondary" href="{{ "how-it-works/" | relURL }}">How it works</a></p>
+</section>
+
+<section class="beats">
+  <div class="beat">
+    <h2>Adopt live infrastructure</h2>
+    <p>Point it at what already runs. Adoption is a marker written onto each resource, not a state migration; a plan run before the markers are on reads the resource as absent, proposes a duplicate, and says so before you apply.</p>
+  </div>
+  <div class="beat">
+    <h2>Gate with the platform's own policy</h2>
+    <p>Ownership is a marker the platform can select on, so its policy engine decides who may change what, per resource. Handover is a role grant. Splitting an estate is a retag. No lock table, no bucket policy to keep in step.</p>
+  </div>
+  <div class="beat">
+    <h2>Lose the state file</h2>
+    <p>Identity lives on the resources, values in a record store, effects as receipts. The state file is a projection of those three; delete it and the next plan rebuilds it from live reads, with the same answer.</p>
+  </div>
+</section>
+
+<section class="platforms">
+  <h2>Pick your platform</h2>
+  <div class="picker" data-picker>
+    <input type="search" placeholder="Find a platform" aria-label="Find a platform" data-picker-filter autocomplete="off">
+    <ul class="picker-list">
+      {{ range $prov }}
+      {{ $hub := site.GetPage (printf "/%s" .id) }}
+      <li class="picker-row status-{{ .status }}" data-name="{{ .name | lower }}">
+        {{ with $hub }}<a href="{{ .RelPermalink }}">{{ end }}<span class="picker-name">{{ .name }}</span>{{ if $hub }}</a>{{ end }}
+        {{ if eq .status "soon" }}<span class="badge">coming soon</span>{{ else if eq .status "proven" }}<span class="badge badge-proven">proven</span>{{ end }}
+        <span class="picker-status">{{ .status_label | markdownify }}</span>
+      </li>
+      {{ end }}
+    </ul>
+    <p class="picker-empty" hidden data-picker-empty>No platform by that name yet. <a href="{{ site.Params.repo }}/issues">Ask for one.</a></p>
+  </div>
+</section>
+<script>
+(function () {
+  var box = document.querySelector('[data-picker]'); if (!box) return;
+  var input = box.querySelector('[data-picker-filter]');
+  var rows = box.querySelectorAll('.picker-row');
+  var empty = box.querySelector('[data-picker-empty]');
+  if (rows.length < 6) input.hidden = true;
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase(), n = 0;
+    rows.forEach(function (r) { var hit = !q || r.dataset.name.indexOf(q) >= 0; r.hidden = !hit; if (hit) n++; });
+    empty.hidden = n > 0;
+  });
+})();
+</script>
+
+<section class="proof-strip">
+  <h2>What stands behind it</h2>
+  <ul class="stats">
+    {{ with $g }}
+    <li><a href="{{ "docs/progress/" | relURL }}"><strong>{{ .sets.core.clear }} of {{ .sets.core.estates }}</strong> core estates clear every headline stage against the pinned emulator</a></li>
+    <li><a href="{{ "docs/progress/" | relURL }}"><strong>{{ len .stages }}</strong> stages, each a comparison with stock OpenTofu on the same configuration</a></li>
+    {{ end }}
+    <li><a href="{{ "docs/claims/" | relURL }}"><strong>{{ with hugo.Data.claims }}{{ len .claims }}{{ end }}</strong> claims you can run on your own machine, each shipped with its failure demonstrated</a></li>
+  </ul>
+  <p class="run-it">See one for yourself, with Docker and nothing else: <code>just smoke import</code> stands a stock estate up, deletes its state file, and plans it empty from markers alone. <a href="{{ "docs/claims/" | relURL }}">All of them</a> take a minute to six.</p>
+</section>
+{{ end }}

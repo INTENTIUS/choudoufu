@@ -1,0 +1,34 @@
+{{- $cur := . -}}
+{{- $provs := hugo.Data.providers.providers -}}
+{{- $curHub := "" -}}
+{{- range $provs }}{{ if eq $cur.Section .id }}{{ $curHub = .id }}{{ end }}{{ end -}}
+<header class="site-header">
+  <a class="brand" href="{{ site.Home.RelPermalink }}">
+    <img src="{{ (resources.Get "choudoufu-inline-64.png").RelPermalink }}" width="28" height="28" alt="">
+    <span>choudoufu</span>
+  </a>
+  <nav class="site-nav" aria-label="Primary">
+    <details class="menu"{{ if $curHub }} data-current{{ end }}>
+      <summary{{ if $curHub }} aria-current="page"{{ end }}>Platforms</summary>
+      <ul class="menu-list">
+        {{ range $provs }}
+        {{ $hub := site.GetPage (printf "/%s" .id) }}
+        <li{{ if eq .id $curHub }} class="current"{{ end }}>
+          {{ with $hub }}<a href="{{ .RelPermalink }}">{{ end }}{{ .name }}{{ if $hub }}</a>{{ end }}
+          {{ if eq .status "soon" }}<span class="badge">soon</span>{{ else if eq .status "proven" }}<span class="badge badge-proven">proven</span>{{ end }}
+        </li>
+        {{ end }}
+      </ul>
+    </details>
+    {{ range site.Menus.main }}
+    <a href="{{ .URL }}"{{ if or ($cur.IsMenuCurrent "main" .) ($cur.HasMenuCurrent "main" .) }} aria-current="page"{{ end }}>{{ .Name }}</a>
+    {{ end }}
+    <a href="{{ site.Params.repo }}" rel="noopener">GitHub</a>
+    <button class="search-toggle" type="button" aria-label="Search" data-search-open>Search</button>
+  </nav>
+</header>
+<script>
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('details.menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+});
+</script>

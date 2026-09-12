@@ -276,16 +276,15 @@ func TestMergeArtifactRefusesWhenProductCodeDiffers(t *testing.T) {
 }
 
 // TestMergeArtifactAllowedPath is a fast, git-free unit test of the
-// allowlist itself: the artifact, its Hugo copy, the rendered progress
-// docs, and an estate's own run.sh are allowed to differ without a re-run;
+// allowlist itself: the artifact, its Hugo copy, the board data, and an
+// estate's own run.sh are allowed to differ without a re-run;
 // everything else - most importantly the gauntlet tool's own recording
 // path - is not.
 func TestMergeArtifactAllowedPath(t *testing.T) {
 	allowed := []string{
 		ArtifactPath,
 		SiteDataPath,
-		"site/content/docs/progress/_index.md",
-		"site/content/docs/progress/add-an-estate.md",
+		SiteBoardPath,
 		"live/e2e/corpus-alb-complete/run.sh",
 		"live/e2e/reference-ec2-vpc/run.sh",
 	}
@@ -295,6 +294,7 @@ func TestMergeArtifactAllowedPath(t *testing.T) {
 		}
 	}
 	disallowed := []string{
+		"site/content/docs/progress/_index.md", // hand-written since #1055, never a measurement
 		"tools/gauntlet/run.go",
 		"tools/gauntlet/artifact.go",
 		"internal/command/apply.go",

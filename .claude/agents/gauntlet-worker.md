@@ -206,7 +206,7 @@ also asserted by value; an exit code is not a verdict.
 8. **Re-run** the estate until the stage moves. Then
    `go run ./tools/gauntlet render`.
 9. **Order matters at the end**: run the estate LAST, then `render`, then
-   **commit** (script, code, artifact and rendered docs together, with `-F`
+   **commit** (script, code, artifact and board data together, with `-F`
    from a message file since shell substitution eats `${count.index}`; one
    commit per unit is fine), and only THEN gate (step 10). Rendering before
    the final run leaves a rendered page behind the artifact and
@@ -287,8 +287,9 @@ hand back a finding dressed up as a finished unit.
 
 ## What you must not do
 
-- Edit `live/gauntlet.json`, `live/GAUNTLET.md` or anything under
-  `site/content/docs/progress/` by hand; they are rendered.
+- Edit `live/gauntlet.json`, `live/GAUNTLET.md` or `site/data/gauntlet_board.json`
+  by hand; they are rendered. The pages under `site/content/docs/progress/` are
+  hand-written prose that reads that data (#1055); those you may edit.
 - Hand-edit any file carrying `Code generated ... DO NOT EDIT` or any artifact
   under `live/`; regenerate it.
 - Change a stage's status in `tools/gauntlet/stages.go`; that is a

@@ -1,7 +1,7 @@
 baseURL = "https://intentius.io/choudoufu/"
 title = "choudoufu"
-theme = "hugo-book"
 enableGitInfo = false
+disableKinds = ["taxonomy", "term"]
 
 [params]
   # The release every measured figure on this site describes. Pages state it
@@ -9,22 +9,46 @@ enableGitInfo = false
   # here and never a page that quietly still names the previous one.
   # Bump this in the same commit that tags a release.
   choudoufuVersion = "v0.5.0"
-  BookTheme = "light"
-  BookSection = "docs"
-  BookToC = true
-  BookRepo = "https://github.com/INTENTIUS/choudoufu"
-  BookEditPath = ""
-  BookDateFormat = "2006-01-02"
-  BookSearch = true
-  BookFavicon = "favicon.ico"
+  repo = "https://github.com/INTENTIUS/choudoufu"
+  description = "OpenTofu with the record of what you own held by your platform, not a state file. Adopt live infrastructure, gate it with the policy engine you already run, and treat the state file as a cache."
+
+# The header's fixed entries. Platforms are not listed here: the header
+# renders a Platforms menu from site/data/providers.yaml, so a new platform
+# is a roster entry, never a menu edit.
+[[menus.main]]
+  name = "How it works"
+  pageRef = "/how-it-works"
+  weight = 30
+[[menus.main]]
+  name = "Evidence"
+  pageRef = "/docs"
+  weight = 40
 
 [markup.goldmark.renderer]
   unsafe = true
 
-# Images in markdown resolve through layouts/_default/_markup/render-image.html,
-# which looks in site/assets first, so `![](diagram-pieces.svg)` works from any
-# page depth under the /choudoufu/ base.
+# Highlighting emits classes, styled in site.css for both themes, rather
+# than Chroma's inline dark palette.
+[markup.highlight]
+  noClasses = false
+  lineNumbersInTable = false
 
 [markup.tableOfContents]
   startLevel = 2
   endLevel = 3
+
+# Images in markdown resolve through layouts/_markup/render-image.html,
+# which looks in site/assets first, so `![](diagram-pieces.svg)` works from
+# any page depth under the /choudoufu/ base.
+
+[outputs]
+  home = ["HTML", "RSS", "searchindex"]
+
+[outputFormats.searchindex]
+  mediaType = "application/json"
+  baseName = "searchindex"
+  isPlainText = true
+  notAlternative = true
+
+[minify]
+  disableJSON = true

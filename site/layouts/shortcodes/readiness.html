@@ -1,0 +1,40 @@
+{{- /*
+  Renders site/data/readiness.json, the copy `go run ./tools/readiness-gen
+  -render` writes of live/readiness.json (#1055). Two sections:
+
+    {{< readiness "tiers" >}}   the tier-by-status cross tab and its stamp
+    {{< readiness "types" >}}   every provider type with tier, status, reason
+
+  Missing data prints one line and nothing else.
+*/ -}}
+{{- $section := .Get 0 -}}
+{{- $d := hugo.Data.readiness -}}
+{{- if not $d -}}
+<p class="data-missing">No readiness data yet; run <code>go run ./tools/readiness-gen -render</code>.</p>
+{{- else if eq $section "tiers" -}}
+<div class="table-wrap">
+<table class="readiness-tiers">
+<thead><tr><th>Tier</th>{{ range $d.statuses }}<th>{{ . }}</th>{{ end }}<th>Total</th></tr></thead>
+<tbody>
+{{- range $d.tiers }}
+<tr><td>{{ .tier }}</td>{{ range .counts }}<td>{{ . }}</td>{{ end }}<td>{{ .total }}</td></tr>
+{{- end }}
+<tr><td><strong>Total</strong></td>{{ range $d.column_totals }}<td>{{ . }}</td>{{ end }}<td>{{ $d.total }}</td></tr>
+</tbody>
+</table>
+</div>
+<p class="provenance">{{ $d.stamp | markdownify }}</p>
+{{- else if eq $section "types" -}}
+<div class="table-wrap readiness-table-wrap">
+<table class="readiness-types">
+<thead><tr><th>Type</th><th>Tier</th><th>Status</th><th>Reason</th></tr></thead>
+<tbody>
+{{- range $d.types }}
+<tr><td><code>{{ .type }}</code></td><td>{{ .tier }}</td><td>{{ .status }}</td><td>{{ with .reason }}{{ . | markdownify }}{{ end }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- else -}}
+{{- errorf "readiness: unknown section %q" $section -}}
+{{- end -}}

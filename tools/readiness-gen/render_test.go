@@ -32,18 +32,37 @@ func wantedSpans(t *testing.T, root string, a Artifact) []wantedSpan {
 		t.Fatalf("readinessStamp: %v", err)
 	}
 	table := renderReadinessTable(a, stamp)
-	types := renderReadinessTypesTable(a)
 	return []wantedSpan{
 		{CoverageMDRel, spanReadinessTable, table},
-		{CompatibilityMDRel, spanReadinessTable, table},
-		{ResourceTiersMDRel, spanReadinessTable, table},
-		{ResourceTiersMDRel, spanReadinessTypesTable, types},
 	}
 }
 
-// TestReadinessRenderedSpansAreCurrent is issue #419's staleness guard,
-// extended by issue #420 to the new resource-tiers page and its
-// readiness-types span: it holds every (doc, span) pair wantedSpans lists
+// TestReadinessSiteDataIsCurrent is the same staleness guard for the docs
+// site's copy (#1055): site/data/readiness.json must equal what
+// renderSiteData produces from the committed live/readiness.json and the
+// same git-derived stamp runRender uses.
+func TestReadinessSiteDataIsCurrent(t *testing.T) {
+	root := testRepoRoot(t)
+	artifact := readCommitted(t, root)
+	stamp, err := readinessStamp(root)
+	if err != nil {
+		t.Fatalf("readinessStamp: %v", err)
+	}
+	want, err := renderSiteData(artifact, stamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(SiteDataRel))) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		t.Fatalf("reading %s: %v (run `go run ./tools/readiness-gen -render` and commit the result)", SiteDataRel, err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("%s is stale; run `go run ./tools/readiness-gen -render` and commit the result", SiteDataRel)
+	}
+}
+
+// TestReadinessRenderedSpansAreCurrent is issue #419's staleness guard: it
+// holds every (doc, span) pair wantedSpans lists
 // byte-for-byte to what render.go's own render functions produce from the
 // committed live/readiness.json. Because the comparison is against the
 // artifact's already-committed bytes (readCommitted, build_test.go) and not
@@ -57,11 +76,8 @@ func TestReadinessRenderedSpansAreCurrent(t *testing.T) {
 	artifact := readCommitted(t, root)
 
 	for _, w := range wantedSpans(t, root, artifact) {
-		// Read fresh per case rather than once per Rel: ResourceTiersMDRel
-		// carries two spans, and each case's whole-file Replace check below
-		// needs the doc as committed, not as a previous case in this loop
-		// may have left it in memory (nothing is written back here, but
-		// reading fresh keeps the two checks independent by construction).
+		// Read fresh per case so each case's whole-file Replace check
+		// below sees the doc as committed.
 		path := filepath.Join(root, filepath.FromSlash(w.Rel))
 		doc, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
 		if err != nil {
@@ -80,10 +96,7 @@ func TestReadinessRenderedSpansAreCurrent(t *testing.T) {
 		}
 
 		// The whole-file check catches what the per-span one cannot: the
-		// marker pair itself going missing or duplicated. Replacing only
-		// the one named span leaves any other span in the same doc
-		// untouched, so this is safe to run per (doc, span) pair even for
-		// ResourceTiersMDRel's two spans.
+		// marker pair itself going missing or duplicated.
 		out, err := markers.Replace(w.Rel, md, w.Span, w.Want)
 		if err != nil {
 			t.Errorf("rendering %s: %v", w.Rel, err)
@@ -95,35 +108,28 @@ func TestReadinessRenderedSpansAreCurrent(t *testing.T) {
 	}
 }
 
-// TestReadinessTypesTableRendersEveryRow is the readiness-types span's own
+// TestReadinessSiteDataCarriesEveryRow is the per-type rows' own
 // completeness and safety check, independent of whatever is currently
-// committed to ResourceTiersMDRel (that byte-for-byte comparison is
-// TestReadinessRenderedSpansAreCurrent above): every row of the artifact
-// produces exactly one data row in the rendered table, and no reason string
-// contains a literal "|" or a newline, either of which would silently
-// corrupt the markdown table it sits in.
-func TestReadinessTypesTableRendersEveryRow(t *testing.T) {
+// committed to SiteDataRel (that byte-for-byte comparison is
+// TestReadinessSiteDataIsCurrent above): every row of the artifact produces
+// exactly one type row, every reason is one line, and a reason is present
+// exactly when the row is short of in-contract.
+func TestReadinessSiteDataCarriesEveryRow(t *testing.T) {
 	root := testRepoRoot(t)
 	artifact := readCommitted(t, root)
-	table := renderReadinessTypesTable(artifact)
+	data := buildSiteData(artifact, "stamp")
 
-	dataRows := 0
-	for _, line := range strings.Split(table, "\n") {
-		if strings.HasPrefix(line, "| `") {
-			dataRows++
-		}
+	if len(data.Types) != len(artifact.Types) {
+		t.Errorf("buildSiteData produced %d type rows, live/readiness.json has %d types", len(data.Types), len(artifact.Types))
 	}
-	if dataRows != len(artifact.Types) {
-		t.Errorf("renderReadinessTypesTable produced %d data rows, live/readiness.json has %d types", dataRows, len(artifact.Types))
+	if data.Total != artifact.Counts.Types {
+		t.Errorf("buildSiteData's cross tab sums to %d, want Counts.Types %d", data.Total, artifact.Counts.Types)
 	}
 
 	for _, r := range artifact.Types {
 		reason := reasonFor(r)
-		if strings.Contains(reason, "|") {
-			t.Errorf("%s: reasonFor contains a literal \"|\", which would split its markdown table row: %q", r.Type, reason)
-		}
 		if strings.Contains(reason, "\n") {
-			t.Errorf("%s: reasonFor contains a newline, which would break its markdown table row: %q", r.Type, reason)
+			t.Errorf("%s: reasonFor contains a newline; the site renders it as one table cell: %q", r.Type, reason)
 		}
 		if r.Status == StatusInContract && reason != "" {
 			t.Errorf("%s: in-contract row has a non-empty reason %q; the ruling's four tiers name no defect for an in-contract type", r.Type, reason)

@@ -1,0 +1,55 @@
+{{- /* The section's own tree: pages of the top-level section, then each
+       subsection with its pages, two levels deep. A provider hub shows its
+       six slots; the evidence tier shows its subsections. */ -}}
+{{- $top := .FirstSection -}}
+{{- $cur := . -}}
+{{- $provs := hugo.Data.providers.providers -}}
+{{- $isHub := false -}}
+{{- range $provs }}{{ if eq $top.Section .id }}{{ $isHub = true }}{{ end }}{{ end -}}
+<nav class="sidebar" aria-label="Section">
+  {{- if $isHub }}
+  {{- /* A platform switcher: the same slot on another platform, when it has one. */ -}}
+  {{- $slot := "" }}{{ if ne $cur $top }}{{ $slot = path.Base $cur.File.Path | strings.TrimSuffix ".md" }}{{ end }}
+  <label class="switcher"><span>Platform</span>
+    <select data-switch>
+      {{- range $provs }}
+      {{- $hub := site.GetPage (printf "/%s" .id) }}
+      {{- if $hub }}
+      {{- $target := $hub }}
+      {{- if $slot }}{{ with site.GetPage (printf "/%s/%s" .id $slot) }}{{ $target = . }}{{ end }}{{ end }}
+      <option value="{{ $target.RelPermalink }}"{{ if eq .id $top.Section }} selected{{ end }}>{{ .name }}{{ if eq .status "soon" }} (coming soon){{ end }}</option>
+      {{- end }}
+      {{- end }}
+    </select>
+  </label>
+  <script>document.querySelector('[data-switch]').addEventListener('change', function () { location.href = this.value; });</script>
+  {{- else }}
+  <a class="sidebar-top{{ if eq $cur $top }} active{{ end }}" href="{{ $top.RelPermalink }}">{{ $top.Title }}</a>
+  {{- end }}
+  <ul>
+  {{- range $top.RegularPages.ByWeight }}
+    <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
+  {{- end }}
+  </ul>
+  {{- range $top.Sections.ByWeight }}
+  {{- $sec := . }}
+  <details{{ if or (eq $sec $cur) ($cur.IsDescendant $sec) }} open{{ end }}>
+    <summary><a href="{{ $sec.RelPermalink }}"{{ if eq $sec $cur }} class="active"{{ end }}>{{ $sec.Title }}</a></summary>
+    <ul>
+    {{- range $sec.RegularPages.ByWeight }}
+      <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
+    {{- end }}
+    {{- range $sec.Sections.ByWeight }}
+      {{- $sub := . }}
+      <li class="sub"><a href="{{ $sub.RelPermalink }}"{{ if eq $sub $cur }} class="active"{{ end }}>{{ $sub.Title }}</a>
+        <ul>
+        {{- range $sub.RegularPages.ByWeight }}
+          <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
+        {{- end }}
+        </ul>
+      </li>
+    {{- end }}
+    </ul>
+  </details>
+  {{- end }}
+</nav>

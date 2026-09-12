@@ -30,8 +30,8 @@
 // The tool's own error message says so when the commit is missing; it never
 // fetches on its own.
 //
-// A second mode, mirroring tools/readiness-gen -render, rewrites the
-// fork-surface span of the docs site's positioning page in place, from the
+// A second mode, mirroring tools/readiness-gen -render, writes the docs
+// site's copy of the artifact (site/data/fork_surface.json) from the
 // already-committed live/fork-surface.json rather than a fresh diff - see
 // render.go:
 //
@@ -144,7 +144,7 @@ func repoRoot() (string, error) {
 
 func main() {
 	render := flag.Bool("render", false,
-		"rewrite the docs site's positioning-page fork-surface span from the committed live/fork-surface.json instead of regenerating the artifact (needs no git diff)")
+		"write site/data/fork_surface.json from the committed live/fork-surface.json instead of regenerating the artifact (needs no git diff)")
 	flag.Parse()
 
 	if *render {

@@ -232,7 +232,11 @@ func cmdRender(root string) error {
 	if err != nil {
 		return err
 	}
-	written, err := Render(root, m, a, tt)
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	written, err := Render(root, m, a, tt, scale)
 	if err != nil {
 		return err
 	}
@@ -330,7 +334,11 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt); err != nil {
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt, scale); err != nil {
 		return err
 	}
 	core, all := a.Sets["core"], a.Sets["all"]
@@ -403,7 +411,11 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt); err != nil {
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt, scale); err != nil {
 		return err
 	}
 	selected := len(fs.Args())
@@ -488,7 +500,11 @@ func cmdLiveCert(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt); err != nil {
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt, scale); err != nil {
 		return err
 	}
 	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
@@ -550,7 +566,11 @@ func cmdMergeArtifact(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, merged, tt); err != nil {
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, merged, tt, scale); err != nil {
 		return err
 	}
 	core, all := merged.Sets["core"], merged.Sets["all"]
@@ -663,7 +683,11 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt); err != nil {
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	if _, err := Render(root, m, a, tt, scale); err != nil {
 		return err
 	}
 	fmt.Printf("imported %d legacy verdict sets\n", imported)
@@ -721,7 +745,11 @@ func StaleFiles(root string) ([]string, error) {
 	defer os.RemoveAll(tmp)
 	// Estate pages are pruned by reading the target dir; mirror the committed
 	// one so pruning logic runs the same way.
-	written, err := Render(tmp, m, a, tt)
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return nil, err
+	}
+	written, err := Render(tmp, m, a, tt, scale)
 	if err != nil {
 		return nil, err
 	}

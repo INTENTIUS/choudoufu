@@ -57,6 +57,17 @@ a run does take it.
 > certification run, which is the next one this estate runs, not this
 > change.
 
+The one recorded point reads, straight from that file rather than typed
+here: at the 79-instance point the sweep cost
+{{< scale-num scale="1" path="plan_calls.sweep.choudoufu" >}} calls, the read
+pass {{< scale-num scale="1" path="plan_calls.read_pass.choudoufu" >}} against
+stock's {{< scale-num scale="1" path="plan_calls.read_pass.stock" >}}, for a
+total of {{< scale-num scale="1" path="plan_calls.total.choudoufu" >}} against
+{{< scale-num scale="1" path="plan_calls.total.stock" >}}, measured at commit
+`{{< scale-num scale="1" path="commit" short="true" >}}` on
+{{< scale-num scale="1" path="date" >}}. When a re-run lands a newer record
+for the same scale, this sentence follows it with no edit.
+
 ## The two terms
 
 **The sweep asks what this estate owns, and it is O(types).** One estate-filtered
@@ -250,7 +261,7 @@ many of them exist rather than how many types are admitted. In the table
 above the account holds nothing but the estate under test, so a bigger N
 means more of those objects and a fatter unfiltered list; that is the same
 mechanism the claims page's [foreign-load
-table]({{< relref "/docs/claims#claim-20-scale---the-estate-boundary-holds-when-the-account-is-a-terralith" >}})
+table]({{< relref "/docs/claims/plan-cost-under-foreign-load" >}})
 shows from the other side, growing a neighboring estate instead of this one
 - there the analogous column, the plan calls rather than the flat Cloud
 Control list, climbs 187, 197 and 687 for the same reason.
@@ -329,7 +340,7 @@ the record store attests while the run's own listing proves it exists);
 everything else still reads. The state cache supplies attributes for what is
 vouched, the plan launcher never plans those wire reads, and `reads = "full"`
 turns the whole pass off. The
-[unchanged-is-free claim]({{< relref "/docs/claims#claim-9-unchanged-is-free" >}})
+[unchanged-is-free claim]({{< relref "/docs/claims/unchanged-is-free" >}})
 measures it; default plans are untouched, since the read is drift detection.
 
 ### The native leg is flat across slices but not across scale

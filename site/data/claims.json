@@ -1,0 +1,466 @@
+{
+  "_comment": [
+    "The claims the smoke scenarios prove (#1055). One row per scenario under live/smoke/scenarios/ that is a claim;",
+    "import, greenfield and full are demos, not claims, and carry no row. live/smoke_claims_test.go holds this file to the",
+    "scenario directory and to the site's per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
+    "providers.<name>.status is one of: proven (a scenario runs on that substrate and passes), restated (the claim holds in a",
+    "different or weaker form, said in note), n/a (the claim's premise does not exist there), open (not yet stated either way)."
+  ],
+  "themes": {
+    "adopt": "Adopt live infrastructure without state surgery",
+    "gate": "The platform's own policy engine gates every write",
+    "cache": "The state file is a cache you are allowed to lose",
+    "operate": "Setup and day-to-day operation",
+    "scale": "Scale"
+  },
+  "provider_order": [
+    "aws",
+    "kubernetes"
+  ],
+  "claims": [
+    {
+      "id": 1,
+      "slug": "no-silent-orphans",
+      "title": "Owned resources cannot fall out of plans unnoticed",
+      "scenario": "live/smoke/scenarios/no-silent-orphans.sh",
+      "command": "just smoke no-silent-orphans",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 2,
+      "slug": "no-self-managed-locks",
+      "title": "Contention settles at the platform API, never in a lock",
+      "scenario": "live/smoke/scenarios/no-self-managed-locks.sh",
+      "command": "just smoke no-self-managed-locks",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 3,
+      "slug": "staleness-costs-reads",
+      "title": "Staleness costs reads, never results",
+      "scenario": "live/smoke/scenarios/staleness-costs-reads.sh",
+      "command": "just smoke staleness-costs-reads",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "cache",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 4,
+      "slug": "backend-sets-itself-up",
+      "title": "Declaring the backend is the whole setup",
+      "scenario": "live/smoke/scenarios/backend-sets-itself-up.sh",
+      "command": "just smoke backend-sets-itself-up",
+      "minutes": 1,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 5,
+      "slug": "recovery-is-a-rerun",
+      "title": "Recovery is a re-run, never surgery",
+      "scenario": "live/smoke/scenarios/recovery-is-a-rerun.sh",
+      "command": "just smoke recovery-is-a-rerun",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 6,
+      "slug": "roundtrip",
+      "title": "The roundtrip: one command in, one file out",
+      "scenario": "live/smoke/scenarios/roundtrip.sh",
+      "command": "just smoke roundtrip",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "cache",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 7,
+      "slug": "identity-is-a-tag",
+      "title": "Identity is a tag you can read and move",
+      "scenario": "live/smoke/scenarios/identity-is-a-tag.sh",
+      "command": "just smoke identity-is-a-tag",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "restated",
+          "note": "The Kubernetes marker is estate-only, one label re-bound through namespace and name (#1016). Ownership is still readable with kubectl; a move is a config-line rename with no label to rewrite, so live-mv has nothing governed to do."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 8,
+      "slug": "stock-when-you-need-it",
+      "title": "Stock when you need it",
+      "scenario": "live/smoke/scenarios/stock-when-you-need-it.sh",
+      "command": "just smoke stock-when-you-need-it",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 9,
+      "slug": "unchanged-is-free",
+      "title": "Unchanged is free",
+      "scenario": "live/smoke/scenarios/unchanged-is-free.sh",
+      "command": "just smoke unchanged-is-free",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "cache",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 10,
+      "slug": "cache-serves-the-whole-estate",
+      "title": "The cache serves the whole estate",
+      "scenario": "live/smoke/scenarios/cache-serves-the-whole-estate.sh",
+      "command": "just smoke cache-serves-the-whole-estate",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "cache",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 11,
+      "slug": "count-is-a-fungible-set",
+      "title": "A count pool is a fungible set",
+      "scenario": "live/smoke/scenarios/count-is-a-fungible-set.sh",
+      "command": "just smoke count-is-a-fungible-set",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The API server enforces uniqueness per kind, namespace and name, so a count-expanded set must carry distinct names. The fungible-set case does not exist and no slot is written."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 12,
+      "slug": "carve-by-retag",
+      "title": "Carve by retag",
+      "scenario": "live/smoke/scenarios/carve-by-retag.sh",
+      "command": "just smoke carve-by-retag",
+      "minutes": 6,
+      "needs_go": true,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "restated",
+          "note": "A carve is a label write, but nothing gates it until a ValidatingAdmissionPolicy is installed; until then the retag is advisory."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 13,
+      "slug": "the-tag-is-the-boundary",
+      "title": "The tag is the boundary",
+      "scenario": "live/smoke/scenarios/the-tag-is-the-boundary.sh",
+      "command": "just smoke the-tag-is-the-boundary",
+      "minutes": 4,
+      "needs_go": false,
+      "theme": "gate",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "restated",
+          "note": "RBAC has no attribute predicate. The fence is a ValidatingAdmissionPolicy on oldObject's label: write-only (no list or describe admission) and installed cluster-wide by a cluster admin, not two IAM changes (#1016)."
+        }
+      },
+      "evidence": [
+        "live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json"
+      ]
+    },
+    {
+      "id": 14,
+      "slug": "plan-cost-tracks-the-estate",
+      "title": "A plan costs its estate, not its account",
+      "scenario": "live/smoke/scenarios/plan-cost-tracks-the-estate.sh",
+      "command": "just smoke plan-cost-tracks-the-estate",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "scale",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "restated",
+          "note": "There is no cross-kind label-filtered list. A sweep is one list per kind per namespace; a label-selected list still returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive (#1016)."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 15,
+      "slug": "apply-what-was-approved",
+      "title": "Apply exactly what was approved",
+      "scenario": "live/smoke/scenarios/apply-what-was-approved.sh",
+      "command": "just smoke apply-what-was-approved",
+      "minutes": 4,
+      "needs_go": false,
+      "theme": "gate",
+      "break_mode": "inverted control: BREAK=1 removes the fault and requires the run to succeed",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 16,
+      "slug": "the-boundary-holds-across-regions",
+      "title": "The boundary holds across provider configurations",
+      "scenario": "live/smoke/scenarios/the-boundary-holds-across-regions.sh",
+      "command": "just smoke the-boundary-holds-across-regions",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "gate",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "One estate across contexts or clusters has not been stated either way."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 17,
+      "slug": "record-only-survives-cache-loss",
+      "title": "A record-only composite identity survives cache loss without a duplicate create",
+      "scenario": "live/smoke/scenarios/record-only-survives-cache-loss.sh",
+      "command": "just smoke record-only-survives-cache-loss",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 18,
+      "slug": "a-shadow-is-not-a-claimant",
+      "title": "A replaced object's shadow is not a second claimant",
+      "scenario": "live/smoke/scenarios/a-shadow-is-not-a-claimant.sh",
+      "command": "just smoke a-shadow-is-not-a-claimant",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 19,
+      "slug": "the-boundary-holds-across-accounts",
+      "title": "The boundary holds across accounts",
+      "scenario": "live/smoke/scenarios/the-boundary-holds-across-accounts.sh",
+      "command": "just smoke the-boundary-holds-across-accounts",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "gate",
+      "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "One estate across clusters has not been stated either way."
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 20,
+      "slug": "plan-cost-under-foreign-load",
+      "title": "Scale: the estate boundary holds when the account is a terralith",
+      "scenario": "live/smoke/scenarios/plan-cost-under-foreign-load.sh",
+      "command": "just smoke plan-cost-under-foreign-load",
+      "minutes": 5,
+      "needs_go": true,
+      "theme": "scale",
+      "break_mode": "scale: the default takes about five minutes; one environment variable produced the 3,705-resource row",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not yet stated for Kubernetes; #1016 is the design."
+        }
+      },
+      "evidence": [
+        "live/gauntlet-scale.json"
+      ]
+    }
+  ]
+}

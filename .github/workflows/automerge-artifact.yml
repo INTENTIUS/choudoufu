@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           files="$(gh pr view "$PR" -R "$REPO" --json files --jq '.files[].path')"
           [ -n "$files" ] || { echo "no files"; exit 0; }
-          allowed='^(live/gauntlet\.json|live/GAUNTLET\.md|live/gauntlet/estates\.json|live/history/.*\.json|site/data/gauntlet\.json|site/content/docs/progress/.*\.md|live/cohort-acceptance\.json)$'
+          allowed='^(live/gauntlet\.json|live/GAUNTLET\.md|live/gauntlet/estates\.json|live/history/.*\.json|site/data/gauntlet\.json|site/data/gauntlet_board\.json|live/cohort-acceptance\.json)$'
           bad="$(printf '%s\n' "$files" | grep -Ev "$allowed" || true)"
           if [ -n "$bad" ]; then
             echo "not artifact-only; a maintainer merges this one:"; printf '  %s\n' $bad; exit 0

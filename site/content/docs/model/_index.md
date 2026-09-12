@@ -8,8 +8,10 @@ bookCollapseSection: true
 
 Three things have to survive between runs: which live object each resource
 block owns, the values the cloud cannot hold, and whether an effect has
-already run. Each one lives somewhere AWS already has, and your IAM governs
-each one per resource.
+already run. Each one lives somewhere the platform already has (on AWS: a
+tag, a parameter, a receipt), and the platform's own policy engine governs
+each one per resource. [How it works]({{< relref "/how-it-works" >}}) is
+the short form of this section with a per-platform table on each page.
 
 ![Where identity, values and effects live, and who writes each](diagram-pieces.svg)
 

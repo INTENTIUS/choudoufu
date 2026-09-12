@@ -1,0 +1,2 @@
+{{- $kind := .Get 0 | default "info" -}}
+<div class="hint hint-{{ $kind }}">{{ .Inner | markdownify }}</div>

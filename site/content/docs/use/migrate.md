@@ -265,7 +265,7 @@ a resource.
 ## Leaving, and the guard that makes it deliberate
 
 Leaving is supported and cheap, and the smoke proves it: the
-[roundtrip claim]({{< relref "/docs/claims#claim-6-the-roundtrip---one-command-in-one-file-out" >}})
+[roundtrip claim]({{< relref "/docs/claims/roundtrip" >}})
 adopts a stock estate, operates it, and hands it back. The exit is one
 file and one edit: the cache copied to `terraform.tfstate`, the live
 block removed. Stock's first plan back proposes exactly one kind of
@@ -293,7 +293,7 @@ the same plan carries a warning headline instead of the refusal.
 
 That is the entire boundary. An unmigrated estate never meets the
 guard, which is what keeps the
-[stock-when-you-need-it claim]({{< relref "/docs/claims#claim-8-stock-when-you-need-it" >}})'s
+[stock-when-you-need-it claim]({{< relref "/docs/claims/stock-when-you-need-it" >}})'s
 measured parity intact: no live block means stock behavior, and the one
 divergence is this refusal, on a migrated estate, guarding the
 migration you already performed.

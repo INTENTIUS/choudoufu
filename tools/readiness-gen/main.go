@@ -16,9 +16,9 @@
 // package doc comment for the join this performs and what it approximates.
 //
 // A second mode, mirroring tools/survey-gen -render, rewrites the readiness-
-// tiers span of live/COVERAGE.md and of the docs site's compatibility page
-// in place, from the already-committed live/readiness.json rather than a
-// fresh Build() - see render.go:
+// tiers span of live/COVERAGE.md in place and writes the docs site's data
+// copy (site/data/readiness.json), from the already-committed
+// live/readiness.json rather than a fresh Build() - see render.go:
 //
 //	go run ./tools/readiness-gen -render
 package main
@@ -33,7 +33,7 @@ import (
 
 func main() {
 	render := flag.Bool("render", false,
-		"rewrite live/COVERAGE.md's and the docs site's readiness-tiers spans from the committed live/readiness.json instead of regenerating the artifact (needs no provider, no network)")
+		"rewrite live/COVERAGE.md's readiness-tiers span and site/data/readiness.json from the committed live/readiness.json instead of regenerating the artifact (needs no provider, no network)")
 	flag.Parse()
 
 	if *render {
