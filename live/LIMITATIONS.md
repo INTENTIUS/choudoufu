@@ -68,6 +68,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `child-module` | This module call cannot be expanded under live resource markers | error | "child-module" | `live/e2e/limits/child-module/` |
 | `count-index` | count.index is not available in resource arguments | error | "count-index-in-tag" | `live/e2e/limits/count-index-in-tag/` |
 | `for-each-key` | for_each key is outside the marker character set | error | "foreach-invalid-key" | `live/e2e/limits/foreach-invalid-key/` |
+| `generate-name` | Kubernetes object name is minted by the server | error | "generate-name" | `live/e2e/limits/generate-name/` |
 | `ignore-changes` | Ownership markers would be ignored | error | "ignore-changes" | `live/e2e/limits/ignore-changes/` |
 | `logical-resource` | Logical resource is not admitted | error | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" | `live/e2e/limits/null-resource/`, `live/e2e/limits/terraform-data/`, `live/e2e/limits/local-file/`, `live/e2e/limits/random-password/`, `live/e2e/limits/time-sleep/` |
 | `markerless-type` | Resource type has nowhere to write an ownership marker | error | "markerless-type" | `live/e2e/limits/markerless-type/` |
@@ -92,7 +93,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**27 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 24 of the 27 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**28 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 25 of the 28 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1238,6 +1239,33 @@ cannot mint a marker nothing can read back. Fixture at
 `internal/live/lint/testdata/foreach-key/main.tf` pin the much wider
 admission issue #210 opened and the exact six-character residue,
 respectively.
+
+### generate-name
+
+**Construct.** A Kubernetes resource whose `metadata` block sets
+`generate_name`, handing the object's name to the API server to mint at
+create time with the value as a prefix.
+
+**Why banned.** A Kubernetes object is identified by its namespace and
+name read from the metadata block (the object-metadata admission rule,
+issue #1064), and its ownership marker carries the estate alone
+(`live/MARKERS.md`, "Kubernetes: one label"): the name authored in the
+configuration is the join key back to the block that declares it. A name
+the server mints is unknowable before the create. That is exactly the
+server-assigned shape that on AWS needs the configuration address written
+onto the object, and #1016's ruling refuses to bring that shape back for
+Kubernetes rather than paper over it with a label the API server cannot
+carry.
+
+**Forwarding address.** Set `metadata.name`. A name that has to be unique
+per environment can be composed from variables or locals the way any other
+client-named identity is.
+
+**Enforcement.** `RuleGenerateName`, `internal/live/lint/generate_name.go`
+(`checkGenerateName`). Syntactic: a nested block named `metadata` carrying
+an attribute named `generate_name`, on any resource, with no provider
+schema needed, since no provider but Kubernetes' has that block. Fixture at
+`live/e2e/limits/generate-name/`.
 
 ### overlong-address
 
@@ -2421,6 +2449,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
+| - | - | lint | generate-name | error | `internal/live/lint` | "generate-name" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
@@ -2495,7 +2524,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**223 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**224 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

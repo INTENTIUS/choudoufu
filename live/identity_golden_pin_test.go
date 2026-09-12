@@ -2954,7 +2954,17 @@ const (
 	// NEEDS_DISCOVERY move in step, by two, not four - only the module's own
 	// aws_iam_policy.pod_policy[0] resolves to an instance; the root
 	// module's own `module` block is not itself a resource).
-	identityGoldenPinDirs = 666
+	//
+	// Then 666 -> 667 for GitHub issue #1064: one new fixture,
+	// live/e2e/limits/generate-name, the generate-name lint rule's. Its one
+	// resource sets no name, so it renders no row and the instance count
+	// does not move. The two types estate-k8s gained in the same change
+	// (kubernetes_service_account, kubernetes_service) have no ratified
+	// row and resolve only through the object-metadata rule, which needs
+	// the provider schema this golden's offline sweep never has, so they
+	// render no row here either - the same absence every schema-fallback
+	// type has had since #387.
+	identityGoldenPinDirs = 667
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

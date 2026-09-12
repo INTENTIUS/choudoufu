@@ -61,7 +61,7 @@ marker is a single label:
 
 | Label | Meaning | Present on |
 |---|---|---|
-| `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types; `kubernetes_manifest` is not one). |
+| `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types; `kubernetes_manifest` is not one). Since #1064 the same block is what admits the type: 73 of the 82 carry the full object-metadata shape, 48 namespaced and 25 cluster-scoped, and resolve to NAMESPACE/NAME or NAME with no row each. |
 
 There is no `tofu-address`, no continuation label and no `tofu-slot`. The
 object's own group, kind, namespace and name are the join key back to the

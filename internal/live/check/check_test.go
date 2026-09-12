@@ -125,6 +125,13 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// this instrument to be blind to. Its one refusal is worded in
 		// internal/command, beside the other command guards, and is
 		// unregistered for the same reason those are.
+		// The not-found shapes of a provider's ImportResourceState error,
+		// shared by internal/live/projection's pre-walk import and #388's
+		// plan-node seam the same way noimporter is (GitHub issue #1064). A
+		// pure function over two strings; it refuses nothing itself, and
+		// the refusal it decides between is projection's own "Cannot import
+		// for projection", already classified there.
+		"absent":      true,
 		"markerstrip": true,
 		"marksafe":    true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
 		"mdspan":      true, // rewrites generated regions of a markdown doc

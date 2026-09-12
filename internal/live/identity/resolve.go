@@ -2828,6 +2828,17 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 			ident.Subject, instAddr.String())
 		return nil, false
 	}
+	if attrName, ok := objectMetaTraversal(ref.Remaining); ok {
+		// kubernetes_x.y.metadata[0].name or .namespace (GitHub issue
+		// #1064): the one nested traversal this package follows, because
+		// on a type with [ObjectMetaShape] those two are the parent's own
+		// identity attributes, read out of the block the same way the
+		// parent's entry reads them (Component.Block). parentPart answers
+		// them from the parent's IdentityValues, so nothing here names a
+		// provider or a type; a parent whose entry does not carry that
+		// attribute gets the same refusal any other reference gets.
+		return r.parentPart(instAddr.Absolute(r.modInst), attrName, rng, ident)
+	}
 	if len(ref.Remaining) != 1 {
 		r.errorf(rng, "Identity not resolvable from configuration",
 			"%s refers to %s, but an identity can only be built from a single attribute of another resource (its identity attribute).",
@@ -5355,4 +5366,29 @@ func quoteAll(names []string) []string {
 		out = append(out, fmt.Sprintf("%q", n))
 	}
 	return out
+}
+
+// objectMetaTraversal reports whether rest - the steps of a reference past
+// the resource instance - is exactly metadata[0].name or
+// metadata[0].namespace, and which of the two. Any other index, depth or
+// leaf is not this shape.
+func objectMetaTraversal(rest hcl.Traversal) (string, bool) {
+	if len(rest) != 3 {
+		return "", false
+	}
+	if !isAttrStep(rest[0], "metadata") {
+		return "", false
+	}
+	idx, ok := rest[1].(hcl.TraverseIndex)
+	if !ok || idx.Key.IsMarked() || idx.Key.Type() != cty.Number || idx.Key.IsNull() {
+		return "", false
+	}
+	if n, _ := idx.Key.AsBigFloat().Int64(); n != 0 {
+		return "", false
+	}
+	leaf, ok := rest[2].(hcl.TraverseAttr)
+	if !ok || (leaf.Name != "name" && leaf.Name != "namespace") {
+		return "", false
+	}
+	return leaf.Name, true
 }

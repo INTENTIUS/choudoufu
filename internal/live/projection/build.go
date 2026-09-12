@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -2830,34 +2831,12 @@ const (
 	statusFailed
 )
 
-// notFoundDiagnosticSignals are the textual shapes an error-severity
-// diagnostic out of ImportResourceState takes when a provider is actually
-// answering "there is no such object", not failing to answer at all.
-// Textual is all there can be: a diagnostic that has crossed the provider
-// plugin protocol carries only Summary/Detail strings (tfdiags.Description),
-// nothing structured about the underlying provider error survives the wire.
-//
-//   - "couldn't find resource" is the exact, hardcoded default message
-//     terraform-plugin-sdk's retry.NotFoundError renders when a provider's
-//     internal finder comes back empty and sets no more specific text. It
-//     is a generic SDK convention used across the whole of
-//     terraform-provider-aws wherever a resource's Read is built on a
-//     "find the live object or report NotFoundError" finder, not a
-//     type-specific string. aws_lambda_permission - whose import lookup
-//     calls GetPolicy on the function, not the permission, and so 404s
-//     with this shape the moment the function itself does not exist yet
-//     either - is a confirmed instance (issue #297), not the only one this
-//     is meant to cover.
-//   - "ResourceNotFoundException" is AWS's own API error code, for a
-//     provider that surfaces the untranslated API error instead of going
-//     through the generic finder convention above.
-var notFoundDiagnosticSignals = []string{
-	"couldn't find resource",
-	"ResourceNotFoundException",
-}
+// The not-found shapes themselves live in internal/live/absent (GitHub
+// issue #1064), the leaf both this path and internal/tofu's plan-node
+// import consult, so the two can no longer drift apart by hand.
 
 // notFoundDiagnostics reports whether every error-severity diagnostic in
-// diags matches one of [notFoundDiagnosticSignals], so an
+// diags is a not-found shape ([absent.Matches]), so an
 // ImportResourceState response that came back with diagnostics can still be
 // folded into statusAbsent the same as an empty ImportedResources list or a
 // null read result - the "ordinary absence" this package's doc comments
@@ -2881,14 +2860,7 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 		sawError = true
 		desc := d.Description()
 		text := strings.TrimSpace(desc.Summary + ": " + desc.Detail)
-		matched := false
-		for _, signal := range notFoundDiagnosticSignals {
-			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		if !absent.Matches(desc.Summary, desc.Detail) {
 			return false, ""
 		}
 		if detail == "" {

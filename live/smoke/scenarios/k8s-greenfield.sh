@@ -20,7 +20,8 @@ kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 step "1. a Kubernetes estate, one plain apply"
 explain \
   "The configuration has a live block, a Kubernetes provider, and nothing" \
-  "else - no AWS provider, no backend, nothing pre-created. The cluster is" \
+  "else - no AWS provider, no backend, nothing pre-created. Four objects:" \
+  "a namespace, a ConfigMap, a ServiceAccount and a Service. The cluster is" \
   "a real API server (kind), not an emulator. Stock OpenTofu would write" \
   "an authoritative terraform.tfstate here; choudoufu keeps only a" \
   "disposable cache."
@@ -29,11 +30,11 @@ cmd "choudoufu init && choudoufu apply -auto-approve"
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-greenfield" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
-grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY_OUT" \
-  || fail "k8s-greenfield" "apply did not report 2 added: $APPLY_OUT"
+grep -qE 'Apply complete! Resources: 4 added' <<< "$APPLY_OUT" \
+  || fail "k8s-greenfield" "apply did not report 4 added: $APPLY_OUT"
 [ ! -f "$SMOKE_WORK/terraform.tfstate" ] \
   || fail "k8s-greenfield" "a terraform.tfstate appeared - a live-block apply must never write an authoritative state file"
-proof "a namespace and a ConfigMap created, and no terraform.tfstate exists."
+proof "a namespace, a ConfigMap, a ServiceAccount and a Service created, and no terraform.tfstate exists. Two of those types have no ratified identity row: they resolve through the object-metadata rule (#1064)."
 
 step "2. the marker, read back with kubectl - no choudoufu in the loop"
 explain \
@@ -55,6 +56,9 @@ fi
 NS_LABELS="$(kc get namespace smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)"
 grep -q '"tofu-estate":"smoke-k8s"' <<< "$NS_LABELS" \
   || fail "k8s-greenfield" "the namespace carries no tofu-estate label: $NS_LABELS"
+SA_LABELS="$(kc get serviceaccount app -n smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)"
+grep -q '"tofu-estate":"smoke-k8s"' <<< "$SA_LABELS" \
+  || fail "k8s-greenfield" "the service account, a type with no ratified row, carries no tofu-estate label: $SA_LABELS"
 proof "the label rode the create call itself, on the ConfigMap and on the namespace. Any tool that can read a label can list this estate: kubectl get all -A -l tofu-estate=smoke-k8s."
 
 if [ "${BREAK:-0}" = "1" ]; then
@@ -107,19 +111,19 @@ proof "the cache was there and its loss changed nothing."
 
 step "5. destroy - exactly what was made"
 explain \
-  "Teardown must remove exactly the two objects this scenario created" \
+  "Teardown must remove exactly the four objects this scenario created" \
   "and leave the cluster's own namespaces alone."
 cmd "choudoufu apply -destroy -auto-approve"
 DESTROY_OUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-greenfield" "apply -destroy failed: $DESTROY_OUT"
 grep -E 'Destroy complete|Apply complete' <<< "$DESTROY_OUT" | head -1 | evidence
-grep -qE "Resources: 0 added, 0 changed, 2 destroyed" <<< "$DESTROY_OUT" \
-  || fail "k8s-greenfield" "destroy did not remove exactly the 2 created resources: $DESTROY_OUT"
+grep -qE "Resources: 0 added, 0 changed, 4 destroyed" <<< "$DESTROY_OUT" \
+  || fail "k8s-greenfield" "destroy did not remove exactly the 4 created resources: $DESTROY_OUT"
 if kc get namespace smoke-k8s >/dev/null 2>&1; then
   fail "k8s-greenfield" "the smoke-k8s namespace still exists after destroy"
 fi
 kc get namespace kube-system >/dev/null 2>&1 || fail "k8s-greenfield" "kube-system is gone; destroy reached past the estate"
-proof "2 destroyed, 0 added, 0 changed. The estate is gone and the cluster's own namespaces stand."
+proof "4 destroyed, 0 added, 0 changed. The estate is gone and the cluster's own namespaces stand."
 
 echo "  What you watched: a Kubernetes estate live its whole life on a real"
 echo "  cluster without an authoritative state file, its ownership carried as"
