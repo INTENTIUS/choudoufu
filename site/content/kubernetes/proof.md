@@ -20,6 +20,15 @@ cell for its note.
 
 {{< claims-table provider="kubernetes" >}}
 
+## In CI
+
+The three Kubernetes claims run on a kind cluster in GitHub Actions on
+every pull request that touches the Kubernetes surface, each with its
+`BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
+lane's estates on the same cadence as the AWS rows
+([#1080](https://github.com/INTENTIUS/choudoufu/issues/1080)). A
+Kubernetes verdict on this site is no longer only a laptop's word.
+
 ## The harness
 
 ```

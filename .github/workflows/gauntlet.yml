@@ -131,6 +131,17 @@ jobs:
           tofu_wrapper: false
       - name: Materialise the corpus
         run: go run ./tools/corpus-fetch
+      # The kubernetes lane (issue #1080): its estates run against kind
+      # clusters their scripts create, not the emulator. kind and kubectl
+      # are pinned the way k8s-smoke.yml pins them; live/k8s_ci_test.go
+      # holds the estate list in the step below to the manifest's
+      # kubernetes lane.
+      - name: kind and kubectl, pinned (the kubernetes lane)
+        uses: helm/kind-action@v1.15.0
+        with:
+          version: v0.33.0
+          kubectl_version: v1.34.0
+          install_only: true
       - name: Build choudoufu
         # CGO_ENABLED=0 on purpose (issue #946): with cgo on, the ubuntu
         # runner links the binary against glibc, and corpus-eks-basic execs
@@ -159,6 +170,12 @@ jobs:
           else
             go run ./tools/gauntlet run -set "${{ github.event.inputs.set || 'core' }}" | tee gauntlet-run.log || true
           fi
+      - name: Run the kubernetes lane
+        env:
+          TOFU_BIN: ${{ runner.temp }}/choudoufu
+        run: |
+          set -o pipefail
+          go run ./tools/gauntlet run reference-k8s corpus-quickpizza | tee gauntlet-run-k8s.log || true
       - name: Render
         run: go run ./tools/gauntlet render
       - name: Run the cohort acceptance pass
@@ -180,6 +197,7 @@ jobs:
           name: gauntlet-logs
           path: |
             gauntlet-run.log
+            gauntlet-run-k8s.log
             live/gauntlet/logs/
             cohort-acceptance-run.log
           if-no-files-found: ignore
