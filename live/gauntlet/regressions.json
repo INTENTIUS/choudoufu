@@ -10,5 +10,11 @@
     "stage": "day2_remove",
     "reason": "choudoufu does not propose destroying aws_iam_instance_profile.team_0002_profile when its block is deleted. Neither sweep leg enumerates the type: the provider has no list resource for it, so it routes to the tagging leg, and #1045's emulator repin stopped floci answering GetResources for IAM to match real AWS. The stage's committed 'pass' was never a measurement - it was carried forward across an early abort by the merge #1069 fixed, and the last genuine pass is b8fbe8909d on 2026-08-31.",
     "issue": "#881"
+  },
+  {
+    "estate": "terralith-scale",
+    "stage": "day2_count",
+    "reason": "At SCALE=128 (9,477 resources) this stage's STOCK ORACLE fails, not choudoufu: after stock's own scale-down apply reports exactly six destroys, all of them index [1], an `iam list-roles` query still finds the destroyed count_team[1] role. The oracle fixture uses its own `${PREFIX}o-` names, so this is not a collision with the greenfield estate that shares the account. Unverified hypothesis: floci's list-roles pagination over the ~4,200 roles greenfield leaves in GREEN at this scale. The same stage passes at scale 1 and passed at scales 10 and 50 on 2026-09-09/10, where the account holds far fewer roles.",
+    "issue": "#1077"
   }
 ]
