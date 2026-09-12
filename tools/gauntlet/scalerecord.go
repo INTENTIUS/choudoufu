@@ -852,18 +852,46 @@ func BuildScaleRecordFromEstate(e EstateResult, source string) (ScaleRecord, boo
 			rec.Resources.Skipped = *resources - *taggable
 		}
 	}
-	if len(e.Stages) > 0 {
-		rec.Stages = map[string]ScaleStage{}
-	}
+	// Only the stages THIS run measured belong in a scale record, and
+	// LastRun.Seconds is the witness for which those are (issue #1069).
+	//
+	// EstateResult.Stages is merged across runs by RunEstates (run.go), so
+	// a stage this run never reached keeps an older run's verdict. On the
+	// board that is right: a stale verdict is still the best thing known
+	// about that stage. In a record keyed by (estate, target, SCALE) it is
+	// not, because a verdict measured at one size says nothing about
+	// another - and the merge is silent, so the record cannot tell the two
+	// apart by inspection.
+	//
+	// The run that forced this was terralith-scale at SCALE=136, 10,069
+	// resources: it aborted at test_plan having spoken three stages, into a
+	// row carrying eleven more from a scale-1 run eleven days older. Among
+	// them was test_apply, which chant-bench scores - so the published row
+	// would have claimed choudoufu's apply was verified at ten thousand
+	// resources when it was verified at seventy-nine.
+	//
+	// Seconds became a usable witness only when #1069's fix stopped it
+	// being merged too; it now holds exactly the stages this run emitted a
+	// duration_s for. A row that recorded no per-stage seconds at all has
+	// no witness, and there every stage is kept rather than the record
+	// being silently emptied - an older row with nothing to go on is a
+	// weaker record, not a false one.
+	measured := e.LastRun.Seconds
 	for id, verdict := range e.Stages {
+		if len(measured) > 0 {
+			if _, ok := measured[id]; !ok {
+				continue
+			}
+		}
 		st := ScaleStage{Verdict: verdict}
 		if e.LastRun.Detail != nil {
 			st.Detail = e.LastRun.Detail[id]
 		}
-		if e.LastRun.Seconds != nil {
-			if secs, ok := e.LastRun.Seconds[id]; ok {
-				st.Seconds = floatPtr(secs)
-			}
+		if secs, ok := measured[id]; ok {
+			st.Seconds = floatPtr(secs)
+		}
+		if rec.Stages == nil {
+			rec.Stages = map[string]ScaleStage{}
 		}
 		rec.Stages[id] = st
 	}

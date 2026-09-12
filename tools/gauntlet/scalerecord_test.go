@@ -560,3 +560,112 @@ func TestParsePlanCallsDetailAbsentToken(t *testing.T) {
 		t.Fatalf("parsePlanCallsDetail = %+v, want nil for a detail with no plan_calls_ token at all", pc)
 	}
 }
+
+// TestBuildScaleRecordFromEstateKeepsOnlyStagesThisRunMeasured is the guard
+// for the second half of issue #1069's own finding, discovered the moment a
+// real scale-136 run met it.
+//
+// EstateResult.Stages is MERGED across runs by RunEstates (run.go): a stage
+// this run never reached keeps the verdict an older run gave it, which is
+// right for the board, where a stale verdict is still the best thing known
+// about that stage. It is wrong for a ScaleRecord, whose whole identity is
+// (estate, target, SCALE): a verdict measured at scale 1 is not a statement
+// about scale 136, and copying it into a scale-136 record publishes a
+// number nobody measured at that size.
+//
+// The real run this fixture copies is the one that found it. terralith-scale
+// at SCALE=136 (10,069 resources) aborted at test_plan, so it spoke exactly
+// three stages - cold_deploy, migrate, test_plan - while the row it wrote
+// into carried eleven more verdicts from a scale-1 run eleven days older,
+// including a test_apply "pass" that chant-bench scores. Published, that row
+// would have said choudoufu's apply was verified at ten thousand resources
+// when it was verified at seventy-nine.
+//
+// LastRun.Seconds is the witness, and is one only because #1069's own fix
+// made it one: it now holds exactly the stages this run emitted a duration_s
+// for, so its key set IS the set of stages this run measured. A row that
+// recorded no per-stage seconds at all has no witness, and there the old
+// carry-everything behaviour stands rather than silently emptying the record
+// - see TestBuildScaleRecordFromEstateFloci, which exercises that path.
+func TestBuildScaleRecordFromEstateKeepsOnlyStagesThisRunMeasured(t *testing.T) {
+	e := EstateResult{
+		Name: "terralith-scale",
+		Stages: map[string]string{
+			// The three this run actually spoke.
+			"cold_deploy": VerdictPass,
+			"migrate":     VerdictPass,
+			"test_plan":   VerdictFail,
+			// Eleven carried forward from an older, SMALLER run.
+			"test_apply":       VerdictPass,
+			"greenfield":       VerdictFail,
+			"drift_reconverge": VerdictPass,
+			"plan_approval":    VerdictPass,
+			"day2_rename":      VerdictPass,
+			"day2_remove":      VerdictPass,
+			"day2_count":       VerdictPass,
+			"day2_replace":     VerdictPass,
+			"day2_crash":       VerdictNotRun,
+			"day2_teardown":    VerdictNotRun,
+			"strict":           VerdictNotRun,
+		},
+		LastRun: &LastRun{
+			Commit:   "9525811174df01a74d374da31231102bbf598f5d",
+			Date:     "2026-09-12T09:17:18Z",
+			Emulator: "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
+			Detail: map[string]string{
+				"cold_deploy": "stock terraform applied 10069 resources at scale=136 from unmodified terralith-gen output into BOTH accounts",
+				"migrate":     "live-import ratified 4493 of 10069 instances as eligible and stamped all 4493",
+				"test_plan":   "the post-migration plan exited 1, Rule: count-index - first: Error: count.index is not available in resource arguments",
+				// Stale, from the scale-1 run, and must not ride along.
+				"test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 6",
+			},
+			Seconds:   map[string]float64{"cold_deploy": 8735, "migrate": 1398, "test_plan": 3},
+			DurationS: 10136.2,
+		},
+	}
+	rec, ok := BuildScaleRecordFromEstate(e, "fixture")
+	if !ok {
+		t.Fatal("BuildScaleRecordFromEstate returned ok=false for a recognizable terralith-scale row")
+	}
+	if rec.Scale != 136 {
+		t.Errorf("Scale = %d, want 136", rec.Scale)
+	}
+	want := map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictFail}
+	if len(rec.Stages) != len(want) {
+		t.Errorf("record carries %d stage(s) %v, want exactly the %d this run measured %v - a verdict from another scale is not a measurement of this one",
+			len(rec.Stages), stageVerdicts(rec), len(want), want)
+	}
+	for id, verdict := range want {
+		if got, ok := rec.Stages[id]; !ok || got.Verdict != verdict {
+			t.Errorf("stage %q = %+v, want verdict %q", id, got, verdict)
+		}
+	}
+	for id := range rec.Stages {
+		if _, measured := want[id]; !measured {
+			t.Errorf("stage %q rode into the scale-136 record from an older run at a different scale", id)
+		}
+	}
+	if _, carried := rec.Stages["test_apply"]; carried {
+		t.Error("test_apply is the one chant-bench scores; carrying its scale-1 pass into a scale-136 record is exactly the published-number defect this guards")
+	}
+	// The arithmetic must still close, and now trivially does: the three
+	// measured stages are the whole of the run.
+	if rec.TotalSeconds == nil || *rec.TotalSeconds != 10136.2 {
+		t.Fatalf("TotalSeconds = %v, want 10136.2", rec.TotalSeconds)
+	}
+	if rec.UnaccountedSeconds == nil || math.Abs(*rec.UnaccountedSeconds-0.2) > 0.01 {
+		t.Errorf("UnaccountedSeconds = %v, want 0.2 (10136.2 - 8735 - 1398 - 3)", rec.UnaccountedSeconds)
+	}
+	if err := ValidateScaleRecord(rec); err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+}
+
+// stageVerdicts renders a record's stage map for a failure message.
+func stageVerdicts(r ScaleRecord) map[string]string {
+	out := map[string]string{}
+	for id, st := range r.Stages {
+		out[id] = st.Verdict
+	}
+	return out
+}
