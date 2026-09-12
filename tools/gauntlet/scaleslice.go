@@ -123,16 +123,17 @@ func cmdScaleImportSlice(root string, args []string) error {
 	}
 	if existing == nil {
 		rec := ScaleRecord{
-			Schema:     ScaleRecordSchema,
-			Estate:     *estate,
-			Target:     "floci",
-			Scale:      report.Scale,
-			Commit:     report.Commit,
-			Emulator:   report.Emulator,
-			Resources:  &ScaleResources{Total: report.Slices[0].StateInstances},
-			PlanCalls:  planCalls,
-			AuditCalls: auditCalls,
-			Source:     freshSource(measuredBy, refused),
+			Schema:           ScaleRecordSchema,
+			Estate:           *estate,
+			Target:           "floci",
+			Scale:            report.Scale,
+			Commit:           report.Commit,
+			Emulator:         report.Emulator,
+			Resources:        &ScaleResources{Total: report.Slices[0].StateInstances},
+			PlanCalls:        planCalls,
+			AuditCalls:       auditCalls,
+			Source:           measuredBy,
+			CallCountsSource: freshSource(measuredBy, refused),
 		}
 		if err := ValidateScaleRecord(rec); err != nil {
 			return fmt.Errorf("scale-import-slice: built an invalid scale record: %w", err)
@@ -151,7 +152,10 @@ func cmdScaleImportSlice(root string, args []string) error {
 			what = fmt.Sprintf("audit_calls (plan_calls absent: %v)", refused)
 		}
 		existing.AuditCalls = auditCalls
-		existing.Source = fmt.Sprintf("%s; %s from %s", existing.Source, what, measuredBy)
+		// Its own field, not appended to Source: Source names the run this
+		// row describes, and a later scale-backfill legitimately rewrites
+		// it. See ScaleRecord.CallCountsSource.
+		existing.CallCountsSource = fmt.Sprintf("%s from %s", what, measuredBy)
 		if err := ValidateScaleRecord(*existing); err != nil {
 			return fmt.Errorf("scale-import-slice: merging would make the existing record invalid: %w", err)
 		}

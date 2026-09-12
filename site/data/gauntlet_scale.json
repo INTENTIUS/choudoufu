@@ -246,20 +246,21 @@
       },
       "audit_calls": {
         "sweep": {
-          "choudoufu": 588
+          "choudoufu": 628
         },
         "read_pass": {
-          "choudoufu": 118,
+          "choudoufu": 148,
           "stock": 150
         },
         "total": {
-          "choudoufu": 706,
+          "choudoufu": 776,
           "stock": 150
         }
       },
       "total_seconds": 310.3,
       "unaccounted_seconds": 1.3,
-      "source": "git show bebcf3c676e2193cc16f22af2b847b547187daaa:live/gauntlet.json"
+      "source": "git show bebcf3c676e2193cc16f22af2b847b547187daaa:live/gauntlet.json",
+      "call_counts_source": "plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9fef444ff60a259ad2a24908566f906984392133"
     },
     {
       "schema": 1,
@@ -334,7 +335,8 @@
       },
       "total_seconds": 13919.9,
       "unaccounted_seconds": 0.9,
-      "source": "git show fce6b53e202878c2b21f0539af5026095a5fddcb:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9bd278a2926ba2783ae72d2ee1e9d74ddc4aa7e1"
+      "source": "git show fce6b53e202878c2b21f0539af5026095a5fddcb:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9bd278a2926ba2783ae72d2ee1e9d74ddc4aa7e1",
+      "call_counts_source": "plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9bd278a2926ba2783ae72d2ee1e9d74ddc4aa7e1"
     },
     {
       "schema": 1,
@@ -409,7 +411,8 @@
       },
       "total_seconds": 15028.8,
       "unaccounted_seconds": 1.8,
-      "source": "git show 27d062420e709a3d910b9b94c803708713c9500d:live/gauntlet.json"
+      "source": "git show 27d062420e709a3d910b9b94c803708713c9500d:live/gauntlet.json",
+      "call_counts_source": "plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit fb13ead026ed2d27b356fd5bf318a0b10781dc90"
     }
   ]
 }

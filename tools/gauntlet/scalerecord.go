@@ -276,6 +276,23 @@ type ScaleRecord struct {
 	// something they could re-open themselves, the same discipline this
 	// repository already applies to every other measured claim.
 	Source string `json:"source"`
+	// CallCountsSource is where PlanCalls and AuditCalls came from, kept
+	// apart from Source because they come from somewhere else entirely.
+	// Source names the run this row describes - a live/gauntlet.json row at
+	// a revision. That artifact has never held a call count and never will;
+	// the counts come from the slicing bench, via `gauntlet
+	// scale-import-slice`, often at a different commit.
+	//
+	// It exists because folding the two into one sentence lost the second
+	// one. `scale-backfill` rebuilds a row from live/gauntlet.json and
+	// overwrites Source with its own; once UpsertScaleRecordKeepingCallCounts
+	// started carrying the NUMBERS through that rebuild, the numbers survived
+	// while the sentence saying where they came from did not - leaving a row
+	// asserting 186 calls whose stated source was a file that has never
+	// contained one. A reader following it would find nothing, which is the
+	// precise failure this repository's provenance discipline exists to
+	// prevent.
+	CallCountsSource string `json:"call_counts_source,omitempty"`
 }
 
 // unaccountedSeconds returns total minus every stage's own known Seconds
@@ -1026,6 +1043,12 @@ func (a *ScaleArtifact) UpsertScaleRecordKeepingCallCounts(rec ScaleRecord) {
 		}
 		if rec.AuditCalls == nil {
 			rec.AuditCalls = a.Records[i].AuditCalls
+		}
+		// The numbers are worth nothing without the sentence that says
+		// where they came from, and the rebuild has just overwritten
+		// Source with its own. Carry that sentence too.
+		if rec.CallCountsSource == "" {
+			rec.CallCountsSource = a.Records[i].CallCountsSource
 		}
 		break
 	}

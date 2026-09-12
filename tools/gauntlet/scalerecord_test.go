@@ -694,7 +694,7 @@ func TestScaleBackfillPreservesCallCountsItCannotMeasure(t *testing.T) {
 	stock := 17422
 	existing := ScaleRecord{
 		Schema: ScaleRecordSchema, Estate: "terralith-scale", Target: "floci", Scale: 128,
-		Commit: "old", Source: "an earlier run; plan_calls from the slicing bench",
+		Commit: "old", Source: "an earlier run", CallCountsSource: "plan_calls from the slicing bench",
 		PlanCalls: &ScalePlanCalls{
 			Cold: &ScaleCallPair{Choudoufu: 21423, Stock: &stock},
 			Warm: &ScaleCallPair{Choudoufu: 21620},
@@ -719,6 +719,9 @@ func TestScaleBackfillPreservesCallCountsItCannotMeasure(t *testing.T) {
 	sa.UpsertScaleRecordKeepingCallCounts(rebuilt)
 
 	got := sa.Records[0]
+	if got.CallCountsSource != "plan_calls from the slicing bench" {
+		t.Errorf("CallCountsSource = %q, want the existing row's kept - numbers that survive a rebuild without the sentence saying where they came from are numbers a reader cannot trace", got.CallCountsSource)
+	}
 	if got.Commit != "new" || got.Resources == nil || got.Resources.Total != 9477 {
 		t.Errorf("the rebuilt fields must win: Commit=%q Resources=%+v", got.Commit, got.Resources)
 	}
