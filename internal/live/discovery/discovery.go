@@ -573,7 +573,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			// per type, so it gets no progress events of its own - there is
 			// nothing to report between, only before and after.
 			taggingUniverse, nativeUniverse := partitionSweepTypes(req, schemas, decl)
-			diags = diags.Append(sweepViaTagging(ctx, req, decl, res, taggingUniverse))
+			diags = diags.Append(sweepViaTagging(ctx, req, schemas, decl, res, taggingUniverse))
 			// the stale-state ruling's (#604) CollectUnclaimed
 			// ruling. The tagging leg above is untouched by it - it is one
 			// call and it covers every ARN-placeable type across the whole
@@ -1876,7 +1876,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// existing caller that never heard of Cloud Control keeps today's
 		// refusal unchanged.
 		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
-			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep, collectUnclaimed)
+			return scanTypeCloudControl(ctx, req, schemas, decl, typeName, cfnType, res, sweep, collectUnclaimed)
 		}
 
 		// Issue #293. Neither route above found a way to list typeName at

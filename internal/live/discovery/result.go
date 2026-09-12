@@ -721,6 +721,24 @@ const (
 	// own gap when the native fallback is what actually failed.
 	SweepGapNoARNJoin SweepGapReason = "NO_ARN_JOIN"
 
+	// SweepGapNoEnumerationRoute is a type in a service the Resource Groups
+	// Tagging API does not index ([taggingAPIUnservedServices], issue #692)
+	// that no other leg can enumerate either: no provider list resource and
+	// no Cloud Control listing. [arnJoinReaches] routes such a type to the
+	// tagging leg only as a last resort, so zero joined candidates there is
+	// not "the estate owns none of these" - it is "no leg looked anywhere
+	// this type could be found", and a block deleted from the configuration
+	// leaves its live object unproposed for destruction.
+	//
+	// Distinct from [SweepGapNoARNJoin], which is about the ARN join table
+	// having no way to RECOGNIZE the type from an ARN; here the join is
+	// fine and the API simply never returns the resource to join. Distinct
+	// from [SweepGapNotTaggable], which is the same silence for a type
+	// whose objects carry no tags at all - this one fires for a fully
+	// taggable type, which is exactly the case that used to be recorded in
+	// [Result.SweepCovered] with no gap at all (issue #881, reopened).
+	SweepGapNoEnumerationRoute SweepGapReason = "NO_ENUMERATION_ROUTE"
+
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a
 	// parent-scoped ResourceModel (live/registry.json's
 	// handlers.list_required_input, internal/live/cloudcontrol's
