@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "estate": "terralith-scale",
+    "stage": "test_plan",
+    "reason": "At SCALE=136 (10,069 resources) the post-migration plan is refused by the count-index rule, not merely non-empty: 'count.index is not available in resource arguments', on aws_iam_instance_profile.count_team_profile, whose count is 2*SCALE. The same estate at SCALE=1 plans clean, three times over on the same commit and the same emulator pin, so this is scale-dependent rather than a break in the stage. Two independent harnesses reproduce it - this crossing script and TestSlicingMatrixAgainstFloci at SLICE_SCALE=136 - so it is choudoufu's own behaviour and not a harness artifact. Acknowledged here so the scale-136 row can land with its provenance; the threshold and the mechanism are under investigation.",
+    "issue": "#1051"
+  },
+  {
+    "estate": "terralith-scale",
+    "stage": "day2_remove",
+    "reason": "choudoufu does not propose destroying aws_iam_instance_profile.team_0002_profile when its block is deleted. Neither sweep leg enumerates the type: the provider has no list resource for it, so it routes to the tagging leg, and #1045's emulator repin stopped floci answering GetResources for IAM to match real AWS. The stage's committed 'pass' was never a measurement - it was carried forward across an early abort by the merge #1069 fixed, and the last genuine pass is b8fbe8909d on 2026-08-31.",
+    "issue": "#881"
+  }
+]
