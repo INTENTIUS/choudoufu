@@ -3867,7 +3867,7 @@ func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags
 		// Count blocks first: their instances are a set, and the set matcher
 		// owns every one of them at once.
 		for _, cb := range sortedCountBlocks(decl.counts[typeName]) {
-			diags = diags.Append(bindCountBlock(req, cb, res, bound))
+			diags = diags.Append(bindCountBlock(ctx, req, decl, cb, res, bound))
 		}
 
 		for _, escaped := range decl.order[typeName] {

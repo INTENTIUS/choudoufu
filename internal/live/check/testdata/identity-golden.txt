@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=659 instances=1818
+# shape: dirs=662 instances=1827
 # shape: class CONCRETE=889
-# shape: class NEEDS_DISCOVERY=765
+# shape: class NEEDS_DISCOVERY=774
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=628 fixture-instances=1114
+# shape: fixture-dirs=631 fixture-instances=1123
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=f5bb9ec29013d6c23ca2aa9e5461ceb0eff65f119a649966a59489d9ba9b1edc
+# shape: body-sha256=f6cdc84987a55dfdf723fa4528b5f3bd89a81f1dc60683b9511235d4195055f6
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -118,6 +118,15 @@ internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.gr
 internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read	aws_iam_policy.team_0002_policy	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[2]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-foreach	aws_iam_policy.team_policy["dev"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-foreach	aws_iam_policy.team_policy["ops"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_iam_policy.dynamic_policy["a"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_iam_policy.dynamic_policy["b"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_subnet.this["a"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.before	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.beyond	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-sweep-dedup	aws_iam_policy.owned	NEEDS_DISCOVERY		
