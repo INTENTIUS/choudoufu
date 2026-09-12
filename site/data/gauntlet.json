@@ -15,7 +15,10 @@
       "tier1_gated": false,
       "proves": "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.",
       "oracle": "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.",
-      "break": "Not applicable; this stage has nothing of choudoufu's to break."
+      "break": "Not applicable; this stage has nothing of choudoufu's to break.",
+      "substrates": {
+        "kind": "Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline."
+      }
     },
     {
       "id": "migrate",
@@ -26,7 +29,10 @@
       "tier1_gated": false,
       "proves": "`choudoufu live-import -approve` against the stock state file binds every instance: each state entry becomes a marker on the resource, a record, or an identity derived from the declaration, and the summary line reports zero skipped.",
       "oracle": "The stock state file's instance list. Every address in it must be accounted for by name.",
-      "break": "Remove one instance from the expected count; the assertion on the summary line must fail."
+      "break": "Remove one instance from the expected count; the assertion on the summary line must fail.",
+      "substrates": {
+        "kind": "The stock state file names each object by namespace and name, and a bound object carries the tofu-estate label the way a bound AWS resource carries its two tags; zero skipped means every entry was stamped or recorded."
+      }
     },
     {
       "id": "test_plan",
@@ -37,7 +43,10 @@
       "tier1_gated": false,
       "proves": "With the state file deleted, `choudoufu live-plan` is empty, and a representative set of rendered identities equals what the AWS CLI reports for the same objects. An empty plan alone is not enough: a wrong identity can converge.",
       "oracle": "Stock `plan` on the migrated state is also empty. Identity strings are compared by value against the CLI, which is the same answer stock's state would hold.",
-      "break": "Corrupt one expected identity string; stage 3 must fail on that string and nothing else."
+      "break": "Corrupt one expected identity string; stage 3 must fail on that string and nothing else.",
+      "substrates": {
+        "kind": "Identities are NAMESPACE/NAME, compared by value with what kubectl reports."
+      }
     },
     {
       "id": "test_apply",
@@ -48,7 +57,10 @@
       "tier1_gated": false,
       "proves": "Applying the empty plan changes nothing: the estate's tagged-object count before and after is identical.",
       "oracle": "Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.",
-      "break": "Expect a different count; the assertion must fail."
+      "break": "Expect a different count; the assertion must fail.",
+      "substrates": {
+        "kind": "The count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed over the estate's kinds."
+      }
     },
     {
       "id": "drift_reconverge",
@@ -59,7 +71,10 @@
       "tier1_gated": false,
       "proves": "One live object is mutated out of band through the AWS CLI; the next plan proposes fixing exactly that object and nothing else, and apply reconverges it.",
       "oracle": "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
-      "break": "Mutate a second object as well; the single-object assertion must fail."
+      "break": "Mutate a second object as well; the single-object assertion must fail.",
+      "substrates": {
+        "kind": "The mutation is a kubectl label or patch, never through the tool."
+      }
     },
     {
       "id": "day2_rename",
@@ -70,7 +85,10 @@
       "tier1_gated": false,
       "proves": "Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.",
       "oracle": "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
-      "break": "Rename without the `moved` block; the plan must show a destroy and a create."
+      "break": "Rename without the `moved` block; the plan must show a destroy and a create.",
+      "substrates": {
+        "kind": "The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A rename without a moved block is zero churn here too, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a replace and must plan a destroy and a create."
+      }
     },
     {
       "id": "day2_remove",
@@ -81,7 +99,10 @@
       "tier1_gated": false,
       "proves": "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
       "oracle": "Stock with the same block removed plans the same destroys in a working order.",
-      "break": "Keep the block; no destroy may be proposed."
+      "break": "Keep the block; no destroy may be proposed.",
+      "substrates": {
+        "kind": "kubectl confirms the object is gone. With no address on the object, the sweep plans it at `<type>.orphan_<namespace>_<name>`, under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."
+      }
     },
     {
       "id": "day2_count",
@@ -92,7 +113,10 @@
       "tier1_gated": false,
       "proves": "Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.",
       "oracle": "Stock's plan for the same count change, normalised.",
-      "break": "Expect a different instance to be destroyed; the assertion must fail."
+      "break": "Expect a different instance to be destroyed; the assertion must fail.",
+      "substrates": {
+        "kind": "The instance that leaves the count is found by its label and planned at the sweep's orphan address, since the label carries no index; kubectl confirms it is the same object stock destroys and that the survivor is untouched. The instance that comes back is created at its declared address."
+      }
     },
     {
       "id": "day2_replace",
@@ -103,7 +127,10 @@
       "tier1_gated": false,
       "proves": "A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.",
       "oracle": "Stock's replace of the same resource leaves the same single object.",
-      "break": "Skip the destroy half; the next plan must report a collision rather than proposing nothing."
+      "break": "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
+      "substrates": {
+        "kind": "n/a: A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+      }
     },
     {
       "id": "day2_crash",
@@ -114,7 +141,10 @@
       "tier1_gated": true,
       "proves": "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
       "oracle": "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
-      "break": "Interrupt and then assert nothing is proposed; the assertion must fail."
+      "break": "Interrupt and then assert nothing is proposed; the assertion must fail.",
+      "substrates": {
+        "kind": "n/a: The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+      }
     },
     {
       "id": "day2_teardown",
@@ -125,7 +155,10 @@
       "tier1_gated": true,
       "proves": "`choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.",
       "oracle": "Stock `apply -destroy` on the same estate leaves the same empty account.",
-      "break": "Leave one resource; the assertion that the estate is empty must fail."
+      "break": "Leave one resource; the assertion that the estate is empty must fail.",
+      "substrates": {
+        "kind": "An empty cluster is `kubectl get <kind> -A -l tofu-estate=<estate>` returning nothing for every kind."
+      }
     },
     {
       "id": "plan_approval",
@@ -136,7 +169,10 @@
       "tier1_gated": false,
       "proves": "`plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.",
       "oracle": "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
-      "break": "Apply the planfile after a mutation and expect success; the run must refuse."
+      "break": "Apply the planfile after a mutation and expect success; the run must refuse.",
+      "substrates": {
+        "kind": "The out-of-band move is a kubectl label."
+      }
     },
     {
       "id": "greenfield",
@@ -147,7 +183,10 @@
       "tier1_gated": false,
       "proves": "Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.",
       "oracle": "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
-      "break": "Drop one resource from the expected inventory; the comparison must fail."
+      "break": "Drop one resource from the expected inventory; the comparison must fail.",
+      "substrates": {
+        "kind": "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with the label and the server-set fields normalised out; one cluster hosts both, in sequence."
+      }
     },
     {
       "id": "strict",
@@ -311,6 +350,395 @@
         },
         "test_plan": {
           "pass": 26,
+          "fail": 0,
+          "not_run": 0
+        }
+      }
+    }
+  },
+  "lanes": {
+    "kubernetes": {
+      "label": "kubernetes lane",
+      "estates": 1,
+      "clear": 0,
+      "stages": {
+        "cold_deploy": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_count": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_crash": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 0,
+          "n_a": 1
+        },
+        "day2_remove": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_rename": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_replace": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 0,
+          "n_a": 1
+        },
+        "day2_teardown": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "drift_reconverge": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "greenfield": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "migrate": {
+          "pass": 0,
+          "fail": 1,
+          "not_run": 0
+        },
+        "plan_approval": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "strict": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "test_apply": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "test_plan": {
+          "pass": 0,
+          "fail": 1,
+          "not_run": 0
+        }
+      }
+    },
+    "opentofu-native": {
+      "label": "opentofu-native lane",
+      "estates": 9,
+      "clear": 9,
+      "stages": {
+        "cold_deploy": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_count": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_crash": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 9
+        },
+        "day2_remove": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_rename": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_replace": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_teardown": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 9
+        },
+        "drift_reconverge": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "greenfield": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "migrate": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "plan_approval": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "strict": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 9
+        },
+        "test_apply": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        },
+        "test_plan": {
+          "pass": 9,
+          "fail": 0,
+          "not_run": 0
+        }
+      }
+    },
+    "published-deployment": {
+      "label": "published-deployment lane",
+      "estates": 1,
+      "clear": 1,
+      "stages": {
+        "cold_deploy": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_count": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_crash": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_remove": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_rename": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_replace": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_teardown": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "drift_reconverge": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "greenfield": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "migrate": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "plan_approval": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "strict": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "test_apply": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        },
+        "test_plan": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 0
+        }
+      }
+    },
+    "reference": {
+      "label": "reference lane",
+      "estates": 2,
+      "clear": 1,
+      "stages": {
+        "cold_deploy": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_count": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_crash": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_remove": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_rename": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_replace": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_teardown": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 2
+        },
+        "drift_reconverge": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "greenfield": {
+          "pass": 1,
+          "fail": 1,
+          "not_run": 0
+        },
+        "migrate": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "plan_approval": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "strict": {
+          "pass": 1,
+          "fail": 0,
+          "not_run": 1
+        },
+        "test_apply": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        },
+        "test_plan": {
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
+        }
+      }
+    },
+    "terraform-popular": {
+      "label": "terraform-popular lane",
+      "estates": 15,
+      "clear": 15,
+      "stages": {
+        "cold_deploy": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_count": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_crash": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 15
+        },
+        "day2_remove": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_rename": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_replace": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "day2_teardown": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 15
+        },
+        "drift_reconverge": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "greenfield": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "migrate": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "plan_approval": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "strict": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 15
+        },
+        "test_apply": {
+          "pass": 15,
+          "fail": 0,
+          "not_run": 0
+        },
+        "test_plan": {
+          "pass": 15,
           "fail": 0,
           "not_run": 0
         }
@@ -2033,6 +2461,71 @@
         }
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
+    },
+    {
+      "name": "reference-k8s",
+      "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s/run.sh",
+      "stages": {
+        "cold_deploy": "pass",
+        "day2_count": "pass",
+        "day2_crash": "n/a",
+        "day2_remove": "pass",
+        "day2_rename": "pass",
+        "day2_replace": "n/a",
+        "day2_teardown": "pass",
+        "drift_reconverge": "pass",
+        "greenfield": "pass",
+        "migrate": "fail",
+        "plan_approval": "pass",
+        "strict": "pass",
+        "test_apply": "pass",
+        "test_plan": "fail"
+      },
+      "clear": false,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "c4eea79beec59d320674fb557a97e2147b97e119",
+        "date": "2026-09-12T06:56:04Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.36.1, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle",
+          "day2_count": "scaling kubernetes_config_map.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map.orphan_refk8s_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
+          "day2_remove": "deleting kubernetes_service_account.team's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_service_account_v1.orphan_refk8s_app (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address, and filed under the versioned type since no block declares the kind any more - applied cleanly, the object gone from the cluster (kubectl get serviceaccount: NotFound) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployment's ReplicaSet and Pod, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed",
+          "day2_rename": "moved block: kubernetes_service_account.app -> .team with zero churn (no add, no change, no destroy), the live object untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A bare block rename without a moved block is zero churn here too, since the block name is not part of the object's identity; BREAK=1 renames the object's own metadata.name instead, which plans a replace, and the zero-churn assertion correctly fails",
+          "day2_teardown": "apply -destroy removed exactly the 6 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 6 its state held",
+          "drift_reconverge": "one ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the value reads back as configured. BREAK=1 tampers a second object and the single-object assertion correctly fails",
+          "greenfield": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, five kinds); the record store held 8 file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails",
+          "migrate": "live-import -approve wrote no label: 0 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 7 skipped. It classes every kubernetes_* type as UNTAGGABLE (\"has no tags argument in the provider's schema\") because ratify.go's carrier is the AWS tags surface and does not know the label surface markers.LabelSurface added in #1061; a Kubernetes object binds by namespace and name, and the next plan proposes writing the label itself (marker repair), so adoption here is one apply away rather than one live-import away (#1073)",
+          "plan_approval": "plan -out wrote one update (app-config gains reviewed=yes); the world then moved out of band (a stray label on shard-0, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed key); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the estate's five kinds, counted with kubectl",
+          "test_plan": "the plan with no state file is not empty: Plan: 0 to add, 7 to change, 0 to destroy. Every object bound by namespace and name (identities confirmed with kubectl: 1), and the changes are the tofu-estate label live-import never wrote (see migrate)"
+        },
+        "duration_s": 215.1,
+        "stage_seconds": {
+          "cold_deploy": 65,
+          "day2_count": 25,
+          "day2_remove": 16,
+          "day2_rename": 10,
+          "day2_teardown": 19,
+          "drift_reconverge": 10,
+          "greenfield": 16,
+          "migrate": 3,
+          "plan_approval": 16,
+          "strict": 13,
+          "test_apply": 16,
+          "test_plan": 5
+        }
+      }
     },
     {
       "name": "terralith-scale",

@@ -11,9 +11,12 @@
     "is the full contract and is rendered from the same tool.",
     "",
     "set is core or growing. Core is the pinned population the first headline",
-    "bar reads and can reach 100%; it needs a reason. Every estate is in the",
-    "second bar. Keep the list sorted by name; `go run ./tools/gauntlet render`",
-    "rewrites this file canonically and TestManifestIsCanonical holds it."
+    "bar reads and can reach 100%; it needs a reason. Every estate on the",
+    "emulator is in the second bar. The kubernetes lane runs on a kind cluster",
+    "instead and has a bar of its own (lanes.kubernetes in live/gauntlet.json),",
+    "counted toward neither AWS bar. Keep the list sorted by name; `go run",
+    "./tools/gauntlet render` rewrites this file canonically and",
+    "TestManifestIsCanonical holds it."
   ],
   "estates": [
     {
@@ -246,6 +249,12 @@
       "lane": "reference",
       "set": "core",
       "reason": "the plainest hand-written reference shape, kept in this repository"
+    },
+    {
+      "name": "reference-k8s",
+      "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
+      "lane": "kubernetes",
+      "set": "growing"
     },
     {
       "name": "terralith-scale",

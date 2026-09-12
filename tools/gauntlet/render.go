@@ -161,6 +161,14 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("Core is a pinned population that can reach 100%%. The rule for membership is")
 	w("in \"The core set\" below; a core estate carries its reason in the manifest.")
 	w("")
+	w("Both bars are the floci emulator's. The `%s` lane (#1067) runs against a", LaneKubernetes)
+	w("kind cluster instead - a real API server, not an emulator - and has a bar")
+	w("of its own, `lanes.%s` in `%s`, counted toward neither bar", LaneKubernetes, ArtifactPath)
+	w("above. A stage whose oracle is AWS-shaped says under its entry below how")
+	w("it reads on the kind substrate, or that it does not apply there, in which")
+	w("case the estate's cell reads `n/a` and is neutral for clear; nothing is")
+	w("skipped silently.")
+	w("")
 	w("## Stages")
 	w("")
 	w("Each stage states what a pass proves, what stock's answer to the same question")
@@ -182,6 +190,14 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 		w("")
 		w("Break: %s", s.Break)
 		w("")
+		for _, sub := range sortedKeys(s.Substrates) {
+			if reason, na := s.NotApplicable(sub); na {
+				w("On the %s substrate: not applicable, recorded as `n/a` and neutral for clear. %s", sub, reason)
+			} else {
+				w("On the %s substrate: %s", sub, s.Substrates[sub])
+			}
+			w("")
+		}
 	}
 	w("## The plan-fidelity contract")
 	w("")
@@ -246,7 +262,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("")
 	w("`set` is `core` or `growing`; `reason` is required for core; `script` defaults")
 	w("to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the")
-	w("`reference` lane.")
+	w("`reference` lane and a `%s`-lane estate kept in this repository.", LaneKubernetes)
 	w("")
 	w("Lanes: %s.", strings.Join(KnownLanes, ", "))
 	w("")
@@ -729,12 +745,24 @@ func runtimeStageCells(r EstateResult, a *Artifact) string {
 	return strings.Join(parts, ", ")
 }
 
+// sortedKeys is a map's keys in order, for deterministic rendering.
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func verdictMark(v string) string {
 	switch v {
 	case VerdictPass:
 		return "pass"
 	case VerdictFail:
 		return "FAIL"
+	case VerdictNA:
+		return "n/a"
 	default:
 		return "not run"
 	}

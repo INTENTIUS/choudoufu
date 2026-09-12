@@ -19,6 +19,16 @@ but a genuine fail on it still breaks clear.
 
 {{< gauntlet-bars >}}
 
+The two AWS bars count every estate that runs on the emulator. The third
+bar is the `kubernetes` lane ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067)):
+its estates run against a kind cluster, a real API server rather than an
+emulator, and count toward neither AWS bar. A stage that cannot run on
+that substrate reads `n/a` in the estate's row, with the reason on the
+estate's own page, and is neutral for clear; `live/GAUNTLET.md` says
+under each stage how it reads there. The
+[Kubernetes proof page]({{< relref "/kubernetes/proof" >}}) shows the
+same bar beside the Kubernetes claims.
+
 {{< gauntlet-board "banner" >}}
 
 The behaviors-proven line above counts how many of the

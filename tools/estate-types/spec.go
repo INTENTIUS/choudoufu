@@ -227,4 +227,10 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "reference" lane: no external source (live/GAUNTLET.md - "the plainest hand-written reference shape, kept in this repository"). run.sh's resource_block()/resource_block_ami_replaced() heredocs carry the five-resource estate: aws_vpc, aws_subnet, aws_internet_gateway, aws_security_group, aws_instance - no module. GitHub issue #363's strict_block() heredoc (Part G, the strict-stage scratch estate) adds a sixth, random_password, local to the hashicorp/random provider and outside the five above.`,
 	},
+	{
+		Name:       "reference-k8s",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's first estate (#1067): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace, kubernetes_config_map (app-config and a two-instance count set), kubernetes_service_account, kubernetes_service, kubernetes_deployment - no module, no AWS provider. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the five above.`,
+	},
 }

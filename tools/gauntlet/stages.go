@@ -5,6 +5,8 @@
 
 package main
 
+import "strings"
+
 // Stage is one step of the gauntlet. The registry below is the only place a
 // stage is described: live/GAUNTLET.md, the site's progress pages and the
 // artifact schema are all rendered from it, and TestRenderedDocsAreCurrent
@@ -58,7 +60,28 @@ type Stage struct {
 	Proves     string `json:"proves"`
 	Oracle     string `json:"oracle"`
 	Break      string `json:"break"`
+	// Substrates says how the stage reads on a substrate other than the
+	// floci emulator (#1067), keyed by substrate name (SubstrateKind). A
+	// stage absent from the map applies there exactly as written. A note
+	// beginning "n/a: " means the stage cannot be run on that substrate:
+	// Rebuild (artifact.go) records it as VerdictNA for every estate on
+	// that substrate, neutral for clear, and the reason renders beside the
+	// stage rather than the stage being skipped silently. Any other note is
+	// that substrate's own oracle, rendered under the stage's Oracle line.
+	Substrates map[string]string `json:"substrates,omitempty"`
 }
+
+// NotApplicable reports whether the stage cannot run on substrate, and why.
+func (s Stage) NotApplicable(substrate string) (reason string, na bool) {
+	note, ok := s.Substrates[substrate]
+	if !ok || !strings.HasPrefix(note, naPrefix) {
+		return "", false
+	}
+	return strings.TrimSpace(strings.TrimPrefix(note, naPrefix)), true
+}
+
+// naPrefix marks a Substrates note as "this stage does not apply here".
+const naPrefix = "n/a:"
 
 const (
 	StatusActive  = "active"
@@ -70,81 +93,94 @@ func Stages() []Stage {
 	return []Stage{
 		{
 			ID: "cold_deploy", Order: 1, Title: "Cold deploy", Status: StatusActive, Headline: true,
-			Proves: "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.",
-			Oracle: "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.",
-			Break:  "Not applicable; this stage has nothing of choudoufu's to break.",
+			Proves:     "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.",
+			Oracle:     "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.",
+			Break:      "Not applicable; this stage has nothing of choudoufu's to break.",
+			Substrates: map[string]string{SubstrateKind: "Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline."},
 		},
 		{
 			ID: "migrate", Order: 2, Title: "Migrate", Status: StatusActive, Headline: true,
-			Proves: "`choudoufu live-import -approve` against the stock state file binds every instance: each state entry becomes a marker on the resource, a record, or an identity derived from the declaration, and the summary line reports zero skipped.",
-			Oracle: "The stock state file's instance list. Every address in it must be accounted for by name.",
-			Break:  "Remove one instance from the expected count; the assertion on the summary line must fail.",
+			Proves:     "`choudoufu live-import -approve` against the stock state file binds every instance: each state entry becomes a marker on the resource, a record, or an identity derived from the declaration, and the summary line reports zero skipped.",
+			Oracle:     "The stock state file's instance list. Every address in it must be accounted for by name.",
+			Break:      "Remove one instance from the expected count; the assertion on the summary line must fail.",
+			Substrates: map[string]string{SubstrateKind: "The stock state file names each object by namespace and name, and a bound object carries the tofu-estate label the way a bound AWS resource carries its two tags; zero skipped means every entry was stamped or recorded."},
 		},
 		{
 			ID: "test_plan", Order: 3, Title: "Replan from nothing", Status: StatusActive, Headline: true,
-			Proves: "With the state file deleted, `choudoufu live-plan` is empty, and a representative set of rendered identities equals what the AWS CLI reports for the same objects. An empty plan alone is not enough: a wrong identity can converge.",
-			Oracle: "Stock `plan` on the migrated state is also empty. Identity strings are compared by value against the CLI, which is the same answer stock's state would hold.",
-			Break:  "Corrupt one expected identity string; stage 3 must fail on that string and nothing else.",
+			Proves:     "With the state file deleted, `choudoufu live-plan` is empty, and a representative set of rendered identities equals what the AWS CLI reports for the same objects. An empty plan alone is not enough: a wrong identity can converge.",
+			Oracle:     "Stock `plan` on the migrated state is also empty. Identity strings are compared by value against the CLI, which is the same answer stock's state would hold.",
+			Break:      "Corrupt one expected identity string; stage 3 must fail on that string and nothing else.",
+			Substrates: map[string]string{SubstrateKind: "Identities are NAMESPACE/NAME, compared by value with what kubectl reports."},
 		},
 		{
 			ID: "test_apply", Order: 4, Title: "No-op apply", Status: StatusActive, Headline: true,
-			Proves: "Applying the empty plan changes nothing: the estate's tagged-object count before and after is identical.",
-			Oracle: "Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.",
-			Break:  "Expect a different count; the assertion must fail.",
+			Proves:     "Applying the empty plan changes nothing: the estate's tagged-object count before and after is identical.",
+			Oracle:     "Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.",
+			Break:      "Expect a different count; the assertion must fail.",
+			Substrates: map[string]string{SubstrateKind: "The count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed over the estate's kinds."},
 		},
 		{
 			ID: "drift_reconverge", Order: 5, Title: "Drift and reconverge", Status: StatusActive, Headline: true,
-			Proves: "One live object is mutated out of band through the AWS CLI; the next plan proposes fixing exactly that object and nothing else, and apply reconverges it.",
-			Oracle: "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
-			Break:  "Mutate a second object as well; the single-object assertion must fail.",
+			Proves:     "One live object is mutated out of band through the AWS CLI; the next plan proposes fixing exactly that object and nothing else, and apply reconverges it.",
+			Oracle:     "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
+			Break:      "Mutate a second object as well; the single-object assertion must fail.",
+			Substrates: map[string]string{SubstrateKind: "The mutation is a kubectl label or patch, never through the tool."},
 		},
 		{
 			ID: "day2_rename", Order: 6, Title: "Rename", Status: StatusActive, Headline: true,
-			Proves: "Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.",
-			Oracle: "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
-			Break:  "Rename without the `moved` block; the plan must show a destroy and a create.",
+			Proves:     "Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.",
+			Oracle:     "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
+			Break:      "Rename without the `moved` block; the plan must show a destroy and a create.",
+			Substrates: map[string]string{SubstrateKind: "The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A rename without a moved block is zero churn here too, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a replace and must plan a destroy and a create."},
 		},
 		{
 			ID: "day2_remove", Order: 7, Title: "Remove a block", Status: StatusActive, Headline: true,
-			Proves: "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
-			Oracle: "Stock with the same block removed plans the same destroys in a working order.",
-			Break:  "Keep the block; no destroy may be proposed.",
+			Proves:     "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
+			Oracle:     "Stock with the same block removed plans the same destroys in a working order.",
+			Break:      "Keep the block; no destroy may be proposed.",
+			Substrates: map[string]string{SubstrateKind: "kubectl confirms the object is gone. With no address on the object, the sweep plans it at `<type>.orphan_<namespace>_<name>`, under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."},
 		},
 		{
 			ID: "day2_count", Order: 8, Title: "Change count", Status: StatusActive, Headline: true,
-			Proves: "Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.",
-			Oracle: "Stock's plan for the same count change, normalised.",
-			Break:  "Expect a different instance to be destroyed; the assertion must fail.",
+			Proves:     "Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.",
+			Oracle:     "Stock's plan for the same count change, normalised.",
+			Break:      "Expect a different instance to be destroyed; the assertion must fail.",
+			Substrates: map[string]string{SubstrateKind: "The instance that leaves the count is found by its label and planned at the sweep's orphan address, since the label carries no index; kubectl confirms it is the same object stock destroys and that the survivor is untouched. The instance that comes back is created at its declared address."},
 		},
 		{
 			ID: "day2_replace", Order: 9, Title: "Replace with create_before_destroy", Status: StatusActive, Headline: true,
-			Proves: "A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.",
-			Oracle: "Stock's replace of the same resource leaves the same single object.",
-			Break:  "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
+			Proves:     "A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.",
+			Oracle:     "Stock's replace of the same resource leaves the same single object.",
+			Break:      "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
+			Substrates: map[string]string{SubstrateKind: "n/a: A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."},
 		},
 		{
 			ID: "day2_crash", Order: 10, Title: "Crash between create and destroy", Status: StatusActive, Headline: true, Tier1Gated: true,
-			Proves: "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
-			Oracle: "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
-			Break:  "Interrupt and then assert nothing is proposed; the assertion must fail.",
+			Proves:     "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
+			Oracle:     "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
+			Break:      "Interrupt and then assert nothing is proposed; the assertion must fail.",
+			Substrates: map[string]string{SubstrateKind: "n/a: The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."},
 		},
 		{
 			ID: "day2_teardown", Order: 11, Title: "Teardown", Status: StatusActive, Headline: true, Tier1Gated: true,
-			Proves: "`choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.",
-			Oracle: "Stock `apply -destroy` on the same estate leaves the same empty account.",
-			Break:  "Leave one resource; the assertion that the estate is empty must fail.",
+			Proves:     "`choudoufu apply -destroy` removes every object the estate owns in one apply, in an order the cloud accepts, and leaves nothing marked.",
+			Oracle:     "Stock `apply -destroy` on the same estate leaves the same empty account.",
+			Break:      "Leave one resource; the assertion that the estate is empty must fail.",
+			Substrates: map[string]string{SubstrateKind: "An empty cluster is `kubectl get <kind> -A -l tofu-estate=<estate>` returning nothing for every kind."},
 		},
 		{
 			ID: "plan_approval", Order: 12, Title: "Plan, review, apply", Status: StatusActive, Headline: true,
-			Proves: "`plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.",
-			Oracle: "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
-			Break:  "Apply the planfile after a mutation and expect success; the run must refuse.",
+			Proves:     "`plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.",
+			Oracle:     "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
+			Break:      "Apply the planfile after a mutation and expect success; the run must refuse.",
+			Substrates: map[string]string{SubstrateKind: "The out-of-band move is a kubectl label."},
 		},
 		{
 			ID: "greenfield", Order: 13, Title: "Greenfield apply", Status: StatusActive, Headline: true,
-			Proves: "Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.",
-			Oracle: "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
-			Break:  "Drop one resource from the expected inventory; the comparison must fail.",
+			Proves:     "Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.",
+			Oracle:     "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
+			Break:      "Drop one resource from the expected inventory; the comparison must fail.",
+			Substrates: map[string]string{SubstrateKind: "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with the label and the server-set fields normalised out; one cluster hosts both, in sequence."},
 		},
 		{
 			ID: "strict", Order: 14, Title: "Strict profile", Status: StatusActive, Headline: false,

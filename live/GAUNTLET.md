@@ -39,6 +39,14 @@ breaks clear, exactly as any other headline stage.
 Core is a pinned population that can reach 100%. The rule for membership is
 in "The core set" below; a core estate carries its reason in the manifest.
 
+Both bars are the floci emulator's. The `kubernetes` lane (#1067) runs against a
+kind cluster instead - a real API server, not an emulator - and has a bar
+of its own, `lanes.kubernetes` in `live/gauntlet.json`, counted toward neither bar
+above. A stage whose oracle is AWS-shaped says under its entry below how
+it reads on the kind substrate, or that it does not apply there, in which
+case the estate's cell reads `n/a` and is neutral for clear; nothing is
+skipped silently.
+
 ## Stages
 
 Each stage states what a pass proves, what stock's answer to the same question
@@ -53,6 +61,8 @@ Oracle: This stage is the stock run. Its state file and its cloud are the baseli
 
 Break: Not applicable; this stage has nothing of choudoufu's to break.
 
+On the kind substrate: Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline.
+
 ### 2. Migrate (`migrate`, active)
 
 Proves: `choudoufu live-import -approve` against the stock state file binds every instance: each state entry becomes a marker on the resource, a record, or an identity derived from the declaration, and the summary line reports zero skipped.
@@ -60,6 +70,8 @@ Proves: `choudoufu live-import -approve` against the stock state file binds ever
 Oracle: The stock state file's instance list. Every address in it must be accounted for by name.
 
 Break: Remove one instance from the expected count; the assertion on the summary line must fail.
+
+On the kind substrate: The stock state file names each object by namespace and name, and a bound object carries the tofu-estate label the way a bound AWS resource carries its two tags; zero skipped means every entry was stamped or recorded.
 
 ### 3. Replan from nothing (`test_plan`, active)
 
@@ -69,6 +81,8 @@ Oracle: Stock `plan` on the migrated state is also empty. Identity strings are c
 
 Break: Corrupt one expected identity string; stage 3 must fail on that string and nothing else.
 
+On the kind substrate: Identities are NAMESPACE/NAME, compared by value with what kubectl reports.
+
 ### 4. No-op apply (`test_apply`, active)
 
 Proves: Applying the empty plan changes nothing: the estate's tagged-object count before and after is identical.
@@ -76,6 +90,8 @@ Proves: Applying the empty plan changes nothing: the estate's tagged-object coun
 Oracle: Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.
 
 Break: Expect a different count; the assertion must fail.
+
+On the kind substrate: The count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed over the estate's kinds.
 
 ### 5. Drift and reconverge (`drift_reconverge`, active)
 
@@ -85,6 +101,8 @@ Oracle: Stock `plan` after the same mutation, with marker tags normalised out of
 
 Break: Mutate a second object as well; the single-object assertion must fail.
 
+On the kind substrate: The mutation is a kubectl label or patch, never through the tool.
+
 ### 6. Rename (`day2_rename`, active)
 
 Proves: Renaming a resource through a `moved` block and through `choudoufu live-mv` both produce zero churn: no destroy, no create, the marker rewritten in place.
@@ -92,6 +110,8 @@ Proves: Renaming a resource through a `moved` block and through `choudoufu live-
 Oracle: Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.
 
 Break: Rename without the `moved` block; the plan must show a destroy and a create.
+
+On the kind substrate: The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A rename without a moved block is zero churn here too, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a replace and must plan a destroy and a create.
 
 ### 7. Remove a block (`day2_remove`, active)
 
@@ -101,6 +121,8 @@ Oracle: Stock with the same block removed plans the same destroys in a working o
 
 Break: Keep the block; no destroy may be proposed.
 
+On the kind substrate: kubectl confirms the object is gone. With no address on the object, the sweep plans it at `<type>.orphan_<namespace>_<name>`, under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed.
+
 ### 8. Change count (`day2_count`, active)
 
 Proves: Scaling a `count` block down and back up destroys and creates only the instances stock would, and every surviving instance keeps its identity.
@@ -108,6 +130,8 @@ Proves: Scaling a `count` block down and back up destroys and creates only the i
 Oracle: Stock's plan for the same count change, normalised.
 
 Break: Expect a different instance to be destroyed; the assertion must fail.
+
+On the kind substrate: The instance that leaves the count is found by its label and planned at the sweep's orphan address, since the label carries no index; kubectl confirms it is the same object stock destroys and that the survivor is untouched. The instance that comes back is created at its declared address.
 
 ### 9. Replace with create_before_destroy (`day2_replace`, active)
 
@@ -117,6 +141,8 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
+On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure.
+
 ### 10. Crash between create and destroy (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
 
 Proves: A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.
@@ -124,6 +150,8 @@ Proves: A replace interrupted after the create and before the destroy is recover
 Oracle: Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.
 
 Break: Interrupt and then assert nothing is proposed; the assertion must fail.
+
+On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace).
 
 ### 11. Teardown (`day2_teardown`, active, tier-1 gated: not_run does not gate clear)
 
@@ -133,6 +161,8 @@ Oracle: Stock `apply -destroy` on the same estate leaves the same empty account.
 
 Break: Leave one resource; the assertion that the estate is empty must fail.
 
+On the kind substrate: An empty cluster is `kubectl get <kind> -A -l tofu-estate=<estate>` returning nothing for every kind.
+
 ### 12. Plan, review, apply (`plan_approval`, active)
 
 Proves: `plan -out` followed by `apply <planfile>` applies when the world has not moved and refuses, naming the mismatch, when it has.
@@ -141,6 +171,8 @@ Oracle: Stock's planfile applies in the unchanged case; in the changed case chou
 
 Break: Apply the planfile after a mutation and expect success; the run must refuse.
 
+On the kind substrate: The out-of-band move is a kubectl label.
+
 ### 13. Greenfield apply (`greenfield`, active)
 
 Proves: Applying the same configuration from an empty account with choudoufu directly, no migration, produces the same objects stock's cold deploy produced, plus markers.
@@ -148,6 +180,8 @@ Proves: Applying the same configuration from an empty account with choudoufu dir
 Oracle: The cloud after stock's cold deploy, compared object by object with marker tags normalised out.
 
 Break: Drop one resource from the expected inventory; the comparison must fail.
+
+On the kind substrate: Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with the label and the server-set fields normalised out; one cluster hosts both, in sequence.
 
 ### 14. Strict profile (`strict`, active, not part of the headline bars)
 
@@ -228,9 +262,9 @@ Every estate is one entry in `live/gauntlet/estates.json`:
 
 `set` is `core` or `growing`; `reason` is required for core; `script` defaults
 to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the
-`reference` lane.
+`reference` lane and a `kubernetes`-lane estate kept in this repository.
 
-Lanes: terraform-popular, opentofu-native, reference, published-deployment.
+Lanes: terraform-popular, opentofu-native, reference, published-deployment, kubernetes.
 
 ## The core set
 
@@ -281,7 +315,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-27 estates exercising 162 distinct types between them, of which 86 no
+28 estates exercising 166 distinct types between them, of which 90 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the

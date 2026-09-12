@@ -160,6 +160,11 @@ is the only thing a unit may end on. A finding written down is a note on an
 unfinished unit, never a finished one. An estate stays on the list until it
 clears. The two numbers on the site, core estates clear and all estates
 clear, are read from `live/gauntlet.json`, which only the runner writes.
+Both are the emulator's; the `kubernetes` lane (#1067) runs on a kind
+cluster and has a bar of its own in the same file, `lanes.kubernetes`,
+counted toward neither. A stage that cannot run on that substrate reads
+`n/a` there, with its reason in `tools/gauntlet/stages.go`, and is neutral
+for clear.
 
 ## What a measurement is worth
 
