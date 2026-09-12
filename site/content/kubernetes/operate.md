@@ -15,6 +15,14 @@ With an estate-only label there is no address on the object to rewrite. A
 `moved` block is a config-line rename and the natural key is unchanged, so
 the plan is empty. `live-mv` has nothing governed to do and says so.
 
+Moving an object between estates is a relabel, `kubectl label --overwrite
+tofu-estate=<new>`, and with the admission policy installed it is a
+governed one: the caller must hold both the estate the object is leaving
+and the one it is entering ([claim
+23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
+Handing a whole estate over is an RBAC change, the grant's binding moving
+to the receiving principal, and nothing on the objects changes.
+
 An `api_version` change is not a move either. Uniqueness is per group,
 resource, namespace and name; the version is a representation. The rename
 rule has no vocabulary for that yet.
@@ -30,24 +38,19 @@ objects claiming one address.
 
 On AWS, an object carrying this estate's marker that no block declares is
 proposed for deletion under the default policy, because the marker is its
-own scope. On Kubernetes that default is refused until four hazards are
-handled, in the order they should worry you:
+own scope. The same default holds on Kubernetes since the sweep landed
+([claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})), and it
+is safe because two exclusions run before anything reaches a delete
+quadrant, either sufficient: an object with a non-empty
+`metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
+from its ReplicaSet, a PVC's from its StatefulSet), and an object whose
+every `metadata.managedFields` manager is the control plane (the legacy
+`Endpoints` the endpoints controller mirrors a Service's labels onto). Both
+were made by a controller, not declared. A controller copies template
+labels, so an estate label in a pod template lands on objects nobody
+declared; those are exactly what the exclusions keep out.
 
-1. A controller copies template labels. A Deployment's pod-template labels
-   reach its ReplicaSets and Pods; a StatefulSet's volumeClaimTemplate labels
-   reach its PVCs. A marker in a template lands on objects nobody declared,
-   and every one of them becomes a delete candidate. A wrong marker is
-   silent; this is a wrong marker nobody wrote.
-2. An owner still exists. Deleting a controller-created object triggers a
-   recreate, which a plan cannot tell from convergence failing.
-3. A finalizer blocks. The delete returns success, sets `deletionTimestamp`,
-   and the object stays. The next plan finds it still there and still
-   marked.
-4. Propagation policy is unset, so deleting a marked Namespace takes
-   everything inside it, marked or not.
-
-The cheapest guard for the first two is a non-empty
-`metadata.ownerReferences` test before anything reaches a delete quadrant.
-The `default` ServiceAccount and `kube-root-ca.crt` exist in every namespace
-with no owner reference on some versions; they are safe under a keep default
-and a trap for anyone setting an account-wide delete.
+Two hazards remain the operator's, as they are on AWS: a finalizer makes a
+delete return success while the object stays until the finalizer clears,
+and deleting a marked Namespace takes everything inside it. The plan names
+the object; the approval is yours.

@@ -28,13 +28,13 @@ providers:
   - id: kubernetes
     name: Kubernetes
     status: soon
-    status_label: "Every object-metadata type plans and carries the estate label; the sweep and the gate are the next units in #1016."
+    status_label: "Every object-metadata type plans, carries the estate label, is swept for orphans, and is fenced by one admission policy that reads it; the gauntlet lane is the next unit in #1016."
     cells:
       identity: "One label, `tofu-estate`, written on the create; the object is re-bound through group, kind, namespace and name. A label value is capped at 63 characters and cannot carry a config address, so the address stays off the object. `generateName` is refused."
       values: "Not yet designed."
       effects: "Not yet designed."
       cache: "The same file and the same three rules."
-      gate: "A `ValidatingAdmissionPolicy` whose CEL reads the label off `oldObject`. It fences create, update and delete only, never list or get, and it is a cluster-wide object a cluster admin installs. Until one is installed the label is advisory."
+      gate: "One `ValidatingAdmissionPolicy` (`live/kubernetes/estate-boundary.yaml`) whose CEL reads the label off `oldObject` and `object` and asks the authorizer whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`; the grant is a ClusterRole. It fences create, update and delete only, never list or get, not subresources, and it is a cluster-wide object a cluster admin installs. Until it is installed the label is advisory."
       inventory: "`kubectl get <kind> -A -l tofu-estate=<estate>`, one kind at a time; `/apis` lists every kind the cluster serves, CRDs included."
-      sweep: "No cross-kind label-filtered list exists. A sweep is one list per kind per namespace; each list is label-selected, so it returns only the estate's objects and does not grow with the cluster."
-      delete: "Refused, until controller-created objects (Pods, ReplicaSets, PVCs from templates) can be excluded by owner reference. A controller copies template labels, so a marker in a pod template would land on objects nobody declared."
+      sweep: "One cluster-wide, label-selected list per kind the provider has a type for, plus the two discovery calls that say which kinds the cluster serves. Each list returns only the estate's objects and does not grow with the cluster; there is no one-call form."
+      delete: "Proposed for deletion, as on AWS, once two exclusions have run: an object with an owner reference, or one written only by the control plane, was made by a controller and is never an orphan. A controller copies template labels, so a marker in a pod template lands on Pods and ReplicaSets nobody declared; those are the objects the exclusion keeps out."

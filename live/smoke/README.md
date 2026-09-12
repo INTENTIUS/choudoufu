@@ -34,6 +34,8 @@ just smoke                # list scenarios
 just smoke greenfield     # a new estate from nothing
 just smoke import         # stock estate -> delete the state file -> adopt
 just smoke k8s-greenfield # the same life on a real kind cluster, one label as the marker (#1061)
+just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
+just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -64,6 +66,30 @@ It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
 one `tofu-estate` label, written on the create and read back with kubectl in
 step 2; its `BREAK=1` strips the label and requires the replan to propose
 restoring it. The marker is the estate alone, never the address (#1016).
+
+`k8s-no-silent-orphans` is claim 22 (#1065), the Kubernetes sibling of
+claim 1: a ConfigMap's block is deleted and the next plan proposes exactly
+that object's removal, found by one cluster-wide, label-selected list per
+kind, while the ReplicaSet and Pod a Deployment's template gave the same
+label to are never touched. Its `BREAK=1` strips the orphan's label and
+requires the replan to leave the object alone. The Deployment's container
+is `registry.k8s.io/pause`, which kind's node image already carries, and
+`wait_for_rollout` is off, so the scenario needs no image pull.
+
+`k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
+sibling of claim 13: the cluster admin installs
+`live/kubernetes/estate-boundary.yaml`, one `ValidatingAdmissionPolicy`
+whose CEL reads the estate label off the object and asks the authorizer
+whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`;
+two ServiceAccounts hold two estates through
+`live/kubernetes/estate-grant.yaml`, each is refused on the other's
+objects by the API server, through choudoufu and through plain kubectl
+alike, and one object is carved into a new estate by a relabel the policy
+refuses from both sides until a binding moves. Its `BREAK=1` deletes the
+policy and requires the refused writes to go through. The scenario mints
+each ServiceAccount a token and a kubeconfig of its own under the run's
+work directory; `as_role` points both `KUBECONFIG` (kubectl) and
+`KUBE_CONFIG_PATH` (the provider and the sweep) at it.
 
 ## Claim scenarios
 

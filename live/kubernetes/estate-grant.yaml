@@ -1,0 +1,35 @@
+# One estate's grant (#1066; live/MARKERS.md, "Granting a Kubernetes
+# estate"): the ClusterRole that names the estate, and the binding that
+# hands it to one principal. The verb and the resource are virtual - no
+# object called estates.choudoufu.intentius.io exists - and the only thing
+# that reads them is live/kubernetes/estate-boundary.yaml, through the
+# admission authorizer. Replace ESTATE with the estate name and the subject
+# with your principal, then kubectl apply -f. Handover is this binding
+# moving from one principal to another; nothing on the objects changes.
+#
+# This grant is the fence only. The principal still needs ordinary RBAC
+# for the kinds its estate declares (create, update, patch, delete) and
+# list on every kind the estate sweep asks for; the estate label is what
+# the fence reads, and RBAC alone cannot read it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: choudoufu-estate-ESTATE
+rules:
+  - apiGroups: ["choudoufu.intentius.io"]
+    resources: ["estates"]
+    resourceNames: ["ESTATE"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: choudoufu-estate-ESTATE-PRINCIPAL
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: choudoufu-estate-ESTATE
+subjects:
+  - kind: ServiceAccount
+    name: PRINCIPAL
+    namespace: PRINCIPAL_NAMESPACE

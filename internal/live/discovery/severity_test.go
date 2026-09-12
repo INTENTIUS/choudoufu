@@ -126,6 +126,13 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			// Severity comes from ProblemKind.Severity, pinned above.
 		case r.Summary == SummaryIncompleteSweep:
 			// Pinned above.
+		case r.Summary == SummaryKubernetesSweepUnavailable:
+			// The Kubernetes leg's own coverage gap (GitHub issue #1065):
+			// a warning, like the incomplete sweep it is the cluster-side
+			// form of.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
 		case fatal[r.Summary]:
 			if SeverityForRefusal(r.Summary) != SeverityError {
 				t.Errorf("%q is listed as fatal but SeverityForRefusal says %v",

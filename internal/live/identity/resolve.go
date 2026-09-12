@@ -241,6 +241,15 @@ func (r *resolver) warnUnsweepableTypes() {
 		if _, hasRow := LookupType(typeName); hasRow {
 			continue
 		}
+		if entry.NonAWSProvider {
+			// A type the object-metadata rule admitted (GitHub issue
+			// #1064) is reached by the Kubernetes sweep (#1065), which
+			// draws its universe from the provider's own types joined to
+			// what the cluster serves, not from DefaultTable: deleting its
+			// last block does propose the removal. The warning's claim
+			// would be false for it.
+			continue
+		}
 		names = append(names, typeName)
 	}
 	sort.Strings(names)

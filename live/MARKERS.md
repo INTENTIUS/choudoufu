@@ -88,10 +88,208 @@ and protects an existing one through `ignore_changes` the same way.
 
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
-that would put an address back on the object. What the label does not yet
-do is enumerated in #1016: no cross-kind sweep lists an estate (one list
-per kind per namespace is the shape), and nothing fences a write on the
-label until a `ValidatingAdmissionPolicy` is installed.
+that would put an address back on the object.
+
+The estate sweep (#1065) is one cluster-wide, label-selected list per kind
+the provider has a resource type for, joined to what the cluster serves
+through API discovery. An object it lists that no block declares is an
+orphan and is proposed for removal, planned at the synthetic address
+`<type>.orphan_<namespace>_<name>` since the label carries no address.
+Two exclusions run first, either sufficient: an object with a non-empty
+`metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
+from its ReplicaSet, an EndpointSlice's from its Service) and an object
+whose every `metadata.managedFields` manager is the control plane (the
+legacy `Endpoints` the endpoints controller mirrors a Service's labels
+onto). Both were made by a controller, not declared, and are never orphans
+- which is what makes an estate label copied through a pod template safe.
+
+### Granting a Kubernetes estate
+
+RBAC cannot read the label: a `PolicyRule` has verbs, groups, resources
+and names, and no predicate on a label. So the fence is admission (#1066):
+one `ValidatingAdmissionPolicy`, installed once, cluster-wide, by a
+cluster admin, whose CEL reads `tofu-estate` off the object a write is
+about to change (`oldObject`, the `aws:ResourceTag` semantic) and off the
+object the write would produce (`object`, the `aws:RequestTag` semantic),
+and asks the API server's own authorizer whether the caller holds `use` on
+a virtual resource named after each estate,
+`estates.choudoufu.intentius.io/<estate>`. That verb exists nowhere but in
+RBAC, which is the point: granting an estate is an ordinary ClusterRole,
+handover is a binding moving from one principal to another, and the policy
+is never edited for either. Claim 23
+(`live/smoke/scenarios/k8s-the-label-is-the-boundary.sh`) runs it on a
+kind cluster with two ServiceAccounts, and `BREAK=1` removes the policy to
+show the refusals were its doing.
+
+`live/kubernetes/estate-boundary.yaml`, applied once by a cluster admin:
+
+```yaml
+# The Kubernetes estate boundary (#1066, under #1016's ruling): one
+# ValidatingAdmissionPolicy, installed once, cluster-wide, by a cluster
+# admin. It reads the tofu-estate label off the object a write is about to
+# change (oldObject, the aws:ResourceTag semantic) and off the object the
+# write would produce (object, the aws:RequestTag semantic), and refuses the
+# write unless the caller holds "use" on a virtual resource named after
+# each estate: estates.choudoufu.intentius.io/<estate>. That verb exists
+# nowhere but in RBAC, so granting an estate is an ordinary ClusterRole
+# (live/kubernetes/estate-grant.yaml) and handover is an RBAC change, not
+# an edit to this object. A cluster-admin's wildcard rule matches the
+# virtual resource too, so cluster-admin holds every estate the way the
+# account root does on AWS.
+#
+# What this fences and what it does not, stated here rather than in a
+# caveat: admission sees create, update and delete, never get or list, so
+# the fence is write-only where an IAM condition can fence a describe. It
+# fences the object, not its subresources: a scale or a status write
+# arrives as a Scale or a status object carrying no label, and RBAC on
+# deployments/scale is the fence for those. The control plane is exempt
+# (nodes, the kube-system controllers, the scheduler and the API server
+# itself), and so is any object carrying an ownerReference: a controller
+# made it from a template, and the estate sweep excludes it by the same
+# rule, so the fence and the sweep agree on what an estate contains.
+#
+#   kubectl apply -f live/kubernetes/estate-boundary.yaml
+#
+# Needs admissionregistration.k8s.io/v1 (Kubernetes 1.30 or later).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: choudoufu-estate-boundary
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["*"]
+        apiVersions: ["*"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["*"]
+    objectSelector:
+      matchExpressions:
+        - key: tofu-estate
+          operator: Exists
+  matchConditions:
+    - name: not-the-control-plane
+      expression: >-
+        !('system:nodes' in request.userInfo.groups)
+        && !request.userInfo.username.startsWith('system:serviceaccount:kube-system:')
+        && !request.userInfo.username.startsWith('system:kube-')
+        && request.userInfo.username != 'system:apiserver'
+    - name: not-a-controllers-object
+      expression: >-
+        (oldObject == null ? object : oldObject).?metadata.?ownerReferences.orValue([]).size() == 0
+  variables:
+    - name: oldEstate
+      expression: >-
+        oldObject == null ? '' : oldObject.?metadata.?labels[?'tofu-estate'].orValue('')
+    - name: newEstate
+      expression: >-
+        object == null ? '' : object.?metadata.?labels[?'tofu-estate'].orValue('')
+    - name: boundToOld
+      expression: >-
+        variables.oldEstate == ''
+        || authorizer.group('choudoufu.intentius.io').resource('estates').name(variables.oldEstate).check('use').allowed()
+    - name: boundToNew
+      expression: >-
+        variables.newEstate == '' || variables.newEstate == variables.oldEstate
+        || authorizer.group('choudoufu.intentius.io').resource('estates').name(variables.newEstate).check('use').allowed()
+  validations:
+    - expression: variables.boundToOld
+      reason: Forbidden
+      messageExpression: >-
+        'tofu-estate=' + variables.oldEstate + ' fences this object and ' + request.userInfo.username
+        + ' is not bound to that estate (no "use" on estates.choudoufu.intentius.io named ' + variables.oldEstate + ')'
+    - expression: variables.boundToNew
+      reason: Forbidden
+      messageExpression: >-
+        'tofu-estate=' + variables.newEstate + ' would move this object into estate ' + variables.newEstate + ' and '
+        + request.userInfo.username + ' is not bound to it (no "use" on estates.choudoufu.intentius.io named ' + variables.newEstate + ')'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: choudoufu-estate-boundary
+spec:
+  policyName: choudoufu-estate-boundary
+  validationActions: ["Deny"]
+```
+
+`live/kubernetes/estate-grant.yaml`, once per estate and principal, with
+`ESTATE`, `PRINCIPAL` and `PRINCIPAL_NAMESPACE` filled in:
+
+```yaml
+# One estate's grant (#1066; live/MARKERS.md, "Granting a Kubernetes
+# estate"): the ClusterRole that names the estate, and the binding that
+# hands it to one principal. The verb and the resource are virtual - no
+# object called estates.choudoufu.intentius.io exists - and the only thing
+# that reads them is live/kubernetes/estate-boundary.yaml, through the
+# admission authorizer. Replace ESTATE with the estate name and the subject
+# with your principal, then kubectl apply -f. Handover is this binding
+# moving from one principal to another; nothing on the objects changes.
+#
+# This grant is the fence only. The principal still needs ordinary RBAC
+# for the kinds its estate declares (create, update, patch, delete) and
+# list on every kind the estate sweep asks for; the estate label is what
+# the fence reads, and RBAC alone cannot read it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: choudoufu-estate-ESTATE
+rules:
+  - apiGroups: ["choudoufu.intentius.io"]
+    resources: ["estates"]
+    resourceNames: ["ESTATE"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: choudoufu-estate-ESTATE-PRINCIPAL
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: choudoufu-estate-ESTATE
+subjects:
+  - kind: ServiceAccount
+    name: PRINCIPAL
+    namespace: PRINCIPAL_NAMESPACE
+```
+
+**Three things are true of this fence that are not true of the IAM one,
+and they are stated here rather than in a caveat.** Admission sees create,
+update and delete and never get or list, so the fence is write-only where
+an IAM condition can fence a describe; reads are RBAC's alone. It fences
+the object and not its subresources: a `kubectl scale` or a status write
+arrives as a Scale or a status object carrying no label (measured on
+Kubernetes 1.36; a `*/*` rule does not change it), and RBAC on
+`deployments/scale` is the fence for those. And the policy is one shared
+cluster object with a wider blast radius than two IAM changes: a cluster
+admin installs it and any cluster admin can remove it. The fence is also
+per estate, never per address, because the label carries no address; a
+team that wants two boundaries makes two estates.
+
+**What is exempt.** The control plane (`system:nodes`, the `kube-system`
+ServiceAccounts, `system:kube-*` and the API server itself), because
+kubelets write status and controllers write the copies a template makes;
+and any object carrying a non-empty `metadata.ownerReferences`, because a
+controller made it from a template. That second exemption is the same
+rule the estate sweep excludes by, so the fence and the sweep agree on
+what an estate contains. A `cluster-admin`'s wildcard rule matches the
+virtual resource, so `cluster-admin` holds every estate, the way the
+account root does on AWS.
+
+**The grant is the fence only.** A principal still needs ordinary RBAC for
+the kinds its estate declares (create, update, patch, delete) and `list`
+on every kind the estate sweep asks for. Claim 23 gives its two principals
+reads on everything and writes on namespaces and ConfigMaps, beside the
+estate grant.
+
+**Splitting a Kubernetes estate is a label rewrite, then a grant.** With
+no address on the object, the write is `kubectl label --overwrite
+tofu-estate=<new>`, and the policy reads both sides of it: the caller must
+hold the estate the object is leaving and the one it is entering. There is
+no `live-mv` leg for Kubernetes; the rename rule has nothing to rewrite
+there ("Operate" on the Kubernetes hub). Kyverno and Gatekeeper could
+express the same policy and are unverified for it.
 
 ## `tofu-estate`
 
