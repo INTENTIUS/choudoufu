@@ -48,6 +48,10 @@ var enforcedLimits = map[string]Rule{
 	"count-index-in-tag":   RuleCountIndex,
 	"foreach-invalid-key":  RuleForEachKey,
 	"overlong-address":     RuleOverlongAddress,
+	// GitHub issue #1064: a Kubernetes metadata block that sets
+	// generate_name. The fixture's type carries a ratified row, so no
+	// admission rule fires beside it.
+	"generate-name": RuleGenerateName,
 	// GitHub issue #103. Its fixture carries a fourth resource that must
 	// NOT be refused - ignore_changes on a single non-marker tag key - and
 	// TestIgnoreChangesAdmitsAForeignTagKey is what pins that half.

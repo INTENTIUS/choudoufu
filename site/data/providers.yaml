@@ -28,7 +28,7 @@ providers:
   - id: kubernetes
     name: Kubernetes
     status: soon
-    status_label: "Four types plan and carry the estate label today; the sweep and the gate are the next units in #1016."
+    status_label: "Every object-metadata type plans and carries the estate label; the sweep and the gate are the next units in #1016."
     cells:
       identity: "One label, `tofu-estate`, written on the create; the object is re-bound through group, kind, namespace and name. A label value is capped at 63 characters and cannot carry a config address, so the address stays off the object. `generateName` is refused."
       values: "Not yet designed."

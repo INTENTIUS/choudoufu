@@ -472,6 +472,7 @@ func checkManagedResources(ctx context.Context, cfg *configs.Config, path addrs.
 		checkProvisioners(resource, addr, path, isLogical, recordStoreConfigured, issues)
 		checkCountIndex(ctx, cfg, resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
 		checkIgnoreChanges(resource, addr, path, schemas, markersRecord, issues)
+		checkGenerateName(resource, addr, path, issues)
 
 		if isLogical {
 			if admitsUnder(lt, secrets) && recordStoreConfigured {

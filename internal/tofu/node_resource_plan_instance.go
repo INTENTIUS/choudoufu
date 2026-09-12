@@ -11,7 +11,6 @@ import (
 	"log"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -23,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/genconfig"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -703,21 +703,13 @@ func (n *NodePlannableResourceInstance) replaceTriggered(ctx context.Context, ev
 	return diags
 }
 
-// resolverImportAbsentSignals are substrings of a provider's own
-// ImportResourceState diagnostic that mean "no such object" rather than
-// "the provider failed to answer" - the same pair
-// internal/live/projection/build.go's notFoundDiagnostics checks for the
-// pre-walk projection path (aws_lambda_permission, issue #297, is the
-// confirmed instance: GetPolicy on the *function* returns
-// ResourceNotFoundException when the function itself does not exist
-// either). Duplicated here rather than imported: this package must never
-// import the fork's live-mode package (see ResourceIdentityResolver's doc
-// comment in resource_identity.go - the dependency runs the other way),
-// so the two lists are kept in sync by hand.
-var resolverImportAbsentSignals = []string{
-	"couldn't find resource",
-	"ResourceNotFoundException",
-}
+// A provider's own not-found shapes are internal/live/absent's (GitHub
+// issue #1064): the leaf this package and internal/live/projection's
+// pre-walk projection both consult, replacing the two hand-synced lists
+// that used to sit here and in build.go. Like internal/live/noimporter it
+// depends on nothing in the fork's live-mode packages, so importing it
+// keeps the dependency running the way ResourceIdentityResolver's doc
+// comment in resource_identity.go requires.
 
 // resolverImportSyntheticAbsentSummaries are importState's OWN
 // diagnostics - not the provider's - that already mean "there is nothing
@@ -760,14 +752,7 @@ func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics) bool {
 		if resolverImportSyntheticAbsentSummaries[desc.Summary] {
 			continue
 		}
-		matched := false
-		for _, signal := range resolverImportAbsentSignals {
-			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		if !absent.Matches(desc.Summary, desc.Detail) {
 			return false
 		}
 	}

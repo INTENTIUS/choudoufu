@@ -119,9 +119,18 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		return TypeIdentity{}, noSchemasRefusal
 	}
 	schema, served := schemas[typeName]
-	switch {
-	case !served:
+	if !served {
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no %s at all.", typeName)
+	}
+	// Kubernetes object metadata (GitHub issue #1064): a convention the
+	// configuration schema states directly, ahead of the identity-schema
+	// route below, which cannot reach these types at all - their identity
+	// schema requires api_version and kind, constants no configuration
+	// carries. See metadata.go.
+	if ti, ok := synthesizeMetadataIdentity(typeName, schema); ok {
+		return ti, ""
+	}
+	switch {
 	case schema.IdentitySchema == nil:
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)
 	case schema.Block == nil:

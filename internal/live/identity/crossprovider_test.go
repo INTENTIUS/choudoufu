@@ -88,7 +88,7 @@ func kubernetesConfigMapSchema() providers.Schema {
 				"immutable":   {Type: cty.Bool, Optional: true},
 			},
 			BlockTypes: map[string]*configschema.NestedBlock{
-				"metadata": {Block: metadata, Nesting: configschema.NestingList},
+				"metadata": {Block: metadata, Nesting: configschema.NestingList, MinItems: 1, MaxItems: 1},
 			},
 		},
 		IdentitySchema: &configschema.Object{
@@ -107,11 +107,11 @@ func kubernetesConfigMapSchema() providers.Schema {
 func TestKubernetesAPIVersionAndKindHaveNoConfigSource(t *testing.T) {
 	schemas := map[string]providers.Schema{"kubernetes_config_map": kubernetesConfigMapSchema()}
 
+	// The identity-schema route still cannot reach this type: api_version
+	// and kind name nothing in the block, nested or not, and Derivable is
+	// that route alone.
 	if der := Derivable(schemas); len(der) != 0 {
-		t.Errorf("kubernetes_config_map admitted as %v; api_version and kind name nothing in the block, nested or not", der)
-	}
-	if _, ok := SynthesizeTypeIdentity("kubernetes_config_map", schemas, nil); ok {
-		t.Error("kubernetes_config_map was synthesized despite api_version/kind having no schema-derivable source")
+		t.Errorf("kubernetes_config_map derived from its identity schema as %v; api_version and kind name nothing in the block, nested or not", der)
 	}
 	block := schemas["kubernetes_config_map"].Block
 	if _, ok := block.Attributes["api_version"]; ok {
@@ -119,6 +119,17 @@ func TestKubernetesAPIVersionAndKindHaveNoConfigSource(t *testing.T) {
 	}
 	if _, ok := block.BlockTypes["metadata"].Block.Attributes["api_version"]; ok {
 		t.Fatal("test fixture drifted: api_version now exists nested under metadata, this test no longer exercises the real shape")
+	}
+
+	// What admits it since GitHub issue #1064 is the object-metadata rule,
+	// ahead of that route: NAMESPACE/NAME from the metadata block, the
+	// entry #326's ratified row states by hand.
+	ti, ok := SynthesizeTypeIdentity("kubernetes_config_map", schemas, nil)
+	if !ok {
+		t.Fatal("kubernetes_config_map was refused; the object-metadata rule should admit it from its metadata block")
+	}
+	if ti.ImportSyntax != "NAMESPACE/NAME" || !ti.Synthesized || !ti.NonAWSProvider {
+		t.Errorf("synthesized entry = %+v, want NAMESPACE/NAME, Synthesized, NonAWSProvider", ti)
 	}
 }
 

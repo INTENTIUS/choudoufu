@@ -72,6 +72,11 @@ const (
 	// it. See child_module.go.
 	RuleChildModule Rule = "child-module"
 
+	// RuleGenerateName covers a Kubernetes resource whose metadata block
+	// sets generate_name, handing the object's name to the API server to
+	// mint (GitHub issue #1064). See generate_name.go.
+	RuleGenerateName Rule = "generate-name"
+
 	// RuleOverlongAddress covers a resource instance whose escaped
 	// tofu-address does not fit in a tag value: more than 256 Unicode
 	// characters, the AWS hard cap live/MARKERS.md adopts. See
@@ -328,6 +333,10 @@ var ruleInfo = map[Rule]struct {
 		// specifics to the detail, which names them accurately. See #101.
 		summary: "This module call cannot be expanded under live resource markers",
 		docsRef: `live/LIMITATIONS.md, "child-module"`,
+	},
+	RuleGenerateName: {
+		summary: "Kubernetes object name is minted by the server",
+		docsRef: `live/LIMITATIONS.md, "generate-name"`,
 	},
 	RuleOverlongAddress: {
 		summary: "Resource address does not fit in a marker",

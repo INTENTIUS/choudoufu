@@ -12,17 +12,17 @@ deeper:
 
 ## Today
 
-`kubernetes_config_map`, `kubernetes_cluster_role_binding`,
-`kubernetes_namespace` and `kubernetes_storage_class` carry ratified identity
-rows. Their identity is client-named, `metadata.namespace` and
-`metadata.name`, both written in your configuration, so a plan resolves and
-binds them with nothing stored anywhere. A missing namespace is refused
-rather than defaulted.
+Every type whose schema carries object metadata resolves through one rule
+([#1064](https://github.com/INTENTIUS/choudoufu/issues/1064)): its
+identity is `metadata.namespace` and `metadata.name`, both written in your
+configuration, so a plan binds it with nothing stored anywhere. A missing
+namespace is refused rather than defaulted, and `generate_name` is refused
+by name.
 
-Every one of them, and every other type with a `metadata.labels` map, now
-carries the marker: one label, `tofu-estate`, written on the create. Strip
-it with kubectl and the next plan proposes restoring it. [Claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})
-runs that on a real cluster.
+Every one of them carries the marker: one label, `tofu-estate`, written on
+the create. Strip it with kubectl and the next plan proposes restoring it.
+[Claim 21]({{< relref "/docs/claims/k8s-greenfield" >}}) runs that on a
+real cluster with a namespace, a ConfigMap, a ServiceAccount and a Service.
 
 What they still do not do: get reached by an estate sweep, or fall under
 any ownership condition. Delete one of those blocks from source and the
