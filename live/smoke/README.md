@@ -34,6 +34,7 @@ just smoke                # list scenarios
 just smoke greenfield     # a new estate from nothing
 just smoke import         # stock estate -> delete the state file -> adopt
 just smoke k8s-greenfield # the same life on a real kind cluster, one label as the marker (#1061)
+just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -64,6 +65,15 @@ It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
 one `tofu-estate` label, written on the create and read back with kubectl in
 step 2; its `BREAK=1` strips the label and requires the replan to propose
 restoring it. The marker is the estate alone, never the address (#1016).
+
+`k8s-no-silent-orphans` is claim 22 (#1065), the Kubernetes sibling of
+claim 1: a ConfigMap's block is deleted and the next plan proposes exactly
+that object's removal, found by one cluster-wide, label-selected list per
+kind, while the ReplicaSet and Pod a Deployment's template gave the same
+label to are never touched. Its `BREAK=1` strips the orphan's label and
+requires the replan to leave the object alone. The Deployment's container
+is `registry.k8s.io/pause`, which kind's node image already carries, and
+`wait_for_rollout` is off, so the scenario needs no image pull.
 
 ## Claim scenarios
 

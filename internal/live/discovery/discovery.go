@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -106,6 +107,16 @@ type Request struct {
 	// protocol - the same handles listclient takes, which in practice means
 	// *plugin.GRPCProvider or *plugin6.GRPCProvider.
 	Provider any
+
+	// Kubernetes is the estate sweep for a Kubernetes provider
+	// configuration (GitHub issue #1065): one cluster-wide, label-selected
+	// list per kind. Nil for every other provider, in which case the leg
+	// does nothing. KubernetesTypes are the provider's resource types the
+	// object-metadata rule admits (identity.ObjectMetaShape), the
+	// universe the leg joins to what the cluster serves. See
+	// kubernetes.go.
+	Kubernetes      kubesweep.Sweeper
+	KubernetesTypes []string
 
 	// Region is the region to list in, passed to any list configuration
 	// that accepts a region argument. Empty leaves it unset, which lets the
@@ -466,7 +477,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && req.Kubernetes == nil {
 		// Nothing waits on discovery, no sweep was asked for and no cache
 		// vouching either, which is a legitimate configuration: every
 		// instance was named by static analysis, and without a sweep or a
@@ -667,6 +678,11 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			req.sweepFetch = nil
 		}
 	}
+
+	// The Kubernetes leg (kubernetes.go), ahead of bind and
+	// classifyOrphans so its orphans take the same classification path
+	// every AWS leg's do.
+	diags = diags.Append(sweepKubernetes(ctx, req, res))
 
 	diags = diags.Append(bind(ctx, req, decl, res))
 	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))

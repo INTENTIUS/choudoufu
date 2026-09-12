@@ -189,6 +189,14 @@ type Report struct {
 	// result.
 	SweepGaps []SweepGap
 
+	// KubernetesOwnerSkipped counts the objects the Kubernetes leg listed
+	// under this estate's label and set aside because a controller owns
+	// them (metadata.ownerReferences non-empty): a Deployment's Pods and
+	// ReplicaSets carrying a template-copied label, a StatefulSet's PVCs.
+	// They are never orphans, and the count says how much of the label's
+	// reach the exclusion is doing (GitHub issue #1065).
+	KubernetesOwnerSkipped int
+
 	// SweepCovered lists the resource types the estate-wide sweep did
 	// enumerate, sorted. It is the counterpart of SweepGaps: "these types
 	// were searched for resources this estate owns but no longer declares".

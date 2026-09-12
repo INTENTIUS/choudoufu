@@ -88,10 +88,22 @@ and protects an existing one through `ignore_changes` the same way.
 
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
-that would put an address back on the object. What the label does not yet
-do is enumerated in #1016: no cross-kind sweep lists an estate (one list
-per kind per namespace is the shape), and nothing fences a write on the
-label until a `ValidatingAdmissionPolicy` is installed.
+that would put an address back on the object.
+
+The estate sweep (#1065) is one cluster-wide, label-selected list per kind
+the provider has a resource type for, joined to what the cluster serves
+through API discovery. An object it lists that no block declares is an
+orphan and is proposed for removal, planned at the synthetic address
+`<type>.orphan_<namespace>_<name>` since the label carries no address.
+Two exclusions run first, either sufficient: an object with a non-empty
+`metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
+from its ReplicaSet, an EndpointSlice's from its Service) and an object
+whose every `metadata.managedFields` manager is the control plane (the
+legacy `Endpoints` the endpoints controller mirrors a Service's labels
+onto). Both were made by a controller, not declared, and are never orphans
+- which is what makes an estate label copied through a pod template safe.
+What the label does not yet do: nothing fences a write on it until a
+`ValidatingAdmissionPolicy` is installed (#1066).
 
 ## `tofu-estate`
 

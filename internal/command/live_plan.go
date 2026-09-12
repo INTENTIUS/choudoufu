@@ -33,6 +33,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
@@ -1560,6 +1561,21 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	}
 	statelessApplyGuidedDiscovery(config, hintStore, &req)
 
+	// The Kubernetes leg (GitHub issue #1065): a provider configuration of
+	// the kubernetes provider gets a cluster client built from the same
+	// arguments the provider itself connects with, and the object-metadata
+	// types as its universe. The AWS legs below are the AWS provider's.
+	if providerAddr.Provider.Type == "kubernetes" {
+		sweeper, types, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
+		diags = diags.Append(kubeDiags)
+		req.Kubernetes = sweeper
+		req.KubernetesTypes = types
+		// The AWS sweep loops draw their universe from the admission
+		// table, which a kubernetes provider handle cannot list; the
+		// Kubernetes leg is this pass's whole sweep.
+		req.Sweep = false
+	}
+
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
 	// listable. The engine has carried this since #47 landed, but no command
@@ -1575,7 +1591,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	// roster-mapped type the mock provider cannot list - which is how the
 	// command package's own unit suite blew its 10-minute timeout the first
 	// time this wiring landed.
-	if ep, on := cloudControlTarget(); on {
+	if ep, on := cloudControlTarget(); on && providerAddr.Provider.Type == "aws" {
 		if roster, err := registry.Embedded(); err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
@@ -3982,4 +3998,97 @@ Environment variables:
 
 func (c *LivePlanCommand) Synopsis() string {
 	return "Show changes required by the configuration, read from the live system (experimental)"
+}
+
+// kubernetesSweeper builds the Kubernetes estate sweep for one provider
+// configuration (GitHub issue #1065): the client from the provider block's
+// own connection arguments (kubesweep.Attrs mirrors hashicorp/kubernetes'
+// precedence), and the universe from the provider's resource types that
+// identity.ObjectMetaShape admits. A block this run cannot connect with
+// yields a nil sweeper and one warning: the plan still runs, with no
+// Kubernetes removals proposed, and says so.
+func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
+	if schemaDiags.HasErrors() {
+		return nil, nil, diags.Append(schemaDiags)
+	}
+	var types []string
+	for name, rs := range schema.ResourceTypes {
+		if _, ok := identity.ObjectMetaShape(rs.Block); ok {
+			types = append(types, name)
+		}
+	}
+	sort.Strings(types)
+
+	p.mu.Lock()
+	val, ok := p.configVals[providerCacheKey(addr)]
+	p.mu.Unlock()
+	attrs := kubernetesSweepAttrs(val, ok)
+	cfg, err := kubesweep.RestConfig(attrs)
+	if err == nil {
+		var client *kubesweep.Client
+		client, err = kubesweep.New(cfg)
+		if err == nil {
+			return client, types, diags
+		}
+	}
+	return nil, types, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+		fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
+}
+
+// kubernetesSweepAttrs reads the connection arguments this sweep understands
+// off the evaluated provider block. A marked value (a sensitive token) is
+// left unread rather than unmarked - the same rule statelessProviders.region
+// applies to a sensitive region - so a token supplied through a sensitive
+// variable falls back to the kubeconfig's own credentials.
+func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
+	var a kubesweep.Attrs
+	if !ok || val == cty.NilVal || val.IsNull() || !val.IsKnown() || !val.Type().IsObjectType() {
+		return a
+	}
+	str := func(name string) string {
+		if !val.Type().HasAttribute(name) {
+			return ""
+		}
+		v := val.GetAttr(name)
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+			return ""
+		}
+		return v.AsString()
+	}
+	boolean := func(name string) bool {
+		if !val.Type().HasAttribute(name) {
+			return false
+		}
+		v := val.GetAttr(name)
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.Bool {
+			return false
+		}
+		return v.True()
+	}
+	a.InCluster = boolean("in_cluster_config")
+	a.ConfigPath = str("config_path")
+	a.ConfigContext = str("config_context")
+	a.ConfigContextAuthInfo = str("config_context_auth_info")
+	a.ConfigContextCluster = str("config_context_cluster")
+	a.Host = str("host")
+	a.Token = str("token")
+	a.Insecure = boolean("insecure")
+	a.ClusterCACertificate = str("cluster_ca_certificate")
+	a.ClientCertificate = str("client_certificate")
+	a.ClientKey = str("client_key")
+	if val.Type().HasAttribute("config_paths") {
+		v := val.GetAttr("config_paths")
+		if !v.IsMarked() && !v.IsNull() && v.IsKnown() && v.CanIterateElements() {
+			for it := v.ElementIterator(); it.Next(); {
+				_, e := it.Element()
+				if !e.IsMarked() && !e.IsNull() && e.IsKnown() && e.Type() == cty.String {
+					a.ConfigPaths = append(a.ConfigPaths, e.AsString())
+				}
+			}
+		}
+	}
+	return a
 }

@@ -35,8 +35,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "status": "proven",
+          "note": "As claim 22: the sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete."
         }
       },
       "evidence": [],
@@ -498,6 +498,29 @@
         "aws": {
           "status": "n/a",
           "note": "An AWS resource carries two tags, estate and address, because AWS hands back opaque ids; claim 7 proves that shape. The single-label shape exists only where the object's own name is the join key."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
+    },
+    {
+      "id": 22,
+      "slug": "k8s-no-silent-orphans",
+      "title": "No silent orphans on Kubernetes: a deleted block's object is found by its label and a controller's copies are never touched",
+      "scenario": "live/smoke/scenarios/k8s-no-silent-orphans.sh",
+      "command": "just smoke k8s-no-silent-orphans",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "n/a",
+          "note": "Claim 1 is the AWS shape: one estate-filtered GetResources call over the whole account, and no controller copies labels there."
         },
         "kubernetes": {
           "status": "proven",
