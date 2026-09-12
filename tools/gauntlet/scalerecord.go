@@ -76,6 +76,11 @@ import (
 // live/gauntlet.json at all: they exist only as the prose in those two
 // pages, and issue #1051 is explicit that prose is not transcribed into a
 // record - it is named in the report as needing a re-run instead.
+//
+// That split is ScaleAuditCalls today, not ScaleRecord.PlanCalls - see both
+// fields' own doc comments (#1053's correction, after an earlier version of
+// this file conflated the two and shipped the audit's 706 as though it were
+// a plan's cost).
 
 // ScaleRecordSchema is ScaleRecord's own schema version, independent of
 // Artifact.Schema (they describe unrelated documents that merely happen to
@@ -170,12 +175,31 @@ type ScaleRecord struct {
 	// - terralith-scale.sh's own index_wait skips it outright) and for any
 	// real-AWS row recorded before that instrumentation existed.
 	IndexLagS *int `json:"index_lag_s,omitempty"`
-	// PlanCalls is the plan's own API-call cost, split into the sweep leg
-	// and the read pass (#622's question), with the stock oracle's count
-	// beside choudoufu's when the same run measured both. Absent on every
-	// record this unit produces - see this file's own package comment for
-	// why, and the worker's report for what re-run would fill it in.
+	// PlanCalls is what an ORDINARY PLAN costs, cold and warm, with the
+	// stock oracle's count beside choudoufu's cold plan when the same run
+	// measured both. This is the number issue #1051 asks for. It is NOT
+	// #622's sweep/read-pass split - that split only exists for a run
+	// instrumented with Request.CollectUnclaimed forced true (the account
+	// inventory), which by construction takes the whole admission table
+	// regardless of narrowing and cache state (nativesweep.go's own
+	// unconditional CollectUnclaimed branch), so it can never answer "what
+	// does a plan of an adopted estate cost". See AuditCalls for that
+	// number, kept under its own name for exactly this reason: an earlier
+	// version of this field (#1053, before this doc comment) sourced
+	// PlanCalls from that CollectUnclaimed measurement, and chant-bench
+	// went on to publish it as choudoufu's plan cost. It was not a plan.
 	PlanCalls *ScalePlanCalls `json:"plan_calls,omitempty"`
+	// AuditCalls is live-discover's account-inventory cost - the sweep run
+	// with Request.CollectUnclaimed:true, split into the sweep leg and the
+	// read pass (#622's question), with the stock oracle's count beside
+	// choudoufu's when the same run measured both. This is a REAL cost: it
+	// is what `-adoption-only`, an audit, or a rebuild-from-markers pays,
+	// every time, on purpose (see site/content/docs/model/plan-cost.md's
+	// "When the native leg is narrowed, and when it is not"). It is NOT
+	// what an ordinary plan of an already-adopted estate costs - that
+	// number is PlanCalls, above - and a reader who wants "the plan's
+	// cost" should never reach for this field.
+	AuditCalls *ScaleAuditCalls `json:"audit_calls,omitempty"`
 	// Source names where this record's numbers came from - a git revision
 	// and path, or "gauntlet live-cert" for a record the runner just
 	// produced live - so a reader can always trace a number back to
@@ -213,16 +237,43 @@ type ScaleStage struct {
 	Detail   string   `json:"detail,omitempty"`
 }
 
-// ScalePlanCalls is the plan's API-call cost, split the way
-// internal/live/discovery/slicing_bench_test.go's legSplit already measures
-// it on the emulator: Sweep is the O(types) leg (the tagging sweep's one
-// estate-filtered call plus whatever native per-type listing it could not
-// reach), ReadPass is the ownership read pass over what the sweep found,
-// and Total is the plan's whole provider-mediated call count. Any of the
-// three may be present without the others - a run instrumented only for a
-// total call count (terralith-scale.sh's own analyze_api_calls, today) has
-// no leg split to report at all.
+// ScalePlanCalls is an ORDINARY PLAN's own provider-mediated call count -
+// never the account-inventory sweep (see AuditCalls, and this field's own
+// doc comment on ScaleRecord.PlanCalls for why the two must never be
+// confused again). Cold is the first CLI `tofu plan` taken against a
+// freshly migrated estate, with stock's own plan of the identical,
+// unmigrated state beside it as the oracle (what this estate would cost to
+// plan if nothing had ever adopted it). Warm is a second, back-to-back CLI
+// plan against the same estate with nothing changed in between -
+// internal/live/discovery/slicing_bench_test.go's own bench takes stock's
+// plan exactly once, before migrate, and never repeats it, so Warm.Stock is
+// always absent, not zero. A Cold/Warm pair that reads byte-identical
+// (same Choudoufu count) is itself a finding worth stating - the cache
+// costs the second plan nothing extra - not a defect in the harness.
+// terralith-scale.sh's own real-AWS analyze_api_calls takes only one plan
+// (the first one after migrate, #1051/chant-bench#33's own
+// plan_calls_choudoufu=/plan_calls_stock= tokens), so a target=aws record's
+// PlanCalls always has Cold and never Warm.
 type ScalePlanCalls struct {
+	Cold *ScaleCallPair `json:"cold,omitempty"`
+	Warm *ScaleCallPair `json:"warm,omitempty"`
+}
+
+// ScaleAuditCalls is live-discover's account-inventory cost, split the way
+// internal/live/discovery/slicing_bench_test.go's legSplit measures it on
+// the emulator, with Request.CollectUnclaimed forced true: Sweep is the
+// O(types) leg (the tagging sweep's one estate-filtered call plus whatever
+// native per-type listing it could not reach), ReadPass is the ownership
+// read pass over what the sweep found, and Total is the audit's whole
+// provider-mediated call count. Any of the three may be present without the
+// others - a run instrumented only for a total call count has no leg split
+// to report at all. This is NOT a plan's cost (see ScalePlanCalls and
+// ScaleRecord.PlanCalls's own doc comments) - CollectUnclaimed:true makes
+// nativesweep.go return the full admission table unconditionally, before it
+// even consults the record store, so this number is constant regardless of
+// how warm the cache is and cannot be read as "what a plan costs" at any
+// scale.
+type ScaleAuditCalls struct {
 	Sweep    *ScaleCallPair `json:"sweep,omitempty"`
 	ReadPass *ScaleCallPair `json:"read_pass,omitempty"`
 	Total    *ScaleCallPair `json:"total,omitempty"`
@@ -520,30 +571,31 @@ func parseTestApplyDetail(detail string) *int {
 
 // parsePlanCallsDetail extracts the plan's own API-call total from a
 // test_plan stage detail's plan_calls_choudoufu=/plan_calls_stock= tokens
-// (issue #1053) - real-AWS's own analyze_api_calls has no leg split (see
-// tokenPlanCallsChoudoufu's own doc comment above), so only Total is ever
-// populated here; Sweep and ReadPass stay nil for every target=aws record,
-// which is exactly what the emulator-side scaleslice.go's own doc comment on
-// scalePlanCallsFromSlice contrasts this against. Returns nil, not a
-// zero-valued ScalePlanCalls, when the choudoufu token is absent - there is
-// no prose fallback for this pair (unlike every other parseXDetail function
-// here): no live_cert/estates row predates the tokens with an equivalent
-// sentence to fall back to, because analyze_api_calls' own total was never
-// folded into a sentence at all before this issue. A ScaleCallPair's own
-// Choudoufu field is a plain int, never a pointer (see its doc comment), so
-// a present pair always means choudoufu's side was actually measured; stock's
-// token is read only when choudoufu's is, for the same reason.
+// (issue #1053) - terralith-scale.sh's own analyze_api_calls times the
+// FIRST plan taken after migrate ("choudoufu-first" in the script's own
+// label), which is a cold plan, never a second, warm one - so the pair this
+// function reads always becomes PlanCalls.Cold; Warm stays nil for every
+// target=aws record because the shell harness never takes it. Returns nil,
+// not a zero-valued ScalePlanCalls, when the choudoufu token is absent -
+// there is no prose fallback for this pair (unlike every other
+// parseXDetail function here): no live_cert/estates row predates the
+// tokens with an equivalent sentence to fall back to, because
+// analyze_api_calls' own total was never folded into a sentence at all
+// before this issue. A ScaleCallPair's own Choudoufu field is a plain int,
+// never a pointer (see its doc comment), so a present pair always means
+// choudoufu's side was actually measured; stock's token is read only when
+// choudoufu's is, for the same reason.
 func parsePlanCallsDetail(detail string) *ScalePlanCalls {
 	m := tokenPlanCallsChoudoufu.FindStringSubmatch(detail)
 	if m == nil {
 		return nil
 	}
-	total := &ScaleCallPair{Choudoufu: mustAtoi(m[1])}
+	cold := &ScaleCallPair{Choudoufu: mustAtoi(m[1])}
 	if ms := tokenPlanCallsStock.FindStringSubmatch(detail); ms != nil {
 		stock := mustAtoi(ms[1])
-		total.Stock = &stock
+		cold.Stock = &stock
 	}
-	return &ScalePlanCalls{Total: total}
+	return &ScalePlanCalls{Cold: cold}
 }
 
 // ---------------------------------------------------------------------------

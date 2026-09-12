@@ -41,30 +41,44 @@ a run does take it.
 > counts this page and
 > [what you pay]({{< relref "/docs/what-you-pay" >}}) describe in words are
 > also emitted as structured records there, one per (estate, target, scale) -
-> `terralith-scale` at 79, 301, 745 and 3,705 resources today. The
-> sweep-versus-read-pass split ([issue #1053](https://github.com/INTENTIUS/choudoufu/issues/1053))
-> is now one of them, for the emulator side: `gauntlet scale-import-slice`
-> converts `internal/live/discovery/slicing_bench_test.go`'s own `SLICE_OUT`
-> report into the record's `plan_calls` field (`sweep`/`read_pass`/`total`,
-> each a choudoufu-and-stock pair), merged into the estate's existing floci
-> row rather than replacing it. The 79-instance point is recorded this way
+> `terralith-scale` at 79, 301, 745 and 3,705 resources today. That record
+> keeps two numbers deliberately apart, after an earlier version of this
+> field ([issue #1053](https://github.com/INTENTIUS/choudoufu/issues/1053))
+> conflated them and let a downstream reader publish an audit's cost as
+> though it were a plan's: **`plan_calls`** is what an ordinary CLI
+> `tofu plan` of the migrated estate actually costs - a `cold` pass and a
+> back-to-back `warm` one, each a choudoufu-and-stock pair where the bench
+> measured both sides - and **`audit_calls`** is the sweep-versus-read-pass
+> split this page's own table below describes, taken with
+> `Request.CollectUnclaimed` forced true (the account inventory, which by
+> construction takes the whole admission table regardless of narrowing or
+> cache state - see
+> ["When the native leg is narrowed, and when it is not"](#when-the-native-leg-is-narrowed-and-when-it-is-not)
+> above). `gauntlet scale-import-slice` converts
+> `internal/live/discovery/slicing_bench_test.go`'s own `SLICE_OUT` report
+> into both fields at once, merged into the estate's existing floci row
+> rather than replacing it. The 79-instance point is recorded this way
 > today; 301 and 745 still want a re-run of the bench to land the same way.
-> The real-AWS side is not yet in the committed file: `terralith-scale.sh`'s
-> `analyze_api_calls` now emits its own `plan_calls_choudoufu=`/
-> `plan_calls_stock=` tokens on `test_plan`'s stage detail and
-> `scalerecord.go` reads them (a total only - the shell harness has no leg
-> split to give), but landing an actual real-AWS number needs a
-> certification run, which is the next one this estate runs, not this
-> change.
+> The real-AWS side has `plan_calls.cold` only (`terralith-scale.sh`'s own
+> `analyze_api_calls` times the first post-migrate plan and never a second,
+> and has no leg split to give `audit_calls` at all): `plan_calls_choudoufu=`/
+> `plan_calls_stock=` tokens on `test_plan`'s stage detail, read by
+> `scalerecord.go`, landed for the scale-50 run below.
 
 The one recorded point reads, straight from that file rather than typed
-here: at the 79-instance point the sweep cost
-{{< scale-num scale="1" path="plan_calls.sweep.choudoufu" >}} calls, the read
-pass {{< scale-num scale="1" path="plan_calls.read_pass.choudoufu" >}} against
-stock's {{< scale-num scale="1" path="plan_calls.read_pass.stock" >}}, for a
-total of {{< scale-num scale="1" path="plan_calls.total.choudoufu" >}} against
-{{< scale-num scale="1" path="plan_calls.total.stock" >}}, measured at commit
-`{{< scale-num scale="1" path="commit" short="true" >}}` on
+here: at the 79-instance point a `tofu plan` of the migrated estate cost
+choudoufu {{< scale-num scale="1" path="plan_calls.cold.choudoufu" >}} calls
+against stock's {{< scale-num scale="1" path="plan_calls.cold.stock" >}}, and
+a second, warm plan right after cost
+{{< scale-num scale="1" path="plan_calls.warm.choudoufu" >}} - the same
+figure, to the call. The account-inventory audit this page measures below is
+a different, larger number at the same scale: sweep
+{{< scale-num scale="1" path="audit_calls.sweep.choudoufu" >}} calls, read
+pass {{< scale-num scale="1" path="audit_calls.read_pass.choudoufu" >}}
+against stock's {{< scale-num scale="1" path="audit_calls.read_pass.stock" >}},
+for a total of {{< scale-num scale="1" path="audit_calls.total.choudoufu" >}}
+against {{< scale-num scale="1" path="audit_calls.total.stock" >}} - measured
+at commit `{{< scale-num scale="1" path="commit" short="true" >}}` on
 {{< scale-num scale="1" path="date" >}}. When a re-run lands a newer record
 for the same scale, this sentence follows it with no edit.
 

@@ -43,6 +43,21 @@ states in prose below (149 vs. 155 at 79 resources, the 1416/1449 pairs at
 them needs a re-run, not a bigger backfill - see the worker's own report on
 issue #1051 for exactly which points still need one.
 
+**The record keeps a plan and an audit apart, on purpose.** An earlier
+version of its `plan_calls` field ([#1053](https://github.com/INTENTIUS/choudoufu/issues/1053))
+carried the account-inventory sweep - `Request.CollectUnclaimed` forced
+true, which takes the whole admission table regardless of narrowing or
+cache state - and a downstream reader (chant-bench) published that number as
+choudoufu's plan cost. It is not one. The row for
+`terralith-scale`/floci/scale 1 now carries `plan_calls` (an ordinary
+`tofu plan` of the migrated estate: cold {{< scale-num scale="1" estate="terralith-scale" path="plan_calls.cold.choudoufu" >}}
+calls against stock's {{< scale-num scale="1" estate="terralith-scale" path="plan_calls.cold.stock" >}},
+warm {{< scale-num scale="1" estate="terralith-scale" path="plan_calls.warm.choudoufu" >}})
+and `audit_calls` (the sweep this row of the table above describes: total
+{{< scale-num scale="1" estate="terralith-scale" path="audit_calls.total.choudoufu" >}}
+against stock's {{< scale-num scale="1" estate="terralith-scale" path="audit_calls.total.stock" >}})
+as two separate fields, never one number doing both jobs.
+
 ## With no live block, nothing at all
 
 A configuration with no `live` block and no `estate.chdf.hcl` sidecar runs as
