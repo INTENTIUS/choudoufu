@@ -169,7 +169,7 @@
       },
       "total_seconds": 11180.5,
       "unaccounted_seconds": 11180.5,
-      "source": "git show aaa39448fcfc0f59d4384ddd5c4a336e6793f6a6:live/gauntlet.json"
+      "source": "git show 27d062420e709a3d910b9b94c803708713c9500d:live/gauntlet.json"
     },
     {
       "schema": 1,
@@ -409,7 +409,7 @@
       },
       "total_seconds": 15028.8,
       "unaccounted_seconds": 1.8,
-      "source": "git show aaa39448fcfc0f59d4384ddd5c4a336e6793f6a6:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit fb13ead026ed2d27b356fd5bf318a0b10781dc90"
+      "source": "git show 27d062420e709a3d910b9b94c803708713c9500d:live/gauntlet.json"
     }
   ]
 }
