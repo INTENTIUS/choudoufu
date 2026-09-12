@@ -8,10 +8,11 @@ integration surface external tools rely on: this document is a contract,
 and nothing else about the mode's internals is.
 
 A marker is an ownership record carried on the resource itself, as AWS
-resource tags. There is no side channel, no registry, and no shared library.
-If a tool reads and writes these three tags according to the grammar below,
-it can identify, adopt, and safely modify resources that belong to a
-marker-managed estate, with no dependency on OpenTofu itself.
+resource tags, or on Kubernetes as one label (see "Kubernetes: one label").
+There is no side channel, no registry, and no shared library. If a tool
+reads and writes these tags according to the grammar below, it can identify,
+adopt, and safely modify resources that belong to a marker-managed estate,
+with no dependency on OpenTofu itself.
 
 ## Tag keys
 
@@ -51,6 +52,46 @@ A canonical OpenTofu resource address uses `[` `]` and `"` to express
 instance keys (`aws_subnet.this["a"]`, `aws_eip.this[2]`), all three of
 which are outside the AWS-allowed set. `tofu-address` values therefore go
 through the escaping rule below before being written as a tag.
+
+## Kubernetes: one label
+
+Everything above and below this section describes the AWS shape. On
+Kubernetes (GitHub issue #1061, under #1016's ruling of 2026-09-11) the
+marker is a single label:
+
+| Label | Meaning | Present on |
+|---|---|---|
+| `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types; `kubernetes_manifest` is not one). |
+
+There is no `tofu-address`, no continuation label and no `tofu-slot`. The
+object's own group, kind, namespace and name are the join key back to the
+configuration block that declares it, because those are authored in the
+configuration this fork already parses; the address never goes on the
+object. #1016 measured the alternative: nearly half of real addresses are
+illegal as a label value (the instance-key `:`), and a 63-character cap
+binds at once on ordinary module-nested shapes.
+
+A label value is at most 63 characters and matches
+`(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`. An estate name over 63
+characters, or one ending in a hyphen, is a legal estate and an illegal
+label value; a run refuses to stamp such an estate onto a Kubernetes
+resource ("Ownership marker is not a legal label value") rather than
+writing something the API server rejects.
+
+The label is written into `metadata.labels` as part of the create, so a
+created object carries it; a label stripped out of band shows in the next
+plan as an in-place change restoring it, under the `marker_repair` default.
+A configuration that sets `tofu-estate` to another estate's name is the
+same "Ownership marker conflict" refusal the AWS shape raises. `strict {
+markers "record" }` withholds the label the same way it withholds the tags,
+and protects an existing one through `ignore_changes` the same way.
+
+`generateName` is refused rather than defaulted: the server mints the name,
+so the join key is unknowable before the create, and that is the one shape
+that would put an address back on the object. What the label does not yet
+do is enumerated in #1016: no cross-kind sweep lists an estate (one list
+per kind per namespace is the shape), and nothing fences a write on the
+label until a `ValidatingAdmissionPolicy` is installed.
 
 ## `tofu-estate`
 

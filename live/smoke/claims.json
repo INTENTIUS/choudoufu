@@ -3,6 +3,7 @@
     "The claims the smoke scenarios prove (#1055). One row per scenario under live/smoke/scenarios/ that is a claim;",
     "import, greenfield and full are demos, not claims, and carry no row. live/smoke_claims_test.go holds this file to the",
     "scenario directory and to the site's per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
+    "substrate names the platform the scenario itself runs on (aws: the floci emulator; kubernetes: a kind cluster); that provider's cell must read proven.",
     "providers.<name>.status is one of: proven (a scenario runs on that substrate and passes), restated (the claim holds in a",
     "different or weaker form, said in note), n/a (the claim's premise does not exist there), open (not yet stated either way)."
   ],
@@ -38,7 +39,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 2,
@@ -60,7 +62,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 3,
@@ -82,7 +85,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 4,
@@ -104,7 +108,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 5,
@@ -126,7 +131,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 6,
@@ -148,7 +154,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 7,
@@ -170,7 +177,8 @@
           "note": "The Kubernetes marker is estate-only, one label re-bound through namespace and name (#1016). Ownership is still readable with kubectl; a move is a config-line rename with no label to rewrite, so live-mv has nothing governed to do."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 8,
@@ -192,7 +200,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 9,
@@ -214,7 +223,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 10,
@@ -236,7 +246,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 11,
@@ -258,7 +269,8 @@
           "note": "The API server enforces uniqueness per kind, namespace and name, so a count-expanded set must carry distinct names. The fungible-set case does not exist and no slot is written."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 12,
@@ -280,7 +292,8 @@
           "note": "A carve is a label write, but nothing gates it until a ValidatingAdmissionPolicy is installed; until then the retag is advisory."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 13,
@@ -304,7 +317,8 @@
       },
       "evidence": [
         "live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json"
-      ]
+      ],
+      "substrate": "aws"
     },
     {
       "id": 14,
@@ -326,7 +340,8 @@
           "note": "There is no cross-kind label-filtered list. A sweep is one list per kind per namespace; a label-selected list still returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive (#1016)."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 15,
@@ -348,7 +363,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 16,
@@ -370,7 +386,8 @@
           "note": "One estate across contexts or clusters has not been stated either way."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 17,
@@ -392,7 +409,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 18,
@@ -414,7 +432,8 @@
           "note": "Not yet stated for Kubernetes; #1016 is the design."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 19,
@@ -436,7 +455,8 @@
           "note": "One estate across clusters has not been stated either way."
         }
       },
-      "evidence": []
+      "evidence": [],
+      "substrate": "aws"
     },
     {
       "id": 20,
@@ -460,7 +480,31 @@
       },
       "evidence": [
         "live/gauntlet-scale.json"
-      ]
+      ],
+      "substrate": "aws"
+    },
+    {
+      "id": 21,
+      "slug": "k8s-greenfield",
+      "title": "The marker is a label: one tofu-estate label on a real cluster",
+      "scenario": "live/smoke/scenarios/k8s-greenfield.sh",
+      "command": "just smoke k8s-greenfield",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 strips the label with kubectl and requires the replan to propose restoring it",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "n/a",
+          "note": "An AWS resource carries two tags, estate and address, because AWS hands back opaque ids; claim 7 proves that shape. The single-label shape exists only where the object's own name is the join key."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
     }
   ]
 }

@@ -2444,6 +2444,8 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
 | - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
+| - | - | projection | Cannot merge ownership markers into this labels value | error | `internal/live/projection` | "Cannot merge ownership markers into this labels value" |
+| - | - | projection | Cannot merge ownership markers into this metadata block | error | `internal/live/projection` | "Cannot merge ownership markers into this metadata block" |
 | - | - | projection | Cannot merge ownership markers into this tags value | error | `internal/live/projection` | "Cannot merge ownership markers into this tags value" |
 | - | - | projection | Cannot persist a record | error | `internal/live/projection` | "Cannot persist a record" |
 | - | - | projection | Cannot read a located record | error | `internal/live/projection` | "Cannot read a located record" |
@@ -2453,6 +2455,9 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
 | - | - | projection | Cannot record a located identity | error | `internal/live/projection` | "Cannot record a located identity" |
 | - | - | projection | Cannot set ownership markers on a marked configuration value | error | `internal/live/projection` | "Cannot set ownership markers on a marked configuration value" |
+| - | - | projection | Cannot set ownership markers on a marked metadata block | error | `internal/live/projection` | "Cannot set ownership markers on a marked metadata block" |
+| - | - | projection | Cannot set ownership markers on an unresolved labels value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved labels value" |
+| - | - | projection | Cannot set ownership markers on an unresolved metadata block | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved metadata block" |
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Could not write the state cache | error | `internal/live/projection` | "Could not write the state cache" |
@@ -2473,6 +2478,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No source for this instance's identity | error | `internal/live/projection` | "No source for this instance's identity" |
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
 | - | - | projection | Ownership marker conflict | error | `internal/live/projection` | "Ownership marker conflict" |
+| - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
@@ -2489,7 +2495,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**217 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**223 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3695,6 +3701,22 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot merge ownership markers into this labels value
+
+**What.** GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of "Cannot merge ownership markers into this tags value".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot merge ownership markers into this metadata block
+
+**What.** GitHub issue #1061's label branch found a Kubernetes metadata block that is not exactly one object with a labels attribute - the shape every label-surface schema requires - so it left the resource's configuration value exactly as evaluated.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot merge ownership markers into this tags value
 
 **What.** GitHub issue #388's node-path stamp (NodeResolver.AdjustConfigValue) found a tags argument it does not know how to add the two ownership markers into - a non-map value, a map of something other than strings, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated.
@@ -3762,6 +3784,30 @@ reserved for the limits wing's fixture directories, and
 #### Cannot set ownership markers on a marked configuration value
 
 **What.** GitHub issue #388's node-path stamp found a resource instance's whole evaluated configuration value marked as sensitive, a shape ordinary block evaluation does not produce, and declined to unmark it rather than guess; the resource's ownership markers were left for the HCL-level stamp (or an operator) to write.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot set ownership markers on a marked metadata block
+
+**What.** GitHub issue #1061's label branch found a Kubernetes metadata block marked as a whole (sensitive, or otherwise) and will not unmark it to write the tofu-estate label; the configuration value is left as evaluated. The Kubernetes sibling of "Cannot set ownership markers on a marked configuration value".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot set ownership markers on an unresolved labels value
+
+**What.** GitHub issue #1061's label branch found a Kubernetes metadata.labels value that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated. The Kubernetes sibling of "Cannot set ownership markers on an unresolved tags value".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot set ownership markers on an unresolved metadata block
+
+**What.** GitHub issue #1061's label branch found a Kubernetes metadata block that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -3922,6 +3968,14 @@ reserved for the limits wing's fixture directories, and
 #### Ownership marker conflict
 
 **What.** GitHub issue #451's node-path stamp (NodeResolver.AdjustConfigValue) found a resource instance's own configuration already declaring a tofu-estate or tofu-address tag that names a different estate or address than this run resolved. A plan never overwrites a marker naming another estate or address: fix the tag, or - for an address conflict - run live-mv. Ports internal/live/stamp's own SummaryMarkerConflict refusal (stamp/summaries.go) to the node path, with matched text.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership marker is not a legal label value
+
+**What.** GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, "Kubernetes: one label".
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

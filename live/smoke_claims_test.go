@@ -37,11 +37,7 @@ const (
 // smokeDemoScenarios are the scenarios that are demos, not claims. They
 // carry no CLAIM header and no row; anything else under the scenario
 // directory must have both.
-// k8s-greenfield is a demo until the label carrier lands (#1057): it can
-// read a ConfigMap back but has no marker to read, so its BREAK=1 deletes
-// the object rather than stripping a label. When it can strip a label it
-// becomes a claim and leaves this list.
-var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true, "k8s-greenfield": true}
+var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true}
 
 type smokeClaimsFile struct {
 	Themes        map[string]string `json:"themes"`
@@ -59,6 +55,7 @@ type smokeClaim struct {
 	NeedsGo   bool                              `json:"needs_go"`
 	Theme     string                            `json:"theme"`
 	BreakMode string                            `json:"break_mode"`
+	Substrate string                            `json:"substrate"`
 	Providers map[string]smokeClaimProviderCell `json:"providers"`
 	Evidence  []string                          `json:"evidence"`
 }
@@ -174,15 +171,18 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 }
 
 // TestSmokeClaimsProviderCells: every row states every provider in
-// provider_order with a status from the fixed vocabulary, AWS is proven on
-// every row (the scenarios run there), and a cell that is not proven
-// carries a note saying what is true instead.
+// provider_order with a status from the fixed vocabulary, the provider the
+// scenario itself runs on (substrate) is proven, and a cell that is not
+// proven carries a note saying what is true instead.
 func TestSmokeClaimsProviderCells(t *testing.T) {
 	f := readSmokeClaims(t)
 	if len(f.ProviderOrder) < 2 || f.ProviderOrder[0] != "aws" {
 		t.Fatalf("provider_order = %v, want aws first and at least one more", f.ProviderOrder)
 	}
 	for _, c := range f.Claims {
+		if _, ok := c.Providers[c.Substrate]; !ok {
+			t.Errorf("claim %d: substrate %q is not one of its provider cells", c.ID, c.Substrate)
+		}
 		for _, p := range f.ProviderOrder {
 			cell, ok := c.Providers[p]
 			if !ok {
@@ -192,8 +192,8 @@ func TestSmokeClaimsProviderCells(t *testing.T) {
 			if !smokeClaimStatuses[cell.Status] {
 				t.Errorf("claim %d, %s: status %q is not one of proven/restated/n/a/open", c.ID, p, cell.Status)
 			}
-			if p == "aws" && cell.Status != "proven" {
-				t.Errorf("claim %d: aws status is %q; every scenario runs against the AWS emulator", c.ID, cell.Status)
+			if p == c.Substrate && cell.Status != "proven" {
+				t.Errorf("claim %d: %s status is %q, but the scenario runs on %s; a scenario that runs and passes is proven there", c.ID, p, cell.Status, c.Substrate)
 			}
 			if cell.Status != "proven" && strings.TrimSpace(cell.Note) == "" {
 				t.Errorf("claim %d, %s: status %q with no note; say what is true instead", c.ID, p, cell.Status)
