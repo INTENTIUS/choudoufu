@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// The docs site's provider hubs carry the same six slots, in the same
+// The docs site's provider hubs carry the same five slots, in the same
 // order, under the same names, on every platform (#1055): a reader who has
 // learned one hub has learned them all, and a platform whose answer to a
 // slot is honestly empty gets a page that says so rather than a missing
@@ -23,7 +23,7 @@ import (
 // tree to it, in the shape TestLimitationsDocCoversDirs holds
 // live/LIMITATIONS.md to its fixture directories.
 //
-// Proving it red: delete site/content/kubernetes/cost.md, or add a
+// Proving it red: delete site/content/kubernetes/compatibility.md, or add a
 // site/content/azure/ directory while providers.yaml still says azure is
 // not planned; each fails a different check below.
 
@@ -32,8 +32,8 @@ const (
 	siteContentDir    = "../site/content"
 )
 
-// siteSlots are the six slot pages, in the order the hub shows them.
-var siteSlots = []string{"adopt", "gate", "operate", "fit", "cost", "proof"}
+// siteSlots are the five slot pages, in the order the hub shows them.
+var siteSlots = []string{"adopt", "gate", "operate", "compatibility", "proof"}
 
 type siteProvidersFile struct {
 	Providers []struct {
@@ -101,7 +101,7 @@ func TestSiteProviderHubsCarryTheSixSlots(t *testing.T) {
 				t.Errorf("%s: no `deeper:` list; every slot page ends with where to dig", page)
 			}
 		}
-		// Every extra page in a hub is a seventh slot nobody agreed on.
+		// Every extra page in a hub is a sixth slot nobody agreed on.
 		entries, _ := os.ReadDir(dir)
 		for _, e := range entries {
 			name := strings.TrimSuffix(e.Name(), ".md")
@@ -115,7 +115,7 @@ func TestSiteProviderHubsCarryTheSixSlots(t *testing.T) {
 				}
 			}
 			if !known {
-				t.Errorf("%s/%s is not one of the six slots (%s); the hubs must stay identical in shape", dir, e.Name(), strings.Join(siteSlots, ", "))
+				t.Errorf("%s/%s is not one of the five slots (%s); the hubs must stay identical in shape", dir, e.Name(), strings.Join(siteSlots, ", "))
 			}
 		}
 		for key := range f.Keys {

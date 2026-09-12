@@ -1,7 +1,7 @@
 # The platforms choudoufu runs on, and the one place each platform's answer
 # to a concept is written down (#1055). The providers shortcode renders a
 # row per platform for one key; live/site_slots_test.go requires every
-# platform whose status is not not-planned to have a hub with the six slots.
+# platform whose status is not not-planned to have a hub with the five slots.
 keys:
   identity: Where a resource's identity lives
   values: Where values the platform cannot hold go
