@@ -169,7 +169,7 @@
       },
       "total_seconds": 11180.5,
       "unaccounted_seconds": 11180.5,
-      "source": "git show bebcf3c676e2193cc16f22af2b847b547187daaa:live/gauntlet.json"
+      "source": "git show aaa39448fcfc0f59d4384ddd5c4a336e6793f6a6:live/gauntlet.json"
     },
     {
       "schema": 1,
@@ -341,8 +341,8 @@
       "estate": "terralith-scale",
       "target": "floci",
       "scale": 136,
-      "commit": "9525811174df01a74d374da31231102bbf598f5d",
-      "date": "2026-09-12T09:17:18Z",
+      "commit": "fb13ead026ed2d27b356fd5bf318a0b10781dc90",
+      "date": "2026-09-12T18:37:45Z",
       "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
       "oracle": {
         "terraform": "1.15.8",
@@ -356,18 +356,42 @@
       "stages": {
         "cold_deploy": {
           "verdict": "pass",
-          "seconds": 8735,
+          "seconds": 8772,
           "detail": "stock terraform applied 10069 resources at scale=136 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 4219 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
+        },
+        "day2_count": {
+          "verdict": "fail",
+          "seconds": 19,
+          "detail": "stock's count_team[1] role still exists after the scale-down destroy"
+        },
+        "greenfield": {
+          "verdict": "pass",
+          "seconds": 4667,
+          "detail": "choudoufu applied 10069 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 10069 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 10069 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 10069 objects is still found - nothing created, destroyed or replaced, 5576 of them untaggable and composing from a stamped parent - with the only movement being 136 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
         },
         "migrate": {
           "verdict": "pass",
-          "seconds": 1398,
+          "seconds": 1393,
           "detail": "live-import ratified 4493 of 10069 instances as eligible and stamped all 4493 with 0 failed and 5576 skipped (untaggable, identity composed from an already-stamped parent); every one of the 10069 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
         },
+        "test_apply": {
+          "verdict": "pass",
+          "seconds": 119,
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 4219 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 100 100 77"
+        },
         "test_plan": {
-          "verdict": "fail",
-          "seconds": 3,
-          "detail": "the post-migration plan exited 1, Rule: count-index - first: Error: count.index is not available in resource arguments"
+          "verdict": "pass",
+          "seconds": 57,
+          "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
+        }
+      },
+      "plan_calls": {
+        "cold": {
+          "choudoufu": 22760,
+          "stock": 18510
+        },
+        "warm": {
+          "choudoufu": 23428
         }
       },
       "audit_calls": {
@@ -383,9 +407,9 @@
           "stock": 18510
         }
       },
-      "total_seconds": 10136.2,
-      "unaccounted_seconds": 0.2,
-      "source": "git show daeb81de6aa96d0cba0b0053d11605e29e9f1aff:live/gauntlet.json; audit_calls (plan_calls absent: slice \"s0\" plan[default/cold] exited 1 - a refused plan's call count is not a plan's cost, and cannot become plan_calls) from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9525811174df01a74d374da31231102bbf598f5d"
+      "total_seconds": 15028.8,
+      "unaccounted_seconds": 1.8,
+      "source": "git show aaa39448fcfc0f59d4384ddd5c4a336e6793f6a6:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit fb13ead026ed2d27b356fd5bf318a0b10781dc90"
     }
   ]
 }
