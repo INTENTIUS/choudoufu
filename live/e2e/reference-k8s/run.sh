@@ -398,6 +398,7 @@ if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC, so 'expect success' correctly fails"
   kca label configmap shard-0 -n "$NS" stray- >/dev/null
   ( cd "$ADOPTED" && "$TOFU" apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
 else
   [ "$P_RC" -eq 3 ] || { printf '%s\n' "$P_APPLY" | tail -20; fail "apply of the saved plan after the world moved exited $P_RC, want 3 (the refusal)"; }
@@ -478,8 +479,14 @@ PY
 }
 if [ "${BREAK_REMOVE:-}" = "1" ]; then
   K_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "BREAK_REMOVE: the plan with the block kept failed"
-  grep -q "destroy" <<< "$K_PLAN" && fail "BREAK_REMOVE=1: with the block kept a destroy was still proposed - the destroy below would not be the block removal's doing"
+  # "0 to destroy" in a zero-churn summary line is not a destroy.
+  grep -qE "will be destroyed|[1-9][0-9]* to destroy" <<< "$K_PLAN" && fail "BREAK_REMOVE=1: with the block kept a destroy was still proposed - the destroy below would not be the block removal's doing"
+  log "  BREAK_REMOVE=1: caught - with the block kept the plan proposes no destroy ($(grep -E '^Plan:|^No changes' <<< "$K_PLAN" | head -1)); the real check is skipped"
   gauntlet_stage day2_remove pass "BREAK_REMOVE=1 control: with the ServiceAccount block kept, no destroy is proposed; the real check is skipped"
+  remove_sa "$ADOPTED/main.tf" || fail "BREAK_REMOVE: could not remove the block afterwards"
+  remove_sa "$ORACLE/main.tf" || fail "BREAK_REMOVE: could not remove the block from the oracle root afterwards"
+  ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: the removal apply failed afterwards"
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: stock's removal apply failed on B afterwards"
 else
   remove_sa "$ADOPTED/main.tf" || fail "could not remove the ServiceAccount block from the adopted root"
   remove_sa "$ORACLE/main.tf" || fail "could not remove the ServiceAccount block from the oracle root"
@@ -556,14 +563,16 @@ fi
 # ── 10. day2_teardown: destroy the adopted estate ────────────────────────
 gauntlet_begin_stage day2_teardown
 log "=== 10. day2_teardown: apply -destroy on the adopted estate, and stock's own destroy on B ==="
+T_EXPECT="$(count_a)"
 T_OUT="$(cd "$ADOPTED" && "$TOFU" apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -20; fail "apply -destroy failed"; }
-grep -qF "Resources: 0 added, 0 changed, 6 destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "apply -destroy did not remove exactly the 6 remaining objects"; }
+grep -qF "Resources: 0 added, 0 changed, $T_EXPECT destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "apply -destroy did not remove exactly the $T_EXPECT remaining objects"; }
 for _ in $(seq 1 30); do kca get namespace "$NS" >/dev/null 2>&1 || break; sleep 2; done
 kca get namespace "$NS" >/dev/null 2>&1 && fail "the $NS namespace still exists after the destroy"
 [ "$(count_a)" = "0" ] || fail "$(count_a) object(s) still carry tofu-estate=$ESTATE after the destroy"
+O_EXPECT="$(stock_b state list 2>/dev/null | wc -l | tr -d ' ')"
 O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy failed on B"; }
-grep -qF "Resources: 0 added, 0 changed, 6 destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly 6 objects"
-gauntlet_stage day2_teardown pass "apply -destroy removed exactly the 6 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly 6"
+grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"
+gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the $O_EXPECT its state held"
 
 # ── 11. greenfield: the same shape, fresh, with a live block ─────────────
 gauntlet_begin_stage greenfield

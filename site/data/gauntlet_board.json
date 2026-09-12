@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 2 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T06:39:28Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "28 of 28 estates have a recorded run duration, totaling 2h39m0.6s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`; 3m33.3s across 1 estate(s) at commit `ca22b53357`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 2 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T06:56:04Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "28 of 28 estates have a recorded run duration, totaling 2h39m2.4s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`; 3m35.1s across 1 estate(s) at commit `c4eea79bee`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3614,16 +3614,16 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "3m33.3s",
-      "runtime_cells": "cold_deploy 1m3s, migrate 3s, test_plan 6s, test_apply 15s, drift_reconverge 10s, day2_rename 10s, day2_remove 16s, day2_count 26s, day2_teardown 18s, plan_approval 16s, greenfield 16s, strict 13s",
-      "last_run_note": "Last run at commit `ca22b53357` on 2026-09-12T06:39:28Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m33.3s.",
+      "runtime_total": "3m35.1s",
+      "runtime_cells": "cold_deploy 1m5s, migrate 3s, test_plan 5s, test_apply 16s, drift_reconverge 10s, day2_rename 10s, day2_remove 16s, day2_count 25s, day2_teardown 19s, plan_approval 16s, greenfield 16s, strict 13s",
+      "last_run_note": "Last run at commit `c4eea79bee` on 2026-09-12T06:56:04Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m35.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m3s",
+          "duration": "1m5s",
           "detail": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.36.1, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
@@ -3637,14 +3637,14 @@
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "FAIL",
-          "duration": "6s",
+          "duration": "5s",
           "detail": "the plan with no state file is not empty: Plan: 0 to add, 7 to change, 0 to destroy. Every object bound by namespace and name (identities confirmed with kubectl: 1), and the changes are the tofu-estate label live-import never wrote (see migrate)"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "15s",
+          "duration": "16s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the estate's five kinds, counted with kubectl"
         },
         {
@@ -3672,7 +3672,7 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "26s",
+          "duration": "25s",
           "detail": "scaling kubernetes_config_map.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map.orphan_refk8s_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
@@ -3691,8 +3691,8 @@
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
-          "duration": "18s",
-          "detail": "apply -destroy removed exactly the 6 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly 6"
+          "duration": "19s",
+          "detail": "apply -destroy removed exactly the 6 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 6 its state held"
         },
         {
           "id": "plan_approval",
