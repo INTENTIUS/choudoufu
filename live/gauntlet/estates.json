@@ -172,6 +172,14 @@
       "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
     },
     {
+      "name": "corpus-quickpizza",
+      "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
+      "url": "https://github.com/grafana/quickpizza.git",
+      "pin": "v0.15.28",
+      "lane": "kubernetes",
+      "set": "growing"
+    },
+    {
       "name": "corpus-rds-complete-postgres",
       "source": "terraform-aws-modules/terraform-aws-rds examples/complete-postgres (tag v7.2.1)",
       "url": "https://github.com/terraform-aws-modules/terraform-aws-rds.git",

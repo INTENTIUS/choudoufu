@@ -310,3 +310,42 @@ func TestSensitiveMarksEqual(t *testing.T) {
 		})
 	}
 }
+
+// TestSensitiveMarksEqualIgnoresMarksUnderAMarkedAncestor is the fork's
+// minimal-cover rule (see sensitiveMarksEqual): a live-marker plan's prior
+// is marked from the schema alone, its planned side from the schema and
+// the configuration, and the configuration can mark values inside an
+// attribute the schema already marks whole.
+func TestSensitiveMarksEqualIgnoresMarksUnderAMarkedAncestor(t *testing.T) {
+	sens := cty.NewValueMarks(marks.Sensitive)
+	data := cty.GetAttrPath("data")
+	key := func(k string) cty.Path { return cty.GetAttrPath("data").Index(cty.StringVal(k)) }
+
+	whole := []cty.PathValueMarks{{Path: data, Marks: sens}}
+	wholeAndKeys := []cty.PathValueMarks{
+		{Path: data, Marks: sens},
+		{Path: key("DATABASE_PASSWORD"), Marks: sens},
+		{Path: key("CONNECTION_STRING"), Marks: sens},
+	}
+	keysOnly := []cty.PathValueMarks{
+		{Path: key("DATABASE_PASSWORD"), Marks: sens},
+		{Path: key("CONNECTION_STRING"), Marks: sens},
+	}
+	other := []cty.PathValueMarks{{Path: cty.GetAttrPath("binary_data"), Marks: sens}}
+
+	if !sensitiveMarksEqual(whole, wholeAndKeys) {
+		t.Error("marks under an already-marked ancestor counted as a difference; a kubernetes_secret_v1 whose data keys read sensitive variables would plan an update forever")
+	}
+	if !sensitiveMarksEqual(wholeAndKeys, whole) {
+		t.Error("the comparison is not symmetric")
+	}
+	if sensitiveMarksEqual(whole, keysOnly) {
+		t.Error("a whole-attribute mark and key-only marks compared equal; the cover moved and that is a real change")
+	}
+	if sensitiveMarksEqual(whole, other) {
+		t.Error("marks on different attributes compared equal")
+	}
+	if sensitiveMarksEqual(wholeAndKeys, append(append([]cty.PathValueMarks(nil), wholeAndKeys...), other...)) {
+		t.Error("an extra marked attribute compared equal")
+	}
+}

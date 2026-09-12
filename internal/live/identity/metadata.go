@@ -96,6 +96,18 @@ func ObjectMetaShape(block *configschema.Block) (namespaced bool, ok bool) {
 // attribute. It is the same entry the four ratified rows carry, so a
 // reference from another resource to metadata[0].name resolves through
 // [Resolution.attrParts] exactly as it does for those rows.
+//
+// The entry also claims "id" as an identity attribute (GitHub issue
+// #1067's second estate): hashicorp/kubernetes sets every object-metadata
+// resource's id to its own import id - the name for a cluster-scoped
+// kind, NAMESPACE/NAME for a namespaced one - so a sibling reading
+// kubernetes_namespace_v1.x.id (the shape grafana/quickpizza's root
+// writes on every one of its twenty namespaced objects) is reading the
+// parent's whole identity, which [resolver.parentPart] answers from the
+// parent's own resolution rather than refusing as "Not an identity
+// attribute". The four ratified rows carry no IdentityAttrs of their own
+// and [schemaReproducesRow] disregards "id", so the rule still reproduces
+// them.
 func synthesizeMetadataIdentity(typeName string, schema providers.Schema) (TypeIdentity, bool) {
 	namespaced, ok := ObjectMetaShape(schema.Block)
 	if !ok {
@@ -108,6 +120,7 @@ func synthesizeMetadataIdentity(typeName string, schema providers.Schema) (TypeI
 			NonAWSProvider: true,
 			Components:     []Component{name},
 			ImportSyntax:   "NAME",
+			IdentityAttrs:  []string{"id"},
 			Synthesized:    true,
 			Admits:         AdmitSchema,
 		}, true
@@ -120,8 +133,9 @@ func synthesizeMetadataIdentity(typeName string, schema providers.Schema) (TypeI
 			{Literal: "/"},
 			name,
 		},
-		ImportSyntax: "NAMESPACE/NAME",
-		Synthesized:  true,
-		Admits:       AdmitSchema,
+		ImportSyntax:  "NAMESPACE/NAME",
+		IdentityAttrs: []string{"id"},
+		Synthesized:   true,
+		Admits:        AdmitSchema,
 	}, true
 }

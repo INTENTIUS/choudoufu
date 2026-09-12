@@ -32,7 +32,21 @@ on it. Counted against `live/MARKERS.md`'s figure for the provider at
 A namespace read from another resource's metadata, `namespace =
 kubernetes_namespace.x.metadata[0].name`, resolves: the name is that
 resource's identity attribute, and the reference is followed into the
-block.
+block. So does `namespace = kubernetes_namespace_v1.x.id`, the shape
+grafana/quickpizza's root writes on every namespaced object: the
+provider sets an object's `id` to its own import id (the name for a
+cluster-scoped kind, `NAMESPACE/NAME` for a namespaced one), so the rule
+claims `id` as an identity attribute and the reference resolves to the
+parent's whole identity ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067)).
+
+A `kubernetes_secret_v1` whose `data` keys read sensitive variables plans
+empty after adoption. The same root found the case where it did not: the
+provider's schema marks the whole `data` map sensitive, the configuration
+marks each key inside it, and a stateless prior read from the cluster
+carries only the schema's mark, so the planner's sensitivity comparison
+saw a difference on every run and proposed an in-place update it rendered
+as unchanged. The comparison now reduces both sides to their minimal
+cover first: a mark under an already-marked ancestor is not a change.
 
 ## Refused
 
