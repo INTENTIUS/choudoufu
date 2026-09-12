@@ -176,12 +176,69 @@ type ScaleRecord struct {
 	// record this unit produces - see this file's own package comment for
 	// why, and the worker's report for what re-run would fill it in.
 	PlanCalls *ScalePlanCalls `json:"plan_calls,omitempty"`
+	// TotalSeconds is this run's own overall wall-clock duration -
+	// LiveCertResult.DurationS for a target=aws record, LastRun.DurationS
+	// for target=floci - measured independently of any one stage's own
+	// duration_s (Go's time.Since around the whole script, run.go/
+	// livecert.go), so a reader can check a record's stages against it
+	// rather than trusting either number alone. Absent only when the
+	// source row itself never measured a total (a legacy-protocol run, or
+	// one recorded before DurationS existed) - never zero.
+	TotalSeconds *float64 `json:"total_seconds,omitempty"`
+	// UnaccountedSeconds is TotalSeconds minus every stage's own Seconds
+	// (wall-clock duration, never OperationSeconds - see ScaleStage's own
+	// doc comment) this record carries: time the run spent that no stage
+	// claims - setup before the first stage's own gauntlet_stage call, a
+	// wait phase between two stages that is not itself a recorded stage
+	// (real-AWS's index wait, today), and teardown after the last one.
+	// Computed and populated by both Build* functions below whenever
+	// TotalSeconds is known, precisely so it can never silently go missing
+	// the way this same gap went unrecorded, and unnoticed, in every
+	// real-AWS ScaleRecord before this field existed (issue #1051/#1053's
+	// own finding: a published `11180.5s (cold_deploy=2023s,
+	// migrate=1214s)` whose two named numbers do not add up to its own
+	// total, with nothing saying so). TestScaleRecordsAccountForTheirOwnTotal
+	// (scaleaccounting_test.go) is the guard that keeps it that way: it
+	// reads this file exactly as committed and fails if any record's own
+	// arithmetic does not close within its stated tolerance.
+	UnaccountedSeconds *float64 `json:"unaccounted_seconds,omitempty"`
+	// UnaccountedDetail is free text naming what UnaccountedSeconds is
+	// believed to cover, when a record's own investigation identified
+	// something more specific than "the rest" (e.g. "post-test_plan
+	// teardown; this run predates index-wait instrumentation"). Never a
+	// guess dressed as a measurement - absent means exactly what
+	// UnaccountedSeconds already says on its own: an unattributed
+	// remainder, named as a number but not further explained.
+	UnaccountedDetail string `json:"unaccounted_detail,omitempty"`
 	// Source names where this record's numbers came from - a git revision
 	// and path, or "gauntlet live-cert" for a record the runner just
 	// produced live - so a reader can always trace a number back to
 	// something they could re-open themselves, the same discipline this
 	// repository already applies to every other measured claim.
 	Source string `json:"source"`
+}
+
+// unaccountedSeconds returns total minus every stage's own known Seconds
+// (wall duration) in stages - OperationSeconds is never summed here, only
+// Seconds, because OperationSeconds is deliberately not additive against a
+// run's own total (see ScaleStage's own doc comment). Always returns a
+// non-nil pointer: once a caller has a total to reconcile against, "no
+// remainder" (0.0) and "did not check" must never look the same, so the
+// zero case is written out rather than left absent.
+func unaccountedSeconds(total float64, stages map[string]ScaleStage) *float64 {
+	sum := 0.0
+	for _, st := range stages {
+		if st.Seconds != nil {
+			sum += *st.Seconds
+		}
+	}
+	// roundSeconds (run.go): total and every stage Seconds already carry at
+	// most one decimal place, but a plain float64 subtraction between them
+	// can still land on something like 0.6999999999999886 - round the
+	// result the same way every other duration in this schema already is,
+	// rather than publishing that noise as if it meant something.
+	u := roundSeconds(total - sum)
+	return &u
 }
 
 // ScaleResources is the estate's own object count, split the way
@@ -206,11 +263,35 @@ type ScaleResources struct {
 // recognize is still visible) so nothing this record's parser dropped is
 // actually lost.
 type ScaleStage struct {
-	Verdict  string   `json:"verdict"`
-	Seconds  *float64 `json:"seconds,omitempty"`
-	Throttle *int     `json:"throttle,omitempty"`
-	Retry    *int     `json:"retry,omitempty"`
-	Detail   string   `json:"detail,omitempty"`
+	Verdict string `json:"verdict"`
+	// Seconds is THIS STAGE'S OWN wall-clock duration - the runner's own
+	// duration_s reading (LiveCertResult.Seconds for target=aws,
+	// LastRun.Seconds for target=floci), the same quantity
+	// ScaleRecord.TotalSeconds/UnaccountedSeconds sum against. It is never
+	// the inner operation's own reported timing (OperationSeconds, below):
+	// conflating the two - a stage's "seconds" silently meaning whatever a
+	// detail sentence happened to report, e.g. "3705 resources ... in
+	// 2023s" for cold_deploy - is the exact defect issue #1051/#1053's
+	// wall-time-accounting unit found (a published 11180.5s total whose
+	// named per-stage seconds summed to 3,237, with nothing saying the
+	// other two hours were missing). Absent when the source row never
+	// measured this stage's own duration_s at all - see LiveCertResult.
+	// Seconds's own doc comment for the historical rows this is true of.
+	Seconds *float64 `json:"seconds,omitempty"`
+	// OperationSeconds is the inner operation's own reported time, when the
+	// stage's detail sentence names one directly - e.g. cold_deploy's
+	// "3705 resources from stock terraform ... in 2023s" (the stock apply
+	// itself; the stage's own Seconds, when known, additionally includes
+	// terralith-gen/init overhead the apply's own timer excludes), or
+	// migrate's "... in 1214s" (the approve step alone). A useful,
+	// self-describing number in its own right - "3,705 resources applied
+	// in 2,023 seconds" reads fine on its own - but NOT additive with a
+	// sibling stage's OperationSeconds, and NOT what TotalSeconds/
+	// UnaccountedSeconds reconcile against: only Seconds is.
+	OperationSeconds *float64 `json:"operation_seconds,omitempty"`
+	Throttle         *int     `json:"throttle,omitempty"`
+	Retry            *int     `json:"retry,omitempty"`
+	Detail           string   `json:"detail,omitempty"`
 }
 
 // ScalePlanCalls is the plan's API-call cost, split the way
@@ -573,28 +654,38 @@ func BuildScaleRecordFromLiveCert(r LiveCertResult, source string) ScaleRecord {
 			rec.Held = true
 		}
 		st := ScaleStage{Verdict: verdict, Detail: detail}
+		// Seconds - this stage's own wall-clock duration - comes ONLY from
+		// the runner's own duration_s reading (r.Seconds), never from a
+		// detail sentence: see ScaleStage.Seconds's own doc comment for why
+		// conflating the two was the defect this file's package comment (and
+		// issue #1051/#1053's wall-time-accounting unit) exists to fix.
+		// Absent when r.Seconds carries nothing for this id - a run recorded
+		// before LiveCertResult.Seconds existed, most historical rows today.
+		if secs, ok := r.Seconds[id]; ok {
+			st.Seconds = floatPtr(secs)
+		}
 		switch id {
 		case "cold_deploy":
-			resources, scale, seconds, throttle, retry := parseColdDeployDetail(detail)
+			resources, scale, opSeconds, throttle, retry := parseColdDeployDetail(detail)
 			if resources != nil {
 				rec.Resources = mergeResourcesTotal(rec.Resources, *resources)
 			}
 			if scale != nil {
 				rec.Scale = *scale
 			}
-			st.Seconds, st.Throttle, st.Retry = seconds, throttle, retry
+			st.OperationSeconds, st.Throttle, st.Retry = opSeconds, throttle, retry
 		case "migrate":
-			taggable, skipped, seconds, throttle, retry := parseMigrateDetail(detail)
+			taggable, skipped, opSeconds, throttle, retry := parseMigrateDetail(detail)
 			if taggable != nil {
 				rec.Resources = mergeResourcesTaggable(rec.Resources, *taggable)
 			}
 			if skipped != nil {
 				rec.Resources = mergeResourcesSkipped(rec.Resources, *skipped)
 			}
-			st.Seconds, st.Throttle, st.Retry = seconds, throttle, retry
+			st.OperationSeconds, st.Throttle, st.Retry = opSeconds, throttle, retry
 		case "test_plan":
-			seconds, throttle, retry, indexLag := parseTestPlanDetail(detail)
-			st.Seconds, st.Throttle, st.Retry = seconds, throttle, retry
+			opSeconds, throttle, retry, indexLag := parseTestPlanDetail(detail)
+			st.OperationSeconds, st.Throttle, st.Retry = opSeconds, throttle, retry
 			if indexLag != nil {
 				rec.IndexLagS = indexLag
 			}
@@ -606,6 +697,11 @@ func BuildScaleRecordFromLiveCert(r LiveCertResult, source string) ScaleRecord {
 			// parseTestApplyDetail's own doc comment.
 		}
 		rec.Stages[id] = st
+	}
+	if r.DurationS > 0 {
+		total := r.DurationS
+		rec.TotalSeconds = &total
+		rec.UnaccountedSeconds = unaccountedSeconds(total, rec.Stages)
 	}
 	return rec
 }
@@ -668,6 +764,11 @@ func BuildScaleRecordFromEstate(e EstateResult, source string) (ScaleRecord, boo
 			}
 		}
 		rec.Stages[id] = st
+	}
+	if e.LastRun.DurationS > 0 {
+		total := e.LastRun.DurationS
+		rec.TotalSeconds = &total
+		rec.UnaccountedSeconds = unaccountedSeconds(total, rec.Stages)
 	}
 	return rec, true
 }

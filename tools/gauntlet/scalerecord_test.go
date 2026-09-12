@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 )
@@ -155,8 +156,18 @@ func TestBuildScaleRecordFromLiveCertScale50Fail(t *testing.T) {
 	}
 
 	cd := rec.Stages["cold_deploy"]
-	if cd.Seconds == nil || *cd.Seconds != 2023 {
-		t.Errorf("cold_deploy.Seconds = %v, want 2023", cd.Seconds)
+	// Seconds (this stage's own wall duration) is absent: this fixture's
+	// LiveCertResult carries no Seconds map at all (it predates that field -
+	// see LiveCertResult.Seconds's own doc comment), so BuildScaleRecordFromLiveCert
+	// has nothing to read a real duration_s from. The inner-operation figure
+	// the detail sentence DOES name ("... in 2023s") lands under
+	// OperationSeconds instead, never silently standing in for Seconds - the
+	// exact defect this unit fixes.
+	if cd.Seconds != nil {
+		t.Errorf("cold_deploy.Seconds = %v, want nil (this fixture's LiveCertResult carries no stage_seconds)", cd.Seconds)
+	}
+	if cd.OperationSeconds == nil || *cd.OperationSeconds != 2023 {
+		t.Errorf("cold_deploy.OperationSeconds = %v, want 2023 (the inner apply's own reported time)", cd.OperationSeconds)
 	}
 	if cd.Throttle == nil || *cd.Throttle != 347 {
 		t.Errorf("cold_deploy.Throttle = %v, want 347", cd.Throttle)
@@ -166,8 +177,11 @@ func TestBuildScaleRecordFromLiveCertScale50Fail(t *testing.T) {
 	}
 
 	mg := rec.Stages["migrate"]
-	if mg.Seconds == nil || *mg.Seconds != 1214 {
-		t.Errorf("migrate.Seconds = %v, want 1214", mg.Seconds)
+	if mg.Seconds != nil {
+		t.Errorf("migrate.Seconds = %v, want nil, same reason as cold_deploy", mg.Seconds)
+	}
+	if mg.OperationSeconds == nil || *mg.OperationSeconds != 1214 {
+		t.Errorf("migrate.OperationSeconds = %v, want 1214", mg.OperationSeconds)
 	}
 	if mg.Throttle == nil || *mg.Throttle != 600 {
 		t.Errorf("migrate.Throttle = %v, want 600", mg.Throttle)
@@ -178,7 +192,10 @@ func TestBuildScaleRecordFromLiveCertScale50Fail(t *testing.T) {
 		t.Errorf("test_plan.Verdict = %q, want fail", tp.Verdict)
 	}
 	if tp.Seconds != nil {
-		t.Errorf("test_plan.Seconds = %v, want nil (the fail detail names no duration)", tp.Seconds)
+		t.Errorf("test_plan.Seconds = %v, want nil (no stage_seconds in the fixture)", tp.Seconds)
+	}
+	if tp.OperationSeconds != nil {
+		t.Errorf("test_plan.OperationSeconds = %v, want nil (the fail detail names no duration)", tp.OperationSeconds)
 	}
 	if tp.Throttle != nil {
 		t.Errorf("test_plan.Throttle = %v, want nil (the fail detail names no throttle count)", tp.Throttle)
@@ -189,8 +206,73 @@ func TestBuildScaleRecordFromLiveCertScale50Fail(t *testing.T) {
 	if rec.PlanCalls != nil {
 		t.Errorf("PlanCalls = %+v, want nil - no run this schema backfills measured the sweep/read-pass split", rec.PlanCalls)
 	}
+	// TotalSeconds/UnaccountedSeconds: the fixture's DurationS (11180.5) is
+	// known, but no stage's Seconds is (all absent, as asserted above), so
+	// the WHOLE total is unaccounted - honest, not a guess: this schema has
+	// nothing else to attribute it to from what this fixture's LiveCertResult
+	// carries. TestScalePatchSecondsReconciles below is where a source
+	// outside this record's own JSON (the run's surviving work directory)
+	// narrows that remainder.
+	if rec.TotalSeconds == nil || *rec.TotalSeconds != 11180.5 {
+		t.Fatalf("TotalSeconds = %v, want 11180.5", rec.TotalSeconds)
+	}
+	if rec.UnaccountedSeconds == nil || *rec.UnaccountedSeconds != 11180.5 {
+		t.Errorf("UnaccountedSeconds = %v, want 11180.5 (no stage Seconds known at all)", rec.UnaccountedSeconds)
+	}
 	if err := ValidateScaleRecord(rec); err != nil {
 		t.Fatalf("the built record failed validation: %v", err)
+	}
+}
+
+// TestBuildScaleRecordFromLiveCertUsesRunnerDurationOverProse proves the
+// fix's whole point: when the source LiveCertResult DOES carry Seconds (a
+// run recorded after this field existed), a stage's own Seconds comes from
+// there - the runner's actual duration_s - never from the detail sentence's
+// inner-operation figure, even though both are present and different
+// numbers (so a test that only checked ONE of them could not tell them
+// apart). This also covers the failing stage: gauntlet_stage's delta-timer
+// computes duration_s unconditionally, pass or fail, so a stage that never
+// got as far as reporting its own "seconds=" token in its detail still gets
+// a real Seconds value here.
+func TestBuildScaleRecordFromLiveCertUsesRunnerDurationOverProse(t *testing.T) {
+	r := scale50LiveCertFixture()
+	// Deliberately different from the detail sentences' own "in 2023s" /
+	// "in 1214s" figures, and present for test_plan (which failed and whose
+	// detail names no duration at all) - proving the wall duration survives
+	// independently of what the stage's own prose could report.
+	r.Seconds = map[string]float64{"cold_deploy": 2035, "migrate": 2371, "test_plan": 1867}
+	r.DurationS = 11180.5
+
+	rec := BuildScaleRecordFromLiveCert(r, "fixture")
+
+	cd := rec.Stages["cold_deploy"]
+	if cd.Seconds == nil || *cd.Seconds != 2035 {
+		t.Errorf("cold_deploy.Seconds = %v, want 2035 (from LiveCertResult.Seconds, not the detail's 2023s)", cd.Seconds)
+	}
+	if cd.OperationSeconds == nil || *cd.OperationSeconds != 2023 {
+		t.Errorf("cold_deploy.OperationSeconds = %v, want 2023 (still kept, under its own name)", cd.OperationSeconds)
+	}
+	mg := rec.Stages["migrate"]
+	if mg.Seconds == nil || *mg.Seconds != 2371 {
+		t.Errorf("migrate.Seconds = %v, want 2371", mg.Seconds)
+	}
+	tp := rec.Stages["test_plan"]
+	if tp.Verdict != VerdictFail {
+		t.Fatalf("test_plan.Verdict = %q, want fail", tp.Verdict)
+	}
+	if tp.Seconds == nil || *tp.Seconds != 1867 {
+		t.Errorf("test_plan.Seconds = %v, want 1867 - a FAILING stage must still carry its own wall duration (issue #1051/#1053's second defect)", tp.Seconds)
+	}
+
+	if rec.TotalSeconds == nil || *rec.TotalSeconds != 11180.5 {
+		t.Fatalf("TotalSeconds = %v, want 11180.5", rec.TotalSeconds)
+	}
+	wantUnaccounted := 11180.5 - (2035 + 2371 + 1867)
+	if rec.UnaccountedSeconds == nil || math.Abs(*rec.UnaccountedSeconds-wantUnaccounted) > 0.01 {
+		t.Errorf("UnaccountedSeconds = %v, want %.1f (total minus the three known stage durations)", rec.UnaccountedSeconds, wantUnaccounted)
+	}
+	if err := ValidateScaleRecord(rec); err != nil {
+		t.Fatalf("validation failed: %v", err)
 	}
 }
 
@@ -273,8 +355,16 @@ func TestBuildScaleRecordFromLiveCertHistoricalScales(t *testing.T) {
 				t.Errorf("Skipped = %d, want %d", rec.Resources.Skipped, c.wantSkipped)
 			}
 			cd := rec.Stages["cold_deploy"]
-			if cd.Seconds == nil || *cd.Seconds != c.wantColdSeconds {
-				t.Errorf("cold_deploy.Seconds = %v, want %v", cd.Seconds, c.wantColdSeconds)
+			// None of these three fixtures' LiveCertResult carries a Seconds
+			// map (all three predate that field), so cold_deploy's own wall
+			// duration is genuinely unrecoverable here - it lands under
+			// OperationSeconds (the detail sentence's own inner-operation
+			// figure) instead, never silently standing in for Seconds.
+			if cd.Seconds != nil {
+				t.Errorf("cold_deploy.Seconds = %v, want nil (no stage_seconds on this fixture's LiveCertResult)", cd.Seconds)
+			}
+			if cd.OperationSeconds == nil || *cd.OperationSeconds != c.wantColdSeconds {
+				t.Errorf("cold_deploy.OperationSeconds = %v, want %v", cd.OperationSeconds, c.wantColdSeconds)
 			}
 			if cd.Throttle == nil || *cd.Throttle != c.wantColdThrottle {
 				t.Errorf("cold_deploy.Throttle = %v, want %v", cd.Throttle, c.wantColdThrottle)
@@ -309,7 +399,8 @@ func TestBuildScaleRecordFromEstateFloci(t *testing.T) {
 				"cold_deploy": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 34 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)",
 				"migrate":     "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report",
 			},
-			Seconds: map[string]float64{"cold_deploy": 121, "migrate": 40, "test_plan": 3, "test_apply": 5},
+			Seconds:   map[string]float64{"cold_deploy": 121, "migrate": 40, "test_plan": 3, "test_apply": 5},
+			DurationS: 327.7,
 		},
 	}
 	rec, ok := BuildScaleRecordFromEstate(e, "fixture")
@@ -333,6 +424,20 @@ func TestBuildScaleRecordFromEstateFloci(t *testing.T) {
 	}
 	if got := rec.Stages["cold_deploy"].Seconds; got == nil || *got != 121 {
 		t.Errorf("cold_deploy.Seconds = %v, want 121 (read from LastRun.Seconds, not parsed from prose)", got)
+	}
+	// This estate's four stages' own Seconds (121+40+3+5=169 - only these
+	// four carry a verdict in the fixture) fall 158.7s short of the
+	// 327.7s total, which UnaccountedSeconds must name rather than drop -
+	// the real committed row's own fuller stage set (day2_count,
+	// greenfield, etc.) closes to within 0.7s; this fixture only exercises
+	// the four gauntlet-scope stages, so its own remainder is bigger and
+	// that is expected.
+	if rec.TotalSeconds == nil || *rec.TotalSeconds != 327.7 {
+		t.Fatalf("TotalSeconds = %v, want 327.7", rec.TotalSeconds)
+	}
+	wantUnaccounted := 327.7 - (121 + 40 + 3 + 5)
+	if rec.UnaccountedSeconds == nil || math.Abs(*rec.UnaccountedSeconds-wantUnaccounted) > 0.01 {
+		t.Errorf("UnaccountedSeconds = %v, want %.1f", rec.UnaccountedSeconds, wantUnaccounted)
 	}
 	if err := ValidateScaleRecord(rec); err != nil {
 		t.Fatalf("validation failed: %v", err)

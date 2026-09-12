@@ -19,6 +19,7 @@
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
 //	go run ./tools/gauntlet scale-import-slice [-estate name] <slice_out.json> # merge a slicing-bench SLICE_OUT report's plan_calls split into live/gauntlet-scale.json (#1053)
+//	go run ./tools/gauntlet scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] # patch an existing ScaleRecord's stage wall-durations from a source scale-backfill cannot read (#1051/#1053)
 package main
 
 import (
@@ -68,6 +69,8 @@ func main() {
 		fatalIf(cmdScaleBackfill(root, os.Args[2:]))
 	case "scale-import-slice":
 		fatalIf(cmdScaleImportSlice(root, os.Args[2:]))
+	case "scale-patch-seconds":
+		fatalIf(cmdScalePatchSeconds(root, os.Args[2:]))
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
@@ -85,7 +88,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the

@@ -84,6 +84,24 @@ type LiveCertResult struct {
 	ExitCode   int               `json:"exit_code"`
 	Detail     map[string]string `json:"detail,omitempty"`
 	DurationS  float64           `json:"duration_s,omitempty"`
+	// Seconds is per-stage wall-clock seconds, the exact same meaning as
+	// LastRun.Seconds (artifact.go) carries for an emulator row: stage id ->
+	// that stage's own duration_s, read off the script's "GAUNTLET
+	// stage=... duration_s=..." line (protocol.go) and computed
+	// unconditionally by gauntlet_stage regardless of pass or fail
+	// (live/e2e/lib/gauntlet.sh - the delta-timer runs on every call, a
+	// failing stage included). Absent until this field existed: ParseProtocol
+	// has always computed res.Seconds from the script's own stdout, but
+	// RunLiveCert below discarded it, so every LiveCertResult recorded
+	// before this field was added has no way to recover a stage's true wall
+	// duration - scalerecord.go's BuildScaleRecordFromLiveCert leaves such a
+	// stage's own Seconds absent rather than substituting the stage's
+	// inner-operation timing (OperationSeconds there), which answers a
+	// different question and is exactly the defect issue #1051/#1053's
+	// wall-time-accounting unit found (a stage's "seconds" silently meaning
+	// the inner op's time, not the stage's own duration, so a published
+	// breakdown could not be summed against its own total).
+	Seconds map[string]float64 `json:"stage_seconds,omitempty"`
 }
 
 // liveCertClear reports whether every scoped stage passed. Mirrors isClear
@@ -274,6 +292,9 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		CeilingUSD: ceilingUSD, Stages: res.Stages, Commit: headCommit(root),
 		Date: time.Now().UTC().Format(time.RFC3339), ExitCode: exit, Detail: res.Detail,
 		DurationS: roundSeconds(elapsed),
+	}
+	if len(res.Seconds) > 0 {
+		r.Seconds = res.Seconds
 	}
 	r.Clear = liveCertClear(r.Stages)
 	return &r, res, exit, nil
