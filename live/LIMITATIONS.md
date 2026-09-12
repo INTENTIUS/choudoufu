@@ -1017,8 +1017,15 @@ refusal rather than an assumption:
   (`["100", 100][count.index]`) yields a string at one index and a number
   at another; the two are not structurally equal, but both render to the
   marker `100`, so inequality would be the wrong evidence.
-- The `count` exceeds 256 (`countIndexDomainMax`). A cost bound, not a
-  correctness one.
+- The `count` exceeds 8192 (`countIndexDomainMax`). A cost bound, not a
+  correctness one. It was 256 while the distinctness check compared every
+  pair of rendered values, which made the work grow as the square of the
+  count; duplicates are now found by hash bucket, one look per value, with
+  `RawEquals` still the only thing deciding equality. What remains is the
+  rendering itself, one static evaluation per index, which is linear and
+  unavoidable. terralith-gen's own estate is what moved it: it declares
+  `count = 2 * scale`, so every size from scale 129 up was refused by a rule
+  that plans the same estate happily at 128 (issue #1076).
 
 **Inside a module the caller expands.** The values are rendered once per
 module *instance*, not once for the module. A module called with `for_each`

@@ -67,13 +67,27 @@ import (
 // that is a configuration change, and drift and live-mv are what answer it.
 
 // countIndexDomainMax bounds how many indices [countIndexDomain] will
-// evaluate and compare. It exists for cost, not for correctness: the
-// comparison is pairwise, so the work grows as the square of the count, and
-// a configuration with a five-figure count would otherwise spend real time
-// in a lint rule. Exceeding it is not an error and not an acceptance — the
-// domain simply reports itself unavailable and the syntactic rule decides,
-// which is what happened for every count before this file existed.
-const countIndexDomainMax = 256
+// evaluate and compare. It exists for cost, not for correctness. Exceeding
+// it is not an error and not an acceptance — the domain simply reports
+// itself unavailable and the syntactic rule decides, which is what happened
+// for every count before this file existed.
+//
+// It was 256 while the distinctness check compared every pair, so the work
+// grew as the square of the count. It no longer does: duplicates are found
+// by hash bucket in [countIndexModuleInstance.verdict], one look per value,
+// with RawEquals still the only thing deciding equality. What is left is
+// the rendering itself, one static evaluation per index, which is linear
+// and was always unavoidable — a domain check cannot know what an
+// expression renders without rendering it.
+//
+// 8192 rather than no bound at all, because linear is not free and a
+// configuration is allowed to be absurd. It is also deliberately below the
+// five-figure count the old comment worried about, so that concern is
+// answered rather than waved away. The estate this was raised for is
+// issue #1076's: tools/terralith-gen at scale 136 declares count = 272
+// across three blocks, and every size from 129 up was being refused by a
+// rule that plans the same estate happily at 128.
+const countIndexDomainMax = 8192
 
 // countIndexStaticRoots is the set of reference roots an expression may
 // read and still be answerable from configuration alone. It is deliberately
@@ -371,12 +385,32 @@ func (m countIndexModuleInstance) verdict(ctx context.Context, expr hclsyntax.Ex
 		}
 	}
 
-	for i := range rendered {
-		for j := i + 1; j < len(rendered); j++ {
-			if rendered[i].RawEquals(rendered[j]) {
+	// Duplicate detection by hash bucket, with RawEquals still the only
+	// thing that ever decides equality (issue #1076).
+	//
+	// [cty.Value.Hash] is the same hash cty's own sets bucket by, so two
+	// values that are RawEquals necessarily hash alike; the converse does
+	// not hold, which is why a bucket is compared rather than trusted. The
+	// answer is therefore identical to the pairwise loop this replaces,
+	// value for value. What changes is that each value is looked at once
+	// instead of against every value before it.
+	//
+	// Safe here and nowhere earlier: Hash panics on a marked value, and the
+	// loop above has already refused anything marked, unknown or null.
+	//
+	// That quadratic was the whole stated reason countIndexDomainMax sat at
+	// 256, and a real estate paid for it - terralith-gen declares
+	// count = 2 * SCALE, so every size from scale 129 up was refused by a
+	// rule that had simply declined to look.
+	seen := make(map[int][]int, len(rendered))
+	for i, val := range rendered {
+		h := val.Hash()
+		for _, j := range seen[h] {
+			if rendered[j].RawEquals(val) {
 				return countIndexCollides
 			}
 		}
+		seen[h] = append(seen[h], i)
 	}
 	return countIndexDistinct
 }
