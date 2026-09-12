@@ -86,6 +86,20 @@ same "Ownership marker conflict" refusal the AWS shape raises. `strict {
 markers "record" }` withholds the label the same way it withholds the tags,
 and protects an existing one through `ignore_changes` the same way.
 
+Migrating from a stock state file is the same bulk path as on AWS
+(#1073): `choudoufu live-import -approve` reads the state once, verifies
+each object by namespace and name, and writes the `tofu-estate` label into
+`metadata.labels` through a labels-only plan and apply, judged the way a
+tags-only write is judged - a plan that would also rename the object, move
+it between namespaces or change anything outside the labels map is
+refused, as is an object already labelled for another estate, and an
+estate name that is not a legal label value. There is no address to split
+and no `tofu-slot` to settle, so a Kubernetes count set is never
+slot-classified. Before this the label surface was not a live-import
+carrier and every `kubernetes_*` type migrated as UNTAGGABLE; the
+kubernetes lane's first estate (reference-k8s, #1067) failed its migrate
+stage on exactly that line, and passes it now.
+
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
 that would put an address back on the object.

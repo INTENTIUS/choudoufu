@@ -28,7 +28,7 @@ providers:
   - id: kubernetes
     name: Kubernetes
     status: soon
-    status_label: "Every object-metadata type plans, carries the estate label, is swept for orphans, and is fenced by one admission policy that reads it; the gauntlet runs its stages on a kind cluster in a lane of its own, where the first estate passes ten of twelve applicable stages and live-import is the gap (#1073)."
+    status_label: "Every object-metadata type plans, carries the estate label, is swept for orphans, and is fenced by one admission policy that reads it; the gauntlet runs its stages on a kind cluster in a lane of its own, where the first estate clears every applicable stage, migration from a stock state included (#1073)."
     cells:
       identity: "One label, `tofu-estate`, written on the create; the object is re-bound through group, kind, namespace and name. A label value is capped at 63 characters and cannot carry a config address, so the address stays off the object. `generateName` is refused."
       values: "Not yet designed."

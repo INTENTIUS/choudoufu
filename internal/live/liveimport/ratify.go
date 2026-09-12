@@ -164,6 +164,13 @@ type residuable struct {
 // subject; the reverse is not true, which is the whole of issue #341.
 type eligible struct {
 	residuable
+
+	// labelled says the marker is carried as a Kubernetes label
+	// (metadata[0].labels, [markers.LabelSurface]) rather than a tags map,
+	// so Approve writes it through [approveLabel] and the slot pass never
+	// settles it (GitHub issue #1073). The two surfaces are disjoint by
+	// construction; a type is one or the other or untaggable.
+	labelled bool
 }
 
 // recordable is [eligible]'s sibling for a record-backed instance: what
@@ -607,7 +614,12 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	selected := selection.Selects(addr.ConfigResource()) &&
 		identity.SelectedLocatedType(typeName, map[string]providers.Schema{typeName: schema})
 
-	if !selected && !taggable(schema.Block) {
+	// GitHub issue #1073: a Kubernetes type carries its marker as a label,
+	// not a tag, and was UNTAGGABLE here until the label surface became a
+	// carrier too. Checked after the tags map, which [markers.LabelSurface]
+	// itself refuses to double-count.
+	labelled := !selected && !taggable(schema.Block) && labelSurface(schema.Block)
+	if !selected && !taggable(schema.Block) && !labelled {
 		return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
 	}
 
@@ -663,7 +675,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	return entry, carriers{eligible: &eligible{sub}}
+	return entry, carriers{eligible: &eligible{residuable: sub, labelled: labelled}}
 }
 
 // ratifyUntaggable is ratifyOne's verdict for an ADMITTED instance whose

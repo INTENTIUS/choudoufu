@@ -78,7 +78,7 @@ func eligibleFor(provider providers.Interface, tags map[string]string) *eligible
 	if len(vals) > 0 {
 		tagsVal = cty.MapVal(vals)
 	}
-	return &eligible{residuable{
+	return &eligible{residuable: residuable{
 		provider: provider,
 		schema:   gatedSchema(),
 		typeName: "test_gated_gateway",
