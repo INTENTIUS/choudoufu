@@ -390,3 +390,78 @@ func TestDirectReadRefusesADynamicForEachCollection(t *testing.T) {
 		t.Logf("GREEN, quoted verbatim: %s", found[0].Detail)
 	})
 }
+
+// arnOnlyIdentity replaces one listed object's identity with {arn: id} - the
+// shape terraform-provider-aws's real ListResource identity for
+// aws_iam_policy carries, confirmed with TF_LOG=debug against a live run
+// (live/gauntlet/logs/terralith-scale.log, 2026-09-11): exactly one
+// attribute, arn, never account_id, on every floci digest tried. [fakeCloud]'s
+// default identity ({id, region, account_id}) hands the account ID over
+// ready-made and never exercises this - see
+// TestDirectReadResolvesAccountIDFromARNOnlyIdentity's own doc comment for
+// why that matters.
+func arnOnlyIdentity(t *testing.T, cloud *fakeCloud, typeName, id string) {
+	t.Helper()
+	for _, o := range cloud.objects[typeName] {
+		if o.id == id {
+			o.identity = map[string]string{"arn": id}
+			return
+		}
+	}
+	t.Fatalf("no %s %q in the fake cloud to set an arn-only identity on", typeName, id)
+}
+
+// TestDirectReadResolvesAccountIDFromARNOnlyIdentity is issue #1054.
+// [directReadFallback] reads the account ID to compose a candidate ARN from
+// [TypeScan.AccountID] (directread.go), itself set only when a listed
+// identity carries an "account_id" attribute (discovery.go's account-ID
+// loop). Every existing #1046 test builds its fixture through
+// [fakeCloud.own], whose default identity is {id, region, account_id} - it
+// always hands the account ID over ready-made, so none of them exercise the
+// shape the real provider actually serves for aws_iam_policy: an identity
+// carrying arn alone (confirmed against a real run with TF_LOG=debug, see
+// [arnOnlyIdentity]'s own doc comment). Before the #1045 floci repin
+// (lex00/floci#202) this never mattered - the Tagging API incorrectly
+// served IAM, so aws_iam_policy was always found through the ordinary tag
+// index and directReadFallback's own account-ID read never had to run for
+// real. The repin made floci stop serving IAM through the tag index, the
+// way real AWS always has, and only then did a genuine tag-index-lagged
+// aws_iam_policy reach this fallback and find TypeScan.AccountID empty:
+// terralith-scale's own greenfield stage regressed from pass to fail this
+// way (F5, "the greenfield plan with no local record store exited 1"; see
+// the issue for the run's own verbatim detail). The fix reads the account
+// ID out of the arn identity attribute itself
+// ([cloudcontrol.ParseARN].Account) whenever no separate account_id
+// attribute is present, so this population no longer depends on the
+// identity schema happening to carry a second, redundant attribute.
+func TestDirectReadResolvesAccountIDFromARNOnlyIdentity(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+
+	cloud.own("aws_iam_policy", directReadPolicyARN, `aws_iam_policy.team_0002_policy`)
+	stripTags(t, cloud, "aws_iam_policy", directReadPolicyARN)
+	cloud.withDirectReadTags(t, "aws_iam_policy", directReadPolicyARN, map[string]string{
+		TagEstate:  estateName,
+		TagAddress: `aws_iam_policy.team_0002_policy`,
+	})
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+	arnOnlyIdentity(t, cloud, "aws_iam_policy", directReadPolicyARN)
+	arnOnlyIdentity(t, cloud, "aws_iam_policy", "arn:aws:iam::000000000000:policy/filler")
+
+	req := directReadFixtureRequest(t, cloud)
+
+	res, diags := Discover(context.Background(), req)
+	assertNoErrors(t, diags)
+
+	scan, ok := res.ScanFor("aws_iam_policy")
+	if !ok || scan.AccountID != "000000000000" {
+		t.Fatalf("aws_iam_policy scan did not resolve the account ID from its own arn-only identity: %+v", scan)
+	}
+	binding, ok := res.BindingFor(mustAddr(t, "aws_iam_policy.team_0002_policy"))
+	if !ok || binding.ImportID != directReadPolicyARN {
+		t.Fatalf("aws_iam_policy.team_0002_policy did not bind via the direct-read fallback with an arn-only identity: ok=%v binding=%+v\n%s", ok, binding, res)
+	}
+	if found := problemsOfKind(res, ProblemDirectReadUnresolved); len(found) != 0 {
+		t.Errorf("a bound instance still carries a DIRECT_READ_UNRESOLVED refusal: %v", found)
+	}
+}
