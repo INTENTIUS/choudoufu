@@ -174,6 +174,60 @@ func TestRunLiveCertSendsSIGTERMOnCeiling(t *testing.T) {
 	}
 }
 
+// TestRunLiveCertCapturesPerStageSeconds is the wall-time-accounting unit's
+// own proof of its first two fixes (issue #1051/#1053): RunLiveCert must
+// carry a stage's own duration_s through to LiveCertResult.Seconds, for a
+// PASSING stage and a FAILING one alike - gauntlet_stage's delta-timer
+// (live/e2e/lib/gauntlet.sh) computes duration_s unconditionally, so a
+// stage that fails still reports one, and RunLiveCert must not discard it
+// the way it silently did before this fix (see LiveCertResult.Seconds's own
+// doc comment - res.Seconds existed in ParseProtocol's output all along;
+// nothing before this change ever kept it).
+//
+// Written from what RunLiveCert now PROMISES, not from its
+// implementation: temporarily reverting the `r.Seconds = res.Seconds`
+// assignment in RunLiveCert (livecert.go) makes this test fail with
+// `Seconds map is nil` - see this worker's report for that RED output,
+// quoted verbatim.
+func TestRunLiveCertCapturesPerStageSeconds(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "estate.sh")
+	// Speaks the exact GAUNTLET protocol shape live/e2e/lib/gauntlet.sh
+	// emits: duration_s present on both a pass and a fail line, the second
+	// stage failing WITHOUT naming a duration in its own detail text (the
+	// same shape terralith-scale's real scale=50 test_plan failure has) -
+	// duration_s is still there because gauntlet_stage computes it before
+	// ever looking at the verdict.
+	body := "#!/usr/bin/env bash\n" +
+		"printf 'GAUNTLET protocol=1\\n'\n" +
+		"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=2035 detail=3705 resources ... in 2023s\\n'\n" +
+		"printf 'GAUNTLET stage=test_plan verdict=fail duration_s=1867 detail=the post-migrate plan is not empty\\n'\n" +
+		"exit 1\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil { //nolint:gosec // test fixture script, not a secret
+		t.Fatal(err)
+	}
+
+	t.Setenv("LIVECERT_SCRIPT_OVERRIDE", script)
+	t.Setenv("GITHUB_ACTIONS", "true") // opt out of the maintainer-run-guard, same as TestRunLiveCertSendsSIGTERMOnCeiling
+
+	r, _, exit, err := RunLiveCert("", "unused-estate-name", "floci", "us-east-1", 5, 30, "")
+	if err != nil {
+		t.Fatalf("RunLiveCert returned an error: %v", err)
+	}
+	if exit != 1 {
+		t.Fatalf("exit = %d, want 1 (the script's own gauntlet_stage fail exits non-zero)", exit)
+	}
+	if r.Seconds == nil {
+		t.Fatal("Seconds map is nil - RunLiveCert discarded the protocol's own duration_s readings (the exact defect issue #1051/#1053's wall-time-accounting unit fixes)")
+	}
+	if got, ok := r.Seconds["cold_deploy"]; !ok || got != 2035 {
+		t.Errorf(`Seconds["cold_deploy"] = %v (ok=%v), want 2035`, got, ok)
+	}
+	if got, ok := r.Seconds["test_plan"]; !ok || got != 1867 {
+		t.Errorf(`Seconds["test_plan"] = %v (ok=%v), want 1867 - a FAILING stage must still carry its own wall duration`, got, ok)
+	}
+}
+
 // TestBoardLiveCertIsSeparate: the board carries live-cert evidence in its
 // own field, and adding it leaves every other field (the estate rows, the
 // stage table, the banners - everything feeding {{< gauntlet-bars >}} and
