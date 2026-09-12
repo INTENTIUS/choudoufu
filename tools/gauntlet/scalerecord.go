@@ -230,11 +230,16 @@ type ScaleRecord struct {
 	// A negative UnaccountedSeconds means the stages overcount the total,
 	// which is impossible for sequential slices of one run and is exactly
 	// what issue #1069 found in the terralith-scale/floci/scale-1 row: 329s
-	// of stage seconds against a 231.7s total. That is a genuine defect in
-	// the crossing script's own timers (concurrent stages each billing
-	// their own wall time, or a stale duration_s carried over from a prior
-	// run - #1069's own two candidates, neither confirmed), not something
-	// this schema should paper over by widening the tolerance everywhere.
+	// of stage seconds against a 231.7s total. The cause is known, and it
+	// was not the crossing script's timers: that run aborted at greenfield,
+	// and RunEstates used to merge a run's per-stage seconds into the
+	// previous row's map, so the nine stages this run never reached kept an
+	// older run's duration_s (98s) while the total came from this run's own
+	// wall clock. Fixed in run.go - LastRun.Seconds now holds only the
+	// stages a run itself emitted a duration_s for - so a record built after
+	// that fix cannot take this shape again. It remains a real defect to
+	// name, not something this schema should paper over by widening the
+	// tolerance everywhere.
 	UnaccountedSeconds *float64 `json:"unaccounted_seconds,omitempty"`
 	// UnaccountedDetail is free text naming what UnaccountedSeconds is
 	// believed to cover, when a record's own investigation identified

@@ -97,8 +97,13 @@ func TestRunEstatesPreservesDetailForUnreachedStages(t *testing.T) {
 	if got := r.LastRun.Detail["day2_rename"]; got != "regressed" {
 		t.Errorf("day2_rename detail = %q, want this run's fresh detail (\"regressed\"), not the stale pass-era text", got)
 	}
-	if got := r.LastRun.Seconds["day2_remove"]; got != 99 {
-		t.Errorf("day2_remove duration_s was dropped by the early abort: %v", got)
+	// Detail above is carried forward across the early abort; day2_remove's
+	// SECONDS are not, and that asymmetry is the point of #1069 - a stale
+	// duration_s is billed against this run's own DurationS by
+	// unaccountedSeconds (scalerecord.go). TestRunEstatesDropsSecondsForUnreachedStages
+	// below is the guard for that half.
+	if got, ok := r.LastRun.Seconds["day2_remove"]; ok {
+		t.Errorf("day2_remove kept a stale duration_s (%v) across an early abort - seconds are not carried forward (#1069)", got)
 	}
 	if got := r.LastRun.Seconds["day2_rename"]; got != 7 {
 		t.Errorf("day2_rename duration_s = %v, want this run's fresh value (7), not the stale pass-era value (2)", got)
@@ -114,6 +119,90 @@ func TestRunEstatesPreservesDetailForUnreachedStages(t *testing.T) {
 	}
 	if got := r.LastRun.Detail["cold_deploy"]; got != "ok" {
 		t.Errorf("cold_deploy detail = %q, want this run's fresh detail", got)
+	}
+}
+
+// TestRunEstatesDropsSecondsForUnreachedStages is the sibling of the test
+// above, and draws the one line that separates them (#1069). Detail and
+// Stages are carried forward across an early abort on purpose: a verdict or
+// a wall text a prior run measured is still the best thing known about a
+// stage this run never reached. Seconds are not, because they are not read
+// on their own - scalerecord.go's unaccountedSeconds sums every stage's
+// Seconds against THIS run's LastRun.DurationS, so a stale duration_s is
+// billed against a wall clock that never contained it. That is exactly the
+// committed terralith-scale/floci/scale-1 record: five stages this run
+// reached sum to 231s against a 231.7s total, and nine stale stage seconds
+// (98s) drive unaccounted_seconds to -97.3.
+//
+// So after a run that emits duration_s for only a subset of the stages,
+// LastRun.Seconds must hold exactly that subset - while r.Stages still
+// carries the unreached stage's verdict, unchanged.
+func TestRunEstatesDropsSecondsForUnreachedStages(t *testing.T) {
+	root := t.TempDir()
+	scriptPath := filepath.Join("live", "e2e", "x", "run.sh")
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(scriptPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Reaches cold_deploy and day2_rename only, then aborts - day2_remove
+	// and day2_readd are never reached this run.
+	script := "#!/usr/bin/env bash\n" +
+		"printf 'GAUNTLET protocol=1\\n'\n" +
+		"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=5 detail=ok\\n'\n" +
+		"printf 'GAUNTLET stage=day2_rename verdict=fail duration_s=7 detail=regressed\\n'\n" +
+		"exit 1\n"
+	if err := os.WriteFile(filepath.Join(root, scriptPath), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := &Manifest{Estates: []Estate{{Name: "x", Source: "s", Lane: "reference", Set: SetGrowing, Script: scriptPath}}}
+	a := &Artifact{Schema: 1, Estates: []EstateResult{{
+		Name:     "x",
+		Protocol: ProtocolGauntlet,
+		Stages: map[string]string{
+			"cold_deploy": "pass",
+			"day2_rename": "pass",
+			"day2_remove": "pass",
+			"day2_readd":  "pass",
+		},
+		LastRun: &LastRun{
+			Commit: "priorcommit",
+			Detail: map[string]string{
+				"day2_remove": "old day2_remove wall - carried forward on purpose",
+			},
+			Seconds: map[string]float64{
+				"cold_deploy": 1,
+				"day2_rename": 2,
+				"day2_remove": 61,
+				"day2_readd":  37,
+			},
+		},
+	}}}
+
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"x"}, Stdout: &out}, "newcommit", "newemulator@sha256:new"); err != nil {
+		t.Fatal(err)
+	}
+	r, ok := a.Result("x")
+	if !ok {
+		t.Fatal("no result for x")
+	}
+	if r.LastRun == nil {
+		t.Fatal("LastRun is nil")
+	}
+
+	want := map[string]float64{"cold_deploy": 5, "day2_rename": 7}
+	if !reflect.DeepEqual(r.LastRun.Seconds, want) {
+		t.Errorf("LastRun.Seconds = %v, want exactly the stages this run emitted a duration_s for (%v); a stale stage's seconds are billed against this run's own DurationS by unaccountedSeconds (#1069)", r.LastRun.Seconds, want)
+	}
+	// The other two maps keep their carry-forward, unchanged by the fix.
+	if r.Stages["day2_remove"] != "pass" {
+		t.Errorf("day2_remove verdict = %q, want pass carried forward - only seconds are dropped", r.Stages["day2_remove"])
+	}
+	if r.Stages["day2_readd"] != "pass" {
+		t.Errorf("day2_readd verdict = %q, want pass carried forward - only seconds are dropped", r.Stages["day2_readd"])
+	}
+	if got := r.LastRun.Detail["day2_remove"]; got != "old day2_remove wall - carried forward on purpose" {
+		t.Errorf("day2_remove detail = %q, want the prior run's text carried forward - only seconds are dropped", got)
 	}
 }
 

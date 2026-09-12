@@ -162,16 +162,27 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		// stage verdict correctly stayed "fail". Merging preserves stale
 		// detail for a stage this run never reached, exactly like Stages
 		// already does for the verdict itself.
+		//
+		// Seconds are the deliberate exception (#1069): they are NOT
+		// carried forward, and LastRun.Seconds holds only the stages this
+		// run itself emitted a duration_s for. A verdict or a detail line
+		// stands on its own, so a stale one is still the best thing known
+		// about a stage this run never reached; a duration_s does not - it
+		// is reconciled against this run's own wall clock (unaccountedSeconds
+		// in scalerecord.go sums every stage's Seconds against this row's
+		// LastRun.DurationS), and a value measured during some other run
+		// cannot be, because that time is not inside this run's total. The
+		// committed terralith-scale/floci/scale-1 record is what this cost:
+		// it aborted at greenfield, its five reached stages sum to 231s
+		// against a 231.7s total, and nine stale stage seconds (98s) turned
+		// the remainder into an impossible -97.3s.
 		prevDetail := map[string]string{}
-		prevSeconds := map[string]float64{}
 		if r.LastRun != nil {
 			for k, v := range r.LastRun.Detail {
 				prevDetail[k] = v
 			}
-			for k, v := range r.LastRun.Seconds {
-				prevSeconds[k] = v
-			}
 		}
+		runSeconds := map[string]float64{}
 		rowOracle := oracle
 		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
 		if res.Spoken {
@@ -185,13 +196,13 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				prevDetail[id] = v
 			}
 			for id, v := range res.Seconds {
-				prevSeconds[id] = v
+				runSeconds[id] = v
 			}
 			if len(prevDetail) > 0 {
 				r.LastRun.Detail = prevDetail
 			}
-			if len(prevSeconds) > 0 {
-				r.LastRun.Seconds = prevSeconds
+			if len(runSeconds) > 0 {
+				r.LastRun.Seconds = runSeconds
 			}
 			r.Protocol = ProtocolGauntlet
 			if len(res.Stages) == 0 {
