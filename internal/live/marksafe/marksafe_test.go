@@ -73,6 +73,11 @@ var guardedPackages = []string{
 	// else - which is the proof deferredPackages exists for the absence
 	// of.
 	"markerstrip",
+	// Classifies a provider's ImportResourceState error as "no such object"
+	// or not, from its Summary and Detail strings alone (GitHub issue
+	// #1064). It touches no cty.Value at all, so it is held to zero rather
+	// than deferred.
+	"absent",
 	"mdspan",
 	"moved",
 	// Places a resolved identity's own already-computed string values onto
