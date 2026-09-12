@@ -53,5 +53,6 @@ plane was made by a controller too - the legacy `Endpoints` the endpoints
 controller mirrors a Service's labels onto is the case that has no owner
 reference. Neither is ever an orphan. What this claim does not say: an
 object of a kind the provider has no resource type for (every custom
-resource) is not listed, and nothing fences a write on the label until an
-admission policy is installed ([#1066](https://github.com/INTENTIUS/choudoufu/issues/1066)).
+resource) is not listed. What fences a write on the label is the admission
+policy of [claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}}),
+which excludes a controller's objects by the same owner-reference rule.

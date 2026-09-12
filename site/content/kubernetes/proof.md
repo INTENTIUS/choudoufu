@@ -1,7 +1,7 @@
 ---
 title: "Proof"
 weight: 5
-description: "Which claims are restated for Kubernetes, which do not apply, what a sweep would cost, and the kind-cluster harness the next units run against."
+description: "Which claims are proven on a real cluster, which are restated, which do not apply, what a sweep costs, and the kind-cluster harness every Kubernetes unit runs against."
 deeper:
   - "[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016), \"The one-call sweep, and claim 14 with it\"."
   - "[The claims]({{< relref \"/docs/claims\" >}}): every claim's AWS scenario, and the Kubernetes note on each."
@@ -10,9 +10,11 @@ deeper:
 
 # Proof
 
-Two claims are proven on a real cluster, the marker itself and the sweep
-that finds a deleted block's object by it, and the rest are stated per
-claim in the claims data rather than left implicit. The table
+Three claims are proven on a real cluster, the marker itself, the sweep
+that finds a deleted block's object by it, and the admission policy that
+fences a write by it, and claim 13's Kubernetes cell is proven through
+that third one. The rest are stated per claim in the claims data rather
+than left implicit. The table
 below shows only the claims whose Kubernetes cell is not still open; hover a
 cell for its note.
 
@@ -34,6 +36,11 @@ ConfigMap under a `live` block with no AWS provider anywhere, reads the
 without consequence, and destroys exactly; its `BREAK=1` strips the label
 and requires the replan to propose restoring it
 ([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
+[Claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}}) runs the
+sweep on the same harness, and [claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})
+runs the gate: two ServiceAccounts, two estates, a plain `kubectl label`
+refused by the API server across the boundary, and a carve by relabel the
+policy governs, with `BREAK=1` removing the policy.
 
 A Kubernetes estate would enter the gauntlet manifest with its own lane, run
 the same stages against its own substrate, and count toward its own bar,
