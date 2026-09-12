@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=662 instances=1827
+# shape: dirs=666 instances=1829
 # shape: class CONCRETE=889
-# shape: class NEEDS_DISCOVERY=774
+# shape: class NEEDS_DISCOVERY=776
 # shape: class PARENT_DERIVED=137
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=631 fixture-instances=1123
+# shape: fixture-dirs=635 fixture-instances=1125
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=f6cdc84987a55dfdf723fa4528b5f3bd89a81f1dc60683b9511235d4195055f6
+# shape: body-sha256=275d5d692afa4c7036ad2e88e47e2cbe9cefab73fb00c8fd8c399814de7bbec6
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -127,6 +127,8 @@ internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_iam_
 internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_iam_policy.dynamic_policy["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-module-foreach	module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-module-foreach-dynamic	module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.before	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.beyond	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-sweep-dedup	aws_iam_policy.owned	NEEDS_DISCOVERY		

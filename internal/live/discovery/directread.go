@@ -227,24 +227,39 @@ func attrPresent(rc *configs.Resource, name string) bool {
 // it from configuration alone, and refuses rather than guess at a
 // count.index or each.value it does not actually know.
 func instanceRepetitionData(ctx context.Context, mod *configs.Module, rc *configs.Resource, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+	return repetitionDataFor(ctx, mod, rc.Count, rc.ForEach, key)
+}
+
+// repetitionDataFor is the engine [instanceRepetitionData] runs for a
+// resource's own count/for_each block - pulled out, unchanged, so
+// modulescope.go's [moduleCallRepetitionData] can run the identical
+// var/local/path/terraform-only subset against a module CALL's own
+// count/for_each block instead, without a second, potentially divergent
+// implementation of the same rule (issue #1063: "extend that shape rather
+// than inventing a second mechanism"). mod is whichever module's own static
+// scope countExpr/forEachExpr are written in - the module that DECLARES the
+// block, a resource's own enclosing module for [instanceRepetitionData], or
+// that call's own PARENT module for [moduleCallRepetitionData], exactly as
+// [staticeval.Count]/[staticeval.ForEachElements] already require.
+func repetitionDataFor(ctx context.Context, mod *configs.Module, countExpr, forEachExpr hcl.Expression, key addrs.InstanceKey) (instances.RepetitionData, bool) {
 	if key == addrs.NoKey {
 		return instances.RepetitionData{}, true
 	}
 	switch k := key.(type) {
 	case addrs.IntKey:
-		if rc.Count == nil {
+		if countExpr == nil {
 			return instances.RepetitionData{}, false
 		}
-		n, ok := staticeval.Count(ctx, mod, rc.Count)
+		n, ok := staticeval.Count(ctx, mod, countExpr)
 		if !ok || int(k) < 0 || int(k) >= n {
 			return instances.RepetitionData{}, false
 		}
 		return instances.RepetitionData{CountIndex: cty.NumberIntVal(int64(k))}, true
 	case addrs.StringKey:
-		if rc.ForEach == nil {
+		if forEachExpr == nil {
 			return instances.RepetitionData{}, false
 		}
-		elems, ok := staticeval.ForEachElements(ctx, mod, rc.ForEach)
+		elems, ok := staticeval.ForEachElements(ctx, mod, forEachExpr)
 		if !ok {
 			return instances.RepetitionData{}, false
 		}
@@ -262,10 +277,17 @@ func instanceRepetitionData(ctx context.Context, mod *configs.Module, rc *config
 // refusal [instanceRepetitionData] failure renders - "the collection" alone
 // would leave an operator to go check which one it was.
 func collectionKind(rc *configs.Resource) string {
+	return collectionKindFor(rc.Count, rc.ForEach)
+}
+
+// collectionKindFor is [collectionKind] generalized over a bare count/
+// for_each expression pair, so modulescope.go's own refusal - about a
+// module CALL's block, not a resource's - can name which one it was too.
+func collectionKindFor(countExpr, forEachExpr hcl.Expression) string {
 	switch {
-	case rc.Count != nil:
+	case countExpr != nil:
 		return "count block"
-	case rc.ForEach != nil:
+	case forEachExpr != nil:
 		return "for_each block"
 	default:
 		return "count or for_each block"
@@ -365,8 +387,42 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 		return directReadUnavailable, nil, "its own resource block could not be found in the configuration"
 	}
 
-	rep, scopeOK := instanceRepetitionData(ctx, modCfg.Module, rc, addr.Resource.Key)
+	// Issue #1063: a resource declared inside a module names itself from
+	// that module's own input variables, whose values come from the
+	// PARENT's own `module` block - itself possibly for_each'd or count'd -
+	// which [instanceRepetitionData] alone (the resource's own scope) has
+	// no way to answer. [moduleScope] rebuilds modCfg.Module's own
+	// StaticEvaluator so that var.* resolves against the caller's actual
+	// per-instance arguments, recursing outward through as many ancestor
+	// module calls as addr.Module has, the same way [instanceRepetitionData]
+	// itself only ever answers ONE level (a resource's own count/for_each) -
+	// see modulescope.go's own package doc for why unwinding the whole
+	// chain, rather than stopping at the immediate parent, is required for
+	// a doubly (or deeper) nested module to work at all.
+	scopedMod, scopeCause, scopeOK := moduleScope(ctx, req.Config, addr.Module)
 	if !scopeOK {
+		return directReadUnavailable, nil, scopeCause
+	}
+
+	// A resource argument that names a module variable can still fail for a
+	// reason [moduleScope] itself never sees: the collection that expands
+	// the module call is fine, but the SPECIFIC argument value the call
+	// passes down for that variable is not itself statically known (a data
+	// source, most concretely). Diagnosing that BEFORE composeARN runs is
+	// what lets the refusal say which side of the module boundary the
+	// problem is actually on - see [moduleVariableProblem]'s own doc for why
+	// this cannot simply be inferred after composeARN fails.
+	if cause, distinct := moduleVariableProblem(ctx, req.Config, addr, rc, "name"); distinct {
+		return directReadUnavailable, nil, cause
+	}
+	if attrPresent(rc, "path") {
+		if cause, distinct := moduleVariableProblem(ctx, req.Config, addr, rc, "path"); distinct {
+			return directReadUnavailable, nil, cause
+		}
+	}
+
+	rep, repOK := instanceRepetitionData(ctx, scopedMod, rc, addr.Resource.Key)
+	if !repOK {
 		return directReadUnavailable, nil, fmt.Sprintf(
 			"%s is one instance of a %s, and that block's own collection is not itself statically known from configuration alone, so there is no per-instance count.index/each.key/each.value scope to evaluate its name and path arguments with (a narrower restriction than issue #272's content match, which refuses every count or for_each instance outright regardless of whether its collection is statically known)",
 			addr, collectionKind(rc))
@@ -377,7 +433,7 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 		return directReadUnavailable, nil, fmt.Sprintf("this run resolved no AWS account ID from %s's own listing to compose a candidate ARN with", typeName)
 	}
 
-	candidateARN, composed := drt.composeARN(ctx, modCfg.Module, rc, scan.AccountID, rep)
+	candidateARN, composed := drt.composeARN(ctx, scopedMod, rc, scan.AccountID, rep)
 	if !composed {
 		return directReadUnavailable, nil, "its name (or path) argument could not be evaluated from configuration alone, even with its own per-instance scope in hand"
 	}

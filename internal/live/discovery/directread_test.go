@@ -391,6 +391,152 @@ func TestDirectReadRefusesADynamicForEachCollection(t *testing.T) {
 	})
 }
 
+// TestDirectReadBindsAForEachModuleVariable is issue #1063's primary fix:
+// aws_iam_policy.pod_policy[0] is declared INSIDE module.team_pod["pod-a"],
+// and its own `name` argument reads var.prefix - a variable whose value
+// comes from team_pod's own for_each'd call (`prefix =
+// "${local.name_prefix}-${each.key}"`), not from anything on the resource's
+// own body. Before #1063, [moduleScope] did not exist and this module's
+// var.* closure was frozen with no repetition data at all, so var.prefix
+// could never be evaluated for ANY instance of this call - exactly the
+// shape the issue was opened against
+// (module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]).
+func TestDirectReadBindsAForEachModuleVariable(t *testing.T) {
+	const arn = "arn:aws:iam::000000000000:policy/acme-pod-a-team-0000-policy"
+	const addr = `module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]`
+
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+
+	cloud.own("aws_iam_policy", arn, addr)
+	// iam:ListPolicies returns no tags at all; stripTags reproduces that on
+	// the list path while leaving the object itself listed and listable.
+	stripTags(t, cloud, "aws_iam_policy", arn)
+	cloud.withDirectReadTags(t, "aws_iam_policy", arn, map[string]string{
+		TagEstate:  estateName,
+		TagAddress: addr,
+	})
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+
+	req := directReadFixtureRequestDir(t, cloud, "testdata/iam-policy-direct-read-module-foreach")
+
+	t.Run("RED: without the fallback wired into bind, the plan proposes a duplicate create with no warning at all", func(t *testing.T) {
+		withDirectReadWiringRemoved(t)
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+		if _, ok := res.BindingFor(mustAddr(t, addr)); ok {
+			t.Fatal("bound with the fallback's own bind()-site removed - this RED proof no longer isolates anything")
+		}
+		// This instance is COUNT-keyed inside the module (count =
+		// var.pod_size), and a count block's own zero-claimant case never
+		// produces ProblemUnreadableMarker at all - see bindtags.go's own
+		// doc comment, and TestDirectReadBindsATagIndexLaggedCountInstance's
+		// identical RED shape - so today's behaviour here is the complete
+		// absence of a warning, not one to quote.
+		if found := problemsOfKind(res, ProblemUnreadableMarker); len(found) != 0 {
+			t.Fatalf("want no UNREADABLE_MARKER problems (count blocks never produce one), got %d:\n%s", len(found), res)
+		}
+		unbound := 0
+		for _, u := range res.Unbound {
+			if u.String() == addr {
+				unbound++
+			}
+		}
+		if unbound != 1 {
+			t.Fatalf("want %s reported Unbound exactly once with no explanation, got %d\n%s", addr, unbound, res)
+		}
+		t.Logf("RED, quoted verbatim: %s is Unbound with zero diagnostics - a silent create over a live object that already carries this estate's marker", addr)
+	})
+
+	t.Run("GREEN: the direct read composes the ARN through the module's own for_each'd variable and binds it", func(t *testing.T) {
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+
+		binding, ok := res.BindingFor(mustAddr(t, addr))
+		if !ok || binding.ImportID != arn {
+			t.Fatalf("%s did not bind via the direct-read fallback: ok=%v binding=%+v\n%s", addr, ok, binding, res)
+		}
+		if found := problemsOfKind(res, ProblemUnreadableMarker); len(found) != 0 {
+			t.Errorf("a bound instance still carries an UNREADABLE_MARKER warning: %v", found)
+		}
+		scan, ok := res.ScanFor("aws_iam_policy")
+		if !ok || scan.DirectRead != 1 {
+			t.Errorf("aws_iam_policy scan = %+v, want DirectRead=1", scan)
+		}
+	})
+}
+
+// TestDirectReadRefusesAModuleArgumentNotStaticallyKnown is #1063's negative
+// proof: team_pod's own for_each collection is fully static (same as the
+// positive fixture above), so module.team_pod["pod-a"].aws_iam_policy.
+// pod_policy[0] is a real, addressable instance - but the CALL's own
+// `prefix` argument, which var.prefix's value comes from, reaches a data
+// source this fork's static-only subset cannot answer. The refusal must
+// name the MODULE CALL as the problem, not the resource's own body -
+// distinguishable from both [TestDirectReadRefusesADynamicForEachCollection]
+// (a resource's own collection unknown) and the generic "its name argument
+// could not be evaluated" text a resource-level failure renders.
+func TestDirectReadRefusesAModuleArgumentNotStaticallyKnown(t *testing.T) {
+	const addr = `module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]`
+
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+	// noFilter, same as the dynamic for_each collection test uses: an
+	// untagged filler object is what a server-side estate filter would
+	// otherwise drop before this run ever saw it, and decl.unreadable
+	// (this fallback's own precondition) needs at least one unreadable
+	// LISTED object of the type.
+	cloud.noFilter("aws_iam_policy")
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+
+	req := directReadFixtureRequestDir(t, cloud, "testdata/iam-policy-direct-read-module-foreach-dynamic")
+
+	t.Run("RED: without the fallback wired into bind, the plan proposes a duplicate create with no warning at all", func(t *testing.T) {
+		withDirectReadWiringRemoved(t)
+		res, diags := Discover(context.Background(), req)
+		assertNoErrors(t, diags)
+		// COUNT-keyed inside the module, same as the positive fixture: no
+		// ProblemUnreadableMarker at all, only a silent Unbound entry.
+		if found := problemsOfKind(res, ProblemUnreadableMarker); len(found) != 0 {
+			t.Fatalf("want no UNREADABLE_MARKER problems (count blocks never produce one), got %d:\n%s", len(found), res)
+		}
+		unbound := 0
+		for _, u := range res.Unbound {
+			if u.String() == addr {
+				unbound++
+			}
+		}
+		if unbound != 1 {
+			t.Fatalf("want %s reported Unbound exactly once with no explanation, got %d\n%s", addr, unbound, res)
+		}
+		t.Logf("RED, quoted verbatim: %s is Unbound with zero diagnostics - a silent create over a live object that has no marker index entry yet", addr)
+	})
+
+	t.Run("GREEN: the fallback refuses, naming the module call as the reason", func(t *testing.T) {
+		res, diags := Discover(context.Background(), req)
+		if !diags.HasErrors() {
+			t.Fatalf("a module call argument that cannot be evaluated produced no error:\n%s", res)
+		}
+		if _, ok := res.BindingFor(mustAddr(t, addr)); ok {
+			t.Errorf("%s bound despite its module call's own argument not being statically known", addr)
+		}
+		found := problemsOfKind(res, ProblemDirectReadUnresolved)
+		if len(found) != 1 {
+			t.Fatalf("want exactly one DIRECT_READ_UNRESOLVED refusal, got %d:\n%s", len(found), res)
+		}
+		if found[0].Kind.Severity() != SeverityError {
+			t.Error("the refusal is a warning; it must be an error")
+		}
+		if !strings.Contains(found[0].Detail, "module call") {
+			t.Errorf("refusal does not name the module call as the reason: %s", found[0].Detail)
+		}
+		if strings.Contains(found[0].Detail, "its name (or path) argument could not be evaluated from configuration alone, even with its own per-instance scope in hand") {
+			t.Errorf("refusal fell back to the generic resource-level text instead of naming the module call: %s", found[0].Detail)
+		}
+		t.Logf("GREEN, quoted verbatim: %s", found[0].Detail)
+	})
+}
+
 // arnOnlyIdentity replaces one listed object's identity with {arn: id} - the
 // shape terraform-provider-aws's real ListResource identity for
 // aws_iam_policy carries, confirmed with TF_LOG=debug against a live run
