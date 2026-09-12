@@ -128,7 +128,9 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if schema.Block == nil {
 		return config, diags
 	}
-	if _, taggable := markers.TagSurface(schema.Block); !taggable {
+	_, taggable := markers.TagSurface(schema.Block)
+	_, labelled := markers.LabelSurface(schema.Block)
+	if !taggable && !labelled {
 		return config, diags
 	}
 
@@ -160,6 +162,26 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 		return config, diags
 	}
 
+	configElems := config.AsValueMap()
+	if configElems == nil {
+		configElems = make(map[string]cty.Value, 1)
+	}
+
+	if labelled {
+		// The Kubernetes shape (GitHub issue #1061): one label, no
+		// address. See nodestamp_labels.go.
+		if !config.Type().HasAttribute(markers.LabelSurfaceBlock) {
+			return config, diags
+		}
+		newMeta, labelDiags := n.stampedMetadata(addr, config.GetAttr(markers.LabelSurfaceBlock))
+		diags = diags.Append(labelDiags)
+		if labelDiags.HasErrors() {
+			return config, diags
+		}
+		configElems[markers.LabelSurfaceBlock] = newMeta
+		return cty.ObjectVal(configElems), diags
+	}
+
 	address := markers.EscapeAddress(addr.String())
 	tagsVal := config.GetAttr(tagsArgumentName)
 
@@ -169,10 +191,6 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 		return config, diags
 	}
 
-	configElems := config.AsValueMap()
-	if configElems == nil {
-		configElems = make(map[string]cty.Value, 1)
-	}
 	configElems[tagsArgumentName] = newTags
 	return cty.ObjectVal(configElems), diags
 }

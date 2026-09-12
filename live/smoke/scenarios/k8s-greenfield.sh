@@ -1,12 +1,13 @@
 # k8s-greenfield
-# A Kubernetes estate from nothing, on a real kind cluster: apply, replan empty, cache disposable, out-of-band delete caught, destroy exact. No emulator. ~2 min.
+# CLAIM 21 - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, a stripped label is repaired by the next plan, and the estate lives its whole life without a state file. ~2 min.
 #
-# The first Kubernetes scenario (#1057, the harness unit #1016's ruling
-# put first). A demo, not a claim, until the label carrier lands: today a
-# kubernetes_* resource plans from its own name and namespace and carries
-# no marker, so there is no label to read back or strip. Its BREAK=1
-# deletes the ConfigMap out of band instead and requires the replan to
-# propose the create, which proves the empty-replan assertions are real.
+# The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
+# label; #1057's harness made it a demo first). The marker is ONE label,
+# tofu-estate, in metadata.labels; the address stays off the object because
+# group, kind, namespace and name are the join key back to configuration.
+# BREAK=1 strips the label with kubectl and requires the replan to propose
+# restoring it, which proves the empty-replan assertions are real and the
+# marker is what the plan reads.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-greenfield"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -34,37 +35,46 @@ grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY_OUT" \
   || fail "k8s-greenfield" "a terraform.tfstate appeared - a live-block apply must never write an authoritative state file"
 proof "a namespace and a ConfigMap created, and no terraform.tfstate exists."
 
-step "2. the object, read back with kubectl - no choudoufu in the loop"
+step "2. the marker, read back with kubectl - no choudoufu in the loop"
 explain \
-  "The ConfigMap is a real object in a real cluster. This asks the API" \
-  "server for it directly. Note what is NOT there yet: no tofu-estate" \
-  "label. Kubernetes resources plan from their own name and namespace" \
-  "today (#326) and carry no marker; the carrier is the next unit (#1016)."
-cmd "kubectl get configmap app-config -n smoke-k8s -o jsonpath='{.data}{\" labels=\"}{.metadata.labels}'"
-CM="$(kc get configmap app-config -n smoke-k8s -o jsonpath='{.data}{" labels="}{.metadata.labels}' 2>&1)" \
-  || fail "k8s-greenfield" "kubectl could not read the ConfigMap: $CM"
-echo "$CM" | evidence
-grep -q '"greeting":"hello"' <<< "$CM" || fail "k8s-greenfield" "the ConfigMap does not carry the declared data: $CM"
-if grep -q 'tofu-estate' <<< "$CM"; then
-  fail "k8s-greenfield" "the ConfigMap carries a tofu-estate label - the carrier landed; promote this scenario to a claim whose BREAK strips the label (#1057)"
+  "If the ownership record really is on the object, any Kubernetes tool" \
+  "can read it. This asks the API server for the ConfigMap's labels" \
+  "directly. One label, tofu-estate, says which estate owns it. There is" \
+  "no tofu-address label on purpose: the object's own kind, namespace and" \
+  "name are the way back to the configuration, so the address never goes" \
+  "on the object (#1016)."
+cmd "kubectl get configmap app-config -n smoke-k8s -o jsonpath='{.metadata.labels}'"
+CM_LABELS="$(kc get configmap app-config -n smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)" \
+  || fail "k8s-greenfield" "kubectl could not read the ConfigMap: $CM_LABELS"
+echo "$CM_LABELS" | evidence
+grep -q '"tofu-estate":"smoke-k8s"' <<< "$CM_LABELS" \
+  || fail "k8s-greenfield" "the ConfigMap carries no tofu-estate=smoke-k8s label: $CM_LABELS"
+if grep -q 'tofu-address' <<< "$CM_LABELS"; then
+  fail "k8s-greenfield" "the ConfigMap carries a tofu-address label; the Kubernetes marker is the estate alone (#1016)"
 fi
-proof "the object is there, with the declared data and no marker. When a label appears here, this demo becomes a claim."
+NS_LABELS="$(kc get namespace smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)"
+grep -q '"tofu-estate":"smoke-k8s"' <<< "$NS_LABELS" \
+  || fail "k8s-greenfield" "the namespace carries no tofu-estate label: $NS_LABELS"
+proof "the label rode the create call itself, on the ConfigMap and on the namespace. Any tool that can read a label can list this estate: kubectl get all -A -l tofu-estate=smoke-k8s."
 
 if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - delete the ConfigMap out of band; the replan must catch it"
+  step "BREAK control - strip the label; the replan must propose restoring it"
   explain \
-    "You asked for proof the assertions can fail. This deletes the" \
-    "ConfigMap with kubectl, behind choudoufu's back. If the next plan is" \
-    "still empty, the empty-replan claims below are scenery and the run" \
-    "fails itself."
-  cmd "kubectl delete configmap app-config -n smoke-k8s"
-  kc delete configmap app-config -n smoke-k8s >/dev/null || fail "k8s-greenfield" "BREAK: could not delete the ConfigMap"
+    "You asked for proof the assertions can fail. This removes the" \
+    "tofu-estate label from the ConfigMap with kubectl, behind" \
+    "choudoufu's back - the kind of edit a hostile or careless hand" \
+    "would make. If the next plan is still empty, the marker is not what" \
+    "the plan reads and this whole scenario is scenery."
+  cmd "kubectl label configmap app-config -n smoke-k8s tofu-estate-"
+  kc label configmap app-config -n smoke-k8s tofu-estate- >/dev/null || fail "k8s-greenfield" "BREAK: could not strip the label"
   BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
   if grep -q "No changes." <<< "$BOUT"; then
-    fail "k8s-greenfield" "BREAK: the plan is still empty after the ConfigMap was deleted - the empty-replan assertion below is scenery"
+    fail "k8s-greenfield" "BREAK: the plan is still empty after the label was stripped - the marker is not what the plan reads"
   fi
-  grep -E '^Plan:|will be created|Error:' <<< "$BOUT" | head -2 | evidence
-  proof "caught. The deleted object changed the plan, so every empty-plan claim in this scenario is a real check."
+  grep -E '^Plan:|tofu-estate' <<< "$BOUT" | head -3 | evidence
+  grep -q '"tofu-estate" = "smoke-k8s"' <<< "$BOUT" \
+    || fail "k8s-greenfield" "BREAK: the plan changed but does not propose restoring tofu-estate: $BOUT"
+  proof "caught. The stripped label is exactly what the plan proposes to restore, so every empty-plan claim in this scenario is a real check and the marker is load-bearing."
   exit 0
 fi
 
@@ -112,5 +122,6 @@ kc get namespace kube-system >/dev/null 2>&1 || fail "k8s-greenfield" "kube-syst
 proof "2 destroyed, 0 added, 0 changed. The estate is gone and the cluster's own namespaces stand."
 
 echo "  What you watched: a Kubernetes estate live its whole life on a real"
-echo "  cluster without an authoritative state file. What you did not watch:"
-echo "  a marker. That is the next unit."
+echo "  cluster without an authoritative state file, its ownership carried as"
+echo "  one label any tool can read. What you did not watch: a sweep or a"
+echo "  gate. Those are the next units (#1016)."

@@ -74,6 +74,14 @@ var refusals = []Refusal{
 		What:    "The record store could not be listed, so record-backed resources whose configuration block was removed cannot be found.",
 	},
 	{
+		Summary: "Cannot merge ownership markers into this labels value",
+		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
+	},
+	{
+		Summary: "Cannot merge ownership markers into this metadata block",
+		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block that is not exactly one object with a labels attribute - the shape every label-surface schema requires - so it left the resource's configuration value exactly as evaluated.",
+	},
+	{
 		Summary: "Cannot merge ownership markers into this tags value",
 		What:    "GitHub issue #388's node-path stamp (NodeResolver.AdjustConfigValue) found a tags argument it does not know how to add the two ownership markers into - a non-map value, a map of something other than strings, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated.",
 	},
@@ -100,6 +108,18 @@ var refusals = []Refusal{
 	{
 		Summary: "Cannot set ownership markers on a marked configuration value",
 		What:    "GitHub issue #388's node-path stamp found a resource instance's whole evaluated configuration value marked as sensitive, a shape ordinary block evaluation does not produce, and declined to unmark it rather than guess; the resource's ownership markers were left for the HCL-level stamp (or an operator) to write.",
+	},
+	{
+		Summary: "Cannot set ownership markers on a marked metadata block",
+		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block marked as a whole (sensitive, or otherwise) and will not unmark it to write the tofu-estate label; the configuration value is left as evaluated. The Kubernetes sibling of \"Cannot set ownership markers on a marked configuration value\".",
+	},
+	{
+		Summary: "Cannot set ownership markers on an unresolved labels value",
+		What:    "GitHub issue #1061's label branch found a Kubernetes metadata.labels value that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated. The Kubernetes sibling of \"Cannot set ownership markers on an unresolved tags value\".",
+	},
+	{
+		Summary: "Cannot set ownership markers on an unresolved metadata block",
+		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated.",
 	},
 	{
 		Summary: "Cannot set ownership markers on an unresolved tags value",
@@ -176,6 +196,10 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryMarkerConflict,
 		What:    "GitHub issue #451's node-path stamp (NodeResolver.AdjustConfigValue) found a resource instance's own configuration already declaring a tofu-estate or tofu-address tag that names a different estate or address than this run resolved. A plan never overwrites a marker naming another estate or address: fix the tag, or - for an address conflict - run live-mv. Ports internal/live/stamp's own SummaryMarkerConflict refusal (stamp/summaries.go) to the node path, with matched text.",
+	},
+	{
+		Summary: "Ownership marker is not a legal label value",
+		What:    "GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, \"Kubernetes: one label\".",
 	},
 	{
 		Summary: "Parent-derived identity with no formula",

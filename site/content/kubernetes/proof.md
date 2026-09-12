@@ -10,10 +10,10 @@ deeper:
 
 # Proof
 
-Nothing is proven on Kubernetes yet. What exists is a harness, below, and a
-statement per claim of what would be true there, written into the claims
-data rather than left implicit. The table below shows only the claims whose Kubernetes cell is not
-still open; hover a cell for its note.
+One claim is proven on a real cluster, the marker itself, and the rest are
+stated per claim in the claims data rather than left implicit. The table
+below shows only the claims whose Kubernetes cell is not still open; hover a
+cell for its note.
 
 {{< claims-table provider="kubernetes" >}}
 
@@ -28,13 +28,11 @@ kind cluster in Docker, which is a real API server, so the same scenario
 shape carries over without the emulator-fidelity question that stopped a
 second cloud: a verdict line per step, exit 0 only when every claim held,
 `BREAK=1` manufacturing the fault. The scenario applies a namespace and a
-ConfigMap under a `live` block with no AWS provider anywhere, replans empty,
-loses its cache without consequence, and destroys exactly; its `BREAK=1`
-deletes the ConfigMap out of band and requires the replan to propose the
-create. It is a demo rather than a claim until the label carrier lands: the
-object it reads back carries no marker yet, and the scenario fails itself
-the day one appears, so its promotion to a claim cannot be forgotten
-([#1057](https://github.com/INTENTIUS/choudoufu/issues/1057)).
+ConfigMap under a `live` block with no AWS provider anywhere, reads the
+`tofu-estate` label back with kubectl, replans empty, loses its cache
+without consequence, and destroys exactly; its `BREAK=1` strips the label
+and requires the replan to propose restoring it
+([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
 
 A Kubernetes estate would enter the gauntlet manifest with its own lane, run
 the same stages against its own substrate, and count toward its own bar,

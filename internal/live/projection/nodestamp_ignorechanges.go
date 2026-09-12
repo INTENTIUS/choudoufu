@@ -56,10 +56,15 @@ func (n *NodeResolver) AdjustIgnoreChanges(_ context.Context, addr addrs.AbsReso
 	if schema.Block == nil {
 		return nil
 	}
-	if _, taggable := markers.TagSurface(schema.Block); !taggable {
+	if !n.recordSelected(addr, schema) {
 		return nil
 	}
-	if !n.recordSelected(addr, schema) {
+	if _, labelled := markers.LabelSurface(schema.Block); labelled {
+		// The Kubernetes shape (GitHub issue #1061): the one label the
+		// stamp would otherwise write, at metadata[0].labels["tofu-estate"].
+		return []cty.Path{markers.LabelSurfacePath(markers.TagEstate)}
+	}
+	if _, taggable := markers.TagSurface(schema.Block); !taggable {
 		return nil
 	}
 	return []cty.Path{

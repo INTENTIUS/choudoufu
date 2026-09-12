@@ -19,13 +19,17 @@ rows. Their identity is client-named, `metadata.namespace` and
 binds them with nothing stored anywhere. A missing namespace is refused
 rather than defaulted.
 
-What they do not do: carry a marker, get reached by the estate sweep, or
-fall under any ownership condition. Delete one of those blocks from source
-and the live object is orphaned with no run that will ever propose removing
-it. That is a sweep gap, not an identity gap, and it is the whole reason
-this hub exists.
+Every one of them, and every other type with a `metadata.labels` map, now
+carries the marker: one label, `tofu-estate`, written on the create. Strip
+it with kubectl and the next plan proposes restoring it. [Claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})
+runs that on a real cluster.
 
-## The proposed marker
+What they still do not do: get reached by an estate sweep, or fall under
+any ownership condition. Delete one of those blocks from source and the
+live object is orphaned with no run that will ever propose removing it.
+That is the sweep gap, and it is the next unit.
+
+## The marker
 
 On AWS the marker carries the config address, because AWS hands back opaque
 ids and the tag is the only way from a live object back to a line of
@@ -33,8 +37,8 @@ configuration. Kubernetes returns the natural key: group, kind, namespace and
 name, with the name authored in the configuration this fork already parses.
 So the address does not need to be on the object.
 
-The proposal is one label, `tofu-estate`, and re-binding through the natural
-key. Measured against the identity golden set, nearly half of real config
+The marker is one label, `tofu-estate`, and re-binding goes through the
+natural key. Measured against the identity golden set, nearly half of real config
 addresses are illegal as a label value and a 63-character cap binds at once
 on ordinary module-nested shapes; putting the address in a label would need
 three or four continuation labels per object and would break the exact-match
