@@ -169,15 +169,15 @@
       },
       "total_seconds": 11180.5,
       "unaccounted_seconds": 11180.5,
-      "source": "git show a3bf9756b8c959a02b20a3793987573e749103a9:live/gauntlet.json"
+      "source": "git show bebcf3c676e2193cc16f22af2b847b547187daaa:live/gauntlet.json"
     },
     {
       "schema": 1,
       "estate": "terralith-scale",
       "target": "floci",
       "scale": 1,
-      "commit": "a6883710388d9779fcaa171f3347c818bf56fec7",
-      "date": "2026-09-12T03:20:43Z",
+      "commit": "fce6b53e202878c2b21f0539af5026095a5fddcb",
+      "date": "2026-09-12T13:33:13Z",
       "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
       "oracle": {
         "terraform": "1.15.8",
@@ -191,59 +191,38 @@
       "stages": {
         "cold_deploy": {
           "verdict": "pass",
-          "seconds": 133,
+          "seconds": 134,
           "detail": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 34 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
         },
-        "day2_count": {
-          "verdict": "pass",
-          "seconds": 16,
-          "detail": "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
-        },
-        "day2_crash": {
-          "verdict": "not_run"
-        },
         "day2_remove": {
-          "verdict": "pass",
-          "seconds": 7,
-          "detail": "deleting two blocks - the taggable, marked aws_iam_instance_profile.team_0002_profile and the UNTAGGABLE aws_iam_role_policy.team_0002_inline, whose parent role stays declared - proposed exactly two destroys (0 add, 0 change, 2 destroy) in an order the cloud accepted, matching stock's own plan for the same two removals on cold_deploy's state (B2); the apply destroyed exactly two, both objects are confirmed gone and the parent role confirmed still live via the AWS CLI, and the next plan is empty"
+          "verdict": "fail",
+          "seconds": 2,
+          "detail": "choudoufu does not propose destroying aws_iam_instance_profile.team_0002_profile when its block is deleted"
         },
         "day2_rename": {
           "verdict": "pass",
           "seconds": 18,
           "detail": "moved block: aws_iam_instance_profile.team_0000_profile renamed with zero churn (0 add, 1 change, 0 destroy) and the plan itself showed the tofu-address marker being rewritten in place; live-mv: team_0001_profile renamed with no moved block at all, reported as a real cloud write; both live instance-profile ids unchanged and both markers read back at the NEW address via the AWS CLI; stock's own oracle over the identical two renames on cold_deploy's state (B1) is also zero churn (No changes., both moves reported); the plan after both renames is empty"
         },
-        "day2_replace": {
-          "verdict": "pass",
-          "seconds": 12,
-          "detail": "changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision"
-        },
-        "day2_teardown": {
-          "verdict": "not_run"
-        },
         "drift_reconverge": {
           "verdict": "pass",
-          "seconds": 33,
+          "seconds": 32,
           "detail": "one live object mutated out of band through the AWS CLI; choudoufu's next plan proposed fixing exactly aws_vpc.main and nothing else (0 add, 1 change, 0 destroy), matching stock's own plan for the identical mutation on cold_deploy's own state (B4, taken before any marker existed); the apply changed exactly 1 resource, the Name tag reads back as configured and the tofu-address marker is unchanged"
         },
         "greenfield": {
-          "verdict": "fail",
-          "seconds": 45,
-          "detail": "the greenfield plan with no local record store exited 1"
+          "verdict": "pass",
+          "seconds": 61,
+          "detail": "choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
         },
         "migrate": {
           "verdict": "pass",
-          "seconds": 44,
+          "seconds": 42,
           "detail": "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
         },
         "plan_approval": {
           "verdict": "pass",
           "seconds": 12,
-          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 31893-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-ac3a2f89's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-ac3a2f89 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-50791692 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-50791692 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
-        },
-        "strict": {
-          "verdict": "not_run",
-          "seconds": 0,
-          "detail": "this crossing script does not exercise the strict toggles: strict is Headline:false in tools/gauntlet/stages.go so it moves neither bar, and a toggle-by-toggle refusal fixture is a separate unit from the crossing this script exists to be. live/e2e/reference-ec2-vpc/run.sh's PART G is the pattern for the estate that does carry one"
+          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 31846-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-dfde94f7's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-dfde94f7 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-bcc0a0df still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-bcc0a0df read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         "test_apply": {
           "verdict": "pass",
@@ -252,7 +231,7 @@
         },
         "test_plan": {
           "verdict": "pass",
-          "seconds": 4,
+          "seconds": 3,
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         }
       },
@@ -278,11 +257,9 @@
           "stock": 150
         }
       },
-      "total_seconds": 231.7,
-      "unaccounted_seconds": -97.3,
-      "unaccounted_detail": "fourteen stage timers sum to 329s against a 231.7s total (-97.3s unaccounted): the emulator crossing script's stage timers are believed to overlap concurrently, or a stage duration_s carries forward from a prior run - neither confirmed; tracked at #1069, real-AWS rows in this artifact all reconcile",
-      "accounting_inconsistent": true,
-      "source": "git show 7a68ac8b366ade6dbc5e975be01c27c430fbf1fa:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 0fee6f5e09cb5600914f5ceccfaaf8ee0057df7a"
+      "total_seconds": 310.3,
+      "unaccounted_seconds": 1.3,
+      "source": "git show bebcf3c676e2193cc16f22af2b847b547187daaa:live/gauntlet.json"
     },
     {
       "schema": 1,
@@ -357,7 +334,7 @@
       },
       "total_seconds": 13919.9,
       "unaccounted_seconds": 0.9,
-      "source": "git show a3bf9756b8c959a02b20a3793987573e749103a9:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9bd278a2926ba2783ae72d2ee1e9d74ddc4aa7e1"
+      "source": "git show fce6b53e202878c2b21f0539af5026095a5fddcb:live/gauntlet.json; plan_calls and audit_calls from internal/live/discovery/slicing_bench_test.go (TestSlicingMatrixAgainstFloci) at commit 9bd278a2926ba2783ae72d2ee1e9d74ddc4aa7e1"
     },
     {
       "schema": 1,

@@ -669,3 +669,78 @@ func stageVerdicts(r ScaleRecord) map[string]string {
 	}
 	return out
 }
+
+// TestScaleBackfillPreservesCallCountsItCannotMeasure guards a defect that
+// destroyed a published number the first time a second scale point existed.
+//
+// `gauntlet scale-backfill` rebuilds a record from live/gauntlet.json, which
+// carries stages, resources and durations and nothing else. PlanCalls and
+// AuditCalls come from somewhere that artifact has never held - the slicing
+// bench, via `gauntlet scale-import-slice`. UpsertScaleRecord replaces by
+// (estate, target, scale), so a backfill run after an import silently
+// replaced a record carrying both with one carrying neither.
+//
+// That is exactly what happened: the terralith-scale floci/scale=128 record
+// had cold 21,423 against stock's 17,422 imported, and a later backfill -
+// run for an unrelated reason, on the same checkout, seconds later - left it
+// with no call counts at all. Nothing failed. The next `just check` on the
+// publishing side would have kept validating, because a record without
+// plan_calls is a legitimate shape.
+//
+// scaleslice.go's own doc comment already reasoned about this hazard in the
+// other direction, which is why scale-import-slice merges rather than
+// upserts. Backfill needed the same care and did not have it.
+func TestScaleBackfillPreservesCallCountsItCannotMeasure(t *testing.T) {
+	stock := 17422
+	existing := ScaleRecord{
+		Schema: ScaleRecordSchema, Estate: "terralith-scale", Target: "floci", Scale: 128,
+		Commit: "old", Source: "an earlier run; plan_calls from the slicing bench",
+		PlanCalls: &ScalePlanCalls{
+			Cold: &ScaleCallPair{Choudoufu: 21423, Stock: &stock},
+			Warm: &ScaleCallPair{Choudoufu: 21620},
+		},
+		AuditCalls: &ScaleAuditCalls{
+			Sweep:    &ScaleCallPair{Choudoufu: 12467},
+			ReadPass: &ScaleCallPair{Choudoufu: 17429, Stock: &stock},
+			Total:    &ScaleCallPair{Choudoufu: 29896, Stock: &stock},
+		},
+	}
+	sa := &ScaleArtifact{Schema: ScaleRecordSchema, Records: []ScaleRecord{existing}}
+
+	// What a backfill builds from live/gauntlet.json: everything the
+	// artifact holds, and no call counts, because it has never held any.
+	rebuilt := ScaleRecord{
+		Schema: ScaleRecordSchema, Estate: "terralith-scale", Target: "floci", Scale: 128,
+		Commit: "new", Source: "git show deadbeef:live/gauntlet.json",
+		Resources: &ScaleResources{Total: 9477, Taggable: 4229, Skipped: 5248},
+		Stages:    map[string]ScaleStage{"cold_deploy": {Verdict: VerdictPass}},
+	}
+
+	sa.UpsertScaleRecordKeepingCallCounts(rebuilt)
+
+	got := sa.Records[0]
+	if got.Commit != "new" || got.Resources == nil || got.Resources.Total != 9477 {
+		t.Errorf("the rebuilt fields must win: Commit=%q Resources=%+v", got.Commit, got.Resources)
+	}
+	if got.PlanCalls == nil || got.PlanCalls.Cold == nil || got.PlanCalls.Cold.Choudoufu != 21423 {
+		t.Fatalf("PlanCalls = %+v, want the imported cold 21423 kept - a backfill has no source for it and must not clear it", got.PlanCalls)
+	}
+	if got.PlanCalls.Cold.Stock == nil || *got.PlanCalls.Cold.Stock != 17422 {
+		t.Errorf("PlanCalls.Cold.Stock = %v, want the oracle kept beside it", got.PlanCalls.Cold.Stock)
+	}
+	if got.PlanCalls.Warm == nil || got.PlanCalls.Warm.Choudoufu != 21620 {
+		t.Errorf("PlanCalls.Warm = %+v, want 21620 kept", got.PlanCalls.Warm)
+	}
+	if got.AuditCalls == nil || got.AuditCalls.ReadPass == nil || got.AuditCalls.ReadPass.Choudoufu != 17429 {
+		t.Fatalf("AuditCalls = %+v, want the imported audit kept", got.AuditCalls)
+	}
+
+	// And a record whose rebuild DOES carry call counts is not overridden by
+	// a stale pair - the rebuilt value wins wherever it exists at all.
+	other := 1
+	rebuilt.PlanCalls = &ScalePlanCalls{Cold: &ScaleCallPair{Choudoufu: 99, Stock: &other}}
+	sa.UpsertScaleRecordKeepingCallCounts(rebuilt)
+	if sa.Records[0].PlanCalls.Cold.Choudoufu != 99 {
+		t.Errorf("PlanCalls.Cold = %d, want 99 - preservation fills a gap, it never overrides", sa.Records[0].PlanCalls.Cold.Choudoufu)
+	}
+}

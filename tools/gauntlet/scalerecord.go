@@ -998,6 +998,40 @@ func (a *ScaleArtifact) UpsertScaleRecord(rec ScaleRecord) {
 	a.Records = append(a.Records, rec)
 }
 
+// UpsertScaleRecordKeepingCallCounts is UpsertScaleRecord for a caller whose
+// source cannot measure PlanCalls or AuditCalls at all - which is every
+// caller that rebuilds a record from live/gauntlet.json, because that
+// artifact has never held a call count. The rebuilt record wins everywhere
+// it has a value; the two call-count fields are filled from the existing
+// row when the rebuild has none, and overridden when it has one.
+//
+// Without this, `gauntlet scale-backfill` silently deleted numbers only
+// `gauntlet scale-import-slice` can produce. It did: the terralith-scale
+// floci/scale=128 record had cold 21,423 against stock's 17,422 imported,
+// and a backfill run seconds later for an unrelated reason left it with no
+// call counts and no complaint. A record without plan_calls is a legitimate
+// shape, so nothing downstream could have caught it either - the publishing
+// side would have gone on validating and simply stopped printing the number.
+//
+// scaleslice.go already reasoned about this hazard from the other side,
+// which is why scale-import-slice merges into an existing row rather than
+// replacing it. This is the same care owed in the other direction.
+func (a *ScaleArtifact) UpsertScaleRecordKeepingCallCounts(rec ScaleRecord) {
+	for i := range a.Records {
+		if a.Records[i].Estate != rec.Estate || a.Records[i].Target != rec.Target || a.Records[i].Scale != rec.Scale {
+			continue
+		}
+		if rec.PlanCalls == nil {
+			rec.PlanCalls = a.Records[i].PlanCalls
+		}
+		if rec.AuditCalls == nil {
+			rec.AuditCalls = a.Records[i].AuditCalls
+		}
+		break
+	}
+	a.UpsertScaleRecord(rec)
+}
+
 // ---------------------------------------------------------------------------
 // cmdScaleBackfill: `gauntlet scale-backfill [rev...]`
 // ---------------------------------------------------------------------------
@@ -1056,7 +1090,7 @@ func cmdScaleBackfill(root string, args []string) error {
 			if err := ValidateScaleRecord(rec); err != nil {
 				return fmt.Errorf("scale-backfill: %s: %w", rev, err)
 			}
-			sa.UpsertScaleRecord(rec)
+			sa.UpsertScaleRecordKeepingCallCounts(rec)
 			fmt.Printf("scale-backfill: %s live_cert estate=%s target=%s scale=%d at %s\n", rev, rec.Estate, rec.Target, rec.Scale, full)
 		}
 
@@ -1082,7 +1116,7 @@ func cmdScaleBackfill(root string, args []string) error {
 			if err := ValidateScaleRecord(rec); err != nil {
 				return fmt.Errorf("scale-backfill: %s: %w", rev, err)
 			}
-			sa.UpsertScaleRecord(rec)
+			sa.UpsertScaleRecordKeepingCallCounts(rec)
 			fmt.Printf("scale-backfill: %s estates estate=%s target=%s scale=%d at %s\n", rev, rec.Estate, rec.Target, rec.Scale, full)
 		}
 	}
