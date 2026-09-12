@@ -32,7 +32,24 @@ var KnownLanes = []string{
 	"opentofu-native",      // projects describing themselves as built for OpenTofu
 	"reference",            // hand-written reference shapes kept in this repository
 	"published-deployment", // an organisation's own published root module
+	LaneKubernetes,         // a Kubernetes-only root, run against a kind cluster (#1067); its own bar, never either AWS one
 }
+
+// LaneKubernetes is the lane whose estates run on SubstrateKind rather than
+// the floci emulator (#1067). Its estates have a bar of their own
+// (Artifact.Lanes) and count toward neither AWS bar.
+const LaneKubernetes = "kubernetes"
+
+// Substrates: the platform an estate's crossing script runs against. Every
+// lane but LaneKubernetes runs on the floci emulator; the kubernetes lane
+// runs on a kind cluster (live/e2e/lib/gauntlet.sh's gauntlet_kind_up). A
+// stage may read differently on a substrate, or not apply there at all:
+// Stage.Substrates (stages.go) says which, per stage, so a stage whose
+// oracle is AWS-shaped is marked rather than skipped silently.
+const (
+	SubstrateFloci = "floci"
+	SubstrateKind  = "kind"
+)
 
 // CoreLanes are the lanes a core estate may come from. The selection rule
 // (live/GAUNTLET.md, "The core set") is: the most-downloaded
@@ -64,6 +81,15 @@ type Estate struct {
 	Script string `json:"script,omitempty"`
 }
 
+// Substrate is the platform this estate's script runs against: SubstrateKind
+// for the kubernetes lane, SubstrateFloci for every other.
+func (e Estate) Substrate() string {
+	if e.Lane == LaneKubernetes {
+		return SubstrateKind
+	}
+	return SubstrateFloci
+}
+
 // ScriptPath returns the crossing script path relative to the repo root.
 func (e Estate) ScriptPath() string {
 	if e.Script != "" {
@@ -92,9 +118,12 @@ var ManifestComment = []string{
 	"is the full contract and is rendered from the same tool.",
 	"",
 	"set is core or growing. Core is the pinned population the first headline",
-	"bar reads and can reach 100%; it needs a reason. Every estate is in the",
-	"second bar. Keep the list sorted by name; `go run ./tools/gauntlet render`",
-	"rewrites this file canonically and TestManifestIsCanonical holds it.",
+	"bar reads and can reach 100%; it needs a reason. Every estate on the",
+	"emulator is in the second bar. The kubernetes lane runs on a kind cluster",
+	"instead and has a bar of its own (lanes.kubernetes in live/gauntlet.json),",
+	"counted toward neither AWS bar. Keep the list sorted by name; `go run",
+	"./tools/gauntlet render` rewrites this file canonically and",
+	"TestManifestIsCanonical holds it.",
 }
 
 // LoadManifest reads and validates the manifest.
@@ -145,8 +174,13 @@ func (m *Manifest) Validate() error {
 		default:
 			return fmt.Errorf("%s: estate %q: set must be %q or %q", ManifestPath, e.Name, SetCore, SetGrowing)
 		}
-		if e.Lane != "reference" && (e.URL == "" || e.Pin == "") {
-			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference", ManifestPath, e.Name)
+		// A kubernetes-lane estate kept in this repository (its first one,
+		// reference-k8s, is a hand-written shape like the reference lane's)
+		// carries neither url nor pin; a published Kubernetes root carries
+		// both, like any other lane.
+		inRepo := e.Lane == "reference" || (e.Lane == LaneKubernetes && e.URL == "" && e.Pin == "")
+		if !inRepo && (e.URL == "" || e.Pin == "") {
+			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference (or a kubernetes-lane estate kept in this repository, with neither)", ManifestPath, e.Name)
 		}
 	}
 	return nil

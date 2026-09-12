@@ -108,7 +108,7 @@ s=g['sets']
 # "when was this file last written"; each estate's own last_run is the real
 # answer to "when did IT last run".
 print(f"emulator {g['emulator'].split('@')[-1][:19]}  (current pin - the estate rows below may not all be measured against it)")
-print(f"core  {s['core']['clear']}/{s['core']['estates']} clear    all {s['all']['clear']}/{s['all']['estates']} clear")
+print(f"core  {s['core']['clear']}/{s['core']['estates']} clear    all {s['all']['clear']}/{s['all']['estates']} clear" + "".join(f"    {k} lane {v['clear']}/{v['estates']} clear" for k,v in sorted(g.get('lanes',{}).items()) if k=='kubernetes'))
 fails=[(e['name'],[k for k,v in e['stages'].items() if v=='fail']) for e in g['estates'] if not e['clear']]
 for n,f in fails:
     print(f"  not clear: {n:34} first failing stage: {f[0] if f else '(none failing; a planned stage or not_run)'}")

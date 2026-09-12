@@ -164,6 +164,9 @@ func TestArtifactAgreesWithManifest(t *testing.T) {
 			if key == "core" && r.Set != SetCore {
 				continue
 			}
+			if r.Substrate != "" {
+				continue // the two bars are the emulator's; a kind row is counted in its lane (#1067)
+			}
 			n++
 			if r.Clear {
 				clear++

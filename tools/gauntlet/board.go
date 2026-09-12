@@ -66,19 +66,23 @@ type BoardStage struct {
 // BoardEstate is one estate's row on the index plus everything its own
 // page shows.
 type BoardEstate struct {
-	Name     string `json:"name"`
-	Set      string `json:"set"`
-	Lane     string `json:"lane"`
-	Clear    bool   `json:"clear"`
-	Source   string `json:"source"`
-	URL      string `json:"url,omitempty"`
-	Pin      string `json:"pin,omitempty"`
-	Reason   string `json:"reason,omitempty"`
-	Script   string `json:"script"`
-	Protocol string `json:"protocol"`
-	Notes    string `json:"notes,omitempty"`
+	Name string `json:"name"`
+	Set  string `json:"set"`
+	Lane string `json:"lane"`
+	// Substrate is the platform the script runs against, empty for the
+	// floci emulator (#1067).
+	Substrate string `json:"substrate,omitempty"`
+	Clear     bool   `json:"clear"`
+	Source    string `json:"source"`
+	URL       string `json:"url,omitempty"`
+	Pin       string `json:"pin,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	Script    string `json:"script"`
+	Protocol  string `json:"protocol"`
+	Notes     string `json:"notes,omitempty"`
 	// Cells is one verdict mark per active stage, in stage order: "pass",
-	// "FAIL" or "not run".
+	// "FAIL", "not run" or "n/a" (the stage does not apply on the estate's
+	// substrate; the estate page's row carries the reason).
 	Cells []string `json:"cells"`
 	// RuntimeTotal is last_run.duration_s as a stopwatch reads it, or "-".
 	RuntimeTotal string `json:"runtime_total"`
@@ -173,7 +177,7 @@ func buildBoard(m *Manifest, a *Artifact) Board {
 // boardEstate is one estate's display row and page fields.
 func boardEstate(r EstateResult, a *Artifact) BoardEstate {
 	e := BoardEstate{
-		Name: r.Name, Set: r.Set, Lane: r.Lane, Clear: r.Clear,
+		Name: r.Name, Set: r.Set, Lane: r.Lane, Substrate: r.Substrate, Clear: r.Clear,
 		Source: r.Source, URL: r.URL, Pin: r.Pin, Reason: r.Reason,
 		Script: r.Script, Protocol: r.Protocol, Notes: r.Notes,
 		Cells:        []string{},
@@ -195,6 +199,15 @@ func boardEstate(r EstateResult, a *Artifact) BoardEstate {
 			if secs, ok := r.LastRun.Seconds[s.ID]; ok {
 				row.Duration = formatDuration(secs)
 			}
+		}
+		if r.Stages[s.ID] == VerdictNA {
+			// The reason the stage does not apply here is the row's detail,
+			// so an n/a cell is never a silent skip (#1067).
+			sub := r.Substrate
+			if sub == "" {
+				sub = SubstrateFloci
+			}
+			row.Detail, _ = s.NotApplicable(sub)
 		}
 		e.StageRows = append(e.StageRows, row)
 	}

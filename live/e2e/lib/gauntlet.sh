@@ -143,6 +143,48 @@ gauntlet_pin_aws_provider() {
     || { printf 'gauntlet_pin_aws_provider: %s does not carry the pinned hashicorp/aws version %s after rewrite - the corpus module shape may have moved\n' "$target" "$pin" >&2; return 1; }
 }
 
+# gauntlet_kind_up <name> <kubeconfig>: the kind substrate (#1067). A
+# kubernetes-lane crossing script runs against a kind cluster instead of a
+# floci emulator: a real API server, so what the script asserts is what any
+# cluster answers. One cluster per call, named by the caller (name it after
+# the estate and the process id, so two runs never collide), its kubeconfig
+# written to <kubeconfig> and never to the user's own; the caller exports
+# KUBECONFIG (what kubectl reads) and KUBE_CONFIG_PATH (what the
+# hashicorp/kubernetes provider and choudoufu's estate sweep read) itself,
+# per cluster, since a script may hold two - one the estate lives on, one
+# stock's oracle runs on. Needs kind (https://kind.sigs.k8s.io) and kubectl
+# on PATH; prints the reason and returns 1 when either is missing, so the
+# script's own fail() records the stage it was setting up. The create is
+# logged beside the kubeconfig.
+gauntlet_kind_up() {
+  local name="$1" cfg="$2"
+  command -v kind >/dev/null 2>&1 || { printf 'gauntlet_kind_up: kind is not installed; this estate needs a kind cluster (brew install kind)\n' >&2; return 1; }
+  command -v kubectl >/dev/null 2>&1 || { printf 'gauntlet_kind_up: kubectl is not installed\n' >&2; return 1; }
+  kind create cluster --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
+    || { printf 'gauntlet_kind_up: kind create cluster %s failed:\n' "$name" >&2; tail -5 "${cfg}.kind.log" >&2; return 1; }
+}
+
+# gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.
+# Idempotent and quiet, so a trap can call it for a cluster that never
+# came up.
+gauntlet_kind_down() {
+  [ -n "${1:-}" ] || return 0
+  kind delete cluster --name "$1" >/dev/null 2>&1 || true
+}
+
+# gauntlet_kind_count <estate> <kind>...: how many objects of each named
+# kind carry tofu-estate=<estate>, summed across every namespace - the
+# kind substrate's answer to the tagging index's "objects carrying the
+# marker" count that test_apply and day2_teardown compare before and after.
+# Reads the cluster KUBECONFIG names.
+gauntlet_kind_count() {
+  local estate="$1" n=0 k; shift
+  for k in "$@"; do
+    n=$((n + $(kubectl get "$k" -A -l "tofu-estate=$estate" -o name 2>/dev/null | wc -l | tr -d ' ')))
+  done
+  printf '%s\n' "$n"
+}
+
 # gauntlet_record_count <dir>: counts a record store's on-disk record files
 # under <dir> the way every crossing script already counted them by hand -
 # "-type f", skipping the write-lock and in-progress-write files a

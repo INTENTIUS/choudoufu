@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 1 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T03:20:43Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "27 of 27 estates have a recorded run duration, totaling 2h35m27.3s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 2 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-12T06:39:28Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "28 of 28 estates have a recorded run duration, totaling 2h39m0.6s, but not from one sweep: 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m51.7s across 1 estate(s) at commit `a688371038`; 3m33.3s across 1 estate(s) at commit `ca22b53357`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3588,6 +3588,134 @@
           "verdict": "not run"
         }
       ]
+    },
+    {
+      "name": "reference-k8s",
+      "set": "growing",
+      "lane": "kubernetes",
+      "substrate": "kind",
+      "clear": false,
+      "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
+      "script": "live/e2e/reference-k8s/run.sh",
+      "protocol": "gauntlet",
+      "cells": [
+        "pass",
+        "FAIL",
+        "FAIL",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "n/a",
+        "n/a",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "runtime_total": "3m33.3s",
+      "runtime_cells": "cold_deploy 1m3s, migrate 3s, test_plan 6s, test_apply 15s, drift_reconverge 10s, day2_rename 10s, day2_remove 16s, day2_count 26s, day2_teardown 18s, plan_approval 16s, greenfield 16s, strict 13s",
+      "last_run_note": "Last run at commit `ca22b53357` on 2026-09-12T06:39:28Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m33.3s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "pass",
+          "duration": "1m3s",
+          "detail": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.36.1, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "FAIL",
+          "duration": "3s",
+          "detail": "live-import -approve wrote no label: 0 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 7 skipped. It classes every kubernetes_* type as UNTAGGABLE (\"has no tags argument in the provider's schema\") because ratify.go's carrier is the AWS tags surface and does not know the label surface markers.LabelSurface added in #1061; a Kubernetes object binds by namespace and name, and the next plan proposes writing the label itself (marker repair), so adoption here is one apply away rather than one live-import away (#1073)"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "FAIL",
+          "duration": "6s",
+          "detail": "the plan with no state file is not empty: Plan: 0 to add, 7 to change, 0 to destroy. Every object bound by namespace and name (identities confirmed with kubectl: 1), and the changes are the tofu-estate label live-import never wrote (see migrate)"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "pass",
+          "duration": "15s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the estate's five kinds, counted with kubectl"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "pass",
+          "duration": "10s",
+          "detail": "one ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the value reads back as configured. BREAK=1 tampers a second object and the single-object assertion correctly fails"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "pass",
+          "duration": "10s",
+          "detail": "moved block: kubernetes_service_account.app -\u003e .team with zero churn (no add, no change, no destroy), the live object untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A bare block rename without a moved block is zero churn here too, since the block name is not part of the object's identity; BREAK=1 renames the object's own metadata.name instead, which plans a replace, and the zero-churn assertion correctly fails"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "pass",
+          "duration": "16s",
+          "detail": "deleting kubernetes_service_account.team's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_service_account_v1.orphan_refk8s_app (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address, and filed under the versioned type since no block declares the kind any more - applied cleanly, the object gone from the cluster (kubectl get serviceaccount: NotFound) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployment's ReplicaSet and Pod, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "pass",
+          "duration": "26s",
+          "detail": "scaling kubernetes_config_map.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map.orphan_refk8s_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "n/a",
+          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash between create and destroy",
+          "verdict": "n/a",
+          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "pass",
+          "duration": "18s",
+          "detail": "apply -destroy removed exactly the 6 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly 6"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "pass",
+          "duration": "16s",
+          "detail": "plan -out wrote one update (app-config gains reviewed=yes); the world then moved out of band (a stray label on shard-0, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed key); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "pass",
+          "duration": "16s",
+          "detail": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, five kinds); the record store held 8 file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "pass",
+          "duration": "13s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
+        }
+      ]
     }
   ],
   "live_cert": [
@@ -3612,7 +3740,8 @@
     "terraform-popular",
     "opentofu-native",
     "reference",
-    "published-deployment"
+    "published-deployment",
+    "kubernetes"
   ],
   "example_entry": "{\n  \"name\": \"corpus-alb-complete\",\n  \"source\": \"terraform-aws-modules/terraform-aws-alb examples/complete-alb (tag v9.9.0), its flagship application-load-balancer example\",\n  \"url\": \"https://github.com/terraform-aws-modules/terraform-aws-alb.git\",\n  \"pin\": \"v9.9.0\",\n  \"lane\": \"terraform-popular\",\n  \"set\": \"core\",\n  \"reason\": \"a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy\"\n}"
 }

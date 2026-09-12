@@ -42,9 +42,22 @@ runs the gate: two ServiceAccounts, two estates, a plain `kubectl label`
 refused by the API server across the boundary, and a carve by relabel the
 policy governs, with `BREAK=1` removing the policy.
 
-A Kubernetes estate would enter the gauntlet manifest with its own lane, run
-the same stages against its own substrate, and count toward its own bar,
-never toward the AWS ones.
+## The gauntlet lane
+
+{{< gauntlet-bars lane="kubernetes" >}}
+
+The `kubernetes` lane ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067))
+runs the same fourteen stages as the AWS lanes against a kind cluster
+created for the run, and counts toward its own bar, never toward the AWS
+ones. Two stages do not apply on Kubernetes and read `n/a` rather than
+being skipped silently: a replacement under `create_before_destroy`, and
+the crash between its create and its destroy, because a Kubernetes name
+is unique within its namespace and nothing can be created before the
+object it replaces is gone. Every other stage says in
+[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
+how it reads on the kind substrate. The lane's first estate is
+`reference-k8s`, a hand-written shape kept in this repository; a
+published Kubernetes-only root is the next entry.
 
 ## What it would cost
 
