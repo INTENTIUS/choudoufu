@@ -1,0 +1,25 @@
+{
+  "name": "choudoufu-example-cross-estate-dependency",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Two estates, one depending on the other: the consumer reads the producer's live VPC through a data source filtered on the marker pair, with no output block, no state file and no stored copy of the value.",
+  "scripts": {
+    "generate": "npm run generate:github && npm run generate:forgejo && npm run generate:gitlab",
+    "generate:github": "CHANT_FORGE=github node --import tsx generate.ts",
+    "generate:forgejo": "CHANT_FORGE=forgejo node --import tsx generate.ts",
+    "generate:gitlab": "CHANT_FORGE=gitlab node --import tsx generate.ts",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@intentius/chant": "0.70.1",
+    "@intentius/chant-lexicon-forgejo": "0.70.1",
+    "@intentius/chant-lexicon-github": "0.70.1",
+    "@intentius/chant-lexicon-gitlab": "0.70.1",
+    "@intentius/chant-lexicon-terraform": "0.70.1",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@cdktf/hcl2json": "^0.21.0"
+  }
+}
