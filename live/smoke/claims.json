@@ -551,6 +551,29 @@
         }
       },
       "evidence": []
+    },
+    {
+      "id": 24,
+      "slug": "k8s-custom-resource",
+      "title": "A custom resource binds by its natural key: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest",
+      "scenario": "live/smoke/scenarios/k8s-custom-resource.sh",
+      "command": "just smoke k8s-custom-resource",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 deletes the custom resource with kubectl and requires the replan to propose creating it",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "n/a",
+          "note": "AWS has no custom-resource shape; every type is a provider type with a schema, and claim 7 proves the marker path for them."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
     }
   ]
 }

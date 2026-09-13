@@ -10,10 +10,11 @@ deeper:
 
 # Proof
 
-Three claims are proven on a real cluster, the marker itself, the sweep
-that finds a deleted block's object by it, and the admission policy that
-fences a write by it, and claim 13's Kubernetes cell is proven through
-that third one. The rest are stated per claim in the claims data rather
+Four claims are proven on a real cluster: the marker itself, the sweep
+that finds a deleted block's object by it, the admission policy that
+fences a write by it (through which claim 13's Kubernetes cell is proven
+too), and a custom resource bound by the natural key inside its
+manifest. The rest are stated per claim in the claims data rather
 than left implicit. The table
 below shows only the claims whose Kubernetes cell is not still open; hover a
 cell for its note.

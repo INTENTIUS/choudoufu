@@ -56,12 +56,24 @@ is the one shape that would need the configuration address on the object.
 Set `metadata.name` instead. A missing `namespace` on a namespaced kind is
 refused rather than defaulted, for the same reason.
 
-`kubernetes_manifest` takes a whole manifest as one attribute and imports
-by a different mechanism; it stays `unadmitted-type`. So do the handful of
-types whose block is not object metadata (`kubernetes_labels`,
-`kubernetes_annotations`, `kubernetes_env`, the `*_data` patch types),
-which act on an object rather than being one. `helm_*` has not been
-assessed.
+`kubernetes_manifest`, and so every custom resource, plans since
+[#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)'s first unit:
+its identity is the natural key written inside the `manifest` argument's
+own object constructor - `apiVersion`, `kind`, `metadata.namespace`,
+`metadata.name` - read key by key without evaluating the manifest (a local
+or variable the argument is set to is walked the same way) and rendered as
+the provider's own import id. A manifest computed some other way,
+`yamldecode(file(...))` or a module output, is refused by name, because the
+key that names the object is not known until the value exists. What such
+an object does not carry yet is the label: the stamp into
+`manifest.metadata.labels` is the ruling's next unit, and until it lands
+nothing sweeps or fences an object declared this way ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})).
+
+Still refused: the handful of types whose block is not object metadata
+(`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the
+`*_data` patch types), which act on an object rather than being one.
+`helm_*` has not been assessed.
 
 ## Mixed estates
 

@@ -1919,7 +1919,21 @@ func (r *resolver) selectStatic(expr hcl.Expression, rest []hcl.Traverser, scope
 				if root == "module" {
 					return r.resolveModuleOutput(nameStep.Name, combined, ident)
 				}
-				return r.resolveNamed(root, nameStep.Name, combined, scope, ident)
+				parts, ok, applicable := r.resolveNamed(root, nameStep.Name, combined, scope, ident)
+				if applicable || len(rest) > 0 {
+					return parts, ok, applicable
+				}
+				// A bare local or variable LEAF that namedDef could not
+				// chase - a root module's variable, which has no module
+				// call to read a definition from - is still an ordinary
+				// expression the evaluator answers (its default, or the
+				// value the run was given). It falls through to the leaf
+				// case below exactly as the same reference written directly
+				// in the block would reach resolveExpr. GitHub issue #1079's
+				// manifest shape found it: `manifest = local.crontab` with
+				// `namespace = var.ns` inside the local read as if the key
+				// were absent, while the same object written inline read
+				// the variable fine.
 			}
 		} else if len(rest) > 0 && r.isSymbolic(expr, scope) {
 			// The chase landed on a MANAGED RESOURCE reference with steps

@@ -3461,9 +3461,16 @@ func withSeededTags(v cty.Value, seed cty.Value) (cty.Value, bool) {
 // to every entry here: v is an import stub with no configuration in hand,
 // not a live answer this seed would be shadowing, so there is nothing to
 // protect by refusing to overwrite a null it already holds.
-func withSeededAttrs(v cty.Value, seed map[string]cty.Value) (cty.Value, bool) {
+func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema.Block) (cty.Value, bool) {
 	if v == cty.NilVal || v.IsNull() || !v.Type().IsObjectType() || len(seed) == 0 {
 		return v, false
+	}
+	dynamic := func(name string) bool {
+		if block == nil {
+			return false
+		}
+		attr, ok := block.Attributes[name]
+		return ok && attr != nil && attr.Type == cty.DynamicPseudoType
 	}
 	ty := v.Type()
 	attrs := make(map[string]cty.Value, len(ty.AttributeTypes()))
@@ -3480,7 +3487,22 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value) (cty.Value, bool) {
 			pathSeed[name] = val
 			continue
 		}
-		if !ty.HasAttribute(name) || !val.Type().Equals(ty.AttributeType(name)) {
+		if !ty.HasAttribute(name) {
+			continue
+		}
+		// A dynamically typed attribute accepts any value: the schema
+		// declares kubernetes_manifest's `manifest` as DynamicPseudoType,
+		// the provider imports it as a typed null object of its own
+		// choosing, and the configuration writes a concrete object into it
+		// - three types that never agree - so an exact match against the
+		// imported VALUE's type refused every seed for it and the projected
+		// prior carried a null manifest forever: the argument no read
+		// returns, proposed for writing back on every run (GitHub issue
+		// #1079's first scenario found it). The schema's declared type is
+		// the one that decides; a concretely typed attribute keeps the exact
+		// match, since seeding a list where the object holds a set would
+		// build an object that no longer conforms to the schema.
+		if want := ty.AttributeType(name); !dynamic(name) && want != cty.DynamicPseudoType && !val.Type().Equals(want) {
 			continue
 		}
 		attrs[name] = val
@@ -3687,13 +3709,8 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	// what the configuration actually declares, for every attribute where
 	// that is statically known and safe (never Computed), makes this call
 	// see what a genuinely persisted state would have shown.
-	if seeded, ok := withSeededAttrs(obj.Value, attrsSeed); ok {
+	if seeded, ok := withSeededAttrs(obj.Value, attrsSeed, schema.Block); ok {
 		obj.Value = seeded
-	}
-	if len(attrsSeed) > 0 {
-		if seeded, ok := withSeededAttrs(obj.Value, attrsSeed); ok {
-			obj.Value = seeded
-		}
 	}
 
 	// The exact PriorState ReadResource is about to see, captured before the
