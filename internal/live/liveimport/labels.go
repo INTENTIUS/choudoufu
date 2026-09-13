@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -58,69 +57,14 @@ func labelsFromObject(schema providers.Schema, obj cty.Value) (map[string]string
 	return markers.LabelsOf(obj)
 }
 
-// withLabels returns the object with its metadata[0].labels replaced,
-// every other attribute of the metadata block and of the object carried
-// across untouched: the sibling of [withTags] for the label shape.
+// withLabels is [markers.WithLabels]: the object with its metadata[0].labels
+// replaced and everything else carried across, the sibling of [withTags]
+// for the label shape. It lives in markers rather than here because
+// internal/live/mv's cross-estate move writes the same label through the
+// same rewrite (#1081), and two copies of "what a labels-only write leaves
+// alone" is the disagreement markerstest exists to catch for tags.
 func withLabels(block *configschema.Block, obj cty.Value, labels map[string]string) (cty.Value, error) {
-	nested, ok := block.BlockTypes[markers.LabelSurfaceBlock]
-	if !ok || nested == nil {
-		return cty.NilVal, fmt.Errorf("no %s block in the schema", markers.LabelSurfaceBlock)
-	}
-	attr, ok := nested.Block.Attributes[markers.LabelSurfaceAttr]
-	if !ok || attr == nil {
-		return cty.NilVal, fmt.Errorf("no %s attribute in the %s block", markers.LabelSurfaceAttr, markers.LabelSurfaceBlock)
-	}
-	meta := obj.GetAttr(markers.LabelSurfaceBlock)
-	if meta.IsMarked() {
-		// A marked metadata block is never read (internal/live/marksafe):
-		// the live object came off the provider unmarked, so a mark here
-		// is a bug upstream of this write, and refusing is the safe answer.
-		return cty.NilVal, fmt.Errorf("the live object's %s block is marked", markers.LabelSurfaceBlock)
-	}
-	if meta.IsNull() || !meta.IsKnown() || !meta.CanIterateElements() || meta.LengthInt() != 1 {
-		return cty.NilVal, fmt.Errorf("the live object's %s block is not exactly one element", markers.LabelSurfaceBlock)
-	}
-	it := meta.ElementIterator()
-	it.Next()
-	_, elem := it.Element()
-	if elem.IsMarked() {
-		return cty.NilVal, fmt.Errorf("the live object's %s element is marked", markers.LabelSurfaceBlock)
-	}
-	if elem.IsNull() || !elem.IsKnown() || !elem.Type().IsObjectType() {
-		return cty.NilVal, fmt.Errorf("the live object's %s element is not an object", markers.LabelSurfaceBlock)
-	}
-
-	var labelVal cty.Value
-	if len(labels) == 0 {
-		labelVal = cty.MapValEmpty(cty.String)
-	} else {
-		vals := make(map[string]cty.Value, len(labels))
-		for k, v := range labels {
-			vals[k] = cty.StringVal(v)
-		}
-		labelVal = cty.MapVal(vals)
-	}
-	converted, err := convert.Convert(labelVal, attr.Type)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	elemAttrs := elem.AsValueMap()
-	if elemAttrs == nil {
-		elemAttrs = map[string]cty.Value{}
-	}
-	elemAttrs[markers.LabelSurfaceAttr] = converted
-	newMeta := cty.ListVal([]cty.Value{cty.ObjectVal(elemAttrs)})
-
-	vals := make(map[string]cty.Value, len(block.Attributes)+len(block.BlockTypes))
-	for name := range block.Attributes {
-		vals[name] = obj.GetAttr(name)
-	}
-	for name := range block.BlockTypes {
-		vals[name] = obj.GetAttr(name)
-	}
-	vals[markers.LabelSurfaceBlock] = newMeta
-	return cty.ObjectVal(vals), nil
+	return markers.WithLabels(block, obj, labels)
 }
 
 // changedOutsideLabels is [changedOutsideTags] for the label shape: every

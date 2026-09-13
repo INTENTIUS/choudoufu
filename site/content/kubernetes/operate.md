@@ -13,10 +13,13 @@ deeper:
 
 With an estate-only label there is no address on the object to rewrite. A
 `moved` block is a config-line rename and the natural key is unchanged, so
-the plan is empty. `live-mv` has nothing governed to do and says so.
+the plan is empty. `live-mv` has nothing governed to do, says so, and
+exits 0.
 
-Moving an object between estates is a relabel, `kubectl label --overwrite
-tofu-estate=<new>`, and with the admission policy installed it is a
+Moving an object between estates is a relabel, `tofu-estate=<new>` on the
+object: `live-mv -from-estate=<old>` in the destination's configuration
+makes it through the provider, and `kubectl label --overwrite` makes the
+same write tool-less. With the admission policy installed either is a
 governed one: the caller must hold both the estate the object is leaving
 and the one it is entering ([claim
 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).

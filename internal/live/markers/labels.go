@@ -10,6 +10,7 @@ import (
 	"regexp"
 
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 )
@@ -171,4 +172,76 @@ func LabelsOf(obj cty.Value) (map[string]string, bool) {
 // cannot be a Kubernetes label value.
 func NotALabelValue(estate string) string {
 	return fmt.Sprintf("the estate name %q is not a legal Kubernetes label value (at most %d characters of letters, digits, '-', '_' and '.', beginning and ending with a letter or digit)", estate, LabelMaxValue)
+}
+
+// WithLabels returns obj - a live or planned object of a label-surface type
+// - with its metadata[0].labels replaced by labels, every other attribute
+// of the metadata block and of the object carried across untouched. It is
+// the write-side sibling of [LabelsOf], and the one seam both marker
+// writers on this surface go through: internal/live/liveimport stamps an
+// adopted object's estate label with it (#1073) and internal/live/mv moves
+// an object between estates with it (#1081's fifth item), so the two
+// cannot disagree about what a labels-only rewrite leaves alone. Refusals
+// are errors rather than silent fallbacks: a marked metadata block is
+// never read (internal/live/marksafe - the live object came off the
+// provider unmarked, so a mark here is a bug upstream of the write), and
+// a metadata block that is not exactly one element is not the shape
+// [LabelSurface] admitted.
+func WithLabels(block *configschema.Block, obj cty.Value, labels map[string]string) (cty.Value, error) {
+	nested, ok := block.BlockTypes[LabelSurfaceBlock]
+	if !ok || nested == nil {
+		return cty.NilVal, fmt.Errorf("no %s block in the schema", LabelSurfaceBlock)
+	}
+	attr, ok := nested.Block.Attributes[LabelSurfaceAttr]
+	if !ok || attr == nil {
+		return cty.NilVal, fmt.Errorf("no %s attribute in the %s block", LabelSurfaceAttr, LabelSurfaceBlock)
+	}
+	meta := obj.GetAttr(LabelSurfaceBlock)
+	if meta.IsMarked() {
+		return cty.NilVal, fmt.Errorf("the live object's %s block is marked", LabelSurfaceBlock)
+	}
+	if meta.IsNull() || !meta.IsKnown() || !meta.CanIterateElements() || meta.LengthInt() != 1 {
+		return cty.NilVal, fmt.Errorf("the live object's %s block is not exactly one element", LabelSurfaceBlock)
+	}
+	it := meta.ElementIterator()
+	it.Next()
+	_, elem := it.Element()
+	if elem.IsMarked() {
+		return cty.NilVal, fmt.Errorf("the live object's %s element is marked", LabelSurfaceBlock)
+	}
+	if elem.IsNull() || !elem.IsKnown() || !elem.Type().IsObjectType() {
+		return cty.NilVal, fmt.Errorf("the live object's %s element is not an object", LabelSurfaceBlock)
+	}
+
+	var labelVal cty.Value
+	if len(labels) == 0 {
+		labelVal = cty.MapValEmpty(cty.String)
+	} else {
+		vals := make(map[string]cty.Value, len(labels))
+		for k, v := range labels {
+			vals[k] = cty.StringVal(v)
+		}
+		labelVal = cty.MapVal(vals)
+	}
+	converted, err := convert.Convert(labelVal, attr.Type)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	elemAttrs := elem.AsValueMap()
+	if elemAttrs == nil {
+		elemAttrs = map[string]cty.Value{}
+	}
+	elemAttrs[LabelSurfaceAttr] = converted
+	newMeta := cty.ListVal([]cty.Value{cty.ObjectVal(elemAttrs)})
+
+	vals := make(map[string]cty.Value, len(block.Attributes)+len(block.BlockTypes))
+	for name := range block.Attributes {
+		vals[name] = obj.GetAttr(name)
+	}
+	for name := range block.BlockTypes {
+		vals[name] = obj.GetAttr(name)
+	}
+	vals[LabelSurfaceBlock] = newMeta
+	return cty.ObjectVal(vals), nil
 }

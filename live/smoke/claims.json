@@ -532,13 +532,13 @@
     {
       "id": 23,
       "slug": "k8s-the-label-is-the-boundary",
-      "title": "The label is the boundary: one admission policy fences every write to an estate's objects",
+      "title": "The label is the boundary: one admission policy fences every write to an estate's objects, and live-mv -from-estate is the governed relabel",
       "scenario": "live/smoke/scenarios/k8s-the-label-is-the-boundary.sh",
       "command": "just smoke k8s-the-label-is-the-boundary",
-      "minutes": 3,
+      "minutes": 4,
       "needs_go": false,
       "theme": "gate",
-      "break_mode": "BREAK=1 removes the policy and requires the writes it refused, through choudoufu and through plain kubectl, to go through",
+      "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through",
       "substrate": "kubernetes",
       "providers": {
         "aws": {

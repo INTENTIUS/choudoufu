@@ -1,5 +1,5 @@
 # k8s-the-label-is-the-boundary
-# CLAIM 23 - The label is the boundary: one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is a governed relabel, and handover is an RBAC change. ~3 min.
+# CLAIM 23 - The label is the boundary: one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~4 min.
 #
 # The Kubernetes sibling of claim 13 (#1066, under #1016's ruling). RBAC has
 # no attribute predicate, so the label is advisory until something fences on
@@ -15,8 +15,17 @@
 # condition can fence a describe; it fences the object and not its
 # subresources; and the policy is one cluster-wide object with a wider
 # blast radius than two IAM changes. BREAK=1 removes the policy and requires
-# the same writes it refused to go through: if the API server still said
-# no, something other than the policy was the fence.
+# the same writes it refused to go through - Bob's apply and plain kubectl
+# on Alice's estate, and Alice's live-mv into an estate she was never
+# granted: if the API server still said no, something other than the
+# policy was the fence.
+#
+# The carve is live-mv's Kubernetes leg (#1081's fifth item): with no
+# address on the object a rename within one estate has nothing governed to
+# write and live-mv says so, exit 0 (step 8); a move between estates is the
+# one tofu-estate label write, which live-mv -from-estate makes through the
+# provider under the caller's own ServiceAccount, so the policy judges it
+# exactly as it judges a plain kubectl label (steps 9 and 10).
 
 W="$SMOKE_WORKROOT/k8s-boundary"; APP="$W/app"; NET="$W/net"; DATA="$W/data"; LOGS="$W/logs"
 mkdir -p "$APP" "$NET" "$DATA" "$LOGS"
@@ -277,6 +286,26 @@ if [ "${BREAK:-0}" = "1" ]; then
   labels_of database boundary | evidence
   proof "caught - with the policy gone, plain kubectl wrote Alice's object with no choudoufu anywhere in the call. The policy was the boundary, for the tool and for a script alike."
 
+  step "BREAK control (cont'd) - live-mv into an estate the caller was never granted goes through too"
+  explain \
+    "The carve's refusal in the main run is the policy reading the label the" \
+    "write would produce. With the policy gone, Alice - who holds app and" \
+    "was never granted data - moves the database ConfigMap into data with" \
+    "live-mv -from-estate=app, and the write must land: the tool never says" \
+    "no here, and nothing but the policy did."
+  cmd "git mv app/database.tf data/database.tf ; choudoufu live-mv -from-estate=app kubernetes_config_map.database kubernetes_config_map.database   # in data/, as alice, no grant on data, policy gone"
+  sed '/depends_on/d' "$APP/database.tf" > "$DATA/database.tf" && rm "$APP/database.tf" || fail "boundary" "BREAK: the database block did not move from app to data"
+  ( cd "$DATA" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "BREAK: init failed in data"
+  [ "$(can_use alice data)" = "false" ] || fail "boundary" "BREAK: alice holds data; the control would prove nothing"
+  OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_config_map.database kubernetes_config_map.database 2>&1)" || fail "boundary" "BREAK: with no policy, Alice's live-mv into an estate she does not hold was still refused: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
+  denied "$OUT" && fail "boundary" "BREAK: the live-mv succeeded but the output still carries a refusal: $OUT"
+  grep -q 'Relabelled one live object into this estate' <<< "$OUT" || fail "boundary" "BREAK: live-mv did not report the relabel: $OUT"
+  grep -E 'Relabelled|tofu-estate' <<< "$OUT" | head -2 | evidence
+  labels_of database boundary | evidence
+  grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "BREAK: Alice's live-mv did not land"
+  proof "caught - with the policy gone, live-mv relabelled the object into an estate Alice was never granted. The refusal the main run shows at this step is the policy's, not the tool's."
+
+  ( cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   ( cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   ( cd "$NET" && as_role bob chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   exit 0
@@ -371,53 +400,85 @@ cmd "choudoufu apply -auto-approve   # in net/, as bob - reconciling his own too
 grep -q 'owner' <<< "$(labels_of router net)" && fail "boundary" "the reconciling apply did not remove the stray label"
 proof "reconciled, still under Bob's own ServiceAccount. The estate is clean again before the carve begins."
 
-step "8. the carve begins with a git move, and the relabel is refused from both sides"
+step "8. a rename is a configuration edit: live-mv has nothing governed to write"
+explain \
+  "On AWS a rename ends with live-mv rewriting tofu-address on the live" \
+  "object. Here the object carries no address: it is bound to its block by" \
+  "its own kind, namespace and name, all authored in configuration. Bob" \
+  "renames the router block, runs the same live-mv an AWS runbook would," \
+  "and it reports that there is nothing governed to write and exits 0." \
+  "The next plan binds the object at its new address with no change."
+cmd "sed router=router_renamed net/main.tf ; choudoufu live-mv kubernetes_config_map.router kubernetes_config_map.router_renamed ; choudoufu plan   # in net/, as bob"
+sed_i "$NET/main.tf" 's/"kubernetes_config_map" "router"/"kubernetes_config_map" "router_renamed"/'
+grep -q '"router_renamed"' "$NET/main.tf" || fail "boundary" "the router block was not renamed in net"
+OUT="$(cd "$NET" && as_role bob chdf live-mv -no-color kubernetes_config_map.router kubernetes_config_map.router_renamed 2>&1)" || fail "boundary" "live-mv on a same-estate Kubernetes rename did not exit 0: $OUT"
+grep -q 'Nothing to write' <<< "$OUT" || fail "boundary" "live-mv did not say there is nothing to write: $OUT"
+grep -E 'Nothing to write' <<< "$OUT" | evidence
+OUT="$(cd "$NET" && as_role bob chdf plan -input=false -no-color 2>&1)" || fail "boundary" "net does not plan after the rename: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
+printf '%s\n' "$OUT" > "$LOGS/net-renamed.plan"
+grep -q "No changes." <<< "$OUT" || fail "boundary" "net does not plan clean after the rename (full plan in $LOGS/net-renamed.plan): $(grep -E '^Plan:|will be|orphan|UNOWNED' <<< "$OUT" | head -4)"
+echo "net under bob, block renamed: No changes." | evidence
+proof "exit 0 and one sentence: nothing to write. The block is renamed, the object is untouched, and the plan is empty - the rename was the edit."
+
+step "9. the carve begins with a git move, and the relabel is refused from both sides"
 explain \
   "The database block moves from app's configuration into a new root," \
   "data, the way any split starts. The ownership write that completes it" \
-  "is a relabel: tofu-estate app -> data on one object. The policy reads" \
-  "both sides of that write. Alice holds app but not data, so it refuses" \
-  "her on the estate the object would enter; Bob holds neither, so it" \
-  "refuses him on the estate the object is leaving. On AWS the same two" \
-  "checks are aws:ResourceTag and aws:RequestTag. There is no live-mv leg" \
-  "for Kubernetes: with no address on the object the write is the label" \
-  "itself, and any client can make it."
-cmd "git mv app/database.tf data/database.tf ; kubectl label configmap database -n boundary tofu-estate=data --overwrite   # as alice, then as bob"
+  "is a relabel: tofu-estate app -> data on one object, and live-mv" \
+  "-from-estate=app in data/ is that write, made through the provider" \
+  "under the caller's own ServiceAccount - the same command that retags on" \
+  "AWS. The policy reads both sides of it. Alice holds app but not data, so" \
+  "it refuses her on the estate the object would enter, through live-mv" \
+  "and through plain kubectl alike; Bob holds neither, so it refuses him on" \
+  "the estate the object is leaving. On AWS the same two checks are" \
+  "aws:ResourceTag and aws:RequestTag."
+cmd "git mv app/database.tf data/database.tf ; choudoufu live-mv -from-estate=app kubernetes_config_map.database kubernetes_config_map.database   # in data/, as alice"
 # The block leaves without its depends_on: the namespace it named is
 # declared by app, not by the root the block is moving into.
 sed '/depends_on/d' "$APP/database.tf" > "$DATA/database.tf" && rm "$APP/database.tf" || fail "boundary" "the database block did not move from app to data"
 grep -q 'name      = "database"' "$DATA/database.tf" || fail "boundary" "the database block did not land in data"
 ( cd "$DATA" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in data"
+OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_config_map.database kubernetes_config_map.database 2>&1 || true)"
+printf '%s\n' "$OUT" > "$LOGS/alice-denied.live-mv"
+denied "$OUT" || fail "boundary" "Alice's live-mv into data, which she does not hold, was not refused by the policy (full output in $LOGS/alice-denied.live-mv): $(grep -E 'Error|Relabelled' <<< "$OUT" | head -3)"
+refusal_line "$OUT" | evidence
+cmd "kubectl label configmap database -n boundary tofu-estate=data --overwrite   # as alice, then as bob"
 OUT="$(as_role alice kubectl label configmap database -n boundary tofu-estate=data --overwrite 2>&1 || true)"
-denied "$OUT" || fail "boundary" "Alice's relabel into data, which she does not hold, was not refused by the policy: $OUT"
+denied "$OUT" || fail "boundary" "Alice's tool-less relabel into data, which she does not hold, was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
 OUT="$(as_role bob kubectl label configmap database -n boundary tofu-estate=data --overwrite 2>&1 || true)"
 denied "$OUT" || fail "boundary" "Bob's relabel out of app, which he does not hold, was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
 grep -q '"tofu-estate":"app"' <<< "$(labels_of database boundary)" || fail "boundary" "the database left the estate despite the refusals"
-proof "the carve itself was refused, per object, from both sides: the estate being left and the estate being entered. A state mv has no such moment; nothing evaluates it."
+proof "the carve itself was refused, per object, from both sides: the estate being left and the estate being entered - and live-mv met the same refusal a plain kubectl did, because the write it makes is the same write. A state mv has no such moment; nothing evaluates it."
 
-step "9. handover is an RBAC change: grant Alice data, and the same relabel goes through"
+step "10. handover is an RBAC change: grant Alice data, and the same live-mv goes through"
 explain \
   "Nothing on the object and nothing in the policy changes. The cluster" \
   "admin applies the same grant template for estate data to Alice, and" \
-  "the relabel she was just refused now passes: the authorizer says yes on" \
-  "both estates. The object never moves; its owner does."
+  "the live-mv she was just refused now passes: the authorizer says yes on" \
+  "both estates. kubectl reads the new label back. The object never" \
+  "moves; its owner does."
 cmd "sed s/ESTATE/data/ estate-grant.yaml | kubectl apply -f -   # as the cluster admin"
 grant data alice
 [ "$(can_use alice data)" = "true" ] || fail "boundary" "the grant did not take: alice still cannot use data"
 echo "may alice use estate data: true" | evidence
-cmd "kubectl label configmap database -n boundary tofu-estate=data --overwrite   # as alice"
-OUT="$(as_role alice kubectl label configmap database -n boundary tofu-estate=data --overwrite 2>&1)" || fail "boundary" "Alice's relabel into data failed after the grant: $OUT"
+cmd "choudoufu live-mv -from-estate=app kubernetes_config_map.database kubernetes_config_map.database   # in data/, as alice"
+OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_config_map.database kubernetes_config_map.database 2>&1)" || fail "boundary" "Alice's live-mv into data failed after the grant: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
+grep -q 'Relabelled one live object into this estate' <<< "$OUT" || fail "boundary" "live-mv did not report the relabel: $OUT"
+grep -E 'Relabelled|tofu-estate' <<< "$OUT" | head -2 | evidence
+cmd "kubectl get configmap database -n boundary -o jsonpath='{.metadata.labels}'"
 labels_of database boundary | evidence
-grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "the database does not carry tofu-estate=data after Alice's relabel"
-proof "tofu-estate=data, written by the one principal a policy lets write it. Where there was one estate there are two, and no state was split."
+grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "the database does not carry tofu-estate=data after Alice's live-mv"
+proof "tofu-estate=data, written by live-mv under the one principal a policy lets write it, and read back by kubectl. Where there was one estate there are two, and no state was split."
 
-step "10. every estate plans clean, each under its own principal"
+step "11. every estate plans clean, each under its own principal"
 explain \
   "Alice plans data and app; Bob plans net. Each sweep lists its own" \
-  "estate by label and finds nothing to do. app's record of the database" \
-  "is not consulted, because the live label now names another estate."
+  "estate by label and finds nothing to do. app no longer declares the" \
+  "database block and the live object no longer carries app's label, so" \
+  "app's sweep does not see it and its plan is honestly empty; data binds" \
+  "it by namespace and name; net binds the renamed router the same way."
 cmd "choudoufu plan   # in data/ and app/ as alice, in net/ as bob"
 for spec in "alice $DATA data" "alice $APP app" "bob $NET net"; do
   read -r who dir label <<< "$spec"
@@ -428,7 +489,7 @@ for spec in "alice $DATA data" "alice $APP app" "bob $NET net"; do
 done
 proof "No changes, three times, each under the principal that holds the estate. The boundary moved with one label write, and every side agrees where it is."
 
-step "11. teardown - each estate by its own destroy, under its own principal"
+step "12. teardown - each estate by its own destroy, under its own principal"
 OUT="$(cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of data failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -q 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$OUT" || fail "boundary" "data's destroy did not remove exactly one object: $OUT"
 OUT="$(cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of app failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
@@ -441,7 +502,9 @@ echo "  What you watched: two ServiceAccounts hold two estates on one cluster"
 echo "  and are fenced by one admission policy reading the estate label,"
 echo "  refused by the API server when they reach across - through choudoufu"
 echo "  and through plain kubectl alike, with a plain read untouched because"
-echo "  admission never sees one. Then one object is carved into a new estate"
-echo "  by a relabel the policy refused from both sides until a binding moved."
+echo "  admission never sees one. A rename is a config edit: live-mv has"
+echo "  nothing governed to write and says so. Then one object is carved into"
+echo "  a new estate by live-mv -from-estate, one label write the policy"
+echo "  refused from both sides until a binding moved."
 echo "  In stock every one of those moves is a state edit, and nothing in the"
 echo "  cluster can say no to a state edit or knows it happened."

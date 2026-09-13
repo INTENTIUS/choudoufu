@@ -190,7 +190,11 @@ handover is a binding moving from one principal to another, and the policy
 is never edited for either. Claim 23
 (`live/smoke/scenarios/k8s-the-label-is-the-boundary.sh`) runs it on a
 kind cluster with two ServiceAccounts, and `BREAK=1` removes the policy to
-show the refusals were its doing.
+show the refusals were its doing. `live-mv -from-estate` is the governed
+relabel made through the provider under the caller's own credential, so
+the policy judges it exactly as it judges a plain `kubectl label`; a
+rename within one estate has nothing to write on this surface and
+`live-mv` says so, exit 0 (#1081).
 
 `live/kubernetes/estate-boundary.yaml`, applied once by a cluster admin:
 

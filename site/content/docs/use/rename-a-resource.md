@@ -46,3 +46,19 @@ its parent's live tag and needs no call. The source estate keeps its record for 
 resource until its next plan, which reads the live tag and leaves the
 resource alone. [Claim 12]({{< relref "/docs/claims/carve-by-retag" >}})
 walks a whole split this way.
+
+## On Kubernetes
+
+The marker is one label, `tofu-estate`, and the object carries no
+address: it is bound to its block by its own kind, namespace and name. A
+rename within an estate therefore has nothing to write. Rename the block;
+`live-mv` run out of habit reports `Nothing to write` and exits 0, and the
+next plan is empty. Moving an object to another estate is the same
+`-from-estate` command as above, run in the destination's configuration.
+It rewrites the label through the provider, as a labels-only plan and
+apply on that one object, under your own credential, so the cluster's
+admission policy judges it exactly as it judges a plain `kubectl label`:
+you must hold both the estate the object is leaving and the one it is
+entering ([claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
+An object declared through a manifest block is refused by name with the
+equivalent `kubectl label` command.

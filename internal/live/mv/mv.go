@@ -201,6 +201,23 @@ type Result struct {
 	// Path is how the resource was found.
 	Path Path
 
+	// Surface is where the marker lives on the live object (label.go):
+	// [SurfaceTags] for the AWS tag map, [SurfaceLabel] for a Kubernetes
+	// metadata block, [SurfaceManifest] for a manifest-declared object.
+	// Read off the provider's schema for the type, never off its name.
+	Surface Surface
+
+	// NothingToWrite is true when this rename had nothing governed to
+	// write on the live system and stopped, successfully, before reading
+	// or writing anything there: a same-estate rename on a surface whose
+	// marker carries no address (label.go). The object is bound to its
+	// block by the natural key the configuration authors, so renaming the
+	// block is the whole rename. The estate's own record store, when it
+	// has one, is still re-keyed from the old address to the new
+	// ([mover.propagateModuleRename]) - the local half every rename makes,
+	// and GitHub issue #412's stale-key shape otherwise.
+	NothingToWrite bool
+
 	// Swept is true when the whole resource type was enumerated, which is
 	// what makes "nothing else claims the destination address" a complete
 	// answer rather than a best effort.
@@ -283,7 +300,13 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags.Append(markerDiags)
 	}
 
-	if _, admitted := identity.LookupType(res.TypeName); !admitted {
+	// Admitted by the hand table, or by the provider's own schema: a type
+	// with no row still reaches this call with a resolution whenever
+	// identity.Resolve admitted it through the schema fallback
+	// (SynthesizeTypeIdentity - every Kubernetes object-metadata type is
+	// one, #1064), and a resolution for either address is that admission's
+	// receipt. A type with neither is the refusal below, exactly as before.
+	if _, admitted := identity.LookupType(res.TypeName); !admitted && !declared(req, req.Old) && !declared(req, req.New) {
 		return res, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Resource type outside the live-markers subset",
@@ -332,6 +355,23 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	m := &mover{req: req, res: res, provider: provider, schema: schema}
+
+	// The marker surface decides what there is to write (label.go). On a
+	// surface with no address on the object, a rename within one estate
+	// has nothing governed to do and says so; a move between estates is
+	// the one label write, on the metadata-block shape, and is refused by
+	// name on the manifest shape until that rewrite exists.
+	res.Surface = surfaceOf(schema.Block)
+	switch {
+	case res.Surface == SurfaceTags:
+	case req.FromEstate == "":
+		// Nothing on the cluster; the estate's own records still follow
+		// the address, exactly as after a tag rewrite.
+		res.NothingToWrite = true
+		return res, diags.Append(m.propagateModuleRename(ctx))
+	case res.Surface == SurfaceManifest:
+		return res, diags.Append(manifestMoveRefusal(res.TypeName, anchor, req.FromEstate, req.Estate))
+	}
 
 	prior, findDiags := m.find(ctx)
 	diags = diags.Append(findDiags)
@@ -810,7 +850,11 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 	if idDiags.HasErrors() {
 		return nil, diags
 	}
-	if listable {
+	if listable && m.res.Surface != SurfaceLabel {
+		// On the label surface the address is not on the object, so no
+		// second object can "already carry" it: the natural key the
+		// configuration names is the whole identity, and one key names
+		// one object in a cluster.
 		diags = diags.Append(m.checkDestinationFree(ctx, ts))
 		if diags.HasErrors() {
 			return nil, diags
@@ -1063,6 +1107,10 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 	diags = diags.Append(matDiags)
 	if matDiags.HasErrors() {
 		return nil, diags
+	}
+
+	if m.res.Surface == SurfaceLabel {
+		return m.locateLabelled(obj, resolution)
 	}
 
 	tags, taggable := tagsFromObject(m.schema, obj.Value)
