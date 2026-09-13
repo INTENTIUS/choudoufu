@@ -9,10 +9,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -50,6 +53,23 @@ const SourceKubernetes EnumerationSource = "KUBERNETES_API"
 // plan, the same severity [SummaryIncompleteSweep] carries.
 const SummaryKubernetesSweepUnavailable = "Kubernetes sweep unavailable"
 
+// SummaryKubernetesKindNotServed is the refusal by name for a manifest
+// block whose apiVersion and kind the cluster does not serve (GitHub
+// issue #1079's fourth ruling): the CRD is not installed, or is served at
+// another version. Raised here, at the plan's first cluster contact,
+// rather than left to the provider's own error when it asks the cluster
+// for a schema it has not got. An error: the provider cannot plan the
+// block either, so a plan that went on would fail at that block with a
+// worse message.
+const SummaryKubernetesKindNotServed = "Kubernetes kind not served by the cluster"
+
+// SummaryKubernetesKindUnverified is the warning raised when the cluster
+// answered API discovery for the sweep but could not answer whether it
+// serves one manifest block's kind. A cluster that cannot answer is a
+// coverage gap, never grounds to refuse the block: the provider asks the
+// same question at plan time and reports its own answer.
+const SummaryKubernetesKindUnverified = "Kubernetes kind could not be verified"
+
 // sweepKubernetes runs the leg when [Request.Kubernetes] is set.
 func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
@@ -79,6 +99,11 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 		res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: t, Reason: SweepGapNotListable,
 			Detail: "the cluster serves no kind this type manages, or serves it without list and delete verbs, so nothing of this type can exist there to sweep"})
 	}
+	// The cluster has answered once, so this is the earliest point at
+	// which a manifest block naming a kind it does not serve can be
+	// refused by name (#1079's fourth ruling), ahead of the provider's own
+	// error at plan time.
+	diags = diags.Append(refuseUnservedManifests(ctx, req, kinds))
 	kindTypes := kubesweep.KindTypes(req.KubernetesTypes)
 
 	// The manifest type is one scan over every kind it lists, not one per
@@ -250,4 +275,118 @@ func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []st
 		declare(kind, r.ImportID, r.Addr)
 	}
 	return out
+}
+
+// refuseUnservedManifests is GitHub issue #1079's fourth ruling: every
+// concrete manifest resolution names an apiVersion and a kind in its
+// import id, and a block whose pair the cluster does not serve is refused
+// by name - the block, the kind, the apiVersion, and which
+// CustomResourceDefinition would have to be installed - once per block
+// and pair, so a for_each over ten objects of one missing kind is one
+// refusal. The question is put to the cluster once per pair
+// ([kubesweep.Sweeper.Serves]); a pair the cluster could not answer for
+// is a warning and the block stands.
+//
+// kinds, the sweep's own listing, is read for one thing: a kind the
+// cluster serves in the same group at another version, which turns "not
+// served" into the more useful "served at v2; the block names v1".
+func refuseUnservedManifests(ctx context.Context, req Request, kinds []kubesweep.Kind) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	manifestType := req.KubernetesManifestType
+	if manifestType == "" {
+		return diags
+	}
+	type pair struct{ apiVersion, kind string }
+	type answer struct {
+		served bool
+		err    error
+	}
+	answers := map[pair]answer{}
+	seen := map[string]bool{} // block address + pair
+	for _, r := range req.Resolutions {
+		if r.Addr.Resource.Resource.Type != manifestType || r.Class != identity.ClassConcrete {
+			continue
+		}
+		apiVersion, kind, _, _, ok := kubesweep.ParseManifestImportID(r.ImportID)
+		if !ok {
+			continue
+		}
+		block := r.Addr.ContainingResource()
+		key := block.String() + "\x00" + apiVersion + "\x00" + kind
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		p := pair{apiVersion, kind}
+		a, asked := answers[p]
+		if !asked {
+			served, err := req.Kubernetes.Serves(ctx, apiVersion, kind)
+			a = answer{served: served, err: err}
+			answers[p] = a
+		}
+		if a.err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryKubernetesKindUnverified,
+				fmt.Sprintf("The cluster answered API discovery but could not say whether it serves kind %s at apiVersion %s, which %s declares: %s. The block is not refused on that; if the kind is not served, the provider reports it when it plans the block.", kind, apiVersion, block, a.err)))
+			continue
+		}
+		if a.served {
+			continue
+		}
+		diags = diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  SummaryKubernetesKindNotServed,
+			Detail:   unservedKindDetail(block, apiVersion, kind, kinds),
+			Subject:  manifestBlockRange(req.Config, r.Addr),
+		})
+	}
+	return diags
+}
+
+// unservedKindDetail says what would have to change: for a kind outside
+// the core group, the CustomResourceDefinition (or aggregated API) whose
+// group, kind and served version the block names; for a core kind, that
+// no CRD can add one. A sibling version the sweep listed is named, since
+// "served at v2" is the common shape of "not served at v1".
+func unservedKindDetail(block addrs.AbsResource, apiVersion, kind string, kinds []kubesweep.Kind) string {
+	group, version := "", apiVersion
+	if i := strings.LastIndex(apiVersion, "/"); i >= 0 {
+		group, version = apiVersion[:i], apiVersion[i+1:]
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s declares kind %s at apiVersion %s, which the cluster does not serve, so the provider has no schema to plan the block against and would refuse it at plan time. ", block, kind, apiVersion)
+	var elsewhere []string
+	for _, k := range kinds {
+		if k.Kind == kind && k.GVR.Group == group && k.APIVersion != apiVersion {
+			elsewhere = append(elsewhere, k.APIVersion)
+		}
+	}
+	switch {
+	case len(elsewhere) > 0:
+		fmt.Fprintf(&b, "The cluster serves %s at apiVersion %s; either write that apiVersion in the manifest, or install a CustomResourceDefinition version that serves %s and plan again.", kind, strings.Join(elsewhere, ", "), version)
+	case group == "":
+		fmt.Fprintf(&b, "%s is not a kind of the core API group at version %s on this server, and no CustomResourceDefinition can add a core kind; the block was written for a server version this cluster is not.", kind, version)
+	default:
+		fmt.Fprintf(&b, "Install the CustomResourceDefinition whose spec.group is %q and spec.names.kind is %q, with version %q served (kubectl get crd | grep %s to see what the group has today), or the aggregated API that serves it, and plan again. The rest of the configuration is not at fault; nothing is planned until this block's kind is served.", group, kind, version, group)
+	}
+	return b.String()
+}
+
+// manifestBlockRange points a refusal at the block that declares the
+// instance, module-qualified the way [declaredInstances] looks blocks
+// up; nil when the caller gave no configuration (a test, or a pass
+// assembled from resolutions alone), which makes the diagnostic
+// sourceless rather than wrong.
+func manifestBlockRange(root *configs.Config, addr addrs.AbsResourceInstance) *hcl.Range {
+	if root == nil {
+		return nil
+	}
+	modCfg, ok := identity.ConfigForModule(root, addr.Module)
+	if !ok || modCfg == nil || modCfg.Module == nil {
+		return nil
+	}
+	block := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	if block == nil {
+		return nil
+	}
+	return block.DeclRange.Ptr()
 }

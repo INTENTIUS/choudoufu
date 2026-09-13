@@ -1,10 +1,10 @@
 ---
-title: "Claim 24: A custom resource binds by its natural key, carries the label and is swept by it"
+title: "Claim 24: A custom resource binds by its natural key, carries the label, is swept by it, and is refused by name while its CRD is missing"
 weight: 24
 claim: k8s-custom-resource
 ---
 
-# Claim 24: A custom resource binds by its natural key, carries the label and is swept by it
+# Claim 24: A custom resource binds by its natural key, carries the label, is swept by it, and is refused by name while its CRD is missing
 
 Every custom resource is declared through `kubernetes_manifest`, whose
 whole object is one dynamic `manifest` argument. The natural key
@@ -41,6 +41,20 @@ listed object meet on the kind and the natural key, so a ConfigMap
 declared through `kubernetes_manifest` is never an orphan of the built-in
 type.
 
+The fourth unit is the refusal by name. The provider reads a custom kind's
+schema from the cluster when it plans, so a block whose apiVersion and
+kind the cluster does not serve fails at plan time with the provider's
+own error. `choudoufu plan` asks the cluster first, at its first contact
+with it (the same API discovery the sweep uses), and refuses such a block
+by name: the address, the kind, the apiVersion, and the
+CustomResourceDefinition whose group, kind and served version would have
+to be installed. The plan exits non-zero with nothing planned, the same
+outcome the provider's error gives, with the cause stated instead of
+found. `live-check` is offline and cannot ask a cluster, so it does not
+raise this; a cluster that cannot answer the question is a warning, never
+a refusal. Step 1 plans before the CRD exists and requires exactly that
+refusal.
+
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
 (docker info) and kind and kubectl are installed. If Go is not
@@ -59,24 +73,28 @@ resource and the replan must propose creating it.
 
 The steps, in the order they print:
 
-1. `a CRD the cluster serves, installed with kubectl` - the CronTab CRD
+1. `before the CRD exists, the block is refused by name` - the plan runs
+   on a cluster that does not serve `stable.example.com/v1` `CronTab`,
+   exits non-zero, and names `kubernetes_manifest.crontab`, the kind, the
+   apiVersion and the CRD to install; no plan is produced.
+2. `a CRD the cluster serves, installed with kubectl` - the CronTab CRD
    from the Kubernetes documentation, established before the estate plans,
    because the provider reads a custom kind's schema from the cluster.
-2. `the estate applies: a namespace and a custom resource, no state file` -
+3. `the estate applies: a namespace and a custom resource, no state file` -
    two objects; kubectl reads the CronTab's spec and its `tofu-estate`
    label back.
-3. `the replan - prior state rebuilt from the cluster by the natural key` -
+4. `the replan - prior state rebuilt from the cluster by the natural key` -
    empty.
-4. `the cache is disposable` - the replan without it is still empty.
-5. `the block is removed - the sweep finds the object by its label and
+5. `the cache is disposable` - the replan without it is still empty.
+6. `the block is removed - the sweep finds the object by its label and
    the plan removes it` - `kubernetes_manifest.orphan_crontab_smoke-crd_my-crontab`
    is the one thing the plan proposes to destroy, and the apply destroys
    it; kubectl confirms.
-6. `the block returns - the object is created again` - 1 added.
-7. `destroy - exactly what was made` - the CronTab goes; the CRD, which
+7. `the block returns - the object is created again` - 1 added.
+8. `destroy - exactly what was made` - the CronTab goes; the CRD, which
    nothing declared, stands.
 
-The `BREAK=1` run has three controls after step 2. First it strips the
+The `BREAK=1` run has three controls after step 3. First it strips the
 `tofu-estate` label with kubectl; the replan must propose updating
 `kubernetes_manifest.crontab` in place and the apply must put the label
 back. Then it strips the label again and removes the block; the replan

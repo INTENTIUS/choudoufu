@@ -1,5 +1,5 @@
 # k8s-custom-resource
-# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; a label stripped out of band is restored by the next plan, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal. ~4 min.
+# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it, and a block whose CRD the cluster does not serve is refused by name: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; a label stripped out of band is restored by the next plan, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal. ~3 min.
 #
 # The first unit of #1079 (ruled 2026-09-12): every custom resource is
 # declared through kubernetes_manifest, whose whole object is one dynamic
@@ -15,7 +15,14 @@
 # (internal/live/kubesweep) lists every kind the cluster serves, CRDs
 # included, under kubernetes_manifest, so an object whose block is removed
 # is found by that label and proposed for removal at
-# kubernetes_manifest.orphan_<kind>_<namespace>_<name>. BREAK=1 first
+# kubernetes_manifest.orphan_<kind>_<namespace>_<name>. The fourth unit
+# (internal/live/discovery/kubernetes.go, refuseUnservedManifests) asks the
+# cluster, at the plan's first contact with it, whether it serves the
+# apiVersion and kind each manifest block names, and refuses a block whose
+# pair it does not - by address, kind, apiVersion and the CRD that would
+# have to be installed - before the provider fails at that block with its
+# own error; step 1 plans before the CRD exists and requires exactly that
+# refusal. live-check is offline and cannot ask. BREAK=1 first
 # strips the label with kubectl and requires the replan to propose the
 # update that restores it; then strips it again, removes the block, and
 # requires the replan NOT to list the object (the label is the boundary
@@ -112,7 +119,40 @@ cluster_up
 
 kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 
-step "1. a CRD the cluster serves, installed with kubectl"
+step "1. before the CRD exists, the block is refused by name"
+explain \
+  "The cluster does not serve stable.example.com/v1 CronTab yet. The" \
+  "provider reads a custom kind's schema from the cluster when it plans" \
+  "and would fail at that block with its own error; choudoufu asks the" \
+  "cluster first, at the plan's first contact with it, and refuses the" \
+  "block by name - the address, the kind, the apiVersion, and the CRD" \
+  "that would have to be installed. Nothing is planned, nothing applied." \
+  "live-check is offline and cannot ask a cluster; the plan can."
+cmd "choudoufu init && choudoufu plan   # no CRD installed yet"
+( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "k8s-custom-resource" "init failed"
+if kc get crd crontabs.stable.example.com >/dev/null 2>&1; then
+  fail "k8s-custom-resource" "the CRD is already installed on a fresh cluster; this step measures nothing"
+fi
+if PRE_OUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)"; then
+  fail "k8s-custom-resource" "plan succeeded with the CRD absent: $(grep -E '^Plan:|No changes|will be' <<< "$PRE_OUT" | head -3)"
+fi
+grep -E 'Error: Kubernetes kind not served|declares kind CronTab|spec\.group is' <<< "$PRE_OUT" | head -3 | evidence
+# The renderer wraps a diagnostic's detail at the terminal width, so the
+# phrases are matched on the output with its line breaks folded to spaces.
+PRE_FLAT="$(tr '\n' ' ' <<< "$PRE_OUT" | tr -s ' ')"
+grep -q 'Error: Kubernetes kind not served by the cluster' <<< "$PRE_FLAT" \
+  || fail "k8s-custom-resource" "the plan failed, but not with the refusal by name: $PRE_OUT"
+grep -q 'kubernetes_manifest.crontab declares kind CronTab at apiVersion stable.example.com/v1' <<< "$PRE_FLAT" \
+  || fail "k8s-custom-resource" "the refusal does not name the block, kind and apiVersion: $PRE_OUT"
+grep -q 'spec.group is "stable.example.com" and spec.names.kind is "CronTab", with version "v1" served' <<< "$PRE_FLAT" \
+  || fail "k8s-custom-resource" "the refusal does not say which CRD to install: $PRE_OUT"
+grep -q 'on main.tf line' <<< "$PRE_FLAT" || fail "k8s-custom-resource" "the refusal does not point at the block's declaration: $PRE_OUT"
+if grep -qE '^Plan:|to add,' <<< "$PRE_OUT"; then
+  fail "k8s-custom-resource" "a plan was produced alongside the refusal: $PRE_OUT"
+fi
+proof "refused by name before the provider was asked: kubernetes_manifest.crontab, kind CronTab, apiVersion stable.example.com/v1, and the CRD (group stable.example.com, kind CronTab, version v1) that has to be installed. Non-zero exit, no plan."
+
+step "2. a CRD the cluster serves, installed with kubectl"
 explain \
   "The provider reads a custom kind's schema from the cluster when it" \
   "plans, so the CRD comes first, through kubectl, the way an operator's" \
@@ -124,15 +164,14 @@ kc wait --for=condition=Established crd/crontabs.stable.example.com --timeout=60
 kc get crd crontabs.stable.example.com -o jsonpath='{.metadata.name}{" "}{.spec.scope}{"\n"}' | evidence
 proof "crontabs.stable.example.com is served and namespaced. The estate below declares one CronTab through kubernetes_manifest."
 
-step "2. the estate applies: a namespace and a custom resource, no state file"
+step "3. the estate applies: a namespace and a custom resource, no state file"
 explain \
   "One kubernetes_manifest block. Its identity is the natural key written" \
   "inside the manifest - apiVersion, kind, metadata.namespace," \
   "metadata.name - which identity resolution reads out of the object" \
   "constructor without evaluating the manifest, rendered as the provider's" \
   "own import id. choudoufu keeps only a disposable cache."
-cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "k8s-custom-resource" "init failed"
+cmd "choudoufu apply -auto-approve"
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
@@ -205,7 +244,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
-step "3. the replan - prior state rebuilt from the cluster by the natural key"
+step "4. the replan - prior state rebuilt from the cluster by the natural key"
 explain \
   "With no state file, the next plan asks the cluster for the object the" \
   "manifest names: apiVersion=stable.example.com/v1,kind=CronTab," \
@@ -218,7 +257,7 @@ grep -q "No changes." <<< "$PLAN_OUT" || fail "k8s-custom-resource" "replan is n
 grep -E 'No changes\.' <<< "$PLAN_OUT" | head -1 | evidence
 proof "an empty plan, the custom resource found by the four keys written in its manifest and nothing else."
 
-step "4. the cache is disposable"
+step "5. the cache is disposable"
 cmd "rm .terraform/choudoufu-cache.tfstate && choudoufu plan"
 CACHE="$SMOKE_WORK/.terraform/choudoufu-cache.tfstate"
 [ -f "$CACHE" ] || fail "k8s-custom-resource" "no cache at $CACHE after a plain apply"
@@ -229,7 +268,7 @@ grep -q "No changes." <<< "$PLAN2" || fail "k8s-custom-resource" "deleting the c
 grep -E 'No changes\.' <<< "$PLAN2" | head -1 | evidence
 proof "the cache was there and its loss changed nothing."
 
-step "5. the block is removed - the sweep finds the object by its label and the plan removes it"
+step "6. the block is removed - the sweep finds the object by its label and the plan removes it"
 explain \
   "The kubernetes_manifest block is deleted from the configuration and" \
   "nothing else changes. No state file remembers the CronTab; the sweep" \
@@ -253,7 +292,7 @@ if kc get crontab my-crontab -n smoke-crd >/dev/null 2>&1; then
 fi
 proof "the CronTab is gone: found by its label under a kind the provider has no type for, and destroyed through kubernetes_manifest."
 
-step "6. the block returns - the object is created again"
+step "7. the block returns - the object is created again"
 cmd "(restore the block) && choudoufu apply -auto-approve"
 cp "$SMOKE_WORK/main.tf.full" "$SMOKE_WORK/main.tf"
 BACK="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
@@ -262,7 +301,7 @@ grep -qE 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed' <<< "$BACK
 grep -E 'Apply complete!' <<< "$BACK" | evidence
 proof "1 added, the same object at the same key, labelled again."
 
-step "7. destroy - exactly what was made"
+step "8. destroy - exactly what was made"
 cmd "choudoufu apply -destroy -auto-approve"
 DESTROY_OUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "apply -destroy failed: $DESTROY_OUT"
@@ -275,8 +314,9 @@ fi
 kc get crd crontabs.stable.example.com >/dev/null 2>&1 || fail "k8s-custom-resource" "the CRD is gone; destroy reached past the estate"
 proof "2 destroyed, 0 added, 0 changed. The custom resource is gone and the CRD, which nothing declared, stands."
 
-echo "  What you watched: a custom resource live its whole life without a state"
-echo "  file, found again each time by the apiVersion, kind, namespace and name"
-echo "  written inside its manifest, carrying the one tofu-estate label the"
-echo "  configuration never wrote, and found by that label once its block was"
-echo "  gone. A custom resource is inside the estate the way a ConfigMap is."
+echo "  What you watched: a custom resource refused by name while its CRD was"
+echo "  missing, then live its whole life without a state file, found again"
+echo "  each time by the apiVersion, kind, namespace and name written inside"
+echo "  its manifest, carrying the one tofu-estate label the configuration"
+echo "  never wrote, and found by that label once its block was gone. A custom"
+echo "  resource is inside the estate the way a ConfigMap is."

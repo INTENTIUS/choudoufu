@@ -52,6 +52,13 @@ func (s *liveLsStubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]ku
 	return s.kinds, nil, nil
 }
 
+// Serves is never asked by live-ls, which lists what the cluster has and
+// refuses nothing; it is here only because the sweep's interface carries
+// it for the plan's missing-CRD refusal (#1079).
+func (s *liveLsStubSweeper) Serves(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
+}
+
 func (s *liveLsStubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
 	s.selectors = append(s.selectors, k.Kind+" "+key+"="+value)
 	if k.Kind == s.failKind {

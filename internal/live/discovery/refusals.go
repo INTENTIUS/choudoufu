@@ -102,6 +102,14 @@ var refusals = []Refusal{
 		What:    "The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).",
 	},
 	{
+		Summary: "Kubernetes kind could not be verified",
+		What:    "A kubernetes_manifest block names an apiVersion and kind, the cluster answered API discovery for the sweep, but the one request asking whether it serves that exact group-version failed. Reported as a warning and the block stands: a cluster that cannot answer is never grounds to refuse a block, and the provider asks the same question when it plans it.",
+	},
+	{
+		Summary: "Kubernetes kind not served by the cluster",
+		What:    "A kubernetes_manifest block names an apiVersion and kind the cluster does not serve - the CustomResourceDefinition is not installed, or is served at another version (GitHub issue #1079's fourth ruling). Refused by name at the plan's first cluster contact, naming the block, the kind, the apiVersion and the CRD that would have to be installed, ahead of the provider's own error when it asks the cluster for a schema it has not got. live-check, which is offline, cannot ask the cluster and does not raise it.",
+	},
+	{
 		Summary: "Kubernetes sweep unavailable",
 		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.",
 	},
@@ -256,9 +264,9 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable {
-		// A gap in removal coverage, never a wrong plan: the run in front
-		// of the operator is correct and simply did not see everything.
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesKindUnverified {
+		// A gap in coverage, never a wrong plan: the run in front of the
+		// operator is correct and simply did not see everything.
 		return SeverityWarning
 	}
 	return SeverityError

@@ -8,6 +8,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // stubSweeper stands in for a cluster: fixed kinds, fixed objects per
@@ -25,6 +27,20 @@ type stubSweeper struct {
 	objects  map[string][]kubesweep.Object // by kind
 	failKind string
 	listed   []string
+	// notServed are the "apiVersion kind" pairs Serves answers false for;
+	// everything else is served. servesErr, when set, is what Serves
+	// returns for every pair instead, and asked counts the calls.
+	notServed map[string]bool
+	servesErr error
+	asked     int
+}
+
+func (s *stubSweeper) Serves(_ context.Context, apiVersion, kind string) (bool, error) {
+	s.asked++
+	if s.servesErr != nil {
+		return false, s.servesErr
+	}
+	return !s.notServed[apiVersion+" "+kind], nil
 }
 
 func (s *stubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubesweep.Kind, []string, error) {
@@ -259,4 +275,139 @@ func TestDeclaredKubernetesObjects(t *testing.T) {
 	if d.Count() != 3 {
 		t.Errorf("Count = %d, want 3", d.Count())
 	}
+}
+
+// TestKubernetesSweepRefusesAManifestKindTheClusterDoesNotServe (GitHub
+// issue #1079's fourth ruling): a manifest block naming a kind the
+// cluster does not serve is refused by name - block, kind, apiVersion and
+// the CRD to install - once per block however many instances the block
+// has, sourced at the block; a block whose kind is served is not; a
+// built-in type's block is never asked about. The cluster is asked once
+// per apiVersion/kind pair.
+func TestKubernetesSweepRefusesAManifestKindTheClusterDoesNotServe(t *testing.T) {
+	cfg := loadConfig(t, "testdata/manifest-unserved")
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	sweeper := &stubSweeper{
+		kinds:     []kubesweep.Kind{cm},
+		notServed: map[string]bool{"stable.example.com/v1 CronTab": true},
+	}
+	req := Request{
+		Estate:                 "smoke-crd",
+		Config:                 cfg,
+		Kubernetes:             sweeper,
+		KubernetesTypes:        []string{"kubernetes_config_map_v1", "kubernetes_manifest"},
+		KubernetesManifestType: "kubernetes_manifest",
+		Resolutions: []identity.Resolution{
+			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
+			{Addr: k8sKeyedInstance(t, "kubernetes_manifest", "many", "a"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=a"},
+			{Addr: k8sKeyedInstance(t, "kubernetes_manifest", "many", "b"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=b"},
+			{Addr: k8sInstance(t, "kubernetes_manifest", "cm"), Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=smoke-crd,name=via-manifest"},
+			{Addr: k8sInstance(t, "kubernetes_config_map_v1", "plain"), Class: identity.ClassConcrete, ImportID: "smoke-crd/plain"},
+		},
+	}
+	res := &Result{}
+	diags := sweepKubernetes(context.Background(), req, res)
+	if !diags.HasErrors() {
+		t.Fatal("a manifest block naming a kind the cluster does not serve was not refused")
+	}
+	var refusals []tfdiags.Diagnostic
+	for _, d := range diags {
+		if d.Description().Summary == SummaryKubernetesKindNotServed {
+			refusals = append(refusals, d)
+		} else if d.Severity() == tfdiags.Error {
+			t.Errorf("unexpected error %q: %s", d.Description().Summary, d.Description().Detail)
+		}
+	}
+	if len(refusals) != 2 {
+		t.Fatalf("refusals = %d, want 2 (one per block: crontab and the for_each block many, not one per instance): %s", len(refusals), diags.Err())
+	}
+	for _, d := range refusals {
+		detail := d.Description().Detail
+		for _, want := range []string{"kind CronTab", "apiVersion stable.example.com/v1", `spec.group is "stable.example.com"`, `spec.names.kind is "CronTab"`, `version "v1" served`} {
+			if !strings.Contains(detail, want) {
+				t.Errorf("refusal detail lacks %q: %s", want, detail)
+			}
+		}
+		if src := d.Source(); src.Subject == nil {
+			t.Errorf("refusal is sourceless; it should point at the block: %s", detail)
+		} else if !strings.HasSuffix(src.Subject.Filename, "main.tf") {
+			t.Errorf("refusal subject %s is not in the block's file", src.Subject.Filename)
+		}
+	}
+	names := refusals[0].Description().Detail[:40] + " / " + refusals[1].Description().Detail[:40]
+	if !strings.Contains(names, "kubernetes_manifest.crontab declares") || !strings.Contains(names, "kubernetes_manifest.many declares") {
+		t.Errorf("refusals do not name the two blocks: %s", names)
+	}
+	if sweeper.asked != 2 {
+		t.Errorf("Serves asked %d times, want 2 (once per apiVersion/kind pair: the CronTab and the ConfigMap)", sweeper.asked)
+	}
+}
+
+// TestKubernetesSweepNamesTheVersionTheClusterServes: when the sweep
+// listed the same kind in the same group at another version, the refusal
+// says so, since "served at v2" is the usual shape of "not served at v1".
+func TestKubernetesSweepNamesTheVersionTheClusterServes(t *testing.T) {
+	ct2 := kubesweep.Kind{GVR: schema.GroupVersionResource{Group: "stable.example.com", Version: "v2", Resource: "crontabs"}, Kind: "CronTab", Namespaced: true, APIVersion: "stable.example.com/v2", TypeNames: []string{"kubernetes_manifest"}, Manifest: true}
+	sweeper := &stubSweeper{kinds: []kubesweep.Kind{ct2}, notServed: map[string]bool{"stable.example.com/v1 CronTab": true}}
+	req := Request{
+		Estate:                 "smoke-crd",
+		Kubernetes:             sweeper,
+		KubernetesTypes:        []string{"kubernetes_manifest"},
+		KubernetesManifestType: "kubernetes_manifest",
+		Resolutions: []identity.Resolution{
+			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
+		},
+	}
+	diags := sweepKubernetes(context.Background(), req, &Result{})
+	if !diags.HasErrors() {
+		t.Fatal("not refused")
+	}
+	detail := diags.Err().Error()
+	if !strings.Contains(detail, "The cluster serves CronTab at apiVersion stable.example.com/v2") {
+		t.Errorf("refusal does not name the served version: %s", detail)
+	}
+	if diags[0].Source().Subject != nil {
+		t.Error("with no configuration the refusal should be sourceless, not point somewhere invented")
+	}
+}
+
+// TestKubernetesSweepDoesNotRefuseWhatItCannotVerify: the cluster
+// answered discovery but not the per-kind question. A warning, the block
+// stands, the sweep goes on; and a cluster that failed discovery
+// altogether never asks the question at all.
+func TestKubernetesSweepDoesNotRefuseWhatItCannotVerify(t *testing.T) {
+	sweeper := &stubSweeper{servesErr: errors.New("connection reset")}
+	req := Request{
+		Estate:                 "smoke-crd",
+		Kubernetes:             sweeper,
+		KubernetesTypes:        []string{"kubernetes_manifest"},
+		KubernetesManifestType: "kubernetes_manifest",
+		Resolutions: []identity.Resolution{
+			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
+		},
+	}
+	diags := sweepKubernetes(context.Background(), req, &Result{})
+	if diags.HasErrors() {
+		t.Fatalf("a cluster that could not answer refused the block: %s", diags.Err())
+	}
+	var warned bool
+	for _, d := range diags {
+		if d.Description().Summary == SummaryKubernetesKindUnverified && d.Severity() == tfdiags.Warning {
+			warned = true
+			if !strings.Contains(d.Description().Detail, "kubernetes_manifest.crontab") {
+				t.Errorf("warning does not name the block: %s", d.Description().Detail)
+			}
+		}
+	}
+	if !warned {
+		t.Errorf("no %q warning: %v", SummaryKubernetesKindUnverified, diags)
+	}
+	if SeverityForRefusal(SummaryKubernetesKindUnverified) != SeverityWarning || SeverityForRefusal(SummaryKubernetesKindNotServed) != SeverityError {
+		t.Error("SeverityForRefusal disagrees with the diagnostics: the unverified kind is a warning, the unserved kind an error")
+	}
+}
+
+func k8sKeyedInstance(t *testing.T, typeName, name, key string) addrs.AbsResourceInstance {
+	t.Helper()
+	return addrs.Resource{Mode: addrs.ManagedResourceMode, Type: typeName, Name: name}.Instance(addrs.StringKey(key)).Absolute(addrs.RootModuleInstance)
 }
