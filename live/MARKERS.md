@@ -133,6 +133,25 @@ other.
 so the join key is unknowable before the create, and that is the one shape
 that would put an address back on the object.
 
+A change of type between the two spellings of a kind
+(`kubernetes_config_map` to `kubernetes_config_map_v1`) is not a move and
+needs no `moved` block (#1081, item 2): the suffix is the API version the
+block is written against, both spellings render the same natural key, the
+sweep files both under the one kind, and the label carries no address to
+rewrite, so the replan is empty. Claim 21's step 5 measures it.
+
+`helm_release` is refused, by the ordinary unadmitted-type refusal, with
+or without hashicorp/helm's schema (#1081, item 4): the provider serves no
+resource identity schema for it and no object-metadata block, so neither
+admission route reaches it. It is not a record-rung candidate: a release
+is a release secret plus whatever the chart rendered, made by a path this
+tool never sees, and the rendered objects carry the chart's labels and
+Helm's `meta.helm.sh/release-name` annotation, never `tofu-estate`, so the
+sweep never lists them and nothing needs excluding. A chart's objects are
+owned here by rendering them into `kubernetes_manifest` blocks; a
+`tofu-estate` written through a chart's values makes each object an
+orphan the sweep proposes to remove.
+
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
 discovery: a kind the provider has a resource type for is filed under that

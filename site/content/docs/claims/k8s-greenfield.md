@@ -30,17 +30,23 @@ restoring it.
 
 The steps, in the order they print:
 
-1. `a Kubernetes estate, one plain apply` - a namespace and a ConfigMap
-   under a `live` block with no AWS provider anywhere; no
-   `terraform.tfstate` appears.
+1. `a Kubernetes estate, one plain apply` - a namespace, a ConfigMap, a
+   ServiceAccount and a Service under a `live` block with no AWS provider
+   anywhere; no `terraform.tfstate` appears.
 2. `the marker, read back with kubectl - no choudoufu in the loop` - the
    ConfigMap and the namespace both carry `tofu-estate=smoke-k8s`, and
    neither carries a `tofu-address`.
 3. `the replan - prior state rebuilt from the cluster` - empty.
 4. `the state cache - present, disposable, and never trusted` - deleted,
    and the replan is still empty.
-5. `destroy - exactly what was made` - two objects destroyed,
-   `kube-system` untouched.
+5. `an api_version change is not a move` - the ConfigMap block's type is
+   rewritten from `kubernetes_config_map` to `kubernetes_config_map_v1`
+   with the same metadata and no `moved` block, and the replan is empty:
+   both spellings name the same object
+   ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). A create
+   or a destroy here fails the step.
+6. `destroy - exactly what was made` - four objects destroyed, the
+   ConfigMap through its new spelling, `kube-system` untouched.
 
 The `BREAK=1` run removes the label with `kubectl label configmap
 app-config -n smoke-k8s tofu-estate-` after step 2. The next plan must
