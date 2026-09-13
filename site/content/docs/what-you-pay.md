@@ -115,11 +115,27 @@ Three runs per column, every plan empty, `TestSteadyStateCostAgainstFloci`
 | tagging-served, 101 objects | 247 | **256** (+3.6%) | 381 | 290 |
 | terralith, 10,069 objects | 18,510 | **19,666** (+6.2%) | 25,629 | 22,760 |
 
-The cache-off column is the control, and it is what makes the rest readable:
-same command, same estate, `CHOUDOUFU_STATE_CACHE=off`. It removes 51 calls
-at 79 objects, 125 at 101, and **5,963 at 10,069**. Without that column a
-flat number cannot be told from a cache that is not serving, which is how an
-earlier version of this page came to report the cache as doing nothing.
+The cache-off column does two jobs. It is the control - without it a flat
+number cannot be told from a cache that is not serving, which is how an
+earlier version of this page came to report the cache as doing nothing - and
+it is the more interesting number in its own right.
+
+**It is what a plan costs with the local state gone.** `CHOUDOUFU_STATE_CACHE=off`
+is the same situation as a deleted cache, a fresh clone, or a new machine: no
+local memory of the estate at all, ownership re-derived from the markers in
+the account. At 10,069 resources that is 25,629 calls against stock's 18,510,
+and the plan is correct - empty, every object found.
+
+Stock in that situation does not have a slower plan. It has none. A deleted
+state file is thousands of hand-written `import` blocks, and the same estate's
+`greenfield` stage proves the other side of it directly: with the record store
+deleted outright, all 9,477 objects were still found, nothing created,
+destroyed or replaced, 5,248 of them untaggable and composed from a stamped
+parent.
+
+So read the three columns as one sentence: steady state is near parity, and
+losing your local state costs a third more on one plan instead of costing you
+the estate.
 
 **The gap narrows as the estate grows.** +12.7% at 79 objects, +6.2% at
 10,069 - roughly half, on an estate a hundred and twenty times larger.
