@@ -269,3 +269,54 @@ func TestBoardLiveCertIsSeparate(t *testing.T) {
 		t.Fatal("a.LiveCert changed board content OUTSIDE its own field - the separation is not purely additive")
 	}
 }
+
+// TestLiveCertRefusalDoesNotDisplaceARealRun is issue #1100's guard.
+//
+// `live_cert` keeps ONE row per estate, so whatever is written there replaces
+// the last certification outright. A run the shell script refuses at its first
+// gate - "nothing has been created", its own words - creates nothing, spends
+// nothing and speaks no stage, and must not be the thing that replaces a run
+// which did all three.
+//
+// It happened. A `SCALE=136` attempt refused for a missing
+// LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY and overwrote the
+// 3,705-resource real-AWS row - three stages of evidence, throttle and retry
+// counts - with a bare exit-2 record carrying no detail at all. The runner
+// printed "recorded live-aws certification", which reads as progress. It was
+// recoverable only because the tree happened to be dirty.
+//
+// ProtocolResult.Spoken is the field that already answers this: it is false
+// when a script emitted no GAUNTLET line, and `gauntlet run` consults it for
+// precisely this reason (run.go's `if res.Spoken` branch). live-cert did not.
+func TestLiveCertRefusalDoesNotDisplaceARealRun(t *testing.T) {
+	real := LiveCertResult{
+		Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
+		Date: "2026-09-11T12:31:25Z", ExitCode: 1,
+		Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictFail},
+		Detail: map[string]string{"cold_deploy": "3705 resources from stock terraform against aws at scale=50 in 2023s"},
+	}
+	a := &Artifact{}
+	a.SetLiveCertResult(real)
+
+	refusal := LiveCertResult{
+		Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
+		Date: "2026-09-13T05:48:11Z", ExitCode: 2,
+	}
+	spoke := &ProtocolResult{Spoken: false}
+
+	if RecordsLiveCert(spoke) {
+		t.Fatal("a run that spoke no stage must not be recorded: live_cert keeps one row per estate, so recording it destroys the last real certification")
+	}
+	if !RecordsLiveCert(&ProtocolResult{Spoken: true}) {
+		t.Error("a run that spoke at least one stage must still be recorded - this guard must not turn into a refusal to record failures, which are evidence")
+	}
+
+	// And the artifact must still hold the real run untouched.
+	if len(a.LiveCert) != 1 {
+		t.Fatalf("LiveCert has %d row(s), want 1", len(a.LiveCert))
+	}
+	if got := a.LiveCert[0]; got.Date != real.Date || got.ExitCode != 1 || len(got.Detail) == 0 {
+		t.Errorf("the real run was displaced: date=%q exit=%d details=%d", got.Date, got.ExitCode, len(got.Detail))
+	}
+	_ = refusal
+}

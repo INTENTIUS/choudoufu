@@ -161,6 +161,30 @@ func (a *Artifact) SetLiveCertResult(r LiveCertResult) {
 //     second, independent enforcement alongside live/live-cert/run.sh's own
 //     `timeout` wrapper (the brief's "not just an in-script check") and the
 //     account-level AWS Budgets alarm that is infrastructure, not code.
+//
+// RecordsLiveCert reports whether a run's result should be written to
+// live/gauntlet.json at all (issue #1100).
+//
+// `live_cert` keeps one row per estate, so writing to it REPLACES the last
+// certification outright - there is no earlier version to fall back to. A run
+// the harness refused before it started creates nothing, spends nothing and
+// speaks no stage, and must not be what replaces a run that did all three.
+//
+// It happened on 2026-09-13. A scale-136 attempt refused for a missing
+// LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY - the script's own log line is
+// "nothing has been created" - and overwrote the 3,705-resource real-AWS row,
+// three stages of evidence with throttle and retry counts, with a bare exit-2
+// record carrying no detail. The runner printed "recorded live-aws
+// certification", which reads as progress.
+//
+// Spoken is the existing answer: false when a script emitted no GAUNTLET
+// line. RunEstates already gates on it for the same reason (run.go). This is
+// deliberately NOT a filter on failure - a run that spoke and failed is
+// evidence and is recorded exactly as before.
+func RecordsLiveCert(res *ProtocolResult) bool {
+	return res != nil && res.Spoken
+}
+
 func RunLiveCert(root string, estate, target, region string, ceilingUSD float64, ceilingSeconds int, confirm string) (*LiveCertResult, *ProtocolResult, int, error) {
 	if target != "floci" && target != "aws" {
 		return nil, nil, 0, fmt.Errorf("target must be floci or aws, got %q", target)

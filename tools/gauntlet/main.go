@@ -491,6 +491,14 @@ func cmdLiveCert(root string, args []string) error {
 		return nil
 	}
 
+	// A run that spoke no stage refused before it started, and live_cert
+	// keeps one row per estate - recording it would destroy the last real
+	// certification. See RecordsLiveCert (#1100).
+	if !RecordsLiveCert(res) {
+		fmt.Printf("live-cert %s: the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)\n", estate, ArtifactPath)
+		return nil
+	}
+
 	m, a, err := loadAll(root)
 	if err != nil {
 		return err
