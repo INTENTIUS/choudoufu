@@ -1,13 +1,17 @@
 # k8s-greenfield
-# CLAIM 21 - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, a stripped label is repaired by the next plan, and the estate lives its whole life without a state file. ~2 min.
+# CLAIM 21 - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, live-ls lists the estate by that label alone, a stripped label is repaired by the next plan, and the estate lives its whole life without a state file. ~2 min.
 #
 # The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
 # label; #1057's harness made it a demo first). The marker is ONE label,
 # tofu-estate, in metadata.labels; the address stays off the object because
 # group, kind, namespace and name are the join key back to configuration.
-# BREAK=1 strips the label with kubectl and requires the replan to propose
-# restoring it, which proves the empty-replan assertions are real and the
-# marker is what the plan reads.
+# Step 3 (#1081) is the inventory: live-ls learns the substrate from the
+# provider block and lists the estate the way the sweep does, one
+# label-selected list per kind, each object joined back to its block on
+# the kind and the natural key. BREAK=1 strips the label with kubectl and
+# requires both the listing to lose the object and the replan to propose
+# restoring it, which proves the inventory and the empty-replan assertions
+# are real and the label is what both read.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-greenfield"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -61,16 +65,62 @@ grep -q '"tofu-estate":"smoke-k8s"' <<< "$SA_LABELS" \
   || fail "k8s-greenfield" "the service account, a type with no ratified row, carries no tofu-estate label: $SA_LABELS"
 proof "the label rode the create call itself, on the ConfigMap and on the namespace. Any tool that can read a label can list this estate: kubectl get all -A -l tofu-estate=smoke-k8s."
 
+# live_ls runs the inventory from the estate's directory and prints it, so
+# each assertion below reads the same text a watcher sees.
+live_ls() { ( cd "$SMOKE_WORK" && chdf live-ls -estate=smoke-k8s -no-color . 2>&1 ); }
+
+step "3. the inventory - live-ls lists the estate by its label, no state file"
+explain \
+  "The AWS inventory is one tag-index call; the Kubernetes one is what the" \
+  "sweep does - one cluster-wide, label-selected list per kind the cluster" \
+  "serves. live-ls reads the provider block to learn which, builds the" \
+  "client from it, and joins each object back to the block that declares" \
+  "it on the kind and the natural key, because the object carries no" \
+  "address. Four objects, all declared, is the answer; nothing was read" \
+  "from a state file to produce it."
+cmd "choudoufu live-ls -estate=smoke-k8s ."
+LS_OUT="$(live_ls)" || fail "k8s-greenfield" "live-ls failed: $LS_OUT"
+grep -E 'carry its marker|^kubernetes_|^  kind:|^  address:' <<< "$LS_OUT" | evidence
+grep -q 'Estate "smoke-k8s": 4 resource(s) carry its marker' <<< "$LS_OUT" \
+  || fail "k8s-greenfield" "live-ls did not list exactly the 4 objects the apply made: $LS_OUT"
+for want in "ConfigMap (v1)|smoke-k8s/app-config" "Namespace (v1)|smoke-k8s" "ServiceAccount (v1)|smoke-k8s/app" "Service (v1)|smoke-k8s/app"; do
+  kind="${want%%|*}"; key="${want##*|}"
+  grep -qE "^kubernetes_[a-z_]+ +${key}\$" <<< "$LS_OUT" \
+    || fail "k8s-greenfield" "live-ls did not list the natural key ${key}: $LS_OUT"
+  grep -qF "  kind:    ${kind}" <<< "$LS_OUT" \
+    || fail "k8s-greenfield" "live-ls did not list a ${kind}: $LS_OUT"
+done
+grep -q '  address: kubernetes_config_map.app  (declared)' <<< "$LS_OUT" \
+  || fail "k8s-greenfield" "the ConfigMap was not joined back to kubernetes_config_map.app: $LS_OUT"
+grep -q '  address: kubernetes_namespace.app  (declared)' <<< "$LS_OUT" \
+  || fail "k8s-greenfield" "the namespace was not joined back to kubernetes_namespace.app: $LS_OUT"
+if grep -q 'undeclared' <<< "$LS_OUT"; then
+  fail "k8s-greenfield" "live-ls reports an undeclared object in an estate whose every object has a block: $LS_OUT"
+fi
+if grep -qiE 'Tagging index|IAM (role )?listing|Listing disabled' <<< "$LS_OUT"; then
+  fail "k8s-greenfield" "live-ls tried the AWS listing against a configuration with no aws provider: $LS_OUT"
+fi
+proof "4 objects listed by kind and natural key, each joined to the block that declares it, from the cluster's own labels. No AWS call was attempted: the substrate came from the provider block."
+
 if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - strip the label; the replan must propose restoring it"
+  step "BREAK control - strip the label; the listing must lose the object and the replan must propose restoring it"
   explain \
     "You asked for proof the assertions can fail. This removes the" \
     "tofu-estate label from the ConfigMap with kubectl, behind" \
     "choudoufu's back - the kind of edit a hostile or careless hand" \
-    "would make. If the next plan is still empty, the marker is not what" \
-    "the plan reads and this whole scenario is scenery."
+    "would make. If live-ls still lists the ConfigMap, the inventory is" \
+    "not reading the label; if the next plan is still empty, the marker" \
+    "is not what the plan reads and this whole scenario is scenery."
   cmd "kubectl label configmap app-config -n smoke-k8s tofu-estate-"
   kc label configmap app-config -n smoke-k8s tofu-estate- >/dev/null || fail "k8s-greenfield" "BREAK: could not strip the label"
+  cmd "choudoufu live-ls -estate=smoke-k8s ."
+  BLS="$(live_ls || true)"
+  grep -E 'carry its marker' <<< "$BLS" | evidence
+  if grep -q 'smoke-k8s/app-config' <<< "$BLS"; then
+    fail "k8s-greenfield" "BREAK: live-ls still lists the ConfigMap after its label was stripped - the inventory is not reading the label: $BLS"
+  fi
+  grep -q 'Estate "smoke-k8s": 3 resource(s) carry its marker' <<< "$BLS" \
+    || fail "k8s-greenfield" "BREAK: live-ls should list the 3 objects that still carry the label: $BLS"
   BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
   if grep -q "No changes." <<< "$BOUT"; then
     fail "k8s-greenfield" "BREAK: the plan is still empty after the label was stripped - the marker is not what the plan reads"
@@ -78,11 +128,11 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -E '^Plan:|tofu-estate' <<< "$BOUT" | head -3 | evidence
   grep -q '"tofu-estate" = "smoke-k8s"' <<< "$BOUT" \
     || fail "k8s-greenfield" "BREAK: the plan changed but does not propose restoring tofu-estate: $BOUT"
-  proof "caught. The stripped label is exactly what the plan proposes to restore, so every empty-plan claim in this scenario is a real check and the marker is load-bearing."
+  proof "caught, twice. The stripped label took the ConfigMap out of the listing and is exactly what the plan proposes to restore, so the inventory and every empty-plan claim in this scenario are real checks and the label is load-bearing."
   exit 0
 fi
 
-step "3. the replan - prior state rebuilt from the cluster"
+step "4. the replan - prior state rebuilt from the cluster"
 explain \
   "With no state file, the next plan asks the cluster what exists. Each" \
   "resource is found by the name and namespace the configuration" \
@@ -94,7 +144,7 @@ grep -E 'No changes\.' <<< "$PLAN_OUT" | head -1 | evidence
 grep -q "No changes." <<< "$PLAN_OUT" || fail "k8s-greenfield" "replan is not empty: $PLAN_OUT"
 proof "an empty plan, with nothing stored anywhere that could have remembered the estate."
 
-step "4. the state cache - present, disposable, and never trusted"
+step "5. the state cache - present, disposable, and never trusted"
 explain \
   "The apply wrote a cache under .terraform/. Same three rules as on AWS:" \
   "never consulted for ownership, live wins, losing it costs a read." \
@@ -109,7 +159,7 @@ grep -E 'No changes\.' <<< "$PLAN2" | head -1 | evidence
 grep -q "No changes." <<< "$PLAN2" || fail "k8s-greenfield" "deleting the cache changed the plan: $PLAN2"
 proof "the cache was there and its loss changed nothing."
 
-step "5. an api_version change is not a move"
+step "6. an api_version change is not a move"
 explain \
   "The provider ships two spellings of most kinds: kubernetes_config_map" \
   "and kubernetes_config_map_v1 both manage a ConfigMap, and the suffix" \
@@ -142,7 +192,7 @@ else
   proof "found, and updated in place for a representation difference between the two spellings; nothing is created and nothing is destroyed."
 fi
 
-step "6. destroy - exactly what was made"
+step "7. destroy - exactly what was made"
 explain \
   "Teardown must remove exactly the four objects this scenario created" \
   "and leave the cluster's own namespaces alone."
@@ -158,7 +208,21 @@ fi
 kc get namespace kube-system >/dev/null 2>&1 || fail "k8s-greenfield" "kube-system is gone; destroy reached past the estate"
 proof "4 destroyed, 0 added, 0 changed. The estate is gone and the cluster's own namespaces stand."
 
+step "8. the inventory after destroy - empty"
+explain \
+  "The same listing as step 3, against a cluster that no longer holds" \
+  "the estate. Nothing carries the label, so nothing is listed; a stale" \
+  "cache could not put anything back, because the listing never reads one."
+cmd "choudoufu live-ls -estate=smoke-k8s ."
+LS_AFTER="$(live_ls)" || fail "k8s-greenfield" "live-ls after destroy failed: $LS_AFTER"
+grep -E 'carry its marker|Nothing found' <<< "$LS_AFTER" | evidence
+grep -q 'Estate "smoke-k8s": 0 resource(s) carry its marker' <<< "$LS_AFTER" \
+  || fail "k8s-greenfield" "live-ls after destroy is not empty: $LS_AFTER"
+grep -q 'Nothing found.' <<< "$LS_AFTER" \
+  || fail "k8s-greenfield" "live-ls after destroy did not say Nothing found: $LS_AFTER"
+proof "an empty inventory, read from the cluster: the estate is gone and the listing says so."
+
 echo "  What you watched: a Kubernetes estate live its whole life on a real"
 echo "  cluster without an authoritative state file, its ownership carried as"
-echo "  one label any tool can read. What you did not watch: a sweep or a"
-echo "  gate. Those are the next units (#1016)."
+echo "  one label any tool can read, and live-ls reading that label back as"
+echo "  the estate's inventory. The sweep and the gate are claims 22 and 23."

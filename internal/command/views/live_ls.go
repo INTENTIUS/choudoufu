@@ -119,18 +119,36 @@ type LiveLsItem struct {
 	Declared bool
 
 	// Source names which pass found this item: "tagging" for the Resource
-	// Groups Tagging API's estate-wide GetResources call, or "iam" for the
+	// Groups Tagging API's estate-wide GetResources call, "iam" for the
 	// second pass over iam:ListRoles/iam:ListRoleTags GitHub issue #789
 	// asks for by name, because the tagging index does not serve IAM on a
-	// real account. An item the tagging pass already found is never
-	// reported a second time under "iam", even when the IAM pass would
-	// have found it too - see the command package's own dedup-by-ARN.
+	// real account, or "kubernetes" for the cluster-wide, label-selected
+	// list per kind a Kubernetes provider configuration in DIR gets
+	// (GitHub issue #1081). An item the tagging pass already found is
+	// never reported a second time under "iam", even when the IAM pass
+	// would have found it too - see the command package's own
+	// dedup-by-ARN.
 	Source string
 
 	// Tags are every marker tag this resource carries, unmodified - the raw
 	// material GitHub issue #789 asks for alongside the decoded fields
-	// above.
+	// above. For a Kubernetes object they are its metadata.labels, all of
+	// them, tofu-estate included.
 	Tags map[string]string
+
+	// Kind and APIVersion are set for a Kubernetes object only: the kind
+	// the cluster serves it as and the group/version it was listed at
+	// ("v1" for the core group). For such an item ID is the natural key,
+	// NAMESPACE/NAME or NAME for a cluster-scoped kind, Type is the
+	// provider type the object is filed under (the type a block in DIR
+	// declares the kind through, else the provider's versioned name, else
+	// the manifest type for a kind no built-in type manages), and Address
+	// is the declaring block's address when one declares it - the join is
+	// the kind and the natural key, since the Kubernetes marker carries
+	// no address (live/MARKERS.md, "Kubernetes: one label") - or empty
+	// when none does. Both empty for an AWS item.
+	Kind       string
+	APIVersion string
 }
 
 // LiveLsGap is one declared instance the listing itself cannot see, and why.
@@ -198,6 +216,10 @@ type liveLsJSONItem struct {
 	Declared bool              `json:"declared"`
 	Source   string            `json:"source"`
 	Tags     map[string]string `json:"tags"`
+	// Kind and APIVersion appear on a Kubernetes object only, so an AWS
+	// document is byte-for-byte what it was before GitHub issue #1081.
+	Kind       string `json:"kind,omitempty"`
+	APIVersion string `json:"api_version,omitempty"`
 }
 
 type liveLsJSONGap struct {
@@ -250,13 +272,15 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 	}
 	for _, item := range rep.Items {
 		out.Items = append(out.Items, liveLsJSONItem{
-			ID:       item.ID,
-			Type:     item.Type,
-			Address:  item.Address,
-			Slot:     item.Slot,
-			Declared: item.Declared,
-			Source:   item.Source,
-			Tags:     item.Tags,
+			ID:         item.ID,
+			Type:       item.Type,
+			Address:    item.Address,
+			Slot:       item.Slot,
+			Declared:   item.Declared,
+			Source:     item.Source,
+			Tags:       item.Tags,
+			Kind:       item.Kind,
+			APIVersion: item.APIVersion,
 		})
 	}
 	for _, gap := range rep.Gaps {
@@ -311,6 +335,10 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 	}
 	for _, item := range rep.Items {
 		fmt.Fprintf(&b, "\n%-28s %s\n", item.Type, item.ID)
+		kubernetes := item.Kind != ""
+		if kubernetes {
+			fmt.Fprintf(&b, "  kind:    %s (%s)\n", item.Kind, item.APIVersion)
+		}
 		if item.Address != "" {
 			declared := ""
 			if rep.ConfigDir != "" {
@@ -321,6 +349,11 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 				}
 			}
 			fmt.Fprintf(&b, "  address: %s%s\n", item.Address, declared)
+		} else if kubernetes {
+			// A Kubernetes object carries no address by design; one is
+			// listed only with DIR in hand, so an empty address here means
+			// no block in DIR names this kind at this natural key.
+			b.WriteString("  address: (undeclared - no block in DIR names this object)\n")
 		} else {
 			b.WriteString("  address: (no readable tofu-address marker)\n")
 		}
@@ -334,7 +367,11 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
-			fmt.Fprintf(&b, "  tags:    %s\n", strings.Join(tagPairs(item.Tags, keys), ", "))
+			label := "tags:  "
+			if kubernetes {
+				label = "labels:"
+			}
+			fmt.Fprintf(&b, "  %s  %s\n", label, strings.Join(tagPairs(item.Tags, keys), ", "))
 		}
 	}
 

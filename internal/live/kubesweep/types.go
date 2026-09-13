@@ -146,6 +146,17 @@ func TypeFor(kindTypes map[string][]string, declared map[string]bool, kind strin
 	return candidates[0], true
 }
 
+// NaturalKey is the NAMESPACE/NAME (or NAME, for a cluster-scoped kind) a
+// listed object and a declared block meet on, whichever type either is
+// filed under - the join every reader of a Kubernetes listing makes, the
+// sweep and live-ls alike.
+func NaturalKey(namespace, name string) string {
+	if namespace == "" {
+		return name
+	}
+	return namespace + "/" + name
+}
+
 // OrphanResourceName is the resource name an undeclared object is planned
 // under, since an estate-only label carries no configuration address:
 // orphan_<namespace>_<name>, or orphan_<name> for a cluster-scoped kind,

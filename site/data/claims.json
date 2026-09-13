@@ -492,7 +492,7 @@
       "minutes": 2,
       "needs_go": false,
       "theme": "adopt",
-      "break_mode": "BREAK=1 strips the label with kubectl and requires the replan to propose restoring it",
+      "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to propose restoring it",
       "substrate": "kubernetes",
       "providers": {
         "aws": {

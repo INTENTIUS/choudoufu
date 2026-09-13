@@ -33,6 +33,21 @@ marker to find from one that is genuinely absent. Its `gaps` key is always
 present, and `gaps_skipped` names the reason when the comparison did not run,
 so an empty list is never mistaken for "no gaps".
 
+On Kubernetes, `live-ls` needs DIR for the listing itself, not only for the
+comparison: the substrate is read off the configuration's provider blocks,
+and a `kubernetes` provider among them gets the cluster listed the way the
+estate sweep lists it, one cluster-wide, label-selected list per kind the
+cluster serves, custom resources included, controller-made objects excluded.
+Each object prints with the provider type it is filed under, its natural key
+(`NAMESPACE/NAME`, or `NAME` for a cluster-scoped kind), its kind and API
+version, every label it carries, and the block in DIR that declares it,
+joined on the kind and the natural key because the Kubernetes marker is the
+estate label alone. A configuration with both providers lists both
+substrates; one with a `kubernetes` provider and no `aws` provider lists the
+cluster alone. A cluster the run cannot reach is the sweep's own warning,
+`Kubernetes sweep unavailable`, and the rest of the listing stands
+([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}}) runs it on kind).
+
 ## What it does not check
 
 It checks two of five stages. Lint and identity resolution need no provider,

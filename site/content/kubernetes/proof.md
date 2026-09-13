@@ -95,7 +95,9 @@ Two things survive. A label-selected list returns only the estate's objects
 and does not grow with the cluster, so "a plan costs its estate, not its
 account" holds in weakened form. And because the universe of kinds is asked
 rather than tabulated, an admitted type the generated table did not know
-about cannot be owned, orphaned and unreachable.
+about cannot be owned, orphaned and unreachable. `live-ls DIR` is the same
+listing printed as an inventory, each object joined to the block that
+declares it ([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
 
 What does not survive is "one call", and the claims page marks claim 14
 restated rather than pretending otherwise.

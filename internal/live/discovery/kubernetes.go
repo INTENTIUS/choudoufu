@@ -59,54 +59,12 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 
 	// The provider's object-metadata types are the universe, and the
 	// configuration's concrete resolutions are what is declared: a
-	// declared object is (type, import id), and a listed object of a kind
-	// managed by more than one type name is declared if any of those
-	// names declares it.
-	declaredTypes := map[string]bool{}
-	declaredIDs := map[string]map[string]bool{} // kind -> NAMESPACE/NAME (or NAME) -> true
-	kindOf := map[string]string{}
+	// declared object is (kind, natural key), whichever type it was
+	// declared through - see [DeclaredKubernetesObjects].
 	manifestType := req.KubernetesManifestType
-	for _, t := range req.KubernetesTypes {
-		if t == manifestType {
-			continue
-		}
-		if kind, _, ok := kubesweep.KindOfType(t); ok {
-			kindOf[t] = kind
-		}
-	}
-	declare := func(kind, key string) {
-		if declaredIDs[kind] == nil {
-			declaredIDs[kind] = map[string]bool{}
-		}
-		declaredIDs[kind][key] = true
-	}
-	for _, r := range req.Resolutions {
-		t := r.Addr.Resource.Resource.Type
-		if manifestType != "" && t == manifestType {
-			// A manifest block declares whatever kind its manifest names,
-			// by the same natural key a built-in type's block would: a
-			// ConfigMap declared this way is not an orphan of
-			// kubernetes_config_map_v1, and a CronTab declared this way
-			// is not an orphan of kubernetes_manifest.
-			declaredTypes[t] = true
-			if r.Class != identity.ClassConcrete {
-				continue
-			}
-			if _, kind, namespace, name, ok := kubesweep.ParseManifestImportID(r.ImportID); ok {
-				declare(kind, naturalKey(namespace, name))
-			}
-			continue
-		}
-		kind, ok := kindOf[t]
-		if !ok {
-			continue
-		}
-		declaredTypes[t] = true
-		if r.Class != identity.ClassConcrete || r.ImportID == "" {
-			continue
-		}
-		declare(kind, r.ImportID)
-	}
+	declared := DeclaredKubernetesObjects(req.Resolutions, req.KubernetesTypes, manifestType)
+	declaredTypes := declared.Types
+	declaredIDs := declared.Objects
 
 	kinds, unserved, err := req.Kubernetes.Kinds(ctx, req.KubernetesTypes, manifestType)
 	if err != nil {
@@ -126,10 +84,7 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 	// The manifest type is one scan over every kind it lists, not one per
 	// kind: a reader of the scan table asks "was kubernetes_manifest
 	// swept", and the kinds are the detail of the answer.
-	manifestKinds, manifestDeclared := 0, 0
-	for _, ids := range declaredIDs {
-		manifestDeclared += len(ids)
-	}
+	manifestKinds, manifestDeclared := 0, declared.Count()
 	for _, k := range kinds {
 		objects, ownerSkipped, err := req.Kubernetes.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
@@ -161,7 +116,7 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 			typeName, _ = kubesweep.TypeFor(kindTypes, declaredTypes, k.Kind)
 		}
 		for _, o := range objects {
-			if declaredIDs[k.Kind][naturalKey(o.Namespace, o.Name)] {
+			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
 				continue
 			}
 			name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
@@ -178,7 +133,7 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 				ImportID:    o.ImportID,
 				Marker:      req.Estate,
 				Normalized:  markers.EscapeAddress(addr.String()),
-				DisplayName: k.Kind + " " + naturalKey(o.Namespace, o.Name),
+				DisplayName: k.Kind + " " + kubesweep.NaturalKey(o.Namespace, o.Name),
 				Tags:        o.Labels,
 				Resource:    cty.NilVal,
 				Swept:       true,
@@ -205,11 +160,94 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 	return diags
 }
 
-// naturalKey is the NAMESPACE/NAME (or NAME) a listed object and a
-// declared block meet on, whichever type either is filed under.
-func naturalKey(namespace, name string) string {
-	if namespace == "" {
-		return name
+// KubernetesDeclared is what a configuration declares on a cluster, by
+// the join a listed object is matched on: the kinds and natural keys of
+// every concrete resolution of a Kubernetes type, each naming the block
+// that declares it, and the set of Kubernetes types the configuration
+// declares at all (which is what [kubesweep.TypeFor] files an undeclared
+// object under).
+type KubernetesDeclared struct {
+	// Types is every Kubernetes resource type the configuration declares
+	// a block of, the manifest type included.
+	Types map[string]bool
+	// Objects is kind -> natural key ([kubesweep.NaturalKey]) -> the
+	// declaring instance's address. A block declared through the manifest
+	// type is filed under the kind its manifest names, so a ConfigMap
+	// declared that way meets a listed ConfigMap exactly as a
+	// kubernetes_config_map block's would.
+	Objects map[string]map[string]addrs.AbsResourceInstance
+}
+
+// Declares reports whether the configuration declares the object of kind
+// at key, and which block does.
+func (d KubernetesDeclared) Declares(kind, key string) (addrs.AbsResourceInstance, bool) {
+	addr, ok := d.Objects[kind][key]
+	return addr, ok
+}
+
+// Count is how many objects the configuration declares, across kinds.
+func (d KubernetesDeclared) Count() int {
+	n := 0
+	for _, keys := range d.Objects {
+		n += len(keys)
 	}
-	return namespace + "/" + name
+	return n
+}
+
+// DeclaredKubernetesObjects is the one rule for what a configuration
+// declares on a cluster, shared by the sweep (an object nothing declares
+// is an orphan) and by live-ls (an object a block declares is reported
+// under that block's address). typeNames is the provider's Kubernetes
+// type universe, [Request.KubernetesTypes]; manifestType names the
+// manifest type among them, or is empty when the provider has none.
+//
+// A built-in type's resolution declares (kind recovered from the type
+// name by [kubesweep.KindOfType], its import id NAMESPACE/NAME or NAME);
+// a manifest type's resolution declares (the kind its manifest names, the
+// natural key read back from the manifest import id). A resolution that
+// is not concrete declares nothing yet - its object cannot be named until
+// the run that creates it - but still counts its type as declared.
+func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []string, manifestType string) KubernetesDeclared {
+	out := KubernetesDeclared{
+		Types:   map[string]bool{},
+		Objects: map[string]map[string]addrs.AbsResourceInstance{},
+	}
+	kindOf := map[string]string{}
+	for _, t := range typeNames {
+		if t == manifestType {
+			continue
+		}
+		if kind, _, ok := kubesweep.KindOfType(t); ok {
+			kindOf[t] = kind
+		}
+	}
+	declare := func(kind, key string, addr addrs.AbsResourceInstance) {
+		if out.Objects[kind] == nil {
+			out.Objects[kind] = map[string]addrs.AbsResourceInstance{}
+		}
+		out.Objects[kind][key] = addr
+	}
+	for _, r := range resolutions {
+		t := r.Addr.Resource.Resource.Type
+		if manifestType != "" && t == manifestType {
+			out.Types[t] = true
+			if r.Class != identity.ClassConcrete {
+				continue
+			}
+			if _, kind, namespace, name, ok := kubesweep.ParseManifestImportID(r.ImportID); ok {
+				declare(kind, kubesweep.NaturalKey(namespace, name), r.Addr)
+			}
+			continue
+		}
+		kind, ok := kindOf[t]
+		if !ok {
+			continue
+		}
+		out.Types[t] = true
+		if r.Class != identity.ClassConcrete || r.ImportID == "" {
+			continue
+		}
+		declare(kind, r.ImportID, r.Addr)
+	}
+	return out
 }

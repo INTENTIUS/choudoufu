@@ -194,3 +194,85 @@ func TestLiveLsHuman_NoSchemasSaysSo(t *testing.T) {
 		t.Errorf("the prose report does not name the init remedy for a comparison that read no provider schemas:\n%s", out)
 	}
 }
+
+// GitHub issue #1081, item 1: a Kubernetes object in the listing. The
+// human report says the kind and the API version, calls the map "labels",
+// and explains an empty address as "undeclared" - a Kubernetes object
+// carries no address by design, and one is only ever listed with DIR in
+// hand - rather than as an unreadable marker. The JSON item carries
+// "kind" and "api_version" for such an object and neither key for an AWS
+// one, so TestLiveLsDocument_topLevelShapeIsPinned above still holds
+// byte for byte.
+func TestLiveLsHuman_KubernetesObject(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	(&LiveLsHuman{view: NewView(streams)}).Report(LiveLsReport{
+		Estate:    "smoke-k8s",
+		ConfigDir: ".",
+		Items: []LiveLsItem{
+			{
+				ID: "smoke-k8s/app-config", Type: "kubernetes_config_map", Kind: "ConfigMap", APIVersion: "v1",
+				Address: "kubernetes_config_map.app", Declared: true, Source: "kubernetes",
+				Tags: map[string]string{"tofu-estate": "smoke-k8s", "app": "web"},
+			},
+			{
+				ID: "smoke-k8s/stray", Type: "kubernetes_config_map", Kind: "ConfigMap", APIVersion: "v1",
+				Source: "kubernetes", Tags: map[string]string{"tofu-estate": "smoke-k8s"},
+			},
+		},
+	})
+	out := done(t).Stdout()
+
+	const want = `
+Estate "smoke-k8s": 2 resource(s) carry its marker.
+
+kubernetes_config_map        smoke-k8s/app-config
+  kind:    ConfigMap (v1)
+  address: kubernetes_config_map.app  (declared)
+  found by: kubernetes
+  labels:  app=web, tofu-estate=smoke-k8s
+
+kubernetes_config_map        smoke-k8s/stray
+  kind:    ConfigMap (v1)
+  address: (undeclared - no block in DIR names this object)
+  found by: kubernetes
+  labels:  tofu-estate=smoke-k8s
+
+0 declared instance(s) in . the listing itself cannot see:
+None - every declared instance this configuration knows how to check for is either in the listing above or on a rung this run could not classify.
+
+No provider schemas were available, so no resource type's taggability could be read.
+Instances whose type carries no tags argument - the declaration-carried rung, which this
+listing structurally cannot see - are missing from the section above rather than reported
+in it. Run "choudoufu init" in that directory for the accurate answer.
+`
+	if out != want {
+		t.Errorf("Kubernetes objects render differently.\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+}
+
+func TestLiveLsJSON_KubernetesObjectCarriesKindAndAPIVersion(t *testing.T) {
+	out := renderLiveLsJSON(t, LiveLsReport{
+		Estate: "smoke-k8s",
+		Items: []LiveLsItem{
+			{ID: "smoke-k8s/app-config", Type: "kubernetes_config_map", Kind: "ConfigMap", APIVersion: "v1", Source: "kubernetes", Tags: map[string]string{"tofu-estate": "smoke-k8s"}},
+			{ID: "arn:aws:s3:::my-bucket", Type: "aws_s3_bucket", Source: "tagging", Tags: map[string]string{"tofu-estate": "smoke-k8s"}},
+		},
+	})
+	var doc struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("not JSON: %s\n%s", err, out)
+	}
+	if len(doc.Items) != 2 {
+		t.Fatalf("items = %v", doc.Items)
+	}
+	if doc.Items[0]["kind"] != "ConfigMap" || doc.Items[0]["api_version"] != "v1" {
+		t.Errorf("the Kubernetes item lacks kind/api_version: %v", doc.Items[0])
+	}
+	for _, key := range []string{"kind", "api_version"} {
+		if _, present := doc.Items[1][key]; present {
+			t.Errorf("the AWS item carries %q, which changes the pinned document shape: %v", key, doc.Items[1])
+		}
+	}
+}
