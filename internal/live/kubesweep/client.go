@@ -25,8 +25,16 @@ type Kind struct {
 	GVR        schema.GroupVersionResource
 	Kind       string
 	Namespaced bool
-	// TypeNames are the provider types that manage this kind, sorted.
+	// APIVersion is the group/version the kind is listed at ("v1" for the
+	// core group), the first key of a [ManifestImportID].
+	APIVersion string
+	// TypeNames are the provider types that manage this kind, sorted;
+	// the manifest type alone when no built-in type does.
 	TypeNames []string
+	// Manifest reports that this kind is listed under the manifest type:
+	// no built-in type manages it, and an object of it imports by
+	// [ManifestImportID] rather than NAMESPACE/NAME.
+	Manifest bool
 }
 
 // Object is one live object carrying the estate's label whose controller,
@@ -36,8 +44,9 @@ type Object struct {
 	Namespace string
 	Name      string
 	Labels    map[string]string
-	// ImportID is the provider's documented import id: NAMESPACE/NAME, or
-	// NAME for a cluster-scoped kind.
+	// ImportID is the provider's documented import id for the type the
+	// kind is filed under: NAMESPACE/NAME, or NAME for a cluster-scoped
+	// kind, for a built-in type; [ManifestImportID] for the manifest type.
 	ImportID string
 }
 
@@ -45,9 +54,12 @@ type Object struct {
 // stand in for a cluster.
 type Sweeper interface {
 	// Kinds are the listable kinds among typeNames' kinds, in a stable
-	// order, and the provider types whose kinds the cluster does not
+	// order - plus, when manifestType names the provider's type that
+	// manages any served kind (empty when it has none), every other kind
+	// the cluster serves with list and delete verbs, filed under that
+	// type - and the provider types whose kinds the cluster does not
 	// serve at all.
-	Kinds(ctx context.Context, typeNames []string) (kinds []Kind, unserved []string, err error)
+	Kinds(ctx context.Context, typeNames []string, manifestType string) (kinds []Kind, unserved []string, err error)
 	// List returns every object of k carrying label key=value, excluding
 	// controller-owned ones, and how many of those it excluded.
 	List(ctx context.Context, k Kind, key, value string) (objects []Object, ownerSkipped int, err error)
@@ -83,8 +95,15 @@ func NewWith(disc discovery.DiscoveryInterface, dyn dynamic.Interface) *Client {
 // group, since those are distinct resources; a kind served at more than
 // one version within a group is listed at the group's preferred version
 // only, since those are one resource.
-func (c *Client) Kinds(ctx context.Context, typeNames []string) ([]Kind, []string, error) {
-	byKind := KindTypes(typeNames)
+func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
+	var builtIn []string
+	for _, t := range typeNames {
+		if t != manifestType {
+			builtIn = append(builtIn, t)
+		}
+	}
+	byKind := KindTypes(builtIn)
+	manifest := manifestType != ""
 	groups, lists, err := c.disc.ServerGroupsAndResources()
 	if err != nil && len(lists) == 0 {
 		// A partial discovery failure (one aggregated API group down)
@@ -115,8 +134,22 @@ func (c *Client) Kinds(ctx context.Context, typeNames []string) ([]Kind, []strin
 			if strings.Contains(r.Name, "/") {
 				continue // a subresource: pods/status, deployments/scale
 			}
+			if !hasVerb(r.Verbs, "list") || !hasVerb(r.Verbs, "delete") {
+				continue
+			}
 			types, ok := byKind[r.Kind]
-			if !ok || !hasVerb(r.Verbs, "list") || !hasVerb(r.Verbs, "delete") {
+			if !ok {
+				if !manifest {
+					continue
+				}
+				kinds = append(kinds, Kind{
+					GVR:        gv.WithResource(r.Name),
+					Kind:       r.Kind,
+					Namespaced: r.Namespaced,
+					APIVersion: list.GroupVersion,
+					TypeNames:  []string{manifestType},
+					Manifest:   true,
+				})
 				continue
 			}
 			served[r.Kind] = true
@@ -124,6 +157,7 @@ func (c *Client) Kinds(ctx context.Context, typeNames []string) ([]Kind, []strin
 				GVR:        gv.WithResource(r.Name),
 				Kind:       r.Kind,
 				Namespaced: r.Namespaced,
+				APIVersion: list.GroupVersion,
 				TypeNames:  types,
 			})
 		}
@@ -173,6 +207,9 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 			}
 			if k.Namespaced {
 				o.ImportID = item.GetNamespace() + "/" + item.GetName()
+			}
+			if k.Manifest {
+				o.ImportID = ManifestImportID(k.APIVersion, k.Kind, item.GetNamespace(), item.GetName())
 			}
 			items = append(items, o)
 		}

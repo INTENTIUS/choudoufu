@@ -1566,10 +1566,11 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	// arguments the provider itself connects with, and the object-metadata
 	// types as its universe. The AWS legs below are the AWS provider's.
 	if providerAddr.Provider.Type == "kubernetes" {
-		sweeper, types, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
+		sweeper, types, manifestType, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
 		diags = diags.Append(kubeDiags)
 		req.Kubernetes = sweeper
 		req.KubernetesTypes = types
+		req.KubernetesManifestType = manifestType
 		// The AWS sweep loops draw their universe from the admission
 		// table, which a kubernetes provider handle cannot list; the
 		// Kubernetes leg is this pass's whole sweep.
@@ -4007,17 +4008,25 @@ func (c *LivePlanCommand) Synopsis() string {
 // identity.ObjectMetaShape admits. A block this run cannot connect with
 // yields a nil sweeper and one warning: the plan still runs, with no
 // Kubernetes removals proposed, and says so.
-func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, tfdiags.Diagnostics) {
+func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, string, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
 	if schemaDiags.HasErrors() {
-		return nil, nil, diags.Append(schemaDiags)
+		return nil, nil, "", diags.Append(schemaDiags)
 	}
 	var types []string
+	var manifestType string
 	for name, rs := range schema.ResourceTypes {
 		if _, ok := identity.ObjectMetaShape(rs.Block); ok {
 			types = append(types, name)
+		}
+		if identity.ManifestShape(rs.Block) {
+			// GitHub issue #1079: the type the manifest shape admits,
+			// found by shape and never by name, puts every served kind
+			// in the sweep's universe, CRDs included.
+			types = append(types, name)
+			manifestType = name
 		}
 	}
 	sort.Strings(types)
@@ -4031,10 +4040,10 @@ func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.A
 		var client *kubesweep.Client
 		client, err = kubesweep.New(cfg)
 		if err == nil {
-			return client, types, diags
+			return client, types, manifestType, diags
 		}
 	}
-	return nil, types, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+	return nil, types, manifestType, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
 		fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
 }
 

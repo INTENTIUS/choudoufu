@@ -113,10 +113,15 @@ type Request struct {
 	// list per kind. Nil for every other provider, in which case the leg
 	// does nothing. KubernetesTypes are the provider's resource types the
 	// object-metadata rule admits (identity.ObjectMetaShape), the
-	// universe the leg joins to what the cluster serves. See
-	// kubernetes.go.
-	Kubernetes      kubesweep.Sweeper
-	KubernetesTypes []string
+	// universe the leg joins to what the cluster serves, plus
+	// KubernetesManifestType when the provider has one: the type the
+	// manifest shape admits (identity.ManifestShape), under which every
+	// served kind no other type manages is listed (GitHub issue #1079).
+	// Empty when the provider has no such type, and then those kinds are
+	// not listed. See kubernetes.go.
+	Kubernetes             kubesweep.Sweeper
+	KubernetesTypes        []string
+	KubernetesManifestType string
 
 	// Region is the region to list in, passed to any list configuration
 	// that accepts a region argument. Empty leaves it unset, which lets the

@@ -22,7 +22,8 @@
 //
 // # Which kinds
 //
-// The kinds the provider has a resource type for, joined by kind name.
+// Every kind the cluster serves with list and delete verbs. A kind the
+// provider has a resource type for is joined by kind name:
 // hashicorp/kubernetes names its types kubernetes_<snake_kind> with an
 // optional API-version suffix (kubernetes_config_map and
 // kubernetes_config_map_v1 both manage a ConfigMap; kubernetes_ingress
@@ -31,11 +32,19 @@
 // and [TypeFor] picks, for a listed object, the type the configuration
 // declares for that kind when it declares one, else the versioned name
 // when there is one (it targets the API the cluster serves today), else
-// the plain one. A kind with no provider type at all - every CRD, and
-// anything kubernetes_manifest would manage - is not listed: an object of
-// such a kind could be found but not destroyed through the provider, and
-// listing what cannot be acted on is what the AWS sweep's own admission
-// universe also declines to do.
+// the plain one. Every other served kind - every CRD, and the built-in
+// kinds the provider never gave a type - is listed under the manifest
+// type (GitHub issue #1079's third unit): the provider's one type that
+// manages any kind the cluster serves, admitted by schema shape
+// (markers.ManifestSurface) and named to [Sweeper.Kinds] by the caller
+// that read the schema, so that no type name is spelled out here.
+// kubernetes_manifest imports by apiVersion, kind, namespace and name
+// ([ManifestImportID]) and destroys through the live object it read, so
+// an orphan of such a kind can be acted on exactly as one of a built-in
+// kind can. Before #1079 those kinds were not listed at all, on the
+// reasoning that what cannot be destroyed through the provider should
+// not be proposed; once kubernetes_manifest is in the type universe that
+// reasoning points the other way.
 //
 // # What is excluded, and why it is the whole safety of this
 //
@@ -157,4 +166,52 @@ func OrphanResourceName(namespace, name string) string {
 		}
 	}
 	return b.String()
+}
+
+// ManifestOrphanResourceName is [OrphanResourceName] for an object listed
+// under the manifest type: orphan_<kind>_<namespace>_<name>, the kind
+// folded to lower case, because that type files every kind under one name
+// and two kinds can each have an object of the same namespace and name.
+func ManifestOrphanResourceName(kind, namespace, name string) string {
+	rest := strings.TrimPrefix(OrphanResourceName(namespace, name), "orphan_")
+	return OrphanResourceName("", strings.ToLower(kind)) + "_" + rest
+}
+
+// ManifestImportID renders the provider's documented import id for a
+// kubernetes_manifest object, the namespace segment present for a
+// namespaced kind only: the same string internal/live/identity renders
+// for a declared block, so a listed object and a resolution meet on it.
+func ManifestImportID(apiVersion, kind, namespace, name string) string {
+	if namespace == "" {
+		return "apiVersion=" + apiVersion + ",kind=" + kind + ",name=" + name
+	}
+	return "apiVersion=" + apiVersion + ",kind=" + kind + ",namespace=" + namespace + ",name=" + name
+}
+
+// ParseManifestImportID reads a [ManifestImportID] back. ok is false for
+// anything that is not one, including a value with the four keys in
+// another order (the provider's own parser takes them in any order, but
+// nothing here writes them in any other).
+func ParseManifestImportID(id string) (apiVersion, kind, namespace, name string, ok bool) {
+	fields := map[string]string{}
+	for _, part := range strings.Split(id, ",") {
+		k, v, found := strings.Cut(part, "=")
+		if !found || k == "" || v == "" {
+			return "", "", "", "", false
+		}
+		if _, dup := fields[k]; dup {
+			return "", "", "", "", false
+		}
+		switch k {
+		case "apiVersion", "kind", "namespace", "name":
+		default:
+			return "", "", "", "", false
+		}
+		fields[k] = v
+	}
+	apiVersion, kind, namespace, name = fields["apiVersion"], fields["kind"], fields["namespace"], fields["name"]
+	if apiVersion == "" || kind == "" || name == "" {
+		return "", "", "", "", false
+	}
+	return apiVersion, kind, namespace, name, true
 }
