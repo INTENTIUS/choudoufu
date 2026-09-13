@@ -6,9 +6,8 @@
 package identity
 
 import (
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -30,32 +29,18 @@ import (
 // identity, so a sibling reading kubernetes_manifest.x.object.metadata.name
 // is refused today the way any non-identity reference is. The marker on a
 // manifest object - the same tofu-estate label, into
-// manifest.metadata.labels - and the sweep over every kind the cluster
-// serves are the ruling's next two units; until the first lands a manifest
-// object is bound by its natural key and carries no label, the way an
-// untaggable AWS type is bound by its declaration.
+// manifest.metadata.labels, written by internal/live/projection's node
+// stamp (nodestamp_manifest.go) - is the ruling's second unit; the sweep
+// over every kind the cluster serves is its third.
 
 // ManifestShape reports whether block is the kubernetes_manifest shape: a
 // required dynamic `manifest` argument holding the whole object, a
 // computed dynamic `object` the provider reads back, and no metadata block
-// of its own (that would be [ObjectMetaShape]). Read from the schema, never
-// from the type name, for the same reason the other two carriers are.
+// of its own (that would be [ObjectMetaShape]). It is [markers.ManifestSurface],
+// the one definition of the shape, so that identity and the marker stamp
+// can never admit different sets of types.
 func ManifestShape(block *configschema.Block) bool {
-	if block == nil {
-		return false
-	}
-	if _, ok := block.BlockTypes["metadata"]; ok {
-		return false
-	}
-	manifest, ok := block.Attributes["manifest"]
-	if !ok || manifest == nil || !manifest.Required || manifest.Type != cty.DynamicPseudoType {
-		return false
-	}
-	object, ok := block.Attributes["object"]
-	if !ok || object == nil || !object.Computed || object.Type != cty.DynamicPseudoType {
-		return false
-	}
-	return true
+	return markers.ManifestSurface(block)
 }
 
 // ManifestImportSyntax is the provider's documented import id for a

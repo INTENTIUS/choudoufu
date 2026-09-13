@@ -64,6 +64,11 @@ func (n *NodeResolver) AdjustIgnoreChanges(_ context.Context, addr addrs.AbsReso
 		// stamp would otherwise write, at metadata[0].labels["tofu-estate"].
 		return []cty.Path{markers.LabelSurfacePath(markers.TagEstate)}
 	}
+	if markers.ManifestSurface(schema.Block) {
+		// The manifest shape (GitHub issue #1079): the same label, at
+		// manifest.metadata.labels["tofu-estate"].
+		return []cty.Path{markers.ManifestLabelPath(markers.TagEstate)}
+	}
 	if _, taggable := markers.TagSurface(schema.Block); !taggable {
 		return nil
 	}

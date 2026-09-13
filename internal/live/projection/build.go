@@ -2086,6 +2086,13 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		}
 		attrsSeed["tags"] = tagsSeed
 	}
+	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
+		// GitHub issue #1079: a manifest-surface seed carries the
+		// estate's label the way the stamped configuration will, or the
+		// provider plans the label as a change on every cache-less run.
+		// See stampManifestSeed's own doc comment.
+		attrsSeed = stampManifestSeed(addr, attrsSeed, b.opts.Ownership.Estate)
+	}
 
 	// [builder.residueSeedFor] fills in whatever [configuredAttrsSeed] and
 	// [configuredTagsSeed] could not statically evaluate - a managed-
@@ -3780,6 +3787,11 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	if !newVal.RawEquals(readResp.NewState) {
 		log.Printf("[WARN] projection: provider produced an invalid new value containing null blocks for %s %q", typeName, importID)
 	}
+
+	// GitHub issue #1079: a manifest-surface prior carries the live
+	// object's answer for the marker key, or a stripped label never plans.
+	// See mirrorManifestMarker's own doc comment.
+	newVal = mirrorManifestMarker(newVal, schema.Block)
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.

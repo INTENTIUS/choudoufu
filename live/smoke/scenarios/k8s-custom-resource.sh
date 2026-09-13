@@ -1,5 +1,5 @@
 # k8s-custom-resource
-# CLAIM 24 - A custom resource binds by its natural key: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file and no label, and an object deleted out of band walks back into the plan as a create. ~2 min.
+# CLAIM 24 - A custom resource binds by its natural key and carries the estate label: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; a label stripped out of band is restored by the next plan and an object deleted out of band walks back in as a create. ~3 min.
 #
 # The first unit of #1079 (ruled 2026-09-12): every custom resource is
 # declared through kubernetes_manifest, whose whole object is one dynamic
@@ -7,13 +7,15 @@
 # argument's object constructor. Identity resolution reads them without
 # evaluating the manifest (internal/live/identity/manifest.go) and renders
 # the provider's own import id, so a replan with nothing stored anywhere
-# re-binds the object. What this claim does NOT say, on purpose: the object
-# carries no tofu-estate label yet (the stamp into manifest.metadata.labels
-# is the ruling's next unit), so no sweep finds it and no policy fences it;
-# it is bound by its declaration alone, the way an untaggable AWS type is.
-# BREAK=1 deletes the object with kubectl and requires the replan to
-# propose creating it: if the plan stayed empty, nothing was reading the
-# cluster by that key and the empty replans above were scenery.
+# re-binds the object. The second unit (the projection's stamp,
+# internal/live/projection/nodestamp_manifest.go) writes the one
+# tofu-estate label into manifest.metadata.labels on create, the same label
+# every built-in type carries in its metadata block, so the object is
+# inside the estate's boundary the way claim 23 draws it. BREAK=1 first
+# strips the label with kubectl and requires the replan to propose the
+# update that restores it, then deletes the object and requires the replan
+# to propose creating it: if either plan stayed empty, the label or the
+# natural key was scenery.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-custom-resource"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -128,18 +130,39 @@ grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
 grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY_OUT" || fail "k8s-custom-resource" "apply did not report 2 added: $APPLY_OUT"
 [ ! -f "$SMOKE_WORK/terraform.tfstate" ] || fail "k8s-custom-resource" "a terraform.tfstate appeared"
 cmd "kubectl get crontab my-crontab -n smoke-crd"
-CT="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.spec.cronSpec}{" "}{.spec.image}{"\n"}' 2>&1)" \
+CT="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.spec.cronSpec}{" "}{.spec.image}{" tofu-estate="}{.metadata.labels.tofu-estate}{"\n"}' 2>&1)" \
   || fail "k8s-custom-resource" "kubectl cannot read the CronTab: $CT"
 echo "$CT" | evidence
-proof "the CronTab exists in the cluster with the spec the configuration declared, and no terraform.tfstate exists."
+grep -q 'tofu-estate=smoke-crd$' <<< "$CT" || fail "k8s-custom-resource" "the CronTab does not carry tofu-estate=smoke-crd: $CT"
+proof "the CronTab exists with the spec the configuration declared and the one label the configuration never wrote, tofu-estate=smoke-crd; no terraform.tfstate exists."
 
 if [ "${BREAK:-0}" = "1" ]; then
+  step "BREAK control - strip the label out of band; the replan must propose restoring it"
+  explain \
+    "You asked for proof the assertions can fail. This removes the" \
+    "tofu-estate label with kubectl, behind choudoufu's back. The provider" \
+    "treats metadata.labels as a computed field by default and would accept" \
+    "the stripped object as the truth; if the next plan is empty, the" \
+    "label is decoration and nothing holds the object inside the boundary."
+  cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate-"
+  kc label crontab my-crontab -n smoke-crd tofu-estate- >/dev/null || fail "k8s-custom-resource" "BREAK: could not strip the label"
+  SOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  if grep -q "No changes." <<< "$SOUT"; then
+    fail "k8s-custom-resource" "BREAK: the plan is still empty after the label was stripped - the label is not what the plan holds the object by"
+  fi
+  grep -E '^Plan:|will be updated|tofu-estate' <<< "$SOUT" | head -3 | evidence
+  grep -q 'kubernetes_manifest.crontab will be updated in-place' <<< "$SOUT" \
+    || fail "k8s-custom-resource" "BREAK: the plan changed but does not propose updating kubernetes_manifest.crontab: $SOUT"
+  ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "k8s-custom-resource" "BREAK: the restoring apply failed"
+  RESTORED="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.labels.tofu-estate}')"
+  [ "$RESTORED" = "smoke-crd" ] || fail "k8s-custom-resource" "BREAK: the apply did not restore the label (tofu-estate=$RESTORED)"
+  proof "caught: the stripped label is exactly what the plan proposed to put back, and the apply put it back."
+
   step "BREAK control - delete the custom resource out of band; the replan must propose creating it"
   explain \
-    "You asked for proof the assertions can fail. This deletes the CronTab" \
-    "with kubectl, behind choudoufu's back. If the next plan is still" \
-    "empty, nothing was reading the cluster by the natural key and every" \
-    "empty replan in this scenario is scenery."
+    "Now the CronTab itself is deleted with kubectl. If the next plan is" \
+    "still empty, nothing was reading the cluster by the natural key and" \
+    "every empty replan in this scenario is scenery."
   cmd "kubectl delete crontab my-crontab -n smoke-crd"
   kc delete crontab my-crontab -n smoke-crd >/dev/null || fail "k8s-custom-resource" "BREAK: could not delete the CronTab"
   BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
@@ -193,6 +216,7 @@ proof "2 destroyed, 0 added, 0 changed. The custom resource is gone and the CRD,
 
 echo "  What you watched: a custom resource live its whole life without a state"
 echo "  file, found again each time by the apiVersion, kind, namespace and name"
-echo "  written inside its manifest. What you did not watch: a label on it."
-echo "  That is the next unit of #1079, and until it lands nothing sweeps or"
-echo "  fences an object declared this way."
+echo "  written inside its manifest, and carrying the one tofu-estate label the"
+echo "  configuration never wrote. What you did not watch: the estate sweep"
+echo "  finding it by that label. That is the next unit of #1079; until it"
+echo "  lands an orphaned custom resource is not listed."
