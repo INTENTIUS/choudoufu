@@ -26,17 +26,22 @@ the type's identity can be derived from your configuration:
   ([#243](https://github.com/INTENTIUS/choudoufu/issues/243)). They plan;
   they are deliberately never stamped, because their `tags` map is not a
   marker surface.
-- Four `kubernetes_*` types (`kubernetes_config_map`,
-  `kubernetes_cluster_role_binding`, `kubernetes_namespace`,
-  `kubernetes_storage_class`) carry ratified rows and resolve from
-  `metadata.name` and `metadata.namespace`
-  ([#326](https://github.com/INTENTIUS/choudoufu/issues/326)). They plan
-  too. They carry no marker, the sweep does not reach them, and no ownership
-  condition governs them, so deleting one of those blocks from source leaves
-  the live object with no run that will ever propose removing it. Kubernetes
-  as a substrate in its own right, with a marker, a sweep and an admission
-  policy, is the open design in
-  [#1016](https://github.com/INTENTIUS/choudoufu/issues/1016).
+- Every `kubernetes_*` type whose schema carries object metadata resolves
+  from `metadata.namespace` and `metadata.name` through one rule
+  ([#1064](https://github.com/INTENTIUS/choudoufu/issues/1064); the four
+  types that had ratified rows first,
+  [#326](https://github.com/INTENTIUS/choudoufu/issues/326), keep them as
+  a check on it), and `kubernetes_manifest`, so every custom resource,
+  resolves from the natural key inside its manifest
+  ([#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)). They
+  plan, and Kubernetes is a substrate in its own right: the marker is one
+  `tofu-estate` label written on the create, the estate sweep lists every
+  kind the cluster serves by that label and proposes removing an object
+  whose block is gone, and one admission policy fences every write by it.
+  The [Kubernetes hub]({{< relref "/kubernetes" >}}) says what is proven
+  on a real cluster and what is refused by name;
+  [#1016](https://github.com/INTENTIUS/choudoufu/issues/1016) is the
+  ruling behind it.
 - A type whose provider publishes no identity at all, `github_*` and
   `fastly_*` among them
   ([#223](https://github.com/INTENTIUS/choudoufu/issues/223)), is refused

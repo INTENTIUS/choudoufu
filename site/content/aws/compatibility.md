@@ -56,7 +56,9 @@ no `live` block gets stock behaviour, measured: the same API calls, exactly.
 ## Other providers
 
 A resource from another provider is refused only when its identity cannot
-be derived from your configuration. Eleven `google_*` types and four
-`kubernetes_*` types derive it today and plan without a marker. `github_*`
+be derived from your configuration. Eleven `google_*` types derive it
+today and plan without a marker. Kubernetes is a substrate of its own,
+with a label for a marker, a sweep and an admission policy: [its
+hub]({{< relref "/kubernetes" >}}) says what is proven there. `github_*`
 and `fastly_*` publish no identity and are refused as `unadmitted-type`. A
 mixed estate is reported root by root.

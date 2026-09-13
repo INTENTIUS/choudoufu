@@ -9,7 +9,10 @@ the platform can select on: on AWS, two resource tags. The apply writes it
 and the next plan reads it back live. The state file is therefore a cache
 you are allowed to lose, and the policy engine you already run decides who
 may read or change what. This fork is experimental. AWS is proven;
-Kubernetes is in design ([#1016](https://github.com/INTENTIUS/choudoufu/issues/1016));
+Kubernetes is proven on a smaller lane, one label on the object and one
+admission policy reading it
+([#1016](https://github.com/INTENTIUS/choudoufu/issues/1016) is the ruling,
+[the Kubernetes hub](https://intentius.io/choudoufu/kubernetes/) the state);
 no other platform is planned.
 
 There are two ways in. Read [Migrate an existing

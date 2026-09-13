@@ -35,7 +35,7 @@ kind, namespace and name, and the version is a representation. Both
 spellings render the same `NAMESPACE/NAME`, the sweep files both under the
 one kind, and the label carries no address to rewrite, so a block that
 changes spelling with the same metadata replans empty. Measured on kind:
-[claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})'s step 5 rewrites
+[claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})'s step 6 rewrites
 the ConfigMap block from the plain spelling to `_v1` with no `moved` block
 and the plan is `No changes.`; the destroy that follows still removes
 exactly four objects

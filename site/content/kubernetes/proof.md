@@ -23,7 +23,7 @@ cell for its note.
 
 ## In CI
 
-The three Kubernetes claims run on a kind cluster in GitHub Actions on
+The four Kubernetes claims run on a kind cluster in GitHub Actions on
 every pull request that touches the Kubernetes surface, each with its
 `BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
 lane's estates on the same cadence as the AWS rows
@@ -51,6 +51,12 @@ sweep on the same harness, and [claim 23]({{< relref "/docs/claims/k8s-the-label
 runs the gate: two ServiceAccounts, two estates, a plain `kubectl label`
 refused by the API server across the boundary, and a carve by relabel the
 policy governs, with `BREAK=1` removing the policy.
+[Claim 24]({{< relref "/docs/claims/k8s-custom-resource" >}}) runs a
+custom resource through the whole of it on a CRD the scenario installs:
+refused by name while the CRD is missing, bound by the key inside its
+manifest, labelled on create, dry-run against the server before the
+apply, restored when the label is stripped, and swept when its block is
+removed.
 
 ## The gauntlet lane
 
@@ -78,8 +84,10 @@ provider's `id` is the object's own import id.
 
 ## What it would cost
 
-What follows is the shape, from the API's own properties; no call count
-has been measured on a cluster yet.
+What follows is the shape, from the API's own properties, and it is what
+every Kubernetes claim and the lane's estates run through; the call
+counts have not been tabulated the way the AWS scale page tabulates
+them.
 
 ### The sweep
 
@@ -87,9 +95,10 @@ On AWS the estate sweep is a single `GetResources` call, filtered
 server-side on the marker, covering the whole admission table at once.
 Kubernetes has no cross-kind label-filtered list. A sweep there is API
 discovery (`/api` and `/apis`, which say every kind the cluster serves)
-and then one cluster-wide, label-selected list per kind the provider has a
-type for - not one per kind per namespace, as the design first estimated:
-a namespaced kind lists across every namespace in one call.
+and then one cluster-wide, label-selected list per kind the cluster
+serves with list and delete verbs, custom kinds included - not one per
+kind per namespace, as the design first estimated: a namespaced kind
+lists across every namespace in one call.
 
 Two things survive. A label-selected list returns only the estate's objects
 and does not grow with the cluster, so "a plan costs its estate, not its
@@ -106,4 +115,8 @@ restated rather than pretending otherwise.
 
 Reading each declared object is one `GET` per object, as it is for stock.
 Server-side dry run validates, defaults and runs admission without
-persisting, which no AWS plan can do.
+persisting, which no AWS plan can do; the plan sends every planned
+`kubernetes_manifest` create or update that way and prints the server's
+answer above the plan, one more request per such object
+([Adopt]({{< relref "/kubernetes/adopt" >}}), "What Kubernetes does
+better").
