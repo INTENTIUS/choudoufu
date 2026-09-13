@@ -19,6 +19,14 @@ A destination address absent from your configuration is refused unless you pass
 `-allow-missing-config`. `-dry-run` shows what it would write. Full options in
 `choudoufu live-mv -help`.
 
+On Kubernetes there is no address on the object to rewrite, so a rename is
+the config edit alone and the next plan is empty; `live-mv` has nothing
+governed to do there. The same holds for changing a block's type between
+the two spellings of a kind, `kubernetes_config_map` to
+`kubernetes_config_map_v1`: that is an `api_version` change, not a move,
+and needs no `moved` block ([Operate]({{< relref "/kubernetes/operate" >}})
+on the Kubernetes hub).
+
 ## Moving a resource to another estate
 
 The same command moves a resource across an estate boundary. Move the

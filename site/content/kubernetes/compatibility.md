@@ -79,7 +79,28 @@ by the provider at plan time today, not by name at `live-check`.
 Still refused: the handful of types whose block is not object metadata
 (`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the
 `*_data` patch types), which act on an object rather than being one.
-`helm_*` has not been assessed.
+
+`helm_release` is refused, and the refusal is the ordinary unadmitted-type
+one, with or without the provider's schema
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 4).
+hashicorp/helm 3.2.0 serves the type with no resource identity schema and
+no object-metadata block (its `metadata` is a computed record of release
+facts, with no labels map), so neither admission route reaches it, and
+`live-check` says so in those words. It stays refused rather than joining
+the record rung because a release is not one object this tool creates,
+reads and deletes: it is a release secret in the release namespace plus
+whatever the chart rendered, made by a path this tool never sees, and
+those objects carry the chart's labels and Helm's own
+`meta.helm.sh/release-name` annotation, not the estate's label. The sweep
+never lists them, so nothing needs excluding, and the record rung would
+hold a name for a sub-estate with its own state and history that no
+marker here reaches. Helm keeps its estate and this tool keeps its own. A
+chart's objects can be owned here by declaring them: render the chart
+(`helm template`, or the same provider's `helm_template` data source) into
+`kubernetes_manifest` blocks and every one of them is admitted, labelled,
+swept and fenced. Do not put `tofu-estate` in a chart's values: an object
+carrying it that no block declares is an orphan, and the sweep will
+propose removing it from under the release.
 
 ## Mixed estates
 

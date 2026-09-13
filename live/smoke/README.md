@@ -67,6 +67,10 @@ It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
 one `tofu-estate` label, written on the create and read back with kubectl in
 step 2; its `BREAK=1` strips the label and requires the replan to propose
 restoring it. The marker is the estate alone, never the address (#1016).
+Its step 5 rewrites the ConfigMap block from `kubernetes_config_map` to
+`kubernetes_config_map_v1` with no `moved` block and requires the replan
+to plan no create and no destroy (#1081, item 2: an `api_version` change
+is not a move).
 
 `k8s-no-silent-orphans` is claim 22 (#1065), the Kubernetes sibling of
 claim 1: a ConfigMap's block is deleted and the next plan proposes exactly

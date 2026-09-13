@@ -109,7 +109,40 @@ grep -E 'No changes\.' <<< "$PLAN2" | head -1 | evidence
 grep -q "No changes." <<< "$PLAN2" || fail "k8s-greenfield" "deleting the cache changed the plan: $PLAN2"
 proof "the cache was there and its loss changed nothing."
 
-step "5. destroy - exactly what was made"
+step "5. an api_version change is not a move"
+explain \
+  "The provider ships two spellings of most kinds: kubernetes_config_map" \
+  "and kubernetes_config_map_v1 both manage a ConfigMap, and the suffix" \
+  "names the API version the block is written against, not a different" \
+  "object. Uniqueness on a cluster is group, kind, namespace and name, so" \
+  "this edits the block's type from the plain spelling to _v1 with the" \
+  "same metadata and no moved block. On AWS a type change with no moved" \
+  "block is a destroy and a create; here the natural key is unchanged," \
+  "the marker carries no address, and the replan must find the same" \
+  "object. An in-place update for a representation difference is" \
+  "allowed; a create or a destroy is not (#1081, item 2)."
+cmd "sed -i 's/resource \"kubernetes_config_map\" \"app\"/resource \"kubernetes_config_map_v1\" \"app\"/' main.tf && choudoufu plan"
+sed_i "$SMOKE_WORK/main.tf" 's/^resource "kubernetes_config_map" "app"/resource "kubernetes_config_map_v1" "app"/'
+grep -q '^resource "kubernetes_config_map_v1" "app"' "$SMOKE_WORK/main.tf" \
+  || fail "k8s-greenfield" "the type rewrite did not take; main.tf still declares the plain spelling"
+PLAN3="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-greenfield" "plan after the api_version change failed: $PLAN3"
+if grep -qE 'will be (created|destroyed|replaced)|must be replaced' <<< "$PLAN3"; then
+  fail "k8s-greenfield" "the api_version change planned a create or a destroy; the object's natural key did not change, so it should have been found: $PLAN3"
+fi
+if grep -q "No changes." <<< "$PLAN3"; then
+  grep -E 'No changes\.' <<< "$PLAN3" | head -1 | evidence
+  proof "an empty plan. The ConfigMap the plain spelling created is the one the _v1 block now declares: same kind, same namespace and name, same label."
+else
+  grep -E '^Plan:|will be updated in-place' <<< "$PLAN3" | head -3 | evidence
+  grep -qE '^Plan: 0 to add, [1-9][0-9]* to change, 0 to destroy\.' <<< "$PLAN3" \
+    || fail "k8s-greenfield" "the api_version change planned something other than an in-place update: $PLAN3"
+  grep -q 'kubernetes_config_map_v1.app will be updated in-place' <<< "$PLAN3" \
+    || fail "k8s-greenfield" "the in-place update is not on the ConfigMap that changed spelling: $PLAN3"
+  proof "found, and updated in place for a representation difference between the two spellings; nothing is created and nothing is destroyed."
+fi
+
+step "6. destroy - exactly what was made"
 explain \
   "Teardown must remove exactly the four objects this scenario created" \
   "and leave the cluster's own namespaces alone."
