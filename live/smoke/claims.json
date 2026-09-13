@@ -555,13 +555,13 @@
     {
       "id": 24,
       "slug": "k8s-custom-resource",
-      "title": "A custom resource binds by its natural key: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest",
+      "title": "A custom resource binds by its natural key and carries the estate label: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, and its object is created with tofu-estate in metadata.labels",
       "scenario": "live/smoke/scenarios/k8s-custom-resource.sh",
       "command": "just smoke k8s-custom-resource",
-      "minutes": 2,
+      "minutes": 3,
       "needs_go": false,
       "theme": "adopt",
-      "break_mode": "BREAK=1 deletes the custom resource with kubectl and requires the replan to propose creating it",
+      "break_mode": "BREAK=1 strips the tofu-estate label with kubectl and requires the replan to propose the update that restores it, then deletes the custom resource and requires the replan to propose creating it",
       "substrate": "kubernetes",
       "providers": {
         "aws": {

@@ -112,10 +112,20 @@ through `Component.Path` in `internal/live/identity/manifest.go` and
 rendered as the provider's documented import id,
 `apiVersion=...,kind=...,[namespace=...,]name=...`. The projection seeds
 the manifest from the configuration before the read, because the
-provider's import never returns it. It carries no label yet: that stamp,
-into `manifest.metadata.labels`, and the sweep over every kind the
-cluster serves are the ruling's next two units, so until they land such an
-object is bound by its declaration alone and neither swept nor fenced.
+provider's import never returns it. It carries the same one label
+(#1079's second unit): the node stamp writes `tofu-estate` into
+`manifest.metadata.labels` on create, in the object constructor's own
+shape, merged with any labels the configuration declares and refused as
+the same marker conflict when the configuration names another estate
+(`internal/live/projection/nodestamp_manifest.go`). The seed the
+projection hands the provider for a cache-less read is stamped the same
+way, or the provider - whose `computed_fields` default names
+`metadata.labels` - would plan the label as a change on every such run.
+That default also means the provider takes a label stripped out of band
+as the new truth of the field; claim 24's control measures what the plan
+does about that. The sweep over every kind the cluster serves is the
+ruling's next unit, so until it lands an orphaned custom resource is not
+listed.
 
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape

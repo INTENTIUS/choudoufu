@@ -64,11 +64,14 @@ own object constructor - `apiVersion`, `kind`, `metadata.namespace`,
 or variable the argument is set to is walked the same way) and rendered as
 the provider's own import id. A manifest computed some other way,
 `yamldecode(file(...))` or a module output, is refused by name, because the
-key that names the object is not known until the value exists. What such
-an object does not carry yet is the label: the stamp into
-`manifest.metadata.labels` is the ruling's next unit, and until it lands
-nothing sweeps or fences an object declared this way ([claim
-24]({{< relref "/docs/claims/k8s-custom-resource" >}})).
+key that names the object is not known until the value exists. Since the
+ruling's second unit the object carries the same one label as every
+built-in type: the plan writes `tofu-estate` into
+`manifest.metadata.labels` on create, merged with any labels the manifest
+declares, so the admission policy fences it like any other object ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Not yet: the
+estate sweep, which lists the provider's built-in kinds only, so an
+orphaned custom resource is not listed until the ruling's next unit.
 
 Still refused: the handful of types whose block is not object metadata
 (`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the
