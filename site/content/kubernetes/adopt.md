@@ -85,4 +85,10 @@ stripped label names who stripped it. Server-side apply refuses a contested
 field with a 409 that names the competing manager. Server-side dry run
 validates, defaults and runs admission without persisting, which is stronger
 evidence than a locally computed plan and something AWS has no equivalent
-for.
+for; the plan uses it, sending every planned `kubernetes_manifest` create or
+update to the server with `dryRun=All` and printing the server's answer
+above the plan, and a rejection refuses the plan by name in the server's
+words before anything is applied ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Built-in types are
+not submitted: the mapping from their block shape to the API object is the
+provider's own.

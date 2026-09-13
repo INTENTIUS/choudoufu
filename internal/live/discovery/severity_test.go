@@ -110,6 +110,7 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 		"Address too long to carry an ownership marker":    true,
 		"Invalid estate name":                              true,
 		SummaryKubernetesKindNotServed:                     true,
+		SummaryKubernetesDryRunRejected:                    true,
 		"No configuration to discover against":             true,
 		"No provider access":                               true,
 		"One marker value for two declared addresses":      true,
@@ -127,10 +128,10 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			// Severity comes from ProblemKind.Severity, pinned above.
 		case r.Summary == SummaryIncompleteSweep:
 			// Pinned above.
-		case r.Summary == SummaryKubernetesSweepUnavailable, r.Summary == SummaryKubernetesKindUnverified:
-			// The Kubernetes leg's own coverage gaps (GitHub issues #1065
-			// and #1079): warnings, like the incomplete sweep they are the
-			// cluster-side forms of.
+		case r.Summary == SummaryKubernetesSweepUnavailable, r.Summary == SummaryKubernetesKindUnverified, r.Summary == SummaryKubernetesDryRunUnavailable:
+			// The Kubernetes leg's own coverage gaps (GitHub issues #1065,
+			// #1079 and #1081): warnings, like the incomplete sweep they
+			// are the cluster-side forms of.
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}

@@ -28,6 +28,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -659,6 +660,14 @@ type statelessRunner struct {
 	mgr  *projection.Manager
 	view views.StatelessPlan
 
+	// kubeSweepers is the Kubernetes sweep's cluster client per provider
+	// configuration, captured by PriorState once discovery has built them
+	// and consumed by AfterPlan for the server-side dry run (GitHub issue
+	// #1081, item 3) - the same reason untagTargets above is carried
+	// across: by the time the plan exists the providers PriorState read
+	// through are closed, and the sweep's client is not one of them.
+	kubeSweepers map[string]kubesweep.Sweeper
+
 	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
 	// into view above. It selected only the renderer until
 	// the CollectUnclaimed ruling (#604); now
@@ -1075,6 +1084,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly)
 	diags = diags.Append(discoDiags)
+	r.kubeSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
 		// each other, and acting on them would act on the wrong resource.

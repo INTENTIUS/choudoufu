@@ -1,5 +1,5 @@
 # k8s-custom-resource
-# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it, and a block whose CRD the cluster does not serve is refused by name: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; a label stripped out of band is restored by the next plan, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal. ~3 min.
+# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; the plan submits the planned object to the server with dryRun=All and prints its acceptance, and a manifest the server rejects refuses the plan by name in the server's words; a label stripped out of band is restored by the next plan, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal. ~3 min.
 #
 # The first unit of #1079 (ruled 2026-09-12): every custom resource is
 # declared through kubernetes_manifest, whose whole object is one dynamic
@@ -22,13 +22,26 @@
 # pair it does not - by address, kind, apiVersion and the CRD that would
 # have to be installed - before the provider fails at that block with its
 # own error; step 1 plans before the CRD exists and requires exactly that
-# refusal. live-check is offline and cannot ask. BREAK=1 first
-# strips the label with kubectl and requires the replan to propose the
-# update that restores it; then strips it again, removes the block, and
-# requires the replan NOT to list the object (the label is the boundary
-# both ways); then deletes the object and requires the replan to propose
-# creating it. If any of those plans read the other way, the label or the
-# natural key was scenery.
+# refusal. live-check is offline and cannot ask. Item 3 of #1081 is the
+# dry run: once the plan exists, every planned create or update of a
+# kubernetes_manifest instance is the API object itself, label included,
+# and the plan sends it to the server with dryRun=All
+# (internal/command/live_plan_kubernetes_dryrun.go,
+# internal/live/discovery/kubernetes_dryrun.go) - the server validates it
+# against the CRD's schema, defaults it and runs admission, and persists
+# nothing. Step 3 shows an object whose namespace the same plan creates
+# reported rather than submitted, and step 4 requires the acceptance
+# line above the plan. BREAK=1 first writes spec.replicas = 0, which the
+# CRD's schema bounds at minimum 1 - a rule the provider does not check
+# and the server does - and requires the replan refused by name with the
+# server's message quoted and no plan produced; then strips the label
+# with kubectl and
+# requires the replan to propose the update that restores it; then strips
+# it again, removes the block, and requires the replan NOT to list the
+# object (the label is the boundary both ways); then deletes the object
+# and requires the replan to propose creating it. If any of those plans
+# read the other way, the label, the natural key or the dry run was
+# scenery.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-custom-resource"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -62,6 +75,7 @@ spec:
                   type: string
                 replicas:
                   type: integer
+                  minimum: 1
   scope: Namespaced
   names:
     plural: crontabs
@@ -164,7 +178,52 @@ kc wait --for=condition=Established crd/crontabs.stable.example.com --timeout=60
 kc get crd crontabs.stable.example.com -o jsonpath='{.metadata.name}{" "}{.spec.scope}{"\n"}' | evidence
 proof "crontabs.stable.example.com is served and namespaced. The estate below declares one CronTab through kubernetes_manifest."
 
-step "3. the estate applies: a namespace and a custom resource, no state file"
+step "3. the namespace first: the server cannot judge an object in a namespace this same plan creates"
+explain \
+  "The plan is computed locally, as every plan is. Then every planned" \
+  "create or update of a kubernetes_manifest object is sent to the API" \
+  "server with dryRun=All. The CronTab's namespace is created by this" \
+  "same plan, so the server would answer 404 - the apply's order, not" \
+  "the object's validity - and the plan says so instead of submitting" \
+  "it. The namespace is applied on its own first."
+cmd "choudoufu plan   # both blocks; then apply with the namespace block only"
+NS_PLAN="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "plan failed with the CRD installed: $NS_PLAN"
+grep -E 'Server-side dry run:|\[NOT SUBMITTED\]|^Plan:' <<< "$NS_PLAN" | head -3 | evidence
+grep -q 'kubernetes_manifest.crontab \[NOT SUBMITTED\] its namespace smoke-crd is created by this same plan' <<< "$NS_PLAN" \
+  || fail "k8s-custom-resource" "the plan does not say the CronTab's namespace is its own to create: $NS_PLAN"
+grep -q 'Plan: 2 to add, 0 to change, 0 to destroy' <<< "$NS_PLAN" || fail "k8s-custom-resource" "the plan is not the 2 creates: $(grep -E '^Plan:' <<< "$NS_PLAN")"
+cp "$SMOKE_WORK/main.tf.namespace-only" "$SMOKE_WORK/main.tf"
+NS_APPLY="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "the namespace apply failed: $NS_APPLY"
+grep -qE 'Apply complete! Resources: 1 added' <<< "$NS_APPLY" || fail "k8s-custom-resource" "the namespace apply did not report 1 added: $NS_APPLY"
+grep -E 'Apply complete!' <<< "$NS_APPLY" | evidence
+proof "an object in a namespace the same plan creates is reported, not submitted; the namespace exists now, a built-in type the dry run never covers (its object shape is the provider's own)."
+
+step "4. the plan asks the server first: the planned CronTab, dry run, nothing written"
+explain \
+  "With the namespace live, the planned CronTab - the manifest as the" \
+  "apply would write it, tofu-estate label included - goes to the API" \
+  "server with dryRun=All: the server validates it against the CRD's" \
+  "schema, applies its defaults and runs every admission policy, and" \
+  "persists nothing. AWS has no equivalent. The answer prints above the" \
+  "plan, one line per object; a rejection would refuse the plan by name."
+cmd "choudoufu plan   # the CronTab block is back; its object does not exist yet"
+cp "$SMOKE_WORK/main.tf.full" "$SMOKE_WORK/main.tf"
+DRY_OUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "plan failed with the namespace live: $DRY_OUT"
+grep -E 'Server-side dry run:|\[ACCEPTED\]|^Plan:' <<< "$DRY_OUT" | head -3 | evidence
+grep -q "kubernetes_manifest.crontab \[ACCEPTED\] CronTab smoke-crd/my-crontab: create accepted by the server's admission, dry run, nothing written" <<< "$DRY_OUT" \
+  || fail "k8s-custom-resource" "the plan carries no dry-run acceptance for kubernetes_manifest.crontab: $DRY_OUT"
+grep -q 'Server-side dry run: 1 of 1 planned Kubernetes object accepted by the API server' <<< "$DRY_OUT" \
+  || fail "k8s-custom-resource" "the dry-run heading does not count the one object: $DRY_OUT"
+grep -q 'Plan: 1 to add, 0 to change, 0 to destroy' <<< "$DRY_OUT" || fail "k8s-custom-resource" "the plan is not the one create: $(grep -E '^Plan:' <<< "$DRY_OUT")"
+if kc get crontab my-crontab -n smoke-crd >/dev/null 2>&1; then
+  fail "k8s-custom-resource" "the dry run persisted the CronTab"
+fi
+proof "the API server accepted the planned CronTab - validated, defaulted, admitted - before anything was applied, and kubectl confirms nothing was written."
+
+step "5. the estate applies: the custom resource, no state file"
 explain \
   "One kubernetes_manifest block. Its identity is the natural key written" \
   "inside the manifest - apiVersion, kind, metadata.namespace," \
@@ -175,7 +234,7 @@ cmd "choudoufu apply -auto-approve"
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
-grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY_OUT" || fail "k8s-custom-resource" "apply did not report 2 added: $APPLY_OUT"
+grep -qE 'Apply complete! Resources: 1 added' <<< "$APPLY_OUT" || fail "k8s-custom-resource" "apply did not report 1 added: $APPLY_OUT"
 [ ! -f "$SMOKE_WORK/terraform.tfstate" ] || fail "k8s-custom-resource" "a terraform.tfstate appeared"
 cmd "kubectl get crontab my-crontab -n smoke-crd"
 CT="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.spec.cronSpec}{" "}{.spec.image}{" tofu-estate="}{.metadata.labels.tofu-estate}{"\n"}' 2>&1)" \
@@ -185,6 +244,39 @@ grep -q 'tofu-estate=smoke-crd$' <<< "$CT" || fail "k8s-custom-resource" "the Cr
 proof "the CronTab exists with the spec the configuration declared and the one label the configuration never wrote, tofu-estate=smoke-crd; no terraform.tfstate exists."
 
 if [ "${BREAK:-0}" = "1" ]; then
+  step "BREAK control - a manifest the CRD's schema rejects; the server must refuse it and the plan must be refused by name"
+  explain \
+    "You asked for proof the dry run is load-bearing. The CRD bounds" \
+    "spec.replicas at minimum 1; this writes replicas = 0. The provider" \
+    "checks the field's type against the CRD and nothing more, so the" \
+    "plan is an in-place update as far as it can tell. If the server's" \
+    "answer were scenery, the plan would print and exit 0 and the apply" \
+    "would be the first to fail."
+  cmd "sed 's/image    = \"my-awesome-cron-image\"/&\n      replicas = 0/' main.tf ; choudoufu plan"
+  sed_i "$SMOKE_WORK/main.tf" -e 's/^\(      image    = "my-awesome-cron-image"\)$/\1\
+      replicas = 0/'
+  grep -q 'replicas = 0' "$SMOKE_WORK/main.tf" || fail "k8s-custom-resource" "BREAK: the manifest edit did not land"
+  if ROUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)"; then
+    fail "k8s-custom-resource" "BREAK: the plan succeeded with a manifest the server rejects: $(grep -E '^Plan:|No changes|will be' <<< "$ROUT" | head -3)"
+  fi
+  grep -E 'Error: Kubernetes API server rejected|\[REJECTED\]|spec.replicas' <<< "$ROUT" | head -3 | evidence
+  RFLAT="$(tr '\n' ' ' <<< "$ROUT" | tr -s ' ')"
+  grep -q 'Error: Kubernetes API server rejected the planned object' <<< "$RFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the plan failed, but not with the refusal by name: $ROUT"
+  grep -q 'refused the update kubernetes_manifest.crontab plans' <<< "$RFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the refusal does not name the instance and the verb: $ROUT"
+  grep -q 'spec.replicas: Invalid value: 0: spec.replicas in body should be greater than or equal to 1' <<< "$RFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the refusal does not quote the server's message about spec.replicas: $ROUT"
+  grep -q 'kubernetes_manifest.crontab \[REJECTED\] CronTab smoke-crd/my-crontab: update refused by the server' <<< "$ROUT" \
+    || fail "k8s-custom-resource" "BREAK: the evidence section does not mark the object rejected: $ROUT"
+  if grep -qE '^Plan:|to add,' <<< "$ROUT"; then
+    fail "k8s-custom-resource" "BREAK: a plan was produced alongside the refusal: $ROUT"
+  fi
+  cp "$SMOKE_WORK/main.tf.full" "$SMOKE_WORK/main.tf"
+  LIVE_REPLICAS="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.spec.replicas}')"
+  [ -z "$LIVE_REPLICAS" ] || fail "k8s-custom-resource" "BREAK: the dry run wrote spec.replicas=$LIVE_REPLICAS to the live object"
+  proof "caught: the server refused replicas 0 under the CRD's minimum of 1 - a rule only the server checks - the plan was refused by name in the server's words, no plan was produced and nothing was written. The edit is reverted."
+
   step "BREAK control - strip the label out of band; the replan must propose restoring it"
   explain \
     "You asked for proof the assertions can fail. This removes the" \
@@ -244,7 +336,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
-step "4. the replan - prior state rebuilt from the cluster by the natural key"
+step "6. the replan - prior state rebuilt from the cluster by the natural key"
 explain \
   "With no state file, the next plan asks the cluster for the object the" \
   "manifest names: apiVersion=stable.example.com/v1,kind=CronTab," \
@@ -257,7 +349,7 @@ grep -q "No changes." <<< "$PLAN_OUT" || fail "k8s-custom-resource" "replan is n
 grep -E 'No changes\.' <<< "$PLAN_OUT" | head -1 | evidence
 proof "an empty plan, the custom resource found by the four keys written in its manifest and nothing else."
 
-step "5. the cache is disposable"
+step "7. the cache is disposable"
 cmd "rm .terraform/choudoufu-cache.tfstate && choudoufu plan"
 CACHE="$SMOKE_WORK/.terraform/choudoufu-cache.tfstate"
 [ -f "$CACHE" ] || fail "k8s-custom-resource" "no cache at $CACHE after a plain apply"
@@ -268,7 +360,7 @@ grep -q "No changes." <<< "$PLAN2" || fail "k8s-custom-resource" "deleting the c
 grep -E 'No changes\.' <<< "$PLAN2" | head -1 | evidence
 proof "the cache was there and its loss changed nothing."
 
-step "6. the block is removed - the sweep finds the object by its label and the plan removes it"
+step "8. the block is removed - the sweep finds the object by its label and the plan removes it"
 explain \
   "The kubernetes_manifest block is deleted from the configuration and" \
   "nothing else changes. No state file remembers the CronTab; the sweep" \
@@ -292,7 +384,7 @@ if kc get crontab my-crontab -n smoke-crd >/dev/null 2>&1; then
 fi
 proof "the CronTab is gone: found by its label under a kind the provider has no type for, and destroyed through kubernetes_manifest."
 
-step "7. the block returns - the object is created again"
+step "9. the block returns - the object is created again"
 cmd "(restore the block) && choudoufu apply -auto-approve"
 cp "$SMOKE_WORK/main.tf.full" "$SMOKE_WORK/main.tf"
 BACK="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
@@ -301,7 +393,7 @@ grep -qE 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed' <<< "$BACK
 grep -E 'Apply complete!' <<< "$BACK" | evidence
 proof "1 added, the same object at the same key, labelled again."
 
-step "8. destroy - exactly what was made"
+step "10. destroy - exactly what was made"
 cmd "choudoufu apply -destroy -auto-approve"
 DESTROY_OUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "apply -destroy failed: $DESTROY_OUT"
@@ -315,7 +407,8 @@ kc get crd crontabs.stable.example.com >/dev/null 2>&1 || fail "k8s-custom-resou
 proof "2 destroyed, 0 added, 0 changed. The custom resource is gone and the CRD, which nothing declared, stands."
 
 echo "  What you watched: a custom resource refused by name while its CRD was"
-echo "  missing, then live its whole life without a state file, found again"
+echo "  missing, accepted by the API server's own dry run before it was"
+echo "  applied, then live its whole life without a state file, found again"
 echo "  each time by the apiVersion, kind, namespace and name written inside"
 echo "  its manifest, carrying the one tofu-estate label the configuration"
 echo "  never wrote, and found by that label once its block was gone. A custom"

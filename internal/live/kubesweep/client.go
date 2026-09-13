@@ -7,6 +7,7 @@ package kubesweep
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -71,6 +72,29 @@ type Sweeper interface {
 	// asks the cluster for a schema it has not got. An error is a cluster
 	// that could not answer, which is never grounds to refuse a block.
 	Serves(ctx context.Context, apiVersion, kind string) (bool, error)
+	// DryRun submits manifest - a planned kubernetes_manifest object, the
+	// stamped label inside it - to the API server the way the apply
+	// would write it, a POST for a create or a PUT for an update, with
+	// dryRun=All (GitHub issue #1081, item 3): the server validates,
+	// defaults and runs admission and persists nothing. The result is
+	// the server's own answer, accepted or the rejection in its words;
+	// err is a cluster that could not answer at all, which is a coverage
+	// gap and never grounds to refuse the plan.
+	DryRun(ctx context.Context, manifest map[string]any, update bool) (DryRunResult, error)
+}
+
+// DryRunResult is what the API server said to a [Sweeper.DryRun].
+type DryRunResult struct {
+	// Accepted reports that the server would have written the object.
+	Accepted bool
+	// Message is the server's rejection, verbatim, when Accepted is
+	// false: a validation failure against the kind's schema, an
+	// admission policy's denial, a 403 from RBAC.
+	Message string
+	// Defaulted counts the fields the server's answer carries that the
+	// submitted manifest did not, outside metadata and status: what
+	// defaulting and mutating admission would add on write.
+	Defaulted int
 }
 
 // Client is [Sweeper] over a real API server.
@@ -254,6 +278,144 @@ func (c *Client) Serves(ctx context.Context, apiVersion, kind string) (bool, err
 		}
 	}
 	return false, nil
+}
+
+// DryRun implements [Sweeper]. The group-version's resource list names
+// the resource the kind is served as and whether it is namespaced - the
+// same request [Client.Serves] makes - and the object goes to the server
+// as kubectl create --dry-run=server or kubectl replace --dry-run=server
+// would send it. An update needs the live object's resourceVersion first:
+// a custom resource refuses an unconditional update ("must be specified
+// for an update"), so one GET precedes the PUT, as kubectl replace's
+// does. A status error the server answered with is its verdict, returned
+// as a rejection; any other error, including a 5xx, is a cluster that
+// could not answer.
+func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update bool) (DryRunResult, error) {
+	obj := &unstructured.Unstructured{Object: manifest}
+	apiVersion, kind := obj.GetAPIVersion(), obj.GetKind()
+	if apiVersion == "" || kind == "" || obj.GetName() == "" {
+		return DryRunResult{}, fmt.Errorf("the manifest names no apiVersion, kind or metadata.name to submit")
+	}
+	list, err := c.disc.ServerResourcesForGroupVersion(apiVersion)
+	if err != nil {
+		return DryRunResult{}, fmt.Errorf("API discovery for %s: %w", apiVersion, err)
+	}
+	gv, err := schema.ParseGroupVersion(apiVersion)
+	if err != nil {
+		return DryRunResult{}, fmt.Errorf("apiVersion %q: %w", apiVersion, err)
+	}
+	var res *metav1.APIResource
+	if list != nil {
+		for i := range list.APIResources {
+			r := &list.APIResources[i]
+			if r.Kind == kind && !strings.Contains(r.Name, "/") {
+				res = r
+				break
+			}
+		}
+	}
+	if res == nil {
+		return DryRunResult{}, fmt.Errorf("the cluster serves no kind %s at apiVersion %s", kind, apiVersion)
+	}
+	client := c.dyn.Resource(gv.WithResource(res.Name)).Namespace(obj.GetNamespace())
+	if !res.Namespaced {
+		client = c.dyn.Resource(gv.WithResource(res.Name))
+	}
+	submitted := obj.DeepCopy()
+	var answer *unstructured.Unstructured
+	if update {
+		live, getErr := client.Get(ctx, obj.GetName(), metav1.GetOptions{})
+		if getErr != nil {
+			if rejected, msg := serverVerdict(getErr); rejected {
+				return DryRunResult{Message: msg}, nil
+			}
+			return DryRunResult{}, fmt.Errorf("reading %s %s before the dry run: %w", kind, NaturalKey(obj.GetNamespace(), obj.GetName()), getErr)
+		}
+		obj.SetResourceVersion(live.GetResourceVersion())
+		// err is the outer variable on purpose: the first live run of
+		// this read the PUT's answer from a shadowed one and accepted an
+		// object the server had refused.
+		answer, err = client.Update(ctx, obj, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+	} else {
+		answer, err = client.Create(ctx, obj, metav1.CreateOptions{DryRun: []string{metav1.DryRunAll}})
+	}
+	if err != nil {
+		if rejected, msg := serverVerdict(err); rejected {
+			return DryRunResult{Message: msg}, nil
+		}
+		return DryRunResult{}, err
+	}
+	out := DryRunResult{Accepted: true}
+	if answer != nil {
+		out.Defaulted = countAdded(submitted.Object, answer.Object)
+	}
+	return out, nil
+}
+
+// serverVerdict tells the API server's answer from a failure to reach
+// it: a status error with a client-side code (4xx) is the server saying
+// no - invalid, forbidden, conflict, not found - and its message is the
+// verdict. A 5xx and anything that is not a status error at all is the
+// cluster not answering.
+func serverVerdict(err error) (bool, string) {
+	var status apierrors.APIStatus
+	if !errors.As(err, &status) {
+		return false, ""
+	}
+	code := status.Status().Code
+	if code < 400 || code >= 500 {
+		return false, ""
+	}
+	msg := status.Status().Message
+	if msg == "" {
+		msg = err.Error()
+	}
+	return true, msg
+}
+
+// countAdded counts the leaf values in got that have no counterpart in
+// sent, outside metadata and status: metadata is where the server writes
+// its own bookkeeping (uid, resourceVersion, managedFields, timestamps)
+// and status is never part of a manifest. A leaf is anything that is not
+// a map; a list is one leaf, since a defaulted element inside one is not
+// separable from a reordered one.
+func countAdded(sent, got map[string]any) int {
+	return countAddedAt(sent, got, true)
+}
+
+func countAddedAt(sent, got map[string]any, top bool) int {
+	n := 0
+	for k, gv := range got {
+		if top && (k == "metadata" || k == "status") {
+			continue
+		}
+		sv, ok := sent[k]
+		if !ok {
+			n += leaves(gv)
+			continue
+		}
+		gm, gIsMap := gv.(map[string]any)
+		sm, sIsMap := sv.(map[string]any)
+		if gIsMap && sIsMap {
+			n += countAddedAt(sm, gm, false)
+		}
+	}
+	return n
+}
+
+func leaves(v any) int {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return 1
+	}
+	n := 0
+	for _, e := range m {
+		n += leaves(e)
+	}
+	if n == 0 {
+		return 1
+	}
+	return n
 }
 
 func hasVerb(verbs []string, verb string) bool {

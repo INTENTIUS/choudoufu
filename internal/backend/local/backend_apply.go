@@ -231,6 +231,19 @@ func (b *Local) opApply(
 			return
 		}
 
+		// The fork's post-plan step ([StatelessRun.AfterPlan]), before
+		// the plan is rendered or approved: a refusal here stops the
+		// apply with nothing applied, the live system having already
+		// said it will not take what the plan proposes.
+		if b.Stateless != nil {
+			afterDiags := b.Stateless.AfterPlan(ctx, lr.Config, plan, schemas)
+			diags = diags.Append(afterDiags)
+			if afterDiags.HasErrors() {
+				op.ReportResult(runningOp, diags)
+				return
+			}
+		}
+
 		trivialPlan := !plan.CanApply()
 		hasUI := op.View != nil && op.UIIn != nil
 		mustConfirm := hasUI && !op.AutoApprove && !trivialPlan

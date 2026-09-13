@@ -1010,6 +1010,19 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
 
+	// The server-side dry run (GitHub issue #1081, item 3): every planned
+	// create or update of a kubernetes_manifest instance, sent to the
+	// cluster as the apply would write it with dryRun=All. The evidence
+	// prints above the plan; a rejection is a refusal by name, and the
+	// run stops here with nothing applied rather than rendering a plan
+	// the server has already said it will not take.
+	dryRunEvidence, dryRunDiags := statelessKubernetesDryRun(ctx, provs.kubernetesSweepers(), config, plan, schemas)
+	diags = diags.Append(dryRunDiags)
+	statelessView.KubernetesDryRun(dryRunEvidence)
+	if dryRunDiags.HasErrors() {
+		return 1, false, diags
+	}
+
 	// The ordinary resource-diff rendering is skipped under -json rather
 	// than switched to [views.PlanJSON]'s own general JSON representation:
 	// GitHub issue #788's document below already told a JSON reader
@@ -3340,6 +3353,14 @@ type statelessProviders struct {
 	// entry here to consult, so this field costs nothing when it is not
 	// needed.
 	providerDataResults map[string]cty.Value
+
+	// kubeSweepers is the Kubernetes sweep's cluster client per provider
+	// configuration (GitHub issue #1065), kept past the sweep for the
+	// post-plan server-side dry run (#1081, item 3), which runs after the
+	// provider plugins are closed and needs the same cluster. Keyed by
+	// [providerCacheKey]; absent for a configuration no client could be
+	// built from, which the sweep already warned about.
+	kubeSweepers map[string]kubesweep.Sweeper
 }
 
 var _ projection.Providers = (*statelessProviders)(nil)
@@ -4018,6 +4039,7 @@ func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.A
 		return nil, types, manifestType, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
 			fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
 	}
+	p.rememberKubernetesSweeper(addr, client)
 	return client, types, manifestType, diags
 }
 

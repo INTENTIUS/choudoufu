@@ -450,12 +450,13 @@ func (v *StatelessAdoptionHuman) Progress(p StatelessProgress) {
 	(&StatelessPlanHuman{view: v.view}).Progress(p)
 }
 
-func (v *StatelessAdoptionHuman) Omissions([]StatelessOmission)   {}
-func (v *StatelessAdoptionHuman) Unowned([]StatelessUnowned)      {}
-func (v *StatelessAdoptionHuman) Foreign(StatelessForeign)        {}
-func (v *StatelessAdoptionHuman) Policy(StatelessPolicyReport)    {}
-func (v *StatelessAdoptionHuman) GuidedFallback(string)           {}
-func (v *StatelessAdoptionHuman) Lookalikes([]StatelessLookalike) {}
+func (v *StatelessAdoptionHuman) Omissions([]StatelessOmission)                {}
+func (v *StatelessAdoptionHuman) Unowned([]StatelessUnowned)                   {}
+func (v *StatelessAdoptionHuman) Foreign(StatelessForeign)                     {}
+func (v *StatelessAdoptionHuman) Policy(StatelessPolicyReport)                 {}
+func (v *StatelessAdoptionHuman) GuidedFallback(string)                        {}
+func (v *StatelessAdoptionHuman) Lookalikes([]StatelessLookalike)              {}
+func (v *StatelessAdoptionHuman) KubernetesDryRun([]StatelessKubernetesDryRun) {}
 
 // Document renders nothing here either: GitHub issue #788's document and
 // issue #587's adoption ledger are two different reports over the same

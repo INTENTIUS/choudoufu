@@ -8,6 +8,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -33,6 +34,10 @@ type stubSweeper struct {
 	notServed map[string]bool
 	servesErr error
 	asked     int
+	dryRuns   []string
+	reject    map[string]string
+	dryRunErr error
+	defaulted int
 }
 
 func (s *stubSweeper) Serves(_ context.Context, apiVersion, kind string) (bool, error) {
@@ -41,6 +46,21 @@ func (s *stubSweeper) Serves(_ context.Context, apiVersion, kind string) (bool, 
 		return false, s.servesErr
 	}
 	return !s.notServed[apiVersion+" "+kind], nil
+}
+
+// dryRuns records what DryRun was asked; reject names the objects (by
+// metadata.name) the server refuses, with the message; dryRunErr, when
+// set, is a server that cannot answer.
+func (s *stubSweeper) DryRun(_ context.Context, manifest map[string]any, update bool) (kubesweep.DryRunResult, error) {
+	name, _ := manifest["metadata"].(map[string]any)["name"].(string)
+	s.dryRuns = append(s.dryRuns, fmt.Sprintf("%s update=%v", name, update))
+	if s.dryRunErr != nil {
+		return kubesweep.DryRunResult{}, s.dryRunErr
+	}
+	if msg, refused := s.reject[name]; refused {
+		return kubesweep.DryRunResult{Message: msg}, nil
+	}
+	return kubesweep.DryRunResult{Accepted: true, Defaulted: s.defaulted}, nil
 }
 
 func (s *stubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubesweep.Kind, []string, error) {
