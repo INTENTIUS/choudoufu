@@ -56,10 +56,11 @@ the tool either: the next plan reads the live object, not a log of who
 wrote it.
 
 Splitting an estate is a label rewrite, then a grant. With no address on
-the object, the write is `kubectl label --overwrite tofu-estate=<new>`,
-and the policy reads both sides of it: the caller must hold the estate the
-object is leaving and the one it is entering. There is no `live-mv` leg
-for Kubernetes.
+the object, the write is `tofu-estate=<new>` on the object - `live-mv
+-from-estate` makes it through the provider, and `kubectl label
+--overwrite` makes the same write tool-less - and the policy reads both
+sides of it: the caller must hold the estate the object is leaving and the
+one it is entering.
 
 ## What it does not fence
 

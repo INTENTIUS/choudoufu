@@ -76,6 +76,14 @@ removal at `kubernetes_manifest.orphan_<kind>_<namespace>_<name>` ([claim
 from the ruling: a block whose CRD the cluster does not serve is refused
 by the provider at plan time today, not by name at `live-check`.
 
+`live-mv` runs on every object-metadata type: a rename within an estate
+reports nothing to write and exits 0, and `-from-estate` rewrites the
+`tofu-estate` label through the provider under your own credential, so the
+admission policy judges it like any other write
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)); a move of a
+`kubernetes_manifest` object is refused by name with the equivalent
+`kubectl label`.
+
 Still refused: the handful of types whose block is not object metadata
 (`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the
 `*_data` patch types), which act on an object rather than being one.

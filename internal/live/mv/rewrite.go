@@ -34,8 +34,15 @@ import (
 // because an object read back from a provider that does not serve tags would
 // otherwise lose it. Everything else on the object is carried across
 // untouched.
+//
+// On the label surface the write is [mover.relabel]'s instead: one label,
+// no address, judged by the same plan checks (label.go).
 func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObject) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	if m.res.Surface == SurfaceLabel {
+		return m.relabel(ctx, prior)
+	}
 
 	// Marks are a projection's addition, not the provider's: the schema's
 	// sensitivity is applied to the value on the way into the projection, and
@@ -81,17 +88,39 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 		))
 	}
 
-	// The renamed resource has no configuration here, so one is synthesized.
-	// Providers read it back (SDKv2's GetRawConfig, the framework's Config),
-	// and there is more than one honest answer to what it should say about
-	// the arguments a provider fills in for itself: handing over the live
-	// object with every computed attribute filled in tells the provider
-	// something a configuration never says, and omitting them tells a
-	// provider that injects one that it has changed. [syntheticConfigs]
-	// offers both, least claim first; each is planned in turn and the first
-	// plan that is a clean tags-only change wins. [mover.checkPlan] is what
-	// "clean" means, unchanged, so trying a second configuration widens what
-	// can be rewritten without widening what may be.
+	newState, applyDiags := m.planAndApply(ctx, prior, priorVal, desired, "tag")
+	diags = diags.Append(applyDiags)
+	if applyDiags.HasErrors() {
+		return diags
+	}
+
+	m.res.Written = true
+	log.Printf("[TRACE] stateless/mv: rewrote tofu-address on %s %s: %q -> %q",
+		m.res.TypeName, m.res.LiveID, m.res.OldMarker, m.res.NewMarker)
+
+	return diags.Append(m.verify(newState))
+}
+
+// planAndApply is the provider conversation both surfaces share: plan the
+// desired object against the prior under each synthetic configuration in
+// turn, apply the first plan [mover.checkPlan] accepts, and return the
+// object the provider served back. what names the marker in the two
+// provider-failure messages ("tag" or "label").
+//
+// The renamed resource has no configuration here, so one is synthesized.
+// Providers read it back (SDKv2's GetRawConfig, the framework's Config),
+// and there is more than one honest answer to what it should say about
+// the arguments a provider fills in for itself: handing over the live
+// object with every computed attribute filled in tells the provider
+// something a configuration never says, and omitting them tells a
+// provider that injects one that it has changed. [syntheticConfigs]
+// offers both, least claim first; each is planned in turn and the first
+// plan that is a clean marker-only change wins. [mover.checkPlan] is what
+// "clean" means, unchanged, so trying a second configuration widens what
+// can be rewritten without widening what may be.
+func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstanceObject, priorVal, desired cty.Value, what string) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
 	var (
 		configVal cty.Value
 		planResp  providers.PlanResourceChangeResponse
@@ -121,7 +150,7 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 			refused = resp.Diagnostics.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Cannot plan the marker rewrite",
-				fmt.Sprintf("The provider failed while planning the tag change on the %s at %s. Nothing was written.", m.res.TypeName, m.res.LiveID),
+				fmt.Sprintf("The provider failed while planning the %s change on the %s at %s. Nothing was written.", what, m.res.TypeName, m.res.LiveID),
 			))
 			continue
 		}
@@ -133,7 +162,7 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 		break
 	}
 	if refused.HasErrors() {
-		return diags.Append(refused)
+		return cty.NilVal, diags.Append(refused)
 	}
 	diags = diags.Append(planResp.Diagnostics)
 
@@ -147,21 +176,26 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {
-		return diags.Append(applyResp.Diagnostics.Append(tfdiags.Sourceless(
+		return cty.NilVal, diags.Append(applyResp.Diagnostics.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Failed marker rewrite",
 			fmt.Sprintf(
-				"The provider failed while writing the tag change to the %s at %s. The write may have partly landed: read the resource's tofu-address tag before deciding what to do next - if it already names %s, the rename is done.",
-				m.res.TypeName, m.res.LiveID, m.res.New),
+				"The provider failed while writing the %s change to the %s at %s. The write may have partly landed: read the resource's ownership marker before deciding what to do next - if it already names %s, the move is done.",
+				what, m.res.TypeName, m.res.LiveID, m.markerDestination()),
 		)))
 	}
 	diags = diags.Append(applyResp.Diagnostics)
+	return applyResp.NewState, diags
+}
 
-	m.res.Written = true
-	log.Printf("[TRACE] stateless/mv: rewrote tofu-address on %s %s: %q -> %q",
-		m.res.TypeName, m.res.LiveID, m.res.OldMarker, m.res.NewMarker)
-
-	return diags.Append(m.verify(applyResp.NewState))
+// markerDestination is what the marker should read after this move, for
+// the partial-write message: the new address on the tag surface, the
+// destination estate on the label surface.
+func (m *mover) markerDestination() string {
+	if m.res.Surface == SurfaceLabel {
+		return "tofu-estate = " + m.req.Estate
+	}
+	return m.res.New.String()
 }
 
 // checkPlan refuses the two plans a marker rewrite must never apply.
@@ -209,14 +243,18 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 		return diags
 	}
 
-	if extra := changedOutsideTags(m.schema.Block, priorVal, planned); len(extra) > 0 {
+	extra, only := changedOutsideTags(m.schema.Block, priorVal, planned), "A rename is a tags-only write"
+	if m.res.Surface == SurfaceLabel {
+		extra, only = changedOutsideLabels(m.schema.Block, priorVal, planned), "A move is a labels-only write"
+	}
+	if len(extra) > 0 {
 		return diags.Append(refuse(
 			RefusalPlanChangesMoreThanTags,
 			tfdiags.Error,
 			"Unexpected changes in the marker rewrite",
 			fmt.Sprintf(
-				"Rewriting the ownership marker on the %s at %s would also change %s. A rename is a tags-only write, so nothing was written. Run live-plan to see what else this resource has drifted into and resolve that first.",
-				m.res.TypeName, m.res.LiveID, strings.Join(extra, ", ")),
+				"Rewriting the ownership marker on the %s at %s would also change %s. %s, so nothing was written. Run live-plan to see what else this resource has drifted into and resolve that first.",
+				m.res.TypeName, m.res.LiveID, strings.Join(extra, ", "), only),
 		))
 	}
 	return diags
@@ -544,6 +582,14 @@ func mapElements(val cty.Value, f func(cty.Value) cty.Value) cty.Value {
 // a legacy-SDK provider filling in a zero value where the object it read
 // carried a null - see [equivalent].
 func changedOutsideTags(block *configschema.Block, prior, planned cty.Value) []string {
+	return changedAttrs(block, prior, planned, map[string]bool{"tags": true, "tags_all": true})
+}
+
+// changedAttrs is [changedOutsideTags] with the skipped names as an
+// argument, so the label surface ([changedOutsideLabels]) compares the
+// same way with a different map excluded. The rules are unchanged from
+// when this body was changedOutsideTags itself.
+func changedAttrs(block *configschema.Block, prior, planned cty.Value, skip map[string]bool) []string {
 	if prior == cty.NilVal || prior.IsNull() || planned == cty.NilVal || planned.IsNull() {
 		return nil
 	}
@@ -559,7 +605,7 @@ func changedOutsideTags(block *configschema.Block, prior, planned cty.Value) []s
 
 	var out []string
 	for _, name := range names {
-		if name == "tags" || name == "tags_all" {
+		if skip[name] {
 			continue
 		}
 		if !prior.Type().HasAttribute(name) || !planned.Type().HasAttribute(name) {

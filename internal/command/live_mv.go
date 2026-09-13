@@ -418,6 +418,9 @@ func liveMvReport(res *mv.Result) views.StatelessMvReport {
 		NewMarker:   res.NewMarker,
 		FoundBy:     liveMvFoundBy(res),
 		DryRun:      res.DryRun,
+
+		LabelSurface:   res.Surface == mv.SurfaceLabel,
+		NothingToWrite: res.NothingToWrite,
 	}
 }
 
@@ -469,6 +472,14 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 		rep.Written = res.Written
 		rep.Verified = res.Verified
 		rep.FoundBy = string(res.Path)
+		rep.NothingToWrite = res.NothingToWrite
+		if res.Surface != mv.SurfaceTags {
+			// No address on the object (#1016): the escaped markers the
+			// tag surface would have written are not what this object
+			// carries, so the document does not claim them.
+			rep.MarkerSurface = "label"
+			rep.From.Marker, rep.To.Marker = "", ""
+		}
 	}
 
 	if code, diag, ok := mv.CodedRefusal(diags); ok {
@@ -546,6 +557,17 @@ Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
   run this there. The destination's configuration must declare the address,
   nothing in the destination estate may already carry it, and the source's
   record for the resource stays behind: the first apply here records it.
+
+  On Kubernetes the marker is one label, tofu-estate, and the object carries
+  no address: it is bound to its block by its own kind, namespace and name.
+  So a rename within one estate has nothing to write - this command says so
+  and exits 0, and renaming the block is the whole rename - while
+  -from-estate is the one governed write: the tofu-estate label is rewritten
+  through the provider, as a labels-only plan and apply on that object, and
+  the cluster's admission policy (live/kubernetes/estate-boundary.yaml)
+  judges it under this run's credential exactly as it judges a plain kubectl
+  label. An object declared through a manifest block is refused by name
+  with the equivalent kubectl write.
 
   This command reads and writes the live system. It never reads or writes a
   state file, and it does not run a plan over the rest of the configuration.
