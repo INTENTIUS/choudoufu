@@ -133,6 +133,22 @@ refused by name at the plan's first cluster contact (#1079's fourth unit,
 the apiVersion and the CRD to install; `live-check` is offline and cannot
 ask.
 
+The plan also asks the server about the object itself (#1081, item 3):
+every planned create or update of a `kubernetes_manifest` instance - the
+planned manifest, the label inside it - goes to the API server with
+`dryRun=All`, a POST for a create and a PUT for an update, and the server's
+answer prints above the plan (`internal/backend/local`'s `AfterPlan` seam,
+`internal/command/live_plan_kubernetes_dryrun.go`,
+`internal/live/discovery/kubernetes_dryrun.go`). The server validates the
+object against the kind's schema, applies its defaults and runs every
+admission policy, `estate-boundary.yaml` included, and persists nothing;
+a rejection is a refusal by name in the server's words and the run stops
+with nothing applied. It reaches the manifest shape only: a built-in
+type's object shape is the provider's own and is not submitted, an object
+whose namespace this same plan creates is reported rather than submitted,
+and a server that cannot answer is a warning. Claim 24's step 4 and its
+first `BREAK=1` control measure it.
+
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
 that would put an address back on the object.

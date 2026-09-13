@@ -145,6 +145,30 @@ func (b *Local) opPlan(
 	// Record whether this plan includes any side-effects that could be applied.
 	runningOp.PlanEmpty = !plan.CanApply()
 
+	// The schemas render the plan below and are read here, ahead of the
+	// plan file, because the stateless run's post-plan step needs them
+	// first.
+	schemas, moreDiags := lr.Core.Schemas(ctx, lr.Config, lr.InputState)
+	diags = diags.Append(moreDiags)
+	if moreDiags.HasErrors() {
+		op.ReportResult(runningOp, diags)
+		return
+	}
+
+	// The fork's post-plan step ([StatelessRun.AfterPlan]): evidence
+	// about the plan from the live system, before the plan is saved or
+	// rendered. A refusal here means nothing is saved and nothing is
+	// rendered - the live system has already refused it.
+	if b.Stateless != nil {
+		afterDiags := b.Stateless.AfterPlan(ctx, lr.Config, plan, schemas)
+		diags = diags.Append(afterDiags)
+		if afterDiags.HasErrors() {
+			runningOp.PlanEmpty = true
+			op.ReportResult(runningOp, diags)
+			return
+		}
+	}
+
 	// Save the plan to disk
 	if path := op.PlanOutPath; path != "" {
 		if op.PlanOutBackend == nil {
@@ -196,12 +220,6 @@ func (b *Local) opPlan(
 
 	// Render the plan, if we produced one.
 	// (This might potentially be a partial plan with Errored set to true)
-	schemas, moreDiags := lr.Core.Schemas(ctx, lr.Config, lr.InputState)
-	diags = diags.Append(moreDiags)
-	if moreDiags.HasErrors() {
-		op.ReportResult(runningOp, diags)
-		return
-	}
 
 	// Write out any generated config, before we render the plan.
 	wroteConfig, moreDiags := maybeWriteGeneratedConfig(plan, op.GenerateConfigOut)

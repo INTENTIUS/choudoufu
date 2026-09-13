@@ -555,13 +555,13 @@
     {
       "id": 24,
       "slug": "k8s-custom-resource",
-      "title": "A custom resource binds by its natural key, carries the estate label and is swept by it, and a block whose CRD the cluster does not serve is refused by name: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, its object is created with tofu-estate in metadata.labels, an object whose block is removed is found by the sweep and proposed for removal, and before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install",
+      "title": "A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, its object is created with tofu-estate in metadata.labels, an object whose block is removed is found by the sweep and proposed for removal, before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install, and every planned create or update is sent to the server with dryRun=All and its acceptance printed above the plan",
       "scenario": "live/smoke/scenarios/k8s-custom-resource.sh",
       "command": "just smoke k8s-custom-resource",
       "minutes": 3,
       "needs_go": false,
       "theme": "adopt",
-      "break_mode": "BREAK=1 strips the tofu-estate label with kubectl and requires the replan to propose the update that restores it; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it",
+      "break_mode": "BREAK=1 writes spec.replicas = 0 under a CRD that bounds it at minimum 1, a rule only the server checks, and requires the replan refused by name with the server's message quoted and no plan produced; strips the tofu-estate label with kubectl and requires the replan to propose the update that restores it; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it",
       "substrate": "kubernetes",
       "providers": {
         "aws": {

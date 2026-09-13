@@ -102,6 +102,14 @@ var refusals = []Refusal{
 		What:    "The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).",
 	},
 	{
+		Summary: "Kubernetes API server rejected the planned object",
+		What:    "The plan proposes to create or update a kubernetes_manifest object and the API server, asked to write exactly that object with dryRun=All (GitHub issue #1081, item 3), refused it: the kind's schema, the server's own validation, or an admission policy such as live/kubernetes/estate-boundary.yaml said no, in the words quoted. Nothing was written. The plan exits non-zero and nothing is applied, since the apply would fail at this object with the same answer after writing whatever came before it. live-check is offline and does not raise it; a built-in type's block is not submitted (the mapping from its schema shape to the API object is the provider's own), so this covers the manifest shape only.",
+	},
+	{
+		Summary: "Kubernetes dry run unavailable",
+		What:    "A planned kubernetes_manifest create or update could not be dry-run against the API server: the server could not be reached, answered with a server-side failure, or the planned manifest holds values not known until apply. Reported as a warning; the plan stands on the provider's own validation and the apply is the next thing that asks the server.",
+	},
+	{
 		Summary: "Kubernetes kind could not be verified",
 		What:    "A kubernetes_manifest block names an apiVersion and kind, the cluster answered API discovery for the sweep, but the one request asking whether it serves that exact group-version failed. Reported as a warning and the block stands: a cluster that cannot answer is never grounds to refuse a block, and the provider asks the same question when it plans it.",
 	},
@@ -264,7 +272,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesKindUnverified {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything.
 		return SeverityWarning

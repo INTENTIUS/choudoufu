@@ -59,6 +59,12 @@ func (s *liveLsStubSweeper) Serves(_ context.Context, _, _ string) (bool, error)
 	return true, nil
 }
 
+// DryRun is never asked by live-ls either; it is the plan's post-plan
+// evidence (#1081, item 3).
+func (s *liveLsStubSweeper) DryRun(_ context.Context, _ map[string]any, _ bool) (kubesweep.DryRunResult, error) {
+	return kubesweep.DryRunResult{Accepted: true}, nil
+}
+
 func (s *liveLsStubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
 	s.selectors = append(s.selectors, k.Kind+" "+key+"="+value)
 	if k.Kind == s.failKind {

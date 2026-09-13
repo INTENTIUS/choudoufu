@@ -81,6 +81,23 @@ served by the cluster`). `live-check` is offline and cannot ask a
 cluster, so it does not raise this; a cluster that cannot answer is a
 warning, never a refusal.
 
+Once the plan exists, every planned create or update of a
+`kubernetes_manifest` instance is sent to the API server as the apply
+would write it, label included, with `dryRun=All`
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 3):
+the server validates it against the kind's schema, applies its defaults
+and runs every admission policy, and persists nothing. The answer prints
+above the plan, one line per object; a rejection is `Kubernetes API
+server rejected the planned object`, quoting the server, and the run
+stops with nothing rendered and nothing applied, on `plan` and on
+`apply` alike. This reaches the manifest shape only. A built-in type's
+block is not submitted, because the mapping from `metadata[0]` and its
+spec blocks to the API object is the provider's own and is not reproduced
+here; an object whose namespace the same plan creates is reported rather
+than submitted, since the server would answer for the apply's order and
+not for the object; a server that cannot answer is a warning. `live-check`
+does not ask.
+
 `live-mv` runs on every object-metadata type: a rename within an estate
 reports nothing to write and exits 0, and `-from-estate` rewrites the
 `tofu-estate` label through the provider under your own credential, so the
