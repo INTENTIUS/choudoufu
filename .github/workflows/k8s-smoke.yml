@@ -53,6 +53,7 @@ jobs:
           - k8s-greenfield
           - k8s-no-silent-orphans
           - k8s-the-label-is-the-boundary
+          - k8s-custom-resource
     steps:
       - uses: actions/checkout@v7
         with:

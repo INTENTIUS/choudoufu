@@ -105,6 +105,18 @@ carrier and every `kubernetes_*` type migrated as UNTAGGABLE; the
 kubernetes lane's first estate (reference-k8s, #1067) failed its migrate
 stage on exactly that line, and passes it now.
 
+A `kubernetes_manifest` block, the shape every custom resource is declared
+through, is identified the same way (#1079's first unit): the natural key
+is four keys inside its `manifest` argument's object constructor, read
+through `Component.Path` in `internal/live/identity/manifest.go` and
+rendered as the provider's documented import id,
+`apiVersion=...,kind=...,[namespace=...,]name=...`. The projection seeds
+the manifest from the configuration before the read, because the
+provider's import never returns it. It carries no label yet: that stamp,
+into `manifest.metadata.labels`, and the sweep over every kind the
+cluster serves are the ruling's next two units, so until they land such an
+object is bound by its declaration alone and neither swept nor fenced.
+
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
 that would put an address back on the object.

@@ -36,6 +36,7 @@ just smoke import         # stock estate -> delete the state file -> adopt
 just smoke k8s-greenfield # the same life on a real kind cluster, one label as the marker (#1061)
 just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
 just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
+just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest; no label yet (#1079)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -82,6 +83,14 @@ cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
 `live/k8s_ci_test.go` holds that matrix to this directory, so a new `k8s-*`
 scenario has to be added there too). The nightly gauntlet runs the
 kubernetes lane's estates the same way.
+
+`k8s-custom-resource` is claim 24 (#1079's first unit): a CRD installed
+with kubectl, one `kubernetes_manifest` block declaring a CronTab, applied
+and replanned empty with nothing stored anywhere, the object found again
+by the apiVersion, kind, namespace and name inside its manifest. Its
+`BREAK=1` deletes the object with kubectl and requires the replan to
+propose creating it. The object carries no label yet; that stamp is the
+next unit.
 
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs
