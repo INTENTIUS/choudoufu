@@ -91,11 +91,63 @@ stock refuses can succeed here and never the reverse. Method, per-guard
 reading and raw values:
 [the stateful-equivalence measurement](https://github.com/INTENTIUS/choudoufu/issues/588) (#588).
 
-## Planning an adopted estate
+## Planning an estate you already run
 
-Turn the live block on, migrate the estate, and plan it the way an operator
-plans on an ordinary Tuesday. Same fixture, same emulator, three runs each,
-every plan exit 0 with `No changes`:
+The question an operator asks on an ordinary Tuesday: the estate exists, this
+tool manages it, what does a plan cost. Each side holds the prior state its
+own apply wrote - a state file for stock, the #685 state cache for choudoufu -
+and each side applied the estate itself. No adoption step is in these numbers.
+
+**Read the mode before the numbers.** A default `plan` refreshes every
+instance, and both cache gates require refresh to be off
+(`internal/command/live_mode.go`), so a default plan discards choudoufu's
+prior state and rebuilds it from live reads. Compared against stock holding
+its state file, that is not the same experiment on the two sides. The row
+that answers the question is `plan -refresh=false` with the reads policy at
+its "selective" default.
+
+Three runs per column, every plan empty, `TestSteadyStateCostAgainstFloci`
+(`internal/live/statefulcost/`):
+
+| Estate | stock `terraform plan` | choudoufu, cache serving | cache off | default `plan` |
+|---|---|---|---|---|
+| terralith, 79 objects | 150 | **169** (+12.7%) | 220 | 186 |
+| tagging-served, 101 objects | 247 | **256** (+3.6%) | 381 | 290 |
+| terralith, 10,069 objects | 18,510 | **19,666** (+6.2%) | 25,629 | 22,760 |
+
+The cache-off column is the control, and it is what makes the rest readable:
+same command, same estate, `CHOUDOUFU_STATE_CACHE=off`. It removes 51 calls
+at 79 objects, 125 at 101, and **5,963 at 10,069**. Without that column a
+flat number cannot be told from a cache that is not serving, which is how an
+earlier version of this page came to report the cache as doing nothing.
+
+**The gap narrows as the estate grows.** +12.7% at 79 objects, +6.2% at
+10,069 - roughly half, on an estate a hundred and twenty times larger.
+
+**Where the shape matters.** The terralith is 83.7% identity resources by
+construction, and `aws_iam_` is the one service the Resource Groups Tagging
+API does not index, so those instances cost more to vouch than to read. An
+estate of tagging-served types - log groups, queues, topics, tables, security
+groups - lands at +3.6% at comparable size. The identity share is what moves
+that number, not the estate's size.
+
+One measurement artifact, recorded rather than dropped: stock's second run at
+10,069 reported 19,673 calls and 57s against 18,510 and ~13s for runs one and
+three. The run's log carries exactly 1,163 `http: proxy error: EOF` entries
+and run two's excess is exactly 1,163 calls - dropped connections, retried,
+each retry counted. Runs one and three agree to the call, and 18,510 matches
+what the slicing bench independently measured for stock at this size.
+
+Wall time is the one place choudoufu is plainly behind: about 85s against
+stock's 13s at 10,069 objects. These are emulator seconds and this page does
+not treat them as a cost claim ([below](#and-an-emulator-cannot-answer-this-question)),
+but the ratio is worth stating rather than omitting.
+
+## Planning an estate straight after adoption
+
+The measurement this page used to lead with, kept because it is a real moment
+and a different one: migrate the estate, then plan it immediately, with no
+record store and nothing in the cache yet.
 
 | Column | API calls |
 |---|---|
@@ -103,6 +155,10 @@ every plan exit 0 with `No changes`:
 | stock `tofu plan`, state file | 150, 150, 150 |
 | `choudoufu plan`, live block, migrated | **157, 157, 157** |
 | `choudoufu live-plan`, the same estate | 157, 157, 157 |
+
+Those 157s were measured at `b20a144ab0` and are stale: the same fixture
+reads 186 at head, which #1082 tracks - two legs added under #692 each cost
+one call per marked instance on the identity path.
 
 157 against 150 is **+4.7%**, and the residual is seven calls rather than a
 percentage, because the two sides can be diffed action by action. Of stock's
