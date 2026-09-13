@@ -59,7 +59,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -82,7 +82,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -105,7 +105,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -128,7 +128,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -151,7 +151,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -174,7 +174,7 @@
         },
         "kubernetes": {
           "status": "restated",
-          "note": "The Kubernetes marker is estate-only, one label re-bound through namespace and name (#1016). Ownership is still readable with kubectl; a move is a config-line rename with no label to rewrite, so live-mv has nothing governed to do."
+          "note": "The Kubernetes marker is estate-only, one label re-bound through namespace and name (#1016). Ownership is still readable with kubectl; a rename is a config-line edit with no label to rewrite, and a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 23)."
         }
       },
       "evidence": [],
@@ -197,7 +197,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -220,7 +220,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -243,7 +243,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -288,8 +288,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "restated",
-          "note": "A carve is a label write, but nothing gates it until a ValidatingAdmissionPolicy is installed; until then the retag is advisory."
+          "status": "proven",
+          "note": "A carve is one label write, tofu-estate=<new> on the object, through live-mv -from-estate or kubectl label; with the admission policy installed the caller must hold both estates, and claim 23 measures the refusal without the grant and the carve with it (#1081, item 5)."
         }
       },
       "evidence": [],
@@ -337,7 +337,7 @@
         },
         "kubernetes": {
           "status": "restated",
-          "note": "There is no cross-kind label-filtered list. A sweep is one list per kind per namespace; a label-selected list still returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive (#1016)."
+          "note": "There is no cross-kind label-filtered list. A sweep is API discovery plus one cluster-wide, label-selected list per kind the cluster serves, custom kinds included; each list returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive (#1016, #1065)."
         }
       },
       "evidence": [],
@@ -360,7 +360,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -406,7 +406,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -429,7 +429,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [],
@@ -475,7 +475,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not yet stated for Kubernetes; #1016 is the design."
+          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
       "evidence": [

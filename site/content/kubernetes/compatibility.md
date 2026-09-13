@@ -48,13 +48,7 @@ saw a difference on every run and proposed an in-place update it rendered
 as unchanged. The comparison now reduces both sides to their minimal
 cover first: a mark under an already-marked ancestor is not a change.
 
-## Refused
-
-`metadata.generate_name`, by name: the server mints the object's name, so
-nothing in the configuration states the join key back to the block, which
-is the one shape that would need the configuration address on the object.
-Set `metadata.name` instead. A missing `namespace` on a namespaced kind is
-refused rather than defaulted, for the same reason.
+## Custom resources
 
 `kubernetes_manifest`, and so every custom resource, plans since
 [#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)'s first unit:
@@ -98,6 +92,14 @@ than submitted, since the server would answer for the apply's order and
 not for the object; a server that cannot answer is a warning. `live-check`
 does not ask.
 
+## Refused
+
+`metadata.generate_name`, by name: the server mints the object's name, so
+nothing in the configuration states the join key back to the block, which
+is the one shape that would need the configuration address on the object.
+Set `metadata.name` instead. A missing `namespace` on a namespaced kind is
+refused rather than defaulted, for the same reason.
+
 `live-mv` runs on every object-metadata type: a rename within an estate
 reports nothing to write and exits 0, and `-from-estate` rewrites the
 `tofu-estate` label through the provider under your own credential, so the
@@ -135,7 +137,8 @@ propose removing it from under the release.
 ## Mixed estates
 
 The common shape is an EKS module that also manages the `aws-auth`
-ConfigMap. The AWS resources carry markers and fall under your IAM; the
-ConfigMap plans and carries nothing. `live-check` reports that root as not
-blocked. A root made only of refused types is blocked as a whole, and the
+ConfigMap. The AWS resources carry two tags and fall under your IAM; the
+ConfigMap carries the one label and falls under the cluster's admission
+policy, and each substrate's sweep lists its own. `live-check` reports
+that root as not blocked. A root made only of refused types is blocked as a whole, and the
 report says which root and why.

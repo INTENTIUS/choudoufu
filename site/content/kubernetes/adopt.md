@@ -17,7 +17,13 @@ Every type whose schema carries object metadata resolves through one rule
 identity is `metadata.namespace` and `metadata.name`, both written in your
 configuration, so a plan binds it with nothing stored anywhere. A missing
 namespace is refused rather than defaulted, and `generate_name` is refused
-by name.
+by name. A custom resource, declared through `kubernetes_manifest`, binds
+the same way by the `apiVersion`, `kind`, `metadata.namespace` and
+`metadata.name` written inside its manifest
+([#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)); a block
+whose kind the cluster does not serve is refused by name, naming the CRD
+to install, at the plan's first contact with the cluster ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})).
 
 Every one of them carries the marker: one label, `tofu-estate`, written on
 the create. Strip it with kubectl and the next plan proposes restoring it.

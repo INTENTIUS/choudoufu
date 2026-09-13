@@ -51,8 +51,9 @@ What is excluded, and why: an object with a non-empty
 an object whose every `metadata.managedFields` manager is the control
 plane was made by a controller too - the legacy `Endpoints` the endpoints
 controller mirrors a Service's labels onto is the case that has no owner
-reference. Neither is ever an orphan. What this claim does not say: an
-object of a kind the provider has no resource type for (every custom
-resource) is not listed. What fences a write on the label is the admission
+reference. Neither is ever an orphan. A kind the provider has no built-in type for,
+every custom resource, is listed too, under `kubernetes_manifest`; [claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}}) removes one that
+way. What fences a write on the label is the admission
 policy of [claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}}),
 which excludes a controller's objects by the same owner-reference rule.
