@@ -219,3 +219,44 @@ func TestKubernetesSweepFilesManifestKindOrphans(t *testing.T) {
 		t.Errorf("kubernetes_manifest appears %d times in SweepCovered, want once", covered)
 	}
 }
+
+// TestDeclaredKubernetesObjects (GitHub issue #1081): the one join the
+// sweep and live-ls share. A built-in type's concrete resolution declares
+// its kind at its import id; a manifest resolution declares the kind its
+// manifest names at the natural key read back from the manifest id; a
+// resolution that is not yet concrete counts its type as declared but no
+// object; a type outside the universe declares nothing. Each declaration
+// names the block that made it.
+func TestDeclaredKubernetesObjects(t *testing.T) {
+	types := []string{"kubernetes_config_map_v1", "kubernetes_manifest", "kubernetes_namespace"}
+	d := DeclaredKubernetesObjects([]identity.Resolution{
+		{Addr: k8sInstance(t, "kubernetes_config_map_v1", "app"), Class: identity.ClassConcrete, ImportID: "smoke-k8s/app-config"},
+		{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-k8s,name=my-crontab"},
+		{Addr: k8sInstance(t, "kubernetes_manifest", "cm"), Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=smoke-k8s,name=via-manifest"},
+		{Addr: k8sInstance(t, "kubernetes_namespace", "later"), Class: identity.ClassNeedsDiscovery},
+		{Addr: k8sInstance(t, "aws_s3_bucket", "data"), Class: identity.ClassConcrete, ImportID: "my-bucket"},
+	}, types, "kubernetes_manifest")
+
+	for _, tc := range []struct{ kind, key, addr string }{
+		{"ConfigMap", "smoke-k8s/app-config", "kubernetes_config_map_v1.app"},
+		{"CronTab", "smoke-k8s/my-crontab", "kubernetes_manifest.crontab"},
+		{"ConfigMap", "smoke-k8s/via-manifest", "kubernetes_manifest.cm"},
+	} {
+		addr, ok := d.Declares(tc.kind, tc.key)
+		if !ok || addr.String() != tc.addr {
+			t.Errorf("Declares(%s, %s) = %s, %v; want %s", tc.kind, tc.key, addr, ok, tc.addr)
+		}
+	}
+	if _, ok := d.Declares("Namespace", "later"); ok {
+		t.Error("a resolution that is not yet concrete declared an object")
+	}
+	if !d.Types["kubernetes_namespace"] {
+		t.Error("a non-concrete resolution did not count its type as declared")
+	}
+	if d.Types["aws_s3_bucket"] {
+		t.Error("a type outside the universe was counted as declared")
+	}
+	if d.Count() != 3 {
+		t.Errorf("Count = %d, want 3", d.Count())
+	}
+}

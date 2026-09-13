@@ -65,9 +65,13 @@ what any cluster answers. Needs `kind` and `kubectl` on PATH.
 
 It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
 one `tofu-estate` label, written on the create and read back with kubectl in
-step 2; its `BREAK=1` strips the label and requires the replan to propose
-restoring it. The marker is the estate alone, never the address (#1016).
-Its step 5 rewrites the ConfigMap block from `kubernetes_config_map` to
+step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
+from the provider block, one label-selected list per kind, each object
+joined to its block on the kind and the natural key - with the listing
+empty again after the destroy; its `BREAK=1` strips the label and requires
+`live-ls` to drop the object and the replan to propose restoring it. The
+marker is the estate alone, never the address (#1016). Its step 6 rewrites
+the ConfigMap block from `kubernetes_config_map` to
 `kubernetes_config_map_v1` with no `moved` block and requires the replan
 to plan no create and no destroy (#1081, item 2: an `api_version` change
 is not a move).
