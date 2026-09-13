@@ -137,6 +137,7 @@ ci.out
 ci.rc
 ci.meta
 ci.meta.tmp
+gate.launch.log
 
 # `just ci`'s docs step points Hugo's cache here (issue #1031) so concurrent
 # gates in separate worktrees don't collide on the shared, per-user
