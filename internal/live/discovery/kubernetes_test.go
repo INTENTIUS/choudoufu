@@ -27,7 +27,7 @@ type stubSweeper struct {
 	listed   []string
 }
 
-func (s *stubSweeper) Kinds(_ context.Context, _ []string) ([]kubesweep.Kind, []string, error) {
+func (s *stubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubesweep.Kind, []string, error) {
 	return s.kinds, s.unserved, nil
 }
 
@@ -137,5 +137,85 @@ func TestKubernetesSweepDoesNothingWithoutASweeper(t *testing.T) {
 	res := &Result{}
 	if diags := sweepKubernetes(context.Background(), Request{Estate: "x"}, res); diags.HasErrors() || len(res.Orphans) != 0 || len(res.Scans) != 0 {
 		t.Errorf("a request with no Kubernetes sweeper changed the result: %+v", res)
+	}
+}
+
+// TestKubernetesSweepFilesManifestKindOrphans (GitHub issue #1079's third
+// unit): a kind listed under kubernetes_manifest files its undeclared
+// object at kubernetes_manifest.orphan_<kind>_<namespace>_<name> with the
+// manifest import id; a CronTab a manifest block declares is not an
+// orphan; a ConfigMap a manifest block declares is not an orphan of the
+// built-in type either, since both meet on the natural key; and the
+// manifest type is one covered scan however many kinds it listed.
+func TestKubernetesSweepFilesManifestKindOrphans(t *testing.T) {
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	ct := kubesweep.Kind{GVR: schema.GroupVersionResource{Group: "stable.example.com", Version: "v1", Resource: "crontabs"}, Kind: "CronTab", Namespaced: true, APIVersion: "stable.example.com/v1", TypeNames: []string{"kubernetes_manifest"}, Manifest: true}
+	ci := kubesweep.Kind{GVR: schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "clusterissuers"}, Kind: "ClusterIssuer", APIVersion: "cert-manager.io/v1", TypeNames: []string{"kubernetes_manifest"}, Manifest: true}
+	labels := map[string]string{"tofu-estate": "smoke-crd"}
+	sweeper := &stubSweeper{
+		kinds: []kubesweep.Kind{cm, ct, ci},
+		objects: map[string][]kubesweep.Object{
+			"ConfigMap": {{Kind: "ConfigMap", Namespace: "smoke-crd", Name: "via-manifest", ImportID: "smoke-crd/via-manifest", Labels: labels}},
+			"CronTab": {
+				{Kind: "CronTab", Namespace: "smoke-crd", Name: "my-crontab", ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab", Labels: labels},
+				{Kind: "CronTab", Namespace: "smoke-crd", Name: "doomed", ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=doomed", Labels: labels},
+			},
+			"ClusterIssuer": {{Kind: "ClusterIssuer", Name: "letsencrypt", ImportID: "apiVersion=cert-manager.io/v1,kind=ClusterIssuer,name=letsencrypt", Labels: labels}},
+		},
+	}
+	req := Request{
+		Estate:                 "smoke-crd",
+		Kubernetes:             sweeper,
+		KubernetesTypes:        []string{"kubernetes_config_map_v1", "kubernetes_manifest"},
+		KubernetesManifestType: "kubernetes_manifest",
+		Resolutions: []identity.Resolution{
+			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
+			{Addr: k8sInstance(t, "kubernetes_manifest", "cm"), Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=smoke-crd,name=via-manifest"},
+		},
+	}
+	res := &Result{}
+	if diags := sweepKubernetes(context.Background(), req, res); diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	var got []string
+	for _, o := range res.Orphans {
+		addr, ok := UnescapeAddress(o.Normalized)
+		if !ok {
+			t.Fatalf("orphan %q does not unescape to an address", o.Normalized)
+		}
+		got = append(got, o.TypeName+"|"+addr.String()+"|"+o.ImportID+"|"+o.DisplayName)
+	}
+	want := []string{
+		"kubernetes_manifest" + "|kubernetes_manifest.orphan_clusterissuer_letsencrypt|apiVersion=cert-manager.io/v1,kind=ClusterIssuer,name=letsencrypt|ClusterIssuer letsencrypt",
+		"kubernetes_manifest" + "|kubernetes_manifest.orphan_crontab_smoke-crd_doomed|apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=doomed|CronTab smoke-crd/doomed",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("orphans = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("orphans[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	manifestScans := 0
+	for _, s := range res.Scans {
+		if s.TypeName == "kubernetes_manifest" {
+			manifestScans++
+			if s.Declared != 2 {
+				t.Errorf("manifest scan Declared = %d, want 2 (both manifest blocks)", s.Declared)
+			}
+		}
+	}
+	if manifestScans != 1 {
+		t.Errorf("manifest scans = %d, want exactly one for two listed kinds", manifestScans)
+	}
+	covered := 0
+	for _, c := range res.SweepCovered {
+		if c == "kubernetes_manifest" {
+			covered++
+		}
+	}
+	if covered != 1 {
+		t.Errorf("kubernetes_manifest appears %d times in SweepCovered, want once", covered)
 	}
 }

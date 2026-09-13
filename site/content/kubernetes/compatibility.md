@@ -68,10 +68,13 @@ key that names the object is not known until the value exists. Since the
 ruling's second unit the object carries the same one label as every
 built-in type: the plan writes `tofu-estate` into
 `manifest.metadata.labels` on create, merged with any labels the manifest
-declares, so the admission policy fences it like any other object ([claim
-24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Not yet: the
-estate sweep, which lists the provider's built-in kinds only, so an
-orphaned custom resource is not listed until the ruling's next unit.
+declares, so the admission policy fences it like any other object, and
+the estate sweep lists every kind the cluster serves, CRDs included, so
+an object whose block is removed is found by that label and proposed for
+removal at `kubernetes_manifest.orphan_<kind>_<namespace>_<name>` ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Still to come
+from the ruling: a block whose CRD the cluster does not serve is refused
+by the provider at plan time today, not by name at `live-check`.
 
 Still refused: the handful of types whose block is not object metadata
 (`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the

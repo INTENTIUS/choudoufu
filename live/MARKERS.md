@@ -123,19 +123,30 @@ way, or the provider - whose `computed_fields` default names
 `metadata.labels` - would plan the label as a change on every such run.
 That default also means the provider takes a label stripped out of band
 as the new truth of the field; claim 24's control measures what the plan
-does about that. The sweep over every kind the cluster serves is the
-ruling's next unit, so until it lands an orphaned custom resource is not
-listed.
+does about that (the projection mirrors the live object's marker into the
+prior it builds, so a stripped label plans as the update that restores
+it). The sweep lists every kind the cluster serves (#1079's third unit,
+below), so an orphaned custom resource is proposed for removal like any
+other.
 
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
 that would put an address back on the object.
 
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
-the provider has a resource type for, joined to what the cluster serves
-through API discovery. An object it lists that no block declares is an
+the cluster serves with list and delete verbs, found through API
+discovery: a kind the provider has a resource type for is filed under that
+type, and every other kind - every CRD, and the built-in kinds the
+provider never gave a type - under `kubernetes_manifest` (#1079's third
+unit), which manages any served kind and imports by `apiVersion=,kind=,
+[namespace=,]name=`. An object it lists that no block declares is an
 orphan and is proposed for removal, planned at the synthetic address
-`<type>.orphan_<namespace>_<name>` since the label carries no address.
+`<type>.orphan_<namespace>_<name>`, or
+`kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest
+kind, since the label carries no address. A block and a listed object
+meet on the kind and the natural key whichever type either is filed
+under, so a ConfigMap declared through `kubernetes_manifest` is not an
+orphan of `kubernetes_config_map_v1`.
 Two exclusions run first, either sufficient: an object with a non-empty
 `metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
 from its ReplicaSet, an EndpointSlice's from its Service) and an object

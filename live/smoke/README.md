@@ -36,7 +36,7 @@ just smoke import         # stock estate -> delete the state file -> adopt
 just smoke k8s-greenfield # the same life on a real kind cluster, one label as the marker (#1061)
 just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
 just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
-just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest and carries the label (#1079)
+just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest, carries the label and is swept by it (#1079)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -91,9 +91,12 @@ by the apiVersion, kind, namespace and name inside its manifest, and
 created with the one `tofu-estate` label the configuration never wrote
 (#1079's second unit, the stamp into `manifest.metadata.labels`). Its
 `BREAK=1` strips the label with kubectl and requires the replan to propose
-the update that restores it, then deletes the object and requires the
-replan to propose creating it. The sweep does not list custom kinds yet;
-that is the next unit.
+the update that restores it, strips it again with the block removed and
+requires the replan not to list the object, then deletes the object and
+requires the replan to propose creating it. Removing the block for real
+(step 5) has the sweep, which lists every kind the cluster serves under
+`kubernetes_manifest` (#1079's third unit), find the CronTab by its label
+and propose destroying exactly it.
 
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs
