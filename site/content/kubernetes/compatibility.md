@@ -72,9 +72,14 @@ declares, so the admission policy fences it like any other object, and
 the estate sweep lists every kind the cluster serves, CRDs included, so
 an object whose block is removed is found by that label and proposed for
 removal at `kubernetes_manifest.orphan_<kind>_<namespace>_<name>` ([claim
-24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Still to come
-from the ruling: a block whose CRD the cluster does not serve is refused
-by the provider at plan time today, not by name at `live-check`.
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})). A block whose
+apiVersion and kind the cluster does not serve - the CRD not installed,
+or served at another version - is refused by name at the plan's first
+contact with the cluster, ahead of the provider's own error: the block,
+the kind, the apiVersion and the CRD to install (`Kubernetes kind not
+served by the cluster`). `live-check` is offline and cannot ask a
+cluster, so it does not raise this; a cluster that cannot answer is a
+warning, never a refusal.
 
 `live-mv` runs on every object-metadata type: a rename within an estate
 reports nothing to write and exits 0, and `-from-estate` rewrites the

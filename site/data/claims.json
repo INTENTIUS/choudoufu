@@ -555,10 +555,10 @@
     {
       "id": 24,
       "slug": "k8s-custom-resource",
-      "title": "A custom resource binds by its natural key, carries the estate label and is swept by it: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, its object is created with tofu-estate in metadata.labels, and an object whose block is removed is found by the sweep and proposed for removal",
+      "title": "A custom resource binds by its natural key, carries the estate label and is swept by it, and a block whose CRD the cluster does not serve is refused by name: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, its object is created with tofu-estate in metadata.labels, an object whose block is removed is found by the sweep and proposed for removal, and before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install",
       "scenario": "live/smoke/scenarios/k8s-custom-resource.sh",
       "command": "just smoke k8s-custom-resource",
-      "minutes": 4,
+      "minutes": 3,
       "needs_go": false,
       "theme": "adopt",
       "break_mode": "BREAK=1 strips the tofu-estate label with kubectl and requires the replan to propose the update that restores it; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it",

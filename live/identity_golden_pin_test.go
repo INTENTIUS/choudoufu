@@ -2964,7 +2964,7 @@ const (
 	// the provider schema this golden's offline sweep never has, so they
 	// render no row here either - the same absence every schema-fallback
 	// type has had since #387.
-	identityGoldenPinDirs = 667
+	identityGoldenPinDirs = 668
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

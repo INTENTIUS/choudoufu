@@ -127,7 +127,11 @@ does about that (the projection mirrors the live object's marker into the
 prior it builds, so a stripped label plans as the update that restores
 it). The sweep lists every kind the cluster serves (#1079's third unit,
 below), so an orphaned custom resource is proposed for removal like any
-other.
+other. A block whose apiVersion and kind the cluster does not serve is
+refused by name at the plan's first cluster contact (#1079's fourth unit,
+`internal/live/discovery/kubernetes.go`), naming the block, the kind,
+the apiVersion and the CRD to install; `live-check` is offline and cannot
+ask.
 
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape

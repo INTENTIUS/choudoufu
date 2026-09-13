@@ -7,6 +7,7 @@ package kubesweep
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -302,5 +303,61 @@ func TestManifestOrphanResourceName(t *testing.T) {
 		if got := ManifestOrphanResourceName(tc.kind, tc.ns, tc.name); got != tc.want {
 			t.Errorf("ManifestOrphanResourceName(%q, %q, %q) = %q, want %q", tc.kind, tc.ns, tc.name, got, tc.want)
 		}
+	}
+}
+
+// TestServesAsksTheExactGroupVersion (GitHub issue #1079's fourth
+// ruling): a kind is served only at the apiVersion the block names - the
+// CronTab at stable.example.com/v1 is, the same kind at v2 is not, and a
+// group the server does not know is not - and a subresource's kind never
+// counts. A 404 is an answer, not an error.
+func TestServesAsksTheExactGroupVersion(t *testing.T) {
+	disc := &fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}
+	disc.Resources = []*metav1.APIResourceList{
+		{GroupVersion: "v1", APIResources: []metav1.APIResource{
+			{Name: "configmaps", Kind: "ConfigMap", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+			{Name: "pods/status", Kind: "PodStatusOnly", Namespaced: true, Verbs: []string{"get"}},
+		}},
+		{GroupVersion: "stable.example.com/v1", APIResources: []metav1.APIResource{
+			{Name: "crontabs", Kind: "CronTab", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+		}},
+	}
+	c := NewWith(disc, nil)
+	for _, tc := range []struct {
+		apiVersion, kind string
+		want             bool
+	}{
+		{"stable.example.com/v1", "CronTab", true},
+		{"v1", "ConfigMap", true},
+		{"stable.example.com/v2", "CronTab", false},
+		{"stable.example.com/v1", "SnapshotPolicy", false},
+		{"other.example.com/v1", "CronTab", false},
+		{"v1", "PodStatusOnly", false},
+	} {
+		got, err := c.Serves(context.Background(), tc.apiVersion, tc.kind)
+		if err != nil {
+			t.Errorf("Serves(%q, %q) errored: %v", tc.apiVersion, tc.kind, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("Serves(%q, %q) = %v, want %v", tc.apiVersion, tc.kind, got, tc.want)
+		}
+	}
+}
+
+// TestServesReportsAClusterThatCannotAnswer: a failure that is not a 404
+// is an error, never a false, because false is what refuses a block.
+func TestServesReportsAClusterThatCannotAnswer(t *testing.T) {
+	disc := &fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}
+	disc.PrependReactor("get", "resource", func(clienttesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("connection refused")
+	})
+	c := NewWith(disc, nil)
+	served, err := c.Serves(context.Background(), "stable.example.com/v1", "CronTab")
+	if err == nil {
+		t.Fatalf("Serves returned %v with no error from a cluster that cannot answer", served)
+	}
+	if served {
+		t.Error("Serves reported true from a cluster that cannot answer")
 	}
 }

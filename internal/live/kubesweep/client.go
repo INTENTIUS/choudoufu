@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -63,6 +64,13 @@ type Sweeper interface {
 	// List returns every object of k carrying label key=value, excluding
 	// controller-owned ones, and how many of those it excluded.
 	List(ctx context.Context, k Kind, key, value string) (objects []Object, ownerSkipped int, err error)
+	// Serves reports whether the cluster serves kind at exactly apiVersion
+	// (GitHub issue #1079's fourth ruling): false with a nil error when the
+	// group-version is not served or serves no such kind, so that a
+	// manifest block naming it can be refused by name before the provider
+	// asks the cluster for a schema it has not got. An error is a cluster
+	// that could not answer, which is never grounds to refuse a block.
+	Serves(ctx context.Context, apiVersion, kind string) (bool, error)
 }
 
 // Client is [Sweeper] over a real API server.
@@ -220,6 +228,32 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ImportID < items[j].ImportID })
 	return items, skipped, nil
+}
+
+// Serves implements [Sweeper]: one GET of the group-version's resource
+// list, the same request API discovery makes per group, asked at the
+// exact version the block names rather than the group's preferred one,
+// because a kind served at v2 alone does not serve a manifest written for
+// v1. A 404 is the server's word that the group-version is not served,
+// and reads as false with no error; any other failure is returned as
+// is.
+func (c *Client) Serves(ctx context.Context, apiVersion, kind string) (bool, error) {
+	list, err := c.disc.ServerResourcesForGroupVersion(apiVersion)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("API discovery for %s: %w", apiVersion, err)
+	}
+	if list == nil {
+		return false, nil
+	}
+	for _, r := range list.APIResources {
+		if r.Kind == kind && !strings.Contains(r.Name, "/") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func hasVerb(verbs []string, verb string) bool {
