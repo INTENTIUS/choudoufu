@@ -159,6 +159,38 @@ stock's 13s at 10,069 objects. These are emulator seconds and this page does
 not treat them as a cost claim ([below](#and-an-emulator-cannot-answer-this-question)),
 but the ratio is worth stating rather than omitting.
 
+## Planning one estate in an account full of other estates
+
+Hold the estate still and grow the ACCOUNT around it. Stock is indifferent by
+construction - it plans from its own state file and never looks at the
+account. choudoufu sweeps, so it has to filter, and the question is whether
+the cost tracks the number of neighbouring ESTATES or only the number of
+neighbouring objects.
+
+`TestNeighbourEstateCostAgainstFloci` (`internal/live/statefulcost/`), three
+runs per column, every plan empty, the foreign load verified in the account
+before anything is timed:
+
+| Neighbours | stock | choudoufu |
+|---|---|---|
+| none | 150 | 186 |
+| 1,000 estates x 3 objects | 150 | 216 |
+| 1 estate x 3,000 objects | 150 | 216 |
+
+**Estate count is free; only the object count is a term.** The last two rows
+are the experiment: same 1,500 - and at 3,000 - objects, grouped a thousand
+ways or one way, and they are identical across all 23 recorded actions rather
+than merely in total. Nothing fans out per estate.
+
+The whole difference from the no-neighbour row is pagination of one listing:
+thirty pages over 3,000 foreign roles, one call per hundred objects. Stock is
+150 in every arm.
+
+The load is deliberately `aws_iam_role`, the one service the tagging leg
+cannot use, so it sweeps through the native per-type leg where growth could
+show at all. A tagging-served neighbour is filtered server-side and would be
+flat by construction, which would prove nothing.
+
 ## Planning an estate straight after adoption
 
 The measurement this page used to lead with, kept because it is a real moment
