@@ -112,9 +112,11 @@ Still refused: the handful of types whose block is not object metadata
 (`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the
 `*_data` patch types), which act on an object rather than being one.
 
-`helm_release` is refused, and the refusal is the ordinary unadmitted-type
-one, with or without the provider's schema
-([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 4).
+`helm_release` is refused in a live root, and the refusal is the ordinary
+unadmitted-type one, with or without the provider's schema
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 4;
+ruled 2026-09-13 in
+[#1105](https://github.com/INTENTIUS/choudoufu/issues/1105)).
 hashicorp/helm 3.2.0 serves the type with no resource identity schema and
 no object-metadata block (its `metadata` is a computed record of release
 facts, with no labels map), so neither admission route reaches it, and
@@ -123,16 +125,39 @@ the record rung because a release is not one object this tool creates,
 reads and deletes: it is a release secret in the release namespace plus
 whatever the chart rendered, made by a path this tool never sees, and
 those objects carry the chart's labels and Helm's own
-`meta.helm.sh/release-name` annotation, not the estate's label. The sweep
-never lists them, so nothing needs excluding, and the record rung would
-hold a name for a sub-estate with its own state and history that no
-marker here reaches. Helm keeps its estate and this tool keeps its own. A
-chart's objects can be owned here by declaring them: render the chart
-(`helm template`, or the same provider's `helm_template` data source) into
-`kubernetes_manifest` blocks and every one of them is admitted, labelled,
-swept and fenced. Do not put `tofu-estate` in a chart's values: an object
-carrying it that no block declares is an orphan, and the sweep will
-propose removing it from under the release.
+`meta.helm.sh/release-name` annotation, not the estate's label. Helm keeps
+its estate and this tool keeps its own.
+
+Nothing about Helm is limited in stock OpenTofu, and this fork changes
+nothing there: a root with no `live` block installs, upgrades and
+uninstalls a `helm_release` exactly as stock does, with the release in the
+state file and Helm's own release secret in the cluster. So a team on Helm
+has two honest choices, and the trade between them is Helm's lifecycle
+against ownership:
+
+- **Keep the release root stock.** Put the Helm roots in a root of their
+  own with no `live` block, beside the live estate. Helm keeps `helm
+  rollback`, release history, hooks and chart-managed upgrades; the estate
+  never claims the chart's objects, never sweeps them and never fences
+  them, and `live-ls` does not show them. This is the default the ruling
+  keeps.
+- **Render the chart into manifests.** `helm template`, or the same
+  provider's `helm_template` data source, renders the chart to YAML, and
+  each object is declared as a `kubernetes_manifest` block. Every one of
+  them is then admitted, labelled, swept, fenced and dry-run like any
+  custom resource, and found again with no state file. What is given up is
+  Helm's lifecycle: no rollback, no release history, no hooks, and an
+  upgrade is a re-render and a plan.
+
+A chart's own objects are never the estate's by accident. Under the ruling
+an object carrying Helm's release annotation is controller-held: never
+swept, never adopted, reported with its release name. That exclusion is
+#1105's one unit and is not built yet, so until it lands do not put
+`tofu-estate` in a chart's values: an object carrying it that no block
+declares is an orphan today, and the sweep will propose removing it from
+under the release. The opt-in that would bring a release inside the
+boundary (identity through the release secret, the label written by a
+post-renderer) is designed on #1105 and not built.
 
 ## Mixed estates
 

@@ -166,11 +166,17 @@ resource identity schema for it and no object-metadata block, so neither
 admission route reaches it. It is not a record-rung candidate: a release
 is a release secret plus whatever the chart rendered, made by a path this
 tool never sees, and the rendered objects carry the chart's labels and
-Helm's `meta.helm.sh/release-name` annotation, never `tofu-estate`, so the
-sweep never lists them and nothing needs excluding. A chart's objects are
-owned here by rendering them into `kubernetes_manifest` blocks; a
-`tofu-estate` written through a chart's values makes each object an
-orphan the sweep proposes to remove.
+Helm's `meta.helm.sh/release-name` annotation, never `tofu-estate`. Ruled
+2026-09-13 (#1105, in #1115's shape): a release-annotated object is
+controller-held, never swept and never adopted, reported with its release
+name; that exclusion is the one unit to build, and until it lands a
+`tofu-estate` written through a chart's values makes each object an orphan
+the sweep proposes to remove. The two honest paths, both stock: a Helm
+root kept without a `live` block beside the estate (Helm's lifecycle kept,
+nothing owned), or the chart rendered into `kubernetes_manifest` blocks
+(everything owned, Helm's rollback, history and hooks given up). The
+opt-in that would bring a release inside the boundary is designed on
+#1105 and not built.
 
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
