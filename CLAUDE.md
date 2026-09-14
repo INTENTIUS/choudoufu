@@ -74,30 +74,25 @@ once and passes on re-run is a finding, not a flake.
 
 ## Heavy and paid runs are the maintainer's, by hand
 
-The guard is proportionate, not a blanket refusal of `tools/gauntlet run`
-(corrected 2026-09-11, the same day it landed, after the maintainer asked
-why a run as small as `gauntlet run terralith-scale` needed unlocking at
-all: one estate, scale 1, the local floci emulator, about five minutes, no
-cloud, no cost). **A `gauntlet run` naming one or more estates explicitly,
-with no `-set` flag, against the emulator, needs no allow file at all: that
-is the ordinary developer loop.** Everything that amounts to a whole set
-still refuses until `~/.config/choudoufu/allow-heavy-runs` names a
-still-future instant: `-set core`, `-set all`, and a bare `gauntlet run`
-with no names at all (which resolves to the "all" set). So does every
-`tools/gauntlet live-cert` invocation and every `live/live-cert/*.sh` script
-run directly, `TARGET=aws` or not (even Stage-1 floci proving there is a
-real container for real minutes) - unchanged. No agent may create, edit, or
-otherwise bring the allow file into existence under any justification,
-including setting `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY` and
-treating that as authorization.
+There is no mechanical gate on a heavy or paid run any more (#1102,
+2026-09-14): the allow file, `-confirm`, and the
+`LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY` variable are gone. Spend is
+bounded where it can be enforced, by the account's own AWS Budgets alarm,
+and a dispatched `live-cert.yml` run waits for the maintainer's reviewer
+click. A gate an agent can satisfy by exporting a variable constrains only
+the maintainer, and a gate that is routinely routed around protects
+nothing.
 
-A single named emulator estate was never what this guard was built for.
+What stays is the rule, and it is about initiative, not ceremony. **An
+agent never starts a paid run (`tools/gauntlet live-cert -target aws`, or
+any `live/live-cert/*.sh` with `TARGET=aws`) or a whole-set run (`gauntlet
+run -set core`, `-set all`, or a bare `gauntlet run` with no names) unless
+the maintainer asked for that specific run in the current session.** Not
+inferred from a goal, not carried over from an earlier approval, not
+"needed to finish the unit". A single named estate against the emulator
+is the ordinary developer loop and needs nothing.
+
 **Three real-AWS certification cycles and two corpus runs went out
-overnight on 2026-09-11 on exactly that inferred authorization** - that is
-the shape the guard exists to stop. Blocking ordinary developer work too,
-instead of only that shape, just gets a guard disabled or routed around,
-and a guard that is routinely bypassed protects nothing. `just
-allow-heavy-runs <duration>` only prints the command that writes the file;
-the maintainer pastes it by hand when they decide to, and an agent that
-runs that printed command itself has broken this rule exactly the same way
-as writing the file directly.
+overnight on 2026-09-11 on exactly that inferred authorization.** That is
+the shape this rule exists to stop, and it is a rule about what an agent
+decides, which no environment variable ever stopped.

@@ -50,7 +50,7 @@ set -uo pipefail
 #
 # Env (beyond what reference-ec2-vpc.sh reads - see that file's own doc
 # comment for TARGET/REGION/RUN_ID/TOFU_BIN/TF_COLD_BIN/FLOCI_PORT/
-# FLOCI_IMAGE/LIVECERT_WORK_DIR/LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY):
+# FLOCI_IMAGE/LIVECERT_WORK_DIR):
 #   SCALE           terralith-gen's own -scale (default 1, the smallest
 #                    tier - #546's own rule: prove teardown at each tier
 #                    before growing).
@@ -127,16 +127,8 @@ set -uo pipefail
 #                    survives) - not the best-effort "choudoufu's own
 #                    destroy path" step, which needs a freshly built binary
 #                    and a rebuilt live block this dispatch does not
-#                    reconstruct. Still refuses TARGET=aws without
-#                    LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes, the
-#                    same spend guard every other entry point here keeps -
-#                    but, unlike every other entry point, does NOT require
-#                    the maintainer's allow file (see
-#                    livecert_require_maintainer_allow's own doc comment in
-#                    lib/live-cert.sh): it only destroys resources an
-#                    earlier run already created and verifies the account
-#                    empty, so refusing it would strand a held estate live,
-#                    the opposite of what that guard is for.
+#                    reconstruct. It only destroys resources an earlier run
+#                    already created and verifies the account empty.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -263,30 +255,7 @@ log() { printf '%s\n' "$*"; }
 
 case "$TARGET" in
   floci) ENDPOINT="http://127.0.0.1:${FLOCI_PORT}" ;;
-  aws)
-    ENDPOINT=""
-    # The maintainer-run-guard (CLAUDE.md, 2026-09-11 incident): checked
-    # before the env-var key below, and independent of it - see
-    # livecert_require_maintainer_allow's own doc comment in
-    # lib/live-cert.sh for why the env var alone is not a guard.
-    #
-    # teardown-only (TEARDOWN_ONLY_DIR, set by part 1 of the teardown-only
-    # dispatch above, before TARGET/SCALE/etc even get their fresh-run
-    # defaults) is exempt - see livecert_require_maintainer_allow's own doc
-    # comment for why: it only destroys resources an earlier run already
-    # created and verifies the account is empty, so refusing it would
-    # strand a held, billing estate live instead of tearing it down, which
-    # is the opposite of what this guard is for. A full run, a held run,
-    # and a resume all still go through this call, since each of those
-    # creates or keeps real resources.
-    if [ -z "$TEARDOWN_ONLY_DIR" ]; then
-      livecert_require_maintainer_allow
-    fi
-    if [ "${LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY:-}" != "yes" ]; then
-      echo "refusing: TARGET=aws needs LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes - nothing has been created" >&2
-      exit 2
-    fi
-    ;;
+  aws) ENDPOINT="" ;;
   *) echo "TARGET must be floci or aws, got $TARGET" >&2; exit 2 ;;
 esac
 
@@ -341,7 +310,7 @@ teardown() {
     log "  resume this estate (skips cold_deploy/migrate, runs from index_wait on):"
     log "    PREFIX=$PREFIX SCALE=$SCALE TARGET=$TARGET REGION=$REGION LIVECERT_RESUME=$WORK bash ${BASH_SOURCE[0]}"
     log "  tear it down later, on its own, once you are done iterating:"
-    log "    LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes LIVECERT_TEARDOWN_ONLY=$WORK bash ${BASH_SOURCE[0]}"
+    log "    LIVECERT_TEARDOWN_ONLY=$WORK bash ${BASH_SOURCE[0]}"
     log "  (equivalently: bash ${BASH_SOURCE[0]} teardown $WORK)"
     log "================================================================"
     TEARDOWN_DONE=1

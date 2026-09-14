@@ -350,7 +350,6 @@ FAKEEOF
     TF_COLD_BIN="$CASE3_DIR/fakebin/terraform" \
     TOFU_BIN="$CASE3_DIR/fakebin/choudoufu" \
     LIVECERT_TEARDOWN_ONLY="$CASE3_DIR" \
-    LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes \
     LIVECERT_KEEP_WORK=1 \
     bash "$ROOT/live/live-cert/terralith-scale.sh" 2>&1)"
   CASE3_RC=$?
