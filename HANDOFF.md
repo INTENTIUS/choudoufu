@@ -333,78 +333,54 @@ Rules are tests. The ones that hold this document to the tree:
 
 ### Heavy runs are the maintainer's, by hand
 
-The guard is proportionate, not a blanket refusal of `tools/gauntlet run`
-(corrected 2026-09-11, the same day it landed): a `run` naming one or more
-estates explicitly, with no `-set` flag, against the local floci emulator -
-the ordinary developer loop, e.g. `gauntlet run terralith-scale` (one
-estate, scale 1, about five minutes, no cloud, no cost) - proceeds with no
-allow file at all. `heavyRunIsNamedEmulatorLoop`
-(`tools/gauntlet/maintainerguard.go`) is that decision, consulted by cmdRun
-(`main.go`) before it ever calls `CheckMaintainerAllow`. A single named
-emulator estate was never what this guard was built for: the 2026-09-11
-incident that made it a rule (see below) was three real-AWS certification
-cycles and two full-corpus runs, not a five-minute local test of one
-estate, and a guard that blocks
-that kind of ordinary work gets disabled or routed around, at which point
-it protects nothing.
+No mechanical gate remains on a heavy or paid run (#1102, 2026-09-14). The
+allow file (`~/.config/choudoufu/allow-heavy-runs`, `CheckMaintainerAllow`,
+`livecert_require_maintainer_allow`, the justfile's allow-heavy-runs recipe),
+the `-confirm` flag and `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY` are
+all gone: two of the three constrained only the maintainer, who is the one
+developer, and the third was a file an agent could have written too. What
+bounds spend is the account's own AWS Budgets alarm (`-ceiling-usd` was
+always informational, enforced there), and what decides a dispatched run
+is the required reviewer on the `real-aws` and `corpus` environments.
 
-Everything that amounts to a whole set still refuses before starting any
-container or making any cloud call, unless
-`~/.config/choudoufu/allow-heavy-runs` exists and its one line reads
-`until <RFC3339 or YYYY-MM-DDTHH:MM>` (local time) still in the future:
-`-set core`, `-set all`, and a bare `tools/gauntlet run` with no names at
-all (which resolves to the "all" set, i.e. every estate - see run.go's
-RunEstates). So does every `tools/gauntlet live-cert` invocation
-unconditionally, named estate or not, `target=floci` or `target=aws`: even
-Stage-1 floci proving is a real container for real minutes.
-`live/live-cert/terralith-scale.sh` and `reference-ec2-vpc.sh` enforce the
-identical rule for themselves via `livecert_require_maintainer_allow`
-(`live/live-cert/lib/live-cert.sh`) when run directly with `TARGET=aws` -
-each script is inherently a single named estate already, so there is no
-set-versus-named distinction left to draw on the shell side, and no path
-around the Go runner either - except teardown-only (`terralith-scale.sh
-teardown <work dir>` / `LIVECERT_TEARDOWN_ONLY`, see "Iterating on a real
-estate" above), which never calls it: that path only destroys resources an
-earlier run already created and verifies the account empty, so refusing it
-for want of the allow file would strand a held, billing estate live instead
-of tearing it down. It still requires
-`LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes` like every other
-`TARGET=aws` path. The file lives outside the
-repository on purpose: nothing here creates it, checking out a branch or
-worktree never carries it along, and it expires on its own rather than
-staying enabled forever. `just allow-heavy-runs 2h` (or `90m`, `1d`, ...)
-computes the instant and prints the exact command —
+The rule that stays is CLAUDE.md's: an agent never starts a paid run
+(`tools/gauntlet live-cert -target aws`, any `live/live-cert/*.sh` with
+`TARGET=aws`) or a whole-set run (`-set core`, `-set all`, a bare
+`gauntlet run`) unless the maintainer asked for that specific run in the
+current session. A single named estate against the emulator
+(`gauntlet run terralith-scale`, five minutes, no cloud) is the ordinary
+developer loop. The 2026-09-11 incident (three real-AWS certification
+cycles and two corpus runs on an inferred authorization) is what the rule
+is for, and it was never an environment variable that could have stopped
+it.
+
+A real run is therefore:
 
 ```
-mkdir -p ~/.config/choudoufu && echo 'until <instant>' > ~/.config/choudoufu/allow-heavy-runs
+SCALE=136 go run ./tools/gauntlet live-cert -target aws -region us-east-2 \
+  -ceiling-usd 15 -timeout-seconds 34000 terralith-scale
 ```
 
-— for the maintainer to paste by hand; the recipe never runs it itself. CI
-is unaffected: a workflow run has `GITHUB_ACTIONS=true` set for it already,
-which both the Go and shell guards treat as the maintainer's decision
-already made when the workflow was scheduled or dispatched. See CLAUDE.md's
-"Heavy and paid runs are the maintainer's, by hand" for the rule agents
-follow, and the 2026-09-11 incident that made it a rule.
+with nothing to unlock first. #1102 also notes that the default
+`-timeout-seconds` (900) and `live-cert.yml`'s `timeout-minutes: 60` cannot
+carry a real estate; those defaults are unchanged here and are that issue's
+open item.
 
 ### Heavy runs are dispatched, approved and never local
 
 A "heavy run" is `go run ./tools/gauntlet run -set core` or `-set all` (a
 full estate pass, minutes to hours - not a plain `run <name>` against the
-emulator, which the section above exempts) or `go run ./tools/gauntlet
-live-cert -target aws` (spends real account money). The section above is
-the refusal itself (CI-only, otherwise
-`CheckMaintainerAllow`); this one is where a heavy run actually happens now
-that a laptop is refused: GitHub Actions, dispatched by hand, and still
-gated on the maintainer's own approval click, so `CHOUDOUFU_LOCAL_HEAVY_RUN`
-or any other agent-settable variable was never in the loop for this half
-either - only a repository-level required reviewer, which nothing this
-repository generates can set for itself. Two things enforce the "dispatched
-and approved" half:
+emulator) or `go run ./tools/gauntlet live-cert -target aws` (spends real
+account money). The section above is the rule; this one is where a heavy
+run normally happens: GitHub Actions, dispatched by hand, and gated on the
+maintainer's own approval click, a repository-level required reviewer
+nothing this repository generates can set for itself. Two things enforce
+the "dispatched and approved" half:
 
-- **The command runs unattended only in CI.** `inCI()`
-  (`tools/gauntlet/maintainerguard.go`) is what exempts a GitHub Actions
-  runner from the allow-file check above - `GITHUB_ACTIONS`/`CI` being set
-  there already, on every runner, with no agent action needed.
+- **The command runs unattended only in CI.** A workflow run is the
+  maintainer's decision, made when it was scheduled or dispatched; nothing
+  on a runner needs unlocking, and since #1102 nothing on a laptop does
+  either. The rule that an agent does not start one is CLAUDE.md's.
 - **The workflow itself waits for a click.** `.github/workflows/live-cert.yml`
   runs in the `real-aws` GitHub environment; `.github/workflows/gauntlet.yml`'s
   `dispatch-approval` job (added 2026-09-11, gating only its own

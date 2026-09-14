@@ -14,10 +14,6 @@ set -uo pipefail
 #      the script does not exit - the account-level AWS Budgets alarm named
 #      in #440's brief is the independent backstop for exactly that last
 #      case (a KILL that gives the trap no chance to run at all).
-#   2. The TARGET=aws confirmation gate, enforced here too (belt and
-#      suspenders with the estate script's own check) so a bare
-#      `bash live/live-cert/run.sh reference-ec2-vpc -target aws` without the
-#      env var refuses before `timeout` even starts a process.
 #
 # Usage:
 #   bash live/live-cert/run.sh <estate> [-target floci|aws] [-timeout SECONDS] [-region REGION]
@@ -43,12 +39,6 @@ done
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT/live/live-cert/$ESTATE.sh"
 [ -x "$SCRIPT" ] || { echo "no live-cert script for estate $ESTATE ($SCRIPT)" >&2; exit 2; }
-
-if [ "$TARGET" = "aws" ] && [ "${LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY:-}" != "yes" ]; then
-  echo "refusing: -target aws needs LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes in the environment - nothing has been started" >&2
-  echo "this run's ceiling ($TIMEOUT_S s process timeout) is one of TWO independent enforcements #440's brief requires; confirm the account also carries an AWS Budgets alarm before running for real" >&2
-  exit 2
-fi
 
 command -v timeout >/dev/null 2>&1 || { echo "timeout(1) is not on PATH - the process-level ceiling cannot be enforced, refusing to run" >&2; exit 2; }
 
