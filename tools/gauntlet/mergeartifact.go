@@ -316,8 +316,39 @@ func checkProvenanceAncestry(root string, rows []EstateResult, source map[string
 		if !isAnc {
 			return fmt.Errorf("merge-artifact: refusing - estate %q: last_run.commit %s is not an ancestor of %s (%s); a dangling or rebased-away provenance pointer (issue #509's class) - a re-run is required, not a merge", r.Name, r.LastRun.Commit, source[r.Name], target)
 		}
+		// Per-stage provenance points at commits too (#1069), and a rebase
+		// orphans one exactly the way it orphans last_run.commit - with the
+		// row otherwise looking healthy, because last_run.commit itself is
+		// fine. An empty StageRun is skipped: the backfill writes it for a
+		// verdict it can prove is carried but whose own run it cannot name,
+		// so there is no pointer there to dangle (stageprovenance.go).
+		for _, id := range sortedStageRunIDs(r.StageRuns) {
+			c := r.StageRuns[id].Commit
+			if c == "" || c == r.LastRun.Commit {
+				continue
+			}
+			isAnc, err := isAncestor(root, c, target)
+			if err != nil {
+				return fmt.Errorf("merge-artifact: estate %q: checking whether stage_runs[%s].commit %s is an ancestor of %s (%s): %w", r.Name, id, c, source[r.Name], target, err)
+			}
+			if !isAnc {
+				return fmt.Errorf("merge-artifact: refusing - estate %q: stage_runs[%s].commit %s is not an ancestor of %s (%s); a dangling or rebased-away per-stage provenance pointer (#509's class, #1069's field) - a re-run is required, not a merge", r.Name, id, c, source[r.Name], target)
+			}
+		}
 	}
 	return nil
+}
+
+// sortedStageRunIDs is a provenance map's keys in order, so a refusal names
+// the same stage every time rather than whichever one map iteration reached
+// first.
+func sortedStageRunIDs(m map[string]StageRun) []string {
+	ids := make([]string, 0, len(m))
+	for id := range m {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 // isAncestor reports whether commit is an ancestor of (or equal to) target.

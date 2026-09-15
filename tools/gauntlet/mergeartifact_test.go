@@ -308,3 +308,69 @@ func TestMergeArtifactAllowedPath(t *testing.T) {
 		}
 	}
 }
+
+// TestMergeArtifactRefusesNonAncestorStageRunCommit is the same #509 class
+// one field down (#1069). Per-stage provenance points at commits too, and a
+// rebase or a squash orphans one exactly the way it orphans
+// last_run.commit - with the row otherwise looking perfectly healthy,
+// because last_run.commit itself is fine.
+//
+// Proven red by dropping the stage_runs loop from checkProvenanceAncestry:
+// the merge succeeded and produced a row asserting a stage was measured at
+// a commit no longer reachable from anything.
+func TestMergeArtifactRefusesNonAncestorStageRunCommit(t *testing.T) {
+	estates := []Estate{{Name: "zeta", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}
+	root := mergeTestRepo(t, estates)
+
+	base := &Artifact{Estates: []EstateResult{{Name: "zeta", Stages: map[string]string{"cold_deploy": VerdictNotRun}}}}
+	baseSHA := commitArtifact(t, root, base, "base")
+
+	gitCheckout(t, root, baseSHA)
+	rogueSHA := commitTestFile(t, root, "rogue.txt", "rogue\n", "an unrelated, disconnected commit")
+
+	gitCheckout(t, root, baseSHA)
+	ours := &Artifact{Estates: []EstateResult{{Name: "zeta",
+		Stages: map[string]string{"cold_deploy": VerdictPass},
+		// last_run.commit is healthy; only the per-stage pointer dangles.
+		LastRun: &LastRun{Commit: baseSHA, Date: "2026-09-14T00:00:00Z"},
+		StageRuns: map[string]StageRun{
+			"cold_deploy": {Commit: rogueSHA, Date: "2026-09-01T00:00:00Z"},
+		},
+	}}}
+	oursSHA := commitArtifact(t, root, ours, "ours: zeta with a dangling per-stage provenance pointer")
+
+	_, err := MergeArtifact(root, baseSHA, oursSHA, baseSHA)
+	if err == nil {
+		t.Fatal("expected a refusal for a non-ancestor stage_runs commit, got nil")
+	}
+	if !strings.Contains(err.Error(), "zeta") || !strings.Contains(err.Error(), rogueSHA) || !strings.Contains(err.Error(), "cold_deploy") {
+		t.Errorf("error does not name the estate, the stage and the dangling commit: %v", err)
+	}
+}
+
+// TestMergeArtifactAcceptsAnUnnamedCarriedStageRun: the backfill writes an
+// EMPTY StageRun for a verdict it can prove is carried but whose own run
+// the artifact never recorded (stageprovenance.go). There is no pointer
+// there to dangle, so the ancestry check must skip it rather than refuse
+// every backfilled row that merges.
+func TestMergeArtifactAcceptsAnUnnamedCarriedStageRun(t *testing.T) {
+	estates := []Estate{{Name: "eta", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}
+	root := mergeTestRepo(t, estates)
+
+	base := &Artifact{Estates: []EstateResult{{Name: "eta", Stages: map[string]string{"cold_deploy": VerdictNotRun}}}}
+	baseSHA := commitArtifact(t, root, base, "base")
+
+	ours := &Artifact{Estates: []EstateResult{{Name: "eta",
+		Stages:  map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass},
+		LastRun: &LastRun{Commit: baseSHA, Date: "2026-09-14T00:00:00Z"},
+		StageRuns: map[string]StageRun{
+			"cold_deploy": {Commit: baseSHA, Date: "2026-09-14T00:00:00Z"},
+			"migrate":     {},
+		},
+	}}}
+	oursSHA := commitArtifact(t, root, ours, "ours: eta with one backfilled, unnamed carried stage")
+
+	if _, err := MergeArtifact(root, baseSHA, oursSHA, baseSHA); err != nil {
+		t.Fatalf("merge refused a backfilled row whose carried stage names no commit: %v", err)
+	}
+}
