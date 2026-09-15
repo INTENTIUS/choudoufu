@@ -197,7 +197,10 @@ ORACLE_ENDPOINT="http://127.0.0.1:${FLOCI_ORACLE_PORT}"
 REGION="us-west-1"
 ESTATE_NAME="simpleinfra-dns-crossing"
 GREEN_ESTATE_NAME="${ESTATE_NAME}-greenfield"
-PROVIDER_VERSION="6.59.0"
+# PROVIDER_VERSION is set below, right after lib/gauntlet.sh is sourced
+# (issue #1041: read from live/oracle-versions.json's aws_provider_version
+# via gauntlet_aws_pin_version, the one place every crossing reads this
+# release from, not a literal this script carries itself).
 
 # The estate's own shape, restated as numbers so a moved pin fails at the
 # copy rather than as an unexplained plan five stages later.
@@ -279,6 +282,8 @@ fail() {
   exit 1
 }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+PROVIDER_VERSION="$(gauntlet_aws_pin_version)"
+[ -n "$PROVIDER_VERSION" ] || fail "could not read aws_provider_version from $ROOT/live/oracle-versions.json"
 gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -361,6 +366,7 @@ provider "aws" {
   s3_use_path_style           = true
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/_terraform.tf" || fail "gauntlet_pin_aws_provider failed for $dest/_terraform.tf"
 
   # Nothing but _terraform.tf moved. .terraform/ and .terraform.lock.hcl are
   # excluded because the corpus tree carries them for most entries - module

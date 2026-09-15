@@ -721,9 +721,11 @@ EOF
 # write_count_oracle_config COUNT - H-ORACLE's whole main.tf. The provider
 # block carries the same emulator flags apply_delta1 writes onto the
 # estate's own (skip_requesting_account_id = false included - #371, and the
-# ECS-specific stall #572 describes is what `true` costs here), and the same
-# ">= 6.41" constraint versions.tf declares, so stock resolves the same
-# provider version this estate's own runs do.
+# ECS-specific stall #572 describes is what `true` costs here); the
+# required_providers block below is immediately re-pinned by
+# gauntlet_pin_aws_provider (issue #1041) to the same exact release
+# apply_delta1 pinned the estate's own versions.tf to, so stock resolves
+# the same provider version this estate's own runs do.
 write_count_oracle_config() {
   local n="$1"
   {
@@ -754,6 +756,7 @@ EOF
     echo
     count_test_block "$n" "aws_vpc.count_oracle.id" "$COUNT_ORACLE_SG_PREFIX"
   } > "$COUNT_ORACLE_DIR/main.tf"
+  gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 }
 
 # write_adopted_count_config COUNT - the adopted estate's main.tf with the
@@ -783,6 +786,11 @@ apply_delta1() {
   grep -q 'DELTA 1' "$est/main.tf" || fail "DELTA 1 did not match the provider block in $est - the corpus pin has moved"
   grep -q "skip_requesting_account_id  = $skip_account_id" "$est/main.tf" \
     || fail "DELTA 1 did not write skip_requesting_account_id = $skip_account_id into $est"
+  # issue #1041: this estate's own versions.tf carried a bare ">= 6.41"
+  # with nothing pinning it - stock's cold_deploy and choudoufu's later
+  # stages could resolve two different hashicorp/aws releases off the
+  # same lock file. Pinned here so every apply_delta1 call site gets it.
+  gauntlet_pin_aws_provider "$est/versions.tf" || fail "gauntlet_pin_aws_provider failed for $est/versions.tf"
 }
 
 gauntlet_begin
@@ -973,7 +981,7 @@ apply_delta1 "$GREEN_EST" false
 # yet either (#365 ruling 4's default refusal of that ambiguity), and a
 # greenfield apply is the one case an operator KNOWS it is a real create.
 # Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \">= 6\.41\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 
 log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
@@ -1269,7 +1277,7 @@ log "  DELTA 1  emulator flags, skip_requesting_account_id = false (#371)"
 # DELTA 2, onboarding: add the live block. record_store is needed for
 # module.ecs_cluster's time_sleep.this[0] (an effects-only logical
 # resource - see the record-store fixture).
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \">= 6\.41\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$ADOPTED_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$ADOPTED_EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED_EST/versions.tf" || fail "DELTA 2 did not match versions.tf - the corpus pin has moved"
 log "  DELTA 2  live block + local record_store added             (onboarding)"
 

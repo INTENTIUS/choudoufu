@@ -116,28 +116,62 @@ gauntlet_end() {
 #
 # Call this once per corpus module copy, right after the copy and before
 # its first `terraform init`/`tofu init`, on the ROOT (example) directory's
-# own versions.tf - the one terraform actually inits in. A child module's
-# own required_providers (if any) is left untouched: every corpus module
-# used here declares only a lower bound there (">= 6.28" and similar), which
-# an exact pin at the root satisfies by intersection, so the child's
-# constraint never needs rewriting. A later `cp -R` of an already-pinned
-# tree (greenfield, an oracle copy taken from $EST rather than from the
-# pristine corpus source) inherits the pin for free and needs no second
-# call - see each crossing script's own comment at its cp sites for which
-# case it is.
+# own versions.tf (or main.tf, for the pre-0.13 shape below) - the file
+# terraform actually inits against. A child module's own required_providers
+# (if any) is left untouched: every corpus module used here declares only a
+# lower bound there (">= 6.28" and similar), which an exact pin at the root
+# satisfies by intersection, so the child's constraint never needs
+# rewriting. A later `cp -R` of an already-pinned tree (greenfield, an
+# oracle copy taken from $EST rather than from the pristine corpus source)
+# inherits the pin for free and needs no second call - see each crossing
+# script's own comment at its cp sites for which case it is.
+#
+# Two shapes, tried in order (issue #1041, corpus-eks-basic): most corpus
+# modules use the modern `required_providers { aws = { source =
+# "hashicorp/aws", version = "..." } }` block. .corpus/eks predates
+# Terraform 0.13's source addressing entirely - its required_providers is
+# the flat `aws = ">= X"` map form, and its own example carries the
+# constraint as a deprecated `version` attribute directly on the `provider
+# "aws" { ... }` configuration block, with no `source` anywhere to match
+# on. Terraform still resolves the bare local name "aws" to
+# registry.<host>/hashicorp/aws by default, so the same two-registry lag
+# applies; the modern regex simply cannot match this file, so a second
+# regex targets the provider-block shape. Whichever one actually matched
+# is what the verification below checks for.
 #
 # live/pins_drift_test.go's TestGauntletCrossingScriptsPinOneAWSProvider
-# checks every one of #1034's five estates calls this and none passes
-# terraform/tofu init an -upgrade flag, which would re-float the version
-# this function just pinned.
+# checks every crossing script that declares hashicorp/aws calls this and
+# none passes terraform/tofu init an -upgrade flag, which would re-float
+# the version this function just pinned (issue #1041 widened the original
+# #1034 five to every such script).
+#
+# gauntlet_aws_pin_version: the one place a script reads the pin's VALUE
+# (rather than applying it to a file) - for a script that needs to build a
+# second regex anchored on "the aws provider's current version" further
+# down its own pipeline (inserting a live block after required_providers,
+# re-verifying a re-copied tree, and similar). Prefer matching the version
+# field's *shape* (any quoted string) over calling this and hardcoding the
+# returned value into a second literal - a script that never spells the
+# pin's digits out a second time cannot drift from the one it already
+# applied.
+gauntlet_aws_pin_version() {
+  : "${ROOT:?gauntlet_aws_pin_version needs $ROOT set (every crossing script sets it before sourcing this file)}"
+  python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['aws_provider_version'])" 2>/dev/null
+}
+
 gauntlet_pin_aws_provider() {
   local target="$1" pin
-  : "${ROOT:?gauntlet_pin_aws_provider needs $ROOT set (every crossing script sets it before sourcing this file)}"
-  pin="$(python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['aws_provider_version'])" 2>/dev/null)"
+  pin="$(gauntlet_aws_pin_version)"
   [ -n "$pin" ] || { printf 'gauntlet_pin_aws_provider: could not read aws_provider_version from %s/live/oracle-versions.json\n' "$ROOT" >&2; return 1; }
   [ -f "$target" ] || { printf 'gauntlet_pin_aws_provider: %s does not exist\n' "$target" >&2; return 1; }
   AWS_PIN="$pin" perl -0777 -pi -e '
     s/(aws\s*=\s*\{\s*\n\s*source\s*=\s*"hashicorp\/aws"\s*\n\s*version\s*=\s*")[^"]*(")/$1 . "= $ENV{AWS_PIN}" . $2/e;
+  ' "$target"
+  grep -q "version *= *\"= $pin\"" "$target" && return 0
+
+  # The modern shape did not match - try the pre-0.13 provider-block shape.
+  AWS_PIN="$pin" perl -0777 -pi -e '
+    s/(provider\s+"aws"\s*\{\s*\n\s*version\s*=\s*")[^"]*(")/$1 . "= $ENV{AWS_PIN}" . $2/e;
   ' "$target"
   grep -q "version *= *\"= $pin\"" "$target" \
     || { printf 'gauntlet_pin_aws_provider: %s does not carry the pinned hashicorp/aws version %s after rewrite - the corpus module shape may have moved\n' "$target" "$pin" >&2; return 1; }

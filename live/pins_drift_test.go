@@ -8,7 +8,9 @@ package residue
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -171,19 +173,83 @@ func TestEveryAcquiredProviderIsLocked(t *testing.T) {
 	}
 }
 
-// awsProviderPinScripts is issue #1034's five estates: stock's cold_deploy
-// installs the newest hashicorp/aws from registry.terraform.io while
-// choudoufu's own init resolves the identical bare source against
-// registry.opentofu.org, an independent mirror that can lag by hours. Each
-// of these scripts crosses a real corpus module through both binaries
-// against the SAME .terraform.lock.hcl, so a mirror lag makes the two
-// halves silently disagree about which release they are even comparing.
-var awsProviderPinScripts = []string{
-	"e2e/corpus-ec2-instance-complete/run.sh",
-	"e2e/corpus-iam-policy/run.sh",
-	"e2e/corpus-iam-read-only-policy/run.sh",
-	"e2e/corpus-sqs-basic/run.sh",
-	"e2e/corpus-rds-complete-postgres/run.sh",
+// gauntletCrossingScriptPattern matches e2e/<estate>/run.sh, the shape
+// every gauntlet estate's crossing script lives at (tools/gauntlet/manifest.go's
+// Estate.ScriptPath).
+var gauntletCrossingScriptPattern = regexp.MustCompile(`^e2e/[^/]+/run\.sh$`)
+
+// speaksGauntletProtocol, copiesACorpusModule and declaresHashicorpAWS are
+// issue #1041's discovery criteria for "a crossing script that inits a
+// corpus module": #1034 named five scripts by hand, and the next script
+// someone wrote (corpus-alb-complete, named in #1041 itself) proved a hand
+// -written list cannot be trusted to stay complete. Scanning every
+// e2e/*/run.sh by what it actually contains, instead of a maintained list,
+// is the guard that a NEW script cannot slip past by omission.
+//
+//   - speaksGauntletProtocol: calls gauntlet_begin, the one call every
+//     script in the actual gauntlet (as opposed to a pre-protocol legacy
+//     demo, per live/e2e/lib/gauntlet.sh's own doc comment) makes. The 20
+//     legacy demo scripts under e2e/corpus-*/run.sh that predate the
+//     protocol (corpus-cloudfront, corpus-crossing and others - never
+//     registered in live/gauntlet/estates.json, never run by `tools/gauntlet
+//     run`) do not, and are out of scope here the same way they are out of
+//     scope for the artifact.
+//   - copiesACorpusModule: references a real .corpus/<something> path -
+//     the pristine corpus checkout `just corpus-fetch` populates. This is
+//     what separates an actual corpus crossing from a script like
+//     reference-ec2-vpc, which says so directly ("No corpus, no .corpus
+//     dependency") and hand-authors its own versions.tf with its own
+//     already-exact pin - a real but DIFFERENT defect (tracked separately;
+//     seed #1041's PR body).
+//   - declaresHashicorpAWS: the module it copies actually requires
+//     hashicorp/aws at all. corpus-quickpizza copies out of .corpus and
+//     speaks the protocol but its copied module carries no cloud provider
+//     (kubernetes + helm + random only) - there is no AWS provider version
+//     for a mirror lag to disagree about, and requiring a pin call there
+//     would be a check with nothing to check.
+var (
+	speaksGauntletProtocol = regexp.MustCompile(`(?m)^gauntlet_begin\b`)
+	copiesACorpusModule    = regexp.MustCompile(`\.corpus/`)
+	declaresHashicorpAWS   = regexp.MustCompile(`hashicorp/aws`)
+)
+
+// gauntletCrossingScriptsThatDeclareAWS lists, relative to live/, every
+// e2e/*/run.sh matching the three criteria above - the set issue #1041's
+// guard actually checks. Fails the test outright (via t.Fatalf, not
+// t.Errorf) if it cannot walk the directory, since a guard that silently
+// checks zero scripts is worse than no guard.
+func gauntletCrossingScriptsThatDeclareAWS(t *testing.T) []string {
+	t.Helper()
+	var matches []string
+	entries, err := filepath.Glob("e2e/*/run.sh")
+	if err != nil {
+		t.Fatalf("globbing e2e/*/run.sh: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatalf("e2e/*/run.sh matched nothing - the guard would silently check zero scripts")
+	}
+	for _, rel := range entries {
+		if !gauntletCrossingScriptPattern.MatchString(rel) {
+			continue
+		}
+		data, err := os.ReadFile(rel)
+		if err != nil {
+			t.Fatalf("reading live/%s: %v", rel, err)
+		}
+		src := string(data)
+		if !speaksGauntletProtocol.MatchString(src) {
+			continue
+		}
+		if !copiesACorpusModule.MatchString(src) {
+			continue
+		}
+		if !declaresHashicorpAWS.MatchString(src) {
+			continue
+		}
+		matches = append(matches, rel)
+	}
+	sort.Strings(matches)
+	return matches
 }
 
 // awsProviderPinPattern matches live/oracle-versions.json's own
@@ -192,14 +258,15 @@ var awsProviderPinScripts = []string{
 // tag takes.
 var awsProviderPinPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
-// TestGauntletCrossingScriptsPinOneAWSProvider is issue #1034's guard: one
-// crossing reads one hashicorp/aws version from one place -
-// live/oracle-versions.json's aws_provider_version, applied through
-// live/e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider - rather than
-// letting a bare lower-bound constraint float to whatever
-// registry.terraform.io serves the morning stage 1 runs while
-// choudoufu's own init resolves the same bare source against
-// registry.opentofu.org.
+// TestGauntletCrossingScriptsPinOneAWSProvider is issue #1034's guard,
+// widened by #1041 to every crossing script rather than the five #1034
+// happened to find broken first: one crossing reads one hashicorp/aws
+// version from one place - live/oracle-versions.json's
+// aws_provider_version, applied through live/e2e/lib/gauntlet.sh's
+// gauntlet_pin_aws_provider - rather than letting a bare lower-bound
+// constraint float to whatever registry.terraform.io serves the morning
+// stage 1 runs while choudoufu's own init resolves the same bare source
+// against registry.opentofu.org.
 //
 // A real network call to both registries is deliberately NOT made here (a
 // `go test` in this package must not depend on the network); that check is
@@ -207,8 +274,21 @@ var awsProviderPinPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 // human runs before bumping the pin. What this test CAN verify without a
 // network call: the pin exists and looks like a release, the shared
 // function exists and reads the pin file rather than a hardcoded literal,
-// and every one of #1034's five estates actually calls it and never
-// reintroduces a float via -upgrade.
+// and that gauntletCrossingScriptsThatDeclareAWS (every crossing script
+// that actually declares hashicorp/aws, discovered by content rather than
+// a hand-maintained list - see its own doc comment) calls the pin helper
+// and never reintroduces a float via -upgrade before it has pinned.
+//
+// The -upgrade check is ordering-sensitive rather than a blanket ban: an
+// -upgrade on an init that runs AFTER the script's own first
+// gauntlet_pin_aws_provider call is resolving an already-exact `= X`
+// constraint, which -upgrade cannot move outside of - several of the 22
+// (corpus-s3-bucket-complete among them) pass -upgrade on a later stock
+// oracle's re-init of a tree copied FROM an already-pinned directory, and
+// that is not the bug #1034 named. An -upgrade appearing in the script
+// BEFORE its first pin call is the real danger (the copy is still on its
+// original bare lower bound at that point), so that ordering is what
+// fails here.
 func TestGauntletCrossingScriptsPinOneAWSProvider(t *testing.T) {
 	var oracle struct {
 		AWSProviderVersion string `json:"aws_provider_version"`
@@ -234,22 +314,53 @@ func TestGauntletCrossingScriptsPinOneAWSProvider(t *testing.T) {
 		t.Fatalf("live/e2e/lib/gauntlet.sh appears to carry a literal hashicorp/aws version (a quoted \"6.*\" string) - the pin must be read from live/oracle-versions.json, not hardcoded in the shell function")
 	}
 
-	for _, rel := range awsProviderPinScripts {
+	scripts := gauntletCrossingScriptsThatDeclareAWS(t)
+	t.Logf("checking %d crossing script(s) that copy a corpus module and declare hashicorp/aws: %v", len(scripts), scripts)
+
+	for _, rel := range scripts {
 		data, err := os.ReadFile(rel)
 		if err != nil {
 			t.Errorf("reading live/%s: %v", rel, err)
 			continue
 		}
-		src := string(data)
-		if !strings.Contains(src, "gauntlet_pin_aws_provider") {
-			t.Errorf("live/%s never calls gauntlet_pin_aws_provider - its hashicorp/aws requirement floats to whatever registry.terraform.io serves the morning stage 1 runs while choudoufu's own init resolves the same bare source against registry.opentofu.org (issue #1034)",
+		// Whole-line "# ..." comments are dropped before either substring
+		// search: this script's own doc comments (this PR's included) name
+		// gauntlet_pin_aws_provider and -upgrade in prose - corpus-xancloud-
+		// iac's header even quotes another project's README using
+		// `tofu init -upgrade` verbatim - and neither occurrence calls
+		// anything. A trailing "code # comment" on an otherwise real line
+		// is left alone (several scripts rely on it, e.g. version = "= X"
+		// # DELTA 2), since only a FULL comment line risks being mistaken
+		// for a call or a flag here.
+		src := codeOnlyLines(string(data))
+		pinAt := strings.Index(src, "gauntlet_pin_aws_provider")
+		if pinAt < 0 {
+			t.Errorf("live/%s copies a corpus module that declares hashicorp/aws but never calls gauntlet_pin_aws_provider - its requirement floats to whatever registry.terraform.io serves the morning stage 1 runs while choudoufu's own init resolves the same bare source against registry.opentofu.org (issue #1041)",
 				rel)
+			continue
 		}
-		if strings.Contains(src, "-upgrade") {
-			t.Errorf("live/%s passes -upgrade to a terraform/tofu init - this re-floats the version gauntlet_pin_aws_provider just pinned, reopening issue #1034",
+		if upgradeAt := strings.Index(src, "-upgrade"); upgradeAt >= 0 && upgradeAt < pinAt {
+			t.Errorf("live/%s passes -upgrade to a terraform/tofu init before its first gauntlet_pin_aws_provider call - that init still resolves the corpus module's original bare lower bound, re-floating the version the pin call would otherwise have fixed (issue #1041)",
 				rel)
 		}
 	}
+}
+
+// codeOnlyLines drops every line whose first non-whitespace character is
+// "#" (a shell comment occupying the whole line), joining what remains
+// back with newlines. A trailing "real code # comment" is left intact -
+// this only removes lines that are comments in their entirety, which is
+// the sole shape this file's own prose ever takes.
+func codeOnlyLines(src string) string {
+	lines := strings.Split(src, "\n")
+	kept := lines[:0]
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 func decodeInto(t *testing.T, rel string, v any) {

@@ -729,6 +729,14 @@ apply_deltas() {
   perl -0pi -e 's/(provider "aws" \{\n  version = ">= 2\.28\.1"\n  region  = var\.region\n)\}/$1\n  access_key                  = "test"\n  secret_key                  = "test"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n}/' "$base/eks/examples/basic/main.tf"
   grep -q 's3_use_path_style' "$base/eks/examples/basic/main.tf" \
     || fail "the emulator delta did not match main.tf - the corpus pin has moved"
+  # issue #1041: .corpus/eks predates Terraform 0.13 - its example carries
+  # the hashicorp/aws constraint as a deprecated `version` attribute
+  # directly on this provider block (no required_providers/source
+  # anywhere), so it still floats across the two registries the same way
+  # a modern bare lower bound does. gauntlet_pin_aws_provider tries the
+  # modern shape first and falls back to this pre-0.13 one.
+  gauntlet_pin_aws_provider "$base/eks/examples/basic/main.tf" \
+    || fail "gauntlet_pin_aws_provider failed for $base/eks/examples/basic/main.tf"
 
   if [ "$with_live" = "1" ]; then
     perl -0pi -e 's/(terraform \{\n  required_version = ">= 0\.12\.0"\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$base/eks/examples/basic/main.tf"

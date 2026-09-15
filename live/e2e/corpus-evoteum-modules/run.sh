@@ -121,13 +121,16 @@ set -uo pipefail
 #     real AWS while passing against a lenient emulator.
 #
 # THE ONE DELTA, and it is a provider pin, not a resource-shape change.
-# aws/networking/main.tofu declares `version = "~> 5.0"`, which excludes the
-# 6.59.0 release this fork's identity tables are derived at, so `tofu init`
-# refuses the root's own `= 6.59.0` outright. That single line is rewritten
-# to `= 6.59.0` - the same substitution corpus-xancloud-iac makes for the
-# same reason - and the script asserts the diff against the pinned commit is
-# EXACTLY that one line and nothing else. aws/dynamodb declares no provider
-# requirements at all and is copied byte-identical with no edit whatsoever.
+# aws/networking/main.tofu declares `version = "~> 5.0"`, which excludes
+# the pinned hashicorp/aws release (live/oracle-versions.json's
+# aws_provider_version, issue #1041) the root's own required_providers
+# pins to via gauntlet_pin_aws_provider, so `tofu init` would otherwise
+# refuse the root's exact pin outright. That single line is rewritten to
+# the SAME exact release - the same substitution corpus-xancloud-iac makes
+# for the same reason - and the script asserts the diff against the pinned
+# commit is EXACTLY that one line and nothing else. aws/dynamodb declares
+# no provider requirements at all and is copied byte-identical with no
+# edit whatsoever.
 #
 # STAGES:
 #   1. COLD DEPLOY   plain `tofu apply` (real OpenTofu core, no choudoufu),
@@ -412,16 +415,23 @@ copy_modules() {
   diff -rq "$SRC/aws/dynamodb" "$dest/dynamodb" >/dev/null \
     || fail "aws/dynamodb differs from the pinned commit"
 
-  # THE DELTA: one line, asserted rather than assumed.
+  # THE DELTA: one line, asserted rather than assumed. Pinned to the SAME
+  # exact release write_root's own required_providers block pins the root
+  # to (issue #1041) - networking's un-bumped "~> 5.0" would otherwise
+  # conflict with the root's exact pin the moment the pin moves off the
+  # 5.x line, since "~> 5.0" excludes 6.x outright.
   grep -qF 'version = "~> 5.0"' "$dest/networking/main.tofu" \
     || fail "aws/networking/main.tofu no longer carries version = \"~> 5.0\" - re-read the pin before applying this crossing's provider-pin delta"
-  sed -i.bak 's|version = "~> 5.0"|version = "= 6.59.0"|' "$dest/networking/main.tofu"
+  local pin
+  pin="$(gauntlet_aws_pin_version)"
+  [ -n "$pin" ] || fail "could not read aws_provider_version from $ROOT/live/oracle-versions.json"
+  sed -i.bak "s|version = \"~> 5.0\"|version = \"= $pin\"|" "$dest/networking/main.tofu"
   rm -f "$dest/networking/main.tofu.bak"
 
   local delta
   delta="$(diff "$SRC/aws/networking/main.tofu" "$dest/networking/main.tofu" | grep -E '^[<>]' | sed 's/^..//;s/^ *//')"
-  [ "$delta" = 'version = "~> 5.0"
-version = "= 6.59.0"' ] \
+  [ "$delta" = "version = \"~> 5.0\"
+version = \"= $pin\"" ] \
     || { printf '%s\n' "$delta"; fail "the provider-pin delta touched more than the one version line"; }
   # And nothing else in either module moved.
   diff -rq "$SRC/aws/dynamodb" "$dest/dynamodb" >/dev/null \
@@ -442,7 +452,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 $live_block
@@ -493,6 +503,7 @@ module "sessions_table" {
   }
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/main.tofu" || fail "gauntlet_pin_aws_provider failed for $dest/main.tofu"
 }
 
 LIVE_BLOCK='

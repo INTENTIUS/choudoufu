@@ -326,7 +326,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 $live_block
@@ -352,6 +352,7 @@ module "crossplane" {
   }
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/main.tofu" || fail "gauntlet_pin_aws_provider failed for $dest/main.tofu"
 }
 
 LIVE_BLOCK='
@@ -1680,7 +1681,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }

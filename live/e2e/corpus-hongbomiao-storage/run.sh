@@ -245,7 +245,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 $live_block
@@ -305,6 +305,7 @@ module "s3_bucket_iot_data" {
   common_tags    = local.common_tags
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/main.tofu" || fail "gauntlet_pin_aws_provider failed for $dest/main.tofu"
 }
 
 copy_leaf_modules "$PLAIN"
@@ -686,7 +687,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }

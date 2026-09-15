@@ -610,13 +610,14 @@ log "  DELTA 1  emulator flags added to the provider block; no backend needed"
 # import grammar and live/survey.json were never derived against. Both are
 # methodology problems, not conveniences; the speed is a side effect.
 #
-# 6.59.0 is live/corpus-provider-pins.json's verified release and the
-# version tools/survey-gen and tools/row-gen measured. `>= 6.28` accepts it,
-# in both the example and the module (.corpus/lambda/versions.tf).
-perl -0pi -e 's/(aws = \{\n      source  = "hashicorp\/aws"\n)      version = ">= 6\.28"/$1      version = "= 6.59.0"/' "$EST/versions.tf"
-grep -q 'version = "= 6.59.0"' "$EST/versions.tf" \
-  || fail "the provider-pin delta did not match versions.tf - the corpus pin has moved"
-log "  DELTA 2  hashicorp/aws pinned to = 6.59.0, the release this fork's tables are derived at"
+# issue #1041: pinned via gauntlet_pin_aws_provider to
+# live/oracle-versions.json's aws_provider_version, the one place every
+# crossing (not just this one) reads the release from - not a literal
+# this script carries itself. `>= 6.28` accepts it, in both the example
+# and the module (.corpus/lambda/versions.tf).
+gauntlet_pin_aws_provider "$EST/versions.tf" \
+  || fail "gauntlet_pin_aws_provider failed for $EST/versions.tf - the corpus pin has moved"
+log "  DELTA 2  hashicorp/aws pinned via gauntlet_pin_aws_provider"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -2348,6 +2349,7 @@ OHDR
       count_test_block "$1"
     }
     oracle_count_config 2 > "$ORACLE_COUNT_DIR/main.tf"
+    gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
     ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
       ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's terraform init failed"; }
     O_UP_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; O_UP_APPLY_RC=$?
@@ -2362,6 +2364,7 @@ OHDR
     log "  stock: 2 instances created, count_test[0] RoleId=$O_CT0_ID count_test[1] RoleId=$O_CT1_ID"
 
     oracle_count_config 1 > "$ORACLE_COUNT_DIR/main.tf"
+    gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
     O_DOWN_PLAN_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; O_DOWN_PLAN_RC=$?
     [ "$O_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$O_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $O_DOWN_PLAN_RC"; }
     grep -qE '^  # aws_iam_role\.count_test\[1\] will be destroyed' <<< "$O_DOWN_PLAN_OUT" \
@@ -2380,6 +2383,7 @@ OHDR
     log "  stock: exactly one destroy (count_test[1]), it no longer answers GetRole, count_test[0] RoleId=$O_CT0_ID unchanged"
 
     oracle_count_config 2 > "$ORACLE_COUNT_DIR/main.tf"
+    gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
     O_UP2_PLAN_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; O_UP2_PLAN_RC=$?
     [ "$O_UP2_PLAN_RC" -eq 0 ] || { printf '%s\n' "$O_UP2_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $O_UP2_PLAN_RC"; }
     grep -qE '^  # aws_iam_role\.count_test\[1\] will be created' <<< "$O_UP2_PLAN_OUT" \

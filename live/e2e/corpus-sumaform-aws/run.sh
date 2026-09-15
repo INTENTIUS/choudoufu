@@ -583,7 +583,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 $live_block
@@ -720,6 +720,7 @@ output "server_id" {
   value = module.server.configuration.id
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/main.tf" || fail "gauntlet_pin_aws_provider failed for $dest/main.tf"
 }
 
 # count_test_block <count> <vpc_id HCL expression>: day2_count's own count
@@ -764,7 +765,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }
@@ -2154,6 +2155,7 @@ mkdir -p "$COUNT_ORACLE_DIR/.terraform"
 cp -R "$PLAIN/.terraform/providers" "$COUNT_ORACLE_DIR/.terraform/providers" 2>/dev/null || true
 cp "$PLAIN/.terraform.lock.hcl" "$COUNT_ORACLE_DIR/.terraform.lock.hcl" 2>/dev/null || true
 count_oracle_main_tf 2 > "$COUNT_ORACLE_DIR/main.tf"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count oracle's init failed"; }
 CO_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD" apply -input=false -auto-approve -no-color 2>&1)"; CO_APPLY_RC=$?
@@ -2167,6 +2169,7 @@ CO_SG1="$(awsc ec2 describe-security-groups --filters "Name=tag:Name,Values=suma
 log "  stock: 2 instances applied for real - count_test[0]=$CO_SG0 count_test[1]=$CO_SG1"
 
 count_oracle_main_tf 1 > "$COUNT_ORACLE_DIR/main.tf"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 CO_DOWN_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD" plan -input=false -no-color 2>&1)"; CO_DOWN_PLAN_RC=$?
 [ "$CO_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$CO_DOWN_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-down plan exited $CO_DOWN_PLAN_RC"; }
 grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$CO_DOWN_PLAN_OUT" \
@@ -2186,6 +2189,7 @@ CO_SG1_N="$(awsc ec2 describe-security-groups --group-ids "$CO_SG1" --query "len
 log "  stock: exactly one destroy (count_test[1]=$CO_SG1, now absent), count_test[0]=$CO_SG0 unchanged"
 
 count_oracle_main_tf 2 > "$COUNT_ORACLE_DIR/main.tf"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 CO_UP_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" "$TF_COLD" plan -input=false -no-color 2>&1)"; CO_UP_PLAN_RC=$?
 [ "$CO_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$CO_UP_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-up plan exited $CO_UP_PLAN_RC"; }
 grep -qE '^  # aws_security_group\.count_test\[1\] will be created' <<< "$CO_UP_PLAN_OUT" \

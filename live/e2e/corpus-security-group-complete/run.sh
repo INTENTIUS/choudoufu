@@ -718,8 +718,7 @@ log "  DELTA 2  vpc_associations removed                         (EMULATOR GAP, 
 # Pin the provider version for reproducibility, same discipline
 # corpus-vpc-complete uses (this checkout's admission tables were generated
 # against 6.59.0).
-perl -0pi -e 's/version = ">= 6\.29"/version = "= 6.59.0"/' "$PLAIN_EST/versions.tf"
-grep -q '= 6.59.0' "$PLAIN_EST/versions.tf" || fail "the version pin did not match versions.tf - the corpus pin has moved"
+gauntlet_pin_aws_provider "$PLAIN_EST/versions.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN_EST/versions.tf - the corpus pin has moved"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -894,7 +893,7 @@ perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_ke
 grep -q 'DELTA 1' "$GREEN_EST/main.tf" || fail "the greenfield DELTA 1 did not match the provider block - the corpus pin has moved"
 perl -0pi -e 's/\n  vpc_associations = \{\n    secondary = \{\n      vpc_id = module\.vpc_secondary\.vpc_id\n    \}\n  \}\n\n/\n  # DELTA 2 (EMULATOR GAP, lex00\/floci#57): cross-VPC association removed.\n\n/' "$GREEN_EST/main.tf"
 grep -q '^  vpc_associations = {' "$GREEN_EST/main.tf" && fail "the greenfield DELTA 2 left a vpc_associations block behind"
-perl -0pi -e 's/version = ">= 6\.29"/version = "= 6.59.0"/' "$GREEN_EST/versions.tf"
+gauntlet_pin_aws_provider "$GREEN_EST/versions.tf" || fail "gauntlet_pin_aws_provider failed for $GREEN_EST/versions.tf"
 # strict { no_source_create = "create" }: found necessary re-verifying this
 # stage after main's CHOUDOUFU_NODE_RESOLVE default flip (845e7a0d9d,
 # 2026-08-25) - a genuinely cold apply now refuses config-identified
@@ -1027,6 +1026,7 @@ mkdir -p "$PLAIN_ORACLE_COUNT"
   echo
   count_test_block 2 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
+gauntlet_pin_aws_provider "$PLAIN_ORACLE_COUNT/main.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN_ORACLE_COUNT/main.tf"
 ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count oracle's terraform init failed"; }
 ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
@@ -1048,6 +1048,7 @@ log "  stock: 2 instances created, count_test[0]=$ORACLE_SG0_ID count_test[1]=$O
   echo
   count_test_block 1 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
+gauntlet_pin_aws_provider "$PLAIN_ORACLE_COUNT/main.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN_ORACLE_COUNT/main.tf"
 ORACLE_DOWN_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
 [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
 grep -qE '^  # aws_security_group\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
@@ -1073,6 +1074,7 @@ log "  stock: exactly one destroy (count_test[1]=$ORACLE_SG1_ID, 0 matches now),
   echo
   count_test_block 2 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
+gauntlet_pin_aws_provider "$PLAIN_ORACLE_COUNT/main.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN_ORACLE_COUNT/main.tf"
 ORACLE_UP_PLAN_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
 [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
 grep -qE '^  # aws_security_group\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \
@@ -1216,7 +1218,7 @@ copy_tree "$ADOPTED"
 ADOPTED_EST="$ADOPTED/security-group/examples/complete"
 perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_key                   = "test" # DELTA 1\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$ADOPTED_EST/main.tf"
 perl -0pi -e 's/\n  vpc_associations = \{\n    secondary = \{\n      vpc_id = module\.vpc_secondary\.vpc_id\n    \}\n  \}\n\n/\n  # DELTA 2 (EMULATOR GAP, lex00\/floci#57): cross-VPC association removed.\n\n/' "$ADOPTED_EST/main.tf"
-perl -0pi -e 's/version = ">= 6\.29"/version = "= 6.59.0"/' "$ADOPTED_EST/versions.tf"
+gauntlet_pin_aws_provider "$ADOPTED_EST/versions.tf" || fail "gauntlet_pin_aws_provider failed for $ADOPTED_EST/versions.tf"
 
 # DELTA 3, onboarding: add the live block. No record_store needed - this
 # estate has no effects-only (null_resource/time_*/random_*) resources.
