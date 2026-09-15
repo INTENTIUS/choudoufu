@@ -140,15 +140,22 @@ also asserted by value; an exit code is not a verdict.
    image. Do that first: the log in `live/gauntlet/logs/<estate>.log`, then
    the AWS CLI against the emulator, then what AWS documents. Write the
    five-row class you land on into your first commit message.
-3. **Run it**: `go run ./tools/gauntlet run <estate>` with `TOFU_BIN` set to a
-   binary you built. This is the call rule zero is about: it takes many
-   minutes, and you wait for it in the foreground. Do not background it and
-   end your turn — nothing will wake you, and the unit dies there.
+3. **Run it**: `go run ./tools/gauntlet run -env FLOCI_PORT=<your base> <estate>`
+   with `TOFU_BIN` set to a binary you built. This is the call rule zero is
+   about: it takes many minutes, and you wait for it in the foreground. Do
+   not background it and end your turn — nothing will wake you, and the
+   unit dies there.
    Build the binary to a path private to your worktree, never the
    shared `$TMPDIR/choudoufu`: several workers run at once, and one clobbering
    another's binary mid-session produces runs that do not reproduce and cost
    hours to diagnose. `go build -o "$(git rev-parse --show-toplevel)/.bin/choudoufu" ./cmd/choudoufu`
-   is enough. Read
+   is enough. Always pass `-env FLOCI_PORT=<your base>` too, with a base at
+   least 3 apart from any other worker's (estate scripts derive base+1 and
+   base+2, #520): the runner honors a caller-supplied FLOCI_PORT as the
+   base for the run (#1040) rather than forcing 20000 on every invocation,
+   but only if you actually pass one - omit it and you get the same port
+   every other worker that omits it gets, and you collide on the same
+   emulator container they do. Read
    `live/gauntlet/logs/<estate>.log`. Docker, the AWS CLI and a stock
    `terraform` on PATH are required; if one is missing, stop and say which.
 4. **Classify** what stops the stage, using HANDOFF's table:
