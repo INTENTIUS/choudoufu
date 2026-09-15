@@ -3,6 +3,7 @@
 .DS_Store
 bin/
 modules-dev/
+/cost-project
 /pkg/
 website/.vagrant
 website/.bundle

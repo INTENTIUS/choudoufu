@@ -140,6 +140,31 @@ func (a *Artifact) SetLiveCertResult(r LiveCertResult) {
 	a.LiveCert = append(a.LiveCert, r)
 }
 
+// RecordsLiveCert reports whether a run's result should be written to
+// live/gauntlet.json at all (issue #1100).
+//
+// `live_cert` keeps one row per estate, so writing to it REPLACES the last
+// certification outright - there is no earlier version to fall back to. A run
+// the harness refused before it started creates nothing, spends nothing and
+// speaks no stage, and must not be what replaces a run that did all three.
+//
+// It happened on 2026-09-13. A scale-136 attempt refused at one of the
+// live-cert gates of the time - the script's own log line is "nothing has
+// been created" - and overwrote the 3,705-resource real-AWS row, three stages
+// of evidence with throttle and retry counts, with a bare exit-2 record
+// carrying no detail. The runner printed "recorded live-aws certification",
+// which reads as progress. Those gates are gone (#1102); this guard is not,
+// because a refusal for any later reason must still not displace a
+// certification.
+//
+// Spoken is the existing answer: false when a script emitted no GAUNTLET
+// line. RunEstates already gates on it for the same reason (run.go). This is
+// deliberately NOT a filter on failure - a run that spoke and failed is
+// evidence and is recorded exactly as before.
+func RecordsLiveCert(res *ProtocolResult) bool {
+	return res != nil && res.Spoken
+}
+
 // RunLiveCert runs live/live-cert/<estate>.sh (or LIVECERT_SCRIPT_OVERRIDE
 // for a test) and records the result into a.LiveCert. It is the one place a
 // live-aws certification result gets written, so every safety rail lives

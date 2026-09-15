@@ -91,11 +91,111 @@ stock refuses can succeed here and never the reverse. Method, per-guard
 reading and raw values:
 [the stateful-equivalence measurement](https://github.com/INTENTIUS/choudoufu/issues/588) (#588).
 
-## Planning an adopted estate
+## Planning an estate you already run
 
-Turn the live block on, migrate the estate, and plan it the way an operator
-plans on an ordinary Tuesday. Same fixture, same emulator, three runs each,
-every plan exit 0 with `No changes`:
+The question an operator asks on an ordinary Tuesday: the estate exists, this
+tool manages it, what does a plan cost. Each side holds the prior state its
+own apply wrote - a state file for stock, the #685 state cache for choudoufu -
+and each side applied the estate itself. No adoption step is in these numbers.
+
+**Read the mode before the numbers.** A default `plan` refreshes every
+instance, and both cache gates require refresh to be off
+(`internal/command/live_mode.go`), so a default plan discards choudoufu's
+prior state and rebuilds it from live reads. Compared against stock holding
+its state file, that is not the same experiment on the two sides. The row
+that answers the question is `plan -refresh=false` with the reads policy at
+its "selective" default.
+
+Three runs per column, every plan empty, `TestSteadyStateCostAgainstFloci`
+(`internal/live/statefulcost/`):
+
+| Estate | stock `terraform plan` | choudoufu, cache serving | cache off | default `plan` |
+|---|---|---|---|---|
+| terralith, 79 objects | 150 | **169** (+12.7%) | 220 | 186 |
+| tagging-served, 101 objects | 247 | **256** (+3.6%) | 381 | 290 |
+| terralith, 10,069 objects | 18,510 | **19,666** (+6.2%) | 25,629 | 22,760 |
+
+The cache-off column does two jobs. It is the control - without it a flat
+number cannot be told from a cache that is not serving, which is how an
+earlier version of this page came to report the cache as doing nothing - and
+it is the more interesting number in its own right.
+
+**It is what a plan costs with the local state gone.** `CHOUDOUFU_STATE_CACHE=off`
+is the same situation as a deleted cache, a fresh clone, or a new machine: no
+local memory of the estate at all, ownership re-derived from the markers in
+the account. At 10,069 resources that is 25,629 calls against stock's 18,510,
+and the plan is correct - empty, every object found.
+
+Stock in that situation does not have a slower plan. It has none. A deleted
+state file is thousands of hand-written `import` blocks, and the same estate's
+`greenfield` stage proves the other side of it directly: with the record store
+deleted outright, all 9,477 objects were still found, nothing created,
+destroyed or replaced, 5,248 of them untaggable and composed from a stamped
+parent.
+
+So read the three columns as one sentence: steady state is near parity, and
+losing your local state costs a third more on one plan instead of costing you
+the estate.
+
+**The gap narrows as the estate grows.** +12.7% at 79 objects, +6.2% at
+10,069 - roughly half, on an estate a hundred and twenty times larger.
+
+**Where the shape matters.** The terralith is 83.7% identity resources by
+construction, and `aws_iam_` is the one service the Resource Groups Tagging
+API does not index, so those instances cost more to vouch than to read. An
+estate of tagging-served types - log groups, queues, topics, tables, security
+groups - lands at +3.6% at comparable size. The identity share is what moves
+that number, not the estate's size.
+
+One measurement artifact, recorded rather than dropped: stock's second run at
+10,069 reported 19,673 calls and 57s against 18,510 and ~13s for runs one and
+three. The run's log carries exactly 1,163 `http: proxy error: EOF` entries
+and run two's excess is exactly 1,163 calls - dropped connections, retried,
+each retry counted. Runs one and three agree to the call, and 18,510 matches
+what the slicing bench independently measured for stock at this size.
+
+Wall time is the one place choudoufu is plainly behind: about 85s against
+stock's 13s at 10,069 objects. These are emulator seconds and this page does
+not treat them as a cost claim ([below](#and-an-emulator-cannot-answer-this-question)),
+but the ratio is worth stating rather than omitting.
+
+## Planning one estate in an account full of other estates
+
+Hold the estate still and grow the ACCOUNT around it. Stock is indifferent by
+construction - it plans from its own state file and never looks at the
+account. choudoufu sweeps, so it has to filter, and the question is whether
+the cost tracks the number of neighbouring ESTATES or only the number of
+neighbouring objects.
+
+`TestNeighbourEstateCostAgainstFloci` (`internal/live/statefulcost/`), three
+runs per column, every plan empty, the foreign load verified in the account
+before anything is timed:
+
+| Neighbours | stock | choudoufu |
+|---|---|---|
+| none | 150 | 186 |
+| 1,000 estates x 3 objects | 150 | 216 |
+| 1 estate x 3,000 objects | 150 | 216 |
+
+**Estate count is free; only the object count is a term.** The last two rows
+are the experiment: same 1,500 - and at 3,000 - objects, grouped a thousand
+ways or one way, and they are identical across all 23 recorded actions rather
+than merely in total. Nothing fans out per estate.
+
+The whole difference from the no-neighbour row is pagination of one listing:
+thirty pages over 3,000 foreign roles, one call per hundred objects. Stock is
+150 in every arm.
+
+The load is deliberately `aws_iam_role`, the one service the tagging leg
+cannot use, so it sweeps through the native per-type leg where growth could
+show at all. A tagging-served neighbour is filtered server-side and would be
+flat by construction, which would prove nothing.
+
+## Planning an estate straight after adoption
+
+The measurement this page used to lead with, kept because it is a real moment
+and a different one: migrate the estate, then plan it immediately, with no
+record store and nothing in the cache yet.
 
 | Column | API calls |
 |---|---|
@@ -103,6 +203,10 @@ every plan exit 0 with `No changes`:
 | stock `tofu plan`, state file | 150, 150, 150 |
 | `choudoufu plan`, live block, migrated | **157, 157, 157** |
 | `choudoufu live-plan`, the same estate | 157, 157, 157 |
+
+Those 157s were measured at `b20a144ab0` and are stale: the same fixture
+reads 186 at head, which #1082 tracks - two legs added under #692 each cost
+one call per marked instance on the identity path.
 
 157 against 150 is **+4.7%**, and the residual is seven calls rather than a
 percentage, because the two sides can be diffed action by action. Of stock's
