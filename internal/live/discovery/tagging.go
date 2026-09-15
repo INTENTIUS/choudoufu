@@ -406,9 +406,48 @@ func arnJoinReaches(req Request, schemas listclient.Schemas, typeName string) bo
 		return false
 	}
 	if taggingAPIUnservedType(typeName) {
-		return !schemas.Supports(typeName)
+		return !nativeSweepReaches(req, schemas, typeName)
 	}
 	return true
+}
+
+// nativeSweepReaches reports whether the native per-type sweep leg has any
+// route to enumerate typeName at all - the question [arnJoinReaches]'s
+// unserved-service term is actually asking, and the one it used to ask as
+// [listclient.Schemas.Supports] alone.
+//
+// Supports is only the FIRST of [scanType]'s routes. When the provider
+// offers no list resource, scanType falls through to issue #272's
+// content-match leg and then to [cloudControlSource]/[scanTypeCloudControl]
+// (issue #47) before it gives up, and a type either of those reaches is one
+// the native leg enumerates perfectly well. Reading Supports alone answered
+// "no route" for a type Cloud Control lists, sent it back to the tagging
+// leg, and - since floci's 2026-09-11 repin stopped answering GetResources
+// for IAM, as real AWS never has (lex00/floci#202, live/flociimage_test.go)
+// - left the sweep with NO enumeration of aws_iam_instance_profile
+// whatsoever. That is issue #881 reopened: the terralith's stage J deletes
+// a live, marked, taggable instance profile's block and the plan proposed
+// no destroy for it, silently, while the untaggable inline policy beside it
+// was destroyed correctly because it derives from its still-declared parent
+// role and needs no enumeration at all.
+//
+// The two [scanType] routes this deliberately does NOT count are its
+// marker-index fallback (issue #293) and its located/record fallback
+// (#341): both are `!sweep`-gated, so neither is a route for the caller
+// this predicate serves. A type no route here answers true for genuinely
+// has nowhere to be found, and [sweepViaTagging] now says so rather than
+// recording it as covered - see its unserved-with-no-candidates case.
+func nativeSweepReaches(req Request, schemas listclient.Schemas, typeName string) bool {
+	if schemas.Supports(typeName) {
+		return true
+	}
+	if req.CloudControl != nil {
+		if _, ok := identity.ContentMatchTypes[typeName]; ok {
+			return true
+		}
+	}
+	_, ccOK := cloudControlSource(req, typeName)
+	return ccOK
 }
 
 // taggingAPIUnservedServices is the set of ARN service segments the
@@ -886,7 +925,7 @@ type taggedCandidate struct {
 // companion's identity (aws_default_route_table's vpc_id, issue #332). The
 // caller sweeps those types the native way instead
 // ([scanTypeReporting]), which does have that resource object.
-func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Result, universe []string) tfdiags.Diagnostics {
+func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, res *Result, universe []string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if len(universe) == 0 {
@@ -989,6 +1028,41 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 				Detail: fmt.Sprintf(
 					"%s has no CFN type the ARN join table (internal/live/discovery/tagging.go) recognizes, so the tag sweep cannot tell its resources apart from an ARN alone.",
 					typeName),
+			}))
+			continue
+		case taggingAPIUnservedType(typeName) && len(byType[typeName]) == 0 && typeTaggable(schemas, typeName):
+			// Issue #881, reopened. A type in a service GetResources does
+			// not index only reaches this leg as a LAST RESORT:
+			// [arnJoinReaches] sends it here precisely when
+			// [nativeSweepReaches] found no native route for it. So zero
+			// candidates here does not mean "the estate owns none of this
+			// type" the way it does for any other type in this universe -
+			// it means every leg looked nowhere it could have been found,
+			// and a deleted block's live object goes unproposed.
+			//
+			// It sits ABOVE the registry-untaggable case deliberately.
+			// That one files [SweepGapNotTaggable], which [sweepGapDiag]
+			// SUPPRESSES - correct for a type that could never carry a
+			// marker, wrong for aws_iam_instance_profile, whose registry
+			// row says taggable:false while the provider schema and every
+			// stamped object in the account say otherwise. Ordered the
+			// other way round, the loud gap below would be swallowed by
+			// the quiet one. [typeTaggable] is the tiebreaker, read from
+			// the provider's own schema; a type BOTH sources call
+			// untaggable still falls through to the quiet case.
+			//
+			// Before this, a taggable type with no candidates fell
+			// straight through to a TypeScan with Listed:0 and
+			// res.SweepCovered recording it as covered, with no gap at
+			// all. [arnJoinReaches]'s own doc comment already promised
+			// this gap was reported "loudly" - this is the code that
+			// keeps that promise.
+			diags = diags.Append(sweepGapDiag(res, SweepGap{
+				TypeName: typeName,
+				Reason:   SweepGapNoEnumerationRoute,
+				Detail: fmt.Sprintf(
+					"Nothing in this run can enumerate %s: the Resource Groups Tagging API does not index its service (so the estate-wide tag sweep's one GetResources call never returns its resources, no matter how they are tagged), the provider offers it no list resource, and no Cloud Control listing was available for it either. If this estate owns a %s that the configuration no longer declares, this run did not look for it and proposes no destroy for it - remove it by hand, or re-declare it. Configuring Cloud Control (TOFU_LIVE_CLOUDCONTROL) gives the sweep a route to this type where one exists.",
+					typeName, typeName),
 			}))
 			continue
 		case !req.Roster.Taggable(cfnType) && len(byType[typeName]) == 0:
