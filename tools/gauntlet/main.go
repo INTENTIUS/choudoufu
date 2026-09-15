@@ -429,7 +429,21 @@ func cmdLiveCert(root string, args []string) error {
 	target := fs.String("target", "floci", "floci (Stage 1 proving; never recorded to the artifact) or aws (Stage 2; recorded)")
 	region := fs.String("region", "us-east-1", "AWS region")
 	ceilingUSD := fs.Float64("ceiling-usd", 5, "cost ceiling this run is certifying under (#440 ruling: $5 for reference-ec2-vpc); informational here, enforced by the account's own AWS Budgets alarm and by -timeout-seconds/live/live-cert/run.sh's process timeout")
-	timeoutSeconds := fs.Int("timeout-seconds", 900, "Go-side process ceiling, independent of live/live-cert/run.sh's own `timeout` wrapper")
+	// 14400 (four hours), not 900 (#1102's open item). Fifteen minutes cannot
+	// carry any real estate: the 3,705-resource real-AWS run took over three
+	// hours, and on the emulator scale 136's cold_deploy alone is 8,735s. A
+	// default that kills every run it is asked to bound is not a ceiling, it
+	// is a guaranteed failure that the caller has to know to override, and a
+	// backstop nobody can leave at its default gets routed around.
+	//
+	// Still a real bound, because it is a process ceiling and not a spend
+	// one: what bounds spend is the account's AWS Budgets alarm, and this
+	// estate is IAM by construction - tools/cost-project puts scale 136 at
+	// about $0.50 for four hours. What this stops is a hung run holding a
+	// runner or a laptop indefinitely. 0 disables it (commandTimeoutContext),
+	// and the largest sizes want more: HANDOFF.md's worked scale-136 command
+	// passes -timeout-seconds 34000.
+	timeoutSeconds := fs.Int("timeout-seconds", 14400, "Go-side process ceiling, independent of live/live-cert/run.sh's own `timeout` wrapper; 0 disables")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
