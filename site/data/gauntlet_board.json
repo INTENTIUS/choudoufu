@@ -3354,8 +3354,8 @@
         "pass",
         "pass",
         "FAIL",
-        "pass",
-        "pass",
+        "stale",
+        "stale",
         "not run",
         "not run",
         "pass",
@@ -3366,6 +3366,7 @@
       "runtime_cells": "cold_deploy 2m12s, migrate 42s, test_plan 3s, test_apply 5s, drift_reconverge 32s, day2_rename 19s, day2_remove 2s, plan_approval 12s, greenfield 1m1s",
       "last_run_note": "Last run at commit `06cdbd3f9f` on 2026-09-15T01:43:06Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 5m7.7s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "stale_note": "**2 stage verdicts below were carried forward from an earlier run** and show as `stale`, not as the verdict they carry: `day2_count` (pass), `day2_replace` (pass). A run that aborts early leaves the stages it never reached reading whatever the last run to reach them said (#1069); the cell is kept because it is still the best thing known about that stage, and marked because it is not evidence about the run recorded below.",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3419,13 +3420,15 @@
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "pass",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` from an earlier run, not from the run recorded below, which never reached this stage. That earlier run's own commit and date were not recorded (the row kept one commit for every stage until #1069), so it cannot be named here; the next run of this estate replaces the cell with a measured verdict.",
           "detail": "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "pass",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` from an earlier run, not from the run recorded below, which never reached this stage. That earlier run's own commit and date were not recorded (the row kept one commit for every stage until #1069), so it cannot be named here; the next run of this estate replaces the cell with a measured verdict.",
           "detail": "changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision"
         },
         {

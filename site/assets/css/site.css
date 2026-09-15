@@ -197,6 +197,9 @@ th { background: var(--surface-2); font-weight: 600; }
 .cell-pass { color: var(--pass); }
 .cell-fail { color: var(--fail); font-weight: 700; }
 .cell-not-run { color: var(--notrun); }
+/* stale: the verdict came from a run other than the one this row records
+   (#1069). Warned, not passed - it must never read like a pass. */
+.cell-stale { color: var(--warn-line); font-style: italic; }
 .claims td.status { font-size: 0.85rem; }
 .claims td.status-proven, .claims td.status-restated { font-weight: 600; }
 .claims td.status-proven { color: var(--pass); }

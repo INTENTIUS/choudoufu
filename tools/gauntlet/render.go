@@ -330,7 +330,16 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("script's wall-clock seconds, recorded for every run regardless of")
 	w("protocol) and optional per-stage `stage_seconds` (wall-clock seconds")
 	w("each stage took, recorded only for a gauntlet-protocol script whose")
-	w("copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)). `go run")
+	w("copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)), and")
+	w("`stage_runs` (id to the `commit` and `date` of the run that actually")
+	w("measured that verdict, #1069). A run that aborts early still leaves")
+	w("the stages it never reached reading the last run to reach them - that")
+	w("carry-forward is deliberate - but `stage_runs` now says which cells")
+	w("those are: a verdict whose `stage_runs` entry is not this row's own")
+	w("`last_run` renders as `stale` rather than as the verdict it carries,")
+	w("and does not count toward `clear`. A stage with no entry is unknown")
+	w("provenance, not stale: rows recorded before the field existed keep")
+	w("the cells and the clear flag they had. `go run")
 	w("./tools/gauntlet snapshot <version>` copies it to")
 	w("`live/history/<version>.json` at release; `go run")
 	w("./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just")
@@ -766,6 +775,69 @@ func verdictMark(v string) string {
 	default:
 		return "not run"
 	}
+}
+
+// VerdictMarkStale is the cell a carried-forward verdict prints (#1069).
+// It deliberately does not contain the word "pass": the whole finding was
+// that a row could show `greenfield: fail` and `day2_remove: pass` at once,
+// because the pass was some earlier run's and the board had no way to say
+// so. A reader scanning the row must not be able to read a pass out of a
+// stage the recorded run never reached; the estate page's own row says
+// underneath it which verdict was carried and from when.
+const VerdictMarkStale = "stale"
+
+// verdictMarkFor is verdictMark with the row's per-stage provenance in
+// hand. carried is EstateResult.StageCarried: true only when the artifact
+// records that this verdict came from a run other than the one the row
+// names, never merely because provenance is unknown.
+//
+// Only pass and fail become "stale". A carried "not_run" or "n/a" asserts
+// nothing that could mislead, so it prints exactly as it always has.
+func verdictMarkFor(v string, carried bool) string {
+	if carried && (v == VerdictPass || v == VerdictFail) {
+		return VerdictMarkStale
+	}
+	return verdictMark(v)
+}
+
+// stageProvenanceNote is the sentence an estate page prints under a carried
+// stage: which verdict was carried, and which run actually measured it.
+// Empty for a stage this row's recorded run measured itself, and for one
+// whose provenance was never recorded (a row written before #1069 - see
+// StageCarried's three states; claiming staleness there would be an
+// assertion the artifact cannot support).
+func stageProvenanceNote(r EstateResult, id string) string {
+	if !r.StageCarried(id) {
+		return ""
+	}
+	v := r.Stages[id]
+	if v != VerdictPass && v != VerdictFail {
+		return ""
+	}
+	sr := r.StageRuns[id]
+	if sr.Commit == "" && sr.Date == "" {
+		return fmt.Sprintf("**Stale**: this cell reads `%s` from an earlier run, not from the run recorded below, which never reached this stage. That earlier run's own commit and date were not recorded (the row kept one commit for every stage until #1069), so it cannot be named here; the next run of this estate replaces the cell with a measured verdict.", v)
+	}
+	return fmt.Sprintf("**Stale**: this cell reads `%s` as measured at commit `%s` on %s, not by the run recorded below, which never reached this stage.", v, short(sr.Commit), sr.Date)
+}
+
+// staleStagesNote is the estate page's one sentence about carried verdicts
+// across the whole row, printed beside the clear flag so a reader meets it
+// before the table rather than after. Empty when nothing is carried.
+func staleStagesNote(r EstateResult) string {
+	carried := r.CarriedStages()
+	if len(carried) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, id := range carried {
+		parts = append(parts, fmt.Sprintf("`%s` (%s)", id, r.Stages[id]))
+	}
+	noun, verb := "verdict", "was"
+	if len(carried) > 1 {
+		noun, verb = "verdicts", "were"
+	}
+	return fmt.Sprintf("**%d stage %s below %s carried forward from an earlier run** and show as `%s`, not as the verdict they carry: %s. A run that aborts early leaves the stages it never reached reading whatever the last run to reach them said (#1069); the cell is kept because it is still the best thing known about that stage, and marked because it is not evidence about the run recorded below.", len(carried), noun, verb, VerdictMarkStale, strings.Join(parts, ", "))
 }
 
 func short(sha string) string {

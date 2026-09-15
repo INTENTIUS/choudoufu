@@ -893,9 +893,29 @@ func BuildScaleRecordFromEstate(e EstateResult, source string) (ScaleRecord, boo
 	// no witness, and there every stage is kept rather than the record
 	// being silently emptied - an older row with nothing to go on is a
 	// weaker record, not a false one.
+	//
+	// Per-stage provenance (StageRuns, #1069's second half) is the better
+	// witness where the row has it, and is asked first: it says directly
+	// which run measured each verdict, where Seconds only says which
+	// stages emitted a duration_s - true of the same stages today, but a
+	// script sourcing an older live/e2e/lib/gauntlet.sh emits verdicts
+	// without durations, and there Seconds silently drops a stage this run
+	// really did measure. Provenance is consulted only for rows that carry
+	// it; StageIsCurrent answers true for a stage with no entry, so the
+	// Seconds fallback still does the work on every row written before the
+	// field existed.
 	measured := e.LastRun.Seconds
+	hasProvenance := len(e.StageRuns) > 0
 	for id, verdict := range e.Stages {
-		if len(measured) > 0 {
+		if hasProvenance {
+			// StageMeasuredByLastRun, not StageIsCurrent: an unstamped
+			// stage on a row that stamps its stages is one this run never
+			// reported, and a record keyed by scale keeps only what this
+			// run measured.
+			if !e.StageMeasuredByLastRun(id) {
+				continue
+			}
+		} else if len(measured) > 0 {
 			if _, ok := measured[id]; !ok {
 				continue
 			}

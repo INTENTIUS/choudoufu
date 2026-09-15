@@ -265,12 +265,28 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		runSeconds := map[string]float64{}
 		rowOracle := oracle
 		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
+		// Per-stage provenance (#1069). Stages and Detail keep merging, for
+		// the reasons above; what changes is that every verdict this run
+		// writes is stamped with this run, so a reader can tell the ones it
+		// measured from the ones the merge preserved. A stage whose verdict
+		// this run did NOT report keeps whatever StageRun it already had -
+		// and a stage that has none stays unstamped rather than being
+		// backdated to a run that cannot be named (see StageCarried's
+		// three states, artifact.go).
+		thisRun := StageRun{Commit: r.LastRun.Commit, Date: r.LastRun.Date}
+		stampStage := func(id string) {
+			if r.StageRuns == nil {
+				r.StageRuns = map[string]StageRun{}
+			}
+			r.StageRuns[id] = thisRun
+		}
 		if res.Spoken {
 			if r.Stages == nil {
 				r.Stages = map[string]string{}
 			}
 			for id, v := range res.Stages {
 				r.Stages[id] = v
+				stampStage(id)
 			}
 			for id, v := range res.Detail {
 				prevDetail[id] = v
@@ -304,6 +320,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				// carried-forward verdict is left untouched, because this
 				// run genuinely says nothing new about them.
 				failedStage := recordRunnerFailure(&r, exit, res.Stages)
+				stampStage(failedStage)
 				fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol but reported no stage verdicts this run; recorded %s=%s as a runner/environment failure (not a product regression), every other stage carried forward untouched, exit code %d noted\n", e.Name, failedStage, VerdictFail, exit)
 			} else if exit != 0 {
 				// #555: a script can now speak SOME stage verdicts this run
@@ -339,6 +356,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 				}
 				if !hasFail {
 					failedStage := recordRunnerFailure(&r, exit, res.Stages)
+					stampStage(failedStage)
 					fmt.Fprintf(opts.Stdout, "%s: script spoke the gauntlet protocol and reported %d stage verdict(s) this run, but exited non-zero with no stage anywhere in the row reading fail - the failure happened in the gap between two stages, attributed to neither; recorded %s=%s as a runner/environment failure at the earliest stage this run never reached (not a product regression), every stage this run did confirm keeps its own verdict, exit code %d noted\n", e.Name, len(res.Stages), failedStage, VerdictFail, exit)
 				}
 			}

@@ -81,8 +81,11 @@ type BoardEstate struct {
 	Protocol  string `json:"protocol"`
 	Notes     string `json:"notes,omitempty"`
 	// Cells is one verdict mark per active stage, in stage order: "pass",
-	// "FAIL", "not run" or "n/a" (the stage does not apply on the estate's
-	// substrate; the estate page's row carries the reason).
+	// "FAIL", "not run", "n/a" (the stage does not apply on the estate's
+	// substrate; the estate page's row carries the reason) or "stale" (the
+	// verdict was measured by a run other than the one this row records -
+	// #1069; the estate page's row and StaleNote below say which verdict
+	// and from when).
 	Cells []string `json:"cells"`
 	// RuntimeTotal is last_run.duration_s as a stopwatch reads it, or "-".
 	RuntimeTotal string `json:"runtime_total"`
@@ -100,6 +103,12 @@ type BoardEstate struct {
 	// **Stale** marker when the oracle pin has moved. Markdown. Empty for
 	// a row whose run never recorded an oracle.
 	OracleNote string `json:"oracle_note,omitempty"`
+	// StaleNote is staleStagesNote's sentence: how many of this row's
+	// verdicts were carried forward from an earlier run rather than
+	// measured by the run recorded below (#1069). Markdown. Empty when the
+	// row carries none, which is every row whose last run reached every
+	// stage and every row written before per-stage provenance existed.
+	StaleNote string `json:"stale_note,omitempty"`
 	// StageRows is the estate page's own table, one row per stage in the
 	// registry (planned and non-headline stages included, labelled).
 	StageRows []BoardStageRow `json:"stage_rows"`
@@ -107,11 +116,16 @@ type BoardEstate struct {
 
 // BoardStageRow is one row of an estate page's stage table.
 type BoardStageRow struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Verdict  string `json:"verdict"`
-	Duration string `json:"duration,omitempty"`
-	Detail   string `json:"detail,omitempty"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Verdict string `json:"verdict"`
+	// Provenance is stageProvenanceNote's sentence, set only when this
+	// stage's verdict was carried forward from a run other than the one
+	// the row records (#1069). Markdown. The site prints it in the same
+	// cell as Detail, so a carried verdict says so wherever it is read.
+	Provenance string `json:"provenance,omitempty"`
+	Duration   string `json:"duration,omitempty"`
+	Detail     string `json:"detail,omitempty"`
 }
 
 // BoardLiveCert is one live-AWS certification row, sorted by estate. It is
@@ -183,12 +197,14 @@ func boardEstate(r EstateResult, a *Artifact) BoardEstate {
 		Cells:        []string{},
 		RuntimeTotal: runtimeTotalCell(r),
 		RuntimeCells: runtimeStageCells(r, a),
+		StaleNote:    staleStagesNote(r),
 	}
 	for _, s := range a.Stages {
+		carried := r.StageCarried(s.ID)
 		if s.Status == StatusActive {
-			e.Cells = append(e.Cells, verdictMark(r.Stages[s.ID]))
+			e.Cells = append(e.Cells, verdictMarkFor(r.Stages[s.ID], carried))
 		}
-		row := BoardStageRow{ID: s.ID, Title: s.Title, Verdict: verdictMark(r.Stages[s.ID])}
+		row := BoardStageRow{ID: s.ID, Title: s.Title, Verdict: verdictMarkFor(r.Stages[s.ID], carried), Provenance: stageProvenanceNote(r, s.ID)}
 		if s.Status != StatusActive {
 			row.Title += " (planned)"
 		} else if !s.Headline {

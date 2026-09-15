@@ -173,6 +173,31 @@ type Tally struct {
 	// NA counts VerdictNA: the stage does not apply on the estate's
 	// substrate (#1067). Zero on every emulator row.
 	NA int `json:"n_a,omitempty"`
+	// Stale counts a cell whose pass or fail was measured by a run other
+	// than the one its row records (#1069) - the same cells the board
+	// renders as "stale". It is its own bucket rather than being folded
+	// into Pass, Fail or NotRun because it is a different fact from all
+	// three: the stage was measured, the result is known, and it is not
+	// evidence about the run this row reports.
+	//
+	// Without it, this tally and the board contradicted each other about
+	// the same cell - site/data/gauntlet_board.json rendered
+	// terralith-scale's day2_count as stale while sets.core.stages
+	// .day2_count.pass still counted it as a pass, and of the two the
+	// artifact is the one that reads as a measurement. That is the shape
+	// CLAUDE.md names as the reason a measured artifact is never
+	// hand-merged, one field below the aggregate it warns about.
+	//
+	// omitempty, so a set with nothing carried serializes exactly as it
+	// did before this field existed.
+	//
+	// Pass + Fail + NotRun + NA + Stale is always the set's estate count:
+	// any surface printing a breakdown must print this bucket too, or show
+	// a total that no longer sums. site/layouts/shortcodes/gauntlet-bars
+	// .html computes the same five numbers itself, off the rows, and
+	// TestCommittedTallyAgreesWithTheBoard holds this tally to the board's
+	// own cells.
+	Stale int `json:"stale,omitempty"`
 }
 
 // EstateResult is one estate's row.
@@ -189,10 +214,131 @@ type EstateResult struct {
 	Reason    string            `json:"reason,omitempty"`
 	Script    string            `json:"script"`
 	Stages    map[string]string `json:"stages"`
-	Clear     bool              `json:"clear"`
-	Protocol  string            `json:"protocol"`
-	LastRun   *LastRun          `json:"last_run,omitempty"`
-	Notes     string            `json:"notes,omitempty"`
+	// StageRuns is per-stage provenance (issue #1069): stage id -> the run
+	// that actually measured the verdict sitting in Stages above.
+	//
+	// Stages is merged across runs by RunEstates (run.go), deliberately: a
+	// run that aborts at stage 3 leaves stages 4..14 reading whatever the
+	// last run to reach them said, because a stale verdict is still the
+	// best thing known about a stage this run never reached. What the row
+	// could not do until this field existed was TELL the two apart. That
+	// is how main's terralith-scale row came to read `greenfield: fail`,
+	// `clear: false` and `day2_remove: pass` at once (#1125): a run that
+	// died at greenfield never reached day2_remove, so that pass belonged
+	// to some earlier run and nothing in the row said so.
+	//
+	// An entry whose Commit and Date equal this row's own LastRun's was
+	// measured by that run. Any other entry was measured by a different
+	// one, and every reader that must not treat it as current - the clear
+	// flag (isClearAgainst below), the board (verdictMarkFor, render.go)
+	// and the scale record (BuildScaleRecordFromEstate, scalerecord.go) -
+	// asks StageCarried rather than eyeballing the verdict.
+	//
+	// A stage with NO entry is unknown provenance, not carried: every row
+	// written before this field existed is in that state, and treating
+	// unknown as carried would silently retract 28 clear rows on the
+	// strength of a field that had never been written yet. See
+	// StageCarried for the three-state rule and `gauntlet
+	// backfill-stage-provenance` (stageprovenance.go) for the migration
+	// that fills in what the committed artifact can honestly recover.
+	StageRuns map[string]StageRun `json:"stage_runs,omitempty"`
+	Clear     bool                `json:"clear"`
+	Protocol  string              `json:"protocol"`
+	LastRun   *LastRun            `json:"last_run,omitempty"`
+	Notes     string              `json:"notes,omitempty"`
+}
+
+// StageRun names the run that measured one stage's verdict.
+//
+// Commit and Date are the same two values LastRun carries, written from the
+// same variables at the same instant (RunEstates, run.go), so "this stage
+// was measured by the run this row records" is an equality check on both
+// rather than a heuristic. Date is compared as well as Commit because two
+// runs at the same commit are still two runs, and the carry-forward this
+// field exists to expose happens between consecutive runs far more often
+// than between commits.
+//
+// Both may be empty, and that means something specific: the backfill
+// (stageprovenance.go) writes an empty StageRun for a verdict it can prove
+// was NOT measured by the run the row records but whose own run it cannot
+// name, because the artifact only ever kept one commit per row. Empty
+// compares unequal to any real commit, so such a stage reads as carried -
+// which is the honest answer - and the board says the earlier run was not
+// recorded rather than inventing a commit for it.
+type StageRun struct {
+	Commit string `json:"commit,omitempty"`
+	Date   string `json:"date,omitempty"`
+}
+
+// StageCarried reports whether stage id's verdict was measured by some run
+// OTHER than the one this row's last_run names - a verdict carried forward
+// through an abort rather than confirmed by the recorded run.
+//
+// Three states, not two:
+//
+//   - no StageRuns entry: provenance was never recorded for this stage.
+//     Returns false. Unknown is not carried, and a reader must not upgrade
+//     "we did not write it down" into "we know it is stale" - that is the
+//     same fabrication IsStale's own doc comment refuses in the other
+//     direction.
+//   - an entry equal to LastRun's commit and date: measured by that run.
+//     Returns false.
+//   - anything else, empty included: measured by a different run.
+//     Returns true.
+//
+// A row with an entry but no LastRun at all has nothing to be current
+// against, so its recorded stages are carried by definition.
+func (r EstateResult) StageCarried(id string) bool {
+	sr, ok := r.StageRuns[id]
+	if !ok {
+		return false
+	}
+	if r.LastRun == nil {
+		return true
+	}
+	return sr.Commit != r.LastRun.Commit || sr.Date != r.LastRun.Date
+}
+
+// StageIsCurrent is StageCarried's negation, spelled out because that is
+// the direction every caller reads it in ("count this verdict?"). Unknown
+// provenance reads as current here, exactly as it does in StageCarried.
+func (r EstateResult) StageIsCurrent(id string) bool { return !r.StageCarried(id) }
+
+// StageMeasuredByLastRun is the strict form StageIsCurrent is not: it
+// requires a recorded StageRun equal to this row's last_run, so a stage
+// with no provenance at all answers false rather than being given the
+// benefit of the doubt.
+//
+// The two differ only in what they do with the unknown state, and each
+// caller wants a different answer there. The clear flag and the board must
+// not retract a verdict on the strength of a field that was never written
+// (StageIsCurrent). A scale record must not ADMIT one: it is keyed by
+// (estate, target, scale) and a verdict from another run is a claim about
+// another size, so "cannot show this run measured it" is reason enough to
+// leave it out (BuildScaleRecordFromEstate, scalerecord.go).
+func (r EstateResult) StageMeasuredByLastRun(id string) bool {
+	if _, ok := r.StageRuns[id]; !ok {
+		return false
+	}
+	return !r.StageCarried(id)
+}
+
+// CarriedStages is every stage id whose verdict this row carries from an
+// earlier run, in stage-registry order, restricted to stages that actually
+// assert something (pass or fail). A carried "not_run" or "n/a" asserts
+// nothing and so is never worth naming.
+func (r EstateResult) CarriedStages() []string {
+	var out []string
+	for _, s := range Stages() {
+		v := r.Stages[s.ID]
+		if v != VerdictPass && v != VerdictFail {
+			continue
+		}
+		if r.StageCarried(s.ID) {
+			out = append(out, s.ID)
+		}
+	}
+	return out
 }
 
 // LastRun records the run that produced the verdicts.
@@ -362,7 +508,23 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 				delete(r.Stages, id)
 			}
 		}
-		r.Clear = isClearFor(e.Substrate(), r.Stages)
+		// Per-stage provenance follows its verdict: a stage that left the
+		// registry takes its StageRun with it, and an n/a cell (written
+		// here, by this function, never measured by a run) must not carry
+		// a provenance stamp claiming some run produced it (#1067/#1069).
+		for id := range r.StageRuns {
+			if _, ok := StageByID(id); !ok {
+				delete(r.StageRuns, id)
+				continue
+			}
+			if r.Stages[id] == VerdictNA {
+				delete(r.StageRuns, id)
+			}
+		}
+		if len(r.StageRuns) == 0 {
+			r.StageRuns = nil
+		}
+		r.Clear = isClearFor(e.Substrate(), r.Stages, r.StageIsCurrent)
 		rows = append(rows, r)
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
@@ -390,6 +552,23 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 }
 
 // tallyRows tallies the rows keep admits into one SetSummary.
+//
+// It reads the same per-stage provenance the board reads (#1069). A pass or
+// a fail measured by a run other than the one its row records goes to
+// Tally.Stale, never to Pass or Fail: this tally and the board describe the
+// same cells, so they must not disagree about one - and they did, until
+// this switch stopped keying off the raw verdict string alone.
+//
+// The predicate is reached through the row rather than passed in the way
+// isClearAgainst takes one. isClearAgainst needs the injection because it
+// is handed a bare stage map with no row behind it; this loop holds the
+// whole EstateResult, so r.StageCarried IS that predicate, and a parameter
+// every caller would fill with the same value would only be a longer way to
+// write it.
+//
+// Unknown provenance is not stale, here as everywhere else: StageCarried
+// answers false for a stage with no recorded entry, so every row written
+// before this field existed tallies exactly as it always has.
 func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) SetSummary {
 	sum := SetSummary{Label: label, Stages: map[string]Tally{}}
 	for _, r := range rows {
@@ -402,12 +581,15 @@ func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) 
 		}
 		for _, s := range Stages() {
 			t := sum.Stages[s.ID]
-			switch r.Stages[s.ID] {
-			case VerdictPass:
+			v := r.Stages[s.ID]
+			switch {
+			case (v == VerdictPass || v == VerdictFail) && r.StageCarried(s.ID):
+				t.Stale++
+			case v == VerdictPass:
 				t.Pass++
-			case VerdictFail:
+			case v == VerdictFail:
 				t.Fail++
-			case VerdictNA:
+			case v == VerdictNA:
 				t.NA++
 			default:
 				t.NotRun++
@@ -423,16 +605,26 @@ func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) 
 // Planned stages do not count either way, and neither does an active stage
 // marked non-headline (#482) - "strict" is the current example: it can run,
 // pass or fail per estate, without ever moving this.
+// It takes no provenance argument and so treats every verdict as current -
+// the right reading for a caller that has a bare stage map and nothing
+// else. Rebuild, which has a whole row, calls isClearFor with the row's own
+// StageIsCurrent instead.
 func isClear(stages map[string]string) bool {
-	return isClearAgainst(HeadlineStages(), stages)
+	return isClearAgainst(HeadlineStages(), stages, allStagesCurrent)
 }
+
+// allStagesCurrent is the provenance predicate for a caller with no
+// provenance to offer: every stage counts as measured by the run in hand.
+// It is what the artifact did for every reader before #1069, so passing it
+// is an explicit "this call is unchanged", never an oversight.
+func allStagesCurrent(string) bool { return true }
 
 // isClearFor is isClear on one substrate: a headline stage that does not
 // apply there (Stage.NotApplicable, #1067) is left out of the list rather
 // than counted as a miss, so a kind-substrate estate can be clear with its
 // n/a cells. On the floci substrate every headline stage applies and this
 // is exactly isClear.
-func isClearFor(substrate string, stages map[string]string) bool {
+func isClearFor(substrate string, stages map[string]string, current func(string) bool) bool {
 	var headline []Stage
 	for _, s := range HeadlineStages() {
 		if _, na := s.NotApplicable(substrate); na {
@@ -440,7 +632,7 @@ func isClearFor(substrate string, stages map[string]string) bool {
 		}
 		headline = append(headline, s)
 	}
-	return isClearAgainst(headline, stages)
+	return isClearAgainst(headline, stages, current)
 }
 
 // isClearAgainst is isClear's logic against an explicit headline stage list.
@@ -455,10 +647,23 @@ func isClearFor(substrate string, stages map[string]string) bool {
 // Tier1Gated stage still breaks clear: the fixture gates activation, never
 // correctness. Every other headline stage is unaffected - "not_run" on it
 // still breaks clear exactly as it always has.
-func isClearAgainst(headline []Stage, stages map[string]string) bool {
+//
+// current reports whether a stage's verdict was measured by the run the row
+// records (EstateResult.StageIsCurrent, #1069). A pass that current rejects
+// is a pass carried forward through an earlier run's abort, and it does not
+// clear the stage: the headline number is a claim about what this row's
+// recorded run measured, and a verdict from some other run cannot support
+// it. It is not counted as a FAIL either - on a Tier1Gated stage a carried
+// pass falls through to the same neutral treatment "not_run" already gets
+// there, since "we do not currently know" is exactly what both mean. Pass
+// allStagesCurrent when there is no provenance to consult.
+func isClearAgainst(headline []Stage, stages map[string]string, current func(string) bool) bool {
 	for _, s := range headline {
 		v := stages[s.ID]
-		if v == VerdictPass || v == VerdictNA {
+		if v == VerdictNA {
+			continue
+		}
+		if v == VerdictPass && current(s.ID) {
 			continue
 		}
 		if s.Tier1Gated && v != VerdictFail {

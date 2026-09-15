@@ -212,9 +212,10 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 27,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_crash": {
           "pass": 1,
@@ -232,9 +233,10 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 27,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_teardown": {
           "pass": 0,
@@ -289,9 +291,10 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 26,
+          "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_crash": {
           "pass": 1,
@@ -309,9 +312,10 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 26,
+          "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_teardown": {
           "pass": 0,
@@ -601,9 +605,10 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 2,
+          "pass": 1,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_crash": {
           "pass": 1,
@@ -621,9 +626,10 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 2,
+          "pass": 1,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_teardown": {
           "pass": 0,
@@ -771,6 +777,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -836,6 +888,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -903,6 +1001,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -969,6 +1113,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1033,6 +1223,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1100,6 +1336,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1165,6 +1447,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1232,6 +1560,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1297,6 +1671,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1364,6 +1784,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1429,6 +1895,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1496,6 +2008,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1561,6 +2119,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1628,6 +2232,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1694,6 +2344,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1758,6 +2454,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "day2_count": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "day2_remove": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "day2_rename": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "day2_replace": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "drift_reconverge": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "greenfield": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "migrate": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "plan_approval": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "test_apply": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        },
+        "test_plan": {
+          "commit": "933618dec40fb36c7b26e03c16bc5c53a53bbe8b",
+          "date": "2026-09-08T22:17:50Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1825,6 +2567,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -1890,6 +2678,56 @@
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "day2_count": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "day2_remove": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "day2_rename": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "day2_teardown": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "drift_reconverge": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "greenfield": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "migrate": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "plan_approval": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "strict": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "test_apply": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        },
+        "test_plan": {
+          "commit": "79697017b607864ff5222ae5b2d273e38a7d486b",
+          "date": "2026-09-12T23:34:50Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -1958,6 +2796,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -2023,6 +2907,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -2090,6 +3020,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -2155,6 +3131,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -2222,6 +3244,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -2287,6 +3355,52 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -2354,6 +3468,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -2420,6 +3580,52 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -2483,6 +3689,60 @@
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_count": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_crash": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_remove": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_rename": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "day2_replace": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "drift_reconverge": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "greenfield": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "migrate": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "plan_approval": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "strict": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_apply": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        },
+        "test_plan": {
+          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
+          "date": "2026-09-10T07:49:05Z"
+        }
       },
       "clear": true,
       "protocol": "gauntlet",
@@ -2552,6 +3812,56 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "day2_count": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "day2_remove": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "day2_rename": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "day2_teardown": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "drift_reconverge": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "greenfield": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "migrate": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "plan_approval": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "strict": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "test_apply": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        },
+        "test_plan": {
+          "commit": "e17f62ae4480bb2d37096279e0dfafde23b8198b",
+          "date": "2026-09-12T14:41:53Z"
+        }
+      },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
@@ -2616,6 +3926,46 @@
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "day2_count": {},
+        "day2_remove": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "day2_rename": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "day2_replace": {},
+        "drift_reconverge": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "greenfield": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "migrate": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "plan_approval": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "test_apply": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        },
+        "test_plan": {
+          "commit": "06cdbd3f9f8a4a0592a31541eb235ed8871c5a04",
+          "date": "2026-09-15T01:43:06Z"
+        }
       },
       "clear": false,
       "protocol": "gauntlet",

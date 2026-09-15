@@ -844,8 +844,40 @@ func TestRunEstatesParallelMatchesSerial(t *testing.T) {
 	}
 
 	serial := run(1)
+	// Force the two runs into different wall-clock seconds, and check
+	// below that they really landed there. Before this, whether the run
+	// timestamps differed was up to how fast the machine was: they matched
+	// locally and differed on CI, so the guard's verdict was decided by a
+	// clock tick rather than by the code under test. Waiting makes the
+	// harder case - timestamps differing - the one that always runs, so
+	// the exclusion below is exercised on every invocation instead of on
+	// whichever machine happens to be slow.
+	waitForSecondTick(t)
 	parallel := run(3)
 
+	// The fixture only proves anything if the two runs are genuinely
+	// stamped differently; if some future change made Date coarser or
+	// froze it, this guard would silently go back to comparing two
+	// identical timestamps and proving nothing about the exclusion.
+	assertRunTimestampsDiffer(t, serial, parallel)
+
+	// Everything that legitimately differs between two runs of the same
+	// scripts is blanked here, and nothing else: the two runs happen at
+	// different instants, so anything derived from the wall clock differs
+	// for reasons that have nothing to do with concurrency.
+	//
+	// StageRuns.Date is one of those (#1069) and was missed when the field
+	// landed, which made this guard's result depend on whether the two runs
+	// fell inside the same wall-clock second - green on a fast machine, red
+	// on CI, by luck either way. A guard whose verdict a clock tick decides
+	// is not a guard.
+	//
+	// Only the DATE is blanked. The map itself, its key set and each
+	// entry's Commit all stay in the comparison, because those are exactly
+	// what the equivalence claim is about for this field: parallel and
+	// serial must agree on which stages carry provenance and on the commit
+	// recorded for each. Blanking the whole map would delete the check for
+	// the field instead of making it deterministic.
 	normalize := func(a *Artifact) map[string]EstateResult {
 		out := map[string]EstateResult{}
 		for _, r := range a.Estates {
@@ -854,6 +886,18 @@ func TestRunEstatesParallelMatchesSerial(t *testing.T) {
 				cp.Commit, cp.Date, cp.DurationS = "", "", 0
 				r.LastRun = &cp
 			}
+			if r.StageRuns != nil {
+				// A fresh map: r is a copy of the row but its StageRuns
+				// map is the artifact's own, and blanking dates in place
+				// would edit the run's real result out from under the
+				// other assertions.
+				runs := make(map[string]StageRun, len(r.StageRuns))
+				for id, sr := range r.StageRuns {
+					sr.Date = ""
+					runs[id] = sr
+				}
+				r.StageRuns = runs
+			}
 			out[r.Name] = r
 		}
 		return out
@@ -861,7 +905,7 @@ func TestRunEstatesParallelMatchesSerial(t *testing.T) {
 
 	got, want := normalize(parallel), normalize(serial)
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("parallel run's merged rows differ from serial's (commit/date/duration excluded):\nserial:   %+v\nparallel: %+v", want, got)
+		t.Errorf("parallel run's merged rows differ from serial's (commit/date/duration and stage_runs dates excluded):\nserial:   %+v\nparallel: %+v", want, got)
 	}
 }
 
@@ -1011,4 +1055,52 @@ func parseFlociPort(t *testing.T, env string) int {
 		t.Fatalf("env entry %q: %v", env, err)
 	}
 	return n
+}
+
+// waitForSecondTick blocks until the UTC clock reaches a new second, in
+// exactly the format LastRun.Date and StageRun.Date are written in
+// (time.RFC3339, second resolution - run.go). Callers use it to guarantee
+// that two runs in one test are stamped with different timestamps rather
+// than hoping the machine is slow enough for that to happen by itself.
+func waitForSecondTick(t *testing.T) {
+	t.Helper()
+	start := time.Now().UTC().Format(time.RFC3339)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().UTC().Format(time.RFC3339) == start {
+		if time.Now().After(deadline) {
+			t.Fatalf("the RFC3339 second never advanced from %s in 3s; the clock or the format changed under this helper", start)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// assertRunTimestampsDiffer fails unless the two artifacts' rows really are
+// stamped at different instants - both the row-level LastRun.Date and the
+// per-stage StageRun.Date (#1069). It is the fixture's own precondition:
+// a test that excludes a timestamp from a comparison proves nothing if the
+// two timestamps were equal anyway, which is precisely how the missing
+// StageRuns exclusion passed locally and failed on CI.
+func assertRunTimestampsDiffer(t *testing.T, a, b *Artifact) {
+	t.Helper()
+	rowsDiffer, stagesDiffer := false, false
+	for _, ra := range a.Estates {
+		rb, ok := b.Result(ra.Name)
+		if !ok || ra.LastRun == nil || rb.LastRun == nil {
+			continue
+		}
+		if ra.LastRun.Date != rb.LastRun.Date {
+			rowsDiffer = true
+		}
+		for id, sa := range ra.StageRuns {
+			if sb, ok := rb.StageRuns[id]; ok && sa.Date != sb.Date {
+				stagesDiffer = true
+			}
+		}
+	}
+	if !rowsDiffer {
+		t.Fatal("the two runs carry identical last_run.date; this fixture is meant to stamp them a second apart, so the date exclusion below is not being exercised")
+	}
+	if !stagesDiffer {
+		t.Fatal("the two runs carry identical stage_runs dates; this fixture is meant to stamp them a second apart, so the stage_runs date exclusion below is not being exercised (#1069)")
+	}
 }
