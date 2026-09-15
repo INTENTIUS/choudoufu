@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,13 +26,21 @@ const LogDir = "live/gauntlet/logs"
 type RunOptions struct {
 	Names []string // estates to run; empty means the selected set
 	Set   string   // "core", "all"; used when Names is empty
-	Env   []string // extra KEY=VALUE for every script
+	// Env is extra KEY=VALUE for every script. A FLOCI_PORT entry here (or
+	// inherited from this process's own environment) is honoured as the
+	// base every FLOCI_PORT this run assigns is offset from (flociPortBase,
+	// #1040) instead of being silently replaced by the fixed default. One
+	// that does not parse as an integer refuses the whole run rather than
+	// silently falling back, the same #1040 reasoning applied to a typo
+	// instead of an override.
+	Env []string
 	// Parallel is how many estates run concurrently, each against its own
 	// isolated floci emulator (#437). <=1 means serial: the exact code path
 	// this runner has always used - one estate at a time, in order - with
 	// one addition since #520: every run this package launches, serial
-	// included, is assigned an explicit FLOCI_PORT (flociPortEnv(0) for
-	// serial, the same allocator -parallel N>1 uses per slot), so a plain
+	// included, is assigned an explicit FLOCI_PORT (flociPortEnv(base, 0)
+	// for serial, the same allocator -parallel N>1 uses per slot, where
+	// base is flociPortBase(Env) - see #1040's note there), so a plain
 	// `gauntlet run` no longer leaves FLOCI_PORT unset for the script's own
 	// hard-coded default to catch. Nothing else about the serial path
 	// changed; #437's equivalence argument still holds for everything but
@@ -51,6 +60,9 @@ type RunOptions struct {
 // FLOCI_PORT+20). 5000 leaves headroom above that without the base climbing
 // anywhere near a fixed script's own hard-coded default (4600-4800) or the
 // 65535 ceiling for any parallelism this runner is actually asked for.
+// parallelPortBase is also the DEFAULT base flociPortBase falls back to when
+// nobody supplies one (see flociPortBase below) - it is not itself the
+// value every run gets any more.
 //
 // #520: every run this package launches - serial included - is assigned a
 // FLOCI_PORT from this same allocator (flociPortEnv below), not only
@@ -67,6 +79,21 @@ type RunOptions struct {
 // not just concurrent ones, means a script's own default is a fallback for
 // hand-invocation only and never participates in a runner-launched run,
 // concurrent or not.
+//
+// #1040: #520's fix over-corrected. flociPortEnv used to be called with the
+// bare constant parallelPortBase, so EVERY runner-launched serial run
+// (`gauntlet run <estate>`, no -parallel) got the exact same FLOCI_PORT
+// (20000), and runOne applied it via setEnv AFTER opts.Env - after a
+// caller's own `-env FLOCI_PORT=...` - so a caller could never actually
+// choose a different port. Two workers each running one estate at a time
+// against the emulator, which is the ordinary developer loop this repo asks
+// for, collided on port 20000 every time: on 2026-09-10 a
+// corpus-alb-complete run found another worker's corpus-rds-complete-postgres
+// container already sitting on it. flociPortBase below fixes that by
+// reading a caller-supplied FLOCI_PORT (via -env, or this process's own
+// environment) and using it as the base instead of the constant, so
+// `gauntlet run -env FLOCI_PORT=4638 <estate>` really does run on 4638; only
+// a caller that supplies nothing still gets parallelPortBase.
 const (
 	parallelPortBase   = 20000
 	parallelPortStride = 5000
@@ -74,11 +101,56 @@ const (
 
 // flociPortEnv returns the FLOCI_PORT=<port> environment entry for
 // concurrency slot n (0 for the serial path, which only ever has one slot
-// live at a time). It is the single source both runResults branches use, so
-// the serial path's port and slot 0 of a parallel run are computed exactly
-// the same way.
-func flociPortEnv(slot int) string {
-	return fmt.Sprintf("FLOCI_PORT=%d", parallelPortBase+slot*parallelPortStride)
+// live at a time), offset from base. It is the single source both
+// runResults branches use, so the serial path's port and slot 0 of a
+// parallel run are computed exactly the same way. base is normally
+// flociPortBase's result, not the bare parallelPortBase constant - see
+// flociPortBase's doc comment (#1040).
+func flociPortEnv(base, slot int) string {
+	return fmt.Sprintf("FLOCI_PORT=%d", base+slot*parallelPortStride)
+}
+
+// flociPortBase returns the FLOCI_PORT base this run's slots should be
+// numbered from: a caller-supplied value when one exists, so
+// `gauntlet run -env FLOCI_PORT=4638 <estate>` (or plain
+// `FLOCI_PORT=4638 gauntlet run <estate>`, inherited from this process's own
+// environment) is actually honoured instead of being silently replaced by
+// parallelPortBase the way it was before #1040. env is opts.Env (the -env
+// flag's values); it is checked alongside os.Environ() in the same order
+// runOne assembles cmd.Env (process environment first, then opts.Env, so a
+// caller's own -env can override an inherited FLOCI_PORT too), and the last
+// match wins, matching "later entries override earlier ones" the way
+// setEnv already treats extraEnv.
+//
+// A FLOCI_PORT that is present but does not parse as an integer is refused
+// with an error rather than silently treated as absent. Falling back to
+// parallelPortBase there would be #1040 again with different words: a
+// worker that typed `FLOCI_PORT=46a0` (or picked up something odd from its
+// own shell) asked for a specific port, was told nothing, and landed on
+// 20000 anyway - indistinguishable from every other caller that supplied
+// nothing at all, which is exactly the silent-collision failure mode this
+// issue exists to remove. A run that never starts is loud and cannot
+// collide; a run that starts on the wrong port because its own typo went
+// unremarked can. Only the ABSENT case defaults to parallelPortBase - that
+// default is #520's, predates a caller ever supplying anything, and stays
+// exactly as forgiving as it always was.
+func flociPortBase(env []string) (int, error) {
+	combined := append(append([]string{}, os.Environ()...), env...)
+	value, found := "", false
+	const prefix = "FLOCI_PORT="
+	for _, kv := range combined {
+		if strings.HasPrefix(kv, prefix) {
+			value, found = strings.TrimPrefix(kv, prefix), true
+		}
+	}
+	if !found {
+		return parallelPortBase, nil
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("FLOCI_PORT=%q is not a valid port number - refusing to fall back to the default (%d) in silence, which is #1040's own failure shape (an explicit port request silently ignored); fix or unset FLOCI_PORT", value, parallelPortBase)
+	}
+	return port, nil
 }
 
 // RunEstates executes each selected estate's script, parses the protocol,
@@ -104,6 +176,14 @@ func flociPortEnv(slot int) string {
 // pin would be configuration asserted as evidence, not evidence. See
 // OracleVersions's doc comment (artifact.go).
 func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, emulator string) (int, error) {
+	// Resolved and validated before anything else runs: a malformed
+	// caller-supplied FLOCI_PORT refuses the whole invocation rather than
+	// silently launching any script on the wrong port (flociPortBase's doc
+	// comment, #1040).
+	base, err := flociPortBase(opts.Env)
+	if err != nil {
+		return 0, err
+	}
 	oracle := probeOracle()
 	var selected []Estate
 	if len(opts.Names) > 0 {
@@ -134,7 +214,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	// one: the concurrency lives entirely in runResults, and everything
 	// below that reads runResults is textually the loop this function had
 	// before #437, untouched.
-	results := runResults(root, selected, opts)
+	results := runResults(root, selected, opts, base)
 
 	failures := 0
 	for i, e := range selected {
@@ -363,11 +443,14 @@ type oneResult struct {
 // mode's behaviour (including "stop dispatching more scripts after the
 // first hard runOne error", which the merge loop in RunEstates still relies
 // on) is unchanged apart from the one thing #520 adds: each call now also
-// gets an explicit FLOCI_PORT (flociPortEnv(0), the same value slot 0 of a
-// parallel run would get), instead of leaving FLOCI_PORT unset the way
-// serial mode did before #520. Nothing else about the serial code path
-// moved - #437's equivalence argument (see RunOptions.Parallel) rests on
-// that.
+// gets an explicit FLOCI_PORT (flociPortEnv(base, 0), the same value slot 0
+// of a parallel run would get), instead of leaving FLOCI_PORT unset the way
+// serial mode did before #520. base is RunEstates's already-validated
+// flociPortBase(opts.Env) result, so a caller-supplied FLOCI_PORT is the
+// base rather than being overridden by the fixed default, and a malformed
+// one never reaches here at all - RunEstates refuses before calling this
+// (#1040). Nothing else about the serial code path moved - #437's
+// equivalence argument (see RunOptions.Parallel) rests on that.
 //
 // opts.Parallel >1 runs up to that many scripts at once. Each concurrent
 // slot (not each estate - a slot is handed back to the pool and reused the
@@ -381,7 +464,7 @@ type oneResult struct {
 // already running is left to finish and tear its own container down rather
 // than killed, so a slot's container is never abandoned mid-life; the first
 // error is still surfaced, in `selected` order, by RunEstates's merge loop.
-func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
+func runResults(root string, selected []Estate, opts RunOptions, base int) []oneResult {
 	results := make([]oneResult, len(selected))
 	parallel := opts.Parallel
 	if parallel < 1 {
@@ -392,7 +475,7 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 	}
 	if parallel <= 1 {
 		for i, e := range selected {
-			res, exit, elapsed, err := runOne(root, e, opts, []string{flociPortEnv(0)})
+			res, exit, elapsed, err := runOne(root, e, opts, []string{flociPortEnv(base, 0)})
 			results[i] = oneResult{res, exit, elapsed, err}
 			if err != nil {
 				// Matches the pre-#437 loop exactly: a hard runOne error
@@ -428,7 +511,7 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 		go func() {
 			defer wg.Done()
 			defer func() { slots <- slot }()
-			env := []string{flociPortEnv(slot)}
+			env := []string{flociPortEnv(base, slot)}
 			res, exit, elapsed, err := runOne(root, e, runOpts, env)
 			results[i] = oneResult{res, exit, elapsed, err}
 		}()
@@ -472,6 +555,21 @@ func setEnv(env []string, kv string) []string {
 	return append(out, kv)
 }
 
+// flociPortEnvEntry returns the FLOCI_PORT=<port> entry from extraEnv (the
+// last one, if more than one somehow appears), or "FLOCI_PORT=unset" if
+// none is present. Used only for the runner's own "running ..." log line
+// (#1040's proof requirement: the runner names the port each script got,
+// not just each script's own internal log), never for anything that
+// affects the child process's actual environment - that is cmd.Env's job.
+func flociPortEnvEntry(extraEnv []string) string {
+	for i := len(extraEnv) - 1; i >= 0; i-- {
+		if strings.HasPrefix(extraEnv[i], "FLOCI_PORT=") {
+			return extraEnv[i]
+		}
+	}
+	return "FLOCI_PORT=unset"
+}
+
 // runOne runs one estate's script and returns its parsed protocol result,
 // its exit code, and the wall-clock seconds the process itself took (from
 // just before cmd.Run() to just after it returns - includes the script's
@@ -501,7 +599,7 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	}
 	cmd.Stdout = io.MultiWriter(&captured, logf)
 	cmd.Stderr = logf
-	fmt.Fprintf(opts.Stdout, "%s: running %s (log: %s)\n", e.Name, e.ScriptPath(), filepath.Join(LogDir, e.Name+".log"))
+	fmt.Fprintf(opts.Stdout, "%s: running %s on %s (log: %s)\n", e.Name, e.ScriptPath(), flociPortEnvEntry(extraEnv), filepath.Join(LogDir, e.Name+".log"))
 	start := time.Now()
 	runErr := cmd.Run()
 	elapsed := time.Since(start).Seconds()

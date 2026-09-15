@@ -717,6 +717,95 @@ func TestRunEstatesParallelAssignsDistinctPortsPerSlot(t *testing.T) {
 	}
 }
 
+// TestRunEstatesHonorsCallerSuppliedFlociPort is #1040's guard. Before this
+// fix, runOne applied flociPortEnv's port via setEnv AFTER opts.Env (and
+// after -env), so a caller's own FLOCI_PORT was silently replaced by the
+// fixed parallelPortBase (20000) on every runner-launched script - which is
+// exactly how two workers, each invoking `gauntlet run` on a different
+// estate with what they believed was a distinct FLOCI_PORT, collided on
+// 20000 anyway (#1040's own report: a corpus-alb-complete run found another
+// worker's corpus-rds-complete-postgres container already on it). This runs
+// one fake estate serially with an explicit RunOptions.Env FLOCI_PORT and
+// asserts the script actually saw THAT port, not the fixed default.
+func TestRunEstatesHonorsCallerSuppliedFlociPort(t *testing.T) {
+	root := t.TempDir()
+	writeFakeEstate(t, root, "capped",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0 detail=port=%s\\n' \"${FLOCI_PORT:-unset}\"\n")
+
+	m := &Manifest{Estates: []Estate{{Name: "capped", Source: "s", Lane: "reference", Set: SetGrowing}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	const wantPort = "4638"
+	if _, err := RunEstates(root, m, a, RunOptions{
+		Names:  []string{"capped"},
+		Env:    []string{"FLOCI_PORT=" + wantPort},
+		Stdout: &out,
+	}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+
+	r, ok := a.Result("capped")
+	if !ok {
+		t.Fatal("no result for capped")
+	}
+	detail := r.LastRun.Detail["cold_deploy"]
+	want := "port=" + wantPort
+	if detail != want {
+		t.Fatalf("script saw detail %q, want %q - a caller-supplied FLOCI_PORT must be the base a runner-launched script gets, not silently replaced by the fixed default (#1040)", detail, want)
+	}
+
+	// #1040's proof also asks for the runner's OWN log naming the port each
+	// script used, not just each script's internal log - two workers
+	// watching a shared `gauntlet run` invocation's stdout need to see
+	// which port landed where without opening a per-estate log file.
+	if stdout := out.String(); !strings.Contains(stdout, "FLOCI_PORT="+wantPort) {
+		t.Fatalf("runner stdout %q does not name FLOCI_PORT=%s - the runner's own log must say which port each script got (#1040)", stdout, wantPort)
+	}
+}
+
+// TestRunEstatesRefusesMalformedCallerFlociPort is #1040's sibling guard: a
+// FLOCI_PORT that is PRESENT but does not parse as an integer must not fall
+// back to parallelPortBase in silence. That fallback would be
+// indistinguishable from a caller supplying nothing at all - a worker that
+// typos FLOCI_PORT=46a0 asked for a specific port, was told nothing, and
+// landed on 20000 anyway, which is #1040's own silent-collision failure
+// wearing a different hat. RunEstates must refuse the whole invocation
+// before launching any script - no log file, no artifact row touched - and
+// name the malformed value in the error.
+func TestRunEstatesRefusesMalformedCallerFlociPort(t *testing.T) {
+	root := t.TempDir()
+	writeFakeEstate(t, root, "typoport",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0\\n'\n")
+
+	m := &Manifest{Estates: []Estate{{Name: "typoport", Source: "s", Lane: "reference", Set: SetGrowing}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	const badPort = "46a0"
+	_, err := RunEstates(root, m, a, RunOptions{
+		Names:  []string{"typoport"},
+		Env:    []string{"FLOCI_PORT=" + badPort},
+		Stdout: &out,
+	}, "c", "e")
+	if err == nil {
+		t.Fatal("RunEstates returned no error for FLOCI_PORT=46a0 - a malformed caller-supplied port must refuse the run, not silently fall back to the default (#1040)")
+	}
+	if !strings.Contains(err.Error(), badPort) {
+		t.Errorf("error %q does not name the malformed value %q", err.Error(), badPort)
+	}
+	if !strings.Contains(err.Error(), "FLOCI_PORT") {
+		t.Errorf("error %q does not mention FLOCI_PORT", err.Error())
+	}
+	if _, ok := a.Result("typoport"); ok {
+		t.Error("typoport has an artifact row - a refused port must never touch the artifact")
+	}
+	logPath := filepath.Join(root, LogDir, "typoport.log")
+	if _, statErr := os.Stat(logPath); statErr == nil {
+		t.Errorf("log file %s exists - the script must never have been launched on a refused port", logPath)
+	}
+}
+
 // TestRunEstatesParallelMatchesSerial is the Go-level half of #437's
 // equivalence requirement: for a script whose own output does not depend on
 // FLOCI_PORT (unlike the fixture above, which deliberately does, to prove
@@ -861,7 +950,7 @@ func TestAllocatedPortRangesNeverOverlap(t *testing.T) {
 	type portRange struct{ slot, lo, hi int }
 	ranges := make([]portRange, slots)
 	for slot := 0; slot < slots; slot++ {
-		port := parseFlociPort(t, flociPortEnv(slot))
+		port := parseFlociPort(t, flociPortEnv(parallelPortBase, slot))
 		ranges[slot] = portRange{slot: slot, lo: port, hi: port + maxOffset}
 	}
 	for i := 0; i < slots; i++ {

@@ -60,7 +60,12 @@ your context alone.
    one, and a night spent moving to whatever `next` names ends with many
    merged fixes and no cleared estate. Run as many workers as there is
    genuinely independent per-estate work, assigning each a distinct
-   `FLOCI_PORT`; never two on the same estate. Tell every worker that its
+   `FLOCI_PORT` base at least 3 apart (estate scripts derive base+1 and
+   base+2, #520) and telling it to pass `-env FLOCI_PORT=<base>` on its own
+   `gauntlet run` invocation - the runner honors a caller-supplied
+   `FLOCI_PORT` as the base rather than forcing 20000 on every invocation
+   (#1040), but only for a worker that actually passes one. Never two
+   workers on the same estate. Tell every worker that its
    first act is to re-read the recorded failure against the service API on
    the current image, with no tofu in the loop, and to name the five-row
    class before fixing: the night of 2026-08-22 the three units that moved a
