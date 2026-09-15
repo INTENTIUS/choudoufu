@@ -143,6 +143,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 			{
 				Literal:                "/",
 				Attrs:                  []string{"a", "b"},
+				Path:                   []string{"metadata", "name"},
 				Block:                  "some_block",
 				OmitIfAbsent:           true,
 				Default:                "d",

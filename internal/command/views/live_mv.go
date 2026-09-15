@@ -47,6 +47,18 @@ type StatelessMvReport struct {
 
 	// DryRun means nothing was written.
 	DryRun bool
+
+	// LabelSurface means the marker on this object is the single
+	// tofu-estate label a Kubernetes object carries (mv.SurfaceLabel):
+	// there is no tofu-address to report, and a cross-estate move is the
+	// one label write.
+	LabelSurface bool
+
+	// NothingToWrite means the rename stopped, successfully, before
+	// reading or writing anything, because the marker on this object
+	// carries no address (mv.Result.NothingToWrite): renaming the block
+	// was the whole rename.
+	NothingToWrite bool
 }
 
 // StatelessMv renders the report "choudoufu live-mv" prints when a rename
@@ -77,6 +89,15 @@ type StatelessMvHuman struct {
 var _ StatelessMv = (*StatelessMvHuman)(nil)
 
 func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
+	if rep.NothingToWrite {
+		v.reportNothingToWrite(rep)
+		return
+	}
+	if rep.LabelSurface {
+		v.reportRelabel(rep)
+		return
+	}
+
 	headline := "Rewrote the ownership marker on one live resource. This was a cloud write."
 	if rep.DryRun {
 		headline = "Would rewrite the ownership marker on one live resource. Nothing was written (-dry-run)."
@@ -125,6 +146,61 @@ func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
 		b.WriteString("The live resource's tofu-estate tag now names this estate, and nothing else about it was changed. The source estate no longer sees it and this one binds it on the next plan; its record in the source's store stays behind, and the first apply here records it afresh.\n")
 	default:
 		b.WriteString("The live resource's tofu-address tag now names the new address, and nothing else about it was changed. There is no state file to update: the old address is gone from the only place it was ever recorded.\n")
+	}
+	v.view.streams.Print(b.String())
+}
+
+// reportNothingToWrite is the report for a rename on a surface whose marker
+// carries no address (GitHub issue #1081's fifth item): a same-estate
+// rename of a Kubernetes object. It reads as a success, because it is one -
+// the block was renamed, the object is bound by its own namespace and
+// name, and the next plan is empty - and it says where the governed write
+// would be, so an operator who reached for live-mv out of an AWS habit
+// learns which half of the command this substrate keeps.
+func (v *StatelessMvHuman) reportNothingToWrite(rep StatelessMvReport) {
+	rows := [][2]string{
+		{"estate", rep.Estate},
+		{"resource type", rep.TypeName},
+		{"old address", rep.OldAddr},
+		{"new address", rep.NewAddr},
+	}
+	var b strings.Builder
+	b.WriteString("\nNothing to write: on this substrate the ownership marker carries no address. The cluster was neither read nor changed.\n\n")
+	for _, row := range rows {
+		fmt.Fprintf(&b, "  %-14s %s\n", row[0], row[1])
+	}
+	b.WriteString("\nThe object carries one label, tofu-estate, and is bound to its block by its own kind, namespace and name, so renaming the block is the whole rename and the next plan binds it at the new address with no change to propose. This estate's own record store, when it has one, was re-keyed from the old address to the new, as after any rename. The one governed write on this substrate is a move between estates: run live-mv -from-estate=<old> in the destination's configuration, which rewrites that label under this run's credential and the cluster's admission policy.\n")
+	v.view.streams.Print(b.String())
+}
+
+// reportRelabel is the cross-estate report on the label surface: the same
+// labelled facts as the tag report minus the tofu-address row, which this
+// object never carried.
+func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
+	headline := "Relabelled one live object into this estate. This was a cluster write."
+	if rep.DryRun {
+		headline = "Would relabel one live object into this estate. Nothing was written (-dry-run)."
+	}
+	rows := [][2]string{
+		{"from estate", rep.FromEstate},
+		{"to estate", rep.Estate},
+		{"tofu-estate", fmt.Sprintf("%q -> %q", rep.FromEstate, rep.Estate)},
+		{"resource type", rep.TypeName},
+		{"live ID", rep.LiveID},
+		{"old address", rep.OldAddr},
+		{"new address", rep.NewAddr},
+		{"found by", rep.FoundBy},
+	}
+	var b strings.Builder
+	b.WriteString("\n" + headline + "\n\n")
+	for _, row := range rows {
+		fmt.Fprintf(&b, "  %-14s %s\n", row[0], row[1])
+	}
+	b.WriteString("\n")
+	if rep.DryRun {
+		b.WriteString("Rerun without -dry-run to write it. Everything above was read from the cluster; nothing was changed.\n")
+	} else {
+		b.WriteString("The object's tofu-estate label now names this estate, and nothing else about it was changed. The write went through the cluster's admission policy under this run's credential, the same fence a plain kubectl label would have met. The source estate no longer sees the object and this one binds it by namespace and name on the next plan.\n")
 	}
 	v.view.streams.Print(b.String())
 }
@@ -188,6 +264,21 @@ type StatelessMvJSONReport struct {
 	// which admission rule located the live resource. Empty when nothing was
 	// found at all (a refusal before Move ever got there).
 	FoundBy string `json:"found_by,omitempty"`
+
+	// MarkerSurface names where the marker lives when it is not the AWS
+	// tag map: "label" for a Kubernetes object, whose marker is the single
+	// tofu-estate label (GitHub issue #1081's fifth item). Omitted on the
+	// tag surface, so every document this printed before the field
+	// existed reads the same. On the label surface From.Marker and
+	// To.Marker are empty: the object carries no address.
+	MarkerSurface string `json:"marker_surface,omitempty"`
+
+	// NothingToWrite is true when the rename stopped, successfully,
+	// before reading or writing anything, because the marker carries no
+	// address: a same-estate rename on the label surface. Written and
+	// Verified are false alongside it, and Refusal is nil - this is a
+	// success with no write in it.
+	NothingToWrite bool `json:"nothing_to_write,omitempty"`
 
 	// RequestID would be whatever the provider's own write returned that a
 	// CloudTrail row could be matched on - the Why section's "so the receipt

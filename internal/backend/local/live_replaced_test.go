@@ -126,6 +126,9 @@ func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *sta
 }
 
 func (s *replaceRecordingStateless) AfterApply(_ context.Context) tfdiags.Diagnostics { return nil }
+func (s *replaceRecordingStateless) AfterPlan(_ context.Context, _ *configs.Config, _ *plans.Plan, _ *tofu.Schemas) tfdiags.Diagnostics {
+	return nil
+}
 
 // TestWriteBackSeesTheReplaceSetAfterApply is GitHub issue #908's guard, and
 // it is deliberately not a unit test of replacedInstances.

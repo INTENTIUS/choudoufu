@@ -6,6 +6,9 @@
 package identity
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -145,8 +148,67 @@ func TestObjectMetaRuleAdmitsAnUnratifiedType(t *testing.T) {
 	if !ok || ti.ImportSyntax != "NAME" || len(ti.Components) != 1 {
 		t.Fatalf("kubernetes_cluster_role: %+v, %v", ti, ok)
 	}
-	if len(ti.IdentityAttrs) != 0 {
-		t.Errorf("the rule claimed identity attributes %v; the rows it reproduces claim none", ti.IdentityAttrs)
+	if !reflect.DeepEqual(ti.IdentityAttrs, []string{"id"}) {
+		t.Errorf("the rule claimed identity attributes %v; want [id], the provider's own import id (#1067's second estate reads kubernetes_namespace_v1.x.id on every namespaced object)", ti.IdentityAttrs)
+	}
+}
+
+// TestObjectMetaIDResolvesToTheParentsIdentity is the shape grafana/
+// quickpizza's root writes on all twenty of its namespaced objects:
+// `namespace = kubernetes_namespace_v1.quickpizza.id`. The provider sets a
+// cluster-scoped object's id to its name, so the reference is the
+// parent's whole identity and the child resolves concretely, to
+// NAMESPACE/NAME; before the rule claimed "id" every such site was refused
+// as "Not an identity attribute" and the root could not plan at all.
+//
+// Proving it red: drop IdentityAttrs from synthesizeMetadataIdentity and
+// the config map below is refused instead of resolving.
+func TestObjectMetaIDResolvesToTheParentsIdentity(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
+terraform {
+  required_providers {
+    kubernetes = { source = "hashicorp/kubernetes" }
+  }
+}
+
+resource "kubernetes_namespace_v1" "quickpizza" {
+  metadata {
+    name = "quickpizza"
+  }
+}
+
+resource "kubernetes_config_map_v1" "alloy_config" {
+  metadata {
+    name      = "alloy-config"
+    namespace = kubernetes_namespace_v1.quickpizza.id
+  }
+  data = { k = "v" }
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir, nil)
+	schemas := map[string]providers.Schema{
+		"kubernetes_namespace_v1":  objectMetaSchema(false),
+		"kubernetes_config_map_v1": objectMetaSchema(true),
+	}
+	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+	if diags.HasErrors() {
+		t.Fatalf("resolution refused: %s", diags.Err())
+	}
+	var got *Resolution
+	for _, r := range result.All() {
+		if r.Addr.String() == "kubernetes_config_map_v1.alloy_config" {
+			r := r
+			got = &r
+		}
+	}
+	if got == nil {
+		t.Fatal("no resolution for kubernetes_config_map_v1.alloy_config")
+	}
+	if got.Class != ClassConcrete || got.ImportID != "quickpizza/alloy-config" {
+		t.Errorf("kubernetes_config_map_v1.alloy_config resolved %s, want CONCRETE quickpizza/alloy-config (the namespace's id is its name)", got.String())
 	}
 }
 

@@ -15,10 +15,49 @@ import (
 
 // sensitiveMarksEqual filters out any non-sensitive marks and then uses
 // marksEqual to compare the resulting lists.
+//
+// Fork (choudoufu, GitHub issue #1067's second estate): both sides are
+// first reduced to their minimal cover by [minimalSensitiveCover], so a
+// mark on a path whose ancestor already carries one does not count as a
+// difference. Upstream compares the raw path sets, which is exact
+// bookkeeping when the prior comes from a state file that recorded the
+// planned paths verbatim on the last apply. This fork's live-marker plan
+// has no state file: the prior is projected from the provider's own read,
+// marked from the schema (the whole `data` map of a kubernetes_secret_v1,
+// say), while the planned side is marked from the schema AND from the
+// configuration, which can mark values INSIDE that map (each key fed by a
+// sensitive variable, or by a format() over one). The two sets then
+// differ on paths the ancestor mark already covers, and the resource
+// planned a sensitivity-only in-place update on every run, forever,
+// annotated by the renderer as unchanged. A nested mark under a marked
+// ancestor adds nothing to how the value renders, propagates or is
+// persisted, so the cover is what sensitivity equality means; the case
+// where the cover really moves - an ancestor newly marked, or a nested
+// mark with no ancestor - still compares unequal.
 func sensitiveMarksEqual(a, b []cty.PathValueMarks) bool {
-	a = filterNonTargetMarks(a, marks.Sensitive)
-	b = filterNonTargetMarks(b, marks.Sensitive)
+	a = minimalSensitiveCover(filterNonTargetMarks(a, marks.Sensitive))
+	b = minimalSensitiveCover(filterNonTargetMarks(b, marks.Sensitive))
 	return marksEqual(a, b)
+}
+
+// minimalSensitiveCover drops every entry whose path has a proper prefix
+// among the other entries' paths: the prefix's mark already covers it.
+// The input is assumed already filtered to one mark kind.
+func minimalSensitiveCover(pvms []cty.PathValueMarks) []cty.PathValueMarks {
+	out := make([]cty.PathValueMarks, 0, len(pvms))
+	for _, p := range pvms {
+		covered := false
+		for _, q := range pvms {
+			if len(q.Path) < len(p.Path) && q.Path.Equals(p.Path[:len(q.Path)]) {
+				covered = true
+				break
+			}
+		}
+		if !covered {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // filterNonTargetMarks makes a copy of PathValueMarks and filters out every

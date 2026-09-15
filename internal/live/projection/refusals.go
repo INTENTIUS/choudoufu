@@ -78,6 +78,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
 	},
 	{
+		Summary: "Cannot merge ownership markers into this manifest value",
+		What:    "GitHub issue #1079's manifest branch of the node-path stamp (NodeResolver.stampedManifest) found a kubernetes_manifest value it does not know how to add the tofu-estate label into - a manifest that is not an object constructor, one with no metadata object, or a metadata.labels that is neither an object nor a map of strings - so it left the resource's configuration value exactly as evaluated. The manifest sibling of \"Cannot merge ownership markers into this labels value\".",
+	},
+	{
 		Summary: "Cannot merge ownership markers into this metadata block",
 		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block that is not exactly one object with a labels attribute - the shape every label-surface schema requires - so it left the resource's configuration value exactly as evaluated.",
 	},
@@ -110,8 +114,16 @@ var refusals = []Refusal{
 		What:    "GitHub issue #388's node-path stamp found a resource instance's whole evaluated configuration value marked as sensitive, a shape ordinary block evaluation does not produce, and declined to unmark it rather than guess; the resource's ownership markers were left for the HCL-level stamp (or an operator) to write.",
 	},
 	{
+		Summary: "Cannot set ownership markers on a marked manifest value",
+		What:    "GitHub issue #1079's manifest branch found a kubernetes_manifest metadata object marked as a whole (sensitive, or otherwise) and will not unmark it to write the tofu-estate label; the configuration value is left as evaluated. The manifest sibling of \"Cannot set ownership markers on a marked metadata block\".",
+	},
+	{
 		Summary: "Cannot set ownership markers on a marked metadata block",
 		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block marked as a whole (sensitive, or otherwise) and will not unmark it to write the tofu-estate label; the configuration value is left as evaluated. The Kubernetes sibling of \"Cannot set ownership markers on a marked configuration value\".",
+	},
+	{
+		Summary: "Cannot set ownership markers on an unresolved manifest value",
+		What:    "GitHub issue #1079's manifest branch found a kubernetes_manifest manifest, metadata or metadata.labels value that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated. The manifest sibling of \"Cannot set ownership markers on an unresolved labels value\".",
 	},
 	{
 		Summary: "Cannot set ownership markers on an unresolved labels value",

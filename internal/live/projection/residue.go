@@ -1434,7 +1434,7 @@ func scrubAmbientEcho(schema providers.Schema, obj cty.Value, ambient map[string
 	if len(seed) == 0 {
 		return obj
 	}
-	scrubbed, ok := withSeededAttrs(obj, seed)
+	scrubbed, ok := withSeededAttrs(obj, seed, nil)
 	if !ok {
 		return obj
 	}

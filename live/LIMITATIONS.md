@@ -2348,6 +2348,10 @@ refused, and each says so in its own entry.
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
+| - | - | discovery | Kubernetes API server rejected the planned object | error | `internal/live/discovery` | "Kubernetes API server rejected the planned object" |
+| - | - | discovery | Kubernetes dry run unavailable | warning | `internal/live/discovery` | "Kubernetes dry run unavailable" |
+| - | - | discovery | Kubernetes kind could not be verified | warning | `internal/live/discovery` | "Kubernetes kind could not be verified" |
+| - | - | discovery | Kubernetes kind not served by the cluster | error | `internal/live/discovery` | "Kubernetes kind not served by the cluster" |
 | - | - | discovery | Kubernetes sweep unavailable | warning | `internal/live/discovery` | "Kubernetes sweep unavailable" |
 | - | - | discovery | Listed resource matched more than one tagged resource | error | `internal/live/discovery` | "Listed resource matched more than one tagged resource" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
@@ -2482,6 +2486,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
 | - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
 | - | - | projection | Cannot merge ownership markers into this labels value | error | `internal/live/projection` | "Cannot merge ownership markers into this labels value" |
+| - | - | projection | Cannot merge ownership markers into this manifest value | error | `internal/live/projection` | "Cannot merge ownership markers into this manifest value" |
 | - | - | projection | Cannot merge ownership markers into this metadata block | error | `internal/live/projection` | "Cannot merge ownership markers into this metadata block" |
 | - | - | projection | Cannot merge ownership markers into this tags value | error | `internal/live/projection` | "Cannot merge ownership markers into this tags value" |
 | - | - | projection | Cannot persist a record | error | `internal/live/projection` | "Cannot persist a record" |
@@ -2492,8 +2497,10 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
 | - | - | projection | Cannot record a located identity | error | `internal/live/projection` | "Cannot record a located identity" |
 | - | - | projection | Cannot set ownership markers on a marked configuration value | error | `internal/live/projection` | "Cannot set ownership markers on a marked configuration value" |
+| - | - | projection | Cannot set ownership markers on a marked manifest value | error | `internal/live/projection` | "Cannot set ownership markers on a marked manifest value" |
 | - | - | projection | Cannot set ownership markers on a marked metadata block | error | `internal/live/projection` | "Cannot set ownership markers on a marked metadata block" |
 | - | - | projection | Cannot set ownership markers on an unresolved labels value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved labels value" |
+| - | - | projection | Cannot set ownership markers on an unresolved manifest value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved manifest value" |
 | - | - | projection | Cannot set ownership markers on an unresolved metadata block | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved metadata block" |
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
@@ -2532,7 +2539,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**225 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**232 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2829,6 +2836,38 @@ reserved for the limits wing's fixture directories, and
 #### Invalid estate name
 
 **What.** The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Kubernetes API server rejected the planned object
+
+**What.** The plan proposes to create or update a kubernetes_manifest object and the API server, asked to write exactly that object with dryRun=All (GitHub issue #1081, item 3), refused it: the kind's schema, the server's own validation, or an admission policy such as live/kubernetes/estate-boundary.yaml said no, in the words quoted. Nothing was written. The plan exits non-zero and nothing is applied, since the apply would fail at this object with the same answer after writing whatever came before it. live-check is offline and does not raise it; a built-in type's block is not submitted (the mapping from its schema shape to the API object is the provider's own), so this covers the manifest shape only.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Kubernetes dry run unavailable
+
+**What.** A planned kubernetes_manifest create or update could not be dry-run against the API server: the server could not be reached, answered with a server-side failure, or the planned manifest holds values not known until apply. Reported as a warning; the plan stands on the provider's own validation and the apply is the next thing that asks the server.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Kubernetes kind could not be verified
+
+**What.** A kubernetes_manifest block names an apiVersion and kind, the cluster answered API discovery for the sweep, but the one request asking whether it serves that exact group-version failed. Reported as a warning and the block stands: a cluster that cannot answer is never grounds to refuse a block, and the provider asks the same question when it plans it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Kubernetes kind not served by the cluster
+
+**What.** A kubernetes_manifest block names an apiVersion and kind the cluster does not serve - the CustomResourceDefinition is not installed, or is served at another version (GitHub issue #1079's fourth ruling). Refused by name at the plan's first cluster contact, naming the block, the kind, the apiVersion and the CRD that would have to be installed, ahead of the provider's own error when it asks the cluster for a schema it has not got. live-check, which is offline, cannot ask the cluster and does not raise it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3754,6 +3793,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot merge ownership markers into this manifest value
+
+**What.** GitHub issue #1079's manifest branch of the node-path stamp (NodeResolver.stampedManifest) found a kubernetes_manifest value it does not know how to add the tofu-estate label into - a manifest that is not an object constructor, one with no metadata object, or a metadata.labels that is neither an object nor a map of strings - so it left the resource's configuration value exactly as evaluated. The manifest sibling of "Cannot merge ownership markers into this labels value".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot merge ownership markers into this metadata block
 
 **What.** GitHub issue #1061's label branch found a Kubernetes metadata block that is not exactly one object with a labels attribute - the shape every label-surface schema requires - so it left the resource's configuration value exactly as evaluated.
@@ -3834,6 +3881,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot set ownership markers on a marked manifest value
+
+**What.** GitHub issue #1079's manifest branch found a kubernetes_manifest metadata object marked as a whole (sensitive, or otherwise) and will not unmark it to write the tofu-estate label; the configuration value is left as evaluated. The manifest sibling of "Cannot set ownership markers on a marked metadata block".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot set ownership markers on a marked metadata block
 
 **What.** GitHub issue #1061's label branch found a Kubernetes metadata block marked as a whole (sensitive, or otherwise) and will not unmark it to write the tofu-estate label; the configuration value is left as evaluated. The Kubernetes sibling of "Cannot set ownership markers on a marked configuration value".
@@ -3845,6 +3900,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot set ownership markers on an unresolved labels value
 
 **What.** GitHub issue #1061's label branch found a Kubernetes metadata.labels value that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated. The Kubernetes sibling of "Cannot set ownership markers on an unresolved tags value".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot set ownership markers on an unresolved manifest value
+
+**What.** GitHub issue #1079's manifest branch found a kubernetes_manifest manifest, metadata or metadata.labels value that is not yet known at plan time, so the tofu-estate label could not be added at the node; the configuration value is left as evaluated. The manifest sibling of "Cannot set ownership markers on an unresolved labels value".
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

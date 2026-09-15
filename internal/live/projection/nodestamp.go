@@ -130,7 +130,8 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 	}
 	_, taggable := markers.TagSurface(schema.Block)
 	_, labelled := markers.LabelSurface(schema.Block)
-	if !taggable && !labelled {
+	manifested := markers.ManifestSurface(schema.Block)
+	if !taggable && !labelled && !manifested {
 		return config, diags
 	}
 
@@ -179,6 +180,21 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 			return config, diags
 		}
 		configElems[markers.LabelSurfaceBlock] = newMeta
+		return cty.ObjectVal(configElems), diags
+	}
+
+	if manifested {
+		// The manifest shape (GitHub issue #1079): the same one label,
+		// inside the dynamic manifest argument. See nodestamp_manifest.go.
+		if !config.Type().HasAttribute(markers.ManifestSurfaceAttr) {
+			return config, diags
+		}
+		newManifest, manifestDiags := n.stampedManifest(addr, config.GetAttr(markers.ManifestSurfaceAttr))
+		diags = diags.Append(manifestDiags)
+		if manifestDiags.HasErrors() {
+			return config, diags
+		}
+		configElems[markers.ManifestSurfaceAttr] = newManifest
 		return cty.ObjectVal(configElems), diags
 	}
 

@@ -94,7 +94,7 @@ func vpcEligible(liveTags map[string]string) (*eligible, *capturingProvider) {
 		tagsVal = cty.MapVal(tagVals)
 	}
 
-	e := &eligible{residuable{
+	e := &eligible{residuable: residuable{
 		provider: p,
 		schema:   vpcSchema(),
 		typeName: "aws_vpc",

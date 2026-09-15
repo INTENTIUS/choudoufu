@@ -130,6 +130,9 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	if ti, ok := synthesizeMetadataIdentity(typeName, schema); ok {
 		return ti, ""
 	}
+	if ti, ok := synthesizeManifestIdentity(typeName, schema); ok {
+		return ti, ""
+	}
 	switch {
 	case schema.IdentitySchema == nil:
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)

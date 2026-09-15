@@ -2736,14 +2736,15 @@ var _ views.StatelessPlan = (*progressRecordingView)(nil)
 func (v *progressRecordingView) Progress(p views.StatelessProgress) {
 	v.progress = append(v.progress, p)
 }
-func (v *progressRecordingView) Omissions([]views.StatelessOmission)   {}
-func (v *progressRecordingView) Unowned([]views.StatelessUnowned)      {}
-func (v *progressRecordingView) Foreign(views.StatelessForeign)        {}
-func (v *progressRecordingView) Policy(views.StatelessPolicyReport)    {}
-func (v *progressRecordingView) GuidedFallback(string)                 {}
-func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike) {}
-func (v *progressRecordingView) Adoption(views.StatelessAdoption)      {}
-func (v *progressRecordingView) Document(views.LivePlanDocument) bool  { return true }
+func (v *progressRecordingView) Omissions([]views.StatelessOmission)                {}
+func (v *progressRecordingView) Unowned([]views.StatelessUnowned)                   {}
+func (v *progressRecordingView) Foreign(views.StatelessForeign)                     {}
+func (v *progressRecordingView) Policy(views.StatelessPolicyReport)                 {}
+func (v *progressRecordingView) GuidedFallback(string)                              {}
+func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike)              {}
+func (v *progressRecordingView) KubernetesDryRun([]views.StatelessKubernetesDryRun) {}
+func (v *progressRecordingView) Adoption(views.StatelessAdoption)                   {}
+func (v *progressRecordingView) Document(views.LivePlanDocument) bool               { return true }
 
 // TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent pins
 // statelessProgress's whole job: discovery reports every type it scans,

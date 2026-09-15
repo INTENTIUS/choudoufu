@@ -747,6 +747,15 @@ type StatelessPlan interface {
 	// is about.
 	Lookalikes(items []StatelessLookalike)
 
+	// KubernetesDryRun reports the server-side dry run of every planned
+	// kubernetes_manifest create or update (GitHub issue #1081, item 3):
+	// one line per object, what the API server said when asked to write
+	// exactly the planned object with dryRun=All. Printed above the plan,
+	// beside the creates and updates it is evidence about. An empty list
+	// renders nothing: a plan with no such object has nothing to report,
+	// and a plan the server refused is a diagnostic, not a section.
+	KubernetesDryRun(items []StatelessKubernetesDryRun)
+
 	// Adoption reports the whole adoption question - what can be adopted,
 	// what cannot, and why - for GitHub issue #587's "-adoption-only" mode.
 	// The pipeline calls it on every stateless run; only
@@ -822,14 +831,15 @@ type StatelessPlanJSON struct {
 
 var _ StatelessPlan = (*StatelessPlanJSON)(nil)
 
-func (v *StatelessPlanJSON) Progress(StatelessProgress)      {}
-func (v *StatelessPlanJSON) Omissions([]StatelessOmission)   {}
-func (v *StatelessPlanJSON) Unowned([]StatelessUnowned)      {}
-func (v *StatelessPlanJSON) Foreign(StatelessForeign)        {}
-func (v *StatelessPlanJSON) Policy(StatelessPolicyReport)    {}
-func (v *StatelessPlanJSON) GuidedFallback(string)           {}
-func (v *StatelessPlanJSON) Lookalikes([]StatelessLookalike) {}
-func (v *StatelessPlanJSON) Adoption(StatelessAdoption)      {}
+func (v *StatelessPlanJSON) Progress(StatelessProgress)                   {}
+func (v *StatelessPlanJSON) Omissions([]StatelessOmission)                {}
+func (v *StatelessPlanJSON) Unowned([]StatelessUnowned)                   {}
+func (v *StatelessPlanJSON) Foreign(StatelessForeign)                     {}
+func (v *StatelessPlanJSON) Policy(StatelessPolicyReport)                 {}
+func (v *StatelessPlanJSON) GuidedFallback(string)                        {}
+func (v *StatelessPlanJSON) Lookalikes([]StatelessLookalike)              {}
+func (v *StatelessPlanJSON) KubernetesDryRun([]StatelessKubernetesDryRun) {}
+func (v *StatelessPlanJSON) Adoption(StatelessAdoption)                   {}
 
 // Document is this view's whole reason to exist: marshal doc and print it,
 // exactly once. Modeled on [VersionMixed.printJsonVersion] down to the
@@ -932,6 +942,87 @@ func (v *StatelessPlanHuman) GuidedFallback(reason string) {
 	v.view.streams.Print(format.WordWrap(reason, cols) + "\n")
 
 	v.view.outputHorizRule()
+}
+
+// StatelessKubernetesDryRun is one planned Kubernetes object's server-side
+// dry run, [discovery.DryRunEvidence] in the view's wire format.
+type StatelessKubernetesDryRun struct {
+	Addr      string
+	Kind      string
+	Namespace string
+	Name      string
+	Update    bool
+	Defaulted int
+	// NotSubmitted, when non-empty, is why there is no answer for this
+	// object (values unknown until apply, a server that could not
+	// answer, or the server's rejection, which the diagnostics carry in
+	// full).
+	NotSubmitted string
+}
+
+// KubernetesDryRun renders one line per planned object, in the order given
+// (address order): the verdict tag, the object by kind and natural key,
+// and what the server did with it. Accepted means validated against the
+// kind's schema, defaulted and admitted by every admission policy the
+// cluster runs, with nothing written; the defaulted count says how much
+// the server would add on write.
+func (v *StatelessPlanHuman) KubernetesDryRun(items []StatelessKubernetesDryRun) {
+	if len(items) == 0 {
+		return
+	}
+
+	cols := v.view.outputColumns()
+
+	out := func(s string) { v.view.streams.Print(s) }
+	colored := func(f string, args ...any) {
+		v.view.streams.Print(v.view.colorize.Color(fmt.Sprintf(f, args...)))
+	}
+	wrapped := func(s string, indent int) {
+		for _, line := range strings.Split(strings.TrimRight(format.WordWrap(s, cols-indent), "\n"), "\n") {
+			out(strings.Repeat(" ", indent) + line + "\n")
+		}
+	}
+
+	accepted := 0
+	for _, it := range items {
+		if it.NotSubmitted == "" {
+			accepted++
+		}
+	}
+	colored("\n[reset][bold]Server-side dry run: %d of %d planned Kubernetes %s accepted by the API server[reset]\n\n",
+		accepted, len(items), noun(len(items), "object", "objects"))
+	wrapped(statelessKubernetesDryRunIntro, 0)
+	out("\n")
+
+	for _, it := range items {
+		verb := "create"
+		if it.Update {
+			verb = "update"
+		}
+		object := strings.TrimSpace(it.Kind + " " + naturalKey(it.Namespace, it.Name))
+		switch {
+		case it.NotSubmitted == "":
+			colored("  [bold]%s[reset] [ACCEPTED] %s: %s accepted by the server's admission, dry run, nothing written (%d %s defaulted by the server)\n",
+				it.Addr, object, verb, it.Defaulted, noun(it.Defaulted, "field", "fields"))
+		case strings.HasPrefix(it.NotSubmitted, "rejected: "):
+			colored("  [bold]%s[reset] [REJECTED] %s: %s refused by the server; see the error below\n", it.Addr, object, verb)
+		default:
+			colored("  [bold]%s[reset] [NOT SUBMITTED] %s\n", it.Addr, it.NotSubmitted)
+		}
+	}
+
+	v.view.outputHorizRule()
+}
+
+const statelessKubernetesDryRunIntro = `Each planned kubernetes_manifest create or update was sent to the API server exactly as the apply would write it, with dryRun=All: the server validated it against the kind's schema, applied its defaults and ran every admission policy, and persisted nothing. Built-in types (kubernetes_config_map and the rest) are not submitted: the mapping from their block shape to the API object is the provider's own.`
+
+// naturalKey is NAMESPACE/NAME, or NAME for a cluster-scoped object; the
+// join key every Kubernetes line in this view names an object by.
+func naturalKey(namespace, name string) string {
+	if namespace == "" {
+		return name
+	}
+	return namespace + "/" + name
 }
 
 const statelessUnownedIntro = `Each of these is a live resource sitting at the identity a declared resource names, without this estate's ownership marker on it. They are the plan's [UNOWNED] omissions, gathered here by what resolves each one. None of them is in the prior state this plan ran against, so nothing in the plan changes or destroys them, and the plan proposes creating what the configuration declares - a create the cloud will refuse while the live resource holds the identity. An [ADOPTABLE] entry becomes this estate's by writing the two tags shown, on purpose; an [IN_THE_WAY] entry is not this run's to claim.`

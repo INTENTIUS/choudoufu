@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -145,6 +146,18 @@ type StatelessRun interface {
 	// really did terminate would otherwise be recorded nowhere. See
 	// [projection.WriteBackRequest.DestroyedDeposed].
 	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics
+
+	// AfterPlan runs once the plan exists and before it is rendered, saved
+	// or approved, on a plan and on an apply alike: whatever evidence the
+	// run can gather about the plan from the live system - today the
+	// server-side dry run of every planned kubernetes_manifest create or
+	// update (GitHub issue #1081, item 3), whose answer the run prints
+	// above the plan. Error diagnostics abort the operation with nothing
+	// rendered and nothing applied: the live system has already said it
+	// will not take what the plan proposes. Warnings ride along. A run
+	// with nothing to ask returns no diagnostics, which is the ordinary
+	// case for every estate with no Kubernetes provider.
+	AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics
 
 	// AfterApply runs whatever this run still owes the live system once a
 	// real apply has finished changing it, and reports what it did as

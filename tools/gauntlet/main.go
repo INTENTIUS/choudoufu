@@ -257,39 +257,6 @@ func cmdRun(root string, args []string) error {
 		return err
 	}
 
-	// The maintainer-run-guard (2026-09-11 incident, see CLAUDE.md), made
-	// proportionate the same day after the maintainer asked why a run this
-	// small needs unlocking at all: one or more explicitly named estates,
-	// against the emulator, with no -set flag, is the ordinary developer
-	// loop (e.g. `gauntlet run terralith-scale`: one estate, scale 1, the
-	// local floci emulator, minutes, no cloud, no cost) and is allowed with
-	// no allow file. Everything else that reaches this point - a bare
-	// `gauntlet run` with no names at all (which resolves to the "all" set
-	// below, i.e. every estate, exactly like `-set all`: see run.go's
-	// RunEstates), or an explicit -set core/-set all - still needs the
-	// maintainer's own hand-run allow file: that is the shape the 2026-09-11
-	// incident actually was (three real-AWS certification cycles and two
-	// full-corpus runs), never a single named emulator estate.
-	// heavyRunIsNamedEmulatorLoop (maintainerguard.go) is the pure decision;
-	// checked here, after flag parsing (needed now to see the names and
-	// whether -set was explicitly typed) but still before loadAll or any
-	// script starts, so a malformed invocation never races the refusal.
-	// withDispatchHint (heavyrun.go) adds the one thing CheckMaintainerAllow
-	// itself cannot know: which workflow runs this for real, and the exact
-	// `gh workflow run` line that dispatches it.
-	setFlagExplicit := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "set" {
-			setFlagExplicit = true
-		}
-	})
-	if !heavyRunIsNamedEmulatorLoop(fs.Args(), setFlagExplicit) {
-		if err := CheckMaintainerAllow(); err != nil {
-			return withDispatchHint(err, "gauntlet.yml",
-				`gh workflow run gauntlet.yml -R INTENTIUS/choudoufu -f set=core   # or -f set=all / -f estates="name1 name2"`)
-		}
-	}
-
 	m, a, err := loadAll(root)
 	if err != nil {
 		return err
@@ -463,7 +430,6 @@ func cmdLiveCert(root string, args []string) error {
 	region := fs.String("region", "us-east-1", "AWS region")
 	ceilingUSD := fs.Float64("ceiling-usd", 5, "cost ceiling this run is certifying under (#440 ruling: $5 for reference-ec2-vpc); informational here, enforced by the account's own AWS Budgets alarm and by -timeout-seconds/live/live-cert/run.sh's process timeout")
 	timeoutSeconds := fs.Int("timeout-seconds", 900, "Go-side process ceiling, independent of live/live-cert/run.sh's own `timeout` wrapper")
-	confirm := fs.String("confirm", "", "must be exactly \"yes\" for -target aws; refused otherwise before anything is started")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -471,11 +437,7 @@ func cmdLiveCert(root string, args []string) error {
 		return fmt.Errorf("live-cert needs exactly one estate name, got %d", fs.NArg())
 	}
 	estate := fs.Arg(0)
-	// RunLiveCert's own CheckMaintainerAllow call (livecert.go) already
-	// refuses this outside CI without the maintainer's hand-run allow file,
-	// wrapped there with the live-cert.yml dispatch hint - nothing to add
-	// here.
-	r, res, exit, err := RunLiveCert(root, estate, *target, *region, *ceilingUSD, *timeoutSeconds, *confirm)
+	r, res, exit, err := RunLiveCert(root, estate, *target, *region, *ceilingUSD, *timeoutSeconds)
 	if err != nil {
 		return err
 	}

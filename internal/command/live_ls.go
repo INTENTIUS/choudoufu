@@ -22,8 +22,11 @@ import (
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -60,6 +63,16 @@ import (
 // discovery's own tagging sweep is built from
 // ([cloudcontrol.Client.GetResources], [markers]'s decode functions) are
 // exactly what this command reuses; the configuration-aware parts are not.
+//
+// The Kubernetes listing (GitHub issue #1081) is the one part that does
+// need DIR, because the substrate is learned from the configuration's
+// provider blocks and the cluster client is built from one of them, the
+// way live-plan's own sweep builds it ([statelessProviders.kubernetesClient]).
+// What it lists is what the sweep lists - one cluster-wide, label-selected
+// list per kind the cluster serves, controller-made objects excluded
+// ([kubesweep.Client]) - and what it calls declared is what the sweep
+// calls declared ([discovery.DeclaredKubernetesObjects]), so the inventory
+// and the removal plan cannot disagree about an object.
 type LiveLsCommand struct {
 	Meta
 }
@@ -121,6 +134,22 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 		))
 	}
 
+	// DIR's configuration is loaded before anything is listed, because it
+	// is what says which substrates the estate lives on (GitHub issue
+	// #1081): an aws provider among its managed resources' providers means
+	// the AWS listing below, a kubernetes provider the cluster listing
+	// liveLsGaps runs, both means both. No DIR, or one that will not load,
+	// or one naming neither, is the AWS listing this command has always
+	// been - liveLsSubstrates. The load's own diagnostics travel to
+	// liveLsGaps, which phrases the skip exactly as it did when it loaded
+	// the configuration itself.
+	var config *configs.Config
+	var cfgDiags tfdiags.Diagnostics
+	if args.ConfigDir != "" {
+		config, cfgDiags = c.loadConfig(ctx, args.ConfigDir)
+	}
+	substrates := liveLsSubstrates(config, cfgDiags)
+
 	// The same gate live-plan and live-mv build their own Tagging client
 	// behind (cloudControlTarget, live_plan.go): off during this package's
 	// own offline test suite (TestMain sets TOFU_LIVE_CLOUDCONTROL=off), on
@@ -133,7 +162,11 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	ep, on := cloudControlTarget()
 	var tagging *cloudcontrol.Client
 	var iamClient *iam.Client
-	if on {
+	if !substrates.aws {
+		// A Kubernetes-only configuration: no AWS client at all, and no
+		// warning about one, because nothing in DIR could carry an AWS
+		// tag for this listing to find.
+	} else if on {
 		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: args.Region})
 		// No BaseEndpoint override here: aws-sdk-go-v2's own default config
 		// resolution already reads AWS_ENDPOINT_URL / AWS_ENDPOINT_URL_IAM,
@@ -188,11 +221,15 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.ConfigDir, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.kubernetes, items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
 		rep.Schemas = cmp.Schemas
+		if len(cmp.Kubernetes) > 0 {
+			rep.Items = append(rep.Items, cmp.Kubernetes...)
+			sortLiveLsItems(rep.Items)
+		}
 		for i := range rep.Items {
 			if rep.Items[i].Address != "" && cmp.Declared[rep.Items[i].Address] {
 				rep.Items[i].Declared = true
@@ -464,7 +501,15 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // at all, so a configuration that will not load, is outside the stateless
 // subset, or cannot be resolved is news worth printing, never a reason to
 // withhold the listing that already succeeded.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
+//
+// config and cfgDiags are [Meta.loadConfig]'s answer for dir, loaded by the
+// caller because the substrates are read off it before any listing runs
+// (GitHub issue #1081); kubernetes says whether that read found a
+// kubernetes provider, in which case the cluster listing runs here too,
+// after resolution, since what it calls declared is a resolution's kind and
+// natural key. Its items come back in the comparison's Kubernetes field
+// and are counted found for the gap list below.
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	// Whether provider schemas were read, tracked across the skip paths
 	// below rather than only on the path that completes: a comparison that
@@ -486,7 +531,6 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 		return liveLsComparison{Skipped: reason, Schemas: schemasRead}, diags
 	}
 
-	config, cfgDiags := c.loadConfig(ctx, dir)
 	if cfgDiags.HasErrors() {
 		return skip(fmt.Sprintf("%s could not be loaded as a configuration: %s.", dir, cfgDiags.Err()))
 	}
@@ -546,18 +590,34 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 	}
 
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
-	closeProviders()
 	if idDiags.HasErrors() {
+		closeProviders()
 		return skip(fmt.Sprintf("identity resolution could not complete: %s.", idDiags.Err()))
 	}
+
+	// The cluster listing runs with the providers still open: the client
+	// is built from the provider block's evaluated arguments, which
+	// [statelessProviders.ConfiguredProvider] is what evaluates.
+	var kube []views.LiveLsItem
+	if kubernetes {
+		var kubeDiags tfdiags.Diagnostics
+		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All())
+		diags = diags.Append(kubeDiags)
+	}
+	closeProviders()
 
 	declared := make(map[string]bool, resolutions.Len())
 	for _, res := range resolutions.All() {
 		declared[res.Addr.String()] = true
 	}
 
-	foundInCloud := make(map[string]bool, len(items))
+	foundInCloud := make(map[string]bool, len(items)+len(kube))
 	for _, item := range items {
+		if item.Address != "" {
+			foundInCloud[item.Address] = true
+		}
+	}
+	for _, item := range kube {
 		if item.Address != "" {
 			foundInCloud[item.Address] = true
 		}
@@ -582,7 +642,138 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, dir string, items []view
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Address < gaps[j].Address })
 
-	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead}, diags
+	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, Kubernetes: kube}, diags
+}
+
+// liveLsSubstrateSet is which substrates a listing covers, read off DIR's
+// configuration by [liveLsSubstrates].
+type liveLsSubstrateSet struct {
+	aws        bool
+	kubernetes bool
+}
+
+// liveLsSubstrates reads the substrates off a configuration the way the
+// estate-wide sweep picks its provider passes: every distinct provider
+// configuration among the managed resources
+// ([statelessManagedResourceProviders], which falls back to the root's
+// declared provider blocks when nothing is declared). An aws provider
+// among them is the AWS listing, a kubernetes provider the cluster
+// listing. No configuration at all (no DIR, or one whose load failed -
+// cfgDiags carries the error the comparison will report) or one naming
+// neither provider is the AWS listing alone, which is what this command
+// was before GitHub issue #1081 and stays for every caller that passes no
+// DIR.
+func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) liveLsSubstrateSet {
+	if config == nil || config.Module == nil || cfgDiags.HasErrors() {
+		return liveLsSubstrateSet{aws: true}
+	}
+	var s liveLsSubstrateSet
+	for _, addr := range statelessManagedResourceProviders(config) {
+		switch addr.Provider.Type {
+		case "aws":
+			s.aws = true
+		case "kubernetes":
+			s.kubernetes = true
+		}
+	}
+	if !s.aws && !s.kubernetes {
+		s.aws = true
+	}
+	return s
+}
+
+// liveLsKubernetes lists the estate's objects through every kubernetes
+// provider configuration DIR's managed resources use, one cluster each:
+// the client from the block's own connection arguments, exactly as
+// live-plan's sweep builds it ([statelessProviders.kubernetesClient]), so
+// the inventory reads the cluster the plan would. A block this run cannot
+// configure or connect with is one warning - the sweep's own summary,
+// [discovery.SummaryKubernetesSweepUnavailable] - and the listing goes on
+// without it, the same way an unreachable tagging index leaves the AWS
+// listing a warning rather than a failure.
+func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *statelessProviders, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	var items []views.LiveLsItem
+	for _, addr := range statelessManagedResourceProviders(config) {
+		if addr.Provider.Type != "kubernetes" {
+			continue
+		}
+		if _, err := provs.ConfiguredProvider(ctx, addr); err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+				fmt.Sprintf("Provider configuration %s could not be configured, so no Kubernetes object owned by estate %q is listed through it: %s.", addr, estate, err)))
+			continue
+		}
+		client, types, manifestType, schemaDiags, err := provs.kubernetesClient(ctx, addr)
+		if schemaDiags.HasErrors() {
+			diags = diags.Append(schemaDiags)
+			continue
+		}
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+				fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by estate %q is listed through it: %s.", addr, estate, err)))
+			continue
+		}
+		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions)
+		diags = diags.Append(listDiags)
+		items = append(items, found...)
+	}
+	return items, diags
+}
+
+// liveLsKubernetesList is one cluster's listing: the kinds the cluster
+// serves among the provider's type universe ([kubesweep.Sweeper.Kinds],
+// every CRD included under the manifest type), then one label-selected
+// list per kind. Each object is an item keyed by its natural key, filed
+// under the block that declares it when one does - the join is the kind
+// and the natural key, [discovery.DeclaredKubernetesObjects], the sweep's
+// own - else under the type the sweep would plan its removal at.
+//
+// API discovery failing is the whole cluster unlisted, and says so under
+// the sweep's summary; one kind's list failing is that kind missing, and
+// says so under its own, so a reader can tell "no cluster" from "no
+// permission on one kind". Neither is an error: the listing is what
+// could be read, and the warning is what could not.
+func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	var items []views.LiveLsItem
+
+	declared := discovery.DeclaredKubernetesObjects(resolutions, types, manifestType)
+	kinds, _, err := sweeper.Kinds(ctx, types, manifestType)
+	if err != nil {
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+			fmt.Sprintf("The cluster's API discovery failed, so no Kubernetes object owned by estate %q could be listed: %s.", estate, err)))
+	}
+	kindTypes := kubesweep.KindTypes(types)
+	for _, k := range kinds {
+		objects, _, err := sweeper.List(ctx, k, markers.TagEstate, estate)
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Kubernetes listing incomplete",
+				fmt.Sprintf("Listing %s across all namespaces failed: %s. Any %s this estate owns is missing from the listing.", k.GVR.String(), err, k.Kind)))
+			continue
+		}
+		typeName := manifestType
+		if !k.Manifest {
+			typeName, _ = kubesweep.TypeFor(kindTypes, declared.Types, k.Kind)
+		}
+		for _, o := range objects {
+			key := kubesweep.NaturalKey(o.Namespace, o.Name)
+			item := views.LiveLsItem{
+				ID:         key,
+				Type:       typeName,
+				Kind:       k.Kind,
+				APIVersion: k.APIVersion,
+				Source:     "kubernetes",
+				Tags:       o.Labels,
+			}
+			if addr, ok := declared.Declares(k.Kind, key); ok {
+				item.Address = addr.String()
+				item.Declared = true
+				item.Type = addr.Resource.Resource.Type
+			}
+			items = append(items, item)
+		}
+	}
+	return items, diags
 }
 
 // liveLsComparison is what [LiveLsCommand.liveLsGaps] found: the gaps
@@ -600,6 +791,13 @@ type liveLsComparison struct {
 	Declared map[string]bool
 	Schemas  bool
 	Skipped  string
+
+	// Kubernetes is the cluster listing (GitHub issue #1081), made here
+	// rather than beside the AWS passes because what it calls declared
+	// is a resolution's kind and natural key, which only exist once DIR
+	// has been resolved. Nil when DIR names no kubernetes provider, or
+	// when the comparison skipped before resolution.
+	Kubernetes []views.LiveLsItem
 }
 
 // liveLsRung classifies why a declared instance cannot be found by this
@@ -628,6 +826,14 @@ func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema) (r
 
 	schema, haveSchema := schemas[res.Type()]
 	if haveSchema && !markers.Taggable(schema.Block) {
+		if _, labels := markers.LabelSurface(schema.Block); labels || markers.ManifestSurface(schema.Block) {
+			// Marker-carried on Kubernetes: the marker is a label, not a
+			// tag (live/MARKERS.md, "Kubernetes: one label"), and the
+			// cluster listing reads exactly that label. Such an instance
+			// not being found is the same genuine absence a taggable AWS
+			// instance's is - not a rung.
+			return "", "", false
+		}
 		return "declaration-carried",
 			fmt.Sprintf("%s has no settable tags argument, so no ownership marker was ever written for it - live/MARKERS.md's tier definitions (#417) name this the declaration-carried tier. Its identity comes entirely from configuration.", res.Type()),
 			true
@@ -649,6 +855,21 @@ Usage: choudoufu [global options] live-ls -estate=NAME [options] [DIR]
   configuration address decoded from its tofu-address marker and any
   continuation tags (live/MARKERS.md), its tofu-slot when present, and every
   marker tag it carries.
+
+  A Kubernetes estate is listed through DIR: the substrate is read off the
+  configuration's provider blocks, and a kubernetes provider among them gets
+  the cluster listing - the client built from that block's own connection
+  arguments, then one cluster-wide, label-selected list per kind the cluster
+  serves, custom resources included, with controller-made objects excluded,
+  exactly the sweep a plan runs. Per object: the provider type it is filed
+  under, its natural key (NAMESPACE/NAME, or NAME for a cluster-scoped kind),
+  its kind and API version, every label it carries, and the block in DIR
+  that declares it, joined on the kind and the natural key because the
+  Kubernetes marker is the estate label alone. A configuration with both an
+  aws and a kubernetes provider lists both substrates; one with a kubernetes
+  provider and no aws provider lists the cluster alone. A cluster this run
+  cannot reach is a warning, "Kubernetes sweep unavailable", and the rest of
+  the listing stands. -consistent polls the AWS listing only.
 
   With DIR given, the listing is cross-referenced against that directory's
   declared instances: one this listing cannot find is reported as a gap, named

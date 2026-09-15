@@ -3,16 +3,11 @@ name: Live cert
 # A real-AWS certification run (issue #440, #567, #1032, #1046) - the one
 # kind of gauntlet evidence that spends real account money. `workflow_dispatch`
 # only, on purpose: this is a "heavy run" under CLAUDE.md's "Heavy and paid
-# runs are the maintainer's, by hand" rule (the 2026-09-11 incident: three
-# real-AWS certification cycles and two corpus runs went out overnight on
-# an inferred authorization). Outside CI, `go run ./tools/gauntlet
-# live-cert -target aws` refuses on its own before starting anything -
-# CheckMaintainerAllow (tools/gauntlet/maintainerguard.go) requires
-# ~/.config/choudoufu/allow-heavy-runs to name a still-future instant, a
-# file nothing in this repository ever creates - so this workflow, not a
-# laptop, is the normal way a real run happens. The same "belt and
-# suspenders" shape LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY already
-# uses for -target aws specifically.
+# runs are the maintainer's, by hand" rule: the account's AWS Budgets alarm
+# bounds spend, and this workflow's required reviewer is the maintainer's
+# decision for a dispatched run (#1102 removed the three local gates on
+# 2026-09-14; a laptop run is the maintainer's own command with nothing to
+# unlock).
 #
 # `environment: real-aws` is what makes a dispatch wait: a GitHub
 # environment with a required reviewer blocks the job at its first step
@@ -113,9 +108,7 @@ jobs:
           LIVECERT_WORK_DIR: ${{ runner.temp }}/livecert-work
           # This IS the maintainer's approval: reaching this step already
           # required the real-aws environment's required reviewer to click
-          # approve. `-confirm yes` below is the belt-and-suspenders half
-          # RunLiveCert's own doc comment describes.
-          LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY: "yes"
+          # approve.
           SCALE: ${{ github.event.inputs.scale }}
         run: |
           set -o pipefail
@@ -124,7 +117,6 @@ jobs:
             -target aws \
             -region "${{ vars.AWS_REGION }}" \
             -ceiling-usd "${{ github.event.inputs.ceiling_usd }}" \
-            -confirm yes \
             "${{ github.event.inputs.estate }}" | tee live-cert-run.log
 
       - name: Keep the work dir and the log

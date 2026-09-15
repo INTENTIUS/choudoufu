@@ -17,7 +17,13 @@ Every type whose schema carries object metadata resolves through one rule
 identity is `metadata.namespace` and `metadata.name`, both written in your
 configuration, so a plan binds it with nothing stored anywhere. A missing
 namespace is refused rather than defaulted, and `generate_name` is refused
-by name.
+by name. A custom resource, declared through `kubernetes_manifest`, binds
+the same way by the `apiVersion`, `kind`, `metadata.namespace` and
+`metadata.name` written inside its manifest
+([#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)); a block
+whose kind the cluster does not serve is refused by name, naming the CRD
+to install, at the plan's first contact with the cluster ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})).
 
 Every one of them carries the marker: one label, `tofu-estate`, written on
 the create. Strip it with kubectl and the next plan proposes restoring it.
@@ -33,6 +39,23 @@ of them is fenced by the label it carries ([claim
 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}}); [the
 gate]({{< relref "/kubernetes/gate" >}}) says what that fence does not
 reach).
+
+## From a stock state file
+
+```
+choudoufu live-import -approve
+```
+
+The same bulk path as on AWS ([#1073](https://github.com/INTENTIUS/choudoufu/issues/1073)):
+the stock state is read once, each object is verified by namespace and
+name, and the `tofu-estate` label is written into `metadata.labels`
+through a labels-only plan and apply. A plan that would also rename the
+object, move it between namespaces or change anything outside the labels
+map is refused, and so is an object already labelled for another estate.
+Then delete the state file and plan: the plan is empty, because every
+object is found again by its name and carries the label. The gauntlet's
+`reference-k8s` estate measures exactly this at its `migrate` and
+`test_plan` stages.
 
 ## The marker
 
@@ -68,4 +91,10 @@ stripped label names who stripped it. Server-side apply refuses a contested
 field with a 409 that names the competing manager. Server-side dry run
 validates, defaults and runs admission without persisting, which is stronger
 evidence than a locally computed plan and something AWS has no equivalent
-for.
+for; the plan uses it, sending every planned `kubernetes_manifest` create or
+update to the server with `dryRun=All` and printing the server's answer
+above the plan, and a rejection refuses the plan by name in the server's
+words before anything is applied ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Built-in types are
+not submitted: the mapping from their block shape to the API object is the
+provider's own.

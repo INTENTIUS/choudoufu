@@ -111,7 +111,7 @@ func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
 			{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified},
 		},
 		eligible: map[string]*eligible{
-			addr.String(): {residuable{
+			addr.String(): {residuable: residuable{
 				provider: p,
 				schema:   residueSchema(),
 				typeName: "aws_nat_gateway",
@@ -247,7 +247,7 @@ func TestApprove_RecordsResidueForANestingSetBlock(t *testing.T) {
 			{Addr: addr, TypeName: "aws_autoscaling_group", Status: StatusVerified},
 		},
 		eligible: map[string]*eligible{
-			addr.String(): {residuable{
+			addr.String(): {residuable: residuable{
 				provider: p,
 				schema:   nestingSetBlockSchema(),
 				typeName: "aws_autoscaling_group",
@@ -304,7 +304,7 @@ func TestApprove_SecondRunIsIdempotent(t *testing.T) {
 			Estate:  "residue-test-estate",
 			Entries: []Entry{{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified}},
 			eligible: map[string]*eligible{
-				addr.String(): {residuable{
+				addr.String(): {residuable: residuable{
 					provider: p,
 					schema:   residueSchema(),
 					typeName: "aws_nat_gateway",
@@ -353,7 +353,7 @@ func TestApprove_NilResidueStoreIsANoOp(t *testing.T) {
 		Estate:  "residue-test-estate",
 		Entries: []Entry{{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified}},
 		eligible: map[string]*eligible{
-			addr.String(): {residuable{
+			addr.String(): {residuable: residuable{
 				provider: p,
 				schema:   residueSchema(),
 				typeName: "aws_nat_gateway",

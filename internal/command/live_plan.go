@@ -1010,6 +1010,19 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
 
+	// The server-side dry run (GitHub issue #1081, item 3): every planned
+	// create or update of a kubernetes_manifest instance, sent to the
+	// cluster as the apply would write it with dryRun=All. The evidence
+	// prints above the plan; a rejection is a refusal by name, and the
+	// run stops here with nothing applied rather than rendering a plan
+	// the server has already said it will not take.
+	dryRunEvidence, dryRunDiags := statelessKubernetesDryRun(ctx, provs.kubernetesSweepers(), config, plan, schemas)
+	diags = diags.Append(dryRunDiags)
+	statelessView.KubernetesDryRun(dryRunEvidence)
+	if dryRunDiags.HasErrors() {
+		return 1, false, diags
+	}
+
 	// The ordinary resource-diff rendering is skipped under -json rather
 	// than switched to [views.PlanJSON]'s own general JSON representation:
 	// GitHub issue #788's document below already told a JSON reader
@@ -1566,10 +1579,11 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	// arguments the provider itself connects with, and the object-metadata
 	// types as its universe. The AWS legs below are the AWS provider's.
 	if providerAddr.Provider.Type == "kubernetes" {
-		sweeper, types, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
+		sweeper, types, manifestType, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
 		diags = diags.Append(kubeDiags)
 		req.Kubernetes = sweeper
 		req.KubernetesTypes = types
+		req.KubernetesManifestType = manifestType
 		// The AWS sweep loops draw their universe from the admission
 		// table, which a kubernetes provider handle cannot list; the
 		// Kubernetes leg is this pass's whole sweep.
@@ -3339,6 +3353,14 @@ type statelessProviders struct {
 	// entry here to consult, so this field costs nothing when it is not
 	// needed.
 	providerDataResults map[string]cty.Value
+
+	// kubeSweepers is the Kubernetes sweep's cluster client per provider
+	// configuration (GitHub issue #1065), kept past the sweep for the
+	// post-plan server-side dry run (#1081, item 3), which runs after the
+	// provider plugins are closed and needs the same cluster. Keyed by
+	// [providerCacheKey]; absent for a configuration no client could be
+	// built from, which the sweep already warned about.
+	kubeSweepers map[string]kubesweep.Sweeper
 }
 
 var _ projection.Providers = (*statelessProviders)(nil)
@@ -4007,17 +4029,42 @@ func (c *LivePlanCommand) Synopsis() string {
 // identity.ObjectMetaShape admits. A block this run cannot connect with
 // yields a nil sweeper and one warning: the plan still runs, with no
 // Kubernetes removals proposed, and says so.
-func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, tfdiags.Diagnostics) {
+func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, string, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
+	client, types, manifestType, schemaDiags, err := p.kubernetesClient(ctx, addr)
+	if schemaDiags.HasErrors() {
+		return nil, nil, "", diags.Append(schemaDiags)
+	}
+	if err != nil {
+		return nil, types, manifestType, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+			fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
+	}
+	p.rememberKubernetesSweeper(addr, client)
+	return client, types, manifestType, diags
+}
 
+// kubernetesClient is [statelessProviders.kubernetesSweeper] before the
+// warning is phrased: the type universe read off the provider's schema
+// (schemaDiags carries a schema that would not load), and the client or
+// the error that stood in its way, for a caller - live-ls (GitHub issue
+// #1081) - whose sentence about a cluster it cannot reach is not the
+// plan's. A nil client with a nil error does not happen: err is set on
+// every path that returns no client.
+func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
 	if schemaDiags.HasErrors() {
-		return nil, nil, diags.Append(schemaDiags)
+		return nil, nil, "", schemaDiags, schemaDiags.Err()
 	}
-	var types []string
 	for name, rs := range schema.ResourceTypes {
 		if _, ok := identity.ObjectMetaShape(rs.Block); ok {
 			types = append(types, name)
+		}
+		if identity.ManifestShape(rs.Block) {
+			// GitHub issue #1079: the type the manifest shape admits,
+			// found by shape and never by name, puts every served kind
+			// in the sweep's universe, CRDs included.
+			types = append(types, name)
+			manifestType = name
 		}
 	}
 	sort.Strings(types)
@@ -4027,15 +4074,14 @@ func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.A
 	p.mu.Unlock()
 	attrs := kubernetesSweepAttrs(val, ok)
 	cfg, err := kubesweep.RestConfig(attrs)
-	if err == nil {
-		var client *kubesweep.Client
-		client, err = kubesweep.New(cfg)
-		if err == nil {
-			return client, types, diags
-		}
+	if err != nil {
+		return nil, types, manifestType, nil, err
 	}
-	return nil, types, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
-		fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
+	client, err = kubesweep.New(cfg)
+	if err != nil {
+		return nil, types, manifestType, nil, err
+	}
+	return client, types, manifestType, nil, nil
 }
 
 // kubernetesSweepAttrs reads the connection arguments this sweep understands

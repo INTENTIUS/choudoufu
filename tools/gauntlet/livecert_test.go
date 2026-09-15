@@ -154,17 +154,12 @@ func TestRunLiveCertSendsSIGTERMOnCeiling(t *testing.T) {
 	}
 
 	t.Setenv("LIVECERT_SCRIPT_OVERRIDE", script)
-	// The maintainer-run-guard (maintainerguard.go) refuses a local
-	// live-cert run with no allow file - correct, but not what this test is
-	// about, so it opts out the same way CI itself does rather than faking
-	// an allow file this test has no other reason to manage.
-	t.Setenv("GITHUB_ACTIONS", "true")
-	// target=floci (never requires -confirm) and a 1-second ceiling: the
+	// target=floci and a 1-second ceiling: the
 	// script sleeps for 10s, so RunLiveCert's ceiling fires almost
 	// immediately, well before the sleep would exit on its own - any
 	// marker file the assertion below finds was written BECAUSE of the
 	// ceiling's own signal, not because the script merely finished.
-	if _, _, exit, err := RunLiveCert("", "unused-estate-name", "floci", "us-east-1", 5, 1, ""); err != nil {
+	if _, _, exit, err := RunLiveCert("", "unused-estate-name", "floci", "us-east-1", 5, 1); err != nil {
 		t.Fatalf("RunLiveCert returned an error: %v", err)
 	} else if exit != -1 {
 		t.Errorf("exit = %d, want -1 (killed by the ceiling, per RunLiveCert's own doc comment)", exit)
@@ -208,9 +203,8 @@ func TestRunLiveCertCapturesPerStageSeconds(t *testing.T) {
 	}
 
 	t.Setenv("LIVECERT_SCRIPT_OVERRIDE", script)
-	t.Setenv("GITHUB_ACTIONS", "true") // opt out of the maintainer-run-guard, same as TestRunLiveCertSendsSIGTERMOnCeiling
 
-	r, _, exit, err := RunLiveCert("", "unused-estate-name", "floci", "us-east-1", 5, 30, "")
+	r, _, exit, err := RunLiveCert("", "unused-estate-name", "floci", "us-east-1", 5, 30)
 	if err != nil {
 		t.Fatalf("RunLiveCert returned an error: %v", err)
 	}

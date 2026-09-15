@@ -1574,6 +1574,37 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		ident := r.identifier(addr, attr.Name, attr.Range)
 		expr := attr.Expr
+		var got []Part
+		var ok, resolvedHere bool
+		if len(comp.Path) > 0 {
+			// [Component.Path] (GitHub issue #1079): the segment is a key
+			// inside the argument's own object constructor, so narrow the
+			// expression to that key first - syntactically, the way
+			// [resolver.selectStaticExpr] narrows a local's definition -
+			// and resolve the leaf the ordinary way below. A local or
+			// variable the argument is set to is chased by
+			// [resolver.selectStatic] instead, which resolves rather than
+			// narrows. An absent key on an OmitIfAbsent component is the
+			// grammar's own "this segment is not there" (a cluster-scoped
+			// manifest has no metadata.namespace); on any other component
+			// it is a manifest this package cannot read a key out of, and
+			// that is refused rather than evaluated whole.
+			trav := pathTraversal(comp.Path)
+			if narrowed, narrowOK := r.selectStaticExpr(expr, trav, scope, ident, 0); narrowOK {
+				expr = narrowed
+			} else if chased, chasedOK, applicable := r.selectStatic(expr, trav, scope, ident, 0); applicable && chasedOK {
+				got, ok, resolvedHere = chased, true, true
+			} else {
+				if comp.OmitIfAbsent {
+					continue
+				}
+				r.errorf(attr.Range, "Identity not resolvable from configuration",
+					"%s reads %s.%s for its identity, but %s is not written as an object whose %q key can be found without applying. An object constructor, a merge() of object constructors, or a local or variable defined as one can be read; a value computed some other way (yamldecode, a module output, a for expression) cannot, because the key that names this object is not known until the value exists.",
+					addr.String(), attr.Name, strings.Join(comp.Path, "."), attr.Name, strings.Join(comp.Path, "."))
+				fail(sibBefore, attr.Name)
+				continue
+			}
+		}
 		if comp.PerElement {
 			// One segment per element, joined by whatever separator the
 			// preceding component supplies. See [Component.PerElement].
@@ -1587,8 +1618,6 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			continue
 		}
 		diagMark := len(r.diags)
-		var got []Part
-		var ok, resolvedHere bool
 		if comp.SoleElement {
 			// GitHub issue #346: on the each.value-as-an-EXPRESSION route the
 			// list construct is in the element, not in the argument, so the
@@ -5400,4 +5429,15 @@ func objectMetaTraversal(rest hcl.Traversal) (string, bool) {
 		return "", false
 	}
 	return leaf.Name, true
+}
+
+// pathTraversal is [Component.Path] as the traversal steps
+// [resolver.selectStaticExpr] and [resolver.selectStatic] walk: one
+// attribute step per key.
+func pathTraversal(path []string) hcl.Traversal {
+	out := make(hcl.Traversal, 0, len(path))
+	for _, key := range path {
+		out = append(out, hcl.TraverseAttr{Name: key})
+	}
+	return out
 }

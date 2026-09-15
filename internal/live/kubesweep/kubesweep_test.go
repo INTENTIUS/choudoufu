@@ -7,6 +7,7 @@ package kubesweep
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -145,7 +146,7 @@ func TestKindsJoinsServedResourcesToProviderTypes(t *testing.T) {
 		}},
 	}
 	c := NewWith(disc, nil)
-	kinds, unserved, err := c.Kinds(context.Background(), []string{"kubernetes_config_map", "kubernetes_config_map_v1", "kubernetes_namespace", "kubernetes_deployment_v1", "kubernetes_storage_class"})
+	kinds, unserved, err := c.Kinds(context.Background(), []string{"kubernetes_config_map", "kubernetes_config_map_v1", "kubernetes_namespace", "kubernetes_deployment_v1", "kubernetes_storage_class"}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,5 +199,165 @@ func TestControllerMade(t *testing.T) {
 	bare := configMap("ns", "bare", nil, false)
 	if ControllerMade(bare) {
 		t.Error("an object with no owner and no managedFields was judged controller-made")
+	}
+}
+
+// TestKindsListsEveryServedKindUnderTheManifestType (GitHub issue #1079):
+// with kubernetes_manifest in the type universe, a served kind no built-in
+// type manages - a CRD, here - is listed under it, imports by the manifest
+// id, and never counts as unserved; without it the kind is not listed at
+// all, as before. A resource without a delete verb is never listed either
+// way.
+func TestKindsListsEveryServedKindUnderTheManifestType(t *testing.T) {
+	disc := &fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}
+	disc.Resources = []*metav1.APIResourceList{
+		{GroupVersion: "v1", APIResources: []metav1.APIResource{
+			{Name: "configmaps", Kind: "ConfigMap", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+			{Name: "componentstatuses", Kind: "ComponentStatus", Namespaced: false, Verbs: []string{"get", "list"}},
+		}},
+		{GroupVersion: "stable.example.com/v1", APIResources: []metav1.APIResource{
+			{Name: "crontabs", Kind: "CronTab", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+			{Name: "crontabs/status", Kind: "CronTab", Namespaced: true, Verbs: []string{"get", "update"}},
+		}},
+	}
+	c := NewWith(disc, nil)
+
+	kinds, unserved, err := c.Kinds(context.Background(), []string{"kubernetes_config_map_v1", "kubernetes_manifest"}, "kubernetes_manifest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, k := range kinds {
+		got = append(got, k.Kind+":"+k.APIVersion+":"+k.TypeNames[0])
+	}
+	want := []string{"ConfigMap:v1:kubernetes_config_map_v1", "CronTab:stable.example.com/v1:" + "kubernetes_manifest"}
+	if len(got) != len(want) {
+		t.Fatalf("kinds = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("kinds[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if kinds[0].Manifest || !kinds[1].Manifest {
+		t.Errorf("Manifest flags = %v, %v; want false for the built-in kind and true for the CRD", kinds[0].Manifest, kinds[1].Manifest)
+	}
+	if len(unserved) != 0 {
+		t.Errorf("unserved = %v; the manifest type is never unserved", unserved)
+	}
+
+	kinds, _, err = c.Kinds(context.Background(), []string{"kubernetes_config_map_v1"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kinds) != 1 || kinds[0].Kind != "ConfigMap" {
+		t.Errorf("without the manifest type the CRD was listed: %v", kinds)
+	}
+}
+
+func TestListRendersTheManifestImportID(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "stable.example.com", Version: "v1", Resource: "crontabs"}
+	ct := &unstructured.Unstructured{}
+	ct.SetAPIVersion("stable.example.com/v1")
+	ct.SetKind("CronTab")
+	ct.SetNamespace("smoke-crd")
+	ct.SetName("my-crontab")
+	ct.SetLabels(map[string]string{"tofu-estate": "smoke-crd"})
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: "CronTabList"}, ct)
+	c := NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn)
+	got, _, err := c.List(context.Background(), Kind{GVR: gvr, Kind: "CronTab", Namespaced: true, APIVersion: "stable.example.com/v1", TypeNames: []string{"kubernetes_manifest"}, Manifest: true}, "tofu-estate", "smoke-crd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ImportID != "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab" {
+		t.Fatalf("listed = %+v", got)
+	}
+}
+
+func TestManifestImportIDRoundTrips(t *testing.T) {
+	for _, tc := range []struct{ apiVersion, kind, ns, name, want string }{
+		{"stable.example.com/v1", "CronTab", "smoke-crd", "my-crontab", "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
+		{"v1", "Namespace", "", "smoke-crd", "apiVersion=v1,kind=Namespace,name=smoke-crd"},
+	} {
+		id := ManifestImportID(tc.apiVersion, tc.kind, tc.ns, tc.name)
+		if id != tc.want {
+			t.Errorf("ManifestImportID = %q, want %q", id, tc.want)
+		}
+		a, k, ns, n, ok := ParseManifestImportID(id)
+		if !ok || a != tc.apiVersion || k != tc.kind || ns != tc.ns || n != tc.name {
+			t.Errorf("ParseManifestImportID(%q) = %q %q %q %q %v", id, a, k, ns, n, ok)
+		}
+	}
+	for _, bad := range []string{"smoke-crd/my-crontab", "apiVersion=v1,kind=ConfigMap", "apiVersion=v1,kind=X,name=a,name=b", "apiVersion=v1,kind=X,name=a,extra=1", ""} {
+		if _, _, _, _, ok := ParseManifestImportID(bad); ok {
+			t.Errorf("ParseManifestImportID(%q) accepted", bad)
+		}
+	}
+}
+
+func TestManifestOrphanResourceName(t *testing.T) {
+	for _, tc := range []struct{ kind, ns, name, want string }{
+		{"CronTab", "smoke-crd", "my-crontab", "orphan_crontab_smoke-crd_my-crontab"},
+		{"ClusterIssuer", "", "letsencrypt", "orphan_clusterissuer_letsencrypt"},
+	} {
+		if got := ManifestOrphanResourceName(tc.kind, tc.ns, tc.name); got != tc.want {
+			t.Errorf("ManifestOrphanResourceName(%q, %q, %q) = %q, want %q", tc.kind, tc.ns, tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestServesAsksTheExactGroupVersion (GitHub issue #1079's fourth
+// ruling): a kind is served only at the apiVersion the block names - the
+// CronTab at stable.example.com/v1 is, the same kind at v2 is not, and a
+// group the server does not know is not - and a subresource's kind never
+// counts. A 404 is an answer, not an error.
+func TestServesAsksTheExactGroupVersion(t *testing.T) {
+	disc := &fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}
+	disc.Resources = []*metav1.APIResourceList{
+		{GroupVersion: "v1", APIResources: []metav1.APIResource{
+			{Name: "configmaps", Kind: "ConfigMap", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+			{Name: "pods/status", Kind: "PodStatusOnly", Namespaced: true, Verbs: []string{"get"}},
+		}},
+		{GroupVersion: "stable.example.com/v1", APIResources: []metav1.APIResource{
+			{Name: "crontabs", Kind: "CronTab", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+		}},
+	}
+	c := NewWith(disc, nil)
+	for _, tc := range []struct {
+		apiVersion, kind string
+		want             bool
+	}{
+		{"stable.example.com/v1", "CronTab", true},
+		{"v1", "ConfigMap", true},
+		{"stable.example.com/v2", "CronTab", false},
+		{"stable.example.com/v1", "SnapshotPolicy", false},
+		{"other.example.com/v1", "CronTab", false},
+		{"v1", "PodStatusOnly", false},
+	} {
+		got, err := c.Serves(context.Background(), tc.apiVersion, tc.kind)
+		if err != nil {
+			t.Errorf("Serves(%q, %q) errored: %v", tc.apiVersion, tc.kind, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("Serves(%q, %q) = %v, want %v", tc.apiVersion, tc.kind, got, tc.want)
+		}
+	}
+}
+
+// TestServesReportsAClusterThatCannotAnswer: a failure that is not a 404
+// is an error, never a false, because false is what refuses a block.
+func TestServesReportsAClusterThatCannotAnswer(t *testing.T) {
+	disc := &fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}
+	disc.PrependReactor("get", "resource", func(clienttesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("connection refused")
+	})
+	c := NewWith(disc, nil)
+	served, err := c.Serves(context.Background(), "stable.example.com/v1", "CronTab")
+	if err == nil {
+		t.Fatalf("Serves returned %v with no error from a cluster that cannot answer", served)
+	}
+	if served {
+		t.Error("Serves reported true from a cluster that cannot answer")
 	}
 }

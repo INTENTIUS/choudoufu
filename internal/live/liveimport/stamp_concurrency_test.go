@@ -375,7 +375,7 @@ func concurrentRatification(t *testing.T, n int, p providers.Interface) *Ratific
 			TypeName: "aws_vpc",
 			Status:   StatusVerified,
 		})
-		rat.eligible[addr.String()] = &eligible{residuable{
+		rat.eligible[addr.String()] = &eligible{residuable: residuable{
 			provider: p,
 			schema:   vpcSchema(),
 			typeName: "aws_vpc",

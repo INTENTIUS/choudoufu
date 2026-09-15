@@ -131,12 +131,7 @@ func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName strin
 		return fmt.Sprintf("The provider failed while planning the tag write: %s. Nothing was written.", resp.Diagnostics.Err())
 	}
 	if len(resp.RequiresReplace) > 0 {
-		paths := make([]string, 0, len(resp.RequiresReplace))
-		for _, p := range resp.RequiresReplace {
-			paths = append(paths, tfdiags.FormatCtyPath(p))
-		}
-		sort.Strings(paths)
-		return fmt.Sprintf("Stamping this %s would require replacing it, according to the provider (%s). A migration never destroys anything; nothing was written.", typeName, strings.Join(paths, ", "))
+		return replacementRefusal(typeName, resp)
 	}
 	if resp.PlannedState == cty.NilVal || resp.PlannedState.IsNull() {
 		return "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
@@ -145,6 +140,17 @@ func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName strin
 		return fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", typeName, strings.Join(extra, ", "))
 	}
 	return ""
+}
+
+// replacementRefusal is the sentence both marker writes report when the
+// provider says the write would replace the object, naming the paths.
+func replacementRefusal(typeName string, resp providers.PlanResourceChangeResponse) string {
+	paths := make([]string, 0, len(resp.RequiresReplace))
+	for _, p := range resp.RequiresReplace {
+		paths = append(paths, tfdiags.FormatCtyPath(p))
+	}
+	sort.Strings(paths)
+	return fmt.Sprintf("Stamping this %s would require replacing it, according to the provider (%s). A migration never destroys anything; nothing was written.", typeName, strings.Join(paths, ", "))
 }
 
 // Approve stamps this estate's markers - tofu-estate and tofu-address, and
@@ -605,6 +611,10 @@ func recordResidueFor(ctx context.Context, store *projection.RecordStore, secret
 // about the same object made by the same run, and a second write would be a
 // second chance to half-mark the resource.
 func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstance, e *eligible, slot string) StampOutcome {
+	if e.labelled {
+		// GitHub issue #1073: one label, no address, no slot - labels.go.
+		return approveLabel(ctx, estate, addr, e)
+	}
 	out := StampOutcome{Addr: addr, TypeName: e.typeName}
 
 	wantAddress := discovery.EscapeAddress(addr.String())

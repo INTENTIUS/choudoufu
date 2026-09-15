@@ -26,6 +26,12 @@ const (
 	VerdictPass   = "pass"
 	VerdictFail   = "fail"
 	VerdictNotRun = "not_run"
+	// VerdictNA is never spoken by a script: Rebuild writes it for a
+	// stage whose Substrates note says it cannot run on the estate's
+	// substrate (#1067; Stage.NotApplicable), so the artifact says why a
+	// cell is empty instead of leaving it not_run forever. Neutral for
+	// clear and for `next`, like not_run on a tier-1 gated stage.
+	VerdictNA = "n/a"
 )
 
 // Protocols: how an estate's verdicts were obtained.
@@ -109,9 +115,14 @@ type Artifact struct {
 	// can drift from it silently, which is the other half of #544's root
 	// cause. So last_run.oracle is measured, by actually invoking whatever
 	// is on PATH, never asserted from this field.
-	Oracle  OracleVersions        `json:"oracle"`
-	Stages  []Stage               `json:"stages"`
-	Sets    map[string]SetSummary `json:"sets"`
+	Oracle OracleVersions        `json:"oracle"`
+	Stages []Stage               `json:"stages"`
+	Sets   map[string]SetSummary `json:"sets"`
+	// Lanes is one summary per lane the manifest carries (#1067), the
+	// same shape as Sets. The kubernetes lane's is the Kubernetes bar: its
+	// estates run on a kind cluster and are in neither AWS set above, so
+	// this is the only place they are counted.
+	Lanes   map[string]SetSummary `json:"lanes,omitempty"`
 	Estates []EstateResult        `json:"estates"`
 	// BehaviorsProven and BehaviorsTotal are #522's headline metric:
 	// "behaviors proven: N of 14". Computed in Rebuild from
@@ -159,23 +170,29 @@ type Tally struct {
 	Pass   int `json:"pass"`
 	Fail   int `json:"fail"`
 	NotRun int `json:"not_run"`
+	// NA counts VerdictNA: the stage does not apply on the estate's
+	// substrate (#1067). Zero on every emulator row.
+	NA int `json:"n_a,omitempty"`
 }
 
 // EstateResult is one estate's row.
 type EstateResult struct {
-	Name     string            `json:"name"`
-	Source   string            `json:"source"`
-	URL      string            `json:"url,omitempty"`
-	Pin      string            `json:"pin,omitempty"`
-	Lane     string            `json:"lane"`
-	Set      string            `json:"set"`
-	Reason   string            `json:"reason,omitempty"`
-	Script   string            `json:"script"`
-	Stages   map[string]string `json:"stages"`
-	Clear    bool              `json:"clear"`
-	Protocol string            `json:"protocol"`
-	LastRun  *LastRun          `json:"last_run,omitempty"`
-	Notes    string            `json:"notes,omitempty"`
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	URL    string `json:"url,omitempty"`
+	Pin    string `json:"pin,omitempty"`
+	Lane   string `json:"lane"`
+	Set    string `json:"set"`
+	// Substrate is the platform the script runs against, written only
+	// when it is not the floci emulator (#1067; Estate.Substrate).
+	Substrate string            `json:"substrate,omitempty"`
+	Reason    string            `json:"reason,omitempty"`
+	Script    string            `json:"script"`
+	Stages    map[string]string `json:"stages"`
+	Clear     bool              `json:"clear"`
+	Protocol  string            `json:"protocol"`
+	LastRun   *LastRun          `json:"last_run,omitempty"`
+	Notes     string            `json:"notes,omitempty"`
 }
 
 // LastRun records the run that produced the verdicts.
@@ -239,8 +256,10 @@ func IsStale(r EstateResult, currentEmulator string) bool {
 	return r.LastRun != nil && r.LastRun.Emulator != currentEmulator
 }
 
-// SetLabels name the two headline bars. "all" is every estate; "core" is the
-// pinned population. The keys are what the Hugo shortcode reads.
+// SetLabels name the two headline bars. "all" is every estate on the floci
+// emulator; "core" is the pinned population. A kubernetes-lane estate is in
+// neither: it runs on a kind cluster and is counted in Lanes (#1067). The
+// keys are what the Hugo shortcode reads.
 var SetLabels = map[string]string{
 	"core": "Core estates",
 	"all":  "All estates",
@@ -319,12 +338,22 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 		}
 		r.Name, r.Source, r.URL, r.Pin = e.Name, e.Source, e.URL, e.Pin
 		r.Lane, r.Set, r.Reason, r.Script = e.Lane, e.Set, e.Reason, e.ScriptPath()
+		r.Substrate = ""
+		if sub := e.Substrate(); sub != SubstrateFloci {
+			r.Substrate = sub
+		}
 		if r.Stages == nil {
 			r.Stages = map[string]string{}
 		}
 		for _, s := range Stages() {
 			if _, ok := r.Stages[s.ID]; !ok {
 				r.Stages[s.ID] = VerdictNotRun
+			}
+			// A stage that cannot run on this substrate reads n/a whatever
+			// the script said (it should have said nothing), so the cell
+			// carries the reason rather than an eternal not_run (#1067).
+			if _, na := s.NotApplicable(e.Substrate()); na {
+				r.Stages[s.ID] = VerdictNA
 			}
 		}
 		// Drop verdicts for stages that no longer exist.
@@ -333,7 +362,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 				delete(r.Stages, id)
 			}
 		}
-		r.Clear = isClear(r.Stages)
+		r.Clear = isClearFor(e.Substrate(), r.Stages)
 		rows = append(rows, r)
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Name < rows[j].Name })
@@ -341,30 +370,52 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 
 	a.Sets = map[string]SetSummary{}
 	for key, label := range SetLabels {
-		sum := SetSummary{Label: label, Stages: map[string]Tally{}}
-		for _, r := range rows {
-			if key == "core" && r.Set != SetCore {
-				continue
+		a.Sets[key] = tallyRows(label, rows, func(r EstateResult) bool {
+			// The two headline bars are the emulator's: a kind-substrate
+			// row is counted in its lane below and nowhere else (#1067).
+			if r.Substrate != "" {
+				return false
 			}
-			sum.Estates++
-			if r.Clear {
-				sum.Clear++
-			}
-			for _, s := range Stages() {
-				t := sum.Stages[s.ID]
-				switch r.Stages[s.ID] {
-				case VerdictPass:
-					t.Pass++
-				case VerdictFail:
-					t.Fail++
-				default:
-					t.NotRun++
-				}
-				sum.Stages[s.ID] = t
-			}
-		}
-		a.Sets[key] = sum
+			return key != "core" || r.Set == SetCore
+		})
 	}
+	a.Lanes = map[string]SetSummary{}
+	for _, lane := range KnownLanes {
+		lane := lane
+		sum := tallyRows(lane+" lane", rows, func(r EstateResult) bool { return r.Lane == lane })
+		if sum.Estates > 0 {
+			a.Lanes[lane] = sum
+		}
+	}
+}
+
+// tallyRows tallies the rows keep admits into one SetSummary.
+func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) SetSummary {
+	sum := SetSummary{Label: label, Stages: map[string]Tally{}}
+	for _, r := range rows {
+		if !keep(r) {
+			continue
+		}
+		sum.Estates++
+		if r.Clear {
+			sum.Clear++
+		}
+		for _, s := range Stages() {
+			t := sum.Stages[s.ID]
+			switch r.Stages[s.ID] {
+			case VerdictPass:
+				t.Pass++
+			case VerdictFail:
+				t.Fail++
+			case VerdictNA:
+				t.NA++
+			default:
+				t.NotRun++
+			}
+			sum.Stages[s.ID] = t
+		}
+	}
+	return sum
 }
 
 // isClear is the definition of the headline number: every headline stage
@@ -374,6 +425,22 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 // pass or fail per estate, without ever moving this.
 func isClear(stages map[string]string) bool {
 	return isClearAgainst(HeadlineStages(), stages)
+}
+
+// isClearFor is isClear on one substrate: a headline stage that does not
+// apply there (Stage.NotApplicable, #1067) is left out of the list rather
+// than counted as a miss, so a kind-substrate estate can be clear with its
+// n/a cells. On the floci substrate every headline stage applies and this
+// is exactly isClear.
+func isClearFor(substrate string, stages map[string]string) bool {
+	var headline []Stage
+	for _, s := range HeadlineStages() {
+		if _, na := s.NotApplicable(substrate); na {
+			continue
+		}
+		headline = append(headline, s)
+	}
+	return isClearAgainst(headline, stages)
 }
 
 // isClearAgainst is isClear's logic against an explicit headline stage list.
@@ -391,7 +458,7 @@ func isClear(stages map[string]string) bool {
 func isClearAgainst(headline []Stage, stages map[string]string) bool {
 	for _, s := range headline {
 		v := stages[s.ID]
-		if v == VerdictPass {
+		if v == VerdictPass || v == VerdictNA {
 			continue
 		}
 		if s.Tier1Gated && v != VerdictFail {

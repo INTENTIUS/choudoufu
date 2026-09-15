@@ -17,23 +17,49 @@
   missing artifact must never look like a silent zero.
 */ -}}
 {{- $data := hugo.Data.gauntlet -}}
+{{- $onlyLane := .Get "lane" -}}
 {{- if not $data -}}
 <p class="gauntlet-missing">No gauntlet data yet</p>
 {{- else -}}
 <div class="gauntlet-bars">
   {{- $activeStages := where $data.stages "status" "active" -}}
-  {{- range $setKey := slice "core" "growing" "all" -}}
-    {{- with index $data.sets $setKey -}}
-      {{- $set := . -}}
-      {{- /* "all"/"growing" used as the whole-corpus bucket has no
-             estate literally tagged with that name — it is every
-             estate, not a partition. A partition key (like "core")
-             does have estates tagged with it, so filter normally. */ -}}
-      {{- $estates := $data.estates -}}
-      {{- if ne $setKey "all" -}}
-        {{- $matched := where $data.estates "set" $setKey -}}
-        {{- if gt (len $matched) 0 -}}{{- $estates = $matched -}}{{- end -}}
+  {{- /* Which bars: the two AWS sets and then every lane summary the
+         artifact carries (#1067: a kubernetes-lane estate runs on a
+         kind cluster and is counted only in its lane), or one lane
+         alone when the page asks for it with lane="...". Each entry is
+         the summary to draw and the estate rows it is drawn over. */ -}}
+  {{- $bars := slice -}}
+  {{- if $onlyLane -}}
+    {{- with index (default dict $data.lanes) $onlyLane -}}
+      {{- $bars = $bars | append (dict "summary" . "estates" (where $data.estates "lane" $onlyLane)) -}}
+    {{- end -}}
+  {{- else -}}
+    {{- range $setKey := slice "core" "growing" "all" -}}
+      {{- with index $data.sets $setKey -}}
+        {{- /* The two headline bars are the emulator's: a row with a
+               substrate of its own is in neither (#1067). "all"/"growing"
+               used as the whole-corpus bucket has no estate literally
+               tagged with that name — it is every emulator estate, not a
+               partition. A partition key (like "core") does have estates
+               tagged with it, so filter normally. */ -}}
+        {{- $estates := slice -}}
+        {{- range $data.estates -}}{{- if not (isset . "substrate") -}}{{- $estates = $estates | append . -}}{{- end -}}{{- end -}}
+        {{- if ne $setKey "all" -}}
+          {{- $matched := where $estates "set" $setKey -}}
+          {{- if gt (len $matched) 0 -}}{{- $estates = $matched -}}{{- end -}}
+        {{- end -}}
+        {{- $bars = $bars | append (dict "summary" . "estates" $estates) -}}
       {{- end -}}
+    {{- end -}}
+    {{- range $laneKey, $sum := default dict $data.lanes -}}
+      {{- if eq $laneKey "kubernetes" -}}
+        {{- $bars = $bars | append (dict "summary" $sum "estates" (where $data.estates "lane" $laneKey)) -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- range $bars -}}
+      {{- $set := .summary -}}
+      {{- $estates := .estates -}}
       {{- $n := $set.estates -}}
       {{- $k := $set.clear -}}
       {{- $pct := 0.0 -}}
@@ -50,18 +76,19 @@
             {{- $pass := 0 -}}
             {{- $fail := 0 -}}
             {{- $notrun := 0 -}}
+            {{- $na := 0 -}}
             {{- range $estates -}}
               {{- $st := index .stages $stageID -}}
               {{- if eq $st "pass" -}}{{- $pass = add $pass 1 -}}
               {{- else if eq $st "fail" -}}{{- $fail = add $fail 1 -}}
+              {{- else if eq $st "n/a" -}}{{- $na = add $na 1 -}}
               {{- else -}}{{- $notrun = add $notrun 1 -}}
               {{- end -}}
             {{- end -}}
-            <li>{{ .title }}: {{ $pass }} pass, {{ $fail }} fail, {{ $notrun }} not run</li>
+            <li>{{ .title }}: {{ $pass }} pass, {{ $fail }} fail, {{ $notrun }} not run{{ if gt $na 0 }}, {{ $na }} n/a on this substrate{{ end }}</li>
           {{- end -}}
         </ul>
       </div>
-    {{- end -}}
   {{- end -}}
   {{- if isset $data "behaviors_total" -}}
     {{- $bp := 0 -}}

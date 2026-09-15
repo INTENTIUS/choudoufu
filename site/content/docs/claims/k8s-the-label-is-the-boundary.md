@@ -70,19 +70,28 @@ The steps, in the order they print:
    refused, and a plain `kubectl get` let through.
 7. `Bob's own estate, tool-less, and the API server lets it through` -
    the next plan sees the drift and reconciles it.
-8. `the carve begins with a git move, and the relabel is refused from
-   both sides` - Alice is refused on the estate the object would enter,
-   Bob on the estate it is leaving.
-9. `handover is an RBAC change` - the grant template for `data` is
-   applied to Alice and the same relabel goes through.
-10. `every estate plans clean, each under its own principal`.
-11. `teardown - each estate by its own destroy, under its own principal`.
+8. `a rename is a configuration edit: live-mv has nothing governed to
+   write` - Bob renames the router block, runs the same `live-mv` an AWS
+   runbook ends a rename with, and it reports `Nothing to write` and exits
+   0; the next plan is empty.
+9. `the carve begins with a git move, and the relabel is refused from
+   both sides` - Alice runs `live-mv -from-estate=app` in `data/` and is
+   refused by the policy on the estate the object would enter, as is her
+   plain `kubectl label`; Bob is refused on the estate it is leaving.
+10. `handover is an RBAC change: grant Alice data, and the same live-mv
+    goes through` - the grant template for `data` is applied to Alice,
+    the same `live-mv` lands, and `kubectl` reads `tofu-estate=data` back.
+11. `every estate plans clean, each under its own principal` - `app` no
+    longer declares the block and the object no longer carries its label,
+    so its plan is honestly empty.
+12. `teardown - each estate by its own destroy, under its own principal`.
 
-The `BREAK=1` run deletes the policy after step 3 and requires the two
-writes step 5 and step 6 refuse, Bob's apply on Alice's estate and his
-plain `kubectl label` on her object, to succeed. If the API server still
-said no, something other than the policy was the fence and the claim
-would prove nothing.
+The `BREAK=1` run deletes the policy after step 3 and requires the three
+writes the main run refuses, Bob's apply on Alice's estate, his plain
+`kubectl label` on her object, and Alice's `live-mv -from-estate=app` into
+an estate she was never granted, to succeed. If the API server still said
+no, something other than the policy was the fence and the claim would
+prove nothing.
 
 What is exempt, and why: the control plane (nodes, the kube-system
 controllers, the scheduler and the API server itself) and any object
@@ -92,7 +101,10 @@ by the same rule ([claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}}
 so the fence and the sweep agree on what an estate contains. A
 cluster-admin's wildcard rule matches the virtual resource too, so
 cluster-admin holds every estate the way the account root does on AWS.
-There is no `live-mv` leg for Kubernetes: with no address on the object,
-the carve is the label write itself, and any client can make it. Kyverno
-and Gatekeeper could express the same policy; neither has been verified
-for this.
+`live-mv` is the same command on both substrates
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)): with no
+address on the object a rename has nothing to write and says so, and
+`-from-estate` is the one label write, made through the provider under
+the caller's credential so the policy judges it like any other client's.
+Kyverno and Gatekeeper could express the same policy; neither has been
+verified for this.

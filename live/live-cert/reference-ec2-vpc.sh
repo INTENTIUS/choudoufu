@@ -38,11 +38,11 @@ set -uo pipefail
 # TARGET=floci (default) runs this against the pinned emulator, for Stage 1
 # of #440: prove the harness - AMI resolution, and above all teardown, INCLUDING
 # under a mid-apply kill (live/live-cert/selftest-kill.sh drives exactly that)
-# - before it is ever pointed at a real account. TARGET=aws is Stage 2, and
-# refuses to run at all without LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes
-# set by the caller; live/live-cert/run.sh is the wrapper that also enforces
-# the process-level wall-clock ceiling (the brief's "not just an in-script
-# check").
+# - before it is ever pointed at a real account. TARGET=aws is Stage 2, the
+# maintainer's own paid run (CLAUDE.md, "Heavy and paid runs"): the account's
+# AWS Budgets alarm is the control that binds spend; live/live-cert/run.sh is
+# the wrapper that also enforces the process-level wall-clock ceiling (the
+# brief's "not just an in-script check").
 #
 # Env:
 #   TARGET        floci (default) or aws.
@@ -62,9 +62,6 @@ set -uo pipefail
 #                 can find $LIVECERT_WORK_DIR/cold_deploy_apply.out to
 #                 synchronize a kill against genuine apply progress rather
 #                 than a fixed sleep.
-#   LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY
-#                 must be exactly "yes" for TARGET=aws; refused otherwise,
-#                 before anything is created.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -89,18 +86,7 @@ log() { printf '%s\n' "$*"; }
 
 case "$TARGET" in
   floci) ENDPOINT="http://127.0.0.1:${FLOCI_PORT}" ;;
-  aws)
-    ENDPOINT=""
-    # The maintainer-run-guard (CLAUDE.md, 2026-09-11 incident): checked
-    # before the env-var key below, and independent of it - see
-    # livecert_require_maintainer_allow's own doc comment in
-    # lib/live-cert.sh for why the env var alone is not a guard.
-    livecert_require_maintainer_allow
-    if [ "${LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY:-}" != "yes" ]; then
-      echo "refusing: TARGET=aws needs LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY=yes - nothing has been created" >&2
-      exit 2
-    fi
-    ;;
+  aws) ENDPOINT="" ;;
   *) echo "TARGET must be floci or aws, got $TARGET" >&2; exit 2 ;;
 esac
 

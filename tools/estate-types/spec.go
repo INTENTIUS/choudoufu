@@ -227,4 +227,16 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "reference" lane: no external source (live/GAUNTLET.md - "the plainest hand-written reference shape, kept in this repository"). run.sh's resource_block()/resource_block_ami_replaced() heredocs carry the five-resource estate: aws_vpc, aws_subnet, aws_internet_gateway, aws_security_group, aws_instance - no module. GitHub issue #363's strict_block() heredoc (Part G, the strict-stage scratch estate) adds a sixth, random_password, local to the hashicorp/random provider and outside the five above.`,
 	},
+	{
+		Name:       "corpus-quickpizza",
+		ConfigDirs: []string{".corpus/quickpizza/deployments/terraform"},
+		ScanScript: true,
+		Note:       `The kubernetes lane's first published estate (#1067): grafana/quickpizza's own deployments/terraform root at v0.15.28, copied out of .corpus verbatim by live/e2e/corpus-quickpizza/run.sh with three deltas (the provider block's minikube kubeconfig lines dropped; placeholder values for the two Grafana Cloud secrets; wait_for_rollout = false on Alloy's Deployment, whose pod cannot become ready without a real token). 27 hashicorp/kubernetes resources over eight kinds plus a helm_release behind count = 0. ScanScript adds the two-instance count ConfigMap the script itself declares for day2_count, and its strict_block() heredoc's random_password.`,
+	},
+	{
+		Name:       "reference-k8s",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's first estate (#1067): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace, kubernetes_config_map (app-config and a two-instance count set), kubernetes_service_account, kubernetes_service, kubernetes_deployment - no module, no AWS provider. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the five above.`,
+	},
 }

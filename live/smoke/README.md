@@ -36,6 +36,7 @@ just smoke import         # stock estate -> delete the state file -> adopt
 just smoke k8s-greenfield # the same life on a real kind cluster, one label as the marker (#1061)
 just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
 just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
+just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest, carries the label and is swept by it (#1079)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -64,8 +65,16 @@ what any cluster answers. Needs `kind` and `kubectl` on PATH.
 
 It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
 one `tofu-estate` label, written on the create and read back with kubectl in
-step 2; its `BREAK=1` strips the label and requires the replan to propose
-restoring it. The marker is the estate alone, never the address (#1016).
+step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
+from the provider block, one label-selected list per kind, each object
+joined to its block on the kind and the natural key - with the listing
+empty again after the destroy; its `BREAK=1` strips the label and requires
+`live-ls` to drop the object and the replan to propose restoring it. The
+marker is the estate alone, never the address (#1016). Its step 6 rewrites
+the ConfigMap block from `kubernetes_config_map` to
+`kubernetes_config_map_v1` with no `moved` block and requires the replan
+to plan no create and no destroy (#1081, item 2: an `api_version` change
+is not a move).
 
 `k8s-no-silent-orphans` is claim 22 (#1065), the Kubernetes sibling of
 claim 1: a ConfigMap's block is deleted and the next plan proposes exactly
@@ -75,6 +84,27 @@ label to are never touched. Its `BREAK=1` strips the orphan's label and
 requires the replan to leave the object alone. The Deployment's container
 is `registry.k8s.io/pause`, which kind's node image already carries, and
 `wait_for_rollout` is off, so the scenario needs no image pull.
+
+All three Kubernetes scenarios run in CI on every pull request that touches
+the Kubernetes surface, each followed by its `BREAK=1` control, on a kind
+cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
+`live/k8s_ci_test.go` holds that matrix to this directory, so a new `k8s-*`
+scenario has to be added there too). The nightly gauntlet runs the
+kubernetes lane's estates the same way.
+
+`k8s-custom-resource` is claim 24 (#1079's first unit): a CRD installed
+with kubectl, one `kubernetes_manifest` block declaring a CronTab, applied
+and replanned empty with nothing stored anywhere, the object found again
+by the apiVersion, kind, namespace and name inside its manifest, and
+created with the one `tofu-estate` label the configuration never wrote
+(#1079's second unit, the stamp into `manifest.metadata.labels`). Its
+`BREAK=1` strips the label with kubectl and requires the replan to propose
+the update that restores it, strips it again with the block removed and
+requires the replan not to list the object, then deletes the object and
+requires the replan to propose creating it. Removing the block for real
+(step 5) has the sweep, which lists every kind the cluster serves under
+`kubernetes_manifest` (#1079's third unit), find the CronTab by its label
+and propose destroying exactly it.
 
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs

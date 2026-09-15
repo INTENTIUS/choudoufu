@@ -84,7 +84,7 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 		}
 		n := 0
 		for _, s := range active {
-			if r.Stages[s.ID] != VerdictPass {
+			if v := r.Stages[s.ID]; v != VerdictPass && v != VerdictNA {
 				n++
 			}
 		}
@@ -104,7 +104,7 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 	for _, c := range cands {
 		for _, s := range active {
 			v := c.r.Stages[s.ID]
-			if v == VerdictPass {
+			if v == VerdictPass || v == VerdictNA {
 				continue
 			}
 			detail := ""

@@ -138,6 +138,13 @@ func (r *Ratification) migrationSlots() map[string]string {
 			continue
 		}
 		block := entry.Addr.ContainingResource().String()
+		if elig.labelled {
+			// A Kubernetes marker is one label with no slot to settle
+			// (#1073): the set is blocked here the way an unreadable tags
+			// map blocks it, and approveLabel never reads a slot.
+			blocked[block] = true
+			continue
+		}
 		index, isCount := countIndex(entry.Addr)
 		if !isCount || !(serverAssignedType(entry.TypeName) || r.instanceNeedsDiscovery(entry.Addr)) {
 			blocked[block] = true

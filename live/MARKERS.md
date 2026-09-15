@@ -61,13 +61,18 @@ marker is a single label:
 
 | Label | Meaning | Present on |
 |---|---|---|
-| `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types; `kubernetes_manifest` is not one). Since #1064 the same block is what admits the type: 73 of the 82 carry the full object-metadata shape, 48 namespaced and 25 cluster-scoped, and resolve to NAMESPACE/NAME or NAME with no row each. |
+| `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types), and every `kubernetes_manifest` object, where the same label goes into `manifest.metadata.labels` (#1079). Since #1064 the same block is what admits the type: 73 of the 82 carry the full object-metadata shape, 48 namespaced and 25 cluster-scoped, and resolve to NAMESPACE/NAME or NAME with no row each. |
 
 There is no `tofu-address`, no continuation label and no `tofu-slot`. The
 object's own group, kind, namespace and name are the join key back to the
 configuration block that declares it, because those are authored in the
 configuration this fork already parses; the address never goes on the
-object. #1016 measured the alternative: nearly half of real addresses are
+object. The provider's `id` on such an object is that same join key (the
+name for a cluster-scoped kind, `NAMESPACE/NAME` for a namespaced one), so
+a sibling reading `kubernetes_namespace_v1.x.id` reads the parent's whole
+identity and resolves; grafana/quickpizza's root, the kubernetes lane's
+first published estate, writes exactly that on every namespaced object
+(#1067). #1016 measured the alternative: nearly half of real addresses are
 illegal as a label value (the instance-key `:`), and a 63-character cap
 binds at once on ordinary module-nested shapes.
 
@@ -86,15 +91,107 @@ same "Ownership marker conflict" refusal the AWS shape raises. `strict {
 markers "record" }` withholds the label the same way it withholds the tags,
 and protects an existing one through `ignore_changes` the same way.
 
+Migrating from a stock state file is the same bulk path as on AWS
+(#1073): `choudoufu live-import -approve` reads the state once, verifies
+each object by namespace and name, and writes the `tofu-estate` label into
+`metadata.labels` through a labels-only plan and apply, judged the way a
+tags-only write is judged - a plan that would also rename the object, move
+it between namespaces or change anything outside the labels map is
+refused, as is an object already labelled for another estate, and an
+estate name that is not a legal label value. There is no address to split
+and no `tofu-slot` to settle, so a Kubernetes count set is never
+slot-classified. Before this the label surface was not a live-import
+carrier and every `kubernetes_*` type migrated as UNTAGGABLE; the
+kubernetes lane's first estate (reference-k8s, #1067) failed its migrate
+stage on exactly that line, and passes it now.
+
+A `kubernetes_manifest` block, the shape every custom resource is declared
+through, is identified the same way (#1079's first unit): the natural key
+is four keys inside its `manifest` argument's object constructor, read
+through `Component.Path` in `internal/live/identity/manifest.go` and
+rendered as the provider's documented import id,
+`apiVersion=...,kind=...,[namespace=...,]name=...`. The projection seeds
+the manifest from the configuration before the read, because the
+provider's import never returns it. It carries the same one label
+(#1079's second unit): the node stamp writes `tofu-estate` into
+`manifest.metadata.labels` on create, in the object constructor's own
+shape, merged with any labels the configuration declares and refused as
+the same marker conflict when the configuration names another estate
+(`internal/live/projection/nodestamp_manifest.go`). The seed the
+projection hands the provider for a cache-less read is stamped the same
+way, or the provider - whose `computed_fields` default names
+`metadata.labels` - would plan the label as a change on every such run.
+That default also means the provider takes a label stripped out of band
+as the new truth of the field; claim 24's control measures what the plan
+does about that (the projection mirrors the live object's marker into the
+prior it builds, so a stripped label plans as the update that restores
+it). The sweep lists every kind the cluster serves (#1079's third unit,
+below), so an orphaned custom resource is proposed for removal like any
+other. A block whose apiVersion and kind the cluster does not serve is
+refused by name at the plan's first cluster contact (#1079's fourth unit,
+`internal/live/discovery/kubernetes.go`), naming the block, the kind,
+the apiVersion and the CRD to install; `live-check` is offline and cannot
+ask.
+
+The plan also asks the server about the object itself (#1081, item 3):
+every planned create or update of a `kubernetes_manifest` instance - the
+planned manifest, the label inside it - goes to the API server with
+`dryRun=All`, a POST for a create and a PUT for an update, and the server's
+answer prints above the plan (`internal/backend/local`'s `AfterPlan` seam,
+`internal/command/live_plan_kubernetes_dryrun.go`,
+`internal/live/discovery/kubernetes_dryrun.go`). The server validates the
+object against the kind's schema, applies its defaults and runs every
+admission policy, `estate-boundary.yaml` included, and persists nothing;
+a rejection is a refusal by name in the server's words and the run stops
+with nothing applied. It reaches the manifest shape only: a built-in
+type's object shape is the provider's own and is not submitted, an object
+whose namespace this same plan creates is reported rather than submitted,
+and a server that cannot answer is a warning. Claim 24's step 4 and its
+first `BREAK=1` control measure it.
+
 `generateName` is refused rather than defaulted: the server mints the name,
 so the join key is unknowable before the create, and that is the one shape
 that would put an address back on the object.
 
+A change of type between the two spellings of a kind
+(`kubernetes_config_map` to `kubernetes_config_map_v1`) is not a move and
+needs no `moved` block (#1081, item 2): the suffix is the API version the
+block is written against, both spellings render the same natural key, the
+sweep files both under the one kind, and the label carries no address to
+rewrite, so the replan is empty. Claim 21's step 5 measures it.
+
+`helm_release` is refused, by the ordinary unadmitted-type refusal, with
+or without hashicorp/helm's schema (#1081, item 4): the provider serves no
+resource identity schema for it and no object-metadata block, so neither
+admission route reaches it. It is not a record-rung candidate: a release
+is a release secret plus whatever the chart rendered, made by a path this
+tool never sees, and the rendered objects carry the chart's labels and
+Helm's `meta.helm.sh/release-name` annotation, never `tofu-estate`. Ruled
+2026-09-13 (#1105, in #1115's shape): a release-annotated object is
+controller-held, never swept and never adopted, reported with its release
+name; that exclusion is the one unit to build, and until it lands a
+`tofu-estate` written through a chart's values makes each object an orphan
+the sweep proposes to remove. The two honest paths, both stock: a Helm
+root kept without a `live` block beside the estate (Helm's lifecycle kept,
+nothing owned), or the chart rendered into `kubernetes_manifest` blocks
+(everything owned, Helm's rollback, history and hooks given up). The
+opt-in that would bring a release inside the boundary is designed on
+#1105 and not built.
+
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
-the provider has a resource type for, joined to what the cluster serves
-through API discovery. An object it lists that no block declares is an
+the cluster serves with list and delete verbs, found through API
+discovery: a kind the provider has a resource type for is filed under that
+type, and every other kind - every CRD, and the built-in kinds the
+provider never gave a type - under `kubernetes_manifest` (#1079's third
+unit), which manages any served kind and imports by `apiVersion=,kind=,
+[namespace=,]name=`. An object it lists that no block declares is an
 orphan and is proposed for removal, planned at the synthetic address
-`<type>.orphan_<namespace>_<name>` since the label carries no address.
+`<type>.orphan_<namespace>_<name>`, or
+`kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest
+kind, since the label carries no address. A block and a listed object
+meet on the kind and the natural key whichever type either is filed
+under, so a ConfigMap declared through `kubernetes_manifest` is not an
+orphan of `kubernetes_config_map_v1`.
 Two exclusions run first, either sufficient: an object with a non-empty
 `metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
 from its ReplicaSet, an EndpointSlice's from its Service) and an object
@@ -119,7 +216,11 @@ handover is a binding moving from one principal to another, and the policy
 is never edited for either. Claim 23
 (`live/smoke/scenarios/k8s-the-label-is-the-boundary.sh`) runs it on a
 kind cluster with two ServiceAccounts, and `BREAK=1` removes the policy to
-show the refusals were its doing.
+show the refusals were its doing. `live-mv -from-estate` is the governed
+relabel made through the provider under the caller's own credential, so
+the policy judges it exactly as it judges a plain `kubectl label`; a
+rename within one estate has nothing to write on this surface and
+`live-mv` says so, exit 0 (#1081).
 
 `live/kubernetes/estate-boundary.yaml`, applied once by a cluster admin:
 

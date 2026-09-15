@@ -13,19 +13,35 @@ deeper:
 
 With an estate-only label there is no address on the object to rewrite. A
 `moved` block is a config-line rename and the natural key is unchanged, so
-the plan is empty. `live-mv` has nothing governed to do and says so.
+the plan is empty. `live-mv` has nothing governed to do, says so, and
+exits 0.
 
-Moving an object between estates is a relabel, `kubectl label --overwrite
-tofu-estate=<new>`, and with the admission policy installed it is a
+Moving an object between estates is a relabel, `tofu-estate=<new>` on the
+object: `live-mv -from-estate=<old>` in the destination's configuration
+makes it through the provider, and `kubectl label --overwrite` makes the
+same write tool-less. With the admission policy installed either is a
 governed one: the caller must hold both the estate the object is leaving
 and the one it is entering ([claim
 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
 Handing a whole estate over is an RBAC change, the grant's binding moving
 to the receiving principal, and nothing on the objects changes.
 
-An `api_version` change is not a move either. Uniqueness is per group,
-resource, namespace and name; the version is a representation. The rename
-rule has no vocabulary for that yet.
+An `api_version` change is not a move either, and needs no `moved` block.
+The provider ships most kinds under two spellings, `kubernetes_config_map`
+and `kubernetes_config_map_v1`, `kubernetes_ingress` and
+`kubernetes_ingress_v1`, and the suffix names the API version the block is
+written against, not a different object: uniqueness on a cluster is group,
+kind, namespace and name, and the version is a representation. Both
+spellings render the same `NAMESPACE/NAME`, the sweep files both under the
+one kind, and the label carries no address to rewrite, so a block that
+changes spelling with the same metadata replans empty. Measured on kind:
+[claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})'s step 6 rewrites
+the ConfigMap block from the plain spelling to `_v1` with no `moved` block
+and the plan is `No changes.`; the destroy that follows still removes
+exactly four objects
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). On AWS the
+same edit with no `moved` block is a destroy and a create, because there
+the type is part of the address the marker carries.
 
 ## Two runs at once
 

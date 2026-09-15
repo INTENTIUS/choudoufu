@@ -10,15 +10,25 @@ deeper:
 
 # Proof
 
-Three claims are proven on a real cluster, the marker itself, the sweep
-that finds a deleted block's object by it, and the admission policy that
-fences a write by it, and claim 13's Kubernetes cell is proven through
-that third one. The rest are stated per claim in the claims data rather
+Four claims are proven on a real cluster: the marker itself, the sweep
+that finds a deleted block's object by it, the admission policy that
+fences a write by it (through which claim 13's Kubernetes cell is proven
+too), and a custom resource bound by the natural key inside its
+manifest, carrying the label and swept by it. The rest are stated per claim in the claims data rather
 than left implicit. The table
 below shows only the claims whose Kubernetes cell is not still open; hover a
 cell for its note.
 
 {{< claims-table provider="kubernetes" >}}
+
+## In CI
+
+The four Kubernetes claims run on a kind cluster in GitHub Actions on
+every pull request that touches the Kubernetes surface, each with its
+`BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
+lane's estates on the same cadence as the AWS rows
+([#1080](https://github.com/INTENTIUS/choudoufu/issues/1080)). A
+Kubernetes verdict on this site is no longer only a laptop's word.
 
 ## The harness
 
@@ -41,15 +51,43 @@ sweep on the same harness, and [claim 23]({{< relref "/docs/claims/k8s-the-label
 runs the gate: two ServiceAccounts, two estates, a plain `kubectl label`
 refused by the API server across the boundary, and a carve by relabel the
 policy governs, with `BREAK=1` removing the policy.
+[Claim 24]({{< relref "/docs/claims/k8s-custom-resource" >}}) runs a
+custom resource through the whole of it on a CRD the scenario installs:
+refused by name while the CRD is missing, bound by the key inside its
+manifest, labelled on create, dry-run against the server before the
+apply, restored when the label is stripped, and swept when its block is
+removed.
 
-A Kubernetes estate would enter the gauntlet manifest with its own lane, run
-the same stages against its own substrate, and count toward its own bar,
-never toward the AWS ones.
+## The gauntlet lane
+
+{{< gauntlet-bars lane="kubernetes" >}}
+
+The `kubernetes` lane ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067))
+runs the same fourteen stages as the AWS lanes against a kind cluster
+created for the run, and counts toward its own bar, never toward the AWS
+ones. Two stages do not apply on Kubernetes and read `n/a` rather than
+being skipped silently: a replacement under `create_before_destroy`, and
+the crash between its create and its destroy, because a Kubernetes name
+is unique within its namespace and nothing can be created before the
+object it replaces is gone. Every other stage says in
+[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
+how it reads on the kind substrate. Two estates run in it: `reference-k8s`,
+a hand-written shape kept in this repository, and `corpus-quickpizza`,
+Grafana Labs' own published deployment root for their QuickPizza demo
+application at a pinned tag - 26 objects over eight kinds, real images,
+no cloud provider - crossed with the same deltas every AWS estate gets
+for its emulator and one more for the Grafana Cloud token the run does
+not have. The published root found a real gap on the way in: every one of
+its namespaced objects reads the namespace's `id`, which identity
+resolution refused until the object-metadata rule learned that the
+provider's `id` is the object's own import id.
 
 ## What it would cost
 
-What follows is the shape, from the API's own properties; no call count
-has been measured on a cluster yet.
+What follows is the shape, from the API's own properties, and it is what
+every Kubernetes claim and the lane's estates run through; the call
+counts have not been tabulated the way the AWS scale page tabulates
+them.
 
 ### The sweep
 
@@ -57,15 +95,18 @@ On AWS the estate sweep is a single `GetResources` call, filtered
 server-side on the marker, covering the whole admission table at once.
 Kubernetes has no cross-kind label-filtered list. A sweep there is API
 discovery (`/api` and `/apis`, which say every kind the cluster serves)
-and then one cluster-wide, label-selected list per kind the provider has a
-type for - not one per kind per namespace, as the design first estimated:
-a namespaced kind lists across every namespace in one call.
+and then one cluster-wide, label-selected list per kind the cluster
+serves with list and delete verbs, custom kinds included - not one per
+kind per namespace, as the design first estimated: a namespaced kind
+lists across every namespace in one call.
 
 Two things survive. A label-selected list returns only the estate's objects
 and does not grow with the cluster, so "a plan costs its estate, not its
 account" holds in weakened form. And because the universe of kinds is asked
 rather than tabulated, an admitted type the generated table did not know
-about cannot be owned, orphaned and unreachable.
+about cannot be owned, orphaned and unreachable. `live-ls DIR` is the same
+listing printed as an inventory, each object joined to the block that
+declares it ([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
 
 What does not survive is "one call", and the claims page marks claim 14
 restated rather than pretending otherwise.
@@ -74,4 +115,8 @@ restated rather than pretending otherwise.
 
 Reading each declared object is one `GET` per object, as it is for stock.
 Server-side dry run validates, defaults and runs admission without
-persisting, which no AWS plan can do.
+persisting, which no AWS plan can do; the plan sends every planned
+`kubernetes_manifest` create or update that way and prints the server's
+answer above the plan, one more request per such object
+([Adopt]({{< relref "/kubernetes/adopt" >}}), "What Kubernetes does
+better").

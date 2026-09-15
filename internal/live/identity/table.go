@@ -294,6 +294,26 @@ type Component struct {
 	// [Component.Attrs] itself makes for a duplicate name across components.
 	Block string
 
+	// Path selects INSIDE the argument Attrs names before it is resolved:
+	// each step is a key of the object the argument is written as, applied
+	// in order (GitHub issue #1079). kubernetes_manifest is the type this
+	// exists for: its whole object is one dynamic `manifest` argument, and
+	// the natural key that identifies it - apiVersion, kind,
+	// metadata.namespace, metadata.name - is four keys inside that one
+	// argument's object constructor, so {Attrs: []string{"manifest"}, Path:
+	// []string{"metadata", "name"}} is what reads the name.
+	//
+	// The selection is syntactic, through [resolver.selectStaticExpr]: an
+	// object constructor, a merge() of them, or a local or variable defined
+	// as one is walked key by key without evaluating the whole manifest,
+	// and the leaf expression found there is then resolved exactly as a
+	// top-level argument's would be. A manifest that is not written out
+	// that way - yamldecode(file(...)), a module output, a for expression -
+	// has no key to walk and is refused as not resolvable from
+	// configuration, never guessed at by evaluating it. Empty on every row
+	// before #1079 and on every hand-written row, so nothing else changes.
+	Path []string
+
 	// OmitIfAbsent is true when this component is genuinely optional in the
 	// provider's own grammar: not a missing identity, and not a documented
 	// substitute value (that is Default), but a segment - and the Literal
