@@ -747,6 +747,35 @@ const (
 	// [Result.SweepCovered] with no gap at all (issue #881, reopened).
 	SweepGapNoEnumerationRoute SweepGapReason = "NO_ENUMERATION_ROUTE"
 
+	// SweepGapMarkerUnreadable is the half of #881 that survives correct
+	// routing: a type Cloud Control ENUMERATES perfectly well and can never
+	// report a tag for, in a service the Resource Groups Tagging API does
+	// not index either. The sweep sees the object and cannot ask whether it
+	// is ours.
+	//
+	// AWS::IAM::InstanceProfile is the measured case. live/registry.json
+	// gives it handlers.list true - verified against the pinned emulator,
+	// which returns the profile's identifier from ListResources - and
+	// tagging.taggable false, because its CloudFormation schema carries no
+	// Tags property at all; live/registry-schema-facts.json gives its read
+	// handler one permission, iam:GetInstanceProfile, so neither
+	// ListResources nor the refining GetResource has anything to read a
+	// marker out of. Meanwhile the AWS provider does give
+	// aws_iam_instance_profile a tags argument and [internal/live/stamp]
+	// writes the marker onto it, so the object in the account is marked and
+	// the enumeration route is structurally blind to it.
+	//
+	// Distinct from [SweepGapNoEnumerationRoute], where nothing lists the
+	// type at all. Distinct from [SweepGapObjectUntagged], which is one
+	// malformed OBJECT in a type whose other objects read fine and whose
+	// wording tells the operator to expect it ("this is expected for a
+	// resource this estate does not own"); this is a property of the TYPE
+	// and every object of it, and dismissing it is exactly wrong. Distinct
+	// from [SweepGapNotTaggable] - which [sweepGapDiag] suppresses - because
+	// the objects here DO carry markers, so the operator has a live, marked
+	// resource that no destroy will ever be proposed for.
+	SweepGapMarkerUnreadable SweepGapReason = "MARKER_UNREADABLE"
+
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a
 	// parent-scoped ResourceModel (live/registry.json's
 	// handlers.list_required_input, internal/live/cloudcontrol's

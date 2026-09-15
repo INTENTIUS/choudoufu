@@ -152,6 +152,10 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 	// mirrored here: an object this leg genuinely could not read is a gap in
 	// removal coverage for the type, not one gap per malformed object.
 	sweepUntaggedReported := false
+	// sweepMarkerUnreadableReported is the same "once per type" guard for
+	// [SweepGapMarkerUnreadable], which is a statement about the TYPE that
+	// every one of its objects would otherwise repeat.
+	sweepMarkerUnreadableReported := false
 
 	for _, desc := range descs {
 		tags, read, refined := cloudControlTags(ctx, req, cfnType, desc)
@@ -228,16 +232,63 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 					// already reports for a Tags key holding an empty list,
 					// reached by the other spelling of the same fact.
 					tags, taggable = map[string]string{}, true
+				} else if sweep && typeTaggable(schemas, typeName) {
+					// Issue #881, reopened, second half - and the same
+					// disagreement this function's own sweep guard already
+					// refuses to settle from the registry alone, one loop
+					// further down.
+					//
+					// The registry says CloudFormation cannot carry a tag
+					// for this type. The provider schema says the object
+					// can, [internal/live/stamp] writes the marker onto it,
+					// and the terralith's stage J0 reads that marker back
+					// off the live profile through the AWS CLI. Both are
+					// true: AWS::IAM::InstanceProfile's CFN schema has no
+					// Tags property, so Cloud Control has nothing to
+					// return, while iam:TagInstanceProfile marks the object
+					// perfectly well.
+					//
+					// So this object IS enumerable and its marker is NOT
+					// readable by any leg in this run - the tagging leg
+					// does not serve IAM either ([taggingAPIUnservedServices]).
+					// Continuing here recorded the type in
+					// [Result.SweepCovered] - "searched for resources this
+					// estate owns but no longer declares" - having searched
+					// nothing, and a deleted block's live, marked instance
+					// profile was omitted from the plan with nothing said.
+					// Say it instead: this is not the kind of gap an
+					// operator can be left to infer from an empty plan.
+					//
+					// Gated on sweep. A DECLARED instance reaching this
+					// condition keeps #322's ruling unchanged: the
+					// decl.unreadable increment above feeds
+					// [unreadableMarkerProblem]'s per-address WARNING at
+					// bind time, and escalating that to a plan-aborting
+					// ERROR is what #322 rejected. Nothing here changes it.
+					if !sweepMarkerUnreadableReported {
+						sweepMarkerUnreadableReported = true
+						res.SweepCovered = dropCovered(res.SweepCovered, typeName)
+						diags = diags.Append(sweepGapDiag(res, SweepGap{
+							TypeName: typeName,
+							Reason:   SweepGapMarkerUnreadable,
+							Detail: fmt.Sprintf(
+								"The estate-wide sweep listed %s via Cloud Control (%s) but can read no ownership marker off any object of it: %s carries no Tags property in its CloudFormation schema (live/registry.json, tagging.taggable false), so neither ListResources nor GetResource returns one, and the Resource Groups Tagging API does not index this service at all. The provider does give %s a tags argument and this estate stamps its markers there, so a live %s this estate owns and no longer declares WILL NOT be proposed for destruction by this run. Destroy such a resource before removing its block, or delete it out of band.",
+								typeName, cfnType, cfnType, typeName, typeName),
+						}))
+					}
+					continue
 				} else {
 					// The registry says no object of this type can carry a
-					// tag, so none could ever carry a marker. That is issue
-					// #322's ruling for the native leg ([markerCapable]),
-					// reached here through the registry instead of the
-					// provider schema: the decl.unreadable increment above
-					// already feeds [unreadableMarkerProblem]'s per-address
-					// WARNING at bind time, and escalating to an ERROR that
-					// aborts the whole plan over an address this run already
-					// reports gracefully is what #322 rejected.
+					// tag, and the provider schema agrees (or this is a
+					// declared type's own scan) - so none could ever carry
+					// a marker. That is issue #322's ruling for the native
+					// leg ([markerCapable]), reached here through the
+					// registry instead of the provider schema: the
+					// decl.unreadable increment above already feeds
+					// [unreadableMarkerProblem]'s per-address WARNING at
+					// bind time, and escalating to an ERROR that aborts the
+					// whole plan over an address this run already reports
+					// gracefully is what #322 rejected.
 					continue
 				}
 			}
@@ -893,4 +944,23 @@ func resolveOrphanResourceForDependency(ctx context.Context, req Request, o Owne
 		return cty.NilVal
 	}
 	return cfnPropertiesAsResource(desc.Properties)
+}
+
+// dropCovered removes typeName from a [Result.SweepCovered] slice.
+//
+// SweepCovered's own doc comment reads "these types were searched for
+// resources this estate owns but no longer declares", and
+// [scanTypeCloudControl] appends to it the moment ListResources succeeds -
+// before it knows whether a marker can be read off anything it listed. For
+// [SweepGapMarkerUnreadable] the listing succeeded and the search did not
+// happen, so leaving the name in place would have the result assert
+// coverage it does not have on the same run it files the gap.
+func dropCovered(covered []string, typeName string) []string {
+	out := covered[:0]
+	for _, c := range covered {
+		if c != typeName {
+			out = append(out, c)
+		}
+	}
+	return out
 }

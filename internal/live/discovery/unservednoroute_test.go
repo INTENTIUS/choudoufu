@@ -194,3 +194,114 @@ func TestSweepReportsAGapWhenNeitherLegCanEnumerateAnUnservedType(t *testing.T) 
 		t.Fatalf("the gap for %s produced no diagnostic at all, so nothing reaches the operator; diagnostics: %s", unservedType, renderDiags(diags))
 	}
 }
+
+// TestSweepSaysSoWhenCloudControlListsATypeItCanNeverReadTheMarkerOff is
+// the shape the two tests above do not cover, and it is the one the
+// terralith actually hits.
+//
+// Measured against the pinned emulator (live/floci-image
+// sha256:0bbeb43...) on 2026-09-14, with the AWS CLI and nothing else in
+// the loop. An instance profile created WITH tofu-estate and tofu-address:
+//
+//	$ aws cloudcontrol list-resources --type-name AWS::IAM::InstanceProfile
+//	{"ResourceDescriptions":[{"Identifier":"probe-881-profile",
+//	  "Properties":"{\"InstanceProfileName\":\"probe-881-profile\",
+//	  \"Arn\":\"arn:aws:iam::000000000000:instance-profile/probe-881-profile\",
+//	  \"Path\":\"/\"}"}],"TypeName":"AWS::IAM::InstanceProfile"}
+//	$ aws cloudcontrol get-resource --type-name AWS::IAM::InstanceProfile \
+//	    --identifier probe-881-profile
+//	  ... same Properties, still no Tags key ...
+//	$ aws resourcegroupstaggingapi get-resources
+//	{"ResourceTagMappingList":[]}
+//
+// So Cloud Control ENUMERATES the type and can never report its marker.
+// That is not an emulator artifact: live/registry.json gives
+// AWS::IAM::InstanceProfile tagging.taggable false (its CloudFormation
+// schema has no Tags property at all) and
+// live/registry-schema-facts.json gives its read handler exactly one
+// permission, iam:GetInstanceProfile, with nothing that could fetch a tag.
+// The Resource Groups Tagging API does not index IAM either
+// ([taggingAPIUnservedServices], probed against real AWS on #692).
+//
+// The fixture above hands its ListResources response a Tags property. No
+// account, real or emulated, does that for this type, so that test proves
+// the ROUTING and this one proves what the routing then finds. Both are
+// needed: routing the type correctly is necessary and is not sufficient.
+//
+// What must NOT happen is what happened: [scanTypeCloudControl]'s
+// per-object registry-untaggable branch `continue`s, the type is recorded
+// in [Result.SweepCovered], and a deleted block's live object is omitted
+// from the plan with nothing said. The registry flag is wrong about
+// carriage here for the same reason the sweep-entry guard above already
+// declines to trust it - the provider gives the type a tags argument and
+// [internal/live/stamp] writes the marker onto it.
+func TestSweepSaysSoWhenCloudControlListsATypeItCanNeverReadTheMarkerOff(t *testing.T) {
+	const (
+		unservedType = "aws_iam_instance_profile"
+		cfnType      = "AWS::IAM::InstanceProfile"
+		liveName     = "estate-team-profile"
+	)
+
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable(unservedType)
+	cloud.unlistable(unservedType)
+
+	tagSrv := &taggingServer{}
+	tagServer := tagSrv.start(t)
+	defer tagServer.Close()
+
+	// Verbatim the emulator's own answer: an identifier and three
+	// properties, no Tags key, on the list AND on the refining GetResource.
+	bare := map[string]any{
+		"InstanceProfileName": liveName,
+		"Arn":                 "arn:aws:iam::000000000000:instance-profile/" + liveName,
+		"Path":                "/",
+	}
+	cc := newCCServer(t)
+	cc.listResources[cfnType] = []ccResource{{identifier: liveName, properties: bare}}
+	cc.getResource[cfnType+" "+liveName] = ccResource{identifier: liveName, properties: bare}
+	ccServer := cc.start()
+	defer ccServer.Close()
+
+	req := Request{
+		Sweep:        true,
+		TaggingSweep: true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: tagServer.URL}),
+		CloudControl: cloudcontrol.New(cloudcontrol.Config{Endpoint: ccServer.URL}),
+		Roster: ccRoster(t,
+			map[string]string{unservedType: cfnType},
+			map[string]bool{cfnType: true},
+			map[string]bool{cfnType: false},
+		),
+	}
+	res, diags := discoverFixture(t, cloud, req)
+	assertNoErrors(t, diags)
+
+	var reason SweepGapReason
+	for _, g := range res.SweepGaps {
+		if g.TypeName == unservedType {
+			reason = g.Reason
+		}
+	}
+	if reason != SweepGapMarkerUnreadable {
+		var covered bool
+		for _, c := range res.SweepCovered {
+			if c == unservedType {
+				covered = true
+			}
+		}
+		t.Fatalf("the sweep gap for %s is %q, want %q (reported as covered=%v). Cloud Control listed the object and no leg could read a marker off it, so the sweep cannot tell \"this estate owns none\" from \"nobody could look\".\nCloud Control calls: %v\n%s",
+			unservedType, reason, SweepGapMarkerUnreadable, covered, cc.calls, res)
+	}
+
+	var spoken bool
+	for _, d := range diags {
+		if d.Description().Summary == SummaryIncompleteSweep {
+			spoken = true
+		}
+	}
+	if !spoken {
+		t.Fatalf("the gap for %s produced no diagnostic at all, so nothing reaches the operator; diagnostics: %s", unservedType, renderDiags(diags))
+	}
+}
