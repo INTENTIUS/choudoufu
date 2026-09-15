@@ -110,6 +110,20 @@ func TestFlociServesTaggingAPI(t *testing.T) {
 // TestFlociServesTaggingAPI for the Content-Type finding that makes this
 // test reach floci's tagging service at all.
 //
+// Amendment, issue #1050: aws_iam_role's own scan below no longer takes the
+// tagging leg this test was written to exercise. partitionSweepTypes routes
+// it through the native per-type leg unconditionally now, regardless of
+// Request.TaggingSweep - see the scan.Source assertion below (which used to
+// read SourceTagging and now reads SourceProvider) for the two independent
+// gates that do it. The rest of what this test proves is intact: an
+// undeclared, unresolved aws_iam_role is still found by the estate-wide
+// sweep (Request.Sweep) with TaggingSweep on, and removal planning still
+// gets a correct name-shaped ImportID for it - just via the other leg. What
+// it no longer proves is that floci's tagging API can enumerate IAM; nothing
+// in this package's live tier does, because no admitted type both needs the
+// tagging leg and is IAM. TestFlociServesTaggingAPI above is what still
+// exercises GetResources directly.
+//
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestTaggingSweepAgainstFloci -v
 func TestTaggingSweepAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "discovery/tagging")
@@ -171,12 +185,42 @@ func TestTaggingSweepAgainstFloci(t *testing.T) {
 	t.Logf("discovery result:\n%s", res)
 	assertNoErrors(t, diags)
 
+	// aws_iam_role cannot land here as SourceTagging any more (issue #1050).
+	// partitionSweepTypes puts a type in the native universe when EITHER
+	// typeNeedsResourceObjectToRecompose(t) is true OR arnJoinReaches(...)
+	// is false, and this repository's own worked example proved BOTH arms
+	// independently true for aws_iam_role at the current pin - disabling
+	// only typeNeedsResourceObjectToRecompose's IAM branch did not flip
+	// scan.Source; disabling taggingAPIUnservedServices's "aws_iam_" entry
+	// as well did:
+	//  - typeNeedsResourceObjectToRecompose (issue #394) answers true for
+	//    aws_iam_role unconditionally - it is the aws_iam_service_linked_role
+	//    sibling pair's companion, and the tag sweep's ARN-joined candidate
+	//    never carries enough to bind that pair safely.
+	//  - arnJoinReaches (issue #692) answers false for it too:
+	//    taggingAPIUnservedType says IAM is a service GetResources never
+	//    indexes at all (probed against real AWS and floci alike), and the
+	//    AWS provider's own schema DOES support listing aws_iam_role
+	//    natively, so arnJoinReaches's own "prefer a leg that can enumerate
+	//    the type" rule (issue #881) picks native over a tagging leg that
+	//    would find nothing.
+	// Either alone is sufficient to keep sweepViaTagging from ever seeing
+	// this type; both are true today. internal/command/tagging_sweep_premise_test.go's
+	// alwaysNativeSweepTypes records the same fact by name (citing #394),
+	// for the package that cannot import discovery's unexported
+	// typeNeedsResourceObjectToRecompose to check it directly - that
+	// citation names one of the two gates, not the only one. This
+	// assertion predates aws_iam_role's routing having ever been
+	// unconditional here - see #394, #692 and #1045 for how the type went
+	// from tagging-served to native-only as the emulator's own IAM
+	// coverage changed - and this is the CURRENT routing, not the
+	// original one.
 	scan, ok := res.ScanFor("aws_iam_role")
 	if !ok {
 		t.Fatal("no scan was recorded for aws_iam_role at all")
 	}
-	if scan.Source != SourceTagging {
-		t.Fatalf("aws_iam_role scan source = %q, want %q", scan.Source, SourceTagging)
+	if scan.Source != SourceProvider {
+		t.Fatalf("aws_iam_role scan source = %q, want %q (the native per-type leg - partitionSweepTypes keeps it out of the tagging leg unconditionally, per both typeNeedsResourceObjectToRecompose and arnJoinReaches)", scan.Source, SourceProvider)
 	}
 
 	rm := removalsByAddr(res)

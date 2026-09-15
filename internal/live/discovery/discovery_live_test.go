@@ -179,6 +179,13 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		// cache): the vouching pass lists the type once and the sighting
 		// vouches the instance - issue #692's assertion below.
 		CacheVouchTypes: []string{"aws_iam_role"},
+		// VouchProvider names the provider configuration the vouch pass
+		// lists through, so its CacheVouchSightings land under a real key
+		// (addrs.AbsProviderConfig.String()) rather than the zero value -
+		// needed for the assertion below to look the sighting up rather
+		// than merely check the map is non-empty. The fixture declares one
+		// provider configuration, root module, no alias.
+		VouchProvider: testProviderAddr(t, ""),
 	})
 	elapsed := time.Since(start)
 	t.Logf("discovery took %s\n%s", elapsed, res)
@@ -221,38 +228,58 @@ func TestDiscoverAgainstFloci(t *testing.T) {
 		}
 	}
 
-	// Issue #692's guard: the cache may only serve an instance the sweep
-	// vouched for (projection.Ownership.Verified, fed by MarkerVerified),
-	// and IAM is the type family the tagging leg can never vouch for -
-	// GetResources does not index IAM even on real AWS (probed directly,
-	// recorded on the issue). So IAM instances MUST reach MarkerVerified
-	// through the native leg, or the default-on state cache (#705) is
-	// structurally useless for the IAM-heavy estates the terralith
-	// models. This asserts the estate's own IAM instances are vouched
-	// for, by value, against the real emulator.
-	// Issue #692's vouching pass, pinned at the layer it can honestly
-	// reach. CacheVouchTypes above asked for aws_iam_role, and the pass
-	// must LIST the type - that is the new behavior this run proves, and
-	// it is what turns on displacement and collision sighting for
-	// declared IAM, which no leg produced before.
+	// Issue #692's guard, corrected for the CURRENT routing (issue #1050;
+	// the original version of this block predates it and asserted a shape
+	// that is not how a client-named type's vouch listing surfaces any
+	// more).
 	//
-	// What it deliberately does NOT assert is a MarkerVerified entry for
-	// the role, because that would encode an expectation the AWS API
-	// shape refuses: iam:ListRoles returns roles WITHOUT their tags, on
-	// real AWS and on the emulator alike, so a listed IAM sighting
-	// carries no marker and classifies unclaimed. Marker-vouching an IAM
-	// instance therefore costs one tags call per instance on every leg -
-	// the same order as the read the cache wanted to skip - and the
-	// cheap vouch for tagging-unserved services has to come from the
-	// record store's bulk load instead (one List per run, identity per
-	// instance, already fetched). That is the record-primary leg, tracked
-	// on #692.
-	{
-		scan, ok := res.ScanFor("aws_iam_role")
-		if !ok {
-			t.Error("CacheVouchTypes named aws_iam_role and no scan was recorded for it: the vouching pass never listed the type (issue #692)")
-		} else if scan.Listed == 0 {
-			t.Errorf("the vouching pass scanned aws_iam_role but listed nothing; the fixture's role exists, so the listing route is broken: %+v", scan)
+	// aws_iam_role.app is client-named (identity.ClassConcrete: its
+	// identity is the role name already in config), so it never enters
+	// decl.types and never joins Discover's config-driven scan loop - the
+	// cache-vouch pass above is its ONLY listing route, and CacheVouchTypes
+	// asked for exactly that. But the vouch pass is HERMETIC (discovery.go's
+	// own doc comment on the CacheVouchTypes loop, review findings on
+	// #734/#737): each vouch scan runs against a throwaway Result, and only
+	// two products cross into the real one - Result.VerifiedDeclared and
+	// Result.CacheVouchSightings - never Result.Scans. res.ScanFor never
+	// sees a vouch-pass listing, for any type, regardless of whether the
+	// listing succeeded; that is by design, not a symptom of #394's native
+	// routing. Asserting ScanFor's absence here would pass vacuously (it
+	// can never do anything else), so this checks the pass's actual visible
+	// output instead:
+	//
+	//  1. The listing happened and found the role: CacheVouchSightings
+	//     records its ImportID as an unclaimed sighting under the vouch
+	//     pass's own provider partition. If the vouch pass stopped listing
+	//     aws_iam_role, or the listing failed, this goes empty and the
+	//     assertion below catches it.
+	//  2. The sighting carries no marker, so VerifiedDeclared must NOT
+	//     contain the role: iam:ListRoles returns roles WITHOUT their tags,
+	//     on real AWS and on the emulator alike (recorded on #692), so a
+	//     listed IAM sighting can never vouch a declared instance's marker.
+	//     Marker-vouching IAM instead has to come from the record store's
+	//     bulk load - the record-primary leg, still tracked on #692 - and
+	//     if this assertion ever goes red because VerifiedDeclared DOES
+	//     carry the role, the emulator or the provider schema changed
+	//     underneath that premise.
+	if _, ok := res.ScanFor("aws_iam_role"); ok {
+		t.Error("res.ScanFor(\"aws_iam_role\") returned a scan record; the cache-vouch pass is supposed to be hermetic and must never write into Result.Scans - something now leaks a vouch-pass scan into the real Result")
+	}
+	var iamRoleImportID string
+	for _, r := range resolutions {
+		if r.Addr.String() == `aws_iam_role.app` {
+			iamRoleImportID = r.ImportID
+		}
+	}
+	if iamRoleImportID == "" {
+		t.Fatal("aws_iam_role.app resolved with no client-named ImportID; the fixture or the resolver changed under this assertion")
+	}
+	if !res.CacheVouchSightings.Sighted(testProviderAddr(t, ""), "aws_iam_role", iamRoleImportID) {
+		t.Errorf("CacheVouchTypes named aws_iam_role and its ImportID %q was not recorded in CacheVouchSightings: the vouching pass never listed the type, or never saw the role (issue #692)", iamRoleImportID)
+	}
+	for _, addr := range res.VerifiedDeclared {
+		if addr.String() == `aws_iam_role.app` {
+			t.Error("aws_iam_role.app appeared in Result.VerifiedDeclared: a listed IAM sighting is not supposed to carry a marker (iam:ListRoles returns no tags), so it should never vouch a declared instance this way")
 		}
 	}
 
