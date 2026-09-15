@@ -350,7 +350,16 @@ top-level `emulator`, which is the pin the NEXT run will use -
 script's wall-clock seconds, recorded for every run regardless of
 protocol) and optional per-stage `stage_seconds` (wall-clock seconds
 each stage took, recorded only for a gauntlet-protocol script whose
-copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)). `go run
+copy of `live/e2e/lib/gauntlet.sh` emits `duration_s`)), and
+`stage_runs` (id to the `commit` and `date` of the run that actually
+measured that verdict, #1069). A run that aborts early still leaves
+the stages it never reached reading the last run to reach them - that
+carry-forward is deliberate - but `stage_runs` now says which cells
+those are: a verdict whose `stage_runs` entry is not this row's own
+`last_run` renders as `stale` rather than as the verdict it carries,
+and does not count toward `clear`. A stage with no entry is unknown
+provenance, not stale: rows recorded before the field existed keep
+the cells and the clear flag they had. `go run
 ./tools/gauntlet snapshot <version>` copies it to
 `live/history/<version>.json` at release; `go run
 ./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just

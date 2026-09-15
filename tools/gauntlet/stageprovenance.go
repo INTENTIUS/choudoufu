@@ -78,6 +78,13 @@ func backfillStageProvenance(a *Artifact) []string {
 		runs := map[string]StageRun{}
 		for _, s := range Stages() {
 			v := r.Stages[s.ID]
+			if v == VerdictNA {
+				// Written by Rebuild, never measured (#1067). Rebuild
+				// deletes any stamp on such a cell, so stamping one here
+				// would make this command report a change on every run
+				// forever.
+				continue
+			}
 			if _, ok := witness[s.ID]; ok {
 				runs[s.ID] = StageRun{Commit: r.LastRun.Commit, Date: r.LastRun.Date}
 				measured++
