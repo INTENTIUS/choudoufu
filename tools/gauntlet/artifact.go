@@ -173,6 +173,31 @@ type Tally struct {
 	// NA counts VerdictNA: the stage does not apply on the estate's
 	// substrate (#1067). Zero on every emulator row.
 	NA int `json:"n_a,omitempty"`
+	// Stale counts a cell whose pass or fail was measured by a run other
+	// than the one its row records (#1069) - the same cells the board
+	// renders as "stale". It is its own bucket rather than being folded
+	// into Pass, Fail or NotRun because it is a different fact from all
+	// three: the stage was measured, the result is known, and it is not
+	// evidence about the run this row reports.
+	//
+	// Without it, this tally and the board contradicted each other about
+	// the same cell - site/data/gauntlet_board.json rendered
+	// terralith-scale's day2_count as stale while sets.core.stages
+	// .day2_count.pass still counted it as a pass, and of the two the
+	// artifact is the one that reads as a measurement. That is the shape
+	// CLAUDE.md names as the reason a measured artifact is never
+	// hand-merged, one field below the aggregate it warns about.
+	//
+	// omitempty, so a set with nothing carried serializes exactly as it
+	// did before this field existed.
+	//
+	// Pass + Fail + NotRun + NA + Stale is always the set's estate count:
+	// any surface printing a breakdown must print this bucket too, or show
+	// a total that no longer sums. site/layouts/shortcodes/gauntlet-bars
+	// .html computes the same five numbers itself, off the rows, and
+	// TestCommittedTallyAgreesWithTheBoard holds this tally to the board's
+	// own cells.
+	Stale int `json:"stale,omitempty"`
 }
 
 // EstateResult is one estate's row.
@@ -527,6 +552,23 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 }
 
 // tallyRows tallies the rows keep admits into one SetSummary.
+//
+// It reads the same per-stage provenance the board reads (#1069). A pass or
+// a fail measured by a run other than the one its row records goes to
+// Tally.Stale, never to Pass or Fail: this tally and the board describe the
+// same cells, so they must not disagree about one - and they did, until
+// this switch stopped keying off the raw verdict string alone.
+//
+// The predicate is reached through the row rather than passed in the way
+// isClearAgainst takes one. isClearAgainst needs the injection because it
+// is handed a bare stage map with no row behind it; this loop holds the
+// whole EstateResult, so r.StageCarried IS that predicate, and a parameter
+// every caller would fill with the same value would only be a longer way to
+// write it.
+//
+// Unknown provenance is not stale, here as everywhere else: StageCarried
+// answers false for a stage with no recorded entry, so every row written
+// before this field existed tallies exactly as it always has.
 func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) SetSummary {
 	sum := SetSummary{Label: label, Stages: map[string]Tally{}}
 	for _, r := range rows {
@@ -539,12 +581,15 @@ func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) 
 		}
 		for _, s := range Stages() {
 			t := sum.Stages[s.ID]
-			switch r.Stages[s.ID] {
-			case VerdictPass:
+			v := r.Stages[s.ID]
+			switch {
+			case (v == VerdictPass || v == VerdictFail) && r.StageCarried(s.ID):
+				t.Stale++
+			case v == VerdictPass:
 				t.Pass++
-			case VerdictFail:
+			case v == VerdictFail:
 				t.Fail++
-			case VerdictNA:
+			case v == VerdictNA:
 				t.NA++
 			default:
 				t.NotRun++

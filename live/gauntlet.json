@@ -212,9 +212,10 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 27,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_crash": {
           "pass": 1,
@@ -232,9 +233,10 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 27,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_teardown": {
           "pass": 0,
@@ -289,9 +291,10 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 26,
+          "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_crash": {
           "pass": 1,
@@ -309,9 +312,10 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 26,
+          "pass": 25,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_teardown": {
           "pass": 0,
@@ -601,9 +605,10 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 2,
+          "pass": 1,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_crash": {
           "pass": 1,
@@ -621,9 +626,10 @@
           "not_run": 0
         },
         "day2_replace": {
-          "pass": 2,
+          "pass": 1,
           "fail": 0,
-          "not_run": 0
+          "not_run": 0,
+          "stale": 1
         },
         "day2_teardown": {
           "pass": 0,

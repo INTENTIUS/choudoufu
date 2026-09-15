@@ -547,3 +547,168 @@ func TestCommittedRowsAgreeWithTheirOwnProvenance(t *testing.T) {
 		}
 	}
 }
+
+// TestCarriedVerdictTalliesAsStaleNotPass is the set-summary half of the
+// same rule the board already follows. tallyRows switched on the raw
+// verdict string, so a cell the board rendered as "stale" was still counted
+// in Tally.Pass - two published surfaces disagreeing about one cell, with
+// the artifact's number being the one that reads as a measurement.
+//
+// Proven red first, against tallyRows as it stood (the Stale field existed,
+// nothing wrote it):
+//
+//	stage "day2_count": tally = {Pass:2 Fail:0 NotRun:0 NA:0 Stale:0}, want
+//	  {Pass:1 Fail:0 NotRun:0 NA:0 Stale:1} - a carried verdict belongs in
+//	  its own bucket, not in pass (#1069)
+//
+// The sum check below did NOT fire in that red, and that is the point of
+// the bucket: counting the carried cell as a pass kept the breakdown
+// summing to the estate count while making it say the wrong thing. Simply
+// dropping the cell would break the sum instead. It has to go somewhere,
+// and somewhere is its own name.
+func TestCarriedVerdictTalliesAsStaleNotPass(t *testing.T) {
+	m := &Manifest{Estates: []Estate{
+		{Name: "measured", Source: "s", Lane: "reference", Set: SetCore, Reason: "r", Script: "live/e2e/measured/run.sh"},
+		{Name: "carried", Source: "s", Lane: "reference", Set: SetCore, Reason: "r", Script: "live/e2e/carried/run.sh"},
+	}}
+	stamp := StageRun{Commit: "runcommit", Date: "2026-09-14T00:00:00Z"}
+	row := func(name string, carriedStage string) EstateResult {
+		r := EstateResult{
+			Name: name, Protocol: ProtocolGauntlet, Stages: allHeadlinePass(),
+			StageRuns: map[string]StageRun{},
+			LastRun:   &LastRun{Commit: "runcommit", Date: "2026-09-14T00:00:00Z"},
+		}
+		for id, v := range r.Stages {
+			if v == VerdictPass {
+				r.StageRuns[id] = stamp
+			}
+		}
+		if carriedStage != "" {
+			r.StageRuns[carriedStage] = StageRun{Commit: "oldercommit", Date: "2026-09-01T00:00:00Z"}
+		}
+		return r
+	}
+	carriedID := "day2_count"
+	if _, ok := StageByID(carriedID); !ok {
+		t.Skipf("%s is not in the stage registry", carriedID)
+	}
+	a := &Artifact{Schema: 1, Estates: []EstateResult{row("measured", ""), row("carried", carriedID)}}
+	a.Rebuild(m, nil, "img", OracleVersions{})
+
+	sum := a.Sets["core"]
+	got := sum.Stages[carriedID]
+	want := Tally{Pass: 1, Stale: 1}
+	if got != want {
+		t.Errorf("stage %q: tally = %+v, want %+v - a carried verdict belongs in its own bucket, not in pass (#1069)", carriedID, got, want)
+	}
+	if total := got.Pass + got.Fail + got.NotRun + got.NA + got.Stale; total != sum.Estates {
+		t.Errorf("stage %q: pass+fail+not_run+n/a+stale = %d, want %d (the set's own estate count)", carriedID, total, sum.Estates)
+	}
+
+	// Every other headline stage is measured on both rows and untouched.
+	for _, s := range HeadlineStages() {
+		if s.ID == carriedID {
+			continue
+		}
+		if g := sum.Stages[s.ID]; g != (Tally{Pass: 2}) {
+			t.Errorf("stage %q: tally = %+v, want {Pass:2} - only the carried cell moves", s.ID, g)
+		}
+	}
+}
+
+// TestUnknownProvenanceTalliesAsItAlwaysDid is the tally's copy of the
+// three-state rule TestUnknownProvenanceIsNotStale holds the board and the
+// clear flag to. A row with no stage_runs at all - every row written before
+// #1069 - must tally exactly as before, or the day this lands 28 rows'
+// worth of passes silently move into a bucket on the strength of a field
+// that was never written.
+func TestUnknownProvenanceTalliesAsItAlwaysDid(t *testing.T) {
+	m := provenanceEstate()
+	a := &Artifact{Schema: 1, Estates: []EstateResult{{
+		Name: "x", Protocol: ProtocolGauntlet, Stages: allHeadlinePass(),
+		LastRun: &LastRun{Commit: "runcommit", Date: "2026-09-14T00:00:00Z"},
+	}}}
+	a.Rebuild(m, nil, "img", OracleVersions{})
+	sum := a.Sets["core"]
+	for _, s := range HeadlineStages() {
+		if g := sum.Stages[s.ID]; g != (Tally{Pass: 1}) {
+			t.Errorf("stage %q: tally = %+v, want {Pass:1} - unknown provenance is not stale", s.ID, g)
+		}
+	}
+}
+
+// TestCommittedTallyAgreesWithTheBoard is the cross-surface guard for the
+// drift this bucket exists to close. live/gauntlet.json's per-stage tally
+// and site/data/gauntlet_board.json's per-stage cells are two published
+// descriptions of the same cells, written by two functions (tallyRows,
+// artifact.go; verdictMarkFor via boardEstate, board.go). They disagreed:
+// the board rendered terralith-scale's day2_count as stale while
+// sets.core.stages.day2_count.pass still counted it as a pass, and of the
+// two the artifact is the one that reads as a measurement.
+//
+// So: for every set and lane, Tally.Stale must equal the number of that
+// set's rows whose board cell for that stage reads "stale", and the five
+// buckets must sum to the set's own estate count.
+//
+// Proven red first by reverting tallyRows to switching on the raw verdict
+// string:
+//
+//	set "core" stage "day2_count": tally.Stale = 0, board renders 1 row(s)
+//	  stale - the artifact and the board must not disagree about a cell
+//	set "core" stage "day2_count": pass+fail+not_run+n/a+stale = 27, want 26
+//	  (the set's own estate count)
+func TestCommittedTallyAgreesWithTheBoard(t *testing.T) {
+	root := testRoot(t)
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := buildBoard(m, a)
+	// Stage cells by estate name, as the board renders them.
+	cells := map[string]map[string]string{}
+	for _, e := range board.Estates {
+		cells[e.Name] = map[string]string{}
+		for _, sr := range e.StageRows {
+			cells[e.Name][sr.ID] = sr.Verdict
+		}
+	}
+
+	check := func(label string, sum SetSummary, member func(EstateResult) bool) {
+		for _, s := range Stages() {
+			want := 0
+			for _, r := range a.Estates {
+				if !member(r) {
+					continue
+				}
+				if cells[r.Name][s.ID] == VerdictMarkStale {
+					want++
+				}
+			}
+			got := sum.Stages[s.ID]
+			if got.Stale != want {
+				t.Errorf("set %q stage %q: tally.Stale = %d, board renders %d row(s) stale - the artifact and the board must not disagree about a cell", label, s.ID, got.Stale, want)
+			}
+			if total := got.Pass + got.Fail + got.NotRun + got.NA + got.Stale; total != sum.Estates {
+				t.Errorf("set %q stage %q: pass+fail+not_run+n/a+stale = %d, want %d (the set's own estate count)", label, s.ID, total, sum.Estates)
+			}
+		}
+	}
+
+	for key := range SetLabels {
+		key := key
+		check(key, a.Sets[key], func(r EstateResult) bool {
+			if r.Substrate != "" {
+				return false
+			}
+			return key != "core" || r.Set == SetCore
+		})
+	}
+	for lane, sum := range a.Lanes {
+		lane := lane
+		check(lane+" lane", sum, func(r EstateResult) bool { return r.Lane == lane })
+	}
+}
