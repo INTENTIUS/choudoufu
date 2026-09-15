@@ -424,9 +424,9 @@ grep -qE '^Apply complete!' <<< "$COLD_OUT" || fail "stage 1 apply produced no '
 log "  $(grep -E '^Apply complete!' <<< "$COLD_OUT")"
 [ -f "$PLAIN/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
@@ -485,8 +485,8 @@ log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
 # and documents (see this estate's history in live/gauntlet.json) -
 # choudoufu's own stamp count is still the correct one, so this checks
 # the resourcegroupstaggingapi-visible count, not the stamped count.
-GTAGGED="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+GTAGGED="$(gauntlet_tagged_count aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE")"
 [ "$GTAGGED" = "$((TAGGABLE - 1))" ] || fail "the greenfield estate has $GTAGGED objects visible to resourcegroupstaggingapi, expected $((TAGGABLE - 1)) ($TAGGABLE tag-stamped minus the known floci Redshift Tagging-API gap)"
 log "  $GTAGGED objects visible to resourcegroupstaggingapi ($TAGGABLE actually tag-stamped, of $INSTANCES total; $UNTAGGABLE untaggable/derived)"
 
@@ -798,9 +798,9 @@ S3_EP_ADDR_BRACKET='module.vpc_endpoints.aws_vpc_endpoint.this["s3"]'
 [ "$S3_EP_ADDR" = "$WANT_S3_ADDR" ] || fail "the s3 vpc endpoint carries tofu-address=$S3_EP_ADDR, not $WANT_S3_ADDR"
 log "  $S3_EP_ID carries tofu-address=$S3_EP_ADDR"
 
-MARKED="$(awsl resourcegroupstaggingapi get-resources \
+MARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 log "  $MARKED objects carry tofu-estate=$ESTATE after migration"
 gauntlet_stage migrate pass "$TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed; $MARKED objects carry tofu-estate=$ESTATE; the VPC's tofu-slot reads $VPC_SLOT off EC2, written by the migration itself (choudoufu #372)"
 
@@ -857,18 +857,18 @@ gauntlet_stage test_plan pass "empty plan; identity re-check unchanged: $VPC_ADD
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 
 APPLY2_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"

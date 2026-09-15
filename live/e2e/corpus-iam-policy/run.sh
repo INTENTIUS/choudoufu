@@ -299,9 +299,9 @@ POLICY2_ARN="$(awsl iam list-policies --path-prefix / \
 [ -n "$POLICY2_ARN" ] && [ "$POLICY2_ARN" != "None" ] || fail "could not find the name_prefix policy through the AWS CLI"
 log "  both policies live: $POLICY1_ARN and $POLICY2_ARN"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 
@@ -529,9 +529,9 @@ if [ "${BREAK_GREEN:-}" = "1" ]; then
   GREEN_POLICY_COUNT_EXPECTED=1
   log "  BREAK_GREEN=1: dropped one policy from the expected inventory - the count comparison below must fail"
 fi
-GREEN_POLICY_COUNT_ACTUAL="$(awslg resourcegroupstaggingapi get-resources \
+GREEN_POLICY_COUNT_ACTUAL="$(gauntlet_tagged_count awslg resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$GREEN_POLICY_COUNT_ACTUAL" = "$GREEN_POLICY_COUNT_EXPECTED" ] \
   || fail "the greenfield estate has $GREEN_POLICY_COUNT_ACTUAL objects, expected $GREEN_POLICY_COUNT_EXPECTED - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
 GREEN_DOC1="$(awslg iam get-policy-version --policy-arn "$GREEN_POLICY1_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
@@ -688,18 +688,18 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"

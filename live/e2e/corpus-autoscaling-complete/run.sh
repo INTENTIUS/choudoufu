@@ -326,9 +326,9 @@ grep -qE '^Apply complete!' <<< "$COLD_OUT" || fail "stage 1 apply produced no '
 log "  $(grep -E '^Apply complete!' <<< "$COLD_OUT")"
 [ -f "$PLAIN/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
@@ -599,9 +599,9 @@ fi
 [ "$ROLE_TAG_VALUE" = "$WANT_ROLE_ADDR" ] || fail "the IAM role carries tofu-address=$ROLE_TAG_VALUE, not $WANT_ROLE_ADDR"
 log "  IAM role 'complete' carries tofu-address=$ROLE_TAG_VALUE"
 
-MARKED="$(awsl resourcegroupstaggingapi get-resources \
+MARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 log "  $MARKED objects carry tofu-estate=$ESTATE after migration"
 gauntlet_stage migrate pass "$(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT"); $MARKED objects carry tofu-estate=$ESTATE"
 
@@ -751,18 +751,18 @@ gauntlet_stage test_plan pass "empty plan; identity re-check unchanged: $LT_ADDR
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 
 APPLY2_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -50; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
@@ -1688,7 +1688,7 @@ HCL
     log "  choudoufu: exactly $ORACLE_REMOVE_N destroys under module.default, matching the stock oracle, nothing else"
 
     ASG_COUNT_BEFORE="$(awsl autoscaling describe-auto-scaling-groups --query 'length(AutoScalingGroups)' --output text)"
-    TAGGED_BEFORE="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+    TAGGED_BEFORE="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")"
 
     REMOVE_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
     if [ "$REMOVE_APPLY_RC" -ne 0 ]; then
@@ -1719,7 +1719,7 @@ HCL
     ASG_COUNT_AFTER="$(awsl autoscaling describe-auto-scaling-groups --query 'length(AutoScalingGroups)' --output text)"
     [ "$ASG_COUNT_AFTER" -eq "$((ASG_COUNT_BEFORE - 1))" ] \
       || fail "the live auto-scaling-group count went from $ASG_COUNT_BEFORE to $ASG_COUNT_AFTER across the destroy, expected exactly one fewer - module.default's untaggable ASG was not genuinely destroyed (confirmed via the AWS CLI, not through choudoufu's own report)"
-    TAGGED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+    TAGGED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")"
     [ "$TAGGED_AFTER" -lt "$TAGGED_BEFORE" ] \
       || fail "the tagged object count did not drop at all across the destroy ($TAGGED_BEFORE -> $TAGGED_AFTER)"
     log "  live ASG count $ASG_COUNT_BEFORE -> $ASG_COUNT_AFTER, tagged object count $TAGGED_BEFORE -> $TAGGED_AFTER - confirmed via the AWS CLI, not through choudoufu's own report"
@@ -1947,7 +1947,7 @@ STOCK_SG_SHAPE="$(sg_shape "$ENDPOINT" "$STOCK_SG_ID")"
 [ "$GREEN_SG_SHAPE" = "$STOCK_SG_SHAPE" ] || fail "the asg_sg security group's rule counts differ: greenfield=$GREEN_SG_SHAPE stock=$STOCK_SG_SHAPE"
 log "  asg_sg security group rule counts match (ingress/egress: $GREEN_SG_SHAPE), identified by vpc-id scoping + an exact client-side Description match, not floci's broken description filter (lex00/floci#150)"
 
-GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+GREEN_TAGGED="$(gauntlet_tagged_count awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE")"
 [ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
 log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS CLI"
 

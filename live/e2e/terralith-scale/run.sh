@@ -871,7 +871,7 @@ log "=== E1. test_apply: applying the empty plan changes nothing ==="
 INV_BEFORE="$(inventory "$ENDPOINT")"
 INV_BEFORE_N="$(grep -c . <<< "$INV_BEFORE" || true)"
 [ "$INV_BEFORE_N" -gt 0 ] || fail "the pre-apply inventory is empty - this comparison would be vacuous"
-TAGGED_BEFORE="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo unknown)"
+TAGGED_BEFORE="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" 2>/dev/null || echo unknown)"
 NOOP_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_RC=$?
 [ "$NOOP_RC" -eq 0 ] || { printf '%s\n' "$NOOP_OUT" | tail -30; fail "the no-op apply exited $NOOP_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_OUT" \
@@ -892,7 +892,7 @@ ${PREFIX}-an-object-that-was-never-there"
 fi
 [ "$INV_BEFORE" = "$INV_AFTER" ] \
   || { diff <(printf '%s\n' "$INV_BEFORE") <(printf '%s\n' "$INV_AFTER") || true; fail "the enumerated estate changed across a no-op apply"; }
-TAGGED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo unknown)"
+TAGGED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" 2>/dev/null || echo unknown)"
 [ "$TAGGED_BEFORE" = "$TAGGED_AFTER" ] \
   || fail "the tofu-estate-tagged object count changed across a no-op apply: $TAGGED_BEFORE -> $TAGGED_AFTER"
 log "  genuine no-op: $INV_BEFORE_N objects enumerated identically before and after, and the tofu-estate-tagged count is unchanged at $TAGGED_AFTER"

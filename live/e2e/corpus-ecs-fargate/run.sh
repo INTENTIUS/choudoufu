@@ -1832,9 +1832,9 @@ gauntlet_stage test_plan pass "genuinely empty replan (\"No changes. Your infras
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== 4. test apply: apply the empty plan, assert a genuine no-op ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 
 APPLY2_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -60; fail "the post-migration apply failed"; }
@@ -1842,9 +1842,9 @@ grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 [ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "a state file exists after the apply"
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 log "  genuine no-op: $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after,"
 log "  no state file either time"
@@ -2421,7 +2421,7 @@ EOF
       || { printf 'choudoufu:\n%s\nstock:\n%s\n' "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu's destroy address set differs from stock's oracle"; }
     log "  choudoufu: exactly $REMOVE_N destroys under module.ecs_task_definition, address-for-address identical to stock's oracle on cold_deploy's own state, nothing else"
 
-    BEFORE_REMOVE_N="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+    BEFORE_REMOVE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" 2>/dev/null || echo 0)"
     REMOVE_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
     [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
     grep -qE "Resources: 0 added, 0 changed, $REMOVE_N destroyed" <<< "$REMOVE_APPLY_OUT" \
@@ -2431,7 +2431,7 @@ EOF
     [ "$TD_COUNT_AFTER" = "0" ] || fail "the standalone task definition family $TD_FAMILY still has $TD_COUNT_AFTER active revision(s) after the destroy - it was orphaned, not destroyed"
     log "  $TD_FAMILY has 0 active revisions - confirmed via the AWS CLI, not through choudoufu's own report"
 
-    AFTER_REMOVE_N="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+    AFTER_REMOVE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" 2>/dev/null || echo 0)"
     log "  tofu-estate-tagged objects: $BEFORE_REMOVE_N before, $AFTER_REMOVE_N after"
 
     log "=== E2. one more plan: config and reality agree, nothing left to propose ==="

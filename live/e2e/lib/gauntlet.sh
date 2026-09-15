@@ -203,6 +203,23 @@ gauntlet_record_count() {
   find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
 }
 
+# gauntlet_tagged_count <aws-invocation...>: runs the given AWS CLI
+# invocation (e.g. `awsl resourcegroupstaggingapi get-resources
+# --tag-filters "Key=tofu-estate,Values=$ESTATE"` - any prefix that ends in
+# a `resourcegroupstaggingapi get-resources` call) and prints the true count
+# of ResourceTagMappingList entries, summed across every page. The naive
+# `--query 'length(ResourceTagMappingList)' --output text` idiom every
+# crossing script used to write is wrong past one page: the AWS CLI applies
+# --query to EACH page before merging, so past the Tagging API's page size
+# of 100 it prints one number per page (e.g. "100 100 100 35") rather than
+# the total (issue #1042). Dropping --query lets the CLI's normal automatic
+# pagination merge every page's ResourceTagMappingList into one JSON array
+# first, so jq's length here is the real total no matter how many pages it
+# took. Never add --query back to this call.
+gauntlet_tagged_count() {
+  "$@" --output json | jq '.ResourceTagMappingList | length'
+}
+
 # gauntlet_stage_from_exit <id> <exit-code> [detail...]
 # Convenience for the common shape "run a check, report pass on 0, fail
 # otherwise" without the script having to branch itself.
