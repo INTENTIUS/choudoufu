@@ -110,6 +110,25 @@ func TestFlociServesTaggingAPI(t *testing.T) {
 // TestFlociServesTaggingAPI for the Content-Type finding that makes this
 // test reach floci's tagging service at all.
 //
+// Amendment, issue #1050: aws_iam_role's own scan below no longer takes the
+// tagging leg this test was written to exercise. partitionSweepTypes routes
+// it through the native per-type leg unconditionally now, regardless of
+// Request.TaggingSweep - see the scan.Source assertion below (which used to
+// read SourceTagging and now reads SourceProvider) for the two independent
+// gates that do it. That routing assertion does NOT depend on floci serving
+// a tagging sweep for IAM, and it runs and passes at the current pin.
+//
+// What still does, and is gated separately below in its own subtest: this
+// pin cannot recover aws_iam_role.demo as a removal candidate either, but
+// not because enumeration needs the tagging leg (it does not any more) - the
+// native leg's marker read for an object iam:ListRoles returns with no tags
+// falls back to issue #266's estate tag-index join, fed by the exact same
+// GetResources call the tagging leg needed. That join still fails at this
+// pin, so the role's marker reads as unset and an ordinary sweep drops it
+// with no Orphan, no Unclaimed entry and no Problem - see the subtest's own
+// comment for the exact code path. TestFlociServesTaggingAPI above is what
+// still exercises GetResources directly.
+//
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestTaggingSweepAgainstFloci -v
 func TestTaggingSweepAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "discovery/tagging")
@@ -171,40 +190,98 @@ func TestTaggingSweepAgainstFloci(t *testing.T) {
 	t.Logf("discovery result:\n%s", res)
 	assertNoErrors(t, diags)
 
+	// aws_iam_role cannot land here as SourceTagging any more (issue #1050).
+	// partitionSweepTypes puts a type in the native universe when EITHER
+	// typeNeedsResourceObjectToRecompose(t) is true OR arnJoinReaches(...)
+	// is false, and this repository's own worked example proved BOTH arms
+	// independently true for aws_iam_role at the current pin - disabling
+	// only typeNeedsResourceObjectToRecompose's IAM branch did not flip
+	// scan.Source; disabling taggingAPIUnservedServices's "aws_iam_" entry
+	// as well did:
+	//  - typeNeedsResourceObjectToRecompose (issue #394) answers true for
+	//    aws_iam_role unconditionally - it is the aws_iam_service_linked_role
+	//    sibling pair's companion, and the tag sweep's ARN-joined candidate
+	//    never carries enough to bind that pair safely.
+	//  - arnJoinReaches (issue #692) answers false for it too:
+	//    taggingAPIUnservedType says IAM is a service GetResources never
+	//    indexes at all (probed against real AWS and floci alike), and the
+	//    AWS provider's own schema DOES support listing aws_iam_role
+	//    natively, so arnJoinReaches's own "prefer a leg that can enumerate
+	//    the type" rule (issue #881) picks native over a tagging leg that
+	//    would find nothing.
+	// Either alone is sufficient to keep sweepViaTagging from ever seeing
+	// this type; both are true today. internal/command/tagging_sweep_premise_test.go's
+	// alwaysNativeSweepTypes records the same fact by name (citing #394),
+	// for the package that cannot import discovery's unexported
+	// typeNeedsResourceObjectToRecompose to check it directly - that
+	// citation names one of the two gates, not the only one. This
+	// assertion predates aws_iam_role's routing having ever been
+	// unconditional here - see #394, #692 and #1045 for how the type went
+	// from tagging-served to native-only as the emulator's own IAM
+	// coverage changed - and this is the CURRENT routing, not the
+	// original one.
 	scan, ok := res.ScanFor("aws_iam_role")
 	if !ok {
 		t.Fatal("no scan was recorded for aws_iam_role at all")
 	}
-	if scan.Source != SourceTagging {
-		t.Fatalf("aws_iam_role scan source = %q, want %q", scan.Source, SourceTagging)
+	if scan.Source != SourceProvider {
+		t.Fatalf("aws_iam_role scan source = %q, want %q (the native per-type leg - partitionSweepTypes keeps it out of the tagging leg unconditionally, per both typeNeedsResourceObjectToRecompose and arnJoinReaches)", scan.Source, SourceProvider)
 	}
 
-	rm := removalsByAddr(res)
-	o, ok := rm[`aws_iam_role.demo`]
-	if !ok {
-		// flocitest.TaggingSweepCapabilityGate skips with a loud, digest-cited
-		// reason when live/floci-capabilities.json already explains this
-		// exact gap. As of the pinned digest it does not: aws_iam_role's
-		// tagging-sweep row there is "implemented", so the gate is a no-op
-		// and the t.Fatal below is what a miss produces. If the manifest has
-		// no matching entry, this also falls through to a real failure
-		// instead of a silent skip: an unexplained miss here means either
-		// floci's tagging-sweep coverage regressed, or a new gap needs
-		// investigating and recording, not waving through by hand again.
-		flocitest.TaggingSweepCapabilityGate(t, "aws_iam_role")
-		t.Fatal("aws_iam_role.demo was not discovered through the estate-wide tagging sweep against real floci, " +
-			"and live/floci-capabilities.json has no entry explaining why for this floci image - investigate and " +
-			"record the finding there (tools/floci-capability-gen's doc comment) rather than skip unexplained")
-	}
-	if !strings.Contains(o.ImportID, "tagging-e2e-demo") {
-		t.Errorf("ImportID = %q, want it to name the role tagging-e2e-demo", o.ImportID)
-	}
-	if strings.Contains(o.ImportID, "arn:") {
-		t.Errorf("ImportID = %q carries a raw ARN; aws_iam_role's identity is its name, not the ARN itself", o.ImportID)
-	}
-	if !o.Swept {
-		t.Error("the removal is not marked as found by the sweep")
-	}
+	// Everything above this line does NOT depend on floci serving a tagging
+	// sweep for IAM, and now runs and passes at the current pin (issue
+	// #1050's whole point - the routing assertion above regressed to
+	// asserting the OLD, now-impossible shape and this run proves the fix
+	// without ever reaching the gate below).
+	//
+	// Recovering aws_iam_role.demo as a REMOVAL candidate is a separate
+	// question this pin still cannot answer, for a reason worth being
+	// precise about because it is not the one this test used to assume.
+	// It is not that enumeration needs the tagging leg - scan.Source above
+	// already proves enumeration went through the native leg instead. It is
+	// that the native leg's own MARKER read for this object does:
+	// iam:ListRoles never returns tags at all (discovery.go's own comment,
+	// issue #266), so scanType falls back to joining the object's identifier
+	// against the estate's tag index (req.markers.join) - the SAME
+	// GetResources call the tagging leg needs and live/floci-capabilities.json
+	// records as unimplemented for aws_iam_role at this pin. The join fails,
+	// the role's marker reads as unset, and an ordinary sweep
+	// (CollectUnclaimed unset) treats an unset marker as nothing worth
+	// reporting (discovery.go: `case estate == "": if sweep &&
+	// !collectUnclaimed { continue }`) - no Orphan, no Unclaimed entry, no
+	// Problem, confirmed by inspecting Result.Orphans/Unclaimed/Problems
+	// directly against a live run before writing this comment. So this
+	// fragment - and only this fragment - stays gated, in its own subtest so
+	// a skip here cannot take the routing assertion above down with it.
+	t.Run("removal-detected-via-tag-index-join", func(t *testing.T) {
+		rm := removalsByAddr(res)
+		o, ok := rm[`aws_iam_role.demo`]
+		if !ok {
+			// flocitest.TaggingSweepCapabilityGate skips with a loud,
+			// digest-cited reason when live/floci-capabilities.json already
+			// explains this exact gap. If the manifest has no matching
+			// entry, this falls through to a real failure instead of a
+			// silent skip: an unexplained miss here means either floci's
+			// tagging-sweep coverage regressed, or a new gap needs
+			// investigating and recording, not waving through by hand again.
+			flocitest.TaggingSweepCapabilityGate(t, "aws_iam_role")
+			t.Fatal("aws_iam_role.demo was not recovered as a removal candidate: its own native listing " +
+				"(source=PROVIDER, confirmed by the parent test) carries no tags, so recovering its marker " +
+				"depends on issue #266's estate tag-index join, fed by the same GetResources call this pin " +
+				"cannot answer for IAM - and live/floci-capabilities.json has no entry explaining that gap for " +
+				"this floci image - investigate and record the finding there (tools/floci-capability-gen's " +
+				"doc comment) rather than skip unexplained")
+		}
+		if !strings.Contains(o.ImportID, "tagging-e2e-demo") {
+			t.Errorf("ImportID = %q, want it to name the role tagging-e2e-demo", o.ImportID)
+		}
+		if strings.Contains(o.ImportID, "arn:") {
+			t.Errorf("ImportID = %q carries a raw ARN; aws_iam_role's identity is its name, not the ARN itself", o.ImportID)
+		}
+		if !o.Swept {
+			t.Error("the removal is not marked as found by the sweep")
+		}
+	})
 
 	if _, err := os.Stat(stateFile); !os.IsNotExist(err) {
 		t.Errorf("a state file exists after discovery (err = %v)", err)
