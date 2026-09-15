@@ -172,14 +172,18 @@ set -uo pipefail
 #
 # THE OTHER SCOPING DECISION, avoided rather than made: modules/monitoring/
 # terraform.tofu pins `aws ~> 5.0`, real and unedited, incompatible with the
-# `= 6.59.0` every other opentofu-native crossing in this repo pins at its
-# OWN root for reproducibility against the schemas this checkout's admission
-# tables were generated from. Rather than edit the module's own version
-# constraint (a real, precedented DELTA elsewhere - see corpus-cncf-k8s-
-# infra-aws-capa-ami's DELTA 3), this script's root declares no
-# required_providers entry for aws at all, leaving the module's own real
-# `~> 5.0` as the sole governing constraint (resolves to the newest 5.x
-# release the provider mirror serves). Zero edits to the crossed module,
+# exact release (live/oracle-versions.json's aws_provider_version) every
+# other opentofu-native crossing in this repo pins at its OWN root via
+# gauntlet_pin_aws_provider, for reproducibility against the schemas this
+# checkout's admission tables were generated from. Rather than edit the
+# module's own version constraint (a real, precedented DELTA elsewhere -
+# see corpus-cncf-k8s-infra-aws-capa-ami's DELTA 3), this script's root
+# declares no required_providers entry for aws at all, leaving the
+# module's own real `~> 5.0` as the sole governing constraint (resolves to
+# the newest 5.x release the provider mirror serves - still exposed to
+# #1041's own two-registry lag WITHIN the 5.x line, a narrower and
+# accepted risk, not the fix this issue makes). Zero edits to the crossed
+# module,
 # any module. aws_cloudwatch_metric_alarm and aws_cloudwatch_dashboard are
 # old, stable, hand-written (non-Cloud-Control) resources in the AWS
 # provider - their schemas (alarm_name, dashboard_name, dimensions,
@@ -780,7 +784,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }
@@ -801,6 +805,7 @@ log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and bac
 COUNT_ORACLE_DIR="$WORK/count-oracle"
 mkdir -p "$COUNT_ORACLE_DIR"
 { oracle_count_provider; count_test_block 2; } > "$COUNT_ORACLE_DIR/main.tf"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
 ORACLE_COUNT_APPLY_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
@@ -815,6 +820,7 @@ ORACLE_CT1_STILL="$(awso cloudwatch describe-alarms --alarm-names leynos-monitor
 log "  stock: 2 instances created (leynos-monitoring-count-test-0, leynos-monitoring-count-test-1), confirmed present via the AWS CLI"
 
 { oracle_count_provider; count_test_block 1; } > "$COUNT_ORACLE_DIR/main.tf"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 ORACLE_DOWN_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_DOWN_PLAN_RC=$?
 [ "$ORACLE_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_DOWN_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_DOWN_PLAN_RC"; }
 grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[1\] will be destroyed' <<< "$ORACLE_DOWN_PLAN_OUT" \
@@ -834,6 +840,7 @@ ORACLE_CT1_AFTER_DOWN="$(awso cloudwatch describe-alarms --alarm-names leynos-mo
 log "  stock: exactly one destroy (count_test[1], confirmed genuinely gone via describe-alarms - aws_cloudwatch_metric_alarm has no server-minted id, see header), count_test[0] unchanged"
 
 { oracle_count_provider; count_test_block 2; } > "$COUNT_ORACLE_DIR/main.tf"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 ORACLE_UP_PLAN_OUT="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu plan -input=false -no-color 2>&1)"; ORACLE_UP_PLAN_RC=$?
 [ "$ORACLE_UP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_PLAN_OUT" | tail -30; fail "the day2_count stock oracle's scale-up plan exited $ORACLE_UP_PLAN_RC"; }
 grep -qE '^  # aws_cloudwatch_metric_alarm\.count_test\[1\] will be created' <<< "$ORACLE_UP_PLAN_OUT" \

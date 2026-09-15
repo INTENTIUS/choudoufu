@@ -390,7 +390,7 @@ assert old in s, "provider block not found - the corpus pin has moved"
 open(p, "w").write(s.replace(old, new))
 PYEOF
 }
-version_pin() { # version_pin <dir> <extra> - pin aws to the release every other e2e script pins (#269), optionally appending a live block
+version_pin() { # version_pin <dir> <extra> - pin aws via gauntlet_pin_aws_provider (issue #1041), optionally appending a live block
   cat > "$1/examples/complete/versions.tf" <<EOF
 terraform {
   required_version = ">= 1.5.7"
@@ -398,7 +398,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.58.0"
+      version = ">= 6.28"
     }
     random = {
       source  = "hashicorp/random"
@@ -408,6 +408,7 @@ terraform {
 $2
 }
 EOF
+  gauntlet_pin_aws_provider "$1/examples/complete/versions.tf" || fail "gauntlet_pin_aws_provider failed for $1/examples/complete/versions.tf"
 }
 
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
@@ -736,7 +737,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.58.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }
@@ -921,7 +922,7 @@ version_pin "$ESTATE" '
       path = ".tofu-records"
     }
   }'
-log "  DELTA 1+2  provider pinned = 6.58.0, live block added   (onboarding, #269)"
+log "  DELTA 1+2  provider pinned via gauntlet_pin_aws_provider, live block added   (onboarding, #269, #1041)"
 
 # DELTA 3, the untaggable-effects gap this script's header names: pin the
 # already-applied random_pet value as a literal, standing in for what

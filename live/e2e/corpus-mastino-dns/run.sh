@@ -519,10 +519,11 @@ terraform {
       # DELTA 2: was \`version = "~> 5"\`. aws 5.x has no list resources at
       # all, which #269 records as a hard \`Unlistable marker-discovered
       # type\` for every ServerAssigned type - and all 4 zones here are
-      # ServerAssigned. Pinned to the same 6.59.0 the rest of this
-      # repository's artifacts are generated against, so stage 1 and
-      # stages 2-5 cannot disagree about the provider either.
-      version = "= 6.59.0"
+      # ServerAssigned. Pinned (issue #1041) to
+      # live/oracle-versions.json's aws_provider_version, the one place
+      # every crossing reads this release from, so stage 1 and stages 2-5
+      # cannot disagree about the provider either.
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 
@@ -533,13 +534,14 @@ terraform {
   # choudoufu, plain local state, which is what stage 2 migrates from.
 }
 EOF
+gauntlet_pin_aws_provider "$PLAIN/terraform.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN/terraform.tf"
 
 cat > "$EST/terraform.tf" <<EOF
 terraform {
   required_providers {
     aws = {
       source = "hashicorp/aws"
-      version = "= 6.59.0" # DELTA 2, see the plain copy
+      version = "= $(gauntlet_aws_pin_version)" # DELTA 2, see the plain copy
     }
   }
 
@@ -559,11 +561,12 @@ terraform {
   }
 }
 EOF
+gauntlet_pin_aws_provider "$EST/terraform.tf" || fail "gauntlet_pin_aws_provider failed for $EST/terraform.tf"
 grep -q "estate = \"$ESTATE_NAME\"" "$EST/terraform.tf" || fail "DELTA 1 did not land in the estate copy"
 grep -q 'record_store "local"' "$EST/terraform.tf" || fail "DELTA 6 did not write a record_store block"
 grep -q 'live {' "$PLAIN/terraform.tf" && fail "the cold copy has a live block - stage 1 would not be cold"
 log "  DELTA 1  cloud block removed; live block in the choudoufu copy only  (#268)"
-log "  DELTA 2  aws pinned = 6.59.0 in both copies                          (#269)"
+log "  DELTA 2  aws pinned via gauntlet_pin_aws_provider in both copies      (#269, #1041)"
 log "  DELTA 6  record_store \"local\" in the live block                      (#275)"
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -732,13 +735,14 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
   required_version = ">= 1.6"
 $live_block
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/terraform.tf" || fail "gauntlet_pin_aws_provider failed for $dest/terraform.tf"
   local vpc vpc_us
   vpc="$(aws --endpoint-url "$ep" --region "$REGION" ec2 create-vpc --cidr-block 10.90.0.0/16 --query 'Vpc.VpcId' --output text)"
   [ -n "$vpc" ] && [ "$vpc" != "None" ] || fail "could not create the VPC $dest's private zone needs"

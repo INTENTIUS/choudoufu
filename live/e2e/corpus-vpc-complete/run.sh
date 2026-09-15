@@ -379,8 +379,7 @@ emulator_delta() {
   local ex="$1"
   perl -0pi -e 's/(provider "aws" \{\n  region = local\.region\n)\}/$1\n  access_key                  = "test"\n  secret_key                  = "test"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n}/' "$ex/main.tf"
   grep -q 's3_use_path_style' "$ex/main.tf" || fail "the emulator delta did not match main.tf's provider block - the corpus pin has moved"
-  perl -0pi -e 's/version = ">= 6\.28"/version = "= 6.59.0"/' "$ex/versions.tf"
-  grep -q '= 6.59.0' "$ex/versions.tf" || fail "the version pin delta did not match versions.tf - the corpus pin has moved"
+  gauntlet_pin_aws_provider "$ex/versions.tf" || fail "gauntlet_pin_aws_provider failed for $ex/versions.tf - the corpus pin has moved"
 }
 
 copy_estate "$WORK/plain"
@@ -389,7 +388,7 @@ log "  module + example copied out of .corpus into $WORK/plain (stage 1: plain t
 
 copy_estate "$WORK/adopted"
 emulator_delta "$ADOPTED"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$ADOPTED/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$ADOPTED/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED/versions.tf" || fail "the live-block delta did not match versions.tf"
 log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: choudoufu, live block added)"
 
@@ -466,7 +465,7 @@ GREEN_ROOT="$WORK/green"
 copy_estate "$GREEN_ROOT"
 emulator_delta "$GREEN_ROOT/vpc/examples/complete"
 GREEN="$GREEN_ROOT/vpc/examples/complete"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN/versions.tf"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n  }\n}/' "$GREEN/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf"
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
@@ -1537,6 +1536,7 @@ provider "aws" {
 EOF
     count_test_block "$1"
   } > "$COUNT_ORACLE_DIR/main.tf"
+  gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $COUNT_ORACLE_DIR/main.tf"
 }
 
 oracle_count_config 2

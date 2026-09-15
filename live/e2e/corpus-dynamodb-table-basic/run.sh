@@ -266,9 +266,8 @@ EX="$EST/examples/basic"
 log "=== 1. the onboarding delta ==="
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$EX/main.tf"
 grep -q 's3_use_path_style' "$EX/main.tf" || fail "the emulator delta did not match main.tf - the corpus pin has moved"
-perl -pi -e 's/version = ">= 6\.28"/version = "= 6.59.0"/' "$EX/versions.tf"
-grep -q 'version = "= 6.59.0"' "$EX/versions.tf" || fail "the provider version pin delta did not match versions.tf - the corpus pin has moved"
-log "  DELTA  emulator flags added to the provider block; aws provider pinned = 6.59.0; no backend, no live block yet"
+gauntlet_pin_aws_provider "$EX/versions.tf" || fail "gauntlet_pin_aws_provider failed for $EX/versions.tf - the corpus pin has moved"
+log "  DELTA  emulator flags added to the provider block; aws provider pinned via gauntlet_pin_aws_provider; no backend, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -518,7 +517,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }
@@ -1537,8 +1536,7 @@ GF_ORACLE="$WORK/green-oracle/examples/basic"
 for d in "$GF_GREEN" "$GF_ORACLE"; do
   perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$d/main.tf"
   grep -q 's3_use_path_style' "$d/main.tf" || fail "the emulator delta did not match main.tf in $d - the corpus pin has moved"
-  perl -pi -e 's/version = ">= 6\.28"/version = "= 6.59.0"/' "$d/versions.tf"
-  grep -q 'version = "= 6.59.0"' "$d/versions.tf" || fail "the provider version pin delta did not match versions.tf in $d - the corpus pin has moved"
+  gauntlet_pin_aws_provider "$d/versions.tf" || fail "gauntlet_pin_aws_provider failed for $d/versions.tf - the corpus pin has moved"
 done
 perl -0777pi -e 's/\}\n\z/\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}\n/' "$GF_GREEN/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GF_GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"

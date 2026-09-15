@@ -411,7 +411,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 $live_block
@@ -476,6 +476,7 @@ module "overture_tiles" {
   }
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/main.tf" || fail "gauntlet_pin_aws_provider failed for $dest/main.tf"
 }
 
 copy_module "$PLAIN"
@@ -2311,7 +2312,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }
@@ -2336,6 +2337,7 @@ resource "aws_vpc" "count_oracle" {
 }
 EOF
       count_test_block "$1" "aws_vpc.count_oracle.id" "$ORACLE_CT_PREFIX" >> "$ORACLE_COUNT_DIR/main.tf"
+      gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
     }
 
     log ""

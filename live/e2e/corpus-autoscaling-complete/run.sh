@@ -273,8 +273,7 @@ emulator_delta() {
   local ex="$1"
   perl -0pi -e 's/(provider "aws" \{\n  region = local\.region\n)\}/$1\n  access_key                  = "test"\n  secret_key                  = "test"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n}/' "$ex/main.tf"
   grep -q 's3_use_path_style' "$ex/main.tf" || fail "the emulator delta did not match main.tf's provider block - the corpus pin has moved"
-  perl -0pi -e 's/version = ">= 6\.56"/version = "= 6.59.0"/' "$ex/versions.tf"
-  grep -q '= 6.59.0' "$ex/versions.tf" || fail "the version pin delta did not match versions.tf - the corpus pin has moved"
+  gauntlet_pin_aws_provider "$ex/versions.tf" || fail "gauntlet_pin_aws_provider failed for $ex/versions.tf - the corpus pin has moved"
 }
 
 copy_estate "$WORK/plain"
@@ -1439,6 +1438,7 @@ resource "aws_vpc" "count_oracle" {
 HCL
       count_test_block "$1" "aws_vpc.count_oracle.id" "$COUNT_ORACLE_NAME"
     } > "$ORACLE_COUNT_DIR/main.tf"
+    gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
   }
 
   write_count_oracle 2

@@ -636,9 +636,10 @@ copy_tree() {
 }
 
 # apply_deltas EST_DIR - DELTA 1 (emulator provider flags), DELTA 2
-# (Cognito domain removed, EMULATOR GAP lex00/floci#63), and a provider
-# version pin (this checkout's admission tables were generated against
-# 6.59.0).
+# (Cognito domain removed, EMULATOR GAP lex00/floci#63), and the
+# hashicorp/aws provider pin (issue #1041; live/oracle-versions.json's
+# aws_provider_version, via gauntlet_pin_aws_provider - not a literal this
+# script carries itself).
 apply_deltas() {
   local est="$1"
   perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_key                   = "test" # DELTA 1\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  skip_requesting_account_id   = true\n  s3_use_path_style            = true\n}/' "$est/main.tf"
@@ -649,8 +650,7 @@ apply_deltas() {
   perl -pi -e 's/aws_cognito_user_pool_domain\.this\.domain/local.name # DELTA 2/g' "$est/main.tf"
   grep -qF 'aws_cognito_user_pool_domain.this.domain' "$est/main.tf" && fail "DELTA 2 left a live reference to the removed Cognito domain resource"
 
-  perl -0pi -e 's/version = ">= 5\.46"/version = "= 6.59.0"/' "$est/versions.tf"
-  grep -q '= 6.59.0' "$est/versions.tf" || fail "the provider version pin did not match versions.tf - the corpus pin has moved"
+  gauntlet_pin_aws_provider "$est/versions.tf" || fail "gauntlet_pin_aws_provider failed for $est/versions.tf - the corpus pin has moved"
 }
 
 # count_test_block($1 = count, $2 = vpc_id HCL expression) is PART G's own
@@ -879,7 +879,7 @@ copy_tree "$GREEN"
 GREEN_EST="$GREEN/alb/examples/complete-alb"
 apply_deltas "$GREEN_EST"
 cp "$PLAIN_EST/$PKG_FILE" "$GREEN_EST/$PKG_FILE" || fail "could not copy the already-fetched Lambda deployment zip into the greenfield copy"
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 log "  DELTA  live block (record_store, evidence for #364 A2; strict.no_source_create=create for #388's default-flip greenfield ambiguity) added on top of the same reduction/onboarding deltas \$PLAIN/\$ADOPTED use"
 
@@ -1105,7 +1105,7 @@ curl -fsSL -o "$ADOPTED_EST/$PKG_FILE" "$PKG_URL" || fail "could not prefetch th
 # DELTA 4, onboarding: add the live block. record_store is needed for
 # null_resource.download_package (an effects-only resource - see the
 # record-store fixture).
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$ADOPTED_EST/versions.tf"
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n    null = \{\n      source  = \"hashicorp\/null\"\n      version = \">= 2\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }\n}/" "$ADOPTED_EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED_EST/versions.tf" || fail "DELTA 4 did not match versions.tf - the corpus pin has moved"
 log "  DELTA 4  live block + local record_store added             (onboarding)"
 
@@ -2334,7 +2334,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }

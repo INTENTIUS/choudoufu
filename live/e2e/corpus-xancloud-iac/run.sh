@@ -175,9 +175,11 @@ set -uo pipefail
 #     real state bucket this crossing has no reason to bootstrap) is
 #     removed entirely, falling back to the implicit local backend - the
 #     same choice corpus-hongbomiao-labelbox's own root wiring makes.
-#     aws provider version is pinned to the exact release this fork's own
-#     e2e suite standardizes on (= 6.59.0) instead of the module's own
-#     unpinned "~> 6.0", for reproducibility across runs.
+#     aws provider version is pinned via gauntlet_pin_aws_provider (issue
+#     #1041) to live/oracle-versions.json's aws_provider_version, the
+#     exact release every crossing in this fork standardizes on, instead
+#     of the module's own unpinned "~> 6.0", for reproducibility across
+#     runs.
 #   - examples/dev.tfvars: `region = "<region>"` is a literal placeholder
 #     the module's own comment says must be filled in before use ("Debe
 #     coincidir con la región del perfil AWS y del state backend") - not a
@@ -394,11 +396,13 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "= $(gauntlet_aws_pin_version)"
     }
   }
 }
 EOF
+  gauntlet_pin_aws_provider "$dest/blueprints/landing-zone-basic/versions.tf" \
+    || fail "gauntlet_pin_aws_provider failed for $dest/blueprints/landing-zone-basic/versions.tf"
 }
 
 # region_patch <destdir> - examples/dev.tfvars ships region = "<region>", a
