@@ -754,6 +754,14 @@ func TestRunEstatesHonorsCallerSuppliedFlociPort(t *testing.T) {
 	if detail != want {
 		t.Fatalf("script saw detail %q, want %q - a caller-supplied FLOCI_PORT must be the base a runner-launched script gets, not silently replaced by the fixed default (#1040)", detail, want)
 	}
+
+	// #1040's proof also asks for the runner's OWN log naming the port each
+	// script used, not just each script's internal log - two workers
+	// watching a shared `gauntlet run` invocation's stdout need to see
+	// which port landed where without opening a per-estate log file.
+	if stdout := out.String(); !strings.Contains(stdout, "FLOCI_PORT="+wantPort) {
+		t.Fatalf("runner stdout %q does not name FLOCI_PORT=%s - the runner's own log must say which port each script got (#1040)", stdout, wantPort)
+	}
 }
 
 // TestRunEstatesParallelMatchesSerial is the Go-level half of #437's

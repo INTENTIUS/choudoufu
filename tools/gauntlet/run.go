@@ -533,6 +533,21 @@ func setEnv(env []string, kv string) []string {
 	return append(out, kv)
 }
 
+// flociPortEnvEntry returns the FLOCI_PORT=<port> entry from extraEnv (the
+// last one, if more than one somehow appears), or "FLOCI_PORT=unset" if
+// none is present. Used only for the runner's own "running ..." log line
+// (#1040's proof requirement: the runner names the port each script got,
+// not just each script's own internal log), never for anything that
+// affects the child process's actual environment - that is cmd.Env's job.
+func flociPortEnvEntry(extraEnv []string) string {
+	for i := len(extraEnv) - 1; i >= 0; i-- {
+		if strings.HasPrefix(extraEnv[i], "FLOCI_PORT=") {
+			return extraEnv[i]
+		}
+	}
+	return "FLOCI_PORT=unset"
+}
+
 // runOne runs one estate's script and returns its parsed protocol result,
 // its exit code, and the wall-clock seconds the process itself took (from
 // just before cmd.Run() to just after it returns - includes the script's
@@ -562,7 +577,7 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	}
 	cmd.Stdout = io.MultiWriter(&captured, logf)
 	cmd.Stderr = logf
-	fmt.Fprintf(opts.Stdout, "%s: running %s (log: %s)\n", e.Name, e.ScriptPath(), filepath.Join(LogDir, e.Name+".log"))
+	fmt.Fprintf(opts.Stdout, "%s: running %s on %s (log: %s)\n", e.Name, e.ScriptPath(), flociPortEnvEntry(extraEnv), filepath.Join(LogDir, e.Name+".log"))
 	start := time.Now()
 	runErr := cmd.Run()
 	elapsed := time.Since(start).Seconds()
