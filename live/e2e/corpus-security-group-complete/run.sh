@@ -975,7 +975,7 @@ if [ "${BREAK_GREENFIELD:-}" = "1" ]; then
   N_EXPECTED_SG_TOTAL=5
   log "  BREAK_GREENFIELD=1: dropped module.consul's security group from the expected inventory - the total-count comparison below must fail"
 fi
-GREEN_SG_COUNT="$(awsg resourcegroupstaggingapi get-resources --resource-type-filters ec2:security-group --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+GREEN_SG_COUNT="$(gauntlet_tagged_count awsg resourcegroupstaggingapi get-resources --resource-type-filters ec2:security-group --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" 2>/dev/null || echo 0)"
 [ "$GREEN_SG_COUNT" = "$N_EXPECTED_SG_TOTAL" ] || fail "the greenfield estate has $GREEN_SG_COUNT tagged security groups, expected $N_EXPECTED_SG_TOTAL"
 
 for pair in $EXPECTED_SGS; do
@@ -1728,17 +1728,17 @@ if [ "$CHANGED_N" -eq 0 ]; then
 
   # ── 4. test apply: apply the empty plan; it must be a genuine no-op ──────
   log "=== 4. test apply: applying the empty plan is a genuine no-op ==="
-  BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
   NOOP_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
   NOOP_APPLY_RC=$?
   [ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -40; fail "the no-op apply exited $NOOP_APPLY_RC"; }
   grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_APPLY_OUT" \
     || { printf '%s\n' "$NOOP_APPLY_OUT" | grep -E '^  #|^  ~|Apply complete'; fail "the no-op apply was not a genuine no-op"; }
-  AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
   [ "$AFTER_N" = "$BEFORE_N" ] || fail "the tofu-estate-tagged object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
   log "  genuine no-op: Resources: 0 added, 0 changed, 0 destroyed;"
   log "  $BEFORE_N tofu-estate-tagged objects before and after, read through"

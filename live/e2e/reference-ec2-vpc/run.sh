@@ -1285,17 +1285,17 @@ gauntlet_stage test_plan pass "post-adoption plan is empty; markers read back th
 gauntlet_begin_stage test_apply
 
 log "=== B5. apply the empty plan: a genuine no-op ==="
-BEFORE_N="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$BEFORE_N" = "5" ] || fail "expected 5 objects carrying tofu-estate=$ESTATE before the no-op apply (vpc, subnet, igw, sg, instance), got $BEFORE_N"
 NOOP_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
 [ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -30; fail "the no-op apply exited $NOOP_APPLY_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_APPLY_OUT" \
   || { grep -E 'Apply complete' <<< "$NOOP_APPLY_OUT"; fail "the no-op apply was not a genuine no-op"; }
-AFTER_N="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"

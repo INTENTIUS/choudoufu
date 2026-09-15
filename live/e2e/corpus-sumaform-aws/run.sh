@@ -1081,8 +1081,8 @@ log "  phase 2: $(grep -E 'Apply complete' <<< "$GPHASE2" | tail -1)"
 [ ! -f "$GREEN/terraform.tfstate" ] || fail "the greenfield apply left a state file - this estate must never keep local state"
 
 log "=== PART GREENFIELD: 2. markers, read through the AWS CLI and the record store directly ==="
-GTAGGED="$(aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME" --query 'length(ResourceTagMappingList)' --output text)"
+GTAGGED="$(gauntlet_tagged_count aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME")"
 [ "$GTAGGED" = "7" ] || fail "the greenfield estate has $GTAGGED tag-stamped objects, expected 7"
 [ -d "$GREEN/.tofu-records/tofu-records" ] || fail "the greenfield apply wrote no tofu-records namespace"
 # The record store now holds an envelope per instance regardless of
@@ -1645,9 +1645,9 @@ if [ "${BREAK:-}" = "1" ]; then
   log "  BREAK=1: tampered $IGW_ID's Name tag before the no-op apply - the apply below must NOT report a genuine no-op"
 fi
 
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 
 APPLY2_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
@@ -1663,9 +1663,9 @@ fi
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "a state file exists after the apply - choudoufu apply under a live block must leave none"
 

@@ -536,9 +536,9 @@ grep -qE 'Apply complete! Resources: 26 added, 0 changed, 0 destroyed' <<< "$COL
 log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
 [ -f "$PLAIN/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 

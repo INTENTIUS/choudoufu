@@ -414,9 +414,9 @@ grep -qE 'additional_policy_attachments' <<< "$COLD_OUT" \
   && fail "aws_iam_role_policy_attachment.additional_policy_attachments produced an instance - the module's additional_policies_arns default is no longer empty"
 log "  confirmed: the toset()-keyed for_each on additional_policy_attachments resolves to zero instances"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 
@@ -824,9 +824,9 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$BEFORE_N" = "2" ] \
   || fail "expected 2 objects carrying tofu-estate=$ESTATE_NAME before the no-op apply (the role and the managed policy), got $BEFORE_N"
 
@@ -835,9 +835,9 @@ APPLY2_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "a state file exists after the apply"
 

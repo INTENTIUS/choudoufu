@@ -941,7 +941,7 @@ STOCK_SHAPE="$(instance_shape "$ENDPOINT" "$STOCK_INSTANCE_ID")"
 [ "$GREEN_SHAPE" = "$STOCK_SHAPE" ] || fail "an EC2 instance's shape differs: greenfield=$GREEN_SHAPE stock=$STOCK_SHAPE"
 log "  instance shape matches (type/ami: $GREEN_SHAPE)"
 
-GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+GREEN_TAGGED="$(gauntlet_tagged_count awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE")"
 [ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
 log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS CLI"
 
@@ -1730,18 +1730,18 @@ if [ -n "${STAGE3_PASSED:-}" ]; then
   # ── 4. test apply: apply the empty plan, assert a genuine no-op ──────────
   gauntlet_begin_stage test_apply
   log "=== 4. test apply: apply the empty plan, assert a genuine no-op ==="
-  BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 
   APPLY2_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
   [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -60; fail "the post-migration apply failed"; }
   grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
     || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-  AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
   [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
   log "  genuine no-op: $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"
   gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); $BEFORE_N tofu-estate-tagged objects before, $AFTER_N after"

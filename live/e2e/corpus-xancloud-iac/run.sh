@@ -601,9 +601,9 @@ grep -qE 'Apply complete! Resources: 28 added, 0 changed, 0 destroyed' <<< "$COL
 log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
 [ -f "$PLAIN/blueprints/landing-zone-basic/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 
@@ -685,10 +685,10 @@ log "=== PART F: 5. object-by-object comparison against stock's cold deploy, sti
 # so filtering both accounts on it and comparing the taggable-object count
 # is a fair, marker-free structural comparison; a handful of per-type CLI
 # reads (never through tofu state on either side) narrow it further.
-GREEN_TAGGED_N="$(awsg resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=Project,Values=$PROJECT" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
-PLAIN_TAGGED_N="$(awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=Project,Values=$PROJECT" --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+GREEN_TAGGED_N="$(gauntlet_tagged_count awsg resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=Project,Values=$PROJECT" 2>/dev/null || echo 0)"
+PLAIN_TAGGED_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=Project,Values=$PROJECT" 2>/dev/null || echo 0)"
 if [ "${BREAK_GREENFIELD:-}" = "1" ]; then
   GREEN_TAGGED_N=$((GREEN_TAGGED_N - 1))
   log "  BREAK_GREENFIELD=1: subtracted one from the greenfield count on purpose - the comparison below must fail"
@@ -1002,9 +1002,9 @@ gauntlet_begin_stage test_apply
 # proof (live/GAUNTLET.md, stage 4's oracle).
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$BEFORE_N" != "0" ] || fail "0 objects carry tofu-estate=$ESTATE_NAME before the no-op apply - the tag query itself is broken"
 
 APPLY2_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
@@ -1012,9 +1012,9 @@ APPLY2_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the apply of the empty plan was not a genuine no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"

@@ -804,6 +804,54 @@ func TestLegacyScriptsOnlyGoDown(t *testing.T) {
 	}
 }
 
+// perPageTaggedCountPattern matches the idiom issue #1042 fixed: an AWS CLI
+// call against the paginated Tagging API (resourcegroupstaggingapi
+// get-resources, which pages at 100) with `--query 'length(...)'` applied
+// straight to ResourceTagMappingList. The CLI runs --query against EACH
+// page before merging, so a script that counts this way prints one number
+// per page ("100 100 100 35") past the first page instead of the true
+// total, and a reader who does not know the mechanism believes the count
+// itself is broken. live/e2e/lib/gauntlet.sh's gauntlet_tagged_count sums
+// the pages correctly by dropping --query and letting the CLI's normal
+// automatic pagination merge the array first; every crossing script must
+// go through it instead of re-deriving the query by hand.
+var perPageTaggedCountPattern = regexp.MustCompile(`--query\s+['"]length\(ResourceTagMappingList`)
+
+// TestNoScriptCountsTaggedObjectsPerPage: issue #1042. Scans every
+// manifest-registered crossing script's own source for the pattern above.
+// Proven red on purpose: reverting the #1042 fix in any one crossing
+// script (restoring its `--query 'length(ResourceTagMappingList)'
+// --output text` and dropping the gauntlet_tagged_count call) makes this
+// test fail again, naming that script.
+func TestNoScriptCountsTaggedObjectsPerPage(t *testing.T) {
+	root := testRoot(t)
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var violations []string
+	for _, e := range m.Estates {
+		p := filepath.Join(root, e.ScriptPath())
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, line := range strings.Split(string(b), "\n") {
+			if perPageTaggedCountPattern.MatchString(line) {
+				violations = append(violations, fmt.Sprintf("%s:%d", rel, i+1))
+			}
+		}
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Errorf("tagged-count query applied per page instead of summed (issue #1042):\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 // sentinelBlindFindPattern matches a crossing script's own copy of the
 // record-count find live/e2e/*/run.sh used to share before issue #861: a
 // find that excludes the store's lock and in-progress-write files but not

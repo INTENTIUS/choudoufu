@@ -486,9 +486,9 @@ GOT_SHAPE="$(cd "$EST" && terraform state list 2>/dev/null | grep -v '\.data\.\|
   fail "the cold estate's managed resource shape is not the 35 resources this script documents - the corpus pin has moved"; }
 log "  managed shape confirmed: 35 resources across 13 types"
 
-UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
 log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 
@@ -644,7 +644,7 @@ STOCK_SHAPE="$(instance_shape "$ENDPOINT" "$STOCK_INSTANCE_ID")"
 [ "$GREEN_SHAPE" = "$STOCK_SHAPE" ] || fail "the instance's shape differs: greenfield=$GREEN_SHAPE stock=$STOCK_SHAPE"
 log "  instance shape matches (type/ami/block-device-count: $GREEN_SHAPE)"
 
-GREEN_TAGGED="$(awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+GREEN_TAGGED="$(gauntlet_tagged_count awsg resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE")"
 [ "$GREEN_TAGGED" -gt 0 ] || fail "no live objects carry tofu-estate=$GREEN_ESTATE after the greenfield apply"
 log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS CLI"
 
@@ -977,9 +977,9 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$BEFORE_N" = "24" ] || fail "expected 24 tofu-estate-tagged objects before stage 4, got $BEFORE_N"
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
@@ -987,9 +987,9 @@ APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
@@ -1981,7 +1981,7 @@ EOF
       || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan touches something other than module.ec2_complete's own 10 resources"; }
     log "  choudoufu: exactly 10 destroys under module.ec2_complete, matching the stock oracle, nothing else"
 
-    TAGGED_BEFORE="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+    TAGGED_BEFORE="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")"
 
     REMOVE_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; REMOVE_APPLY_RC=$?
     [ "$REMOVE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_APPLY_OUT" | tail -40; fail "the day2_remove apply exited $REMOVE_APPLY_RC"; }
@@ -1993,7 +1993,7 @@ EOF
     fi
     log "  $INSTANCE_ID terminated - confirmed via the AWS CLI, not through choudoufu's own report"
 
-    TAGGED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" --query 'length(ResourceTagMappingList)' --output text)"
+    TAGGED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")"
     [ "$TAGGED_AFTER" -lt "$TAGGED_BEFORE" ] \
       || fail "the tagged object count did not drop at all across the destroy ($TAGGED_BEFORE -> $TAGGED_AFTER)"
     log "  tagged object count $TAGGED_BEFORE -> $TAGGED_AFTER - confirmed via the AWS CLI"
