@@ -717,6 +717,45 @@ func TestRunEstatesParallelAssignsDistinctPortsPerSlot(t *testing.T) {
 	}
 }
 
+// TestRunEstatesHonorsCallerSuppliedFlociPort is #1040's guard. Before this
+// fix, runOne applied flociPortEnv's port via setEnv AFTER opts.Env (and
+// after -env), so a caller's own FLOCI_PORT was silently replaced by the
+// fixed parallelPortBase (20000) on every runner-launched script - which is
+// exactly how two workers, each invoking `gauntlet run` on a different
+// estate with what they believed was a distinct FLOCI_PORT, collided on
+// 20000 anyway (#1040's own report: a corpus-alb-complete run found another
+// worker's corpus-rds-complete-postgres container already on it). This runs
+// one fake estate serially with an explicit RunOptions.Env FLOCI_PORT and
+// asserts the script actually saw THAT port, not the fixed default.
+func TestRunEstatesHonorsCallerSuppliedFlociPort(t *testing.T) {
+	root := t.TempDir()
+	writeFakeEstate(t, root, "capped",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0 detail=port=%s\\n' \"${FLOCI_PORT:-unset}\"\n")
+
+	m := &Manifest{Estates: []Estate{{Name: "capped", Source: "s", Lane: "reference", Set: SetGrowing}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	const wantPort = "4638"
+	if _, err := RunEstates(root, m, a, RunOptions{
+		Names:  []string{"capped"},
+		Env:    []string{"FLOCI_PORT=" + wantPort},
+		Stdout: &out,
+	}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+
+	r, ok := a.Result("capped")
+	if !ok {
+		t.Fatal("no result for capped")
+	}
+	detail := r.LastRun.Detail["cold_deploy"]
+	want := "port=" + wantPort
+	if detail != want {
+		t.Fatalf("script saw detail %q, want %q - a caller-supplied FLOCI_PORT must be the base a runner-launched script gets, not silently replaced by the fixed default (#1040)", detail, want)
+	}
+}
+
 // TestRunEstatesParallelMatchesSerial is the Go-level half of #437's
 // equivalence requirement: for a script whose own output does not depend on
 // FLOCI_PORT (unlike the fixture above, which deliberately does, to prove
@@ -861,7 +900,7 @@ func TestAllocatedPortRangesNeverOverlap(t *testing.T) {
 	type portRange struct{ slot, lo, hi int }
 	ranges := make([]portRange, slots)
 	for slot := 0; slot < slots; slot++ {
-		port := parseFlociPort(t, flociPortEnv(slot))
+		port := parseFlociPort(t, flociPortEnv(parallelPortBase, slot))
 		ranges[slot] = portRange{slot: slot, lo: port, hi: port + maxOffset}
 	}
 	for i := 0; i < slots; i++ {
