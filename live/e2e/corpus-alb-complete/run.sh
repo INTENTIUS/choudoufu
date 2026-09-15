@@ -1004,15 +1004,22 @@ if grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT"; then
   # "ex-instance" target group - aws_instance.this through target_groups and
   # aws_instance.other through additional_target_group_attachments - and
   # terraform issues both concurrently under its default parallelism of 10.
-  # floci's registerTargets read-modify-writes the target group's own target
-  # list with no lock, so one registration can be dropped; RegisterTargets
-  # answers with an empty success body, the apply still says "Apply
-  # complete! Resources: 80 added", and the loss first shows up as an
+  # floci's registerTargets USED TO read-modify-write the target group's own
+  # target list with no lock, so one registration could be dropped;
+  # RegisterTargets answers with an empty success body, the apply still says
+  # "Apply complete! Resources: 80 added", and the loss first shows up as an
   # unexplained "will be created" on the next plan that refreshes.
   # INTENTIUS/choudoufu#1005; measured with an AWS CLI probe and no
   # terraform in the loop at 2 rounds in 25 (concurrency 2) and 3 in 10
-  # (concurrency 5). Fail either way - a run whose cold deploy lost an
-  # object proves nothing about a rename - but fail saying which.
+  # (concurrency 5). Fixed in lex00/floci#198 (be26d4bb7), which every image
+  # pinned since 2026-09-08 carries; re-verified 50/50 (25 rounds x 2
+  # concurrent) and 50/50 (10 rounds x 5 concurrent) against
+  # sha256:0bbeb430 on 2026-09-14, with the same probe shown losing targets
+  # against the pre-fix sha256:a39185cc. This branch is a REGRESSION GUARD
+  # now: if it ever fires again the emulator has regressed, and the fix to
+  # reach for is the target group's monitor, not this script. Fail either
+  # way - a run whose cold deploy lost an object proves nothing about a
+  # rename - but fail saying which.
   ORACLE_CHURN="$(grep -E '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT")"
   grep -qvE '^  # module\.alb\.aws_lb_target_group_attachment\..+ will be created$' <<< "$ORACLE_CHURN" \
     || fail "the day2_rename stock oracle plan proposes nothing but target-group-attachment CREATES ($(tr '\n' ' ' <<< "$ORACLE_CHURN" | sed 's/  # //g')) - the emulator lost a RegisterTargets during stage 1's cold deploy, so this is not churn from the rename; see INTENTIUS/choudoufu#1005"
