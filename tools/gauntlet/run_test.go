@@ -764,6 +764,48 @@ func TestRunEstatesHonorsCallerSuppliedFlociPort(t *testing.T) {
 	}
 }
 
+// TestRunEstatesRefusesMalformedCallerFlociPort is #1040's sibling guard: a
+// FLOCI_PORT that is PRESENT but does not parse as an integer must not fall
+// back to parallelPortBase in silence. That fallback would be
+// indistinguishable from a caller supplying nothing at all - a worker that
+// typos FLOCI_PORT=46a0 asked for a specific port, was told nothing, and
+// landed on 20000 anyway, which is #1040's own silent-collision failure
+// wearing a different hat. RunEstates must refuse the whole invocation
+// before launching any script - no log file, no artifact row touched - and
+// name the malformed value in the error.
+func TestRunEstatesRefusesMalformedCallerFlociPort(t *testing.T) {
+	root := t.TempDir()
+	writeFakeEstate(t, root, "typoport",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0\\n'\n")
+
+	m := &Manifest{Estates: []Estate{{Name: "typoport", Source: "s", Lane: "reference", Set: SetGrowing}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	const badPort = "46a0"
+	_, err := RunEstates(root, m, a, RunOptions{
+		Names:  []string{"typoport"},
+		Env:    []string{"FLOCI_PORT=" + badPort},
+		Stdout: &out,
+	}, "c", "e")
+	if err == nil {
+		t.Fatal("RunEstates returned no error for FLOCI_PORT=46a0 - a malformed caller-supplied port must refuse the run, not silently fall back to the default (#1040)")
+	}
+	if !strings.Contains(err.Error(), badPort) {
+		t.Errorf("error %q does not name the malformed value %q", err.Error(), badPort)
+	}
+	if !strings.Contains(err.Error(), "FLOCI_PORT") {
+		t.Errorf("error %q does not mention FLOCI_PORT", err.Error())
+	}
+	if _, ok := a.Result("typoport"); ok {
+		t.Error("typoport has an artifact row - a refused port must never touch the artifact")
+	}
+	logPath := filepath.Join(root, LogDir, "typoport.log")
+	if _, statErr := os.Stat(logPath); statErr == nil {
+		t.Errorf("log file %s exists - the script must never have been launched on a refused port", logPath)
+	}
+}
+
 // TestRunEstatesParallelMatchesSerial is the Go-level half of #437's
 // equivalence requirement: for a script whose own output does not depend on
 // FLOCI_PORT (unlike the fixture above, which deliberately does, to prove

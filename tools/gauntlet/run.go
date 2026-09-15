@@ -29,7 +29,10 @@ type RunOptions struct {
 	// Env is extra KEY=VALUE for every script. A FLOCI_PORT entry here (or
 	// inherited from this process's own environment) is honoured as the
 	// base every FLOCI_PORT this run assigns is offset from (flociPortBase,
-	// #1040) instead of being silently replaced by the fixed default.
+	// #1040) instead of being silently replaced by the fixed default. One
+	// that does not parse as an integer refuses the whole run rather than
+	// silently falling back, the same #1040 reasoning applied to a typo
+	// instead of an override.
 	Env []string
 	// Parallel is how many estates run concurrently, each against its own
 	// isolated floci emulator (#437). <=1 means serial: the exact code path
@@ -117,10 +120,21 @@ func flociPortEnv(base, slot int) string {
 // runOne assembles cmd.Env (process environment first, then opts.Env, so a
 // caller's own -env can override an inherited FLOCI_PORT too), and the last
 // match wins, matching "later entries override earlier ones" the way
-// setEnv already treats extraEnv. A value that fails to parse as an
-// integer is treated as absent rather than crashing a run over a typo; the
-// safe fallback is the same one every caller got before this existed.
-func flociPortBase(env []string) int {
+// setEnv already treats extraEnv.
+//
+// A FLOCI_PORT that is present but does not parse as an integer is refused
+// with an error rather than silently treated as absent. Falling back to
+// parallelPortBase there would be #1040 again with different words: a
+// worker that typed `FLOCI_PORT=46a0` (or picked up something odd from its
+// own shell) asked for a specific port, was told nothing, and landed on
+// 20000 anyway - indistinguishable from every other caller that supplied
+// nothing at all, which is exactly the silent-collision failure mode this
+// issue exists to remove. A run that never starts is loud and cannot
+// collide; a run that starts on the wrong port because its own typo went
+// unremarked can. Only the ABSENT case defaults to parallelPortBase - that
+// default is #520's, predates a caller ever supplying anything, and stays
+// exactly as forgiving as it always was.
+func flociPortBase(env []string) (int, error) {
 	combined := append(append([]string{}, os.Environ()...), env...)
 	value, found := "", false
 	const prefix = "FLOCI_PORT="
@@ -130,13 +144,13 @@ func flociPortBase(env []string) int {
 		}
 	}
 	if !found {
-		return parallelPortBase
+		return parallelPortBase, nil
 	}
 	port, err := strconv.Atoi(value)
 	if err != nil {
-		return parallelPortBase
+		return 0, fmt.Errorf("FLOCI_PORT=%q is not a valid port number - refusing to fall back to the default (%d) in silence, which is #1040's own failure shape (an explicit port request silently ignored); fix or unset FLOCI_PORT", value, parallelPortBase)
 	}
-	return port
+	return port, nil
 }
 
 // RunEstates executes each selected estate's script, parses the protocol,
@@ -162,6 +176,14 @@ func flociPortBase(env []string) int {
 // pin would be configuration asserted as evidence, not evidence. See
 // OracleVersions's doc comment (artifact.go).
 func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, emulator string) (int, error) {
+	// Resolved and validated before anything else runs: a malformed
+	// caller-supplied FLOCI_PORT refuses the whole invocation rather than
+	// silently launching any script on the wrong port (flociPortBase's doc
+	// comment, #1040).
+	base, err := flociPortBase(opts.Env)
+	if err != nil {
+		return 0, err
+	}
 	oracle := probeOracle()
 	var selected []Estate
 	if len(opts.Names) > 0 {
@@ -192,7 +214,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	// one: the concurrency lives entirely in runResults, and everything
 	// below that reads runResults is textually the loop this function had
 	// before #437, untouched.
-	results := runResults(root, selected, opts)
+	results := runResults(root, selected, opts, base)
 
 	failures := 0
 	for i, e := range selected {
@@ -423,11 +445,12 @@ type oneResult struct {
 // on) is unchanged apart from the one thing #520 adds: each call now also
 // gets an explicit FLOCI_PORT (flociPortEnv(base, 0), the same value slot 0
 // of a parallel run would get), instead of leaving FLOCI_PORT unset the way
-// serial mode did before #520. base comes from flociPortBase(opts.Env), so
-// a caller-supplied FLOCI_PORT is the base rather than being overridden by
-// the fixed default (#1040). Nothing else about the serial code path
-// moved - #437's equivalence argument (see RunOptions.Parallel) rests on
-// that.
+// serial mode did before #520. base is RunEstates's already-validated
+// flociPortBase(opts.Env) result, so a caller-supplied FLOCI_PORT is the
+// base rather than being overridden by the fixed default, and a malformed
+// one never reaches here at all - RunEstates refuses before calling this
+// (#1040). Nothing else about the serial code path moved - #437's
+// equivalence argument (see RunOptions.Parallel) rests on that.
 //
 // opts.Parallel >1 runs up to that many scripts at once. Each concurrent
 // slot (not each estate - a slot is handed back to the pool and reused the
@@ -441,7 +464,7 @@ type oneResult struct {
 // already running is left to finish and tear its own container down rather
 // than killed, so a slot's container is never abandoned mid-life; the first
 // error is still surfaced, in `selected` order, by RunEstates's merge loop.
-func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
+func runResults(root string, selected []Estate, opts RunOptions, base int) []oneResult {
 	results := make([]oneResult, len(selected))
 	parallel := opts.Parallel
 	if parallel < 1 {
@@ -450,7 +473,6 @@ func runResults(root string, selected []Estate, opts RunOptions) []oneResult {
 	if parallel > len(selected) {
 		parallel = len(selected)
 	}
-	base := flociPortBase(opts.Env)
 	if parallel <= 1 {
 		for i, e := range selected {
 			res, exit, elapsed, err := runOne(root, e, opts, []string{flociPortEnv(base, 0)})
