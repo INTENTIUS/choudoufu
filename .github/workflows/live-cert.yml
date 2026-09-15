@@ -24,6 +24,18 @@ name: Live cert
 # tool itself (RunLiveCert's own doc comment) - the account's AWS Budgets
 # alarm and this job's timeout-minutes are the real backstops.
 #
+# LIVECERT_HOLD, LIVECERT_RESUME and LIVECERT_TEARDOWN_ONLY are deliberately
+# NOT inputs here, though #1051 asked for them. They exist so a run can leave
+# the estate standing and a later run can plan against it without paying for
+# cold_deploy and migrate again, and every one of them addresses a work dir
+# by path. On a hosted runner that directory dies with the job. A held
+# dispatch would therefore leave a live, billing estate with no later
+# dispatch able to name it, resume it, or tear it down - the one failure this
+# workflow must not be able to cause. The hold/resume loop is a local one,
+# driven by the maintainer against a work dir that outlives the process;
+# terralith-scale.sh's own header documents it, and a CI run is the
+# all-the-way-through pass that tears down and verifies the account empty.
+#
 # Never pushes main: the result lands on a fresh live-cert/<run id> branch
 # and a pull request, the same shape gauntlet.yml uses for its nightly
 # artifact, so a maintainer still reviews what a real account run recorded
@@ -45,6 +57,12 @@ on:
       ceiling_usd:
         description: "cost ceiling this run is certifying under (informational here; enforced by the account's own AWS Budgets alarm)"
         default: "15"
+      timeout_minutes:
+        description: "job ceiling in minutes. 350 carries a 10k run; GitHub caps a hosted-runner job at 360, so a size that needs more than that cannot be dispatched here and has to be driven by hand"
+        default: "350"
+      index_wait_s:
+        description: "LIVECERT_INDEX_WAIT_S: seconds to wait for the tagging index to catch up with migrate's writes before test_plan. 1800 is the script default and was measured against 1,655 stamped resources; a 10k run writes six times that, so raise it here rather than watching test_plan refuse"
+        default: "1800"
 
 permissions:
   contents: write
@@ -58,7 +76,12 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Was a hard 60 (#1102's other open item), which no real estate fits
+    # inside: the 3,705-resource run took over three hours. An input, so one
+    # dispatch can be a quick reference-ec2-vpc pass and the next a 10k
+    # terralith, and so raising it is a decision recorded on the run rather
+    # than an edit to this file.
+    timeout-minutes: ${{ fromJSON(github.event.inputs.timeout_minutes) }}
     environment: real-aws
     steps:
       - uses: actions/checkout@v7
@@ -110,13 +133,19 @@ jobs:
           # required the real-aws environment's required reviewer to click
           # approve.
           SCALE: ${{ github.event.inputs.scale }}
+          LIVECERT_INDEX_WAIT_S: ${{ github.event.inputs.index_wait_s }}
         run: |
           set -o pipefail
           mkdir -p "$LIVECERT_WORK_DIR"
+          # -timeout-seconds is derived from the job's own ceiling rather than
+          # left at its default, minus two minutes so the Go side stops the
+          # script and the "Keep the work dir and the log" step still runs.
+          # A job GitHub cancels outright uploads nothing.
           go run ./tools/gauntlet live-cert \
             -target aws \
             -region "${{ vars.AWS_REGION }}" \
             -ceiling-usd "${{ github.event.inputs.ceiling_usd }}" \
+            -timeout-seconds "$(( ${{ github.event.inputs.timeout_minutes }} * 60 - 120 ))" \
             "${{ github.event.inputs.estate }}" | tee live-cert-run.log
 
       - name: Keep the work dir and the log

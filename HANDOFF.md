@@ -361,10 +361,26 @@ SCALE=136 go run ./tools/gauntlet live-cert -target aws -region us-east-2 \
   -ceiling-usd 15 -timeout-seconds 34000 terralith-scale
 ```
 
-with nothing to unlock first. #1102 also notes that the default
-`-timeout-seconds` (900) and `live-cert.yml`'s `timeout-minutes: 60` cannot
-carry a real estate; those defaults are unchanged here and are that issue's
-open item.
+with nothing to unlock first. `-timeout-seconds` is still worth passing at
+this size, but no longer because the default would kill the run: it defaults
+to 14400 (four hours) rather than 900, and `live-cert.yml`'s job ceiling is
+a `timeout_minutes` input defaulting to 350 rather than a hard 60. That was
+#1102's open item, closed 2026-09-15. Four guards in
+`live/livecert_ceilings_test.go` hold both numbers, the seam between them
+(the workflow derives the tool's ceiling from its own) and GitHub's
+360-minute hosted-runner cap, which is the ceiling above the ceiling: a size
+needing more than six hours cannot be dispatched and has to be driven by
+hand.
+
+A dispatch also takes `index_wait_s` (LIVECERT_INDEX_WAIT_S, default 1800).
+Raise it at scale - that bound was measured against 1,655 stamped resources
+and a 10k run writes six times as many, which is what #1046 and #1049 were
+about.
+
+`LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` are local
+only, and deliberately not workflow inputs: each names a work dir by path,
+and a hosted runner's dies with the job, so a held dispatch would strand a
+live, billing estate no later dispatch could reach.
 
 ### Heavy runs are dispatched, approved and never local
 
