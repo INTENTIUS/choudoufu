@@ -1527,10 +1527,18 @@ if grep -q 'is unclaimed, so this may be the same resource under a new instance 
   printf '%s\n' "$REMOVE_PLAN" | tail -30
   fail "choudoufu withheld a destroy as a possible rename (discovery.go's classifyOrphans) even though no other block of that type and name is declared anywhere in this config"
 fi
+# On failure, print the WHOLE plan, not the resource-action lines alone.
+# A missing destroy is very often a sweep that could not reach the type,
+# and the plan says so - by name, with a reason - in its "Not swept for
+# removal" section. Greping '^  # .+ will be' shows the actions the sweep
+# produced and hides the reason it produced none, which is the half a
+# reader needs. Issue #881 spent three runs reading "nothing was
+# destroyed" with no way to see whether anything had looked.
+remove_plan_evidence() { printf '%s\n' "$REMOVE_PLAN"; }
 grep -qE '^  # aws_iam_instance_profile\.team_0002_profile will be destroyed' <<< "$REMOVE_PLAN" \
-  || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN"; fail "choudoufu does not propose destroying aws_iam_instance_profile.team_0002_profile when its block is deleted"; }
+  || { remove_plan_evidence; fail "choudoufu does not propose destroying aws_iam_instance_profile.team_0002_profile when its block is deleted"; }
 grep -qE '^  # aws_iam_role_policy\.team_0002_inline will be destroyed' <<< "$REMOVE_PLAN" \
-  || { grep -E '^  # .+ will be' <<< "$REMOVE_PLAN"; fail "choudoufu does not propose destroying the untaggable aws_iam_role_policy.team_0002_inline when its block is deleted"; }
+  || { remove_plan_evidence; fail "choudoufu does not propose destroying the untaggable aws_iam_role_policy.team_0002_inline when its block is deleted"; }
 grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_PLAN" \
   || { printf '%s\n' "$REMOVE_PLAN" | tail -12; fail "choudoufu's remove plan proposes something other than exactly two destroys"; }
 log "  choudoufu: exactly two destroys, the same two stock's own oracle (B2) proposed"
