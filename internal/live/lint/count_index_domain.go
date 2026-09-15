@@ -396,7 +396,11 @@ func (m countIndexModuleInstance) verdict(ctx context.Context, expr hclsyntax.Ex
 	// instead of against every value before it.
 	//
 	// Safe here and nowhere earlier: Hash panics on a marked value, and the
-	// loop above has already refused anything marked, unknown or null.
+	// loop above has already refused anything marked, unknown or null. The
+	// guard is restated inside the loop below anyway, because this is the
+	// call that would panic and marksafe proves a site from a test on the
+	// same value - a proof living thirty lines up is one refactor from
+	// being wrong, which is the whole reason that check exists.
 	//
 	// That quadratic was the whole stated reason countIndexDomainMax sat at
 	// 256, and a real estate paid for it - terralith-gen declares
@@ -404,6 +408,9 @@ func (m countIndexModuleInstance) verdict(ctx context.Context, expr hclsyntax.Ex
 	// rule that had simply declined to look.
 	seen := make(map[int][]int, len(rendered))
 	for i, val := range rendered {
+		if val.ContainsMarked() {
+			return countIndexUnprovable
+		}
 		h := val.Hash()
 		for _, j := range seen[h] {
 			if rendered[j].RawEquals(val) {
