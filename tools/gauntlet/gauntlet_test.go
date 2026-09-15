@@ -133,8 +133,23 @@ func TestArtifactAgreesWithManifest(t *testing.T) {
 			t.Errorf("%s has no row for %q; run `go run ./tools/gauntlet render`", ArtifactPath, e.Name)
 			continue
 		}
-		if r.Clear != isClear(r.Stages) {
-			t.Errorf("%q: clear=%v but stages say %v", e.Name, r.Clear, isClear(r.Stages))
+		// The committed clear flag must agree with the function Rebuild
+		// itself computes it with - substrate exemptions (#1067) and
+		// per-stage provenance (#1069) included. Recomputing it with a
+		// bare isClear(r.Stages) would re-admit exactly the carried
+		// verdict this guard is meant to notice, and would disagree with
+		// Rebuild on any row that carries one.
+		want := isClearFor(e.Substrate(), r.Stages, r.StageIsCurrent)
+		if r.Clear != want {
+			t.Errorf("%q: clear=%v but stages say %v", e.Name, r.Clear, want)
+		}
+		for id := range r.StageRuns {
+			if _, ok := StageByID(id); !ok {
+				t.Errorf("%q: stage_runs carries unknown stage %q", e.Name, id)
+			}
+			if r.Stages[id] == VerdictNA {
+				t.Errorf("%q: stage %q reads n/a, which Rebuild writes rather than measuring, yet carries a stage_runs entry", e.Name, id)
+			}
 		}
 		if r.Set != e.Set || r.Lane != e.Lane {
 			t.Errorf("%q: artifact set/lane %s/%s differ from manifest %s/%s", e.Name, r.Set, r.Lane, e.Set, e.Lane)
@@ -661,10 +676,10 @@ func TestNonHeadlineActiveStageDoesNotGateOrGetPicked(t *testing.T) {
 
 	// isClear: a fail on the non-headline stage must not break clear; a fail
 	// on the headline stage must.
-	if !isClearAgainst(headlineOnly, map[string]string{headlineStage.ID: VerdictPass, sideStage.ID: VerdictFail}) {
+	if !isClearAgainst(headlineOnly, map[string]string{headlineStage.ID: VerdictPass, sideStage.ID: VerdictFail}, allStagesCurrent) {
 		t.Error("a fail on a non-headline active stage broke isClear")
 	}
-	if isClearAgainst(headlineOnly, map[string]string{headlineStage.ID: VerdictFail, sideStage.ID: VerdictPass}) {
+	if isClearAgainst(headlineOnly, map[string]string{headlineStage.ID: VerdictFail, sideStage.ID: VerdictPass}, allStagesCurrent) {
 		t.Error("isClear did not gate on the headline stage")
 	}
 
@@ -676,12 +691,12 @@ func TestNonHeadlineActiveStageDoesNotGateOrGetPicked(t *testing.T) {
 		Name: "side-only-fails", Set: SetCore, Protocol: ProtocolGauntlet,
 		Stages: map[string]string{headlineStage.ID: VerdictPass, sideStage.ID: VerdictFail},
 	}
-	sideOnlyFails.Clear = isClearAgainst(headlineOnly, sideOnlyFails.Stages)
+	sideOnlyFails.Clear = isClearAgainst(headlineOnly, sideOnlyFails.Stages, allStagesCurrent)
 	headlineFails := EstateResult{
 		Name: "headline-fails", Set: SetCore, Protocol: ProtocolGauntlet,
 		Stages: map[string]string{headlineStage.ID: VerdictFail, sideStage.ID: VerdictPass},
 	}
-	headlineFails.Clear = isClearAgainst(headlineOnly, headlineFails.Stages)
+	headlineFails.Clear = isClearAgainst(headlineOnly, headlineFails.Stages, allStagesCurrent)
 	if !sideOnlyFails.Clear {
 		t.Fatal("an estate failing only a non-headline stage must be Clear")
 	}
@@ -721,22 +736,22 @@ func TestTier1GatedNotRunIsNeutral(t *testing.T) {
 	headline := []Stage{ordinary, gated}
 
 	allPass := map[string]string{ordinary.ID: VerdictPass, gated.ID: VerdictPass}
-	if !isClearAgainst(headline, allPass) {
+	if !isClearAgainst(headline, allPass, allStagesCurrent) {
 		t.Fatal("all pass should be clear")
 	}
 
 	notRunGated := map[string]string{ordinary.ID: VerdictPass, gated.ID: VerdictNotRun}
-	if !isClearAgainst(headline, notRunGated) {
+	if !isClearAgainst(headline, notRunGated, allStagesCurrent) {
 		t.Error("not_run on a tier1-gated stage must still be clear")
 	}
 
 	failGated := map[string]string{ordinary.ID: VerdictPass, gated.ID: VerdictFail}
-	if isClearAgainst(headline, failGated) {
+	if isClearAgainst(headline, failGated, allStagesCurrent) {
 		t.Error("a genuine fail on a tier1-gated stage must still break clear")
 	}
 
 	notRunOrdinary := map[string]string{ordinary.ID: VerdictNotRun, gated.ID: VerdictPass}
-	if isClearAgainst(headline, notRunOrdinary) {
+	if isClearAgainst(headline, notRunOrdinary, allStagesCurrent) {
 		t.Error("not_run on an ordinary (non-tier1-gated) headline stage must still break clear")
 	}
 }

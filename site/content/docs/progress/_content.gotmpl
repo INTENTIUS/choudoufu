@@ -30,9 +30,18 @@
   {{- else -}}
     {{- $md = $md | append "**Not clear yet.**" -}}
   {{- end -}}
+  {{- with $e.stale_note -}}
+    {{- $md = $md | append "" . -}}
+  {{- end -}}
   {{- $md = $md | append "" "| Stage | Verdict | Duration | Detail |" "|---|---|---|---|" -}}
   {{- range $e.stage_rows -}}
-    {{- $md = $md | append (printf "| %s | %s | %s | %s |" .title .verdict (default "" .duration) (replace (default "" .detail) "|" "\\|")) -}}
+    {{- /* A carried verdict's provenance sentence leads its detail cell, so
+           a stale cell says why wherever it is read (#1069). */ -}}
+    {{- $detail := default "" .detail -}}
+    {{- with .provenance -}}
+      {{- if $detail -}}{{- $detail = printf "%s %s" . $detail -}}{{- else -}}{{- $detail = . -}}{{- end -}}
+    {{- end -}}
+    {{- $md = $md | append (printf "| %s | %s | %s | %s |" .title .verdict (default "" .duration) (replace $detail "|" "\\|")) -}}
   {{- end -}}
   {{- $md = $md | append "" -}}
   {{- with $e.last_run_note -}}{{- $md = $md | append . -}}{{- end -}}
