@@ -180,11 +180,15 @@ opt-in that would bring a release inside the boundary is designed on
 
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
-discovery: a kind the provider has a resource type for is filed under that
-type, and every other kind - every CRD, and the built-in kinds the
-provider never gave a type - under `kubernetes_manifest` (#1079's third
-unit), which manages any served kind and imports by `apiVersion=,kind=,
-[namespace=,]name=`. An object it lists that no block declares is an
+discovery: a kind the provider has a resource type for, served at the
+group that type actually serves, is filed under that type, and every
+other kind - every CRD, and the built-in kinds the provider never gave a
+type - under `kubernetes_manifest` (#1079's third unit), which manages any
+served kind and imports by `apiVersion=,kind=,[namespace=,]name=`. The
+group check (#1111) is what keeps a CRD whose `spec.names.kind` is
+spelled like a built-in's, in its own group, from being filed under that
+built-in's type with a `NAMESPACE/NAME` import id the provider cannot
+resolve. An object it lists that no block declares is an
 orphan and is proposed for removal, planned at the synthetic address
 `<type>.orphan_<namespace>_<name>`, or
 `kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest

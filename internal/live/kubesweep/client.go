@@ -122,11 +122,14 @@ func NewWith(disc discovery.DiscoveryInterface, dyn dynamic.Interface) *Client {
 }
 
 // Kinds implements [Sweeper]: every group's preferred version of every
-// resource, joined to typeNames by kind. A kind served by more than one
-// group (Event in the core group and in events.k8s.io) is listed once per
-// group, since those are distinct resources; a kind served at more than
-// one version within a group is listed at the group's preferred version
-// only, since those are one resource.
+// resource, joined to typeNames by group and kind (GitHub issue #1111;
+// kind alone let a CRD spelled like a built-in's, in its own group, be
+// filed under that built-in's type with the wrong import id -
+// [servesBuiltinKind] is the group half of the join). A kind served by
+// more than one group (Event in the core group and in events.k8s.io) is
+// listed once per group, since those are distinct resources; a kind
+// served at more than one version within a group is listed at the
+// group's preferred version only, since those are one resource.
 func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
 	var builtIn []string
 	for _, t := range typeNames {
@@ -170,6 +173,16 @@ func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType str
 				continue
 			}
 			types, ok := byKind[r.Kind]
+			if ok && !servesBuiltinKind(r.Kind, gv.Group) {
+				// GitHub issue #1111: r.Kind names a provider type,
+				// but this resource's own group is not one the
+				// Kubernetes API registers that kind under - a CRD
+				// spelled like the built-in, in its own group. The
+				// built-in type does not manage this object, so it
+				// is unmatched exactly as a kind no provider type
+				// names at all.
+				ok = false
+			}
 			if !ok {
 				if !manifest {
 					continue

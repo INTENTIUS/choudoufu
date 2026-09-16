@@ -144,9 +144,19 @@ func TestKindsJoinsServedResourcesToProviderTypes(t *testing.T) {
 		{GroupVersion: "apps/v1", APIResources: []metav1.APIResource{
 			{Name: "deployments", Kind: "Deployment", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
 		}},
+		// GitHub issue #1111: a CRD whose spec.names.kind is spelled
+		// like a built-in's, in its own group. Joining by kind name
+		// alone files this under kubernetes_deployment_v1 with a
+		// NAMESPACE/NAME import id; the provider's import of that type
+		// then reads apps/v1 and finds nothing, or an unrelated
+		// built-in object of the same name. It must be filed under the
+		// manifest type instead, with apps/v1's Deployment undisturbed.
+		{GroupVersion: "example.com/v1", APIResources: []metav1.APIResource{
+			{Name: "deployments", Kind: "Deployment", Namespaced: true, Verbs: []string{"get", "list", "delete"}},
+		}},
 	}
 	c := NewWith(disc, nil)
-	kinds, unserved, err := c.Kinds(context.Background(), []string{"kubernetes_config_map", "kubernetes_config_map_v1", "kubernetes_namespace", "kubernetes_deployment_v1", "kubernetes_storage_class"}, "")
+	kinds, unserved, err := c.Kinds(context.Background(), []string{"kubernetes_config_map", "kubernetes_config_map_v1", "kubernetes_namespace", "kubernetes_deployment_v1", "kubernetes_storage_class", "kubernetes_manifest"}, "kubernetes_manifest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +164,7 @@ func TestKindsJoinsServedResourcesToProviderTypes(t *testing.T) {
 	for _, k := range kinds {
 		got = append(got, k.Kind+":"+k.GVR.String())
 	}
-	want := []string{"ConfigMap:/v1, Resource=configmaps", "Deployment:apps/v1, Resource=deployments", "Namespace:/v1, Resource=namespaces"}
+	want := []string{"ConfigMap:/v1, Resource=configmaps", "Deployment:apps/v1, Resource=deployments", "Deployment:example.com/v1, Resource=deployments", "Namespace:/v1, Resource=namespaces"}
 	if len(got) != len(want) {
 		t.Fatalf("kinds = %v, want %v", got, want)
 	}
@@ -167,11 +177,19 @@ func TestKindsJoinsServedResourcesToProviderTypes(t *testing.T) {
 		t.Errorf("unserved = %v, want [kubernetes_storage_class]", unserved)
 	}
 	for _, k := range kinds {
-		if k.Kind == "ConfigMap" && len(k.TypeNames) != 2 {
+		switch {
+		case k.Kind == "ConfigMap" && len(k.TypeNames) != 2:
 			t.Errorf("ConfigMap types = %v, want both names", k.TypeNames)
-		}
-		if k.Kind == "Namespace" && k.Namespaced {
+		case k.Kind == "Namespace" && k.Namespaced:
 			t.Error("Namespace reported as namespaced")
+		case k.Kind == "Deployment" && k.GVR.Group == "apps":
+			if k.Manifest || len(k.TypeNames) != 1 || k.TypeNames[0] != "kubernetes_deployment_v1" {
+				t.Errorf("apps/v1 Deployment = %+v, want TypeNames [kubernetes_deployment_v1], Manifest false", k)
+			}
+		case k.Kind == "Deployment" && k.GVR.Group == "example.com":
+			if !k.Manifest || len(k.TypeNames) != 1 || k.TypeNames[0] != "kubernetes_manifest" {
+				t.Errorf("example.com/v1 Deployment = %+v, want TypeNames [kubernetes_manifest], Manifest true", k)
+			}
 		}
 	}
 }
