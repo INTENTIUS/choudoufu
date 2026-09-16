@@ -44,14 +44,15 @@ type IAMAPI interface {
 //     internal/live/stamp writes a marker onto it and there is a marker
 //     there to miss.
 //
-// Nineteen types across eight services satisfy those three; two of them are
-// IAM's, and IAM is the service wired here because it is the one #1134
-// measured the Resource Groups Tagging API failing to cover and the one the
-// pinned emulator serves a tag-read operation for. The other seventeen sit
-// in services the tagging index does cover, so the gate in
-// internal/live/discovery keeps this leg off for them; if one ever proves
-// otherwise, it gets its own service wired here and its own entry in the
-// table, not a general mechanism written in advance of a need.
+// Eighteen types satisfy those three. Two of them are IAM's, and IAM is the
+// service wired here because it is the one #1134 measured the Resource
+// Groups Tagging API failing to cover and the one the pinned emulator
+// serves a tag-read operation for. The other sixteen sit in services the
+// tagging index does cover, so the gate in internal/live/discovery keeps
+// this leg off for them; if one ever proves otherwise, it gets its own
+// service wired here and its own entry in the table, not a general
+// mechanism written in advance of a need.
+// TestDerivedSetBeyondIAMIsNamedNotSilent names those sixteen.
 //
 // aws_iam_role and aws_iam_policy are deliberately absent even though
 // #1134's real-AWS probe found the tagging index never serves iam:role.
