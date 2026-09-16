@@ -520,26 +520,42 @@ if [ "$P_PLAN_RC" -ne 0 ] || ! grep -qF "Plan: 0 to add, 1 to change, 0 to destr
   PLAN_APPROVAL_SKIPPED=1
 fi
 if [ -z "${PLAN_APPROVAL_SKIPPED:-}" ]; then
-kca label issuer selfsigned -n "$NS" stray=yes >/dev/null || fail "could not move the world (label the Issuer) on A"
+# The world moves on a SPEC-side field, for the reason part one just
+# measured: a stray LABEL is invisible to choudoufu on a
+# kubernetes_manifest, so a label-shaped world-move made this stage
+# re-measure that blindness (run of 2026-09-16: the saved plan applied
+# cleanly at exit 0 where the refusal was expected, because the mover
+# could not be seen). The cainjector Deployment declares "replicas" = 1
+# in the bundle, and nothing below this stage applies that object, so
+# moving it and putting it back leaves the estate exactly as it was.
+kca patch deployment cert-manager-cainjector -n "$NS" --type merge -p '{"spec":{"replicas":2}}' >/dev/null || fail "could not move the world (the cainjector Deployment's replicas) on A"
 P_APPLY="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)"; P_RC=$?
 if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$P_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded - the refusal is not load-bearing"
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC"
-  kca label issuer selfsigned -n "$NS" stray- >/dev/null
+  kca patch deployment cert-manager-cainjector -n "$NS" --type merge -p '{"spec":{"replicas":1}}' >/dev/null
   ( tofu_a apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the change on B"
   gauntlet_stage plan_approval pass "${META_GAP}BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
 else
-  [ "$P_RC" -eq 3 ] || { printf '%s\n' "$P_APPLY" | tail -20; fail "apply of the saved plan after the world moved exited $P_RC, want 3 (the refusal)"; }
-  grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY" || { printf '%s\n' "$P_APPLY" | tail -20; fail "the refusal does not carry its documented sentence"; }
+  if [ "$P_RC" -ne 3 ] || ! grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY"; then
+    printf '%s\n' "$P_APPLY" | tail -20
+    gauntlet_stage plan_approval fail "${META_GAP}the saved plan was applied after the world had moved out of band (the cainjector Deployment's replicas 1 -> 2, kubectl) and choudoufu exited $P_RC rather than refusing at 3 with \"The approved plan no longer matches the live system\". The saved plan's own change was one in-place update to the Certificate's spec.dnsNames, which stock plans identically"
+    kca patch deployment cert-manager-cainjector -n "$NS" --type merge -p '{"spec":{"replicas":1}}' >/dev/null
+    ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
+    PLAN_APPROVAL_SKIPPED=1
+  fi
+  if [ -z "${PLAN_APPROVAL_SKIPPED:-}" ]; then
   DNS_NOW="$(kca get certificate example-com -n "$NS" -o jsonpath='{.spec.dnsNames}')"
   [ "$DNS_NOW" = '["example.com"]' ] || fail "the Certificate's dnsNames read $DNS_NOW despite the refusal, want only example.com"
-  kca label issuer selfsigned -n "$NS" stray- >/dev/null || fail "could not put the world back"
+  kca patch deployment cert-manager-cainjector -n "$NS" --type merge -p '{"spec":{"replicas":1}}' >/dev/null || fail "could not put the world back"
   P_APPLY2="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$P_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || fail "the saved plan's apply did not change exactly one object"
   [ "$(kca get certificate example-com -n "$NS" -o jsonpath='{.spec.dnsNames}')" = '["example.com","www.example.com"]' ] || fail "the Certificate does not carry both dnsNames after the saved plan applied"
   ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
-  gauntlet_stage plan_approval pass "${META_GAP}plan -out wrote one update to a namespaced custom kind (the Certificate gains a second dnsName); the world then moved out of band (a stray label on the Issuer, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads one dnsName); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and both dnsNames read back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+  gauntlet_stage plan_approval pass "${META_GAP}plan -out wrote one update to a namespaced custom kind (the Certificate gains a second dnsName); the world then moved out of band (the cainjector Deployment's replicas moved to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads one dnsName); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and both dnsNames read back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+  fi
 fi
 
 fi
