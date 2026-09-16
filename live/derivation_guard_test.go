@@ -216,6 +216,25 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"protocol constant this fork authored, not a claim about a provider type, and changing it changes the protocol.",
 		Data: 1, Code: 0,
 	},
+	"internal/live/servicetags/iam.go": {
+		Reason: "IAMRoutes (GitHub issue #1131): which IAM tag-read operation answers for which resource type, for the " +
+			"types Cloud Control enumerates and can never tag-read. Two entries, and the two halves of each are held " +
+			"to different standards on purpose. WHICH types belong here is NOT hand data and is not trusted here: " +
+			"internal/live/servicetags's TestIAMRoutesMatchTheDerivedSet recomputes the membership on every run from " +
+			"live/mapping.json, live/registry.json and live/survey-full.json (mapped and list-handler-input-free, CFN " +
+			"tagging.taggable false, provider taggable true - #1129's SweepGapMarkerUnreadable condition restated from " +
+			"the artifacts) and fails if the table and the derivation disagree in either direction, so a provider or " +
+			"artifact bump moves the table rather than leaving it stale. What is genuinely hand data is the other " +
+			"half: WHICH IAM operation reads an object of that type's tags and which input field its identifier goes " +
+			"in. iam:ListInstanceProfileTags takes InstanceProfileName and iam:ListMFADeviceTags takes SerialNumber, " +
+			"and for a virtual MFA device that serial number IS the ARN the import identity already carries - facts " +
+			"about IAM's own API surface stated in AWS's API reference and in no schema this repository holds. " +
+			"live/registry.json records the CFN read handler's permissions (iam:GetInstanceProfile) and nothing about " +
+			"a tag-read operation; the scraped provider docs describe import IDs, not service operations. The op " +
+			"table cannot be widened by a rule, only by reading another service's reference the same way, which is " +
+			"what makes each new service a decision rather than a sweep.",
+		Data: 2, Code: 0,
+	},
 	"live/residue.go": {
 		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off live/e2e/run.sh and the harness rather than " +
 			"any artifact. Its own doc comment already says it is hand data. Shrinks as the emulator improves.",
@@ -566,7 +585,20 @@ const (
 	// to state that per image digest is to create one tagged object of each
 	// type with its own service API and see whether the index echoes it. No
 	// provider artifact records what an emulator answers.
-	typeLiteralDataTotal = 1168
+	// 1168 -> 1170 data, code unchanged at 131, on 2026-09-16 (issue
+	// #1131): internal/live/servicetags/iam.go registered for the first
+	// time, two Data literals (aws_iam_instance_profile and
+	// aws_iam_virtual_mfa_device, the two keys of IAMRoutes) and no Code
+	// literal - the leg dispatches on the map and never compares a name
+	// inline. Code is the number that is supposed to hurt and it did not
+	// move. The MEMBERSHIP of those two keys is not hand data either:
+	// internal/live/servicetags's TestIAMRoutesMatchTheDerivedSet
+	// recomputes it from live/mapping.json, live/registry.json and
+	// live/survey-full.json on every run and fails in both directions.
+	// What is hand data is which IAM operation reads each type's tags and
+	// which input field takes the identifier, which AWS states in its API
+	// reference and no artifact here holds.
+	typeLiteralDataTotal = 1170
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

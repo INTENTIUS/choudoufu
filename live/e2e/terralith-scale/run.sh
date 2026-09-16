@@ -1606,10 +1606,18 @@ if [ "${BREAK_COUNT:-}" = "1" ]; then
   gauntlet_end
   exit 0
 fi
+# On failure, print the WHOLE plan, not the resource-action lines alone.
+# GitHub issue #1129 made this change to day2_remove for the reason it
+# applies here identically: when a destroy is MISSING, the action lines are
+# empty of exactly the thing a reader needs, and the plan's own "Not swept
+# for removal" section - which names the type and the reason nothing was
+# found - is on stdout the whole time and was being thrown away by the
+# filter. Three day2_remove runs read as silence because of it.
+down_plan_evidence() { printf '%s\n' "$DOWN_PLAN"; }
 grep -qE '^  # \S+\[0\] will be' <<< "$DOWN_PLAN" \
-  && { grep -E '^  # .+ will be' <<< "$DOWN_PLAN"; fail "the scale-down plan touches an index-[0] instance, which must be untouched"; }
+  && { down_plan_evidence; fail "the scale-down plan touches an index-[0] instance, which must be untouched"; }
 [ "$DOWN_1_N" = "6" ] \
-  || { grep -E '^  # .+ will be' <<< "$DOWN_PLAN"; fail "the scale-down plan destroys $DOWN_1_N index-[${COUNT_TOP}] instances, not 6"; }
+  || { down_plan_evidence; fail "the scale-down plan destroys $DOWN_1_N index-[${COUNT_TOP}] instances, not 6"; }
 grep -qF 'Plan: 0 to add, 0 to change, 6 to destroy.' <<< "$DOWN_PLAN" \
   || { printf '%s\n' "$DOWN_PLAN" | tail -12; fail "the scale-down plan proposes something other than exactly six destroys"; }
 log "  choudoufu: exactly six destroys, all index [$COUNT_TOP] - the same shape stock's oracle (G1) produced"

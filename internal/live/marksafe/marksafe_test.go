@@ -121,6 +121,12 @@ var guardedPackages = []string{
 	// which is this population exactly.
 	"staticeval",
 	"strict",
+	// GitHub issue #1131's per-service tag-read leg: an AWS client surface
+	// whose whole vocabulary is Go strings - a resource type name, an
+	// import identifier, and a map[string]string of tags off the wire. It
+	// imports no cty at all, so like "onboard" and "noimporter" above it is
+	// held to zero rather than deferred: it has nothing to defer.
+	"servicetags",
 	"uniquename",
 }
 
