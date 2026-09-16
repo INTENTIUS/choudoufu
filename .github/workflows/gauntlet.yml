@@ -174,7 +174,7 @@ jobs:
           TOFU_BIN: ${{ runner.temp }}/choudoufu
         run: |
           set -o pipefail
-          go run ./tools/gauntlet run reference-k8s corpus-quickpizza | tee gauntlet-run-k8s.log || true
+          go run ./tools/gauntlet run reference-k8s reference-k8s-stateful corpus-quickpizza | tee gauntlet-run-k8s.log || true
       - name: Render
         run: go run ./tools/gauntlet render
       - name: Run the cohort acceptance pass
