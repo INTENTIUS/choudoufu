@@ -105,6 +105,30 @@ carrier and every `kubernetes_*` type migrated as UNTAGGABLE; the
 kubernetes lane's first estate (reference-k8s, #1067) failed its migrate
 stage on exactly that line, and passes it now.
 
+A `kubernetes_manifest` entry in that state file is migrated too (#1109,
+ruled with #1104 on 2026-09-13), and its label is written differently: not
+through the provider, but as one API merge patch under the caller's own
+credential (`internal/live/kubesweep/patch.go`, shared with live-mv's
+cross-estate move). The type has no metadata block to write into - its
+whole object is one dynamic argument - so a labels-only write through the
+provider would be a re-apply of every field the provider manages,
+rebuilt from a state file that may be days stale; a merge patch naming one
+key under `metadata.labels` cannot reach anything else. The patch names the
+provider's own field manager (`field_manager { name = ... }` when the block
+sets one, else `Terraform`), so the next server-side apply of the same
+label meets no competing owner. It goes twice: once with `dryRun=All`, and
+the object the server answers with is diffed against the live object
+outside `metadata.labels` and the server's own bookkeeping, so a mutating
+admission webhook rewriting the spec on the way past is refused rather
+than assumed away; then, only if that diff is empty, for real. The other
+two refusals are the label surface's, in the same words: an object already
+labelled for another estate, and an estate name that is not a legal label
+value. The natural key comes out of the state's own `manifest` attribute,
+or out of `object` for a state that stores `manifest` null, and is what the
+report prints as the instance's live id. Before this, every
+`kubernetes_manifest` entry ratified UNTAGGABLE: bound, counted as
+migrated, and left outside the boundary with nothing said about it.
+
 A `kubernetes_manifest` block, the shape every custom resource is declared
 through, is identified the same way (#1079's first unit): the natural key
 is four keys inside its `manifest` argument's object constructor, read

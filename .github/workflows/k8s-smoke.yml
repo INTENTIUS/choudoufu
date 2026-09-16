@@ -61,6 +61,19 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # The stock oracle, for the one step that needs a state file this
+          # fork did not write: claim 24's migration of a custom resource
+          # stock created and recorded (#1109). Pinned from the same file
+          # gauntlet.yml pins it from, for the same reason - an unpinned
+          # oracle silently changes what "what stock did" means. The other
+          # three scenarios never call it.
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
