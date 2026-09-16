@@ -3011,7 +3011,21 @@ const (
 	// name-less aws_iam_role. Like count-index-large-domain it does render
 	// a row, but only one - a role with no `name` argument is
 	// server-assigned, so the row carries no value at all.
-	identityGoldenPinDirs = 670
+	//
+	// Then 670 -> 671 for GitHub issue #1174: one new fixture,
+	// live/e2e/reference-k8s-cert-manager/root - the cert-manager v1.21.2
+	// install bundle converted to 47 `kubernetes_manifest` blocks plus our
+	// three custom resources, 50 instances in all. It renders ZERO rows,
+	// so instances, every class count and body-sha256 are all unmoved:
+	// `kubernetes_manifest` carries its identity inside the `manifest`
+	// object rather than in named arguments, and resolving it needs the
+	// provider schema this golden's offline sweep never has - the same
+	// absence kubernetes_service_account and kubernetes_service have had
+	// here since #1064, and the same one every schema-fallback type has had
+	// since #387. The estate itself does bind all 50 (live-import stamps
+	// 50 of 50 against a real cluster, where the schema is present); what
+	// this golden says is only that the offline analysis alone cannot.
+	identityGoldenPinDirs = 671
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

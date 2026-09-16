@@ -305,7 +305,7 @@ Readiness is the caller's job and has to be bounded:
 on timeout rather than falling through into the admission error a webhook
 that exists but is not yet serving produces.
 
-No estate declares a pre-apply today.
+Declares a pre-apply today: `reference-k8s-cert-manager` (47 address(es)).
 
 ## The core set
 
