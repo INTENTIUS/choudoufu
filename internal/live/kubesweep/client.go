@@ -309,30 +309,9 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 	if apiVersion == "" || kind == "" || obj.GetName() == "" {
 		return DryRunResult{}, fmt.Errorf("the manifest names no apiVersion, kind or metadata.name to submit")
 	}
-	list, err := c.disc.ServerResourcesForGroupVersion(apiVersion)
+	client, err := c.resourceClient(apiVersion, kind, obj.GetNamespace())
 	if err != nil {
-		return DryRunResult{}, fmt.Errorf("API discovery for %s: %w", apiVersion, err)
-	}
-	gv, err := schema.ParseGroupVersion(apiVersion)
-	if err != nil {
-		return DryRunResult{}, fmt.Errorf("apiVersion %q: %w", apiVersion, err)
-	}
-	var res *metav1.APIResource
-	if list != nil {
-		for i := range list.APIResources {
-			r := &list.APIResources[i]
-			if r.Kind == kind && !strings.Contains(r.Name, "/") {
-				res = r
-				break
-			}
-		}
-	}
-	if res == nil {
-		return DryRunResult{}, fmt.Errorf("the cluster serves no kind %s at apiVersion %s", kind, apiVersion)
-	}
-	client := c.dyn.Resource(gv.WithResource(res.Name)).Namespace(obj.GetNamespace())
-	if !res.Namespaced {
-		client = c.dyn.Resource(gv.WithResource(res.Name))
+		return DryRunResult{}, err
 	}
 	submitted := obj.DeepCopy()
 	var answer *unstructured.Unstructured

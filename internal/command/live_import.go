@@ -206,6 +206,12 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		Config:    config,
 		State:     stateFile.State,
 		Providers: provs,
+		// GitHub issue #1109: the cluster client a manifest-shape
+		// resource's tofu-estate label is written through. The same
+		// statelessProviders the reads go through, so the write lands
+		// under the credential the provider block names. See
+		// live_import_kubernetes.go.
+		Clusters: provs,
 		// GitHub issue #365: the strict block's secrets setting, resolved
 		// here rather than left to the zero value, because the zero value is
 		// "refuse" and an OMITTED argument means "store". This is the one

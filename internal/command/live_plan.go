@@ -3399,6 +3399,14 @@ type statelessProviders struct {
 	// [providerCacheKey]; absent for a configuration no client could be
 	// built from, which the sweep already warned about.
 	kubeSweepers map[string]kubesweep.Sweeper
+
+	// kubePatchers is the same client again for live-import's one-label
+	// merge patch (GitHub issue #1109), cached per provider configuration
+	// with the error that stood in the way of building one - a migration
+	// asks once per resource instance, and a cluster that cannot be
+	// reached must not be re-dialled once per custom resource in the
+	// state file. See live_import_kubernetes.go.
+	kubePatchers map[string]labelPatcher
 }
 
 var _ projection.Providers = (*statelessProviders)(nil)
