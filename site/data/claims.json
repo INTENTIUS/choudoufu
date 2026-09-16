@@ -604,7 +604,7 @@
       "title": "Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads while the estate keeps its marker, and a mutation that strips the marker on the way in leaves an object this estate cannot claim",
       "scenario": "live/smoke/scenarios/k8s-the-server-gets-the-last-word.sh",
       "command": "just smoke k8s-the-server-gets-the-last-word",
-      "minutes": 6,
+      "minutes": 4,
       "needs_go": false,
       "theme": "gate",
       "break_mode": "BREAK=1 installs the same stripping policy against a DECOY label instead of tofu-estate - identical kind, namespace and JSONPatch, one key different - and requires the opposite outcome: the decoy stripped so the policy is provably in the admission chain and provably mutating, the marker landed, live-ls listing the object as this estate's, and the second apply not wedging on the name; without it the third part would read identically if choudoufu simply never wrote a label",

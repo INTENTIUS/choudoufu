@@ -1,5 +1,5 @@
 # k8s-the-server-gets-the-last-word
-# CLAIM 26 - Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads and the estate keeps its marker, and a mutation that strips the marker on the way in leaves an object this estate cannot claim - the next apply wedges on the name and every plan says the object is outside the estate, while the run that made it reported success. ~6 min.
+# CLAIM 26 - Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads and the estate keeps its marker, and a mutation that strips the marker on the way in leaves an object this estate cannot claim - the next apply wedges on the name and every plan says the object is outside the estate, while the run that made it reported success. ~4 min.
 #
 # The second fault of #1110. Everything a plan says is a statement about
 # what the API server will accept, made before it was asked. Admission is
@@ -111,12 +111,16 @@ kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 # a registered webhook or policy takes a second or two to reach the
 # admission plugins and a fixed sleep is how these scenarios flake.
 probe_admission() {
+  local out
   kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1
-  if ! kc create configmap admission-probe -n "$NS" --from-literal=a=b >/dev/null 2>&1; then
-    echo "REJECTED"; return
+  if ! out="$(kc create configmap admission-probe -n "$NS" --from-literal=a=b 2>&1)"; then
+    echo "REJECTED on create: $out"; return
   fi
-  if ! kc label configmap admission-probe -n "$NS" tofu-estate=probe smoke-decoy=present owner=payments-team >/dev/null 2>&1; then
-    echo "REJECTED"; return
+  # --overwrite is load-bearing: a policy that has already rewritten one of
+  # these keys makes a plain kubectl label exit non-zero with a usage error,
+  # and the probe would report REJECTED for something admission never saw.
+  if ! out="$(kc label configmap admission-probe -n "$NS" --overwrite tofu-estate=probe smoke-decoy=present owner=payments-team 2>&1)"; then
+    echo "REJECTED on label: $out"; return
   fi
   # A go-template range over a map walks it in sorted key order, so the
   # probe's output is stable and a step can match on it exactly.

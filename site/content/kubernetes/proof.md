@@ -70,6 +70,24 @@ the object is really gone. Its `BREAK=1` takes the finalizer off before
 the destroying apply and requires the object to go in one apply, so the
 persistence the scenario measures is the finalizer's and not a delete
 choudoufu never made.
+[Claim 26]({{< relref "/docs/claims/k8s-the-server-gets-the-last-word" >}})
+runs the gap between a plan and the write it approved. A real
+`ValidatingWebhookConfiguration` with `failurePolicy: Fail` and nothing
+behind it refuses the apply of a saved `-out` plan, and the run reports
+the API server's own `failed calling webhook` message with the object
+untouched and the approved artifact still on disk; the same file applies
+unchanged once the webhook is gone. A mutating policy that overwrites a
+declared label produces the same perpetual drift plain stock produces,
+measured side by side in the same run. And a mutating policy that strips
+`tofu-estate` on the way in - what a label-scheme enforcer does to a key
+it does not recognise - creates the object without its marker while the
+run reports it created, so the next plan reads the estate's own object as
+somebody else's and the next apply wedges on the name. The plan is honest
+that nothing there is owned; the run that made it was not, and that is
+[#1190](https://github.com/INTENTIUS/choudoufu/issues/1190). Its `BREAK=1`
+points the identical policy at a decoy label and requires the decoy
+stripped, the marker landed and the second apply clean, so the wedge is
+provably the stripped marker's doing.
 
 ## The gauntlet lane
 
