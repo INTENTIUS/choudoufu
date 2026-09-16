@@ -68,9 +68,15 @@ var flociImageFields = map[string]string{
 //
 // 2026-09-11 repin (issue #1045, lex00/floci PR #202 - closes lex00/floci#201):
 // floci was answering GetResources/GetTagKeys/GetTagValues for IAM, which
-// real AWS never does (probed directly, recorded on issue #692); a
-// narrowing built on GetResources for IAM would have passed against this
-// pin while silently dropping owned IAM objects on real AWS.
+// real AWS does not do for iam:role (probed directly, recorded on issue
+// #692); a narrowing built on GetResources for aws_iam_role would have
+// passed against this pin while silently dropping owned roles on real AWS.
+// The repin went wider than the probe: issue #1134 measured a live account
+// and real AWS DOES index iam:policy and iam:instance-profile, 500 each, in
+// us-east-1 (IAM is global and indexes there). floci now serves none of the
+// three, so for those two it diverges from AWS rather than matching it -
+// lex00/floci#205, tracked as #1152, and recorded per digest as
+// tagging-sweep rows in live/floci-capabilities.json.
 // TagResources/UntagResources still accept IAM ARNs, as AWS does. #202 also
 // paginates ListRoles/ListPolicies/ListPolicyVersions/ListAttachedRolePolicies
 // with MaxItems/Marker, default and cap 100. `go run ./tools/gauntlet
