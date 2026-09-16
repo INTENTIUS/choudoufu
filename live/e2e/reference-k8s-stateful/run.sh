@@ -757,7 +757,7 @@ APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$STOCK/terraform.tfs
 SUMMARY_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$APPROVE_OUT" | head -1 | sed 's/\.$//')"
 log "  approve: ${SUMMARY_LINE:-no summary line}"
 LABELLED="$(count_a)"
-if grep -qE "^14 resource\(s\) newly stamped, 0 already stamped, .*0 failed, 0 skipped" <<< "$APPROVE_OUT" && [ "$LABELLED" = "14" ]; then
+if grep -qF "14 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped" <<< "$APPROVE_OUT" && [ "$LABELLED" = "14" ]; then
   [ "$(pvc_count_a)" = "0" ] || fail "live-import labelled a PVC; nothing in the configuration declares one"
   gauntlet_stage migrate pass "14 of 14 stamped, 0 failed, 0 skipped ($SUMMARY_LINE); every object carries tofu-estate=$ESTATE, read back with kubectl over eight kinds, and none of the three controller-created PVCs does"
 else
