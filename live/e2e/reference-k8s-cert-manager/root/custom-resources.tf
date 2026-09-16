@@ -65,24 +65,3 @@ resource "kubernetes_manifest" "certificate_example_com" {
   depends_on = [kubernetes_manifest.namespace_cert_manager]
 }
 
-# A counted custom resource, for day2_count. Two namespaced Issuers whose
-# object name carries count.index, which is the ordinary scale shape and,
-# on this substrate, also asks whether a count.index inside a
-# `kubernetes_manifest` manifest object is statically evaluable.
-# run.sh rewrites the literal below to scale it.
-resource "kubernetes_manifest" "issuer_shard" {
-  count = 2
-  manifest = {
-    "apiVersion" = "cert-manager.io/v1"
-    "kind"       = "Issuer"
-    "metadata" = {
-      "name"      = "shard-${count.index}"
-      "namespace" = "cert-manager"
-    }
-    "spec" = {
-      "selfSigned" = {}
-    }
-  }
-
-  depends_on = [kubernetes_manifest.namespace_cert_manager]
-}

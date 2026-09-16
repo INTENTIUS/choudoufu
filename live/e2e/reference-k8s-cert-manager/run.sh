@@ -6,11 +6,12 @@
 # The configuration is cert-manager v1.21.2's own install bundle converted
 # mechanically to 47 `kubernetes_manifest` blocks (convert.sh records the
 # URL, the size, the sha256, the licence and the tfk8s version, and
-# reproduces root/cert-manager.tf), plus five custom resources written here
-# from cert-manager's own self-signed documentation: a cluster-scoped
-# ClusterIssuer, a namespaced Issuer, a Certificate, and two counted Issuer
-# shards for day2_count. 52 objects over 13 kinds, six CRDs, three public
-# quay.io images, no credentials.
+# reproduces root/cert-manager.tf), plus three custom resources written
+# here from cert-manager's own self-signed documentation: a cluster-scoped
+# ClusterIssuer, a namespaced Issuer and a Certificate. 50 objects over 13
+# kinds, six CRDs, three public quay.io images, no credentials. day2_count
+# adds a fourth, counted, for the length of its own stage and takes it away
+# again - see there for why it is not in the committed root.
 #
 # What it drives that nothing else in the lane does:
 #
@@ -86,7 +87,7 @@ NS="cert-manager"
 # does not serve, which counts as zero, which is correct.
 KINDS="namespaces customresourcedefinitions serviceaccounts clusterroles clusterrolebindings roles rolebindings services deployments mutatingwebhookconfigurations validatingwebhookconfigurations clusterissuers issuers certificates"
 BUNDLE_N=47   # objects in the converted bundle, the pre-apply's population
-CUSTOM_N=5    # ClusterIssuer, Issuer, Certificate, two counted shards
+CUSTOM_N=3    # ClusterIssuer, Issuer, Certificate
 TOTAL_N=$((BUNDLE_N + CUSTOM_N))
 WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
@@ -169,16 +170,42 @@ write_root() { # $1 dir, $2 live|stock
   versions_block "$2" > "$1/versions.tf"
 }
 
-# shard_count <dir> <n>: rewrite the counted Issuer's literal.
-shard_count() {
-  N="$2" python3 - "$1/custom-resources.tf" <<'PY'
-import os, re, sys
+# append_shards <dir> <n> / remove_shards <dir>: day2_count's counted
+# custom resource. It lives here rather than in the committed root because
+# choudoufu cannot re-plan it (see the stage), and a root that cannot be
+# re-planned would fail test_plan and every stage after it - measuring one
+# defect by hiding eleven other measurements.
+append_shards() {
+  cat >> "$1/custom-resources.tf" <<EOF
+
+resource "kubernetes_manifest" "issuer_shard" {
+  count = $2
+  manifest = {
+    "apiVersion" = "cert-manager.io/v1"
+    "kind"       = "Issuer"
+    "metadata" = {
+      "name"      = "shard-\${count.index}"
+      "namespace" = "$NS"
+    }
+    "spec" = {
+      "selfSigned" = {}
+    }
+  }
+
+  depends_on = [kubernetes_manifest.namespace_cert_manager]
+}
+EOF
+}
+remove_shards() {
+  python3 - "$1/custom-resources.tf" <<'PY'
+import re, sys
 p = sys.argv[1]; s = open(p).read()
-new = re.sub(r'(resource "kubernetes_manifest" "issuer_shard" \{\n  count = )\d+', r'\g<1>' + os.environ["N"], s, count=1)
-assert new != s or ('count = ' + os.environ["N"]) in s, "the counted Issuer's count literal did not move"
-open(p, 'w').write(new)
+out = re.sub(r'\nresource "kubernetes_manifest" "issuer_shard" \{.*?\n\}\n', '\n', s, flags=re.S)
+assert 'issuer_shard' not in out, "the counted Issuer block was not removed"
+open(p, 'w').write(out)
 PY
 }
+
 # review_annotation <dir>: the one-field change plan_approval plans.
 review_annotation() {
   python3 - "$1/custom-resources.tf" <<'PY'
@@ -357,7 +384,7 @@ gauntlet_begin_stage test_plan
 log "=== 3. test_plan: choudoufu plan with no state file, identities read with kubectl ==="
 PLAN_OUT="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$PLAN_OUT" | tail -20; fail "the post-migration plan failed"; }
 IDS_OK=1; IDS_MISSING=""
-for spec in "namespace $NS" "customresourcedefinition clusterissuers.cert-manager.io" "customresourcedefinition certificates.cert-manager.io" "clusterissuer selfsigned" "issuer selfsigned" "certificate example-com" "issuer shard-0" "issuer shard-1" "deployment cert-manager-webhook" "validatingwebhookconfiguration cert-manager-webhook"; do
+for spec in "namespace $NS" "customresourcedefinition clusterissuers.cert-manager.io" "customresourcedefinition certificates.cert-manager.io" "clusterissuer selfsigned" "issuer selfsigned" "certificate example-com" "deployment cert-manager-webhook" "validatingwebhookconfiguration cert-manager-webhook"; do
   read -r kind name <<< "$spec"
   case "$kind" in
     namespace|customresourcedefinition|clusterissuer|validatingwebhookconfiguration)
@@ -367,7 +394,7 @@ for spec in "namespace $NS" "customresourcedefinition clusterissuers.cert-manage
   esac
 done
 if grep -q "No changes." <<< "$PLAN_OUT" && [ "$IDS_OK" = "1" ]; then
-  gauntlet_stage test_plan pass "the plan with no state file is empty; all $TOTAL_N objects bind by namespace and name, and ten identities spanning every shape the root has - a cluster-scoped Namespace and CRD, a cluster-scoped custom kind (ClusterIssuer), namespaced custom kinds (Issuer, Certificate, both counted shards), a Deployment and a ValidatingWebhookConfiguration - were confirmed present by value with kubectl"
+  gauntlet_stage test_plan pass "the plan with no state file is empty; all $TOTAL_N objects bind by namespace and name, and eight identities spanning every shape the root has - a cluster-scoped Namespace and two CRDs, a cluster-scoped custom kind (ClusterIssuer), two namespaced custom kinds (Issuer, Certificate), a Deployment and a ValidatingWebhookConfiguration - were confirmed present by value with kubectl"
 else
   PLAN_LINE="$(grep -E '^Plan:|No changes' <<< "$PLAN_OUT" | head -1 | sed 's/\.$//')"
   gauntlet_stage test_plan fail "the plan with no state file is not empty (${PLAN_LINE:-no plan line}) or an identity is missing (identities confirmed: $IDS_OK;${IDS_MISSING:- none missing})"
@@ -382,7 +409,7 @@ NOOP_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf
 grep -qF "Apply complete! Resources: 0 added, 0 changed, 0 destroyed" <<< "$NOOP_OUT" || { printf '%s\n' "$NOOP_OUT" | tail -5; fail "the no-op apply changed something"; }
 AFTER_N="$(count_a)"
 [ "$BEFORE_N" = "$AFTER_N" ] || fail "labelled-object count moved across a no-op apply: $BEFORE_N -> $AFTER_N"
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed) over a root of 52 kubernetes_manifest instances; objects carrying tofu-estate=$ESTATE unchanged at $BEFORE_N across the estate's 14 kinds, counted with kubectl"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed) over a root of $TOTAL_N kubernetes_manifest instances; objects carrying tofu-estate=$ESTATE unchanged at $BEFORE_N across the estate's 14 kinds, counted with kubectl"
 
 # ── 5. drift_reconverge: one custom resource tampered out of band ────────
 gauntlet_begin_stage drift_reconverge
@@ -398,8 +425,9 @@ log "=== 5. drift_reconverge: kubectl patch the Certificate on A and on B; stock
 kca patch certificate example-com -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"commonName":"tampered.example.com"}}' >/dev/null || fail "could not tamper the Certificate on A"
 kcb patch certificate example-com -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"commonName":"tampered.example.com"}}' >/dev/null || fail "could not tamper the Certificate on B"
 if [ "${BREAK:-}" = "1" ]; then
-  kca patch clusterissuer selfsigned --type merge --field-manager=Terraform -p '{"metadata":{"labels":{"tampered":"yes"}}}' >/dev/null || true
-  kca patch issuer shard-0 -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"selfSigned":{"crlDistributionPoints":["http://example.com/crl"]}}}' >/dev/null || fail "BREAK: could not tamper a second object on A"
+  # A second, declared field on a second object: the cainjector Deployment
+  # sets "replicas" = 1 in the bundle, so moving it is real drift.
+  kca patch deployment cert-manager-cainjector -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"replicas":2}}' >/dev/null || fail "BREAK: could not tamper a second object on A"
 fi
 ORACLE_PLAN="$(stock_b plan -detailed-exitcode -input=false -no-color 2>&1)"; ORACLE_RC=$?
 [ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the tamper exited $ORACLE_RC, want 2 (changes)"; }
@@ -417,12 +445,12 @@ if [ "${BREAK:-}" = "1" ]; then
 else
   grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$DRIFT_PLAN" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after one tamper does not propose exactly one change"; }
   grep -q "kubernetes_manifest.certificate_example_com" <<< "$DRIFT_PLAN" || fail "the plan does not name the Certificate"
-  grep -qE 'issuer_shard|clusterissuer' <<< "$DRIFT_PLAN" && fail "the plan touches an Issuer nobody tampered"
+  grep -qE 'clusterissuer_selfsigned|issuer_selfsigned' <<< "$DRIFT_PLAN" && fail "the plan touches an Issuer nobody tampered"
   RECONV="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RECONV" | tail -20; fail "the reconverging apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RECONV" || { printf '%s\n' "$RECONV" | tail -10; fail "the reconverging apply did not change exactly one object"; }
   CN="$(kca get certificate example-com -n "$NS" -o jsonpath='{.spec.commonName}')"
   [ "$CN" = "example.com" ] || fail "the Certificate's commonName reads $CN after reconverging, want example.com"
-  gauntlet_stage drift_reconverge pass "a CUSTOM resource (the Certificate, kind cert-manager.io/v1) tampered with kubectl patch; choudoufu proposed exactly kubernetes_manifest.certificate_example_com (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and spec.commonName reads back as configured, with neither the ClusterIssuer nor either counted shard touched. The patch uses --field-manager=Terraform because kubernetes_manifest applies server-side: a patch under a foreign manager takes ownership of the field and the reconverging apply then fails with a field-manager conflict on BOTH sides, which is the provider's behaviour and not drift. BREAK=1 tampers a second object and the single-object assertion correctly fails"
+  gauntlet_stage drift_reconverge pass "a CUSTOM resource (the Certificate, kind cert-manager.io/v1) tampered with kubectl patch; choudoufu proposed exactly kubernetes_manifest.certificate_example_com (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and spec.commonName reads back as configured, with neither the ClusterIssuer nor the namespaced Issuer touched. The patch uses --field-manager=Terraform because kubernetes_manifest applies server-side: a patch under a foreign manager takes ownership of the field and the reconverging apply then fails with a field-manager conflict on BOTH sides, which is the provider's behaviour and not drift. BREAK=1 tampers a second object and the single-object assertion correctly fails"
 fi
 
 # ── 6. plan_approval: plan -out, the world moves, apply refuses ──────────
@@ -432,12 +460,12 @@ review_annotation "$ADOPTED" || fail "could not add the reviewed annotation to t
 review_annotation "$ORACLE"  || fail "could not add the reviewed annotation to the oracle root"
 P_PLAN="$(tofu_a plan -out=approved.tfplan -input=false -no-color 2>&1)" || { printf '%s\n' "$P_PLAN" | tail -20; fail "plan -out failed"; }
 grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN" || { printf '%s\n' "$P_PLAN" | tail -10; fail "the saved plan is not exactly one change"; }
-kca label issuer shard-0 -n "$NS" stray=yes >/dev/null || fail "could not move the world (label shard-0) on A"
+kca label issuer selfsigned -n "$NS" stray=yes >/dev/null || fail "could not move the world (label the Issuer) on A"
 P_APPLY="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)"; P_RC=$?
 if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$P_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded - the refusal is not load-bearing"
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC"
-  kca label issuer shard-0 -n "$NS" stray- >/dev/null
+  kca label issuer selfsigned -n "$NS" stray- >/dev/null
   ( tofu_a apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
@@ -446,12 +474,12 @@ else
   grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY" || { printf '%s\n' "$P_APPLY" | tail -20; fail "the refusal does not carry its documented sentence"; }
   REVIEWED="$(kca get clusterissuer selfsigned -o jsonpath='{.metadata.annotations.reviewed}')"
   [ -z "$REVIEWED" ] || fail "the ClusterIssuer gained reviewed=$REVIEWED despite the refusal"
-  kca label issuer shard-0 -n "$NS" stray- >/dev/null || fail "could not put the world back"
+  kca label issuer selfsigned -n "$NS" stray- >/dev/null || fail "could not put the world back"
   P_APPLY2="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$P_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || fail "the saved plan's apply did not change exactly one object"
   [ "$(kca get clusterissuer selfsigned -o jsonpath='{.metadata.annotations.reviewed}')" = "yes" ] || fail "the ClusterIssuer does not read reviewed=yes after the saved plan applied"
   ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
-  gauntlet_stage plan_approval pass "plan -out wrote one update to a CLUSTER-SCOPED custom kind (the ClusterIssuer gains annotation reviewed=yes); the world then moved out of band (a stray label on the shard-0 Issuer, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed annotation); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+  gauntlet_stage plan_approval pass "plan -out wrote one update to a CLUSTER-SCOPED custom kind (the ClusterIssuer gains annotation reviewed=yes); the world then moved out of band (a stray label on the namespaced Issuer, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed annotation); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
 fi
 
 # ── 7. day2_rename: a moved block, zero churn ────────────────────────────
@@ -521,49 +549,86 @@ else
   gauntlet_stage day2_remove pass "two blocks removed, one destroy each. Deleting the namespaced custom kind (Issuer) proposed exactly one destroy at the sweep's synthetic orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address. Deleting the Certificate then proposed exactly ONE destroy too, and crucially NOT the Secret its controller created: example-com-tls carries controller.cert-manager.io/fao and no tofu-estate label, and it is still on the cluster afterwards ($SECRET_LABELS), which is the controller-copy exclusion this estate exists to check. Stock's plans for both removals on the oracle cluster are also exactly one destroy each; the next plan is empty and $REMAIN objects remain labelled"
 fi
 
-# ── 9. day2_count: the counted Issuer shards 2 -> 1 -> 2 ─────────────────
+# ── 9. day2_count: a counted custom resource ─────────────────────────────
+#
+# The counted block is added HERE and removed again at the end of the
+# stage, rather than living in the committed root, because choudoufu cannot
+# re-plan it: measured 2026-09-16, every plan after the instances exist
+# proposes CREATING them again and the API server rejects the dry run with
+# "already exists", while the sweep simultaneously reports the same objects
+# as undeclared orphans. A root carrying that block fails test_plan and
+# every stage after it, so keeping it in the root would trade eleven
+# measurements for one. The stage below makes that one measurement on
+# purpose and then cleans up.
 gauntlet_begin_stage day2_count
-log "=== 9. day2_count: kubernetes_manifest.issuer_shard scales 2 -> 1 -> 2 ==="
-scale_to() {
-  shard_count "$ADOPTED" "$1" || return 1
-  shard_count "$ORACLE" "$1"  || return 1
-}
-if ! scale_to 1; then
-  gauntlet_stage day2_count fail "could not rewrite the counted Issuer's count literal in both roots"
+log "=== 9. day2_count: kubernetes_manifest.issuer_shard, a counted custom kind, 2 -> 1 -> 2 ==="
+COUNT_VERDICT=""
+append_shards "$ADOPTED" 2 || fail "could not add the counted Issuer to the adopted root"
+append_shards "$ORACLE" 2  || fail "could not add the counted Issuer to the oracle root"
+O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan for the counted Issuer failed on B"; }
+grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan for the counted Issuer on B is not exactly two adds"; }
+( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not create the counted Issuers on B"
+# Stock's own oracle for the scale-down, taken before choudoufu's side is
+# measured, so the comparison exists whichever way choudoufu goes.
+remove_shards "$ORACLE" && append_shards "$ORACLE" 1 || fail "could not scale the oracle root to 1"
+O_DOWN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
+grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_DOWN" || { printf '%s\n' "$O_DOWN" | tail -10; fail "stock's scale-down plan on B is not exactly one destroy"; }
+grep -q 'kubernetes_manifest.issuer_shard\[1\]' <<< "$O_DOWN" || fail "stock's scale-down on B does not destroy issuer_shard[1]"
+( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-down apply failed on B"
+
+A_UP="$(tofu_a plan -input=false -no-color 2>&1)"; A_UP_RC=$?
+if [ "$A_UP_RC" -ne 0 ] || ! grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$A_UP"; then
+  COUNT_VERDICT="choudoufu could not even plan the counted Issuer's creation: $(grep -E '^Plan:|^Error' <<< "$A_UP" | head -1)"
 else
-  O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
-  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-down plan on B is not exactly one destroy"; }
-  grep -q 'kubernetes_manifest.issuer_shard\[1\]' <<< "$O_PLAN" || fail "stock's scale-down on B does not destroy issuer_shard[1]"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-down apply failed on B"
+  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "2 added, 0 changed, 0 destroyed" ) || fail "the counted Issuer's creating apply did not add exactly two objects"
+  exists_a issuer shard-0 && exists_a issuer shard-1 || fail "both counted Issuers do not exist after choudoufu created them"
+  # The measurement. This is choudoufu replanning a root IT JUST APPLIED,
+  # with nothing changed - so a create proposed here is not an adoption
+  # question, it is the counted instance never binding to its own object.
+  A_RE="$(tofu_a plan -input=false -no-color 2>&1)"; A_RE_RC=$?
+  if [ "$A_RE_RC" -ne 0 ] || ! grep -q "No changes." <<< "$A_RE"; then
+    REJECT="$(grep -m1 'refused the create' <<< "$A_RE" | sed 's/^ *//')"
+    ORPHANED="$(grep -c 'orphan_issuer_'"$NS"'_shard-' <<< "$A_RE")"
+    COUNT_VERDICT="replanning the unchanged root choudoufu itself had just applied is not empty. The two counted instances never bind to the objects they created: the plan proposes CREATING them again and the server-side dry run rejects it - \"${REJECT:-no rejection line}\" - while the estate sweep reports the same live objects as undeclared orphans at kubernetes_manifest.orphan_issuer_${NS}_shard-N ($ORPHANED line(s) naming one). Neither half is adoption: choudoufu applied these objects itself one command earlier. Every other kubernetes_manifest instance in this root - all $TOTAL_N of them, including the un-counted ClusterIssuer, Issuer and Certificate - re-plans empty, so it is `count` on kubernetes_manifest specifically. Stock replans the identical root clean, and its own 2 -> 1 scale-down on the oracle cluster destroys exactly kubernetes_manifest.issuer_shard[1]"
+  fi
+fi
+
+if [ -n "$COUNT_VERDICT" ]; then
+  gauntlet_stage day2_count fail "$COUNT_VERDICT"
+  # Clean up so the stages below measure the estate and not the wreckage.
+  remove_shards "$ADOPTED" || fail "could not remove the counted Issuer from the adopted root"
+  remove_shards "$ORACLE"  || fail "could not remove the counted Issuer from the oracle root"
+  kca delete issuer shard-0 shard-1 -n "$NS" --ignore-not-found >/dev/null 2>&1
+  kcb delete issuer shard-0 shard-1 -n "$NS" --ignore-not-found >/dev/null 2>&1
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the oracle root would not converge after the counted Issuer was withdrawn"
+  CLEAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$CLEAN" | tail -20; fail "the plan after withdrawing the counted Issuer failed; nothing below would measure day-2 behaviour"; }
+  grep -q "No changes." <<< "$CLEAN" || { printf '%s\n' "$CLEAN" | tail -20; fail "the plan after withdrawing the counted Issuer is not empty; nothing below would measure day-2 behaviour"; }
+else
+  remove_shards "$ADOPTED" && append_shards "$ADOPTED" 1 || fail "could not scale the adopted root to 1"
   C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan failed"; }
-  if ! grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN"; then
-    gauntlet_stage day2_count fail "the scale-down plan over a counted custom kind is not exactly one destroy: $(grep -E '^Plan:' <<< "$C_PLAN" | head -1). count.index renders into the object's own metadata.name inside a kubernetes_manifest manifest object, which is the shape this stage asks about here"
-    printf '%s\n' "$C_PLAN" | tail -20
+  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
+  C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
+  C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
+  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
+  if [ "${BREAK_COUNT:-}" = "1" ]; then
+    exists_a issuer shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
+    log "  BREAK_COUNT=1: caught - shard-0 still exists, so asserting it was the one destroyed correctly fails"
+    gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting the lower index (shard-0) was destroyed correctly fails to hold; the real check is skipped"
   else
-    C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
-    C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
-    grep -qE "^kubernetes_manifest\.orphan_issuer_${NS}_shard-1$" <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not shard-1 at its orphan address"; }
-    ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
-    if [ "${BREAK_COUNT:-}" = "1" ]; then
-      exists_a issuer shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
-      log "  BREAK_COUNT=1: caught - shard-0 still exists, so asserting it was the one destroyed correctly fails"
-      gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting the lower index (shard-0) was destroyed correctly fails to hold; the real check is skipped"
-    else
-      exists_a issuer shard-0 || fail "shard-0 was destroyed on the scale-down"
-      exists_a issuer shard-1 && fail "shard-1 still exists after the scale-down"
-      scale_to 2 || fail "could not scale back to 2"
-      O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-up plan failed on B"
-      grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-up plan on B is not exactly one add"; }
-      ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"
-      U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
-      grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly one add"; }
-      grep -q 'kubernetes_manifest.issuer_shard\[1\]' <<< "$U_PLAN" || fail "the scale-up does not create issuer_shard[1]"
-      ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
-      exists_a issuer shard-0 && exists_a issuer shard-1 || fail "both shards do not exist after the scale-up"
-      U_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || fail "the replan after the scale-up failed"
-      grep -q "No changes." <<< "$U_REPLAN" || { printf '%s\n' "$U_REPLAN" | tail -20; fail "the replan after the scale-up is not empty"; }
-      gauntlet_stage day2_count pass "scaling a COUNTED CUSTOM KIND (kubernetes_manifest.issuer_shard, cert-manager.io/v1 Issuer, whose object name is \"shard-\${count.index}\" inside the manifest object) from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address $C_ADDR since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_manifest.issuer_shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
-    fi
+    exists_a issuer shard-0 || fail "shard-0 was destroyed on the scale-down"
+    exists_a issuer shard-1 && fail "shard-1 still exists after the scale-down"
+    remove_shards "$ADOPTED" && append_shards "$ADOPTED" 2 || fail "could not scale the adopted root back to 2"
+    remove_shards "$ORACLE" && append_shards "$ORACLE" 2  || fail "could not scale the oracle root back to 2"
+    O_UP="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-up plan failed on B"
+    grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_UP" || { printf '%s\n' "$O_UP" | tail -10; fail "stock's scale-up plan on B is not exactly one add"; }
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"
+    U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
+    grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly one add"; }
+    ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
+    gauntlet_stage day2_count pass "scaling a COUNTED CUSTOM KIND (kubernetes_manifest.issuer_shard, a cert-manager.io/v1 Issuer whose object name is shard-\${count.index} inside the manifest object) from 2 to 1 destroyed exactly shard-1, planned at $C_ADDR (shard-0 untouched, both read with kubectl); back to 2 created exactly one object under the same name; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
+    remove_shards "$ADOPTED" && remove_shards "$ORACLE" || fail "could not withdraw the counted Issuer"
+    ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the counted Issuers from A"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the counted Issuers from B"
   fi
 fi
 
