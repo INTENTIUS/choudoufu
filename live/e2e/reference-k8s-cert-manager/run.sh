@@ -354,7 +354,7 @@ else
   CERT_READY="$(kca get certificate example-com -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)"
   [ "$CERT_READY" = "True" ] || fail "the Certificate is not Ready after stock's cold deploy (status: ${CERT_READY:-none}); the self-signed issuance never completed and later stages would measure a broken estate"
   log "  $TOTAL_N objects on A ($BUNDLE_N pre-applied + $CUSTOM_N), a real terraform.tfstate, zero labels; the same on B for the oracle"
-  gauntlet_stage cold_deploy pass "$TOTAL_N objects (cert-manager v1.21.2's 47-object bundle over 11 kinds plus 5 custom resources over 3 custom kinds) from plain terraform against kind $K8S_VER, a real terraform.tfstate with $TOTAL_N instances, zero tofu-estate labels read back with kubectl, and the Certificate Ready=True from the self-signed ClusterIssuer; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: $PRE_NOTE. Control, run first on this same cluster: the un-targeted one-pass plan exits $CTRL_RC before creating anything - \"$CTRL_LINE\" - so the pre-apply is load-bearing and not decoration. BREAK_PREAPPLY=1 requires that one-pass plan to succeed and correctly fails"
+  gauntlet_stage cold_deploy pass "$TOTAL_N objects (cert-manager v1.21.2's 47-object bundle over 11 kinds plus $CUSTOM_N custom resources over 3 custom kinds) from plain terraform against kind $K8S_VER, a real terraform.tfstate with $TOTAL_N instances, zero tofu-estate labels read back with kubectl, and the Certificate Ready=True from the self-signed ClusterIssuer; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: $PRE_NOTE. Control, run first on this same cluster: the un-targeted one-pass plan exits $CTRL_RC before creating anything - \"$CTRL_LINE\" - so the pre-apply is load-bearing and not decoration. BREAK_PREAPPLY=1 requires that one-pass plan to succeed and correctly fails"
 fi
 
 # ── 2. migrate: live-import against stock's state ────────────────────────
@@ -413,44 +413,46 @@ gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed) ov
 
 # ── 5. drift_reconverge: one custom resource tampered out of band ────────
 gauntlet_begin_stage drift_reconverge
-log "=== 5. drift_reconverge: kubectl patch the Certificate on A and on B; stock's plan on B is the oracle ==="
-# --field-manager=Terraform, and the reason is the substrate's, not ours.
-# kubernetes_manifest applies server-side, so a patch made under a
-# DIFFERENT field manager takes ownership of the field and the reconverging
-# apply then fails with a field-manager conflict - on stock too, since it
-# is the provider doing it. Measured 2026-09-16: "You can override this
-# conflict by setting force_conflicts to true". Patching under the same
-# manager keeps the measurement about drift rather than about SSA
-# ownership; it is still kubectl, never the tool.
-kca patch certificate example-com -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"commonName":"tampered.example.com"}}' >/dev/null || fail "could not tamper the Certificate on A"
-kcb patch certificate example-com -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"commonName":"tampered.example.com"}}' >/dev/null || fail "could not tamper the Certificate on B"
+log "=== 5. drift_reconverge: the Certificate is deleted out of band on A and on B; stock's plan on B is the oracle ==="
+# The out-of-band change is a `kubectl delete`, and the reason is the
+# substrate's rather than a preference. Every object in this root is a
+# `kubernetes_manifest`, which the provider applies SERVER-SIDE, so a
+# `kubectl patch` makes kubectl a field manager for the field it touched
+# and the reconverging apply then fails with a field-manager conflict -
+# measured 2026-09-16, "You can override this conflict by setting
+# force_conflicts to true", and it fails that way for STOCK too, since it
+# is the provider doing it. A patch here would therefore measure
+# server-side-apply ownership, not drift. Deleting the object involves no
+# field manager at all: both sides see one object missing and both
+# propose putting exactly it back. It is still kubectl, never the tool.
+kca delete certificate example-com -n "$NS" >/dev/null || fail "could not delete the Certificate out of band on A"
+kcb delete certificate example-com -n "$NS" >/dev/null || fail "could not delete the Certificate out of band on B"
 if [ "${BREAK:-}" = "1" ]; then
-  # A second, declared field on a second object: the cainjector Deployment
-  # sets "replicas" = 1 in the bundle, so moving it is real drift.
-  kca patch deployment cert-manager-cainjector -n "$NS" --type merge --field-manager=Terraform -p '{"spec":{"replicas":2}}' >/dev/null || fail "BREAK: could not tamper a second object on A"
+  kca delete clusterissuer selfsigned >/dev/null || fail "BREAK: could not delete a second object on A"
 fi
 ORACLE_PLAN="$(stock_b plan -detailed-exitcode -input=false -no-color 2>&1)"; ORACLE_RC=$?
-[ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the tamper exited $ORACLE_RC, want 2 (changes)"; }
-grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$ORACLE_PLAN" || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B does not propose exactly one change"; }
+[ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the out-of-band delete exited $ORACLE_RC, want 2 (changes)"; }
+grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$ORACLE_PLAN" || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B does not propose exactly one create"; }
 grep -q "kubernetes_manifest.certificate_example_com" <<< "$ORACLE_PLAN" || fail "stock's plan on B does not name the Certificate"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not reconverge B"
-DRIFT_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after the tamper failed"; }
+O_RECONV="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_RECONV" | tail -20; fail "stock could not reconverge B"; }
+DRIFT_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after the out-of-band delete failed"; }
 if [ "${BREAK:-}" = "1" ]; then
-  if grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$DRIFT_PLAN"; then
-    fail "BREAK=1: two objects were tampered but the plan still proposes exactly one change - the single-object assertion is not load-bearing"
+  if grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$DRIFT_PLAN"; then
+    fail "BREAK=1: two objects were deleted but the plan still proposes exactly one create - the single-object assertion is not load-bearing"
   fi
-  log "  BREAK=1: caught - with a second object tampered the plan is $(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)"
+  log "  BREAK=1: caught - with a second object deleted the plan is $(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)"
   ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: could not reconverge A"
-  gauntlet_stage drift_reconverge pass "BREAK=1 control: with a second custom resource tampered the single-object assertion correctly fails to hold ($(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)); reconverged afterwards"
+  gauntlet_stage drift_reconverge pass "BREAK=1 control: with a second custom resource deleted out of band the single-object assertion correctly fails to hold ($(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)); reconverged afterwards"
 else
-  grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$DRIFT_PLAN" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after one tamper does not propose exactly one change"; }
+  grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$DRIFT_PLAN" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after one out-of-band delete does not propose exactly one create"; }
   grep -q "kubernetes_manifest.certificate_example_com" <<< "$DRIFT_PLAN" || fail "the plan does not name the Certificate"
-  grep -qE 'clusterissuer_selfsigned|issuer_selfsigned' <<< "$DRIFT_PLAN" && fail "the plan touches an Issuer nobody tampered"
+  grep -qE 'clusterissuer_selfsigned|issuer_selfsigned' <<< "$DRIFT_PLAN" && fail "the plan touches an Issuer nobody deleted"
   RECONV="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RECONV" | tail -20; fail "the reconverging apply failed"; }
-  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RECONV" || { printf '%s\n' "$RECONV" | tail -10; fail "the reconverging apply did not change exactly one object"; }
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$RECONV" || { printf '%s\n' "$RECONV" | tail -10; fail "the reconverging apply did not create exactly one object"; }
   CN="$(kca get certificate example-com -n "$NS" -o jsonpath='{.spec.commonName}')"
-  [ "$CN" = "example.com" ] || fail "the Certificate's commonName reads $CN after reconverging, want example.com"
-  gauntlet_stage drift_reconverge pass "a CUSTOM resource (the Certificate, kind cert-manager.io/v1) tampered with kubectl patch; choudoufu proposed exactly kubernetes_manifest.certificate_example_com (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and spec.commonName reads back as configured, with neither the ClusterIssuer nor the namespaced Issuer touched. The patch uses --field-manager=Terraform because kubernetes_manifest applies server-side: a patch under a foreign manager takes ownership of the field and the reconverging apply then fails with a field-manager conflict on BOTH sides, which is the provider's behaviour and not drift. BREAK=1 tampers a second object and the single-object assertion correctly fails"
+  [ "$CN" = "example.com" ] || fail "the Certificate's commonName reads ${CN:-nothing} after reconverging, want example.com"
+  [ "$(count_a)" = "$TOTAL_N" ] || fail "$(count_a) labelled objects after reconverging, want $TOTAL_N - the recreated object did not get its marker"
+  gauntlet_stage drift_reconverge pass "a CUSTOM resource (the Certificate, kind cert-manager.io/v1) deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.certificate_example_com (1 add, 0 change, 0 destroy), matching stock's own plan on the oracle cluster for the same deletion; apply created 1, spec.commonName reads back as configured, the recreated object carries the estate label again ($TOTAL_N labelled), and neither the ClusterIssuer nor the namespaced Issuer was touched. The change is a delete rather than a patch because every object here is a server-side-applied kubernetes_manifest: a kubectl patch makes kubectl a field manager and the reconverging apply then fails with a field-manager conflict on BOTH sides, which measures SSA ownership rather than drift. BREAK=1 deletes a second object and the single-object assertion correctly fails"
 fi
 
 # ── 6. plan_approval: plan -out, the world moves, apply refuses ──────────
