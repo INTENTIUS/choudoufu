@@ -61,6 +61,15 @@ refused by name while the CRD is missing, bound by the key inside its
 manifest, labelled on create, dry-run against the server before the
 apply, restored when the label is stripped, and swept when its block is
 removed.
+[Claim 25]({{< relref "/docs/claims/k8s-a-held-delete-is-not-gone" >}})
+runs the fault operators meet weekly: a finalizer holds an object's
+delete, so the API accepts it and the object stays, terminating, with its
+label. The run's own summary says destroyed; the sweep on the very next
+plan says otherwise, and says the same thing on every plan after it until
+the object is really gone. Its `BREAK=1` takes the finalizer off before
+the destroying apply and requires the object to go in one apply, so the
+persistence the scenario measures is the finalizer's and not a delete
+choudoufu never made.
 
 ## The gauntlet lane
 

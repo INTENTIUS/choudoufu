@@ -1,11 +1,12 @@
-# The Kubernetes smokes on a real API server in CI (issue #1080). The three
-# Kubernetes claims (21 k8s-greenfield, 22 k8s-no-silent-orphans, 23
-# k8s-the-label-is-the-boundary) run against a kind cluster that
+# The Kubernetes smokes on a real API server in CI (issue #1080). Every
+# Kubernetes claim scenario (21 k8s-greenfield, 22 k8s-no-silent-orphans,
+# 23 k8s-the-label-is-the-boundary, 24 k8s-custom-resource, 25
+# k8s-a-held-delete-is-not-gone) runs against a kind cluster that
 # live/smoke/lib.sh's cluster_up creates per run, each followed by its
-# BREAK=1 control, so a regression in the label carrier, the sweep or the
-# admission policy template is caught on the pull request that makes it
-# rather than on the maintainer's laptop. One job per scenario; each is a
-# few minutes.
+# BREAK=1 control, so a regression in the label carrier, the sweep, the
+# admission policy template or the honesty of a plan over a terminating
+# object is caught on the pull request that makes it rather than on the
+# maintainer's laptop. One job per scenario; each is a few minutes.
 #
 # kind and kubectl come from helm/kind-action at a pinned release, with
 # install_only so the scenario, not the action, owns the cluster's life;
@@ -54,6 +55,7 @@ jobs:
           - k8s-no-silent-orphans
           - k8s-the-label-is-the-boundary
           - k8s-custom-resource
+          - k8s-a-held-delete-is-not-gone
     steps:
       - uses: actions/checkout@v7
         with:

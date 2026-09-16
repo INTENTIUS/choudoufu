@@ -37,6 +37,7 @@ just smoke k8s-greenfield # the same life on a real kind cluster, one label as t
 just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
 just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
 just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest, carries the label and is swept by it (#1079)
+just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run says destroyed, the object stays, and every plan proposes it again until it is gone (#1110)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -86,7 +87,7 @@ requires the replan to leave the object alone. The Deployment's container
 is `registry.k8s.io/pause`, which kind's node image already carries, and
 `wait_for_rollout` is off, so the scenario needs no image pull.
 
-All three Kubernetes scenarios run in CI on every pull request that touches
+Every Kubernetes scenario runs in CI on every pull request that touches
 the Kubernetes surface, each followed by its `BREAK=1` control, on a kind
 cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
 `live/k8s_ci_test.go` holds that matrix to this directory, so a new `k8s-*`
@@ -106,6 +107,23 @@ requires the replan to propose creating it. Removing the block for real
 (step 5) has the sweep, which lists every kind the cluster serves under
 `kubernetes_manifest` (#1079's third unit), find the CronTab by its label
 and propose destroying exactly it.
+
+`k8s-a-held-delete-is-not-gone` is claim 25 (#1110's first fault): a
+finalizer added out of band holds a ConfigMap's delete, so the API accepts
+it, the run prints `Destruction complete after 0s` and counts one
+destroyed, and the object is still in the cluster with a
+`deletionTimestamp` and its `tofu-estate` label. The sweep lists it like
+any other live object and every plan proposes the same one destroy until
+the finalizer clears, at which point the object goes and the plan is
+empty; `apply -destroy` over a held object likewise reports the estate
+destroyed and exits 0, and the plan after it proposes exactly the one
+create that is genuinely missing. The false summary line is #1184; the
+plan is what corrects it. Its `BREAK=1` removes the finalizer before the
+destroying apply and requires the object gone in one apply and the replan
+empty - without it the scenario would read the same if choudoufu never
+deleted a ConfigMap at all. The namespace is made with kubectl rather than
+declared, because a `kubernetes_namespace` delete waits on everything
+inside it and that five-minute timer would hide the answer.
 
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs

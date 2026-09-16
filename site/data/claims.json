@@ -574,6 +574,29 @@
         }
       },
       "evidence": []
+    },
+    {
+      "id": 25,
+      "slug": "k8s-a-held-delete-is-not-gone",
+      "title": "A delete the platform accepted but has not finished leaves an object the estate still owns: the object stays with a deletionTimestamp and its marker, the sweep finds it, and every plan proposes the same one destroy until it is really gone",
+      "scenario": "live/smoke/scenarios/k8s-a-held-delete-is-not-gone.sh",
+      "command": "just smoke k8s-a-held-delete-is-not-gone",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 removes the finalizer before the destroying apply and requires the opposite outcome - the object gone in one apply and the replan empty - because without that control the scenario would read identically if choudoufu simply never deleted a ConfigMap",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "No AWS scenario measures this. Most AWS provider deletes wait for the resource to be gone, so the shape is rarer there, but it exists - an eventually-consistent delete, or a DELETE the service accepts and finishes later - and the promise would be the same one: the tag sweep finds a resource that is still there and the next plan proposes it again rather than forgetting it."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
     }
   ]
 }
