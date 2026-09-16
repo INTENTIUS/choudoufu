@@ -63,9 +63,10 @@ const taggingSweepAssignment = "req.TaggingSweep = true"
 // than assign it unconditionally; empty is the intended state and is what
 // the current pin supports.
 //
-// alwaysNativeSweepTypes below is the other, narrower way a row here can be
-// something other than "implemented" without owing statelessDiscoverOne a
-// gate: a type internal/live/discovery's own per-type routing
+// alwaysNativeSweepTypes below is one of the two other, narrower ways a row
+// here can be something other than "implemented" without owing
+// statelessDiscoverOne a gate (taggingSweepEmulatorDefects is the third, for
+// a gap that is the emulator's own defect and expires with it): a type internal/live/discovery's own per-type routing
 // (typeNeedsResourceObjectToRecompose, issue #394) sends through the
 // native per-type sweep unconditionally, never through sweepViaTagging, no
 // matter what Request.TaggingSweep says. For those, an unimplemented
@@ -99,6 +100,78 @@ var taggingSweepEmulatorExceptions = map[string]string{}
 // other type to buy nothing, since aws_iam_role never took that leg anyway.
 var alwaysNativeSweepTypes = map[string]string{
 	"aws_iam_role": "internal/live/discovery.typeNeedsResourceObjectToRecompose returns true for aws_iam_role unconditionally (its aws_iam_service_linked_role sibling pair, issue #302/#394), so partitionSweepTypes always sends it through the native per-type leg (scanTypeReporting) and sweepViaTagging never sees it - see discovery.go's own doc comment on partitionSweepTypes and typeNeedsResourceObjectToRecompose",
+}
+
+// trackedEmulatorGap explains a tagging-sweep row that is unimplemented
+// because the EMULATOR is wrong, not because AWS is.
+//
+// Why is what makes the row harmless to the production path today, and it
+// has to be a routing fact this package can cite, the same standing
+// alwaysNativeSweepTypes entries carry. Tracker is the issue that fixing
+// the emulator closes, and it is the half alwaysNativeSweepTypes has no
+// room for.
+type trackedEmulatorGap struct {
+	Tracker string
+	Why     string
+}
+
+// taggingSweepEmulatorDefects is the third way a non-"implemented" row can
+// be accounted for, and the only one of the three that is temporary.
+//
+// The other two say something permanent. taggingSweepEmulatorExceptions
+// says "the emulator cannot serve this, so statelessDiscoverOne owes the
+// run a gate" - case 5 below enforces exactly that, so an entry there
+// conditions TaggingSweep for every type to buy coverage for one.
+// alwaysNativeSweepTypes says "discovery routes this type through the
+// native leg unconditionally, true or false regardless of any floci pin",
+// and it short-circuits with no reverse direction at all, which is right
+// for a fact that cannot stop being true.
+//
+// Neither fits an emulator defect. Writing one into
+// alwaysNativeSweepTypes would record a falsehood to get green: that map's
+// entries are #394 routing facts, and it never fails when a row turns
+// implemented, so a floci fix would leave the entry sitting there reading
+// as a routing fact it never was - the "recorded exception that no longer
+// applies reads as a live one" shape this file's own case 4 exists to
+// catch. Writing one into taggingSweepEmulatorExceptions would demand a
+// TaggingSweep gate that regresses every type's sweep for two IAM types
+// that never take that leg anyway.
+//
+// So this map short-circuits the gate question the way alwaysNativeSweepTypes
+// does - on a stated routing fact - and, unlike it, fails in the reverse
+// direction when the pinned row turns implemented. That is the entry's
+// expiry: the day the emulator is fixed, this test goes red and names the
+// tracker, instead of the entry rotting.
+//
+// aws_iam_instance_profile and aws_iam_policy are issue #881's, added with
+// their capability recipes. They are NOT aws_iam_role, whose entry in
+// alwaysNativeSweepTypes is correct: issue #1134 measured a live AWS
+// account and found GetResources returns nothing for iam:role in any
+// region - structural, and faithfully emulated - while it returns 500 each
+// for iam:policy and iam:instance-profile in us-east-1, IAM being global
+// and indexing there. floci serves none of the three. For these two that is
+// the emulator diverging from AWS, which is lex00/floci#205, tracked as
+// #1152.
+var taggingSweepEmulatorDefects = map[string]trackedEmulatorGap{
+	"aws_iam_instance_profile": {
+		Tracker: "#1152 (lex00/floci#205)",
+		Why: "internal/live/discovery.partitionSweepTypes sends it native because arnJoinReaches answers false: " +
+			"taggingAPIUnservedType is true for the aws_iam_ prefix (issue #692) and nativeSweepReaches is true " +
+			"(the provider serves no list resource for the type, but Cloud Control lists AWS::IAM::InstanceProfile - " +
+			"live/registry.json's handlers.list, and the emulator agrees, per this manifest's own cloudcontrol-list " +
+			"row for the type). So sweepViaTagging never sees it and the unimplemented row costs the production path " +
+			"nothing. Issue #881 is the destroy this type still does not get, and the reason is SweepGapMarkerUnreadable " +
+			"on the native leg, not this row",
+	},
+	"aws_iam_policy": {
+		Tracker: "#1152 (lex00/floci#205)",
+		Why: "same arnJoinReaches=false routing as aws_iam_instance_profile, reached the other way: the provider DOES " +
+			"serve a native list route for this type (iam:ListPolicies - see internal/live/discovery/directread.go's " +
+			"own doc comment, issue #1046), so nativeSweepReaches is true on its first term and partitionSweepTypes " +
+			"sends it native. Unlike the instance profile nothing is broken for it today; it is here because the two " +
+			"share one fidelity gap and recording only the type that happens to fail a stage invites the next reader " +
+			"to assume the other was measured and found fine",
+	},
 }
 
 // liveDir is the repository's live/ directory, relative to this package.
@@ -180,7 +253,7 @@ func sortedKeys[V any](m map[string]V) []string {
 // statelessDiscoverOne is entitled to enable the estate-wide tagging sweep
 // unconditionally.
 //
-// Five ways it fails, and all five are the point:
+// Six ways it fails, and all six are the point:
 //
 //  1. The pin moved and nobody re-probed - no image block for the pinned
 //     digest, or one with no tagging-sweep rows in it. Silence is "not yet
@@ -194,6 +267,10 @@ func sortedKeys[V any](m map[string]V) []string {
 //     actually bit, a standing decision outliving its reason.
 //  5. The manifest and the source disagree about whether a gate exists at
 //     all, in either direction.
+//  6. A row explained by taggingSweepEmulatorDefects is now implemented -
+//     the emulator was fixed and the entry outlived it. Case 4's shape for
+//     the third bucket, and the reason a temporary explanation may not live
+//     in alwaysNativeSweepTypes, which has no such direction.
 func TestTaggingSweepPremiseHoldsForThePinnedEmulator(t *testing.T) {
 	digest := pinnedFlociDigest(t)
 	caps := loadFlociCaps(t)
@@ -249,9 +326,26 @@ func TestTaggingSweepPremiseHoldsForThePinnedEmulator(t *testing.T) {
 	// is checked first and short-circuits both: a type it names never takes
 	// the tagging leg regardless of this row's status, so neither direction
 	// says anything about whether statelessDiscoverOne needs a gate.
+	//
+	// taggingSweepEmulatorDefects is checked next and short-circuits case 3
+	// only. It carries the same routing fact, so an unimplemented row is
+	// explained the same way - but its entries are temporary, so the
+	// implemented direction is a failure naming the tracker rather than a
+	// skip. See case 6 below, which is that direction.
 	for _, typeName := range sortedKeys(rows) {
 		row := rows[typeName]
 		if _, native := alwaysNativeSweepTypes[typeName]; native {
+			continue
+		}
+		if defect, tracked := taggingSweepEmulatorDefects[typeName]; tracked {
+			// 6. The emulator was fixed and the entry outlived it.
+			if row.Status == "implemented" {
+				t.Errorf("%s is recorded in taggingSweepEmulatorDefects as an emulator defect tracked by %s, but the "+
+					"pinned emulator %s now records its tagging sweep as implemented (%s).\n"+
+					"Delete the entry - and do not stop there: %s was the thing standing between issue #881's "+
+					"tagging-leg repair and an emulator that could prove it. Re-read %s before closing it.",
+					typeName, defect.Tracker, digest, row.Evidence, defect.Tracker, defect.Tracker)
+			}
 			continue
 		}
 		reason, excepted := taggingSweepEmulatorExceptions[typeName]
