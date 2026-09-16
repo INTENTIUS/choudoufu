@@ -460,8 +460,20 @@ gauntlet_begin_stage plan_approval
 log "=== 6. plan_approval: a saved plan, an out-of-band label, a refusal; then the same file applies once the world is back ==="
 review_annotation "$ADOPTED" || fail "could not add the reviewed annotation to the adopted root"
 review_annotation "$ORACLE"  || fail "could not add the reviewed annotation to the oracle root"
-P_PLAN="$(tofu_a plan -out=approved.tfplan -input=false -no-color 2>&1)" || { printf '%s\n' "$P_PLAN" | tail -20; fail "plan -out failed"; }
-grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN" || { printf '%s\n' "$P_PLAN" | tail -10; fail "the saved plan is not exactly one change"; }
+P_PLAN="$(tofu_a plan -out=approved.tfplan -input=false -no-color 2>&1)"; P_PLAN_RC=$?
+P_PLAN_LINE="$(grep -E '^Plan:|^No changes' <<< "$P_PLAN" | head -1 | sed 's/\.$//')"
+P_CHANGED="$(grep -E '^[[:space:]]*# .* will be' <<< "$P_PLAN" | sed -E 's/^[[:space:]#]*//' | tr '\n' ';')"
+if [ "$P_PLAN_RC" -ne 0 ] || ! grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN"; then
+  # Recorded and stepped over rather than aborting the run: the six stages
+  # below this one measure surfaces nothing else in the lane reaches, and
+  # losing them to teach the same lesson twice is a bad trade.
+  gauntlet_stage plan_approval fail "adding one annotation to the cluster-scoped ClusterIssuer did not plan as exactly one in-place update: ${P_PLAN_LINE:-the plan did not produce a summary line} (exit $P_PLAN_RC). What it proposed: ${P_CHANGED:-nothing named}"
+  printf '%s\n' "$P_PLAN" | tail -30
+  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
+  PLAN_APPROVAL_SKIPPED=1
+fi
+if [ -z "${PLAN_APPROVAL_SKIPPED:-}" ]; then
 kca label issuer selfsigned -n "$NS" stray=yes >/dev/null || fail "could not move the world (label the Issuer) on A"
 P_APPLY="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)"; P_RC=$?
 if [ "${BREAK_APPROVAL:-}" = "1" ]; then
@@ -482,6 +494,8 @@ else
   [ "$(kca get clusterissuer selfsigned -o jsonpath='{.metadata.annotations.reviewed}')" = "yes" ] || fail "the ClusterIssuer does not read reviewed=yes after the saved plan applied"
   ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
   gauntlet_stage plan_approval pass "plan -out wrote one update to a CLUSTER-SCOPED custom kind (the ClusterIssuer gains annotation reviewed=yes); the world then moved out of band (a stray label on the namespaced Issuer, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed annotation); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+fi
+
 fi
 
 # ── 7. day2_rename: a moved block, zero churn ────────────────────────────
