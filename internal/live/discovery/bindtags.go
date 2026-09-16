@@ -218,6 +218,42 @@ func (m *markerIndex) available(ctx context.Context) bool {
 	return err == nil
 }
 
+// servesType reports whether the estate's tag index holds at least one
+// object of typeName - which is to say, whether the Resource Groups Tagging
+// API indexes this type on THIS target, for THIS estate, rather than
+// whether some artifact says it ought to.
+//
+// GitHub issue #1131 uses it as the gate on the per-service tag-read leg,
+// and the reason it is the right gate is #1134's measurement. On a real
+// account GetResources serves iam:instance-profile in us-east-1 and never
+// serves iam:role anywhere; the pinned emulator serves neither
+// (lex00/floci#205, tracked as #1152). A leg selected by service name would
+// have to pick one of those two targets to be right about. This predicate
+// picks neither: it asks the index what it is holding and lets the answer
+// decide, so the same binary runs the leg on floci and skips it on a real
+// account with no flag and no list of endpoints.
+//
+// It is order-independent by construction, which a per-object accumulator
+// would not be: the index is one GetResources call for the whole estate
+// made once per run ([markerIndex.fetch]), so the answer is the same for
+// the first object of a type as for the last.
+//
+// False when the index could not be consulted at all. That is not an answer
+// about the type, and treating it as one would silence the leg on exactly
+// the runs that most need it; the caller pays a read it might not have
+// needed, which is the safe direction.
+func (m *markerIndex) servesType(ctx context.Context, typeName string) bool {
+	if !m.available(ctx) {
+		return false
+	}
+	for _, obj := range m.objs {
+		if obj.markerType == typeName && obj.tags[TagEstate] == m.estate {
+			return true
+		}
+	}
+	return false
+}
+
 // settled reports whether the one GetResources call has already been made
 // and answered, without making it. It is what a diagnostic asks after the
 // scan is over, where triggering a network call to word a sentence would be

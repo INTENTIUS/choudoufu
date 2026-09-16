@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
@@ -40,6 +42,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -1688,6 +1691,41 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 			// fallback for types with no native list resource is
 			// unaffected.
 			req.TaggingSweep = true
+			// GitHub issue #1131's per-service tag-read leg, the repair
+			// for #881. Built beside the other two clients and behind the
+			// same gate, because it answers the question they cannot:
+			// AWS::IAM::InstanceProfile carries no Tags property in its
+			// CloudFormation schema, so Cloud Control can never return its
+			// marker however it is tagged, and #1134 measured the Resource
+			// Groups Tagging API's coverage of IAM differing by target.
+			// iam:ListInstanceProfileTags returns the marker on both.
+			//
+			// The leg's own gate (internal/live/discovery/servicetagread.go)
+			// is what keeps it off the runs that do not need it, so
+			// building the client here is unconditional within this block:
+			// nothing is called until an object's marker has already gone
+			// unread by every other route.
+			req.ServiceTags = servicetags.NewIAM(iam.NewFromConfig(
+				aws.Config{
+					Region: sweepCfg.Region,
+					// Same principal as the Cloud Control and Tagging
+					// clients (#957), and the same fallback: a provider
+					// block naming no credentials defers to
+					// aws-sdk-go-v2's default chain, resolved lazily so a
+					// run whose leg never fires pays nothing for it.
+					Credentials: sweepServiceCredentials(sweepCreds, sweepCfg.Region),
+				},
+				func(o *iam.Options) {
+					// Built by hand rather than through LoadDefaultConfig,
+					// so the SDK's own AWS_ENDPOINT_URL_IAM /
+					// AWS_ENDPOINT_URL resolution does not happen for us
+					// and is done here instead. The service-specific
+					// variable wins, exactly as the SDK orders them.
+					if iamEP := serviceEndpoint("AWS_ENDPOINT_URL_IAM", ep); iamEP != "" {
+						o.BaseEndpoint = aws.String(iamEP)
+					}
+				},
+			))
 		}
 	}
 

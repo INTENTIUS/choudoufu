@@ -201,6 +201,27 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 				}))
 			}
 		}
+
+		// GitHub issue #1131, the repair for #881: the fourth route to the
+		// marker. Cloud Control enumerated the object and can never carry
+		// its tags (no Tags property in the CFN schema), and the estate's
+		// tag index does not hold the type on this target either - so ask
+		// the service that owns the object. iam:ListInstanceProfileTags
+		// returns the marker Cloud Control cannot.
+		//
+		// Placed after the #266 join and before everything that decides
+		// what the absence of a marker MEANS, so a successful read reaches
+		// the ordinary claim path and a failed one changes nothing at all:
+		// the untaggable branches below, including
+		// [SweepGapMarkerUnreadable], are exactly the behaviour #1129
+		// landed and they stand untouched for any object this leg cannot
+		// answer for. See servicetagread.go for the gate and the cost.
+		if tags[TagEstate] == "" {
+			if svcTags, ok := serviceTagRead(ctx, req, typeName, importID, &scan); ok {
+				tags, taggable = svcTags, true
+			}
+		}
+
 		if tags[TagEstate] == "" && !sweep {
 			decl.unreadable[typeName]++
 		}

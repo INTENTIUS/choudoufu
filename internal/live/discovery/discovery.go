@@ -30,6 +30,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -197,6 +198,15 @@ type Request struct {
 	// the tagging sweep regardless of TaggingSweep, the same "absence is
 	// off" rule [Request.CloudControl] follows.
 	Tagging *cloudcontrol.Client
+
+	// ServiceTags is GitHub issue #1131's per-service tag-read leg: the
+	// fourth route to an ownership marker, for an object Cloud Control
+	// enumerates and neither Cloud Control nor the Resource Groups Tagging
+	// API can tag-read. Nil (every caller before this field existed)
+	// disables the leg entirely and leaves #1129's
+	// [SweepGapMarkerUnreadable] refusal exactly as it was. See
+	// servicetagread.go for the gate and for what the leg costs.
+	ServiceTags servicetags.Reader
 
 	// TaggingSweep replaces the estate-wide sweep's per-type listing
 	// ([sweepTypes], one list call per admitted type not already covered by
