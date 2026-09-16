@@ -266,6 +266,52 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("")
 	w("Lanes: %s.", strings.Join(KnownLanes, ", "))
 	w("")
+	w("### The cold-deploy pre-apply")
+	w("")
+	w("Some configurations cannot be planned in one pass. A root declaring a")
+	w("CustomResourceDefinition and an object of that CRD is the case that forced")
+	w("this: `kubernetes_manifest` builds the object's schema at plan time, so the")
+	w("plan fails before anything is created, `depends_on` does not help, and")
+	w("re-running fails identically forever. Stock terraform has exactly the same")
+	w("problem with exactly the same configuration, and a real operator does the")
+	w("same thing: `apply -target=<the CRD>`, then a plain apply.")
+	w("")
+	w("Such an estate declares the addresses in its manifest entry:")
+	w("")
+	w("```json")
+	w("\"pre_apply\": [\"kubernetes_manifest.crd_certificates\"],")
+	w("\"pre_apply_reason\": \"why one apply is not enough\"")
+	w("```")
+	w("")
+	w("and its crossing script calls `gauntlet_pre_apply <estate>")
+	w("estate:<fn> oracle:<fn>`, which reads that list once and drives every side")
+	w("from it. Four rules hold it honest (#1173):")
+	w("")
+	w("- **the stock oracle performs the identical pre-apply**, from the same")
+	w("  declared list, in the same call - a crossing where only choudoufu got the")
+	w("  targeted first apply is not comparing like with like, so the helper")
+	w("  refuses a single-sided call;")
+	w("- **the verdict line names it**, addresses and all")
+	w("  (`gauntlet_pre_apply_note`); the runner records `cold_deploy` as `fail`")
+	w("  when a declared address is missing from the line, because a pre-apply the")
+	w("  verdict does not name is a second apply the artifact cannot show;")
+	w("- **it is declared, not scripted**, so the manifest and this page carry it;")
+	w("- **an estate that declares none behaves exactly as before** - the check")
+	w("  never fires, and no estate in the manifest today declares one except")
+	w("  where the table below says so.")
+	w("")
+	w("Readiness is the caller's job and has to be bounded:")
+	w("`gauntlet_wait_until <seconds> <what> -- <command>` polls and fails loudly")
+	w("on timeout rather than falling through into the admission error a webhook")
+	w("that exists but is not yet serving produces.")
+	w("")
+	if preApplyEstates(m) != "" {
+		w("Declares a pre-apply today: %s.", preApplyEstates(m))
+		w("")
+	} else {
+		w("No estate declares a pre-apply today.")
+		w("")
+	}
 	w("## The core set")
 	w("")
 	w("Rule: the most-downloaded terraform-aws-modules examples, the OpenTofu-native")
@@ -471,6 +517,20 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("building an automated sweep, is recorded in #553 rather than repeated")
 	w("here.")
 	return b.String()
+}
+
+// preApplyEstates names every estate declaring a cold-deploy pre-apply,
+// with its address count, so the rendered contract says which estates take
+// two applies rather than leaving a reader to grep the manifest (#1173).
+func preApplyEstates(m *Manifest) string {
+	var parts []string
+	for _, e := range m.Estates {
+		if len(e.PreApply) == 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("`%s` (%d address(es))", e.Name, len(e.PreApply)))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func exampleEntryJSON(m *Manifest) string {

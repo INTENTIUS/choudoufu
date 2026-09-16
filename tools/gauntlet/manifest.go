@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // ManifestPath is the estates manifest, relative to the repository root.
@@ -79,6 +80,32 @@ type Estate struct {
 	// Script is the crossing script, relative to the repository root.
 	// Defaults to live/e2e/<name>/run.sh when empty.
 	Script string `json:"script,omitempty"`
+	// PreApply is the cold-deploy pre-apply (#1173): resource addresses
+	// this estate's configuration cannot plan in one pass, applied with
+	// `-target` before the main apply. Empty for every estate that does
+	// not need one, which is the ordinary case and behaves exactly as it
+	// did before this field existed.
+	//
+	// It is declared HERE, in the manifest, rather than inside the
+	// crossing script, for two reasons the ruling on #1173 turns on.
+	// First, the stock oracle performs the identical pre-apply from this
+	// same list: live/e2e/lib/gauntlet.sh's gauntlet_pre_apply reads it
+	// once and drives every side from it in one call, so the two sides
+	// cannot diverge, and a crossing where only choudoufu got the special
+	// treatment would not be comparing like with like. Second, a declared
+	// list is a fact the artifact and the rendered contract can record;
+	// a script that quietly ran `-target` first and reported a plain pass
+	// would be describing a run nobody performed.
+	//
+	// The runner enforces the third half of the ruling: when this is set,
+	// the cold_deploy verdict line must NAME every address, or the run is
+	// recorded as a failure (preApplyVerdictGap, run.go).
+	PreApply []string `json:"pre_apply,omitempty"`
+	// PreApplyReason says why this estate cannot be cold-deployed in one
+	// apply. Required whenever PreApply is set: a second apply is a
+	// deviation from the stage's ordinary shape, and the row a reader
+	// finds in the artifact has to say what forced it.
+	PreApplyReason string `json:"pre_apply_reason,omitempty"`
 }
 
 // Substrate is the platform this estate's script runs against: SubstrateKind
@@ -182,6 +209,48 @@ func (m *Manifest) Validate() error {
 		if !inRepo && (e.URL == "" || e.Pin == "") {
 			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference (or a kubernetes-lane estate kept in this repository, with neither)", ManifestPath, e.Name)
 		}
+		if err := validatePreApply(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validatePreApply checks the cold-deploy pre-apply declaration (#1173).
+//
+// The addresses end up as `-target=<addr>` arguments built by a shell
+// function, which holds them in an array and so passes quotes, brackets and
+// anything else through untouched: an instance address like
+// `kubernetes_manifest.crd["certificates"]` is fine and is deliberately
+// allowed. What is refused is what would not SURVIVE the trip as one
+// argument - whitespace and control characters, which word-splitting and
+// the one-line verdict grammar would break apart - and a leading dash,
+// which terraform would read as another flag.
+func validatePreApply(e Estate) error {
+	if len(e.PreApply) == 0 {
+		if strings.TrimSpace(e.PreApplyReason) != "" {
+			return fmt.Errorf("%s: estate %q: pre_apply_reason is set but pre_apply is empty - a reason with nothing to explain", ManifestPath, e.Name)
+		}
+		return nil
+	}
+	if strings.TrimSpace(e.PreApplyReason) == "" {
+		return fmt.Errorf("%s: estate %q: pre_apply needs a pre_apply_reason - a cold deploy that takes two applies must say what forced the second one", ManifestPath, e.Name)
+	}
+	seen := map[string]bool{}
+	for _, addr := range e.PreApply {
+		if strings.TrimSpace(addr) == "" {
+			return fmt.Errorf("%s: estate %q: pre_apply holds an empty address", ManifestPath, e.Name)
+		}
+		if strings.ContainsFunc(addr, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
+			return fmt.Errorf("%s: estate %q: pre_apply address %q holds whitespace or a control character - it has to survive as one `-target=` argument and as one line of the verdict grammar", ManifestPath, e.Name, addr)
+		}
+		if strings.HasPrefix(addr, "-") {
+			return fmt.Errorf("%s: estate %q: pre_apply address %q starts with a dash, which terraform would read as another flag", ManifestPath, e.Name, addr)
+		}
+		if seen[addr] {
+			return fmt.Errorf("%s: estate %q: pre_apply names %q twice", ManifestPath, e.Name, addr)
+		}
+		seen[addr] = true
 	}
 	return nil
 }

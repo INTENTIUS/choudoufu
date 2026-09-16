@@ -254,6 +254,175 @@ gauntlet_tagged_count() {
   "$@" --output json | jq '.ResourceTagMappingList | length'
 }
 
+# ── the cold-deploy pre-apply (#1173) ────────────────────────────────────
+#
+# Some configurations cannot be planned in one pass. A root that declares a
+# CustomResourceDefinition and an object of that CRD is the case that forced
+# this: kubernetes_manifest builds the object's schema at PLAN time, so the
+# plan fails before anything is created, `depends_on` does not help, and
+# re-running fails identically forever. `terraform apply -target=<the CRD>`
+# followed by a plain apply is what an operator does, and it is what stock
+# terraform has to do with the same configuration.
+#
+# The ruling (#1173, 2026-09-16) is that the stage grows a DECLARED pre-apply
+# and the stock oracle performs the identical one:
+#
+#   1. the addresses live in live/gauntlet/estates.json's `pre_apply`, not in
+#      the script, so the artifact and live/GAUNTLET.md can record them;
+#   2. every side runs the SAME list - which is why gauntlet_pre_apply takes
+#      all the sides in one call and refuses a single-sided one, rather than
+#      being called once per side where a copy-paste could diverge them;
+#   3. the cold_deploy verdict line names the pre-apply and its addresses
+#      (gauntlet_pre_apply_note), and tools/gauntlet's own runner fails the
+#      stage if it does not (preApplyVerdictGap, run.go);
+#   4. an estate that declares no pre_apply never calls any of this and is
+#      exactly what it was.
+
+# gauntlet_pre_apply_targets <estate>: prints the declared addresses, one per
+# line, straight out of the manifest. Prints nothing and succeeds when the
+# estate declares none; fails when the estate is not in the manifest at all,
+# because a script asking for a list under a name the manifest does not know
+# is a typo, not an empty declaration.
+gauntlet_pre_apply_targets() {
+  : "${ROOT:?gauntlet_pre_apply_targets needs \$ROOT set (every crossing script sets it before sourcing this file)}"
+  ESTATE_NAME="$1" python3 - "$ROOT/live/gauntlet/estates.json" <<'PY'
+import json, os, sys
+name = os.environ["ESTATE_NAME"]
+with open(sys.argv[1]) as f:
+    m = json.load(f)
+for e in m["estates"]:
+    if e["name"] == name:
+        for addr in e.get("pre_apply", []):
+            print(addr)
+        break
+else:
+    sys.stderr.write("gauntlet_pre_apply_targets: %s is not in live/gauntlet/estates.json\n" % name)
+    sys.exit(1)
+PY
+}
+
+# gauntlet_pre_apply_reason <estate>: the manifest's pre_apply_reason.
+gauntlet_pre_apply_reason() {
+  : "${ROOT:?gauntlet_pre_apply_reason needs \$ROOT set}"
+  ESTATE_NAME="$1" python3 - "$ROOT/live/gauntlet/estates.json" <<'PY'
+import json, os, sys
+name = os.environ["ESTATE_NAME"]
+with open(sys.argv[1]) as f:
+    m = json.load(f)
+for e in m["estates"]:
+    if e["name"] == name:
+        print(e.get("pre_apply_reason", ""))
+        break
+else:
+    sys.exit(1)
+PY
+}
+
+# gauntlet_pre_apply <estate> <label>:<function> <label>:<function> [...]
+#
+# Runs the estate's declared pre-apply on every side named, in order, by
+# calling each side's shell function with the `-target=<addr>` arguments
+# appended to whatever that function already does. A side function is
+# whatever "apply in this root against this cluster" means for that side:
+#
+#   pre_apply_estate() { ( cd "$EST"    && KUBECONFIG="$KCA" terraform apply -auto-approve -input=false -no-color "$@" ); }
+#   pre_apply_oracle() { ( cd "$ORACLE" && KUBECONFIG="$KCB" terraform apply -auto-approve -input=false -no-color "$@" ); }
+#   gauntlet_pre_apply "$ESTATE" estate:pre_apply_estate oracle:pre_apply_oracle
+#
+# Two sides is the minimum and the refusal is the point: a crossing where
+# choudoufu's side got a targeted pre-apply and the stock oracle did not is
+# not a comparison of like with like, so this function will not perform one.
+#
+# Returns non-zero (and says which side) if any side's apply fails; the
+# caller's own fail() records the stage.
+gauntlet_pre_apply() {
+  local estate="$1"; shift
+  local addrs spec side fn
+  addrs="$(gauntlet_pre_apply_targets "$estate")" || return 1
+  if [ -z "$addrs" ]; then
+    printf 'gauntlet_pre_apply: estate %s declares no pre_apply in live/gauntlet/estates.json - declare the addresses there rather than targeting them from the script (#1173)\n' "$estate" >&2
+    return 1
+  fi
+  if [ "$#" -lt 2 ]; then
+    printf 'gauntlet_pre_apply: %s side(s) given; a pre-apply needs at least two - the estate and its stock oracle. A pre-apply one side performs and the other does not makes the crossing meaningless (#1173)\n' "$#" >&2
+    return 1
+  fi
+  local targets=() a
+  while IFS= read -r a; do
+    [ -n "$a" ] || continue
+    targets+=("-target=$a")
+  done <<< "$addrs"
+  local ran=""
+  for spec in "$@"; do
+    side="${spec%%:*}"; fn="${spec#*:}"
+    if [ -z "$side" ] || [ -z "$fn" ] || [ "$side" = "$spec" ]; then
+      printf 'gauntlet_pre_apply: side %q must be <label>:<function>\n' "$spec" >&2
+      return 1
+    fi
+    if ! declare -F "$fn" >/dev/null 2>&1; then
+      printf 'gauntlet_pre_apply: side %s names %s, which is not a shell function\n' "$side" "$fn" >&2
+      return 1
+    fi
+    printf '  pre-apply on %s: %s %s\n' "$side" "$fn" "${targets[*]}"
+    if ! "$fn" "${targets[@]}"; then
+      printf 'gauntlet_pre_apply: the declared pre-apply failed on side %s (%s)\n' "$side" "$fn" >&2
+      return 1
+    fi
+    ran="${ran:+$ran, }$side"
+  done
+  _GAUNTLET_PRE_APPLY_ESTATE="$estate"
+  _GAUNTLET_PRE_APPLY_ADDRS="$(printf '%s' "$addrs" | tr '\n' ' ')"
+  _GAUNTLET_PRE_APPLY_COUNT="$(printf '%s\n' "$addrs" | grep -c .)"
+  _GAUNTLET_PRE_APPLY_SIDES="$ran"
+}
+
+# gauntlet_pre_apply_note: one sentence naming the pre-apply that actually
+# ran, for the script to interpolate into its cold_deploy detail. Every
+# number in it comes from the run gauntlet_pre_apply just performed, never
+# from anything typed twice. Prints nothing and fails if no pre-apply ran,
+# so a script cannot claim one it did not perform.
+gauntlet_pre_apply_note() {
+  if [ -z "${_GAUNTLET_PRE_APPLY_SIDES:-}" ]; then
+    printf 'gauntlet_pre_apply_note: no pre-apply has run in this script; call gauntlet_pre_apply first\n' >&2
+    return 1
+  fi
+  local reason
+  reason="$(gauntlet_pre_apply_reason "$_GAUNTLET_PRE_APPLY_ESTATE")"
+  printf 'declared pre-apply (%s pre_apply, #1173): %s address(es) applied with -target before the main apply, the identical list on every side (%s) - %s; forced by: %s' \
+    "live/gauntlet/estates.json" "$_GAUNTLET_PRE_APPLY_COUNT" "$_GAUNTLET_PRE_APPLY_SIDES" \
+    "$(printf '%s' "$_GAUNTLET_PRE_APPLY_ADDRS" | sed 's/ $//; s/ /, /g')" "$reason"
+}
+
+# gauntlet_wait_until <timeout-seconds> <what> -- <command...>
+#
+# Polls <command> every 2 seconds until it succeeds, giving up after
+# <timeout-seconds>. On timeout it prints a loud, named failure and returns
+# 1 rather than letting the caller fall through into whatever confusing
+# error the not-yet-ready thing produces next - #1173's "the wait must be
+# bounded and must fail loudly on timeout". cert-manager's two webhooks are
+# failurePolicy: Fail, so an object admitted through a webhook that exists
+# but is not yet serving is REJECTED, and "the CRD is installed" is not the
+# same fact as "the webhook in front of it answers".
+gauntlet_wait_until() {
+  local timeout="$1" what="$2"; shift 2
+  [ "${1:-}" = "--" ] || { printf 'gauntlet_wait_until: expected -- before the command\n' >&2; return 1; }
+  shift
+  local deadline=$(( $(date +%s) + timeout )) tries=0
+  while :; do
+    tries=$((tries + 1))
+    if "$@" >/dev/null 2>&1; then
+      printf '  ready after %ss (%s attempt(s)): %s\n' "$(( $(date +%s) - deadline + timeout ))" "$tries" "$what"
+      return 0
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      printf 'gauntlet_wait_until: TIMEOUT after %ss waiting for %s (%s attempt(s)); last attempt:\n' "$timeout" "$what" "$tries" >&2
+      "$@" >&2 2>&1 || true
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 # gauntlet_stage_from_exit <id> <exit-code> [detail...]
 # Convenience for the common shape "run a check, report pass on 0, fail
 # otherwise" without the script having to branch itself.
