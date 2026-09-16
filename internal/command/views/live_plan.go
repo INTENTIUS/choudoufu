@@ -1077,8 +1077,21 @@ func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
 			colored("  [bold]%s[reset] [ADOPTABLE] <- %s %s\n", u.Addr, u.TypeName, liveIDOrNone(u.LiveID))
 			// Deliberately not word-wrapped, like the adoption hint in the
 			// foreign section: this line exists to be copied.
-			out("      adopt by writing: tofu-estate=" + u.MarkerEstate + " tofu-address=" + u.MarkerAddress + "\n")
-			wrapped("Write both tags with any tool that honors live/MARKERS.md, then re-run; the next plan binds it instead of proposing a duplicate.", 6)
+			//
+			// An empty MarkerAddress is a marker surface that has no
+			// tofu-address to write - both Kubernetes label surfaces,
+			// where #1016 ruled the marker is the estate label alone
+			// (GitHub issue #1108). Printing "tofu-address=" with
+			// nothing after it, or naming a marker nothing on that
+			// substrate reads, would be a copyable instruction that does
+			// not adopt the object.
+			if u.MarkerAddress == "" {
+				out("      adopt by writing: tofu-estate=" + u.MarkerEstate + "\n")
+				wrapped("Write that marker with any tool that honors live/MARKERS.md, then re-run; the next plan binds it instead of proposing a duplicate.", 6)
+			} else {
+				out("      adopt by writing: tofu-estate=" + u.MarkerEstate + " tofu-address=" + u.MarkerAddress + "\n")
+				wrapped("Write both tags with any tool that honors live/MARKERS.md, then re-run; the next plan binds it instead of proposing a duplicate.", 6)
+			}
 		case u.HeldBy != "":
 			colored("  [bold]%s[reset] [IN_THE_WAY] <- %s %s\n", u.Addr, u.TypeName, liveIDOrNone(u.LiveID))
 			wrapped(fmt.Sprintf("held by estate %q. Moving a resource between estates is a deliberate retag by its owner, never a side effect of this estate planning. Otherwise, point the declared resource at an identity nobody is using.", u.HeldBy), 6)

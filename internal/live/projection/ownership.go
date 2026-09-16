@@ -91,6 +91,21 @@ type Unowned struct {
 	// just not by this run.
 	Estate string
 
+	// AddressMarker reports whether this resource type's marker surface
+	// carries a tofu-address beside the estate marker - true for the AWS
+	// tag map, false for both Kubernetes label surfaces, where #1016 ruled
+	// the marker is the estate label alone because the object's own group,
+	// kind, namespace and name are the join key back to configuration.
+	//
+	// It exists so that whoever renders the adoption hint offers the write
+	// that would actually adopt this object. Before GitHub issue #1108 no
+	// Kubernetes object could ever become an Unowned entry, so the hint
+	// naming two tags was right everywhere it could be printed; the moment
+	// the label is read it is printed on objects where writing a
+	// tofu-address label is not the adoption and would leave a marker
+	// nothing reads.
+	AddressMarker bool
+
 	// Detail is one sentence aimed at an operator.
 	Detail string
 }
@@ -278,7 +293,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		// nothing on it that says whose it is.
 		b.unowned(addr, typeName, importID, "", fmt.Sprintf(
 			"The provider read the %s with identity %q back without a %s, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
-			typeName, importID, surface.carrierPhrase(), markers.TagEstate), noMarkerCause(typeName), false)
+			typeName, importID, surface.carrierPhrase(), markers.TagEstate), noMarkerCause(typeName), surface.carriesAddress(), false)
 		return ownershipUnowned
 	}
 
@@ -378,7 +393,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate and nothing in this plan reads, changes or destroys it. See live/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID, markers.TagEstate, estate)
 	}
-	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), nonDefault && verb == policy.Keep)
+	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), surface.carriesAddress(), nonDefault && verb == policy.Keep)
 	return ownershipUnowned
 }
 
@@ -570,13 +585,14 @@ func (b *builder) recordStale(addr addrs.AbsResourceInstance, typeName, importID
 // marked for a different one of its instances". Both keep a resource out of
 // the prior state on the same terms, and they must not read as the same
 // finding - each has its own entry in [refusals].
-func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, estate, detail, cause string, quiet bool) {
+func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, estate, detail, cause string, addressMarker, quiet bool) {
 	b.unownedList = append(b.unownedList, Unowned{
-		Addr:     addr,
-		TypeName: typeName,
-		ImportID: importID,
-		Estate:   estate,
-		Detail:   detail,
+		Addr:          addr,
+		TypeName:      typeName,
+		ImportID:      importID,
+		Estate:        estate,
+		AddressMarker: addressMarker,
+		Detail:        detail,
 	})
 	if !quiet {
 		b.diags = b.diags.Append(tfdiags.Sourceless(
@@ -604,7 +620,10 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 		TypeName: typeName,
 		ImportID: importID,
 		Estate:   estate,
-		Detail:   detail,
+		// Only the tag surface reaches this refusal at all - see
+		// [markerSurface.carriesAddress].
+		AddressMarker: true,
+		Detail:        detail,
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(
 		tfdiags.Warning,
