@@ -482,6 +482,13 @@ func nativeSweepReaches(req Request, schemas listclient.Schemas, typeName string
 // vouches for - was structurally useless for exactly the estates it
 // helps most. A type in an unserved service sweeps through the native
 // per-type leg instead.
+//
+// #1133 is the first consumer of this set outside the sweep itself
+// (tools/survey-gen/classify.go, via [TaggingAPIUnservedType]) - it reads
+// this map to stop live/survey-full.json from asserting a tag-filtered-list
+// recovery route the sweep above does not take - and it inherits the same
+// per-type, per-region coarseness the #1134 paragraph above describes,
+// until #1144 lands.
 var taggingAPIUnservedServices = map[string]bool{
 	"aws_iam_": true,
 }
@@ -497,6 +504,16 @@ func taggingAPIUnservedType(typeName string) bool {
 		}
 	}
 	return false
+}
+
+// TaggingAPIUnservedType is [taggingAPIUnservedType] exported for callers
+// outside this package that need the same routing preference without
+// re-deriving it - today tools/survey-gen/classify.go (issue #1133), which
+// stops the survey from asserting a tag-filtered-list recovery route this
+// package's own sweep does not take. See [taggingAPIUnservedServices]'s doc
+// comment for the coarseness this inherits and issue #1144 for the fix.
+func TaggingAPIUnservedType(typeName string) bool {
+	return taggingAPIUnservedType(typeName)
 }
 
 // arnJoinCFNType is the CFN type the tag sweep should reason about for

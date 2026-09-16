@@ -1,5 +1,5 @@
 {
-  "stamp": "`live/readiness.json` last committed at commit `1b09912946` on 2026-09-06T20:17:12-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+  "stamp": "`live/readiness.json` last committed at commit `0182aea761` on 2026-09-15T20:14:15-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
   "statuses": [
     "in-contract",
     "pending-ratification",

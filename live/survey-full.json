@@ -10133,7 +10133,7 @@
     },
     {
       "type": "aws_iam_instance_profile",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -10149,11 +10149,11 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so Cloud Control listing AWS::IAM::InstanceProfile with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_openid_connect_provider",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -10165,7 +10165,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "identity requires server-assigned arn; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so Cloud Control listing AWS::IAM::OIDCProvider with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_organizations_features",
@@ -10197,7 +10197,7 @@
     },
     {
       "type": "aws_iam_policy",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -10209,7 +10209,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "identity requires server-assigned arn; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_policy_attachment",
@@ -10230,7 +10230,7 @@
     },
     {
       "type": "aws_iam_role",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -10246,7 +10246,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_role_policies_exclusive",
@@ -10314,7 +10314,7 @@
     },
     {
       "type": "aws_iam_saml_provider",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -10326,7 +10326,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "identity requires server-assigned arn; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so Cloud Control listing AWS::IAM::SAMLProvider with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_security_token_service_preferences",
@@ -10341,18 +10341,18 @@
     },
     {
       "type": "aws_iam_server_certificate",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "no identity schema in v6.59.0; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so Cloud Control listing AWS::IAM::ServerCertificate with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_service_linked_role",
-      "path": "marker",
+      "path": "moves to Ops",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -10364,7 +10364,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      "evidence": "identity requires server-assigned arn; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so no native list resource and no Cloud Control list handler, so no admission path recovers it"
     },
     {
       "type": "aws_iam_service_specific_credential",
@@ -10497,14 +10497,14 @@
     },
     {
       "type": "aws_iam_virtual_mfa_device",
-      "path": "marker",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "no identity schema in v6.59.0; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so Cloud Control listing AWS::IAM::VirtualMFADevice with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_identitystore_group",

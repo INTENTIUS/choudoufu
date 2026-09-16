@@ -65,7 +65,14 @@ var surveyExpectations = []surveyExpectation{
 			IdentitySchema int
 		}{Taggable: 47, ListResource: 58, IdentitySchema: 61},
 		Paths: map[string]int{
-			"marker":       37,
+			// 37 -> 34 on 2026-09-15 (issue #1133): the classifier now
+			// consults discovery.TaggingAPIUnservedType before crediting
+			// taggability with a tag-filtered-list route, and three
+			// aws_iam_ types the survey previously called "marker" moved
+			// out - aws_iam_instance_profile, aws_iam_policy and
+			// aws_iam_role. No other type moved; aws_iam_ is the only
+			// service taggingAPIUnservedServices names today.
+			"marker":       34,
 			"client-named": 14,
 			// 6 -> 9 and 5 -> 2 on 2026-08-16, from two classifier
 			// changes in one commit. Two of the three
@@ -78,7 +85,18 @@ var surveyExpectations = []surveyExpectation{
 			// because its hand exclusion in opsExcluded was withdrawn by
 			// ruling; it has a native list resource and had always
 			// classified underneath the veto.
-			"enumerable, unbindable": 9,
+			//
+			// 9 -> 12 on 2026-09-15 (issue #1133): all three "marker"
+			// movers above land here rather than on "moves to Ops" -
+			// aws_iam_instance_profile through Cloud Control's unscoped
+			// AWS::IAM::InstanceProfile list, aws_iam_policy and
+			// aws_iam_role each through their own native list resource.
+			// "moves to Ops" is unchanged at 1 in this artifact; the one
+			// aws_iam_ type that lands there instead
+			// (aws_iam_service_linked_role) is not in SURVEY.md's curated
+			// 68-type roster, so it shows up only in survey-full.json's
+			// expectation below.
+			"enumerable, unbindable": 12,
 			// 2 -> 1 and 4 -> 5 on 2026-08-17, one classifier change:
 			// aws_acm_certificate_validation's hand exclusion in
 			// opsExcluded was withdrawn by ruling. Classified from its
@@ -122,7 +140,16 @@ var surveyExpectations = []surveyExpectation{
 			// aws_cloudwatch_otel_enrichment, aws_glue_user_defined_function
 			// and aws_vpc_block_public_access_options - none of them this
 			// commit's doing either.
-			"marker": 786,
+			// 786 -> 778 on 2026-09-15 (issue #1133): the classifier now
+			// consults discovery.TaggingAPIUnservedType before crediting
+			// taggability with a tag-filtered-list route, and eight
+			// aws_iam_ types the survey previously called "marker" moved
+			// out - aws_iam_instance_profile, aws_iam_openid_connect_provider,
+			// aws_iam_policy, aws_iam_role, aws_iam_saml_provider,
+			// aws_iam_server_certificate, aws_iam_service_linked_role and
+			// aws_iam_virtual_mfa_device. No other type moved; aws_iam_ is
+			// the only service taggingAPIUnservedServices names today.
+			"marker": 778,
 			// 702 -> 583. 118 rows moved to "enumerable, unbindable"
 			// because the classifier's enumeration question now reads
 			// the mapped CFN type's Cloud Control list handler as well
@@ -168,7 +195,13 @@ var surveyExpectations = []surveyExpectation{
 			// and aws_xray_trace_segment_destination. All 18 rows landed on
 			// account-derived directly; none passed through any other path
 			// first.
-			"moves to Ops":   561,
+			//
+			// 561 -> 562 on 2026-09-15, part of the same #1133 regeneration
+			// above: aws_iam_service_linked_role, one of the eight "marker"
+			// movers, has no native list resource and no Cloud Control list
+			// handler at all, so it lands here rather than on "enumerable,
+			// unbindable" with the other seven.
+			"moves to Ops":   562,
 			"client-named":   117,
 			"parent-derived": 48,
 			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
@@ -192,7 +225,20 @@ var surveyExpectations = []surveyExpectation{
 			// that produced this token) now wins for -
 			// aws_lakeformation_lf_tag, aws_observabilityadmin_telemetry_enrichment
 			// and aws_s3control_object_lambda_access_point.
-			"enumerable, unbindable": 135,
+			//
+			// 135 -> 142 on 2026-09-15 (issue #1133): seven of the eight
+			// "marker" movers above land here - aws_iam_policy and
+			// aws_iam_role through their own native list resource,
+			// aws_iam_instance_profile, aws_iam_openid_connect_provider,
+			// aws_iam_saml_provider, aws_iam_server_certificate and
+			// aws_iam_virtual_mfa_device each through Cloud Control's
+			// unscoped list for their mapped CFN type
+			// (AWS::IAM::InstanceProfile, AWS::IAM::OIDCProvider,
+			// AWS::IAM::SAMLProvider, AWS::IAM::ServerCertificate,
+			// AWS::IAM::VirtualMFADevice). The eighth mover,
+			// aws_iam_service_linked_role, has neither and lands on "moves
+			// to Ops" above instead.
+			"enumerable, unbindable": 142,
 			// The four movers above, the whole membership of the new token.
 			"unique-name": 4,
 			// aws_ecs_capacity_provider moved marker -> account-derived
