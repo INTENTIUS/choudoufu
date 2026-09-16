@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,6 +93,10 @@ func TestPreApplyValidation(t *testing.T) {
 func TestPreApplyVerdictGap(t *testing.T) {
 	declared := Estate{Name: "e", PreApply: []string{"kubernetes_manifest.crd_a", "kubernetes_manifest.crd_b"}, PreApplyReason: "r"}
 	none := Estate{Name: "e"}
+	// What the run REPORTS having pre-applied is the source the per-address
+	// half reads; the verdict line only has to carry a count and the field.
+	both := []string{"kubernetes_manifest.crd_a", "kubernetes_manifest.crd_b"}
+	goodDetail := "50 objects; declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json"
 	cases := []struct {
 		name     string
 		estate   Estate
@@ -100,29 +105,49 @@ func TestPreApplyVerdictGap(t *testing.T) {
 		wantText string
 	}{
 		{
-			name:   "no declaration, nothing checked, even with an empty detail",
+			name:   "no declaration, nothing checked, even with an empty detail and no pre_apply line",
 			estate: none,
 			res:    &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{}},
 		},
 		{
-			name:     "declared and named: no gap",
-			estate:   declared,
-			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: "pre-apply of kubernetes_manifest.crd_a, kubernetes_manifest.crd_b then 47 objects"}},
-			wantText: "",
+			name:   "declared, performed, and the line says how many and where: no gap",
+			estate: declared,
+			res:    &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: goodDetail}, PreApply: both},
 		},
 		{
-			name:     "declared and NOT named: gap, naming both",
+			name:     "declared but this run reported performing none",
 			estate:   declared,
-			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: "47 objects from plain terraform"}},
+			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: goodDetail}},
 			wantGap:  true,
-			wantText: "kubernetes_manifest.crd_a, kubernetes_manifest.crd_b",
+			wantText: "no `GAUNTLET pre_apply=` line",
 		},
 		{
-			name:     "declared and half named: gap, naming only the missing one",
+			name:     "performed one of the two declared",
 			estate:   declared,
-			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: "pre-applied kubernetes_manifest.crd_a"}},
+			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: goodDetail}, PreApply: []string{"kubernetes_manifest.crd_a"}},
 			wantGap:  true,
-			wantText: "kubernetes_manifest.crd_b",
+			wantText: "Declared but not performed: kubernetes_manifest.crd_b",
+		},
+		{
+			name:     "performed a target nobody declared",
+			estate:   declared,
+			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: goodDetail}, PreApply: []string{"kubernetes_manifest.crd_a", "kubernetes_manifest.crd_b", "kubernetes_manifest.sneaky"}},
+			wantGap:  true,
+			wantText: "Performed but not declared: kubernetes_manifest.sneaky",
+		},
+		{
+			name:     "performed correctly but the verdict line says nothing at all",
+			estate:   declared,
+			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: "50 objects from plain terraform"}, PreApply: both},
+			wantGap:  true,
+			wantText: "`pre_apply`",
+		},
+		{
+			name:     "the verdict line names the field but not the count",
+			estate:   declared,
+			res:      &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: "pre_apply was performed, quantity unstated"}, PreApply: both},
+			wantGap:  true,
+			wantText: "how many addresses were pre-applied (2)",
 		},
 		{
 			name:   "a failing cold_deploy is left alone",
@@ -139,34 +164,66 @@ func TestPreApplyVerdictGap(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			got := preApplyVerdictGap(c.estate, c.res)
 			if c.wantGap && got == "" {
-				t.Fatalf("preApplyVerdictGap() = \"\", want a gap")
+				t.Fatalf("preApplyVerdictGap() = %q, want a gap", got)
 			}
 			if !c.wantGap && got != "" {
-				t.Fatalf("preApplyVerdictGap() = %q, want \"\"", got)
+				t.Fatalf("preApplyVerdictGap() = %q, want no gap", got)
 			}
 			if c.wantGap && !strings.Contains(got, c.wantText) {
 				t.Fatalf("preApplyVerdictGap() = %q, want it to name %q", got, c.wantText)
-			}
-			if c.wantGap && strings.Contains(got, "kubernetes_manifest.crd_a") && c.wantText == "kubernetes_manifest.crd_b" {
-				t.Fatalf("preApplyVerdictGap() names an address the detail DID carry: %q", got)
 			}
 		})
 	}
 }
 
+// TestPreApplyVerdictLineStaysShort pins what the 2026-09-16 correction is
+// about. The ruling first said the verdict line must name every address;
+// on cert-manager's 47 that was a 3.3KB sentence, which satisfied the
+// words and defeated their reason - a reader must SEE that two applies
+// happened, and nobody reads 47 addresses in a verdict. So the guard must
+// be satisfiable by a SHORT line, and must still be checking every
+// address: the second half of this test keeps the same short line and
+// quietly drops one performed address.
+func TestPreApplyVerdictLineStaysShort(t *testing.T) {
+	var addrs []string
+	for i := 0; i < 47; i++ {
+		addrs = append(addrs, fmt.Sprintf("kubernetes_manifest.object_with_a_realistically_long_name_%02d", i))
+	}
+	e := Estate{Name: "big", PreApply: addrs, PreApplyReason: "r"}
+	short := "47 objects from plain terraform; declared pre-apply, #1173: 47 address(es) declared at pre_apply in live/gauntlet/estates.json"
+	if len(short) > 200 {
+		t.Fatalf("the sample verdict line is %d chars; it is meant to be the short one", len(short))
+	}
+	res := &ProtocolResult{Stages: map[string]string{StageColdDeploy: VerdictPass}, Detail: map[string]string{StageColdDeploy: short}, PreApply: addrs}
+	if gap := preApplyVerdictGap(e, res); gap != "" {
+		t.Fatalf("a short verdict line naming the count and the field was rejected: %s", gap)
+	}
+	res.PreApply = addrs[:46]
+	gap := preApplyVerdictGap(e, res)
+	if gap == "" {
+		t.Fatal("dropping one of the 47 performed addresses was not caught - the per-address check went away with the long sentence, which is the wrong half to simplify")
+	}
+	if !strings.Contains(gap, addrs[46]) {
+		t.Fatalf("the gap does not name the address that was not performed: %s", gap)
+	}
+}
+
 // TestRunEstatesFailsColdDeployWhenThePreApplyIsNotNamed drives the whole
-// merge path: a script that passes cold_deploy and says nothing about the
-// pre-apply it declared must come out of RunEstates as a fail. This is the
-// guard shown red - the same script with the addresses in its detail line
-// (below) comes out pass.
+// merge path, one axis at a time: the same script and the same performed
+// list, with only the verdict line's wording changing, and then the same
+// wording with nothing performed.
 func TestRunEstatesFailsColdDeployWhenThePreApplyIsNotNamed(t *testing.T) {
+	const reported = "printf 'GAUNTLET pre_apply=kubernetes_manifest.crd_a,kubernetes_manifest.crd_b sides=estate,oracle\\n'\n"
+	const named = "declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json; then 7 objects"
 	for _, c := range []struct {
 		name       string
+		preApplyLn string
 		detail     string
-		wantVerdic string
+		want       string
 	}{
-		{"silent about it", "7 objects from plain terraform", VerdictFail},
-		{"names both addresses", "pre-apply: kubernetes_manifest.crd_a, kubernetes_manifest.crd_b; then 7 objects", VerdictPass},
+		{"performed, but the verdict line is silent about it", reported, "7 objects from plain terraform", VerdictFail},
+		{"performed, and the line names the count and the field", reported, named, VerdictPass},
+		{"says the right words but never performed it", "", named, VerdictFail},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -176,6 +233,7 @@ func TestRunEstatesFailsColdDeployWhenThePreApplyIsNotNamed(t *testing.T) {
 			}
 			script := "#!/usr/bin/env bash\n" +
 				"printf 'GAUNTLET protocol=1\\n'\n" +
+				c.preApplyLn +
 				"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=5 detail=" + c.detail + "\\n'\n"
 			if err := os.WriteFile(filepath.Join(root, scriptPath), []byte(script), 0o755); err != nil {
 				t.Fatal(err)
@@ -197,13 +255,13 @@ func TestRunEstatesFailsColdDeployWhenThePreApplyIsNotNamed(t *testing.T) {
 			if !ok {
 				t.Fatal("no result for x")
 			}
-			if got := r.Stages[StageColdDeploy]; got != c.wantVerdic {
-				t.Fatalf("cold_deploy = %q, want %q (detail was %q); runner said: %s", got, c.wantVerdic, c.detail, out.String())
+			if got := r.Stages[StageColdDeploy]; got != c.want {
+				t.Fatalf("cold_deploy = %q, want %q; runner said: %s", got, c.want, out.String())
 			}
-			if c.wantVerdic == VerdictFail && !strings.Contains(r.LastRun.Detail[StageColdDeploy], "RUNNER:") {
+			if c.want == VerdictFail && !strings.Contains(r.LastRun.Detail[StageColdDeploy], "RUNNER:") {
 				t.Fatalf("the recorded detail does not say the runner wrote it: %q", r.LastRun.Detail[StageColdDeploy])
 			}
-			if c.wantVerdic == VerdictPass && r.LastRun.Detail[StageColdDeploy] != c.detail {
+			if c.want == VerdictPass && r.LastRun.Detail[StageColdDeploy] != c.detail {
 				t.Fatalf("the script's own detail was replaced: %q", r.LastRun.Detail[StageColdDeploy])
 			}
 		})
@@ -388,16 +446,84 @@ printf '\n'
 	if !strings.Contains(out, "B got: "+want) {
 		t.Errorf("side B did not get the identical list:\n%s", out)
 	}
+	// The addresses are reported on the protocol line, by the function that
+	// applied them - that is the source the runner checks per address.
+	if !strings.Contains(out, "GAUNTLET pre_apply=kubernetes_manifest.crd_a,kubernetes_manifest.crd_b sides=estate,oracle") {
+		t.Errorf("gauntlet_pre_apply did not report what it performed on a protocol line:\n%s", out)
+	}
+	// The note carries a count and the field, and deliberately NOT the
+	// addresses (#1173's sentence, corrected 2026-09-16).
+	i := strings.Index(out, "declared pre-apply, #1173:")
+	if i < 0 {
+		t.Fatalf("gauntlet_pre_apply_note printed no note:\n%s", out)
+	}
+	note := out[i:]
+	if !strings.Contains(note, "2 address(es) declared at pre_apply") {
+		t.Errorf("the note does not say how many addresses or where they are declared:\n%s", note)
+	}
+	if strings.Contains(note, "kubernetes_manifest.crd_a") {
+		t.Errorf("the note spells the addresses out again; that is the 3.3KB sentence the ruling was corrected away from:\n%s", note)
+	}
+	if !strings.Contains(note, preApplyFixture.PreApplyReason) {
+		t.Errorf("the note does not carry the declared reason:\n%s", note)
+	}
+	if !strings.Contains(note, "estate,oracle") {
+		t.Errorf("the note does not name the sides it ran on:\n%s", note)
+	}
+}
+
+// TestPreApplyEndToEndThroughTheRealLibrary is the join each unit test
+// above sees half of: a script that sources the REAL
+// live/e2e/lib/gauntlet.sh, calls gauntlet_pre_apply against a real
+// manifest and interpolates gauntlet_pre_apply_note into its own
+// cold_deploy detail must come out of RunEstates as a pass. If the
+// library's protocol line, the parser and the guard ever stop agreeing on
+// a spelling, this is what notices - none of the three unit tests would.
+func TestPreApplyEndToEndThroughTheRealLibrary(t *testing.T) {
+	root := manifestWith(t, preApplyFixture)
+	scriptPath := filepath.Join("live", "e2e", "fixture", "run.sh")
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(scriptPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/usr/bin/env bash\n" +
+		"set -uo pipefail\n" +
+		"ROOT=" + root + "\n" +
+		"source " + filepath.Join(root, "live", "e2e", "lib", "gauntlet.sh") + "\n" +
+		"gauntlet_begin\n" +
+		"pre_estate() { :; }\n" +
+		"pre_oracle() { :; }\n" +
+		"gauntlet_pre_apply fixture estate:pre_estate oracle:pre_oracle || exit 1\n" +
+		"gauntlet_stage cold_deploy pass \"2 objects. $(gauntlet_pre_apply_note)\"\n" +
+		"gauntlet_end\n"
+	if err := os.WriteFile(filepath.Join(root, scriptPath), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e := preApplyFixture
+	e.Script = scriptPath
+	m := &Manifest{Estates: []Estate{e}}
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"fixture"}, Stdout: &out}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+	r, ok := a.Result("fixture")
+	if !ok {
+		t.Fatal("no result")
+	}
+	if got := r.Stages[StageColdDeploy]; got != VerdictPass {
+		t.Fatalf("cold_deploy = %q, want pass; runner said: %s", got, out.String())
+	}
+	detail := r.LastRun.Detail[StageColdDeploy]
+	if len(detail) > 700 {
+		t.Errorf("the verdict line is %d chars; the whole point of the 2026-09-16 correction is that it stays readable:\n%s", len(detail), detail)
+	}
 	for _, addr := range preApplyFixture.PreApply {
-		if !strings.Contains(out, addr) {
-			t.Errorf("the note does not name %s:\n%s", addr, out)
+		if strings.Contains(detail, addr) {
+			t.Errorf("the verdict line spells out %s; it should carry a count and the field only:\n%s", addr, detail)
 		}
-	}
-	if !strings.Contains(out, preApplyFixture.PreApplyReason) {
-		t.Errorf("the note does not carry the declared reason:\n%s", out)
-	}
-	if !strings.Contains(out, "estate, oracle") {
-		t.Errorf("the note does not name the sides it ran on:\n%s", out)
 	}
 }
 
@@ -506,4 +632,68 @@ printf 'rc2=%s\n' "$?"
 	if !strings.Contains(out, "rc2=0") {
 		t.Errorf("a condition that is already true did not succeed:\n%s", out)
 	}
+}
+
+// TestPreApplyEndToEndForTheRealCertManagerEntry runs the same join against
+// the REAL manifest entry - all 47 declared addresses - with stub sides, so
+// the estate's own declaration is proven to satisfy its own guard without
+// standing up two kind clusters. It is the cheap half of the cold_deploy
+// the estate performs for real; the expensive half is the run recorded in
+// live/e2e/reference-k8s-cert-manager/README.md.
+func TestPreApplyEndToEndForTheRealCertManagerEntry(t *testing.T) {
+	const name = "reference-k8s-cert-manager"
+	repo := repoRootForTest(t)
+	real, err := LoadManifest(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := real.ByName(name)
+	if !ok {
+		t.Skipf("%s is not in the manifest on this branch", name)
+	}
+	if len(e.PreApply) == 0 {
+		t.Fatalf("%s declares no pre_apply; this test measures nothing", name)
+	}
+
+	root := manifestWith(t, e)
+	scriptPath := filepath.Join("live", "e2e", name, "run.sh")
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(scriptPath)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/usr/bin/env bash\n" +
+		"set -uo pipefail\n" +
+		"ROOT=" + root + "\n" +
+		"source " + filepath.Join(root, "live", "e2e", "lib", "gauntlet.sh") + "\n" +
+		"gauntlet_begin\n" +
+		"pre_estate() { :; }\n" +
+		"pre_oracle() { :; }\n" +
+		"gauntlet_pre_apply " + name + " estate:pre_estate oracle:pre_oracle >/dev/null || exit 1\n" +
+		// The real script does not silence the helper; this one does, and
+		// then re-emits only the protocol line, so the test also proves the
+		// line is what the runner reads rather than the chatter around it.
+		"gauntlet_pre_apply " + name + " estate:pre_estate oracle:pre_oracle | grep '^GAUNTLET pre_apply='\n" +
+		"gauntlet_stage cold_deploy pass \"50 objects. $(gauntlet_pre_apply_note)\"\n" +
+		"gauntlet_end\n"
+	if err := os.WriteFile(filepath.Join(root, scriptPath), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e.Script = scriptPath
+	m := &Manifest{Estates: []Estate{e}}
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{name}, Stdout: &out}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := a.Result(name)
+	if got := r.Stages[StageColdDeploy]; got != VerdictPass {
+		t.Fatalf("cold_deploy = %q, want pass with %d declared addresses; runner said: %s", got, len(e.PreApply), out.String())
+	}
+	detail := r.LastRun.Detail[StageColdDeploy]
+	if len(detail) > 1600 {
+		t.Errorf("the verdict line for %d addresses is %d chars; before the 2026-09-16 correction it was 4.5KB and that is what this bounds:\n%s", len(e.PreApply), len(detail), detail)
+	}
+	t.Logf("%d declared addresses, verdict line %d chars", len(e.PreApply), len(detail))
 }

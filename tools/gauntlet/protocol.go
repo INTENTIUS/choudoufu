@@ -46,6 +46,16 @@ type ProtocolResult struct {
 	Detail  map[string]string  // stage id -> detail, when given
 	Seconds map[string]float64 // stage id -> wall-clock seconds, when the script reported duration_s (live/e2e/lib/gauntlet.sh emits it on every gauntlet_stage call; a script that sources an older copy simply omits the key, which is why this is a plain lookup miss, never an error)
 	Unknown []string           // stage ids not in the registry, reported not silently dropped
+	// PreApply is the addresses the run actually pre-applied, reported by
+	// gauntlet_pre_apply as its own protocol line (#1173). It is how the
+	// runner checks a declared pre-apply per address WITHOUT requiring the
+	// verdict line to spell out every one of them: the verdict says how
+	// many and where the list is declared, and this says what actually ran.
+	// Empty for the ordinary estate, which declares none and emits no line.
+	PreApply []string
+	// PreApplySides names the sides that pre-applied, comma separated, in
+	// the order they ran - "estate,oracle".
+	PreApplySides string
 }
 
 // ParseProtocol reads stdout and returns the verdicts. Lines that do not
@@ -72,6 +82,21 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 			continue
 		}
 		if _, ok := fields["end"]; ok {
+			continue
+		}
+		// GAUNTLET pre_apply=<addr>[,<addr>...] sides=<label>[,<label>...]
+		// Values carry no spaces, because parseKV only lets `detail` run to
+		// the end of the line. Several lines accumulate rather than
+		// replacing: a run that pre-applied twice pre-applied both times.
+		if v, ok := fields["pre_apply"]; ok {
+			for _, a := range strings.Split(v, ",") {
+				if a = strings.TrimSpace(a); a != "" {
+					res.PreApply = append(res.PreApply, a)
+				}
+			}
+			if sides := fields["sides"]; sides != "" {
+				res.PreApplySides = sides
+			}
 			continue
 		}
 		id, ok := fields["stage"]
