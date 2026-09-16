@@ -421,6 +421,62 @@ unsliced case has, above.
 has the steady-state ratio table (1.05x/1.07x/1.21x at k=1/2/8) and the
 choice this leaves an adopter with.
 
+### One leg is deliberately not flat, and this is it
+
+The per-service tag-read leg
+([#1131](https://github.com/INTENTIUS/choudoufu/issues/1131), the repair for
+[#881](https://github.com/INTENTIUS/choudoufu/issues/881)) costs **one call
+per candidate object**, not one per type. It is the only part of the sweep
+that does, and it is written down here rather than left in a source comment
+because every other number on this page is a flat one.
+
+It runs for a resource type only when all three of the ordinary marker
+routes have already failed on that run: the type's CloudFormation schema
+carries no `Tags` property, so Cloud Control's `ListResources` and
+`GetResource` can never return a marker for it however the object is tagged;
+and the estate's Resource Groups Tagging API index holds no object of the
+type either, so #266's join has nothing to say. Both are checked per run
+against what the target actually answered, not against a list of services -
+[#1134](https://github.com/INTENTIUS/choudoufu/issues/1134) measured a real
+account serving `iam:instance-profile` through `GetResources` in
+`us-east-1` while the pinned emulator serves no IAM at all
+([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152)), so a leg
+selected by service name would have to be wrong about one of those two
+targets. On a target where the index serves the type, the leg never runs and
+the sweep is flat exactly as the tables above measure it.
+
+Where it does run, the bill is the number of live objects of the covered
+types in the account. On `terralith-scale` that is `aws_iam_instance_profile`
+and the estate declares `10 x SCALE` of them, derived from the generator's
+own expansion (`6 x SCALE` named blocks, `2 x SCALE` from the `count_team`
+block, `2 x SCALE` across the two `team_pod` module instances) and confirmed
+against a scale-1 run, whose sweep line reads "9 live resources found so
+far" with one profile already destroyed by `day2_remove`:
+
+| Instances | Live instance profiles | Extra `iam:ListInstanceProfileTags` calls per sweep |
+|---|---|---|
+| 79 (scale 1) | 10 | 10 |
+| 745 (scale 10) | 100 | 100 |
+| 4005 (scale 80) | 800 | 800 |
+
+Two things bound that. The first is that the type was already paying a
+per-object call on this leg before #1131 existed: Cloud Control sends no
+`Tags` key for an instance profile, so `cloudControlTags` was already
+refining every listed one with an individual `GetResource`
+(`TypeScan.Refined`). The tag read doubles an existing per-object constant
+for this one type rather than adding a new term to the sweep's shape. The
+second is that no batch alternative exists to build a flat shape out of:
+`iam:ListInstanceProfiles` omits tags by design - AWS's own reference says
+"this operation does not return tags, even though they are an attribute of
+the returned object" - `GetInstanceProfile` and `ListInstanceProfileTags`
+are both per-object, and neither takes a tag filter.
+
+The measured tables above are unaffected and were not re-taken: the
+`plan-budget` estate `TestPlanCallBudgetAgainstFloci` measures is a single
+`aws_s3_bucket` cohort, which this leg does not cover and never fires for.
+`TypeScan.ServiceTagReads` counts the calls per type in the scan row, so a
+run that pays for this leg says how much.
+
 ## On real AWS the sweep was nearly the whole plan
 
 Call counts say what the two terms are. Seconds say which one an operator

@@ -1455,6 +1455,21 @@ type TypeScan struct {
 	// ordinary tag-index path, and an operator reading a scan line should be
 	// able to see how many of them a run made.
 	DirectRead int
+
+	// ServiceTagReads is the number of listed objects of this type whose
+	// marker no enumeration route and no tag index could carry, and which
+	// the per-service tag-read leg therefore asked the service's own tag
+	// API about (GitHub issue #1131, servicetagread.go). Counted whether
+	// the read succeeded or failed, because the question it answers is
+	// what the leg COST, not what it recovered.
+	//
+	// It is the one number in this struct that grows with the estate
+	// rather than with the type count, so it is reported rather than
+	// folded into anything: #1037 and #1039 made the sweep flat and
+	// site/content/docs/model/plan-cost.md publishes that, and a leg that
+	// bends the claim has to be visible in the scan row where the claim is
+	// measured.
+	ServiceTagReads int
 }
 
 // String renders a scan on one line.
@@ -1486,6 +1501,9 @@ func (s TypeScan) String() string {
 	}
 	if s.DirectRead > 0 {
 		joined += fmt.Sprintf(" direct-read=%d", s.DirectRead)
+	}
+	if s.ServiceTagReads > 0 {
+		joined += fmt.Sprintf(" service-tag-reads=%d", s.ServiceTagReads)
 	}
 	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d%s%s",
 		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed, source, joined)

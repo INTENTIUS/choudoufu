@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -173,4 +174,47 @@ func (l *lazyCredentials) Retrieve(ctx context.Context) (aws.Credentials, error)
 		return aws.Credentials{}, l.err
 	}
 	return l.provider.Retrieve(ctx)
+}
+
+// sweepServiceCredentials is what an aws-sdk-go-v2 SERVICE client built for
+// the sweep signs with, given whatever [statelessProviders.credentials]
+// resolved out of the provider block.
+//
+// The two sweep clients that predate it ([cloudcontrol.Client]) accept a nil
+// provider and send unsigned, which is what every emulator run wants. An
+// aws-sdk-go-v2 service client does not: a nil Config.Credentials fails the
+// request at signing time with "no EC2 IMDS role found"-shaped errors rather
+// than sending anything. So a nil here becomes the SDK's own default chain -
+// the behaviour internal/command/live_ls.go gets from LoadDefaultConfig -
+// resolved lazily, so a run whose service leg never fires never touches the
+// filesystem, the environment's shared config or IMDS for it.
+//
+// GitHub issue #1131.
+func sweepServiceCredentials(fromBlock aws.CredentialsProvider, region string) aws.CredentialsProvider {
+	if fromBlock != nil {
+		return fromBlock
+	}
+	return &lazyCredentials{load: func(ctx context.Context) (aws.CredentialsProvider, error) {
+		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+		if err != nil {
+			return nil, err
+		}
+		return cfg.Credentials, nil
+	}}
+}
+
+// serviceEndpoint resolves one AWS service client's endpoint override the
+// way aws-sdk-go-v2's own configuration does: the service-specific variable
+// first, then whatever the all-services resolution already settled on
+// ([cloudControlTarget], which reads AWS_ENDPOINT_URL_CLOUDCONTROL then
+// AWS_ENDPOINT_URL). Empty means real AWS.
+//
+// It exists because the #1131 leg's client is constructed from a hand-built
+// aws.Config rather than through LoadDefaultConfig, so the SDK's own
+// variable resolution does not run for it.
+func serviceEndpoint(serviceVar, fallback string) string {
+	if v := os.Getenv(serviceVar); v != "" {
+		return v
+	}
+	return fallback
 }

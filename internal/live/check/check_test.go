@@ -182,6 +182,14 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// refusal a user reads is worded by one of those five callers,
 		// each already a classified layer.
 		"staticeval": true,
+		// GitHub issue #1131's per-service tag-read leg: one AWS client
+		// surface, sibling to "cloudcontrol" and "listclient" above and
+		// classified the same way. It reads an object's tags through the
+		// service that owns it and returns them or an error; every verdict
+		// about what that means - including whether the failure to read
+		// one is a sweep gap - is made in internal/live/discovery, which
+		// is a classified layer and where the refusal is registered.
+		"servicetags": true,
 		// GitHub issue #365's strict-profile vocabulary: a setting type,
 		// the valid set, the default, and which settings a build
 		// implements. It refuses nothing itself - internal/live/lint does,
