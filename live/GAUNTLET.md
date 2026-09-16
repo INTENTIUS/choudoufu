@@ -143,7 +143,7 @@ Break: Skip the destroy half; the next plan must report a collision rather than 
 
 On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure.
 
-### 10. Crash between create and destroy (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
+### 10. Crash mid-apply (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
 
 Proves: A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.
 
@@ -151,7 +151,7 @@ Oracle: Stock records the old object as deposed and destroys it on the next appl
 
 Break: Interrupt and then assert nothing is proposed; the assertion must fail.
 
-On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace).
+On the kind substrate: The window is a different one, because the create-before-destroy window the emulator's half interrupts does not exist here (see day2_replace). What is interrupted instead is an apply that creates several objects: a real SIGTERM lands between one object's create committing and the next object's ever being dispatched, and the next plan must propose exactly the remainder, binding the object already created by its tofu-estate label and its namespace and name rather than creating it a second time or sweeping it as an orphan. The oracle is stock's own plan on the oracle cluster from the same position, reached by applying the first object alone. A move has no such window on this substrate: a cross-estate live-mv makes exactly one governed write, the label patch itself, and re-keys no record (internal/live/mv/mv.go returns before propagateModuleRename for a cross-estate move, because the record it would move lives in the estate being left), while a same-estate rename writes nothing on the cluster at all (#1066).
 
 ### 11. Teardown (`day2_teardown`, active, tier-1 gated: not_run does not gate clear)
 

@@ -45,7 +45,7 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 		}
 	}
 	if naOnKind == 0 {
-		t.Fatal("no stage is n/a on the kind substrate; day2_replace and day2_crash should be (a Kubernetes name is unique per namespace)")
+		t.Fatal("no stage is n/a on the kind substrate; day2_replace should be (a Kubernetes name is unique per namespace, so nothing is created before the object it replaces is gone)")
 	}
 
 	m := kindManifest()
@@ -128,6 +128,63 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 			t.Errorf("k8s-one has %d remaining, want 1: n/a stages are not remaining work", u.Remaining)
 		}
 	}
+}
+
+// TestStoredNAClearsWhenAStageStartsApplying is #1110's half of the rule
+// above: day2_crash was n/a on kind and now reads there, so every stored
+// kind cell for it says "n/a" and Rebuild is the only thing that ever
+// looks at it. A cell left at n/a would claim the stage does not apply
+// while the registry says it does - and would keep claiming it until some
+// run overwrote the cell. It has to fall back to not_run instead.
+//
+// Proving it red: drop the `else if` branch in Rebuild and this fails on
+// the first assertion.
+func TestStoredNAClearsWhenAStageStartsApplying(t *testing.T) {
+	// A stage that applies on kind today; the row below is the artifact as
+	// it was written while the stage was still n/a there.
+	const applies = "day2_crash"
+	if _, na := StageByIDMust(t, applies).NotApplicable(SubstrateKind); na {
+		t.Fatalf("%s is still n/a on kind; this test pins the transition the other way", applies)
+	}
+
+	m := kindManifest()
+	stale := passEverything()
+	stale[applies] = VerdictNA
+	stale["day2_replace"] = VerdictNA
+	a := &Artifact{Estates: []EstateResult{
+		{Name: "aws-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
+		{Name: "k8s-one", Protocol: ProtocolGauntlet, Stages: stale},
+	}}
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{})
+
+	var k8s EstateResult
+	for _, r := range a.Estates {
+		if r.Name == "k8s-one" {
+			k8s = r
+		}
+	}
+	if got := k8s.Stages[applies]; got != VerdictNotRun {
+		t.Errorf("k8s-one/%s reads %q after the stage started applying on kind, want %q", applies, got, VerdictNotRun)
+	}
+	if got := k8s.Stages["day2_replace"]; got != VerdictNA {
+		t.Errorf("k8s-one/day2_replace reads %q, want %q: that stage is still n/a on kind", got, VerdictNA)
+	}
+	// day2_crash is tier-1 gated, so an unmeasured cell is neutral and the
+	// row keeps its clear.
+	if !k8s.Clear {
+		t.Errorf("k8s-one lost clear on an unmeasured tier-1-gated stage: %v", k8s.Stages)
+	}
+}
+
+// StageByIDMust is StageByID for a test that has no business continuing
+// when the id is gone.
+func StageByIDMust(t *testing.T, id string) Stage {
+	t.Helper()
+	s, ok := StageByID(id)
+	if !ok {
+		t.Fatalf("no stage %q in the registry", id)
+	}
+	return s
 }
 
 func TestKubernetesLaneEstateMayBeKeptInRepo(t *testing.T) {

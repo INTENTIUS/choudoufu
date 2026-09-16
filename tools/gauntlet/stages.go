@@ -155,11 +155,11 @@ func Stages() []Stage {
 			Substrates: map[string]string{SubstrateKind: "n/a: A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."},
 		},
 		{
-			ID: "day2_crash", Order: 10, Title: "Crash between create and destroy", Status: StatusActive, Headline: true, Tier1Gated: true,
+			ID: "day2_crash", Order: 10, Title: "Crash mid-apply", Status: StatusActive, Headline: true, Tier1Gated: true,
 			Proves:     "A replace interrupted after the create and before the destroy is recovered by the next plan without a human: the old object is destroyed, the new one is bound.",
 			Oracle:     "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
 			Break:      "Interrupt and then assert nothing is proposed; the assertion must fail.",
-			Substrates: map[string]string{SubstrateKind: "n/a: The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."},
+			Substrates: map[string]string{SubstrateKind: "The window is a different one, because the create-before-destroy window the emulator's half interrupts does not exist here (see day2_replace). What is interrupted instead is an apply that creates several objects: a real SIGTERM lands between one object's create committing and the next object's ever being dispatched, and the next plan must propose exactly the remainder, binding the object already created by its tofu-estate label and its namespace and name rather than creating it a second time or sweeping it as an orphan. The oracle is stock's own plan on the oracle cluster from the same position, reached by applying the first object alone. A move has no such window on this substrate: a cross-estate live-mv makes exactly one governed write, the label patch itself, and re-keys no record (internal/live/mv/mv.go returns before propagateModuleRename for a cross-estate move, because the record it would move lives in the estate being left), while a same-estate rename writes nothing on the cluster at all (#1066)."},
 		},
 		{
 			ID: "day2_teardown", Order: 11, Title: "Teardown", Status: StatusActive, Headline: true, Tier1Gated: true,

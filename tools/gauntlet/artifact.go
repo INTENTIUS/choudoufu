@@ -498,8 +498,23 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 			// A stage that cannot run on this substrate reads n/a whatever
 			// the script said (it should have said nothing), so the cell
 			// carries the reason rather than an eternal not_run (#1067).
+			//
+			// The reverse move has to be made here too (#1110): when a
+			// stage stops being n/a on a substrate - a note that said the
+			// stage could not run there is replaced by one saying how it
+			// reads - every stored cell still says n/a, and nothing else
+			// would ever clear it, since Rebuild only fills a MISSING
+			// cell. That would leave a row claiming the stage does not
+			// apply while the registry says it does, and the claim would
+			// survive until some run happened to overwrite it. not_run is
+			// the honest cell for a stage that now applies and has not
+			// been measured: neutral on a Tier1Gated stage, a miss on any
+			// other, which is exactly what "this estate has not run it
+			// yet" should cost.
 			if _, na := s.NotApplicable(e.Substrate()); na {
 				r.Stages[s.ID] = VerdictNA
+			} else if r.Stages[s.ID] == VerdictNA {
+				r.Stages[s.ID] = VerdictNotRun
 			}
 		}
 		// Drop verdicts for stages that no longer exist.
