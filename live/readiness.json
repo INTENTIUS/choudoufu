@@ -11480,7 +11480,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11495,7 +11495,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11540,7 +11540,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11570,7 +11570,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11646,7 +11646,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11676,7 +11676,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11691,7 +11691,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "moves to Ops",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
@@ -11859,7 +11859,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "marker",
+        "survey_path": "enumerable, unbindable",
         "admitted": true,
         "markerless": false,
         "not_importable": false,
