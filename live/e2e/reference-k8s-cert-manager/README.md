@@ -69,8 +69,20 @@ v1.15.8, darwin/arm64. Two clusters, both created and deleted by the run.
 | greenfield | **fail** | 12 |
 | strict | pass | 12 |
 
-`day2_replace` and `day2_crash` do not apply on this substrate and are
-recorded `n/a` by the runner, not by the script.
+`day2_replace` does not apply on this substrate and is recorded `n/a` by
+the runner, not by the script.
+
+`day2_crash` used to be `n/a` here for the same reason, and is not any
+more (#1110): the stage now reads on kind, as an apply of several objects
+killed between one object's create and the next, with the next plan
+required to propose exactly the remainder. This script does not run it, so
+the cell reads `not_run` - the same thing every other cell on this row
+reads until the estate's first measured run lands - and the stage's
+tier-1 gating (#999) keeps that neutral for `clear`. Whoever wires it here
+has one substrate detail the other three lane estates do not: every object
+in this root is a `kubernetes_manifest`, so the crash pair has to be two
+manifest objects and the marker they are rebound by sits inside
+`manifest.metadata.labels`, where no schema types it.
 
 It lands red on two stages, with an issue naming each, under the phase's
 rule that a lane which is a gap list beats a lane which is clear on estates

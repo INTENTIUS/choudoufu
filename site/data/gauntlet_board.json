@@ -107,7 +107,7 @@
     {
       "id": "day2_crash",
       "order": 10,
-      "title": "Crash between create and destroy",
+      "title": "Crash mid-apply",
       "status": "active",
       "headline": true,
       "tier1_gated": true,
@@ -259,7 +259,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -386,7 +386,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -513,7 +513,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -639,7 +639,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -766,7 +766,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -893,7 +893,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1020,7 +1020,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1147,7 +1147,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1274,7 +1274,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1401,7 +1401,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1528,7 +1528,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1655,7 +1655,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1782,7 +1782,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -1909,7 +1909,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2036,7 +2036,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2163,7 +2163,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2290,7 +2290,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2417,7 +2417,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2544,7 +2544,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2671,7 +2671,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2798,7 +2798,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -2925,7 +2925,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -3052,7 +3052,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -3179,7 +3179,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -3304,7 +3304,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "pass",
           "duration": "32s",
           "detail": "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt 1 of 3; deterministic by construction, not by timing luck - internal/command/apply_e2etesting_crash.go self-signals synchronously inside the single -parallelism=1 graph-walker goroutine the instant the create half's own write-back commits in memory, replacing #483's external tail/grep/kill race that produced issue #490's own retry-lottery evidence) strictly between the create committing (new object i-440839f06785651c0, confirmed running via the AWS CLI) and the destroy of the deposed old object (i-26926d6b2493996fc, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=i-440839f06785651c0, deposed=i-26926d6b2493996fc). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
@@ -3433,7 +3433,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -3560,7 +3560,7 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
+          "title": "Crash mid-apply",
           "verdict": "not run"
         },
         {
@@ -3610,7 +3610,7 @@
         "pass",
         "pass",
         "n/a",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3685,9 +3685,8 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
-          "verdict": "n/a",
-          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+          "title": "Crash mid-apply",
+          "verdict": "not run"
         },
         {
           "id": "day2_teardown",
@@ -3738,7 +3737,7 @@
         "pass",
         "pass",
         "n/a",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3813,9 +3812,8 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
-          "verdict": "n/a",
-          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+          "title": "Crash mid-apply",
+          "verdict": "not run"
         },
         {
           "id": "day2_teardown",
@@ -3866,7 +3864,7 @@
         "not run",
         "not run",
         "n/a",
-        "n/a",
+        "not run",
         "not run",
         "not run",
         "not run",
@@ -3924,9 +3922,8 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
-          "verdict": "n/a",
-          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+          "title": "Crash mid-apply",
+          "verdict": "not run"
         },
         {
           "id": "day2_teardown",
@@ -3969,7 +3966,7 @@
         "FAIL",
         "pass",
         "n/a",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -4044,9 +4041,8 @@
         },
         {
           "id": "day2_crash",
-          "title": "Crash between create and destroy",
-          "verdict": "n/a",
-          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+          "title": "Crash mid-apply",
+          "verdict": "not run"
         },
         {
           "id": "day2_teardown",

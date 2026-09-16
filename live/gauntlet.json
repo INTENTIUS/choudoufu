@@ -135,7 +135,7 @@
     {
       "id": "day2_crash",
       "order": 10,
-      "title": "Crash between create and destroy",
+      "title": "Crash mid-apply",
       "status": "active",
       "headline": true,
       "tier1_gated": true,
@@ -143,7 +143,7 @@
       "oracle": "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
       "break": "Interrupt and then assert nothing is proposed; the assertion must fail.",
       "substrates": {
-        "kind": "n/a: The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+        "kind": "The window is a different one, because the create-before-destroy window the emulator's half interrupts does not exist here (see day2_replace). What is interrupted instead is an apply that creates several objects: a real SIGTERM lands between one object's create committing and the next object's ever being dispatched, and the next plan must propose exactly the remainder, binding the object already created by its tofu-estate label and its namespace and name rather than creating it a second time or sweeping it as an orphan. The oracle is stock's own plan on the oracle cluster from the same position, reached by applying the first object alone. A move has no such window on this substrate: a cross-estate live-mv makes exactly one governed write, the label patch itself, and re-keys no record (internal/live/mv/mv.go returns before propagateModuleRename for a cross-estate move, because the record it would move lives in the estate being left), while a same-estate rename writes nothing on the cluster at all (#1066)."
       }
     },
     {
@@ -379,8 +379,7 @@
         "day2_crash": {
           "pass": 0,
           "fail": 0,
-          "not_run": 0,
-          "n_a": 4
+          "not_run": 4
         },
         "day2_remove": {
           "pass": 2,
@@ -2666,7 +2665,7 @@
       "stages": {
         "cold_deploy": "pass",
         "day2_count": "pass",
-        "day2_crash": "n/a",
+        "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "n/a",
@@ -3799,7 +3798,7 @@
       "stages": {
         "cold_deploy": "pass",
         "day2_count": "pass",
-        "day2_crash": "n/a",
+        "day2_crash": "not_run",
         "day2_remove": "pass",
         "day2_rename": "pass",
         "day2_replace": "n/a",
@@ -3914,7 +3913,7 @@
       "stages": {
         "cold_deploy": "not_run",
         "day2_count": "not_run",
-        "day2_crash": "n/a",
+        "day2_crash": "not_run",
         "day2_remove": "not_run",
         "day2_rename": "not_run",
         "day2_replace": "n/a",
@@ -3940,7 +3939,7 @@
       "stages": {
         "cold_deploy": "pass",
         "day2_count": "pass",
-        "day2_crash": "n/a",
+        "day2_crash": "not_run",
         "day2_remove": "fail",
         "day2_rename": "pass",
         "day2_replace": "n/a",
