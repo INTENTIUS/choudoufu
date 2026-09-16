@@ -40,8 +40,10 @@
 # listed in live/gauntlet/estates.json's `pre_apply`, applied with
 # `-target` FIRST, and gauntlet_pre_apply drives both sides from that one
 # list in one call so the estate and the stock oracle cannot diverge. The
-# verdict line names it; tools/gauntlet's runner fails the stage if it does
-# not.
+# verdict line says how many addresses were pre-applied and where they are
+# declared; gauntlet_pre_apply reports the list itself on its own GAUNTLET
+# line, and tools/gauntlet's runner checks the two against each other,
+# address by address, failing the stage if they disagree.
 #
 # Two kind clusters, both created for this run and deleted after it, the
 # same A/B shape reference-k8s uses:

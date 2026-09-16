@@ -41,7 +41,10 @@ with the reason. `run.sh` runs the un-targeted plan first as a control and
 requires it to fail, then calls `gauntlet_pre_apply` with both sides in one
 call, then waits - bounded, loudly - for the `failurePolicy: Fail`
 validating webhook to actually admit an Issuer, and only then applies the
-rest. See #1173 and `live/GAUNTLET.md`, "The cold-deploy pre-apply".
+rest. The `cold_deploy` verdict says how many addresses were pre-applied
+and where they are declared; the run's own `GAUNTLET pre_apply=` line
+carries the list, and the runner checks the two against each other address
+by address. See #1173 and `live/GAUNTLET.md`, "The cold-deploy pre-apply".
 
 ## Ratification: the run this estate landed on
 
