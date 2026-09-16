@@ -28,8 +28,10 @@ a marker conflict, word for word the refusal a tags map gets). kubectl
 reads it back in step 2. The provider's `computed_fields` default names
 `metadata.labels`, so a label the API server or a controller adds never
 churns the plan; the same default means a label stripped out of band is
-taken as the field's new truth, which is what the first `BREAK=1` control
-measures.
+taken as the field's new truth, so the projection carries the live object's
+own answer for that one key into the prior state it builds. The plan then
+sees an object carrying no marker for this estate and refuses it by name,
+which is what the label `BREAK=1` control measures.
 
 The third unit is the sweep. It lists every kind the cluster serves with
 list and delete verbs, CRDs included, selected on the estate label; a kind
@@ -85,15 +87,18 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
   just smoke k8s-custom-resource
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke k8s-custom-resource and report the four "caught"
+BREAK=1 just smoke k8s-custom-resource and report the five "caught"
 lines: the scenario writes spec.replicas = 0 under a CRD that bounds it
 at minimum 1 and the replan must be refused by name in the server's
 words; strips the tofu-estate label with kubectl and the replan must
 refuse the CronTab by name, then have the server's own dry run refuse the
 create it falls back to because the unowned object still holds the name,
 leaving the label off until an operator writes it back; strips it again
-with the block removed and the replan must not list the object; then deletes the custom resource and
-the replan must propose creating it.
+with the block removed and the replan must not list the object; deletes
+the custom resource and the replan must propose creating it; and installs
+a MutatingAdmissionPolicy that rewrites `spec.image` on every update, after
+which the migration must refuse the label write by name rather than send
+it.
 ```
 
 The steps, in the order they print:
