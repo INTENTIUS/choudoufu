@@ -133,6 +133,79 @@ cluster_up
 
 kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 
+# migrate_fixture_up stands up the adoption fixture that step 11 and the
+# mutating-policy BREAK control both work from: a second namespace and a
+# CronTab created by PLAIN stock terraform and recorded in a real
+# terraform.tfstate, and beside it the identical source with a live block
+# on it, initialised. It is a function rather than a step because the
+# BREAK arm exits before step 11 and still has to migrate something; the
+# once-only guard makes "at most one caller" a property of this function
+# rather than of the control flow above it.
+MIGRATE_FIXTURE_UP=0
+migrate_fixture_up() {
+[ "$MIGRATE_FIXTURE_UP" = "1" ] && return 0
+MIGRATE_FIXTURE_UP=1
+command -v terraform >/dev/null 2>&1 \
+  || fail "k8s-custom-resource" "the terraform binary is not on PATH - this step needs the stock oracle to write the state file being adopted"
+mkdir -p "$SMOKE_WORK/stock" "$SMOKE_WORK/migrated"
+cat > "$SMOKE_WORK/stock/main.tf" <<'TF'
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "= 3.2.1"
+    }
+  }
+}
+
+provider "kubernetes" {}
+
+resource "kubernetes_namespace" "adopted" {
+  metadata {
+    name = "smoke-crd-stock"
+  }
+}
+
+resource "kubernetes_manifest" "crontab" {
+  manifest = {
+    apiVersion = "stable.example.com/v1"
+    kind       = "CronTab"
+    metadata = {
+      name      = "adopted-crontab"
+      namespace = "smoke-crd-stock"
+    }
+    spec = {
+      cronSpec = "* * * * */5"
+      image    = "my-awesome-cron-image"
+    }
+  }
+  depends_on = [kubernetes_namespace.adopted]
+}
+TF
+cmd "terraform apply -auto-approve   # plain stock, no live block, a real terraform.tfstate"
+( cd "$SMOKE_WORK/stock" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "k8s-custom-resource" "stock init failed"
+STOCK_APPLY="$(cd "$SMOKE_WORK/stock" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "stock apply failed: $(tail -5 <<< "$STOCK_APPLY")"
+grep -qF "Apply complete! Resources: 2 added" <<< "$STOCK_APPLY" \
+  || fail "k8s-custom-resource" "stock did not create exactly the namespace and the CronTab: $(grep -E 'Apply complete' <<< "$STOCK_APPLY")"
+[ -f "$SMOKE_WORK/stock/terraform.tfstate" ] || fail "k8s-custom-resource" "stock left no terraform.tfstate"
+PRE_LABEL="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels.tofu-estate}' 2>/dev/null || true)"
+[ -z "$PRE_LABEL" ] || fail "k8s-custom-resource" "the stock-made CronTab already carries tofu-estate=$PRE_LABEL; this step would prove nothing"
+grep -E 'Apply complete!' <<< "$STOCK_APPLY" | evidence
+note "no tofu-estate label on the CronTab stock made (kubectl reads nothing)"
+
+# The same configuration with a live block on it, which is all adoption
+# changes in the source.
+{ sed 's/^terraform {/terraform {\n\n  live {\n    estate = "smoke-crd-stock"\n  }\n/' "$SMOKE_WORK/stock/main.tf"; } > "$SMOKE_WORK/migrated/main.tf"
+cp "$SMOKE_WORK/migrated/main.tf" "$SMOKE_WORK/migrated/main.tf.full"
+sed '/^resource "kubernetes_manifest" "crontab"/,$d' "$SMOKE_WORK/migrated/main.tf.full" > "$SMOKE_WORK/migrated/main.tf.namespace-only"
+( cd "$SMOKE_WORK/migrated" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "k8s-custom-resource" "init of the migrated root failed"
+}
+
 step "1. before the CRD exists, the block is refused by name"
 explain \
   "The cluster does not serve stable.example.com/v1 CronTab yet. The" \
@@ -332,6 +405,65 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -q 'kubernetes_manifest.crontab will be created' <<< "$BOUT" \
     || fail "k8s-custom-resource" "BREAK: the plan changed but does not propose creating kubernetes_manifest.crontab: $BOUT"
   proof "caught. The deleted object is exactly what the plan proposes to create, so the empty replans below are real checks and the natural key is load-bearing."
+
+  step "BREAK control - something rewrites the object on the way past; the migration must refuse rather than write"
+  explain \
+    "A MutatingAdmissionPolicy is installed that rewrites spec.image on" \
+    "every update to a CronTab. The label patch itself names one key" \
+    "under metadata.labels and can reach nothing else - but the server" \
+    "can, and \"the request is small\" is an assertion, not a check. The" \
+    "dry run is what turns it into one: the object the server says it" \
+    "would store is compared with the object it holds, and a difference" \
+    "outside the labels map refuses the write with nothing sent. A" \
+    "migration that can silently rewrite a custom resource's spec is" \
+    "worse than one that does nothing."
+  migrate_fixture_up
+  cat > "$SMOKE_WORK/mutator.yaml" <<'YAML'
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: crontab-image-rewriter
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   ["stable.example.com"]
+        apiVersions: ["v1"]
+        operations:  ["UPDATE"]
+        resources:   ["crontabs"]
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >
+          Object{ spec: Object.spec{ image: "rewritten-by-the-policy" } }
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: crontab-image-rewriter
+spec:
+  policyName: crontab-image-rewriter
+YAML
+  cmd "kubectl apply -f mutator.yaml && choudoufu live-import -approve"
+  kc apply -f "$SMOKE_WORK/mutator.yaml" >/dev/null \
+    || fail "k8s-custom-resource" "BREAK: could not install the mutating policy (it needs a cluster serving admissionregistration.k8s.io/v1 MutatingAdmissionPolicy)"
+  sleep 5
+  MIG_BOUT="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
+    || fail "k8s-custom-resource" "BREAK: live-import -approve exited non-zero: $MIG_BOUT"
+  grep -E 'kubernetes_manifest.crontab|failed, ' <<< "$MIG_BOUT" | tail -2 | evidence
+  grep -q 'would also change spec.image' <<< "$MIG_BOUT" \
+    || fail "k8s-custom-resource" "BREAK: the migration did not refuse the rewritten write by name: $(grep -A2 'kubernetes_manifest.crontab' <<< "$MIG_BOUT" | tail -3)"
+  grep -q '1 failed' <<< "$MIG_BOUT" \
+    || fail "k8s-custom-resource" "BREAK: the summary does not count the refusal: $(grep 'newly stamped' <<< "$MIG_BOUT")"
+  B_LABEL="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels.tofu-estate}' 2>/dev/null || true)"
+  [ -z "$B_LABEL" ] || fail "k8s-custom-resource" "BREAK: the label was written anyway (tofu-estate=$B_LABEL)"
+  B_IMAGE="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.spec.image}')"
+  [ "$B_IMAGE" = "my-awesome-cron-image" ] \
+    || fail "k8s-custom-resource" "BREAK: the object's spec.image is now $B_IMAGE; the refusal did not stop the write"
+  kc delete -f "$SMOKE_WORK/mutator.yaml" >/dev/null 2>&1 || true
+  sleep 5
+  proof "with a policy rewriting spec.image in the path, live-import refused the label write by name (\"would also change spec.image\"), counted it as 1 failed, and left the object exactly as it was - no label, the original image. The main run, with no such policy, makes the identical write and it lands, so the refusal is the dry run's and not the tool's dislike of the type."
   ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   exit 0
 fi
@@ -419,65 +551,7 @@ explain \
   "re-apply of the whole manifest. The patch goes first with dryRun=All," \
   "and the object the server answers with is compared with the object it" \
   "holds: if anything outside the labels map moved, nothing is sent."
-command -v terraform >/dev/null 2>&1 \
-  || fail "k8s-custom-resource" "the terraform binary is not on PATH - this step needs the stock oracle to write the state file being adopted"
-mkdir -p "$SMOKE_WORK/stock" "$SMOKE_WORK/migrated"
-cat > "$SMOKE_WORK/stock/main.tf" <<'TF'
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "= 3.2.1"
-    }
-  }
-}
-
-provider "kubernetes" {}
-
-resource "kubernetes_namespace" "adopted" {
-  metadata {
-    name = "smoke-crd-stock"
-  }
-}
-
-resource "kubernetes_manifest" "crontab" {
-  manifest = {
-    apiVersion = "stable.example.com/v1"
-    kind       = "CronTab"
-    metadata = {
-      name      = "adopted-crontab"
-      namespace = "smoke-crd-stock"
-    }
-    spec = {
-      cronSpec = "* * * * */5"
-      image    = "my-awesome-cron-image"
-    }
-  }
-  depends_on = [kubernetes_namespace.adopted]
-}
-TF
-cmd "terraform apply -auto-approve   # plain stock, no live block, a real terraform.tfstate"
-( cd "$SMOKE_WORK/stock" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "k8s-custom-resource" "stock init failed"
-STOCK_APPLY="$(cd "$SMOKE_WORK/stock" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
-  || fail "k8s-custom-resource" "stock apply failed: $(tail -5 <<< "$STOCK_APPLY")"
-grep -qF "Apply complete! Resources: 2 added" <<< "$STOCK_APPLY" \
-  || fail "k8s-custom-resource" "stock did not create exactly the namespace and the CronTab: $(grep -E 'Apply complete' <<< "$STOCK_APPLY")"
-[ -f "$SMOKE_WORK/stock/terraform.tfstate" ] || fail "k8s-custom-resource" "stock left no terraform.tfstate"
-PRE_LABEL="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels.tofu-estate}' 2>/dev/null || true)"
-[ -z "$PRE_LABEL" ] || fail "k8s-custom-resource" "the stock-made CronTab already carries tofu-estate=$PRE_LABEL; this step would prove nothing"
-grep -E 'Apply complete!' <<< "$STOCK_APPLY" | evidence
-note "no tofu-estate label on the CronTab stock made (kubectl reads nothing)"
-
-# The same configuration with a live block on it, which is all adoption
-# changes in the source.
-{ sed 's/^terraform {/terraform {\n\n  live {\n    estate = "smoke-crd-stock"\n  }\n/' "$SMOKE_WORK/stock/main.tf"; } > "$SMOKE_WORK/migrated/main.tf"
-cp "$SMOKE_WORK/migrated/main.tf" "$SMOKE_WORK/migrated/main.tf.full"
-sed '/^resource "kubernetes_manifest" "crontab"/,$d' "$SMOKE_WORK/migrated/main.tf.full" > "$SMOKE_WORK/migrated/main.tf.namespace-only"
-( cd "$SMOKE_WORK/migrated" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "k8s-custom-resource" "init of the migrated root failed"
+migrate_fixture_up
 
 cmd "choudoufu live-import -state=../stock/terraform.tfstate -estate=smoke-crd-stock   # read-only first"
 DRY="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -no-color 2>&1)" \
@@ -491,65 +565,6 @@ grep -q 'live id: apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-
 grep -q '2 of 2 resource instance(s) are eligible for stamping' <<< "$DRY" \
   || fail "k8s-custom-resource" "not everything in the stock state is eligible: $(grep 'eligible for stamping' <<< "$DRY")"
 
-if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - something rewrites the object on the way past; the migration must refuse rather than write"
-  explain \
-    "A MutatingAdmissionPolicy is installed that rewrites spec.image on" \
-    "every update to a CronTab. The label patch itself names one key" \
-    "under metadata.labels and can reach nothing else - but the server" \
-    "can, and \"the request is small\" is an assertion, not a check. The" \
-    "dry run is what turns it into one: the object the server says it" \
-    "would store is compared with the object it holds, and a difference" \
-    "outside the labels map refuses the write with nothing sent. A" \
-    "migration that can silently rewrite a custom resource's spec is" \
-    "worse than one that does nothing."
-  cat > "$SMOKE_WORK/mutator.yaml" <<'YAML'
-apiVersion: admissionregistration.k8s.io/v1
-kind: MutatingAdmissionPolicy
-metadata:
-  name: crontab-image-rewriter
-spec:
-  matchConstraints:
-    resourceRules:
-      - apiGroups:   ["stable.example.com"]
-        apiVersions: ["v1"]
-        operations:  ["UPDATE"]
-        resources:   ["crontabs"]
-  failurePolicy: Fail
-  reinvocationPolicy: Never
-  mutations:
-    - patchType: ApplyConfiguration
-      applyConfiguration:
-        expression: >
-          Object{ spec: Object.spec{ image: "rewritten-by-the-policy" } }
----
-apiVersion: admissionregistration.k8s.io/v1
-kind: MutatingAdmissionPolicyBinding
-metadata:
-  name: crontab-image-rewriter
-spec:
-  policyName: crontab-image-rewriter
-YAML
-  cmd "kubectl apply -f mutator.yaml && choudoufu live-import -approve"
-  kc apply -f "$SMOKE_WORK/mutator.yaml" >/dev/null \
-    || fail "k8s-custom-resource" "BREAK: could not install the mutating policy (it needs a cluster serving admissionregistration.k8s.io/v1 MutatingAdmissionPolicy)"
-  sleep 5
-  MIG_BOUT="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
-    || fail "k8s-custom-resource" "BREAK: live-import -approve exited non-zero: $MIG_BOUT"
-  grep -E 'kubernetes_manifest.crontab|failed, ' <<< "$MIG_BOUT" | tail -2 | evidence
-  grep -q 'would also change spec.image' <<< "$MIG_BOUT" \
-    || fail "k8s-custom-resource" "BREAK: the migration did not refuse the rewritten write by name: $(grep -A2 'kubernetes_manifest.crontab' <<< "$MIG_BOUT" | tail -3)"
-  grep -q '1 failed' <<< "$MIG_BOUT" \
-    || fail "k8s-custom-resource" "BREAK: the summary does not count the refusal: $(grep 'newly stamped' <<< "$MIG_BOUT")"
-  B_LABEL="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels.tofu-estate}' 2>/dev/null || true)"
-  [ -z "$B_LABEL" ] || fail "k8s-custom-resource" "BREAK: the label was written anyway (tofu-estate=$B_LABEL)"
-  B_IMAGE="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.spec.image}')"
-  [ "$B_IMAGE" = "my-awesome-cron-image" ] \
-    || fail "k8s-custom-resource" "BREAK: the object's spec.image is now $B_IMAGE; the refusal did not stop the write"
-  kc delete -f "$SMOKE_WORK/mutator.yaml" >/dev/null 2>&1 || true
-  sleep 5
-  proof "with a policy rewriting spec.image in the path, live-import refused the label write by name (\"would also change spec.image\"), counted it as 1 failed, and left the object exactly as it was - no label, the original image. With the policy removed the same command goes through below, so the refusal is the dry run's and not the tool's dislike of the type."
-fi
 
 cmd "choudoufu live-import -approve"
 APPROVE="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
@@ -558,6 +573,8 @@ SUMMARY="$(grep 'newly stamped' <<< "$APPROVE" | tail -1 || true)"
 grep -E 'kubernetes_manifest.crontab .*Wrote the tofu-estate label|newly stamped' <<< "$APPROVE" | tail -2 | evidence
 grep -q '0 failed, 0 skipped' <<< "$SUMMARY" \
   || fail "k8s-custom-resource" "the migration skipped or failed something: ${SUMMARY:-no summary line}"
+grep -q 'kubernetes_manifest.crontab .*Wrote the tofu-estate label' <<< "$APPROVE" \
+  || fail "k8s-custom-resource" "live-import did not write the CronTab's label: $(grep -A1 'kubernetes_manifest.crontab' <<< "$APPROVE" | tail -2)"
 grep -q '2 resource(s) newly stamped' <<< "$SUMMARY" \
   || fail "k8s-custom-resource" "the migration did not stamp both objects: ${SUMMARY:-no summary line}"
 ADOPTED_LABEL="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels.tofu-estate}')"
