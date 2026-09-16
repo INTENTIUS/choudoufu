@@ -2190,12 +2190,20 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				}
 			case joinUnavailable:
 				// The index was not asked at all - no Tagging client this
-				// run, or its one GetResources call failed. Nothing was
-				// learned about any service, served or not, so this arm
-				// needs no [taggingAPIUnservedType] test; and because it is
-				// a fact about the RUN rather than the type, it is
-				// transient and carries its own reason.
-				if sweep && taggable {
+				// run ([newMarkerIndex] returns nil when req.Tagging is,
+				// which is every run naming no endpoint override and not
+				// opting into Cloud Control), or its one GetResources call
+				// failed. Because that is a fact about the RUN rather than
+				// about the type, it is possibly transient and carries its
+				// own reason.
+				//
+				// Gated on [taggingAPIUnservedType] anyway, and NOT because
+				// an unindexed service matters here - it does not, an
+				// absent index is absent for every service alike. See
+				// [sweepMarkerReadGap]'s "Why both arms are gated on a
+				// service list" for the actual argument, which is about
+				// what this run has evidence for.
+				if sweep && taggable && taggingAPIUnservedType(typeName) {
 					joinAbsent++
 				}
 			}
@@ -2644,6 +2652,39 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 // silence load-bearing. This is the same discipline [sweepViaTagging]
 // already applies with `len(byType[typeName]) == 0`: a real response
 // refutes a standing claim about the type.
+//
+// # Why both arms are gated on a service list
+//
+// sawReadableTags is necessary and not sufficient, and the arithmetic of
+// the alternative is the argument. "No object of this type came back
+// carrying any tag" has two causes: the list route for the type drops tags,
+// or nothing of that type in the account is tagged. The second is utterly
+// ordinary - a default security group, a default route table, an
+// AWS-managed resource nobody has touched - so reporting on the first cause
+// alone would file a coverage gap, per type, over types whose markers read
+// perfectly well. That warning would land on the DEFAULT real-AWS path,
+// where req.Tagging is nil whenever the run names no endpoint override and
+// does not opt in (internal/command/live_plan.go), which is most runs.
+//
+// [taggingAPIUnservedType] is what separates them, and it is read here for
+// what it IMPLIES about the list route rather than for what it says about
+// the index. The prefix it holds today, "aws_iam_", is the one service
+// whose provider list calls this repository has actually measured dropping
+// tags: iam:ListRoles returns none at all (issue #266's own opening line,
+// and [stripTags]'s), iam:ListPolicies likewise (directread.go, issue
+// #1046), and #1134 re-confirmed on a real account that the tags sit on the
+// objects while neither route shows them. For those types an untagged
+// listing really is evidence that the route is blind, so the index's
+// silence is load-bearing; for every other type it is not, and nothing is
+// claimed.
+//
+// Two facts riding one list is a shape that has misled this repository
+// before, so it is stated rather than left to be inferred: widening this
+// past the prefix needs a SECOND measured tag-dropping list call, named and
+// quoted, not an inference from an absence. Find one in a service
+// GetResources DOES index and this gate is the wrong gate for it - the
+// predicate has to split, and the tag-dropping half is the one this
+// function wants.
 //
 // [typeTaggable] is the last gate, read from the provider's own schema -
 // the authoritative answer to "can an object of this type carry a marker at

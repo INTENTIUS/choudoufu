@@ -189,6 +189,61 @@ func TestNativeSweepDoesNotCryMarkerUnreadableWhenTheListCallCarriesTags(t *test
 	t.Errorf("%s is not in Result.SweepCovered, but the sweep really did search it - the list call answered and its tags were readable:\n%s", unservedType, res)
 }
 
+// TestNativeSweepStaysQuietOverAnOrdinaryUntaggedType is the second control,
+// and it is the one that keeps the fix off the default real-AWS path.
+//
+// req.Tagging is nil for every run that names no endpoint override and does
+// not opt into Cloud Control (internal/command/live_plan.go), which is most
+// runs against a real account. On such a run EVERY marker read that falls
+// to the tag-index join answers joinUnavailable - for every type, served or
+// not. If that alone filed a gap, an account with an untagged corner would
+// warn per type about types whose markers read perfectly well, because "no
+// object of this type came back tagged" has a second, utterly ordinary
+// cause: nothing of that type in the account is tagged.
+//
+// The gate is [taggingAPIUnservedType], read for what it implies about the
+// LIST route (see [sweepMarkerReadGap]). aws_s3_bucket is outside it: the
+// provider's own list call returns bucket tags, so an untagged bucket is
+// evidence about the bucket and not about the route.
+func TestNativeSweepStaysQuietOverAnOrdinaryUntaggedType(t *testing.T) {
+	const ordinaryType = "aws_s3_bucket"
+
+	if taggingAPIUnservedType(ordinaryType) {
+		t.Fatalf("%s has joined taggingAPIUnservedServices, so it is no longer the off-the-list control this test needs", ordinaryType)
+	}
+
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable(ordinaryType)
+	cloud.noFilter(ordinaryType)
+	// Two untagged buckets and nothing else - the untagged corner of a real
+	// account, where the marker read falls to a join that is not there.
+	cloud.obj(ordinaryType, "logs-bucket", map[string]string{})
+	cloud.obj(ordinaryType, "backups-bucket", map[string]string{})
+
+	// No Tagging client: every join answers joinUnavailable.
+	res, diags := discoverFixture(t, cloud, Request{
+		Sweep:      true,
+		SweepTypes: []string{ordinaryType},
+	})
+	assertNoErrors(t, diags)
+
+	if scan, ok := res.ScanFor(ordinaryType); !ok || scan.Listed != 2 {
+		t.Fatalf("the %s scan is %+v (found=%v), want Listed=2 - this control is not exercising the list path:\n%s", ordinaryType, scan, ok, res)
+	}
+	for _, g := range res.SweepGaps {
+		if g.TypeName == ordinaryType && (g.Reason == SweepGapTagIndexUnavailable || g.Reason == SweepGapMarkerUnreadable) {
+			t.Fatalf("a %s gap was filed on a run with no tag index, although nothing says this type's list route drops tags. This warning lands on the DEFAULT real-AWS path, once per untagged type, and none of it is true.\ngap: %s\n%s", ordinaryType, g, res)
+		}
+	}
+	for _, c := range res.SweepCovered {
+		if c == ordinaryType {
+			return
+		}
+	}
+	t.Errorf("%s is not in Result.SweepCovered, but the sweep really did search it - the list route delivers this type's tags and the objects are simply untagged:\n%s", ordinaryType, res)
+}
+
 // TestNativeSweepSeparatesAnIndexThatFailedFromOneThatCannotAnswer is the
 // design question issue #1136 asks, settled in a test.
 //
