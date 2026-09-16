@@ -438,14 +438,32 @@ const (
 	UnsweptNotScanned UnsweptReason = "NOT_SCANNED"
 
 	// UnsweptMarkerUnreadable is a type discovery listed successfully but
-	// could read no ownership marker off any object of - issue #1132.
-	// [discovery.SweepGapMarkerUnreadable] fires when a type is enumerable
-	// (Cloud Control's ListResources succeeds) but no leg can read a tag
-	// off it (no Tags property in the CFN schema, and the tagging API
-	// does not serve the service). [scanTypeCloudControl] skips every such
-	// object rather than guessing at its ownership, so none of them was
-	// ever offered to this classifier as Unclaimed - the type is listed in
-	// name only.
+	// could read no ownership marker off any object of - issue #1132,
+	// widened by #1136.
+	//
+	// Three discovery shapes reach it, through
+	// [classifier.markerUnreadableGap]. The Cloud Control leg files
+	// [discovery.SweepGapMarkerUnreadable] when the type's CFN schema has
+	// no Tags property and the tagging API does not serve the service; the
+	// native leg files the same reason when the provider's own list call
+	// returns no tags for any object of the type and the tag index cannot
+	// answer for its service either (aws_iam_role - iam:ListRoles returns
+	// none, and #1134 measured RGTA returning 0 for iam:role in every
+	// region of a real account while iam:ListRoleTags showed the tags
+	// sitting on the objects); and the native leg files
+	// [discovery.SweepGapTagIndexUnavailable] when the index could not be
+	// consulted at all. The remedies differ and discovery keeps the reasons
+	// apart for that; here the fact is one fact, because coverage is about
+	// what was ESTABLISHED and none of the three established anything.
+	//
+	// What became of the objects differs by leg, and neither outcome is a
+	// classification. [discovery.scanTypeCloudControl] skips them. The
+	// native leg's collectUnclaimed path keeps them and files them in
+	// Report.Unclaimed, where [classifier.classify] and [classifier.finish]
+	// decline to call them foreign - "no marker could be read off this
+	// object" is not evidence that nobody owns it, and issue #1136's
+	// measured case is an estate's OWN correctly-stamped IAM role printed
+	// as an unowned stray.
 	//
 	// Before this reason existed, such a type still passed sweepCoverage's
 	// switch by elimination (no listing problem, ScopeAll) and landed in
