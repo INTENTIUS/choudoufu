@@ -253,6 +253,66 @@ func TestTaggingSweepAgainstFloci(t *testing.T) {
 	// directly against a live run before writing this comment. So this
 	// fragment - and only this fragment - stays gated, in its own subtest so
 	// a skip here cannot take the routing assertion above down with it.
+	//
+	// Issue #1136 splits the ungated half back out of it. Whether this pin
+	// can RECOVER the role is a capability question and stays gated below;
+	// whether the run SAYS it could not look is not, and never was - that
+	// is this fork's own behaviour, true at every pin, and the defect #1136
+	// fixed was precisely that it said nothing. So it is asserted here with
+	// no gate in front of it, and the assertion is self-retiring in the
+	// same way the gate is: a future pin that serves IAM through
+	// GetResources recovers the removal and files no gap, and this subtest
+	// follows it without editing.
+	t.Run("removal-or-gap-never-silence", func(t *testing.T) {
+		_, recovered := removalsByAddr(res)[`aws_iam_role.demo`]
+
+		var gap SweepGap
+		for _, g := range res.SweepGaps {
+			if g.TypeName == "aws_iam_role" {
+				gap = g
+			}
+		}
+		var covered bool
+		for _, c := range res.SweepCovered {
+			if c == "aws_iam_role" {
+				covered = true
+			}
+		}
+
+		if recovered {
+			// The pin serves the join. Then the sweep really did search,
+			// and claiming a gap would be the opposite error.
+			if gap.Reason != "" {
+				t.Errorf("aws_iam_role.demo was recovered as a removal candidate AND a sweep gap was filed for the type (%s) - the gap says the search established nothing, on the run that found the object", gap)
+			}
+			if !covered {
+				t.Errorf("aws_iam_role.demo was recovered but the type is missing from Result.SweepCovered, so a correct search reads as an unsearched one")
+			}
+			return
+		}
+
+		// The pin cannot serve the join, which is the state #1045 pinned
+		// and #1134 re-measured against real AWS (RGTA returns 0 for
+		// iam:role in every region while iam:ListRoleTags shows the tags on
+		// the object). The run must say so.
+		if gap.Reason != SweepGapMarkerUnreadable {
+			t.Fatalf("aws_iam_role.demo was not recovered and the sweep filed %q for the type, want %q. The provider listed the role (scan.Source=PROVIDER, asserted above), its listing carries no tags, and GetResources does not index IAM - so nothing in this run established whether the estate owns a role it no longer declares, and an operator reading an empty plan cannot tell that from \"it owns none\". This is issue #1136's silent drop.\nSweepGaps: %v\nSweepCovered: %v", gap.Reason, SweepGapMarkerUnreadable, res.SweepGaps, res.SweepCovered)
+		}
+		if covered {
+			t.Errorf("aws_iam_role is in Result.SweepCovered - \"searched for resources this estate owns but no longer declares\" - on the same run that files %s. A coverage claim over a search that established nothing is a false claim.", gap.Reason)
+		}
+		var spoken bool
+		for _, d := range diags {
+			if d.Description().Summary == SummaryIncompleteSweep {
+				spoken = true
+			}
+		}
+		if !spoken {
+			t.Errorf("the gap was recorded on the Result but no diagnostic carries it, so nothing reaches the operator:\n%s", renderDiags(diags))
+		}
+		t.Logf("gap reported, quoted verbatim: %s", gap.Detail)
+	})
+
 	t.Run("removal-detected-via-tag-index-join", func(t *testing.T) {
 		rm := removalsByAddr(res)
 		o, ok := rm[`aws_iam_role.demo`]
