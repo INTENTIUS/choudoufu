@@ -287,7 +287,7 @@ func TestK8sOwnership_policyVerbsReachTheLabelSurface(t *testing.T) {
 // property of Kubernetes: the identical input on aws_cloudwatch_log_group
 // through BuildWith admits the resource and records
 // declared_untagged=adopt, measured on this tree before the fix. It is
-// filed separately (see the report for #1108); what belongs here is the
+// filed separately as GitHub issue #1166; what belongs here is the
 // symmetry, so that whichever way that ruling goes, it moves both surfaces
 // together rather than leaving Kubernetes with a policy matrix of its own.
 func TestK8sOwnership_anotherEstateUnderAdoptMatchesTheTagSurface(t *testing.T) {
