@@ -13,8 +13,8 @@
       "status": "active",
       "headline": true,
       "tier1_gated": false,
-      "proves": "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.",
-      "oracle": "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.",
+      "proves": "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage. A configuration that stock itself cannot plan in one pass may declare a pre-apply (`pre_apply` in the manifest, #1173): the named addresses are applied with `-target` first, identically on every side, and the verdict line says how many and where they are declared while the run reports the list itself for the runner to check address by address.",
+      "oracle": "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such. A declared pre-apply is performed by the stock oracle too, from the same list - a crossing where one side got a targeted first apply and the other did not would not be comparing like with like.",
       "break": "Not applicable; this stage has nothing of choudoufu's to break.",
       "substrates": {
         "kind": "Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline."
@@ -363,80 +363,80 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 3,
+      "estates": 4,
       "clear": 2,
       "stages": {
         "cold_deploy": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_count": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_crash": {
           "pass": 0,
           "fail": 0,
           "not_run": 0,
-          "n_a": 3
+          "n_a": 4
         },
         "day2_remove": {
           "pass": 2,
           "fail": 1,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 0,
           "fail": 0,
           "not_run": 0,
-          "n_a": 3
+          "n_a": 4
         },
         "day2_teardown": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "drift_reconverge": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "plan_approval": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "strict": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_apply": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 3,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     },
@@ -3903,6 +3903,32 @@
           "test_plan": 5
         }
       }
+    },
+    {
+      "name": "reference-k8s-cert-manager",
+      "source": "cert-manager v1.21.2's own install bundle (cert-manager.yaml at the release, 1,034,400 bytes, sha256 e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f, Apache-2.0 with the licence header inside the artifact) converted mechanically to 47 kubernetes_manifest blocks with tfk8s v0.1.10, plus the three custom resources from cert-manager's own self-signed documentation (ClusterIssuer, Issuer, Certificate) written here: 50 objects over 13 kinds, 6 CRDs, ClusterIssuer the lane's only cluster-scoped custom kind. reference- rather than corpus- because cert-manager ships YAML and the Terraform root is ours (#1174); live/e2e/reference-k8s-cert-manager/convert.sh reproduces it",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-cert-manager/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "n/a",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "n/a",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-stateful",

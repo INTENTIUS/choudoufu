@@ -93,8 +93,8 @@ func Stages() []Stage {
 	return []Stage{
 		{
 			ID: "cold_deploy", Order: 1, Title: "Cold deploy", Status: StatusActive, Headline: true,
-			Proves:     "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.",
-			Oracle:     "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.",
+			Proves:     "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage. A configuration that stock itself cannot plan in one pass may declare a pre-apply (`pre_apply` in the manifest, #1173): the named addresses are applied with `-target` first, identically on every side, and the verdict line says how many and where they are declared while the run reports the list itself for the runner to check address by address.",
+			Oracle:     "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such. A declared pre-apply is performed by the stock oracle too, from the same list - a crossing where one side got a targeted first apply and the other did not would not be comparing like with like.",
 			Break:      "Not applicable; this stage has nothing of choudoufu's to break.",
 			Substrates: map[string]string{SubstrateKind: "Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline."},
 		},

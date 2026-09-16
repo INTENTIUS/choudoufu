@@ -55,9 +55,9 @@ load-bearing (`BREAK=1` must make the stage fail).
 
 ### 1. Cold deploy (`cold_deploy`, active)
 
-Proves: The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage.
+Proves: The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage. A configuration that stock itself cannot plan in one pass may declare a pre-apply (`pre_apply` in the manifest, #1173): the named addresses are applied with `-target` first, identically on every side, and the verdict line says how many and where they are declared while the run reports the list itself for the runner to check address by address.
 
-Oracle: This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such.
+Oracle: This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such. A declared pre-apply is performed by the stock oracle too, from the same list - a crossing where one side got a targeted first apply and the other did not would not be comparing like with like.
 
 Break: Not applicable; this stage has nothing of choudoufu's to break.
 
@@ -266,6 +266,54 @@ to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the
 
 Lanes: terraform-popular, opentofu-native, reference, published-deployment, kubernetes.
 
+### The cold-deploy pre-apply
+
+Some configurations cannot be planned in one pass. A root declaring a
+CustomResourceDefinition and an object of that CRD is the case that forced
+this: `kubernetes_manifest` builds the object's schema at plan time, so the
+plan fails before anything is created, `depends_on` does not help, and
+re-running fails identically forever. Stock terraform has exactly the same
+problem with exactly the same configuration, and a real operator does the
+same thing: `apply -target=<the CRD>`, then a plain apply.
+
+Such an estate declares the addresses in its manifest entry:
+
+```json
+"pre_apply": ["kubernetes_manifest.crd_certificates"],
+"pre_apply_reason": "why one apply is not enough"
+```
+
+and its crossing script calls `gauntlet_pre_apply <estate>
+estate:<fn> oracle:<fn>`, which reads that list once and drives every side
+from it. Four rules hold it honest (#1173):
+
+- **the stock oracle performs the identical pre-apply**, from the same
+  declared list, in the same call - a crossing where only choudoufu got the
+  targeted first apply is not comparing like with like, so the helper
+  refuses a single-sided call;
+- **the run shows it happened**, in two halves. The verdict line says how
+  MANY addresses were pre-applied and which manifest field declares them
+  (`gauntlet_pre_apply_note`), so a reader sees two applies without opening
+  the log; `gauntlet_pre_apply` separately emits
+  `GAUNTLET pre_apply=<addr>,<addr> sides=<label>,<label>`, and the runner
+  checks the declared list against THAT, address by address, failing
+  `cold_deploy` if one was not performed or if one was performed that
+  nobody declared. The first spelling of this rule put every address in the
+  verdict line; on cert-manager's 47 that was a 3.3KB sentence, which
+  satisfied the words and defeated the reason for them, so it was corrected
+  on 2026-09-16 - only the printed sentence got shorter;
+- **it is declared, not scripted**, so the manifest and this page carry it;
+- **an estate that declares none behaves exactly as before** - the check
+  never fires, and no estate in the manifest today declares one except
+  where the table below says so.
+
+Readiness is the caller's job and has to be bounded:
+`gauntlet_wait_until <seconds> <what> -- <command>` polls and fails loudly
+on timeout rather than falling through into the admission error a webhook
+that exists but is not yet serving produces.
+
+Declares a pre-apply today: `reference-k8s-cert-manager` (47 address(es)).
+
 ## The core set
 
 Rule: the most-downloaded terraform-aws-modules examples, the OpenTofu-native
@@ -315,7 +363,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-30 estates exercising 176 distinct types between them, of which 100 no
+31 estates exercising 177 distinct types between them, of which 101 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the

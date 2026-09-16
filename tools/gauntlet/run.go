@@ -291,6 +291,18 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 			for id, v := range res.Detail {
 				prevDetail[id] = v
 			}
+			// #1173's third clause: a declared pre-apply has to be NAMED
+			// in the verdict line, addresses and all. Checked here, after
+			// the merge, against this run's own cold_deploy line only -
+			// never against a line carried forward from an earlier run,
+			// which would let a run that reported nothing inherit an
+			// older run's compliance.
+			if gap := preApplyVerdictGap(e, res); gap != "" {
+				r.Stages[StageColdDeploy] = VerdictFail
+				prevDetail[StageColdDeploy] = gap
+				stampStage(StageColdDeploy)
+				fmt.Fprintf(opts.Stdout, "%s: %s\n", e.Name, gap)
+			}
 			for id, v := range res.Seconds {
 				runSeconds[id] = v
 			}
@@ -374,6 +386,101 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		fmt.Fprintf(opts.Stdout, "%s: exit %d, %s\n", e.Name, exit, summarize(r.Stages))
 	}
 	return failures, nil
+}
+
+// StageColdDeploy is the first stage's id. It is the one stage the runner
+// itself reasons about by name (preApplyVerdictGap below), so it gets a
+// constant rather than a literal spelled in two places.
+const StageColdDeploy = "cold_deploy"
+
+// preApplyVerdictGap implements clause 3 of #1173's ruling: when an estate
+// declares a cold-deploy pre-apply, the run has to show it happened. It
+// returns the failure text when the run does not, and "" when there is
+// nothing to check or nothing wrong.
+//
+// It checks two different things against two different sources, which is
+// the point:
+//
+//   - PER ADDRESS, against what the run REPORTED PRE-APPLYING - the
+//     `GAUNTLET pre_apply=` line gauntlet_pre_apply emits itself, not
+//     anything a human typed. The declared list and the performed list must
+//     be the same set: a missing address means the pre-apply was not the
+//     one declared, and an EXTRA one means the script targeted something
+//     off its own bat, which is the script-local trick the ruling rejects.
+//   - THE VERDICT LINE, only for the reader's half: that it says a
+//     pre-apply happened, how many addresses, and which manifest field
+//     holds the list. The full list is in the log and in the manifest,
+//     which is where an auditor reads it. The original spelling of this
+//     rule put all 47 of cert-manager's addresses in the verdict line and
+//     produced a 3.3KB sentence that satisfied the words and defeated the
+//     reason for them (a reader must SEE that two applies happened) - the
+//     ruling was corrected on 2026-09-16, and only the printed sentence got
+//     shorter. The per-address check did not move; it moved sources.
+//
+// Three things it deliberately does NOT do:
+//
+//   - it never fires for an estate with no pre_apply, which is every estate
+//     in the manifest but one, so the stage is byte-for-byte what it was;
+//   - it never rewrites a verdict of fail or not_run into something else -
+//     a script that already failed cold_deploy has said the more important
+//     thing, and a not_run never claimed to have deployed anything;
+//   - it never consults a carried-forward detail line, only what this run
+//     printed, because compliance is a property of a run.
+func preApplyVerdictGap(e Estate, res *ProtocolResult) string {
+	if len(e.PreApply) == 0 || res == nil {
+		return ""
+	}
+	if res.Stages[StageColdDeploy] != VerdictPass {
+		return ""
+	}
+	prefix := fmt.Sprintf("RUNNER: %s declares a cold-deploy pre-apply of %d address(es) in %s, but ", e.Name, len(e.PreApply), ManifestPath)
+
+	if len(res.PreApply) == 0 {
+		return prefix + fmt.Sprintf("this run reported performing none: no `GAUNTLET pre_apply=` line was printed, which is what live/e2e/lib/gauntlet.sh's gauntlet_pre_apply emits when it drives every side from the declared list. A cold_deploy that passed without it either skipped the pre-apply or performed one off its own bat, and neither is the crossing this estate declares. Recorded as %s by the runner, not by the script", VerdictFail)
+	}
+	performed := map[string]bool{}
+	for _, a := range res.PreApply {
+		performed[a] = true
+	}
+	declared := map[string]bool{}
+	var missing []string
+	for _, a := range e.PreApply {
+		declared[a] = true
+		if !performed[a] {
+			missing = append(missing, a)
+		}
+	}
+	var extra []string
+	for _, a := range res.PreApply {
+		if !declared[a] {
+			extra = append(extra, a)
+		}
+	}
+	if len(missing) > 0 || len(extra) > 0 {
+		msg := prefix + "the pre-apply it performed is not the one it declared."
+		if len(missing) > 0 {
+			msg += fmt.Sprintf(" Declared but not performed: %s.", strings.Join(missing, ", "))
+		}
+		if len(extra) > 0 {
+			msg += fmt.Sprintf(" Performed but not declared: %s - a target the script chose for itself is exactly the script-local trick #1173 rules out.", strings.Join(extra, ", "))
+		}
+		return msg + fmt.Sprintf(" Recorded as %s by the runner, not by the script", VerdictFail)
+	}
+
+	// The reader's half. Deliberately small: a count and the field name.
+	detail := res.Detail[StageColdDeploy]
+	var unsaid []string
+	if !strings.Contains(detail, "pre_apply") {
+		unsaid = append(unsaid, "the manifest field the list is declared at (`pre_apply`)")
+	}
+	if !strings.Contains(detail, strconv.Itoa(len(e.PreApply))) {
+		unsaid = append(unsaid, fmt.Sprintf("how many addresses were pre-applied (%d)", len(e.PreApply)))
+	}
+	if len(unsaid) == 0 {
+		return ""
+	}
+	return prefix + fmt.Sprintf("its cold_deploy verdict line does not say %s. A reader has to be able to see that two applies happened, and where the list is, without opening the log; interpolate gauntlet_pre_apply_note's sentence into the detail. Recorded as %s by the runner, not by the script: the estate may well have deployed cleanly, but this run cannot be read as the two-apply crossing it declared",
+		strings.Join(unsaid, " or "), VerdictFail)
 }
 
 // recordRunnerFailure marks r as having failed the earliest ACTIVE stage
