@@ -436,6 +436,26 @@ const (
 	// UnsweptNotScanned is a type in the configuration that was never listed
 	// because no instance of it needed discovery.
 	UnsweptNotScanned UnsweptReason = "NOT_SCANNED"
+
+	// UnsweptMarkerUnreadable is a type discovery listed successfully but
+	// could read no ownership marker off any object of - issue #1132.
+	// [discovery.SweepGapMarkerUnreadable] fires when a type is enumerable
+	// (Cloud Control's ListResources succeeds) but no leg can read a tag
+	// off it (no Tags property in the CFN schema, and the tagging API
+	// does not serve the service). [scanTypeCloudControl] skips every such
+	// object rather than guessing at its ownership, so none of them was
+	// ever offered to this classifier as Unclaimed - the type is listed in
+	// name only.
+	//
+	// Before this reason existed, such a type still passed sweepCoverage's
+	// switch by elimination (no listing problem, ScopeAll) and landed in
+	// [Result.Swept], so the plan told an operator "every live resource of
+	// this type carries an ownership marker" on the same run that had just
+	// filed MARKER_UNREADABLE for it - the strongest safety statement this
+	// tool makes, printed about a type it could not actually check. A type
+	// whose markers could not be read is not a type whose resources all
+	// carry one, so it belongs here instead, itemized with the reason.
+	UnsweptMarkerUnreadable UnsweptReason = "MARKER_UNREADABLE"
 )
 
 // Unswept is one resource type this classification cannot speak for.

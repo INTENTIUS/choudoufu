@@ -283,6 +283,26 @@ func (c *classifier) sweepCoverage() {
 			// text depend on whether a cache file was present.
 			continue
 		}
+		if g := c.sweepGapFor(s.TypeName, discovery.SweepGapMarkerUnreadable); g != nil {
+			// Issue #1132: the listing behind this scan row succeeded, but
+			// [scanTypeCloudControl] read no marker off anything it
+			// returned and skipped every object rather than classify it,
+			// so nothing of this type was ever offered to this pass as
+			// Unclaimed. Falling through to the switch below would read
+			// that silence as "looked at everything and it was all
+			// marked" - exactly the overclaim [SweepGapMarkerUnreadable]
+			// exists to flag - so this type answers to the same evidence
+			// that gap does, here, and is reported unswept instead of
+			// swept.
+			c.res.Unswept = append(c.res.Unswept, Unswept{
+				TypeName: s.TypeName,
+				Reason:   UnsweptMarkerUnreadable,
+				Detail: fmt.Sprintf(
+					"%s was listed, but this run could read no ownership marker off any object of it (%s), so every object was skipped rather than classified. Nothing below says whether a foreign %s exists, and nothing says every live %s carries this estate's marker either - only that none could be confirmed either way.",
+					s.TypeName, g.Detail, s.TypeName, s.TypeName),
+			})
+			continue
+		}
 		switch {
 		case c.problemFor(s.TypeName, discovery.ProblemTypeNotListable) != nil:
 			c.res.Unswept = append(c.res.Unswept, Unswept{
@@ -664,6 +684,20 @@ func (c *classifier) problemFor(typeName string, kind discovery.ProblemKind) *di
 	for i, p := range c.req.Report.Problems {
 		if p.Kind == kind && p.TypeName == typeName {
 			return &c.req.Report.Problems[i]
+		}
+	}
+	return nil
+}
+
+// sweepGapFor mirrors problemFor for [discovery.SweepGap]: it answers
+// whether discovery filed a gap of the given reason for typeName, so
+// sweepCoverage can read the same evidence [SweepGapMarkerUnreadable] (and
+// any sibling reason a future caller matches on) already carries, instead
+// of re-deriving a weaker signal from the scan row alone.
+func (c *classifier) sweepGapFor(typeName string, reason discovery.SweepGapReason) *discovery.SweepGap {
+	for i, g := range c.req.Report.SweepGaps {
+		if g.Reason == reason && g.TypeName == typeName {
+			return &c.req.Report.SweepGaps[i]
 		}
 	}
 	return nil

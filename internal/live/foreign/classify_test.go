@@ -451,6 +451,43 @@ func TestClassifyIgnoresOwnEstate(t *testing.T) {
 // Epistemics: what was swept, and what was not
 // ---------------------------------------------------------------------------
 
+// TestClassifySweepGapMarkerUnreadableIsNotSwept is issue #1132: a type
+// discovery could list but could read no marker off - filed as
+// [discovery.SweepGapMarkerUnreadable] - must not be reported [Result.Swept].
+// Before the fix, this scan row fell through sweepCoverage's switch by
+// elimination (no listing problem on record, Scope ScopeAll) straight into
+// the default "swept" case, and the plan told an operator "every live
+// resource of aws_iam_role carries an ownership marker" on the same run
+// that had just filed MARKER_UNREADABLE for it - the reassuring half of a
+// contradiction the run's own evidence refutes.
+func TestClassifySweepGapMarkerUnreadableIsNotSwept(t *testing.T) {
+	const gapDetail = "aws_iam_role carries no Tags property in its CloudFormation schema and the Resource Groups Tagging API does not index this service"
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{
+		Scans: []discovery.TypeScan{
+			{TypeName: "aws_iam_role", Scope: discovery.ScopeAll, Sweep: true, Listed: 1},
+		},
+		SweepGaps: []discovery.SweepGap{
+			{TypeName: "aws_iam_role", Reason: discovery.SweepGapMarkerUnreadable, Detail: gapDetail},
+		},
+	}})
+
+	for _, typeName := range res.Swept {
+		if typeName == "aws_iam_role" {
+			t.Fatalf("aws_iam_role carries a MARKER_UNREADABLE gap and is still reported swept: %v", res.Swept)
+		}
+	}
+	u, ok := res.UnsweptOf("aws_iam_role")
+	if !ok {
+		t.Fatalf("aws_iam_role carries a MARKER_UNREADABLE gap and is reported neither swept nor unswept:\n%s", res)
+	}
+	if u.Reason != UnsweptMarkerUnreadable {
+		t.Errorf("aws_iam_role is unswept for %s, want %s", u.Reason, UnsweptMarkerUnreadable)
+	}
+	if !strings.Contains(u.Detail, gapDetail) {
+		t.Errorf("unswept detail does not carry the sweep gap's own reason:\n%s", u.Detail)
+	}
+}
+
 // TestClassifyUnsweptTypes: every way a type can be unknown to the
 // classification is reported as its own kind, because "nobody looked" must
 // never read as "there are none".
