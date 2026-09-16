@@ -423,7 +423,8 @@ func arnJoinReaches(req Request, schemas listclient.Schemas, typeName string) bo
 // the native leg enumerates perfectly well. Reading Supports alone answered
 // "no route" for a type Cloud Control lists, sent it back to the tagging
 // leg, and - since floci's 2026-09-11 repin stopped answering GetResources
-// for IAM, as real AWS never has (lex00/floci#202, live/flociimage_test.go)
+// for IAM at all (lex00/floci#202, live/flociimage_test.go; real AWS serves
+// two of the three IAM types this matters for, see [taggingAPIUnservedServices])
 // - left the sweep with NO enumeration of aws_iam_instance_profile
 // whatsoever. That is issue #881 reopened: the terralith's stage J deletes
 // a live, marked, taggable instance profile's block and the plan proposed
@@ -456,8 +457,24 @@ func nativeSweepReaches(req Request, schemas listclient.Schemas, typeName string
 // returns their resources, no matter how they are tagged. Probed against
 // real AWS 2026-09-01 - an IAM role tagged at create never appeared in
 // us-east-1 or us-east-2, with a tag filter and with a bare
-// resource-type filter (recorded on issue #692) - and floci matches real
-// AWS here. Being parseable by [arnJoinTable] is not the same fact as
+// resource-type filter (recorded on issue #692).
+//
+// That probe used a ROLE, and issue #1134 re-measured a live account at
+// scale 50 to find that the role does not speak for the service. RGTA
+// returns 0 for iam:role in every region, as #692 found; it returns 500 each
+// for iam:policy and iam:instance-profile - but only in us-east-1, IAM being
+// global and indexing there. So this entry is correct for one IAM type and
+// too broad for two, and it is only harmless today because the sweep queries
+// one region and routing everything away is the conservative answer for a
+// caller outside us-east-1. Issue #1144 owns the representation change (per
+// type, with a region a type indexes in); do not narrow this map without it,
+// and note that no emulator run can prove such a narrowing while floci
+// serves nothing for IAM at all - the rows
+// tools/floci-capability-gen's tagging mode records for aws_iam_policy and
+// aws_iam_instance_profile are the emulator diverging from AWS, not matching
+// it (lex00/floci#205, tracked as #1152).
+//
+// Being parseable by [arnJoinTable] is not the same fact as
 // being SERVED by GetResources, and conflating the two routed IAM to the
 // tagging universe where its sightings simply never happened: the
 // terralith's client-named IAM majority went unvouched (6 of 38

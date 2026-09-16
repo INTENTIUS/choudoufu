@@ -113,10 +113,11 @@ func TestCapabilityGateNoOpForUnrecordedType(t *testing.T) {
 // The tagging-sweep direction on aws_iam_role used to be covered as a
 // positive here (the gate a no-op, on the strength of the union-index pin's
 // "implemented" row). Issue #1045 (lex00/floci PR #202) retired that: floci
-// stopped serving IAM through GetResources/GetTagKeys/GetTagValues, matching
-// real AWS, so the row is unimplemented again and the gate skips - now
-// TestCapabilityGateSkipsForTaggingSweepIAM below, the same shape as
-// TestCapabilityGateSkipsForKnownGap.
+// stopped serving IAM through GetResources/GetTagKeys/GetTagValues, which
+// matches real AWS for a role, so the row is unimplemented again and the
+// gate skips - now TestCapabilityGateSkipsForTaggingSweepIAM below, the same
+// shape as TestCapabilityGateSkipsForKnownGap. It does NOT match real AWS
+// for the other two IAM types that test now covers; see its doc comment.
 func TestCapabilityGateMechanismScoping(t *testing.T) {
 	cases := []struct {
 		name string
@@ -165,23 +166,45 @@ func TestCapabilityGateMechanismScoping(t *testing.T) {
 // TestCapabilityGateSkipsForTaggingSweepIAM is
 // TestCapabilityGateMechanismScoping's retired positive case, now a skip:
 // issue #1045 (lex00/floci PR #202, closes lex00/floci#201) stopped floci
-// serving IAM through GetResources/GetTagKeys/GetTagValues, matching real
-// AWS (probed directly, recorded on issue #692), so aws_iam_role's
-// tagging-sweep row is unimplemented again at this pin - the same shape
-// every digest before sha256:a1c729f4's union index carried, and every
-// digest since sha256:0bbeb430 carries again.
+// serving IAM through GetResources/GetTagKeys/GetTagValues, so
+// aws_iam_role's tagging-sweep row is unimplemented again at this pin - the
+// same shape every digest before sha256:a1c729f4's union index carried, and
+// every digest since sha256:0bbeb430 carries again.
+//
+// The other two types are issue #881's, added with their recipes for #1152.
+// #1045's change was made to match real AWS on the strength of a probe that
+// used a ROLE (issue #692), and issue #1134's real-account measurement says
+// that generalised badly: GetResources returns nothing for iam:role in any
+// region, and 500 each for iam:policy and iam:instance-profile in us-east-1,
+// IAM being global. So aws_iam_role's skip here is faithful emulation and
+// the other two are floci diverging from AWS - lex00/floci#205.
+//
+// That difference is why this test wants all three rather than the one type
+// that happens to break a stage. The day lex00/floci#205 lands, the
+// instance-profile and policy rows turn implemented, these subtests stop
+// skipping, and this test goes red - which is the intended wake-up, because
+// that is the first moment #881's tagging-leg repair can be proven on the
+// emulator at all. Re-point it at the measurement then; do not delete it.
 func TestCapabilityGateSkipsForTaggingSweepIAM(t *testing.T) {
-	var sub *testing.T
-	t.Run("skip", func(st *testing.T) {
-		sub = st
-		TaggingSweepCapabilityGate(st, "aws_iam_role")
-		t.Fatal("unreachable: TaggingSweepCapabilityGate should have skipped before this line")
-	})
-	if !sub.Skipped() {
-		t.Fatal("TaggingSweepCapabilityGate did not skip for aws_iam_role, a documented manifest gap since #1045's repin")
-	}
-	if sub.Failed() {
-		t.Error("the subtest failed rather than skipped cleanly")
+	for _, tfType := range []string{
+		"aws_iam_role",
+		"aws_iam_instance_profile",
+		"aws_iam_policy",
+	} {
+		t.Run(tfType, func(t *testing.T) {
+			var sub *testing.T
+			t.Run("skip", func(st *testing.T) {
+				sub = st
+				TaggingSweepCapabilityGate(st, tfType)
+				t.Fatal("unreachable: TaggingSweepCapabilityGate should have skipped before this line")
+			})
+			if !sub.Skipped() {
+				t.Fatalf("TaggingSweepCapabilityGate did not skip for %s: live/floci-capabilities.json no longer records a tagging-sweep gap for it at this pin. If lex00/floci#205 landed, issue #881's tagging-leg repair is now provable on the emulator - go prove it.", tfType)
+			}
+			if sub.Failed() {
+				t.Error("the subtest failed rather than skipped cleanly")
+			}
+		})
 	}
 }
 

@@ -96,7 +96,7 @@ func newAWSRunner(endpoint, region string) awsRunner {
 	}
 }
 
-// taggingRecipes is the curated set probeTagging drives. All seven were
+// taggingRecipes is the curated set probeTagging drives. The first seven were
 // hand-verified against ghcr.io/lex00/floci@sha256:1362e856... (the batch-3
 // re-pin this same session's floci-capabilities.json update targets) on
 // 2026-08-16: each creates cleanly, each confirms its own tags via a native
@@ -106,6 +106,18 @@ func newAWSRunner(endpoint, region string) awsRunner {
 // across storage, queueing, messaging, database and secrets services -
 // evidence the gap is in the tagging index itself, not in any one service's
 // emulation.
+//
+// aws_iam_instance_profile and aws_iam_policy were added for issue #881, and
+// they are the two rows in this set whose "unimplemented" is a divergence
+// FROM real AWS rather than a match with it. Issue #1134 measured a real
+// account (...3429) at scale 50: GetResources returns 0 for iam:role in every
+// region, which is why aws_iam_role's row here is faithful, but it returns
+// 500 each for iam:policy and iam:instance-profile in us-east-1, IAM being
+// global and indexing there. floci answers the empty list for all three.
+// Until lex00/floci#205 (tracked as #1152) is fixed, no emulator run can
+// prove or disprove a change that routes either type to the tagging leg, and
+// live/floci-capabilities.json is the place that fact is recorded per digest
+// rather than re-derived by hand in each unit that trips over it.
 var taggingRecipes = []taggingRecipe{
 	{
 		tfType:  "aws_ebs_volume",
@@ -276,6 +288,76 @@ var taggingRecipes = []taggingRecipe{
 				arn:      arn,
 				evidence: fmt.Sprintf("iam create-role tagged %s at creation; list-role-tags confirms tofu-estate/tofu-address natively", name),
 				cleanup:  func() { _, _ = aws(context.Background(), "iam", "delete-role", "--role-name", name) },
+			}, nil
+		},
+	},
+	{
+		// Issue #881's own type: the terralith deletes a declared, tagged
+		// instance profile's block and no destroy is proposed. Cloud Control
+		// lists it and cannot read its marker (no Tags property on the CFN
+		// schema), so the tag index is the only leg left - and on real AWS
+		// us-east-1 it serves this type (#1134, 500 returned). This recipe
+		// exists so the manifest states, per digest, whether floci does.
+		tfType:  "aws_iam_instance_profile",
+		service: "iam",
+		run: func(ctx context.Context, aws awsRunner, suffix string) (taggingRecipeResult, error) {
+			name := "tofu-probe-profile-" + suffix
+			arn, err := aws(ctx, "iam", "create-instance-profile", "--instance-profile-name", name,
+				"--tags", "Key=tofu-estate,Value=probe-"+suffix, "Key=tofu-address,Value=aws_iam_instance_profile.probe",
+				"--query", "InstanceProfile.Arn", "--output", "text")
+			if err != nil {
+				return taggingRecipeResult{}, err
+			}
+			arn = strings.TrimSpace(arn)
+			tags, err := aws(ctx, "iam", "list-instance-profile-tags", "--instance-profile-name", name, "--output", "json")
+			if err != nil {
+				return taggingRecipeResult{}, fmt.Errorf("confirming tags natively via list-instance-profile-tags: %w", err)
+			}
+			if !strings.Contains(tags, "tofu-estate") {
+				return taggingRecipeResult{}, fmt.Errorf("list-instance-profile-tags did not echo the tags this recipe just wrote: %s", tags)
+			}
+			return taggingRecipeResult{
+				tfType:   "aws_iam_instance_profile",
+				arn:      arn,
+				evidence: fmt.Sprintf("iam create-instance-profile tagged %s at creation; list-instance-profile-tags confirms tofu-estate/tofu-address natively", name),
+				cleanup: func() {
+					_, _ = aws(context.Background(), "iam", "delete-instance-profile", "--instance-profile-name", name)
+				},
+			}, nil
+		},
+	},
+	{
+		// The second type #1134 measured as served by real AWS in us-east-1
+		// and not by floci. Unlike the instance profile, Cloud Control can
+		// read this one's marker, so nothing fails on it today; it is here
+		// because the two types share one fidelity gap and a manifest that
+		// records only the type that happened to fail invites the next unit
+		// to assume the other is fine.
+		tfType:  "aws_iam_policy",
+		service: "iam",
+		run: func(ctx context.Context, aws awsRunner, suffix string) (taggingRecipeResult, error) {
+			name := "tofu-probe-policy-" + suffix
+			doc := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:GetObject","Resource":"*"}]}`
+			arn, err := aws(ctx, "iam", "create-policy", "--policy-name", name,
+				"--policy-document", doc,
+				"--tags", "Key=tofu-estate,Value=probe-"+suffix, "Key=tofu-address,Value=aws_iam_policy.probe",
+				"--query", "Policy.Arn", "--output", "text")
+			if err != nil {
+				return taggingRecipeResult{}, err
+			}
+			arn = strings.TrimSpace(arn)
+			tags, err := aws(ctx, "iam", "list-policy-tags", "--policy-arn", arn, "--output", "json")
+			if err != nil {
+				return taggingRecipeResult{}, fmt.Errorf("confirming tags natively via list-policy-tags: %w", err)
+			}
+			if !strings.Contains(tags, "tofu-estate") {
+				return taggingRecipeResult{}, fmt.Errorf("list-policy-tags did not echo the tags this recipe just wrote: %s", tags)
+			}
+			return taggingRecipeResult{
+				tfType:   "aws_iam_policy",
+				arn:      arn,
+				evidence: fmt.Sprintf("iam create-policy tagged %s at creation; list-policy-tags confirms tofu-estate/tofu-address natively", name),
+				cleanup:  func() { _, _ = aws(context.Background(), "iam", "delete-policy", "--policy-arn", arn) },
 			}, nil
 		},
 	},

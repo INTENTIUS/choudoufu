@@ -259,11 +259,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 4, Code: 0,
 	},
 	"tools/floci-capability-gen/tagging.go": {
-		Reason: "taggingRecipes: seven hand-verified probes of floci's tagging index. Each is a literal sequence of `aws` CLI " +
+		Reason: "taggingRecipes: nine hand-verified probes of floci's tagging index. Each is a literal sequence of `aws` CLI " +
 			"calls for one service - a create, a native tag read-back, a cleanup - which is an experiment against an emulator " +
 			"and not something any provider artifact describes. Data and Code counts pair one to one: each recipe names its " +
-			"type in the struct and again in the closure's own result.",
-		Data: 7, Code: 7,
+			"type in the struct and again in the closure's own result. Rose from seven to nine for issue #881: " +
+			"aws_iam_instance_profile and aws_iam_policy are the two types issue #1134 measured real AWS as indexing in " +
+			"us-east-1 while floci indexes neither (lex00/floci#205, tracked as #1152), and a live probe is the only thing " +
+			"that can say so per image digest - no provider artifact records what an emulator answers.",
+		Data: 9, Code: 9,
 	},
 	"tools/wo-sweep/main.go": {
 		Reason: "the two proven write-only instances (aws_s3_object.content, aws_iam_access_key.secret) probed raw so the " +
@@ -551,8 +554,20 @@ const (
 	// first time, one Data literal ("aws_iam_policy" as directReadTypes'
 	// sole map key) and no Code literal - the fallback dispatches on the
 	// map, never on a name compared inline.
-	typeLiteralDataTotal = 1166
-	typeLiteralCodeTotal = 129
+	// 1166 -> 1168 data, 129 -> 131 code, on 2026-09-15 (issue #881):
+	// tools/floci-capability-gen/tagging.go's taggingRecipes gains probes for
+	// aws_iam_instance_profile and aws_iam_policy - two names in the struct
+	// literals and the same two again in their closures' results, which is
+	// why Data and Code move together by the same two. Code moving is the
+	// number that is supposed to hurt, so: these are not a dispatch on a
+	// name. They are the experiment itself. Issue #1134 measured real AWS
+	// indexing both types through GetResources in us-east-1 while floci
+	// indexes neither (lex00/floci#205, tracked as #1152), and the only way
+	// to state that per image digest is to create one tagged object of each
+	// type with its own service API and see whether the index echoes it. No
+	// provider artifact records what an emulator answers.
+	typeLiteralDataTotal = 1168
+	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and
