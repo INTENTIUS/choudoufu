@@ -2199,7 +2199,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// Counted rather than reported here: whether it MATTERS
 				// depends on sawReadableTags, which is not known until the
 				// listing is over.
-				if sweep && taggable && taggingAPIUnservedType(typeName) {
+				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
 					joinBlind++
 				}
 			case joinUnavailable:
@@ -2217,7 +2217,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// [sweepMarkerReadGap]'s "Why both arms are gated on a
 				// service list" for the actual argument, which is about
 				// what this run has evidence for.
-				if sweep && taggable && taggingAPIUnservedType(typeName) {
+				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
 					joinAbsent++
 				}
 			}
@@ -2612,7 +2612,12 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		})
 	}
 
-	if sweep {
+	// sweep OR collectUnclaimed, which is issue #1136's second path and the
+	// one the #1137 worker found from the other side. See
+	// [sweepMarkerReadGap]'s "The two paths" for why an unreadable marker
+	// produces opposite visible failures on the two, and why a plain plan
+	// (neither flag) is deliberately left to #322's per-address warning.
+	if sweep || collectUnclaimed {
 		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked, joinBlind, joinAbsent))
 	}
 
@@ -2649,6 +2654,38 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 // live, marked resource whose block was deleted is dropped with nothing
 // said: no Orphan, no Unclaimed, no Problem, and the type still listed in
 // [Result.SweepCovered]. The #1050 worker confirmed all five were empty.
+//
+// # The two paths
+//
+// One unreadable marker, two opposite visible failures, and the brief that
+// scoped this named only the first. On the sweep-for-removal path the
+// object is DROPPED - `case estate == ""` continues when collectUnclaimed
+// is unset - so a live resource this estate owns goes unproposed for
+// destruction with nothing said. On the collectUnclaimed path the same
+// object is KEPT, lands in [Result.Unclaimed], and internal/live/foreign
+// reports it FOREIGN: the #1137 worker measured
+// corpus-ec2-instance-complete printing the estate's own
+// module.ec2_complete.aws_iam_role.this[0] - created by this run's migrate,
+// stamped by [internal/live/stamp], confirmed carrying both markers by
+// `aws iam list-role-tags` against the same emulator - as an unowned stray
+// with "tags: (none)". That is arguably the worse half: a silent drop omits
+// something, this actively tells an operator a resource they own is not
+// theirs.
+//
+// So the gap is filed for either, and neither path may be fixed alone.
+// internal/live/foreign is where the second half lands: PR #1153's
+// [foreign.UnsweptMarkerUnreadable] already moves a gapped type out of
+// Result.Swept, and the classifier additionally declines to call any object
+// of such a type foreign, because "no marker could be read off this object"
+// is not evidence that nobody owns it - it is the absence of evidence
+// either way, which is this project's safety rule in one line.
+//
+// A plain plan - neither sweep nor collectUnclaimed - is deliberately left
+// alone. There a declared instance whose marker cannot be read already has
+// [unreadableMarkerProblem]'s per-address WARNING (issue #322's ruling) and
+// directread.go's targeted read (#1046), both of which say more about the
+// specific address than a type-level gap could, so adding one would be
+// noise on the commonest path in the fork.
 //
 // # Why this cannot be decided per object
 //

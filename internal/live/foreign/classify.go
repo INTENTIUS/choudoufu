@@ -283,22 +283,38 @@ func (c *classifier) sweepCoverage() {
 			// text depend on whether a cache file was present.
 			continue
 		}
-		if g := c.sweepGapFor(s.TypeName, discovery.SweepGapMarkerUnreadable); g != nil {
+		if g := c.markerUnreadableGap(s.TypeName); g != nil {
 			// Issue #1132: the listing behind this scan row succeeded, but
-			// [scanTypeCloudControl] read no marker off anything it
-			// returned and skipped every object rather than classify it,
-			// so nothing of this type was ever offered to this pass as
-			// Unclaimed. Falling through to the switch below would read
-			// that silence as "looked at everything and it was all
-			// marked" - exactly the overclaim [SweepGapMarkerUnreadable]
-			// exists to flag - so this type answers to the same evidence
-			// that gap does, here, and is reported unswept instead of
-			// swept.
+			// no leg could read a marker off anything it returned.
+			// Falling through to the switch below would read that silence
+			// as "looked at everything and it was all marked" - exactly
+			// the overclaim the gap exists to flag - so this type answers
+			// to the same evidence that gap does, here, and is reported
+			// unswept instead of swept.
+			//
+			// Issue #1136 widens what gets here in two ways, both through
+			// [classifier.markerUnreadableGap] rather than a second copy
+			// of this block. The native/provider leg now files the gap too
+			// (it did not when this was written, which is why the wording
+			// below no longer names [scanTypeCloudControl]), and the
+			// transient half of it files
+			// [discovery.SweepGapTagIndexUnavailable], which means the
+			// same thing for coverage: nothing of this type was
+			// classified, so nothing may be claimed about it.
+			//
+			// The two legs also differ in what they did with the objects,
+			// which is why the sentence below says "every object was
+			// skipped OR left unclassifiable" rather than the Cloud
+			// Control leg's own "skipped". Cloud Control skips them;
+			// [discovery.scanType]'s collectUnclaimed path keeps them and
+			// puts them in Report.Unclaimed, where [classifier.classify]
+			// and [classifier.finish] now decline to call them foreign for
+			// the same reason this block declines to call the type swept.
 			c.res.Unswept = append(c.res.Unswept, Unswept{
 				TypeName: s.TypeName,
 				Reason:   UnsweptMarkerUnreadable,
 				Detail: fmt.Sprintf(
-					"%s was listed, but this run could read no ownership marker off any object of it (%s), so every object was skipped rather than classified. Nothing below says whether a foreign %s exists, and nothing says every live %s carries this estate's marker either - only that none could be confirmed either way.",
+					"%s was listed, but this run could read no ownership marker off any object of it (%s), so every object was skipped or left unclassifiable rather than classified. Nothing below says whether a foreign %s exists, and nothing says every live %s carries this estate's marker either - only that none could be confirmed either way.",
 					s.TypeName, g.Detail, s.TypeName, s.TypeName),
 			})
 			continue
@@ -409,6 +425,25 @@ func (c *classifier) classify() {
 	for i := range c.req.Report.Unclaimed {
 		u := &c.req.Report.Unclaimed[i]
 
+		// Issue #1136. This object reached Unclaimed because no marker
+		// could be read off it, not because it carries none: for a type
+		// the run has filed a marker-unreadable gap for, "no tofu-estate
+		// tag" is what an unreadable read looks like, and it is
+		// indistinguishable from the real thing. Forming an adoption pair
+		// from it would propose retagging a resource that may already
+		// carry this estate's marker for another address - the wrong
+		// marker live/MARKERS.md and HANDOFF's safety rule put above every
+		// other consideration.
+		//
+		// Measured: corpus-ec2-instance-complete's ninth "foreign" object
+		// was module.ec2_complete.aws_iam_role.this[0], this estate's own
+		// role, created and stamped by this run's own migrate and
+		// confirmed carrying both markers by `aws iam list-role-tags`
+		// against the same emulator.
+		if c.markerUnreadableGap(u.TypeName) != nil {
+			continue
+		}
+
 		// Discovery only ever puts resources with no tofu-estate tag in this
 		// list, but classification is the place where "whose is it" is
 		// answered, so it answers it from the tags rather than from where
@@ -489,6 +524,17 @@ func (c *classifier) finish() {
 	for i := range c.req.Report.Unclaimed {
 		u := &c.req.Report.Unclaimed[i]
 		if estate := u.Tags[discovery.TagEstate]; estate != "" {
+			continue
+		}
+		// Issue #1136, the same gate [classifier.classify] applies, and
+		// the one that actually stops the wrong sentence being printed.
+		// "Foreign" is a claim - this resource is in your account and
+		// nobody's estate owns it - and this run has no evidence for it:
+		// it could read no marker off any object of the type. The type's
+		// own [UnsweptMarkerUnreadable] line says so in the coverage
+		// section, which is the honest place for it, and says explicitly
+		// that nothing below settles whether a foreign one exists.
+		if c.markerUnreadableGap(u.TypeName) != nil {
 			continue
 		}
 
@@ -694,6 +740,30 @@ func (c *classifier) problemFor(typeName string, kind discovery.ProblemKind) *di
 // sweepCoverage can read the same evidence [SweepGapMarkerUnreadable] (and
 // any sibling reason a future caller matches on) already carries, instead
 // of re-deriving a weaker signal from the scan row alone.
+// markerUnreadableGap is the one place this package asks "did this run fail
+// to read a marker off every object of typeName", and it is deliberately one
+// place: three call sites act on that answer ([classifier.sweepCoverage]
+// keeps the type out of [Result.Swept], [classifier.classify] forms no
+// adoption pair from its objects, [classifier.finish] calls none of them
+// foreign), and the three must never disagree about which types they mean.
+//
+// Two discovery reasons say it. [discovery.SweepGapMarkerUnreadable] is the
+// permanent one - no leg can ever read this type's marker, whether because
+// the CFN schema has no Tags property (Cloud Control leg) or because the
+// provider's list call returns none and the Resource Groups Tagging API
+// does not index the service (native leg, issue #1136).
+// [discovery.SweepGapTagIndexUnavailable] is its possibly-transient twin,
+// where the index could not be consulted at all. The REMEDY differs -
+// retry, versus do not bother - and that is why discovery keeps them apart;
+// but for this package the fact is identical, because coverage is about
+// what was established and neither established anything.
+func (c *classifier) markerUnreadableGap(typeName string) *discovery.SweepGap {
+	if g := c.sweepGapFor(typeName, discovery.SweepGapMarkerUnreadable); g != nil {
+		return g
+	}
+	return c.sweepGapFor(typeName, discovery.SweepGapTagIndexUnavailable)
+}
+
 func (c *classifier) sweepGapFor(typeName string, reason discovery.SweepGapReason) *discovery.SweepGap {
 	for i, g := range c.req.Report.SweepGaps {
 		if g.Reason == reason && g.TypeName == typeName {

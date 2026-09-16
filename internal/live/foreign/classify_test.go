@@ -692,3 +692,124 @@ func renderDiags(diags tfdiags.Diagnostics) string {
 	}
 	return b.String()
 }
+
+// TestClassifyUnreadableMarkerObjectIsNotForeign is issue #1136's second
+// path, and the half of it that lands in this package.
+//
+// "Foreign" is a claim about the world: this live resource is in your
+// account and no estate owns it. A run that could read no ownership marker
+// off any object of the type has no evidence for that claim - "no
+// tofu-estate tag" is exactly what an unreadable read looks like, and it is
+// indistinguishable from the real thing.
+//
+// Measured, not hypothetical. The #1137 worker ran
+// corpus-ec2-instance-complete against floci sha256:0bbeb43 and its ninth
+// "foreign" object was module.ec2_complete.aws_iam_role.this[0] - the
+// estate's OWN role, created by that same run's migrate, stamped by
+// internal/live/stamp, and confirmed carrying both markers by `aws iam
+// get-role` / `aws iam list-role-tags` against the same emulator. It
+// printed with "tags: (none)" because iam:ListRoles returns none, #266's
+// tag-index rescue is fed by a GetResources that does not index IAM, and
+// AWS::IAM::Role's Cloud Control read handler never calls
+// iam:ListRoleTags either.
+//
+// That is worse than issue #1136's first symptom rather than merely
+// different: a silent drop omits something; this actively tells an operator
+// that a resource their own estate owns and tagged is an unowned stray.
+func TestClassifyUnreadableMarkerObjectIsNotForeign(t *testing.T) {
+	const gapDetail = "the list call returned no tags for any object of the type, and the Resource Groups Tagging API does not index this service at all"
+
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{
+		Scans: []discovery.TypeScan{
+			{TypeName: "aws_iam_role", Scope: discovery.ScopeAll, Listed: 1},
+			// A control type beside it, so a fix that simply stopped
+			// reporting anything foreign would fail here.
+			scan("aws_security_group", 1),
+		},
+		SweepGaps: []discovery.SweepGap{
+			{TypeName: "aws_iam_role", Reason: discovery.SweepGapMarkerUnreadable, Detail: gapDetail},
+		},
+		Unclaimed: []discovery.UnclaimedResource{
+			live("aws_iam_role", "estate-own-role", "estate-own-role", nil, nil),
+			live("aws_security_group", "sg-foreign", "someone-elses-sg",
+				map[string]string{"team": "payments"},
+				map[string]string{"name": "someone-elses-sg"}),
+		},
+	}})
+
+	for _, f := range res.Foreign {
+		if f.TypeName == "aws_iam_role" {
+			t.Errorf("a %s was reported foreign on a run that filed MARKER_UNREADABLE for the type: %s\nThis run read no marker off it, so it cannot say nobody owns it - and the object it is saying that about may be the estate's own, correctly stamped resource.\n%s", f.TypeName, f, res)
+		}
+	}
+
+	// The control must survive: silence over the whole section would be a
+	// different defect, not a fix.
+	var sawControl bool
+	for _, f := range res.Foreign {
+		if f.TypeName == "aws_security_group" && f.LiveID == "sg-foreign" {
+			sawControl = true
+		}
+	}
+	if !sawControl {
+		t.Fatalf("the genuinely foreign aws_security_group stopped being reported too, so this suppression is wider than its reason:\n%s", res)
+	}
+
+	// And the operator is told, loudly, at the type level - the object is
+	// not merely dropped a second time.
+	u, ok := res.UnsweptOf("aws_iam_role")
+	if !ok {
+		t.Fatalf("aws_iam_role's objects were withheld from the foreign list and the type is not reported unswept either, so the run says nothing at all about it:\n%s", res)
+	}
+	if u.Reason != UnsweptMarkerUnreadable {
+		t.Errorf("aws_iam_role is unswept for %s, want %s", u.Reason, UnsweptMarkerUnreadable)
+	}
+}
+
+// TestClassifyTagIndexUnavailableIsNotSweptEither extends issue #1132's
+// interception to issue #1136's transient reason.
+//
+// [discovery.SweepGapTagIndexUnavailable] and
+// [discovery.SweepGapMarkerUnreadable] differ in what an operator should DO
+// - retry, versus do not bother - which is why discovery keeps them apart.
+// For coverage they are the same fact: nothing of the type was classified,
+// so nothing may be claimed about it. A run that reported the type swept on
+// the transient reason would print "every live resource of aws_iam_role
+// carries an ownership marker" having checked none of them, which is the
+// exact overclaim #1132 closed for the other reason.
+func TestClassifyTagIndexUnavailableIsNotSweptEither(t *testing.T) {
+	const gapDetail = "the estate's tag index could not be consulted, because this run has no Resource Groups Tagging API endpoint configured"
+
+	res := classifyFixture(t, discovery.Result{Report: discovery.Report{
+		Scans: []discovery.TypeScan{
+			{TypeName: "aws_iam_role", Scope: discovery.ScopeAll, Listed: 1},
+		},
+		SweepGaps: []discovery.SweepGap{
+			{TypeName: "aws_iam_role", Reason: discovery.SweepGapTagIndexUnavailable, Detail: gapDetail},
+		},
+		Unclaimed: []discovery.UnclaimedResource{
+			live("aws_iam_role", "estate-own-role", "estate-own-role", nil, nil),
+		},
+	}})
+
+	for _, typeName := range res.Swept {
+		if typeName == "aws_iam_role" {
+			t.Fatalf("aws_iam_role carries a TAG_INDEX_UNAVAILABLE gap and is still reported swept: %v\nThe run could not consult the index at all, so it checked nothing and must not say it checked everything.", res.Swept)
+		}
+	}
+	u, ok := res.UnsweptOf("aws_iam_role")
+	if !ok {
+		t.Fatalf("aws_iam_role carries a TAG_INDEX_UNAVAILABLE gap and is reported neither swept nor unswept:\n%s", res)
+	}
+	if u.Reason != UnsweptMarkerUnreadable {
+		t.Errorf("aws_iam_role is unswept for %s, want %s", u.Reason, UnsweptMarkerUnreadable)
+	}
+	if !strings.Contains(u.Detail, gapDetail) {
+		t.Errorf("the unswept detail does not carry the gap's own reason, so an operator cannot tell a retryable outage from a permanent one:\n%s", u.Detail)
+	}
+	for _, f := range res.Foreign {
+		if f.TypeName == "aws_iam_role" {
+			t.Errorf("a %s was reported foreign although the index that would have settled its ownership was never consulted: %s", f.TypeName, f)
+		}
+	}
+}

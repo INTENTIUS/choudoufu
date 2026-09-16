@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
@@ -402,4 +403,127 @@ func TestNativeSweepStaysQuietWhenTheIndexAnswersForOneObjectOfTheType(t *testin
 		}
 	}
 	t.Errorf("%s is not in Result.SweepCovered although a marker really was read off one of its objects:\n%s", unservedType, res)
+}
+
+// TestCollectUnclaimedSaysSoWhenTheEstatesOwnObjectCannotBeRead is issue
+// #1136's second path, and the one that makes the defect worse rather than
+// merely quiet.
+//
+// Same unreadable marker, opposite visible failure. An ordinary sweep DROPS
+// such an object (`case estate == ""` continues when collectUnclaimed is
+// unset) - nothing is said. With CollectUnclaimed set the object is KEPT,
+// lands in [Result.Unclaimed], and internal/live/foreign calls it foreign.
+// The #1137 worker measured corpus-ec2-instance-complete reporting
+// module.ec2_complete.aws_iam_role.this[0] - the estate's OWN role, created
+// by this run's migrate, stamped by [internal/live/stamp], confirmed
+// carrying both markers by `aws iam list-role-tags` against the same
+// emulator - as an unowned stray with "tags: (none)".
+//
+// This asserts discovery's half: the gap is filed on a config-driven scan
+// too, not only on a sweep, so the classifier downstream has the evidence
+// to decline. foreign's half is
+// TestClassifyUnreadableMarkerObjectIsNotForeign.
+func TestCollectUnclaimedSaysSoWhenTheEstatesOwnObjectCannotBeRead(t *testing.T) {
+	const (
+		unservedType = "aws_iam_role"
+		liveName     = "estate-own-role"
+	)
+
+	cloud := newFakeCloud()
+	cloud.listable(unservedType)
+	// The estate's own role, stamped correctly at migrate...
+	cloud.own(unservedType, liveName, unservedType+".this")
+	// ...whose marker iam:ListRoles does not return.
+	stripTags(t, cloud, unservedType, liveName)
+
+	// An index that answers and holds no IAM, which is real AWS (#1134
+	// measured RGTA returning 0 for iam:role in every region while
+	// iam:ListRoleTags showed the tags on the object) and floci since
+	// lex00/floci#202.
+	tagSrv := &taggingServer{}
+	tagServer := tagSrv.start(t)
+	defer tagServer.Close()
+
+	cfg := loadConfig(t, "testdata/iam-role-collect-unclaimed")
+	res, diags := Discover(context.Background(), Request{
+		Estate:           estateName,
+		Config:           cfg,
+		Resolutions:      resolveOrFail(t, cfg).All(),
+		Provider:         cloud,
+		CollectUnclaimed: true,
+		Tagging:          cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: tagServer.URL}),
+	})
+	assertNoErrors(t, diags)
+
+	// Premises. This must be the CONFIG-DRIVEN scan, not a sweep: the sweep
+	// path is the other test, and a fixture that quietly became a sweep
+	// would prove nothing new.
+	scan, ok := res.ScanFor(unservedType)
+	if !ok || scan.Sweep || scan.Listed != 1 {
+		t.Fatalf("the %s scan is %+v (found=%v), want a config-driven (Sweep=false) scan with Listed=1:\n%s", unservedType, scan, ok, res)
+	}
+	// And the object must actually have landed in Unclaimed - that is the
+	// input internal/live/foreign turns into the wrong sentence.
+	var unclaimed int
+	for _, u := range res.Unclaimed {
+		if u.TypeName == unservedType {
+			unclaimed++
+		}
+	}
+	if unclaimed != 1 {
+		t.Fatalf("want the estate's own role reported Unclaimed exactly once (that is the defect's input), got %d:\n%s", unclaimed, res)
+	}
+
+	var reason SweepGapReason
+	for _, g := range res.SweepGaps {
+		if g.TypeName == unservedType {
+			reason = g.Reason
+		}
+	}
+	if reason != SweepGapMarkerUnreadable {
+		t.Fatalf("the gap for %s is %q, want %q. This estate's own role is sitting in Result.Unclaimed with no marker read off it, and with no gap on the record the classifier has nothing to tell it apart from a genuine stray - so it prints one.\n%s",
+			unservedType, reason, SweepGapMarkerUnreadable, res)
+	}
+}
+
+// TestPlainPlanFilesNoMarkerReadGap is the third control, and it bounds the
+// widening above.
+//
+// A plain plan - no sweep, no CollectUnclaimed - is the commonest path in
+// the fork, and a declared instance whose marker cannot be read already has
+// two better diagnostics there: [unreadableMarkerProblem]'s per-address
+// WARNING (issue #322's ruling, which deliberately declined to escalate) and
+// directread.go's targeted read (#1046). Both say more about the specific
+// address than a type-level coverage gap could, so adding one would be pure
+// noise on the path most runs take.
+func TestPlainPlanFilesNoMarkerReadGap(t *testing.T) {
+	const unservedType = "aws_iam_role"
+
+	cloud := newFakeCloud()
+	cloud.listable(unservedType)
+	cloud.own(unservedType, "estate-own-role", unservedType+".this")
+	stripTags(t, cloud, unservedType, "estate-own-role")
+
+	tagSrv := &taggingServer{}
+	tagServer := tagSrv.start(t)
+	defer tagServer.Close()
+
+	cfg := loadConfig(t, "testdata/iam-role-collect-unclaimed")
+	res, diags := Discover(context.Background(), Request{
+		Estate:      estateName,
+		Config:      cfg,
+		Resolutions: resolveOrFail(t, cfg).All(),
+		Provider:    cloud,
+		Tagging:     cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: tagServer.URL}),
+	})
+	assertNoErrors(t, diags)
+
+	if scan, ok := res.ScanFor(unservedType); !ok || scan.Listed != 1 {
+		t.Fatalf("the %s scan is %+v (found=%v), want Listed=1 - this control is not exercising the list path:\n%s", unservedType, scan, ok, res)
+	}
+	for _, g := range res.SweepGaps {
+		if g.TypeName == unservedType {
+			t.Fatalf("a plain plan filed a coverage gap for %s: %s\nIssue #322 already settled what a plain plan says about an unreadable marker, per address and not per type, and this would put a second sentence in front of every estate that declares an IAM type.\n%s", unservedType, g, res)
+		}
+	}
 }
