@@ -2069,7 +2069,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// about the TYPE across the whole listing and cannot be settled at any
 	// one object: see that function's doc comment for why an empty tag map
 	// on one object proves nothing on its own.
-	var sawReadableTags bool
+	var markerReadWorked bool
 	var joinBlind, joinAbsent int
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
@@ -2142,7 +2142,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// ours" is a perfectly ordinary account and must not read as a
 		// broken list route.
 		if taggable && len(tags) > 0 {
-			sawReadableTags = true
+			markerReadWorked = true
 		}
 
 		// Issue #266: the list call may have dropped this object's tags -
@@ -2158,6 +2158,20 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			case joinBound:
 				tags, taggable = joined, true
 				scan.Joined++
+				// Issue #1136's other refutation, and the one my own first
+				// draft missed. The index answering for ONE object of this
+				// type proves it serves the type, which makes joinNone for
+				// a sibling a real answer about that sibling rather than
+				// the absence of one - so a listing with any bound join in
+				// it files no gap, exactly as a listing with any readable
+				// tags in it does not. Reachable for an unserved service
+				// whenever an endpoint does index it after all: floci did
+				// serve IAM through GetResources before lex00/floci#202,
+				// and a future pin that serves it again must recover the
+				// removal AND stay quiet, which is what
+				// TestTaggingSweepAgainstFloci's removal-or-gap subtest
+				// asserts on the recovered branch.
+				markerReadWorked = true
 				log.Printf("[DEBUG] stateless/discovery: %s %q came back from the list call with no ownership marker; joined one from the estate's tag index", typeName, importID)
 			case joinAmbiguous:
 				diags = diags.Append(problemDiag(res, Problem{
@@ -2599,7 +2613,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	}
 
 	if sweep {
-		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, sawReadableTags, joinBlind, joinAbsent))
+		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked, joinBlind, joinAbsent))
 	}
 
 	if scan.Filtering == FilterServerSide && sawIdentity && !sawAccountID && scan.Listed > 0 {
@@ -2644,18 +2658,25 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 // on every sweep of every unserved type, on every account, which is noise
 // and would train an operator to ignore the one that matters.
 //
-// sawReadableTags is the refutation, and it is empirical rather than
-// asserted: one listed object of this type that came back carrying any tag
-// at all proves this run's list route for this type delivers tags, which
-// makes a bare sibling genuinely bare. Only a listing where NOTHING came
-// back tagged leaves the question open, and only then is the index's
-// silence load-bearing. This is the same discipline [sweepViaTagging]
-// already applies with `len(byType[typeName]) == 0`: a real response
-// refutes a standing claim about the type.
+// markerReadWorked is the refutation, and it is empirical rather than
+// asserted: ONE object of this type whose marker was read - off its own
+// tags, or joined on from the index - proves a marker route for the type
+// exists on this run, which makes a bare sibling genuinely bare. Only a
+// listing where no object's marker read worked at all leaves the question
+// open, and only then is the index's silence load-bearing. This is the same
+// discipline [sweepViaTagging] already applies with
+// `len(byType[typeName]) == 0`: a real response refutes a standing claim
+// about the type.
+//
+// Both halves are needed and my own first draft had only the first. Tags
+// read off the object cover "the list route delivers tags for this type";
+// a bound join covers "the index serves this type after all", which is
+// reachable for an unserved service on any endpoint that does index it -
+// floci did, before lex00/floci#202.
 //
 // # Why both arms are gated on a service list
 //
-// sawReadableTags is necessary and not sufficient, and the arithmetic of
+// markerReadWorked is necessary and not sufficient, and the arithmetic of
 // the alternative is the argument. "No object of this type came back
 // carrying any tag" has two causes: the list route for the type drops tags,
 // or nothing of that type in the account is tagged. The second is utterly
@@ -2717,9 +2738,9 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 // reason: the listing succeeded and the search did not happen, so leaving
 // the name in place would have the result assert coverage it does not have
 // on the same run it files the gap.
-func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, sawReadableTags bool, joinBlind, joinAbsent int) tfdiags.Diagnostics {
+func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, markerReadWorked bool, joinBlind, joinAbsent int) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if sawReadableTags || joinBlind+joinAbsent == 0 || !typeTaggable(schemas, typeName) {
+	if markerReadWorked || joinBlind+joinAbsent == 0 || !typeTaggable(schemas, typeName) {
 		return diags
 	}
 

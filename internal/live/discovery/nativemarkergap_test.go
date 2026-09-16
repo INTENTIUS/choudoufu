@@ -337,3 +337,69 @@ func TestNativeSweepSeparatesAnIndexThatFailedFromOneThatCannotAnswer(t *testing
 		t.Logf("permanent, quoted verbatim: %s", g.Detail)
 	})
 }
+
+// TestNativeSweepStaysQuietWhenTheIndexAnswersForOneObjectOfTheType is the
+// third control, and it is a defect found by auditing this fix's own diff
+// rather than by any test that existed before it.
+//
+// The first draft refuted the gap only on tags read off a listed object.
+// But the tag-index join is the OTHER marker route, and an index that
+// answers for one object of a type demonstrably serves the type - which
+// makes joinNone for a sibling a real answer about that sibling, not the
+// absence of one. Without this refutation, a listing where the index bound
+// one role and had nothing for a second filed a gap saying no marker could
+// be read off any of them, on the same run that read one.
+//
+// Reachable, not hypothetical: floci served IAM through GetResources before
+// lex00/floci#202, and any endpoint that does index the service puts a
+// [taggingAPIUnservedType] straight into this shape.
+func TestNativeSweepStaysQuietWhenTheIndexAnswersForOneObjectOfTheType(t *testing.T) {
+	const (
+		unservedType = "aws_iam_role"
+		bound        = "estate-bound-role"
+		unbound      = "estate-unbound-role"
+	)
+
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+	cloud.listable(unservedType)
+	cloud.own(unservedType, bound, unservedType+".removed")
+	cloud.own(unservedType, unbound, unservedType+".also_removed")
+	// iam:ListRoles returns no tags for either.
+	stripTags(t, cloud, unservedType, bound)
+	stripTags(t, cloud, unservedType, unbound)
+
+	// An index that DOES serve this service, and holds exactly one of the
+	// two roles - the lag shape (#1046), not the unserved shape.
+	tagSrv := &taggingServer{}
+	markedARN(tagSrv, "arn:aws:iam::000000000000:role/"+bound, unservedType+".removed")
+	tagServer := tagSrv.start(t)
+	defer tagServer.Close()
+
+	res, diags := discoverFixture(t, cloud, Request{
+		Sweep:        true,
+		TaggingSweep: true,
+		Tagging:      cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: tagServer.URL}),
+		SweepTypes:   []string{unservedType},
+	})
+	assertNoErrors(t, diags)
+
+	scan, ok := res.ScanFor(unservedType)
+	if !ok || scan.Joined != 1 {
+		t.Fatalf("the %s scan is %+v (found=%v), want Joined=1 - the index must have answered for exactly one of the two roles, or this control is not the mixed shape at all:\n%s", unservedType, scan, ok, res)
+	}
+	for _, g := range res.SweepGaps {
+		if g.TypeName == unservedType {
+			t.Fatalf("a %s gap was filed saying no marker could be read off any object of the type, on a run that joined one from the index. The index serves this type; joinNone for the sibling is an answer about the sibling.\ngap: %s\n%s", unservedType, g, res)
+		}
+	}
+	if _, found := removalsByAddr(res)[unservedType+".removed"]; !found {
+		t.Errorf("the joined role was not proposed for removal, so this control is not proving the index answered:\n%s", res)
+	}
+	for _, c := range res.SweepCovered {
+		if c == unservedType {
+			return
+		}
+	}
+	t.Errorf("%s is not in Result.SweepCovered although a marker really was read off one of its objects:\n%s", unservedType, res)
+}
