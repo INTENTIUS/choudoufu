@@ -359,20 +359,27 @@ if [ "${BREAK:-0}" = "1" ]; then
     "label is decoration and nothing holds the object inside the boundary." \
     "What the plan must do is what it does with an unlabelled ConfigMap and" \
     "with a stripped tofu-estate tag on AWS (#1108): an object carrying no" \
-    "marker is nobody's, so the plan refuses it by name and proposes" \
-    "creating what the block declares. Adopting it back is a label write an" \
-    "operator makes, which is what the next line does with kubectl."
+    "marker is nobody's, so the plan refuses it by name and falls back to" \
+    "creating what the block declares - and the server's own dry run then" \
+    "refuses that create, because the object it would not adopt is still" \
+    "holding the name. Adopting it back is a label write an operator makes," \
+    "which is what the next line does with kubectl."
   cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate-"
   kc label crontab my-crontab -n smoke-crd tofu-estate- >/dev/null || fail "k8s-custom-resource" "BREAK: could not strip the label"
   SOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  SFLAT="$(tr '\n' ' ' <<< "$SOUT" | tr -s ' ')"
   if grep -q "No changes." <<< "$SOUT"; then
     fail "k8s-custom-resource" "BREAK: the plan is still empty after the label was stripped - the label is not what the plan holds the object by"
   fi
-  grep -E '^Plan:|will be created|carries no tofu-estate label' <<< "$SOUT" | head -3 | evidence
-  grep -q 'carries no tofu-estate label' <<< "$SOUT" \
+  grep -E 'kubernetes_manifest.crontab \[UNOWNED\]|API server rejected the planned object' <<< "$SOUT" | head -2 | evidence
+  grep -q 'kubernetes_manifest.crontab \[UNOWNED\]' <<< "$SOUT" \
     || fail "k8s-custom-resource" "BREAK: the plan does not refuse the unlabelled custom resource by name - it was adopted in silence: $(grep -E '^Plan:|will be' <<< "$SOUT" | head -3)"
-  grep -q 'kubernetes_manifest.crontab will be created' <<< "$SOUT" \
-    || fail "k8s-custom-resource" "BREAK: the plan changed but does not propose creating kubernetes_manifest.crontab: $SOUT"
+  grep -q 'carries no tofu-estate label, so this estate does not own it' <<< "$SFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the refusal does not say the object carries no marker for this estate: $SOUT"
+  grep -q 'The API server refused the create kubernetes_manifest.crontab plans' <<< "$SFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the refused object was not followed by the server refusing the create it fell back to: $SOUT"
+  grep -q 'crontabs.stable.example.com "my-crontab" already exists' <<< "$SFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the server's answer is not that the unowned object still holds the name: $SOUT"
   STILL="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.labels.tofu-estate}')"
   [ -z "$STILL" ] || fail "k8s-custom-resource" "BREAK: the plan put the label back on an object it does not own (tofu-estate=$STILL)"
   cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate=smoke-crd   # the operator adopts it back"
@@ -380,7 +387,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   AOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
   grep -q "No changes." <<< "$AOUT" \
     || fail "k8s-custom-resource" "BREAK: the replan after the operator's own label write is not empty: $(grep -E '^Plan:|will be' <<< "$AOUT" | head -3)"
-  proof "caught: with its label gone the CronTab is nobody's, the plan refuses it by name and proposes the create the block declares rather than relabelling it, and the label stays off until an operator writes it - after which the replan is empty again."
+  proof "caught: with its label gone the CronTab is nobody's. The plan refuses it by name rather than relabelling it, falls back to the create the block declares, and the server's dry run refuses that too because the unowned object still holds the name. The label stays off until an operator writes it - after which the replan is empty again."
 
   step "BREAK control - strip the label and remove the block; the replan must not list the object"
   explain \
