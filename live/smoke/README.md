@@ -38,6 +38,7 @@ just smoke k8s-no-silent-orphans # a deleted block's object found by its label; 
 just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
 just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest, carries the label and is swept by it (#1079)
 just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run says destroyed, the object stays, and every plan proposes it again until it is gone (#1110)
+just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-closed webhook refuses an approved write, a mutating policy rewrites a declared field, and one that strips tofu-estate leaves an object the estate cannot claim (#1110)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -124,6 +125,29 @@ empty - without it the scenario would read the same if choudoufu never
 deleted a ConfigMap at all. The namespace is made with kubectl rather than
 declared, because a `kubernetes_namespace` delete waits on everything
 inside it and that five-minute timer would hide the answer.
+
+`k8s-the-server-gets-the-last-word` is claim 26 (#1110's second fault):
+three things admission can do to a write the plan already approved. A real
+`ValidatingWebhookConfiguration` with `failurePolicy: Fail` and no endpoint
+refuses the apply of a saved `-out` plan, and the run reports the API
+server's own `failed calling webhook` message with the object untouched and
+the artifact still on disk; removing the webhook and applying the same file
+lands it unchanged. A `MutatingAdmissionPolicy` that overwrites a declared
+label produces the same perpetual `0 to add, 1 to change, 0 to destroy` on
+every plan that plain stock produces, measured side by side in step 5, with
+the marker untouched. The third is the boundary case: a policy that strips
+`tofu-estate` on the way in, which is what a label-scheme enforcer does to
+a key it does not recognise. The object is created, the run prints
+`Apply complete! Resources: 1 added`, and no marker is stored - so the next
+plan reads the estate's own object as somebody else's, `live-ls` reports
+the estate empty, the next apply wedges on `configmaps "app-config" already
+exists`, and `declared_untagged = "adopt"` reports `1 changed` over a label
+it never wrote, on every run. Those two summary lines are #1192; the
+scenario asserts them verbatim because they are what a user sees. Its
+`BREAK=1` points the identical policy at a decoy label instead of the
+marker and requires the decoy stripped, the marker landed, `live-ls`
+listing the object and the second apply not wedging - without it the whole
+third part would read the same if choudoufu never wrote a label at all.
 
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs
