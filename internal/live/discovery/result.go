@@ -748,12 +748,35 @@ const (
 	SweepGapNoEnumerationRoute SweepGapReason = "NO_ENUMERATION_ROUTE"
 
 	// SweepGapMarkerUnreadable is the half of #881 that survives correct
-	// routing: a type Cloud Control ENUMERATES perfectly well and can never
-	// report a tag for, in a service the Resource Groups Tagging API does
+	// routing: a type a sweep leg ENUMERATES perfectly well and can never
+	// read a marker off, in a service the Resource Groups Tagging API does
 	// not index either. The sweep sees the object and cannot ask whether it
 	// is ours.
 	//
-	// AWS::IAM::InstanceProfile is the measured case. live/registry.json
+	// Both enumeration legs file it, and that is the point rather than an
+	// accident. The Cloud Control leg files it when the type's CFN schema
+	// has no Tags property, so neither ListResources nor GetResource has
+	// anything to return. The native leg files it (issue #1136) when the
+	// provider's own list call returns no tags for any object of the type -
+	// iam:ListRoles, iam:ListPolicies - and issue #266's tag-index join,
+	// the fallback that exists for exactly that, is fed by a GetResources
+	// call that does not index the service. Different API missing a
+	// different thing; identical fact for an operator, and identical
+	// remedy. Which leg happened to enumerate the type is an implementation
+	// detail and must not change what the run says about it - the bug class
+	// issue #394 closed for the sibling pairs, kept closed here.
+	//
+	// Distinct from [SweepGapTagIndexUnavailable], and this is the
+	// distinction that earns its own reason: there the index was ASKED and
+	// could not answer (no Tagging client, or the one GetResources call
+	// failed), which may well work on the next run. Here the index answered
+	// and structurally cannot ever hold this service. A gap that conflates
+	// "cannot ever be read" with "was not readable this time" tells the
+	// operator the wrong thing about whether to retry, and the wrong thing
+	// about whether to reach for the console.
+	//
+	// AWS::IAM::InstanceProfile is the measured case for the Cloud Control
+	// leg, aws_iam_role for the native one. live/registry.json
 	// gives it handlers.list true - verified against the pinned emulator,
 	// which returns the profile's identifier from ListResources - and
 	// tagging.taggable false, because its CloudFormation schema carries no
@@ -775,6 +798,32 @@ const (
 	// the objects here DO carry markers, so the operator has a live, marked
 	// resource that no destroy will ever be proposed for.
 	SweepGapMarkerUnreadable SweepGapReason = "MARKER_UNREADABLE"
+
+	// SweepGapTagIndexUnavailable is the transient twin of
+	// [SweepGapMarkerUnreadable] on the native leg (issue #1136): the
+	// provider's list call returned no tags for any object of the type, so
+	// the marker read fell to issue #266's tag-index join, and the index
+	// could not be asked at all - this run has no Tagging client, or its
+	// one GetResources call failed.
+	//
+	// Nothing was established, exactly as for [SweepGapMarkerUnreadable],
+	// and the type is dropped from [Result.SweepCovered] for the same
+	// reason. What differs is what the operator should do: retry, or
+	// configure the endpoint. Reporting this as "no leg can ever read this
+	// type's marker" would send somebody to destroy a live resource by hand
+	// that the very next plan would have proposed itself, which is a worse
+	// outcome than the silence this whole family of gaps replaces.
+	//
+	// Issue #1046's index LAG is deliberately not this reason and not a
+	// reason of its own. A lagging index answers its call and simply does
+	// not hold the resource yet, which reaches [markerIndex.join] as
+	// joinNone - the same answer "this object is genuinely not this
+	// estate's" produces, which is the overwhelming majority of every
+	// sweep. For a service the index does serve there is nothing in the
+	// data to tell the two apart, so nothing is claimed; the lag's own fix
+	// is internal/live/discovery/directread.go, which asks the provider
+	// about one declared address rather than guessing from an absence.
+	SweepGapTagIndexUnavailable SweepGapReason = "TAG_INDEX_UNAVAILABLE"
 
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a
 	// parent-scoped ResourceModel (live/registry.json's

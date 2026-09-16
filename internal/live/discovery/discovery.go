@@ -2064,6 +2064,13 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// other SweepGap in this function already has (each of those returns
 	// before this loop even starts).
 	sweepUntaggedReported := false
+	// Issue #1136's three counters, read once after the loop by
+	// [sweepMarkerReadGap]. They exist because the question they answer is
+	// about the TYPE across the whole listing and cannot be settled at any
+	// one object: see that function's doc comment for why an empty tag map
+	// on one object proves nothing on its own.
+	var sawReadableTags bool
+	var joinBlind, joinAbsent int
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
 			sawIdentity = true
@@ -2121,6 +2128,23 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			taggable = false
 		}
 
+		// Issue #1136's empirical refutation, collected here and read after
+		// the loop. A listed object that came back with at least one tag of
+		// its own is proof that this run's list route for this type
+		// delivers tags - which makes every OTHER object of the type that
+		// came back bare genuinely bare, rather than unreadable. It is the
+		// same discipline [sweepViaTagging]'s unserved case applies with
+		// `len(byType[typeName]) == 0`: a real response refutes a standing
+		// claim about the type, and only a listing that refutes nothing
+		// leaves the question open.
+		//
+		// Any tag, not this estate's marker: "no role in this account is
+		// ours" is a perfectly ordinary account and must not read as a
+		// broken list route.
+		if taggable && len(tags) > 0 {
+			sawReadableTags = true
+		}
+
 		// Issue #266: the list call may have dropped this object's tags -
 		// iam:ListRoles returns none at all - and an object whose marker
 		// cannot be read is one a needs-discovery instance can never bind
@@ -2144,6 +2168,36 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 						"The provider listed a %s (%s) carrying no ownership marker, and more than one resource in estate %q's tag index has that identifier and a tofu-address naming a %s: %s. Nothing in either answer says which is the listed object, so no marker was read off it. Retag or remove the duplicates.",
 						typeName, importID, req.Estate, typeName, strings.Join(req.markers.matchedARNs(typeName, importID), ", ")),
 				}))
+			case joinNone:
+				// Issue #1136. joinNone's own doc comment is careful about
+				// what it means - "the object is genuinely not this
+				// estate's, AS FAR AS THE TAG INDEX CAN SAY" - and for a
+				// [taggingAPIUnservedType] the tag index can say nothing at
+				// all: GetResources never returns that service's resources,
+				// however they are tagged (#692, probed against real AWS;
+				// floci has matched it since lex00/floci#202, pinned by
+				// #1045). Zero matches there is not an answer about the
+				// object, it is the absence of one, and treating it as an
+				// answer is the "not ours" / "ours, unreadable" collapse
+				// this function's own #531 comment forty lines up refuses
+				// to make.
+				//
+				// Counted rather than reported here: whether it MATTERS
+				// depends on sawReadableTags, which is not known until the
+				// listing is over.
+				if sweep && taggable && taggingAPIUnservedType(typeName) {
+					joinBlind++
+				}
+			case joinUnavailable:
+				// The index was not asked at all - no Tagging client this
+				// run, or its one GetResources call failed. Nothing was
+				// learned about any service, served or not, so this arm
+				// needs no [taggingAPIUnservedType] test; and because it is
+				// a fact about the RUN rather than the type, it is
+				// transient and carries its own reason.
+				if sweep && taggable {
+					joinAbsent++
+				}
 			}
 		}
 		if tags[TagEstate] == "" && !sweep {
@@ -2536,6 +2590,10 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		})
 	}
 
+	if sweep {
+		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, sawReadableTags, joinBlind, joinAbsent))
+	}
+
 	if scan.Filtering == FilterServerSide && sawIdentity && !sawAccountID && scan.Listed > 0 {
 		diags = diags.Append(problemDiag(res, Problem{
 			Kind:     ProblemUnresolvedAccount,
@@ -2548,6 +2606,97 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 	res.Scans = append(res.Scans, scan)
 	return diags
+}
+
+// sweepMarkerReadGap is issue #1136: the native/provider leg's half of the
+// defect PR #1129 fixed on the Cloud Control leg, which is that ENUMERATING
+// a type is not the same as being able to READ ITS MARKER, and a sweep that
+// confuses the two records coverage it does not have.
+//
+// The shape, measured. aws_iam_role is enumerated natively (#394's routing,
+// re-verified on #1050/#1130). iam:ListRoles returns no tags at all, so
+// every listed role's marker read falls through to issue #266's tag-index
+// join. That join is fed by the one GetResources call [sweepViaTagging]
+// makes, and GetResources does not index IAM - [taggingAPIUnservedServices],
+// probed against real AWS on #692, matched by floci since lex00/floci#202
+// (#1045), and re-confirmed against a real account on #1134, where RGTA
+// returned 0 for iam:role in every region while the IAM API showed the tags
+// sitting on the objects. So the join answers joinNone about an index that
+// was never going to hold the resource, [scanType]'s `case estate == ""`
+// arm sees an unmarked object and `continue`s on an ordinary sweep, and a
+// live, marked resource whose block was deleted is dropped with nothing
+// said: no Orphan, no Unclaimed, no Problem, and the type still listed in
+// [Result.SweepCovered]. The #1050 worker confirmed all five were empty.
+//
+// # Why this cannot be decided per object
+//
+// A sweep's ordinary population is other people's resources, and every one
+// of them reaches the same join with the same empty answer. "The join said
+// nothing" therefore cannot be the trigger by itself - it would file a gap
+// on every sweep of every unserved type, on every account, which is noise
+// and would train an operator to ignore the one that matters.
+//
+// sawReadableTags is the refutation, and it is empirical rather than
+// asserted: one listed object of this type that came back carrying any tag
+// at all proves this run's list route for this type delivers tags, which
+// makes a bare sibling genuinely bare. Only a listing where NOTHING came
+// back tagged leaves the question open, and only then is the index's
+// silence load-bearing. This is the same discipline [sweepViaTagging]
+// already applies with `len(byType[typeName]) == 0`: a real response
+// refutes a standing claim about the type.
+//
+// [typeTaggable] is the last gate, read from the provider's own schema -
+// the authoritative answer to "can an object of this type carry a marker at
+// all", and the same evidence [scanTypeCloudControl] gates its own
+// [SweepGapMarkerUnreadable] on. A type with no tags argument could never
+// have been marked; its silence is [markerCapable]'s case (#322) and not
+// this one.
+//
+// # Why two reasons
+//
+// Issue #1136's own question. joinBlind and joinAbsent are different facts
+// with different remedies, and a gap that conflates them tells an operator
+// the wrong thing about whether to retry:
+//
+//   - joinBlind: the index answered and structurally cannot ever hold this
+//     service. Permanent. Same operator fact as the Cloud Control leg's
+//     missing Tags property, so the same reason
+//     ([SweepGapMarkerUnreadable]) - which leg enumerated the type must not
+//     change what the run says about it.
+//   - joinAbsent: the index could not be asked (no Tagging client, or its
+//     one call failed). Possibly transient, so
+//     [SweepGapTagIndexUnavailable], whose wording sends the operator to
+//     retry rather than to the console.
+//
+// They are mutually exclusive in practice - [markerIndex.available] is one
+// answer per run, not per object - so the ordering below settles a case
+// that does not arise, in favour of the one that can be acted on.
+//
+// [Result.SweepCovered] loses the type either way, for [dropCovered]'s
+// reason: the listing succeeded and the search did not happen, so leaving
+// the name in place would have the result assert coverage it does not have
+// on the same run it files the gap.
+func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, sawReadableTags bool, joinBlind, joinAbsent int) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if sawReadableTags || joinBlind+joinAbsent == 0 || !typeTaggable(schemas, typeName) {
+		return diags
+	}
+
+	gap := SweepGap{
+		TypeName: typeName,
+		Reason:   SweepGapMarkerUnreadable,
+		Detail: fmt.Sprintf(
+			"The estate-wide sweep listed %d %s through the provider's own list resource and could read an ownership marker off none of them: the list call returned no tags for any object of the type, and the Resource Groups Tagging API - the fallback that exists for exactly that - does not index this service at all, so the estate's tag index cannot answer for it either. The provider does give %s a tags argument and this estate stamps its markers there, so a live %s this estate owns and no longer declares WILL NOT be proposed for destruction by this run. Destroy such a resource before removing its block, or delete it out of band.",
+			joinBlind, typeName, typeName, typeName),
+	}
+	if joinAbsent > 0 {
+		gap.Reason = SweepGapTagIndexUnavailable
+		gap.Detail = fmt.Sprintf(
+			"The estate-wide sweep listed %d %s through the provider's own list resource and could read an ownership marker off none of them: the list call returned no tags for any object of the type, and the estate's tag index - the fallback that exists for exactly that - could not be consulted, because this run has no Resource Groups Tagging API endpoint configured or its one GetResources call failed. Nothing here says this estate owns no %s; it says nothing was established either way, so a live %s this estate owns and no longer declares is not proposed for destruction by this run. Re-run with the Tagging API reachable before concluding anything about this type.",
+			joinAbsent, typeName, typeName, typeName)
+	}
+	res.SweepCovered = dropCovered(res.SweepCovered, typeName)
+	return diags.Append(sweepGapDiag(res, gap))
 }
 
 // markerTypeOf is the resource type a marker value names.
