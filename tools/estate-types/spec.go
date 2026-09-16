@@ -245,4 +245,10 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's stateful estate (#1175, surface 2 of #1107): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, on the _v1 type names throughout. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_secret_v1, kubernetes_config_map_v1 (postgres-init, api-config and a two-instance count set), kubernetes_service_v1 (two headless, one ClusterIP), kubernetes_stateful_set_v1 (postgres and redis, each with a volume_claim_template), kubernetes_deployment_v1, kubernetes_pod_disruption_budget_v1 - no module, no AWS provider, and deliberately no kubernetes_storage_class, since kind's own default class is what the claim templates bind against. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the eight above. The PersistentVolumeClaims the claim templates produce are the estate's subject and are declared by nothing, so no kubernetes_persistent_volume_claim type appears here.`,
 	},
+	{
+		Name:       "reference-k8s-cert-manager",
+		ConfigDirs: []string{"live/e2e/reference-k8s-cert-manager/root"},
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's CRD estate (#1174, under #1173's cold-deploy pre-apply ruling): cert-manager v1.21.2's own install bundle, converted mechanically by convert.sh (tfk8s, then order.py) into root/cert-manager.tf, plus root/custom-resources.tf's three hand-written custom resources (a cluster-scoped ClusterIssuer, a namespaced Issuer, a Certificate) - 50 objects over 13 kinds, every one a kubernetes_manifest, no module, no AWS provider. run.sh's write_root() copies both files verbatim into each working root and appends only a versions.tf (provider/live wiring, no resources); its append_shards() heredoc adds a fourth, counted kubernetes_manifest (issuer_shard) for day2_count's own duration, not in the committed root. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside kubernetes_manifest.`,
+	},
 }
