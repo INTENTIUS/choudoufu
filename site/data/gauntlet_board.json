@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 4 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-16T07:32:55Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "30 of 30 estates have a recorded run duration, totaling 2h54m51.4s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 8m57.8s across 1 estate(s) at commit `23be0d26ca`; 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 4 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-16T07:44:57Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "30 of 30 estates have a recorded run duration, totaling 2h54m52.2s, but not from one sweep: 8m58.6s across 1 estate(s) at commit `0037819217`; 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3872,9 +3872,9 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "8m57.8s",
-      "runtime_cells": "cold_deploy 1m34s, migrate 4s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 1m2s, day2_count 52s, day2_teardown 1m57s, plan_approval 32s, greenfield 48s, strict 1m5s",
-      "last_run_note": "Last run at commit `23be0d26ca` on 2026-09-16T07:32:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m57.8s.",
+      "runtime_total": "8m58.6s",
+      "runtime_cells": "cold_deploy 1m34s, migrate 5s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 1m2s, day2_count 53s, day2_teardown 1m56s, plan_approval 31s, greenfield 49s, strict 1m5s",
+      "last_run_note": "Last run at commit `0037819217` on 2026-09-16T07:44:57Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m58.6s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
@@ -3888,7 +3888,7 @@
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "4s",
+          "duration": "5s",
           "detail": "14 of 14 stamped, 0 failed, 0 skipped (14 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped); every object carries tofu-estate=reference-k8s-stateful, read back with kubectl over eight kinds, and none of the three controller-created PVCs does"
         },
         {
@@ -3924,13 +3924,13 @@
           "title": "Remove a block",
           "verdict": "FAIL",
           "duration": "1m2s",
-          "detail": "The block-removal half passes: dropping kubernetes_stateful_set_v1.redis proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_stateful_set_v1.orphan_refk8sst_redis (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone (kubectl get statefulset redis: NotFound), the next plan empty, 13 objects still labelled, and stock's plan for the same removal on the oracle cluster is also exactly one destroy. What it leaves behind is the finding. The two redis PVCs and postgres's survive the removal unchanged and Bound (stock's own removal on the oracle cluster leaves the same 3), carrying labels the StatefulSet controller wrote: app=redis (the SELECTOR's value, merged over the claim template's app=redis-data - #1107's second research comment records \"the claim template's labels verbatim\", which its probe could not distinguish because its template and selector agreed), plus the template's own tier=storage and role=cache-volume; the kubernetes.io/pvc-protection finalizer; NO metadata.ownerReferences; and NO metadata.managedFields at all. Those last two are exactly the two signals internal/live/kubesweep's ControllerMade tests, and that package's own documentation names this object - \"a StatefulSet's volumeClaimTemplate labels reach its PVCs\" - as the case the exclusion exists for, asserting that ownerReferences is \"what every object a controller creates from a template carries ... a PVC's from its StatefulSet\". It is not. With the estate's label put on data-redis-0 the way a claim template carrying it would (kubectl label, since cold_deploy forbids a marker in the configuration), the sweep proposes destroying it: Owned and undeclared: 1 live resource will be destroyed / # kubernetes_persistent_volume_claim_v1.orphan_refk8sst_data-redis-0 will be destroyed. The label was removed again and the plan is empty, so nothing was destroyed by this run; the finding is what the plan is willing to do to a persistent volume nobody declared. BREAK_PVC=1 runs the probe with no label and the expectation correctly fails"
+          "detail": "#1179. The block-removal half passes: dropping kubernetes_stateful_set_v1.redis proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_stateful_set_v1.orphan_refk8sst_redis (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone (kubectl get statefulset redis: NotFound), the next plan empty, 13 objects still labelled, and stock's plan for the same removal on the oracle cluster is also exactly one destroy. What it leaves behind is the finding. The two redis PVCs and postgres's survive the removal unchanged and Bound (stock's own removal on the oracle cluster leaves the same 3), carrying labels the StatefulSet controller wrote: app=redis (the SELECTOR's value, merged over the claim template's app=redis-data - #1107's second research comment records \"the claim template's labels verbatim\", which its probe could not distinguish because its template and selector agreed), plus the template's own tier=storage and role=cache-volume; the kubernetes.io/pvc-protection finalizer; NO metadata.ownerReferences; and NO metadata.managedFields at all. Those last two are exactly the two signals internal/live/kubesweep's ControllerMade tests, and that package's own documentation names this object - \"a StatefulSet's volumeClaimTemplate labels reach its PVCs\" - as the case the exclusion exists for, asserting that ownerReferences is \"what every object a controller creates from a template carries ... a PVC's from its StatefulSet\". It is not. With the estate's label put on data-redis-0 the way a claim template carrying it would (kubectl label, since cold_deploy forbids a marker in the configuration), the sweep proposes destroying it: Owned and undeclared: 1 live resource will be destroyed / # kubernetes_persistent_volume_claim_v1.orphan_refk8sst_data-redis-0 will be destroyed. The label was removed again and the plan is empty, so nothing was destroyed by this run; the finding is what the plan is willing to do to a persistent volume nobody declared. BREAK_PVC=1 runs the probe with no label and the expectation correctly fails"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "52s",
+          "duration": "53s",
           "detail": "scaling kubernetes_config_map_v1.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.orphan_refk8sst_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
@@ -3949,21 +3949,21 @@
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
-          "duration": "1m57s",
+          "duration": "1m56s",
           "detail": "apply -destroy removed exactly the 13 remaining objects in one apply, naming no PVC; the namespace is gone and no object of any of the estate's eight kinds carries tofu-estate=reference-k8s-stateful (kubectl, every namespace). The 3 PVCs nobody declared went with it, to zero cluster-wide, because the Namespace is in the root and its deletion cascades - which is exactly why the day2_remove residue above has never shown up in a teardown; stock's destroy of the same estate on the oracle cluster also removed exactly the 13 its state held"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "32s",
+          "duration": "31s",
           "detail": "plan -out wrote one update (api-config gains reviewed=yes); the world then moved out of band (a stray label on shard-0, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed key); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "48s",
+          "duration": "49s",
           "detail": "14 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s-stateful (kubectl, eight kinds) and none of the three PVCs; the record store held 11 file(s); replanned empty with and without the cache; the cluster's inventory matches stock's cold deploy on the same cluster object by object, labels never compared - ConfigMap and Secret data, each Service's headless-ness, ports and selector, both StatefulSets' replicas, serviceName, containers and volume_claim_templates (claim-template labels included), the Deployment, the PodDisruptionBudget, and the three controller-created PVCs with their merged labels, absent ownerReferences and pvc-protection finalizer. BREAK=1 drops the redis StatefulSet from the expected inventory and the match correctly fails"
         },
         {

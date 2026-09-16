@@ -3929,59 +3929,59 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "day2_count": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "day2_remove": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "day2_rename": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "day2_teardown": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "drift_reconverge": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "greenfield": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "migrate": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "plan_approval": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "strict": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "test_apply": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         },
         "test_plan": {
-          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-          "date": "2026-09-16T07:32:55Z"
+          "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+          "date": "2026-09-16T07:44:57Z"
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
-        "date": "2026-09-16T07:32:55Z",
+        "commit": "00378192176cc697e7fa1c94817d51affe161eed",
+        "date": "2026-09-16T07:44:57Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -3991,7 +3991,7 @@
         "detail": {
           "cold_deploy": "14 objects over eight kinds (namespace, ServiceAccount, Secret, 4 ConfigMaps, 2 headless Services and a ClusterIP one, 2 StatefulSets, a Deployment, a PodDisruptionBudget) from plain terraform against kind v1.36.1, a real terraform.tfstate with 14 instances, zero tofu-estate labels read back with kubectl. The two volume_claim_templates produced 3 PVCs nobody declared, all Bound on kind's own standard class (rancher.io/local-path, WaitForFirstConsumer, reclaim Delete) with no StorageClass in the root, and stock's state holds none of them; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle",
           "day2_count": "scaling kubernetes_config_map_v1.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.orphan_refk8sst_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
-          "day2_remove": "The block-removal half passes: dropping kubernetes_stateful_set_v1.redis proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_stateful_set_v1.orphan_refk8sst_redis (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone (kubectl get statefulset redis: NotFound), the next plan empty, 13 objects still labelled, and stock's plan for the same removal on the oracle cluster is also exactly one destroy. What it leaves behind is the finding. The two redis PVCs and postgres's survive the removal unchanged and Bound (stock's own removal on the oracle cluster leaves the same 3), carrying labels the StatefulSet controller wrote: app=redis (the SELECTOR's value, merged over the claim template's app=redis-data - #1107's second research comment records \"the claim template's labels verbatim\", which its probe could not distinguish because its template and selector agreed), plus the template's own tier=storage and role=cache-volume; the kubernetes.io/pvc-protection finalizer; NO metadata.ownerReferences; and NO metadata.managedFields at all. Those last two are exactly the two signals internal/live/kubesweep's ControllerMade tests, and that package's own documentation names this object - \"a StatefulSet's volumeClaimTemplate labels reach its PVCs\" - as the case the exclusion exists for, asserting that ownerReferences is \"what every object a controller creates from a template carries ... a PVC's from its StatefulSet\". It is not. With the estate's label put on data-redis-0 the way a claim template carrying it would (kubectl label, since cold_deploy forbids a marker in the configuration), the sweep proposes destroying it: Owned and undeclared: 1 live resource will be destroyed / # kubernetes_persistent_volume_claim_v1.orphan_refk8sst_data-redis-0 will be destroyed. The label was removed again and the plan is empty, so nothing was destroyed by this run; the finding is what the plan is willing to do to a persistent volume nobody declared. BREAK_PVC=1 runs the probe with no label and the expectation correctly fails",
+          "day2_remove": "#1179. The block-removal half passes: dropping kubernetes_stateful_set_v1.redis proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_stateful_set_v1.orphan_refk8sst_redis (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone (kubectl get statefulset redis: NotFound), the next plan empty, 13 objects still labelled, and stock's plan for the same removal on the oracle cluster is also exactly one destroy. What it leaves behind is the finding. The two redis PVCs and postgres's survive the removal unchanged and Bound (stock's own removal on the oracle cluster leaves the same 3), carrying labels the StatefulSet controller wrote: app=redis (the SELECTOR's value, merged over the claim template's app=redis-data - #1107's second research comment records \"the claim template's labels verbatim\", which its probe could not distinguish because its template and selector agreed), plus the template's own tier=storage and role=cache-volume; the kubernetes.io/pvc-protection finalizer; NO metadata.ownerReferences; and NO metadata.managedFields at all. Those last two are exactly the two signals internal/live/kubesweep's ControllerMade tests, and that package's own documentation names this object - \"a StatefulSet's volumeClaimTemplate labels reach its PVCs\" - as the case the exclusion exists for, asserting that ownerReferences is \"what every object a controller creates from a template carries ... a PVC's from its StatefulSet\". It is not. With the estate's label put on data-redis-0 the way a claim template carrying it would (kubectl label, since cold_deploy forbids a marker in the configuration), the sweep proposes destroying it: Owned and undeclared: 1 live resource will be destroyed / # kubernetes_persistent_volume_claim_v1.orphan_refk8sst_data-redis-0 will be destroyed. The label was removed again and the plan is empty, so nothing was destroyed by this run; the finding is what the plan is willing to do to a persistent volume nobody declared. BREAK_PVC=1 runs the probe with no label and the expectation correctly fails",
           "day2_rename": "moved block: kubernetes_service_account_v1.app -> .team with zero churn (no add, no change, no destroy), the live object untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A bare block rename without a moved block is zero churn here too, since the block name is not part of the object's identity; BREAK=1 renames the object's own metadata.name instead, which plans a replace, and the zero-churn assertion correctly fails",
           "day2_teardown": "apply -destroy removed exactly the 13 remaining objects in one apply, naming no PVC; the namespace is gone and no object of any of the estate's eight kinds carries tofu-estate=reference-k8s-stateful (kubectl, every namespace). The 3 PVCs nobody declared went with it, to zero cluster-wide, because the Namespace is in the root and its deletion cascades - which is exactly why the day2_remove residue above has never shown up in a teardown; stock's destroy of the same estate on the oracle cluster also removed exactly the 13 its state held",
           "drift_reconverge": "one ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map_v1.api (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the value reads back as configured. Neither the shard ConfigMaps nor any of the three undeclared PVCs was proposed. BREAK=1 tampers a second object and the single-object assertion correctly fails",
@@ -4002,17 +4002,17 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s-stateful unchanged at 14 across the estate's eight kinds, and still zero of the three PVCs, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 14 identities (NAMESPACE/NAME) confirmed present with kubectl across eight kinds"
         },
-        "duration_s": 537.8,
+        "duration_s": 538.6,
         "stage_seconds": {
           "cold_deploy": 94,
-          "day2_count": 52,
+          "day2_count": 53,
           "day2_remove": 62,
           "day2_rename": 21,
-          "day2_teardown": 117,
+          "day2_teardown": 116,
           "drift_reconverge": 21,
-          "greenfield": 48,
-          "migrate": 4,
-          "plan_approval": 32,
+          "greenfield": 49,
+          "migrate": 5,
+          "plan_approval": 31,
           "strict": 65,
           "test_apply": 11,
           "test_plan": 10
