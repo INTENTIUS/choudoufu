@@ -55,7 +55,7 @@ load-bearing (`BREAK=1` must make the stage fail).
 
 ### 1. Cold deploy (`cold_deploy`, active)
 
-Proves: The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage. A configuration that stock itself cannot plan in one pass may declare a pre-apply (`pre_apply` in the manifest, #1173): the named addresses are applied with `-target` first, identically on every side, and the verdict line names them.
+Proves: The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage. A configuration that stock itself cannot plan in one pass may declare a pre-apply (`pre_apply` in the manifest, #1173): the named addresses are applied with `-target` first, identically on every side, and the verdict line says how many and where they are declared while the run reports the list itself for the runner to check address by address.
 
 Oracle: This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such. A declared pre-apply is performed by the stock oracle too, from the same list - a crossing where one side got a targeted first apply and the other did not would not be comparing like with like.
 
@@ -291,10 +291,17 @@ from it. Four rules hold it honest (#1173):
   declared list, in the same call - a crossing where only choudoufu got the
   targeted first apply is not comparing like with like, so the helper
   refuses a single-sided call;
-- **the verdict line names it**, addresses and all
-  (`gauntlet_pre_apply_note`); the runner records `cold_deploy` as `fail`
-  when a declared address is missing from the line, because a pre-apply the
-  verdict does not name is a second apply the artifact cannot show;
+- **the run shows it happened**, in two halves. The verdict line says how
+  MANY addresses were pre-applied and which manifest field declares them
+  (`gauntlet_pre_apply_note`), so a reader sees two applies without opening
+  the log; `gauntlet_pre_apply` separately emits
+  `GAUNTLET pre_apply=<addr>,<addr> sides=<label>,<label>`, and the runner
+  checks the declared list against THAT, address by address, failing
+  `cold_deploy` if one was not performed or if one was performed that
+  nobody declared. The first spelling of this rule put every address in the
+  verdict line; on cert-manager's 47 that was a 3.3KB sentence, which
+  satisfied the words and defeated the reason for them, so it was corrected
+  on 2026-09-16 - only the printed sentence got shorter;
 - **it is declared, not scripted**, so the manifest and this page carry it;
 - **an estate that declares none behaves exactly as before** - the check
   never fires, and no estate in the manifest today declares one except
