@@ -739,7 +739,15 @@ G_TARGETS=()
 while IFS= read -r a; do [ -n "$a" ] && G_TARGETS+=("-target=$a"); done < <(gauntlet_pre_apply_targets "$ESTATE")
 [ "${#G_TARGETS[@]}" = "$BUNDLE_N" ] || fail "the declared pre-apply list has ${#G_TARGETS[@]} addresses, want $BUNDLE_N"
 G_PRE="$(green apply -auto-approve -input=false -no-color "${G_TARGETS[@]}" 2>&1)"; G_PRE_RC=$?
-[ "$G_PRE_RC" -eq 0 ] || { printf '%s\n' "$G_PRE" | tail -30; fail "the greenfield pre-apply failed (exit $G_PRE_RC): $(grep -m1 -E '^Error|^\s*Error' <<< "$G_PRE" | sed 's/^ *//')"; }
+if [ "$G_PRE_RC" -ne 0 ]; then
+  printf '%s\n' "$G_PRE" | tail -40
+  G_KINDS="$(grep -c 'Error: Kubernetes kind not served by the cluster' <<< "$G_PRE")"
+  G_NAMED="$(grep -oE 'kubernetes_manifest\.[a-z_]+ declares kind [A-Za-z]+' <<< "$G_PRE" | tr '\n' ';')"
+  gauntlet_stage greenfield fail "choudoufu cannot perform the pre-apply its own estate declares. The same ${#G_TARGETS[@]} -target arguments stock accepted at cold deploy, against the same empty cluster, are refused at exit $G_PRE_RC with $G_KINDS x \"Kubernetes kind not served by the cluster\" - one for each of the three custom resources, which -target EXCLUDES from this apply: ${G_NAMED:-none named}. Stock prunes an untargeted resource from the graph and never asks the cluster about its kind; choudoufu raises #1097's missing-CRD refusal over the whole configuration before targeting is applied, so the two-apply route that works for the oracle is closed to the tool. cold_deploy passes only because both of its sides are stock. Nothing about the greenfield apply itself was reached"
+  ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 )
+  GREENFIELD_SKIPPED=1
+fi
+if [ -z "${GREENFIELD_SKIPPED:-}" ]; then
 cert_manager_ready "$KCA" "cluster A (greenfield)" || fail "cert-manager never became ready on A after the greenfield pre-apply"
 G_OUT="$(green apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_OUT" | tail -20; fail "greenfield apply failed"; }
 grep -qF "Apply complete! Resources: $CUSTOM_N added, 0 changed, 0 destroyed" <<< "$G_OUT" || { printf '%s\n' "$G_OUT" | tail -5; fail "the greenfield main apply did not add exactly the $CUSTOM_N custom resources"; }
@@ -765,6 +773,7 @@ else
   gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=$ESTATE (kubectl, 14 kinds), and the Certificate Ready=True from the self-signed ClusterIssuer exactly as stock's cold deploy left it; the record store held $G_RECORDS file(s); replanned empty with and without the cache. Greenfield needs the SAME declared pre-apply the cold deploy did, read from live/gauntlet/estates.json rather than repeated here - the cluster is empty again, so the CRD plan-time constraint is back and it is a property of the configuration, not of who is applying it. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
 fi
 ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"
+fi
 
 # ── 12. strict: every toggle on, one refusal ─────────────────────────────
 gauntlet_begin_stage strict
