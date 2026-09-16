@@ -944,8 +944,17 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # "(none|nothing was swept)" pattern the estates with no foreign shape use
 # would have made the assertion unfailable on the one estate that has a
 # foreign shape worth counting.
+# On failure, print the WHOLE plan, not the "Foreign resources:" header
+# line alone. That line carries only a count; the objects it counted -
+# type, live id, tags, why - are printed directly beneath it by
+# StatelessPlanHuman.Foreign (internal/command/views/live_plan.go), and a
+# bare `grep -E '^Foreign resources:'` discards exactly that section. Same
+# defect PR #1129 fixed for terralith-scale's day2_remove, where three runs
+# read as silence because the printer greped away the plan's "Not swept for
+# removal" section instead of showing it.
+foreign_plan_evidence() { printf '%s\n' "$1"; }
 grep -qE '^Foreign resources: nothing was swept' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the default plan does not report that it left the account-inventory question unasked - the CollectUnclaimed ruling (#604) says a run that did not ask must say so rather than imply there is nothing"; }
+  || { foreign_plan_evidence "$PLAN_OUT"; fail "the default plan does not report that it left the account-inventory question unasked - the CollectUnclaimed ruling (#604) says a run that did not ask must say so rather than imply there is nothing"; }
 log "  default plan: $(grep -E '^Foreign resources:' <<< "$PLAN_OUT")"
 SWEEP_PLAN_OUT="$(cd "$EST" && TOFU_LIVE_COLLECT_UNCLAIMED=1 "$TOFU" live-plan -input=false -no-color 2>&1)"; SWEEP_PLAN_RC=$?
 [ "$SWEEP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$SWEEP_PLAN_OUT" | tail -60; fail "the account-inventory plan (TOFU_LIVE_COLLECT_UNCLAIMED=1) exited $SWEEP_PLAN_RC"; }
@@ -953,7 +962,7 @@ SWEEP_PLAN_OUT="$(cd "$EST" && TOFU_LIVE_COLLECT_UNCLAIMED=1 "$TOFU" live-plan -
 grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$SWEEP_PLAN_OUT" \
   && { grep -E '^  # .+ will be' <<< "$SWEEP_PLAN_OUT"; fail "the account-inventory plan proposes a resource change the default plan did not"; }
 grep -qE "^Foreign resources: 8 live resources not owned by estate $ESTATE" <<< "$SWEEP_PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$SWEEP_PLAN_OUT"; fail "expected exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap) from the plan that asked; the corpus pin, floci's default-account shape, or a real gap has moved"; }
+  || { foreign_plan_evidence "$SWEEP_PLAN_OUT"; fail "expected exactly 8 foreign objects (the instance's own root volume + floci's default-VPC bootstrap) from the plan that asked; the corpus pin, floci's default-account shape, or a real gap has moved"; }
 log "  no resource change proposed by either plan; the plan that asked found exactly 8 foreign objects (root volume + default-VPC bootstrap, both expected)"
 
 WANT_ADDR2="module.ec2_complete.aws_instance.this:0"
