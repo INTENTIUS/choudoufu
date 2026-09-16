@@ -2,7 +2,7 @@
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
   "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 3 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-15T01:43:06Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "29 of 29 estates have a recorded run duration, totaling 2h45m53.6s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "runtime_banner": "29 of 30 estates have a recorded run duration, totaling 2h45m53.6s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 1 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3844,6 +3844,109 @@
           "verdict": "pass",
           "duration": "12s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
+        }
+      ]
+    },
+    {
+      "name": "reference-k8s-cert-manager",
+      "set": "growing",
+      "lane": "kubernetes",
+      "substrate": "kind",
+      "clear": false,
+      "source": "cert-manager v1.21.2's own install bundle (cert-manager.yaml at the release, 1,034,400 bytes, sha256 e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f, Apache-2.0 with the licence header inside the artifact) converted mechanically to 47 kubernetes_manifest blocks with tfk8s v0.1.10, plus the three custom resources from cert-manager's own self-signed documentation (ClusterIssuer, Issuer, Certificate) written here: 50 objects over 13 kinds, 6 CRDs, ClusterIssuer the lane's only cluster-scoped custom kind. reference- rather than corpus- because cert-manager ships YAML and the Terraform root is ours (#1174); live/e2e/reference-k8s-cert-manager/convert.sh reproduces it",
+      "script": "live/e2e/reference-k8s-cert-manager/run.sh",
+      "protocol": "legacy",
+      "cells": [
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "n/a",
+        "n/a",
+        "not run",
+        "not run",
+        "not run",
+        "not run"
+      ],
+      "runtime_total": "-",
+      "runtime_cells": "none recorded yet",
+      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "not run"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "n/a",
+          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash between create and destroy",
+          "verdict": "n/a",
+          "detail": "The create-before-destroy window this stage interrupts does not exist on Kubernetes (see day2_replace)."
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "not run"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     }
