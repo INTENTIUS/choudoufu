@@ -206,7 +206,8 @@ open(p, 'w').write(out)
 PY
 }
 
-# review_annotation <dir>: the one-field change plan_approval plans.
+# review_annotation <dir>: a metadata-side edit. plan_approval makes it
+# first, as a measurement of its own - see there.
 review_annotation() {
   python3 - "$1/custom-resources.tf" <<'PY'
 import sys
@@ -224,6 +225,30 @@ assert old in s, "the ClusterIssuer's metadata block is not the shape this edit 
 open(p, 'w').write(s.replace(old, new, 1))
 PY
 }
+# extra_dnsname <dir>: plan_approval's real one-field change. It is a
+# SPEC-side field on purpose: measured 2026-09-16, choudoufu's plan does
+# not see a change to metadata.labels or metadata.annotations on a
+# kubernetes_manifest at all (stock plans one in-place update for the same
+# edit; choudoufu plans No changes and applies nothing), so an
+# annotation-shaped edit would make this stage re-measure that defect
+# instead of measuring plan approval. The stage below measures BOTH: the
+# metadata edit first, recorded as the gap it is, then this one.
+extra_dnsname() {
+  python3 - "$1/custom-resources.tf" <<'PY'
+import sys
+p = sys.argv[1]; s = open(p).read()
+old = '''      "dnsNames" = [
+        "example.com",
+      ]'''
+new = '''      "dnsNames" = [
+        "example.com",
+        "www.example.com",
+      ]'''
+assert old in s, "the Certificate's dnsNames list is not the shape this edit expects"
+open(p, 'w').write(s.replace(old, new, 1))
+PY
+}
+
 # rename_clusterissuer <dir>: the block rename day2_rename's moved block covers.
 rename_clusterissuer() {
   python3 - "$1/custom-resources.tf" <<'PY'
@@ -458,16 +483,37 @@ fi
 # ── 6. plan_approval: plan -out, the world moves, apply refuses ──────────
 gauntlet_begin_stage plan_approval
 log "=== 6. plan_approval: a saved plan, an out-of-band label, a refusal; then the same file applies once the world is back ==="
+# Part one: the metadata edit, which is a measurement rather than a step.
 review_annotation "$ADOPTED" || fail "could not add the reviewed annotation to the adopted root"
 review_annotation "$ORACLE"  || fail "could not add the reviewed annotation to the oracle root"
+PO_PLAN="$(stock_b plan -input=false -no-color 2>&1)"
+PO_LINE="$(grep -E '^Plan:|^No changes' <<< "$PO_PLAN" | head -1 | sed 's/\.$//')"
+PA_PLAN="$(tofu_a plan -input=false -no-color 2>&1)"
+PA_LINE="$(grep -E '^Plan:|^No changes' <<< "$PA_PLAN" | head -1 | sed 's/\.$//')"
+log "  metadata edit: stock on B says '${PO_LINE:-none}', choudoufu on A says '${PA_LINE:-none}'"
+META_GAP=""
+if grep -q "^No changes" <<< "$PA_PLAN" && grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$PO_PLAN"; then
+  META_GAP="Measured on the way in, and recorded rather than worked around: adding metadata.annotations.reviewed=yes to the cluster-scoped ClusterIssuer is ONE IN-PLACE UPDATE to stock on the oracle cluster (\"$PO_LINE\") and NOTHING AT ALL to choudoufu on the estate cluster (\"$PA_LINE\"). A change to metadata.labels or metadata.annotations of a kubernetes_manifest is invisible to the plan and an apply writes nothing; a change outside metadata (data, spec) is seen normally. The approval test below therefore uses a spec-side field, so that what it measures is plan approval. "
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the annotation on B"
+elif ! grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$PA_PLAN"; then
+  META_GAP="The metadata edit behaved as neither side was expected to: stock said \"$PO_LINE\" and choudoufu said \"$PA_LINE\". "
+  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after the metadata edit"
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after the metadata edit"
+else
+  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after the metadata edit"
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after the metadata edit"
+fi
+
+# Part two: the stage's own question, on a field the plan can see.
+extra_dnsname "$ADOPTED" || fail "could not add the second dnsName to the adopted root"
+extra_dnsname "$ORACLE"  || fail "could not add the second dnsName to the oracle root"
 P_PLAN="$(tofu_a plan -out=approved.tfplan -input=false -no-color 2>&1)"; P_PLAN_RC=$?
 P_PLAN_LINE="$(grep -E '^Plan:|^No changes' <<< "$P_PLAN" | head -1 | sed 's/\.$//')"
 P_CHANGED="$(grep -E '^[[:space:]]*# .* will be' <<< "$P_PLAN" | sed -E 's/^[[:space:]#]*//' | tr '\n' ';')"
 if [ "$P_PLAN_RC" -ne 0 ] || ! grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN"; then
-  # Recorded and stepped over rather than aborting the run: the six stages
-  # below this one measure surfaces nothing else in the lane reaches, and
-  # losing them to teach the same lesson twice is a bad trade.
-  gauntlet_stage plan_approval fail "adding one annotation to the cluster-scoped ClusterIssuer did not plan as exactly one in-place update: ${P_PLAN_LINE:-the plan did not produce a summary line} (exit $P_PLAN_RC). What it proposed: ${P_CHANGED:-nothing named}"
+  # Recorded and stepped over rather than aborting the run: the stages
+  # below reach surfaces nothing else in the lane does.
+  gauntlet_stage plan_approval fail "${META_GAP}adding a second dnsName to the Certificate did not plan as exactly one in-place update: ${P_PLAN_LINE:-the plan did not produce a summary line} (exit $P_PLAN_RC). What it proposed: ${P_CHANGED:-nothing named}"
   printf '%s\n' "$P_PLAN" | tail -30
   ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
@@ -481,19 +527,19 @@ if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC"
   kca label issuer selfsigned -n "$NS" stray- >/dev/null
   ( tofu_a apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"
-  gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the change on B"
+  gauntlet_stage plan_approval pass "${META_GAP}BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
 else
   [ "$P_RC" -eq 3 ] || { printf '%s\n' "$P_APPLY" | tail -20; fail "apply of the saved plan after the world moved exited $P_RC, want 3 (the refusal)"; }
   grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY" || { printf '%s\n' "$P_APPLY" | tail -20; fail "the refusal does not carry its documented sentence"; }
-  REVIEWED="$(kca get clusterissuer selfsigned -o jsonpath='{.metadata.annotations.reviewed}')"
-  [ -z "$REVIEWED" ] || fail "the ClusterIssuer gained reviewed=$REVIEWED despite the refusal"
+  DNS_NOW="$(kca get certificate example-com -n "$NS" -o jsonpath='{.spec.dnsNames}')"
+  [ "$DNS_NOW" = '["example.com"]' ] || fail "the Certificate's dnsNames read $DNS_NOW despite the refusal, want only example.com"
   kca label issuer selfsigned -n "$NS" stray- >/dev/null || fail "could not put the world back"
   P_APPLY2="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$P_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || fail "the saved plan's apply did not change exactly one object"
-  [ "$(kca get clusterissuer selfsigned -o jsonpath='{.metadata.annotations.reviewed}')" = "yes" ] || fail "the ClusterIssuer does not read reviewed=yes after the saved plan applied"
+  [ "$(kca get certificate example-com -n "$NS" -o jsonpath='{.spec.dnsNames}')" = '["example.com","www.example.com"]' ] || fail "the Certificate does not carry both dnsNames after the saved plan applied"
   ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
-  gauntlet_stage plan_approval pass "plan -out wrote one update to a CLUSTER-SCOPED custom kind (the ClusterIssuer gains annotation reviewed=yes); the world then moved out of band (a stray label on the namespaced Issuer, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed annotation); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+  gauntlet_stage plan_approval pass "${META_GAP}plan -out wrote one update to a namespaced custom kind (the Certificate gains a second dnsName); the world then moved out of band (a stray label on the Issuer, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads one dnsName); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and both dnsNames read back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
 fi
 
 fi
@@ -605,7 +651,7 @@ else
   if [ "$A_RE_RC" -ne 0 ] || ! grep -q "No changes." <<< "$A_RE"; then
     REJECT="$(grep -m1 'refused the create' <<< "$A_RE" | sed 's/^ *//')"
     ORPHANED="$(grep -c 'orphan_issuer_'"$NS"'_shard-' <<< "$A_RE")"
-    COUNT_VERDICT="replanning the unchanged root choudoufu itself had just applied is not empty. The two counted instances never bind to the objects they created: the plan proposes CREATING them again and the server-side dry run rejects it - \"${REJECT:-no rejection line}\" - while the estate sweep reports the same live objects as undeclared orphans at kubernetes_manifest.orphan_issuer_${NS}_shard-N ($ORPHANED line(s) naming one). Neither half is adoption: choudoufu applied these objects itself one command earlier. Every other kubernetes_manifest instance in this root - all $TOTAL_N of them, including the un-counted ClusterIssuer, Issuer and Certificate - re-plans empty, so it is `count` on kubernetes_manifest specifically. Stock replans the identical root clean, and its own 2 -> 1 scale-down on the oracle cluster destroys exactly kubernetes_manifest.issuer_shard[1]"
+    COUNT_VERDICT="replanning the unchanged root choudoufu itself had just applied is not empty. The two counted instances never bind to the objects they created: the plan proposes CREATING them again and the server-side dry run rejects it - \"${REJECT:-no rejection line}\" - while the estate sweep reports the same live objects as undeclared orphans at kubernetes_manifest.orphan_issuer_${NS}_shard-N ($ORPHANED line(s) naming one). Neither half is adoption: choudoufu applied these objects itself one command earlier. Every other kubernetes_manifest instance in this root - all $TOTAL_N of them, including the un-counted ClusterIssuer, Issuer and Certificate - re-plans empty, so it is count on kubernetes_manifest specifically. Stock replans the identical root clean, and its own 2 -> 1 scale-down on the oracle cluster destroys exactly kubernetes_manifest.issuer_shard[1]"
   fi
 fi
 
@@ -676,7 +722,8 @@ green() { ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@
 G_TARGETS=()
 while IFS= read -r a; do [ -n "$a" ] && G_TARGETS+=("-target=$a"); done < <(gauntlet_pre_apply_targets "$ESTATE")
 [ "${#G_TARGETS[@]}" = "$BUNDLE_N" ] || fail "the declared pre-apply list has ${#G_TARGETS[@]} addresses, want $BUNDLE_N"
-green apply -auto-approve -input=false -no-color "${G_TARGETS[@]}" >/dev/null 2>&1 || fail "the greenfield pre-apply failed"
+G_PRE="$(green apply -auto-approve -input=false -no-color "${G_TARGETS[@]}" 2>&1)"; G_PRE_RC=$?
+[ "$G_PRE_RC" -eq 0 ] || { printf '%s\n' "$G_PRE" | tail -30; fail "the greenfield pre-apply failed (exit $G_PRE_RC): $(grep -m1 -E '^Error|^\s*Error' <<< "$G_PRE" | sed 's/^ *//')"; }
 cert_manager_ready "$KCA" "cluster A (greenfield)" || fail "cert-manager never became ready on A after the greenfield pre-apply"
 G_OUT="$(green apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_OUT" | tail -20; fail "greenfield apply failed"; }
 grep -qF "Apply complete! Resources: $CUSTOM_N added, 0 changed, 0 destroyed" <<< "$G_OUT" || { printf '%s\n' "$G_OUT" | tail -5; fail "the greenfield main apply did not add exactly the $CUSTOM_N custom resources"; }
