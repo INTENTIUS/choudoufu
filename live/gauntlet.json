@@ -3929,59 +3929,59 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "day2_count": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "day2_remove": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "day2_rename": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "day2_teardown": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "drift_reconverge": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "greenfield": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "migrate": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "plan_approval": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "strict": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "test_apply": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         },
         "test_plan": {
-          "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-          "date": "2026-09-16T07:17:40Z"
+          "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+          "date": "2026-09-16T07:32:55Z"
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "67a421b8f67523cf3ddb0fbf263a0cd849b3b665",
-        "date": "2026-09-16T07:17:40Z",
+        "commit": "23be0d26cac412d6eede8af6f4902fd54a719587",
+        "date": "2026-09-16T07:32:55Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -4002,19 +4002,19 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s-stateful unchanged at 14 across the estate's eight kinds, and still zero of the three PVCs, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 14 identities (NAMESPACE/NAME) confirmed present with kubectl across eight kinds"
         },
-        "duration_s": 531.8,
+        "duration_s": 537.8,
         "stage_seconds": {
-          "cold_deploy": 96,
+          "cold_deploy": 94,
           "day2_count": 52,
           "day2_remove": 62,
           "day2_rename": 21,
           "day2_teardown": 117,
           "drift_reconverge": 21,
-          "greenfield": 41,
+          "greenfield": 48,
           "migrate": 4,
-          "plan_approval": 31,
-          "strict": 64,
-          "test_apply": 12,
+          "plan_approval": 32,
+          "strict": 65,
+          "test_apply": 11,
           "test_plan": 10
         }
       }

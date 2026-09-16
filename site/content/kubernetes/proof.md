@@ -75,8 +75,8 @@ the crash between its create and its destroy, because a Kubernetes name
 is unique within its namespace and nothing can be created before the
 object it replaces is gone. Every other stage says in
 [`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
-how it reads on the kind substrate. Two estates run in it: `reference-k8s`,
-a hand-written shape kept in this repository, and `corpus-quickpizza`,
+how it reads on the kind substrate. Three estates run in it. `reference-k8s`
+is a hand-written shape kept in this repository. `corpus-quickpizza` is
 Grafana Labs' own published deployment root for their QuickPizza demo
 application at a pinned tag - 26 objects over eight kinds, real images,
 no cloud provider - crossed with the same deltas every AWS estate gets
@@ -85,6 +85,22 @@ not have. The published root found a real gap on the way in: every one of
 its namespaced objects reads the namespace's `id`, which identity
 resolution refused until the object-metadata rule learned that the
 provider's `id` is the object's own import id.
+
+`reference-k8s-stateful`
+([#1175](https://github.com/INTENTIUS/choudoufu/issues/1175)) is the third,
+also hand-written, because
+[#1107](https://github.com/INTENTIUS/choudoufu/issues/1107)'s search for a
+published stateful root fetched and ran the field and nothing cleared the
+bar. It is 14 objects over eight kinds around two StatefulSets with
+`volume_claim_template` blocks, and it is the lane's first red row. The
+PersistentVolumeClaims those templates produce are declared by nothing and
+held in no state file, and on kind they carry neither `ownerReferences` nor
+`managedFields` - the two signals the estate sweep tests to tell a
+controller's copies from what somebody declared. Removing only the
+StatefulSet's block leaves them `Bound`, labelled and unowned, and a label
+on one of them is enough for the sweep to propose destroying it. Destroying
+the whole root hides this, because the Namespace is in the root and its
+deletion cascades, which is why the estate's own teardown is a pass.
 
 ## What it would cost
 

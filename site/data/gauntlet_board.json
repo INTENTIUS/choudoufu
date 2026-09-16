@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 4 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-16T07:17:40Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "30 of 30 estates have a recorded run duration, totaling 2h54m45.4s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 8m51.8s across 1 estate(s) at commit `67a421b8f6`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 25 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 4 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-16T07:32:55Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "30 of 30 estates have a recorded run duration, totaling 2h54m51.4s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 8m57.8s across 1 estate(s) at commit `23be0d26ca`; 2h21m22.1s across 25 estate(s) at commit `3bca740259`; 5m47.1s across 1 estate(s) at commit `79697017b6`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 3m23.2s across 1 estate(s) at commit `e17f62ae44`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3872,16 +3872,16 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "8m51.8s",
-      "runtime_cells": "cold_deploy 1m36s, migrate 4s, test_plan 10s, test_apply 12s, drift_reconverge 21s, day2_rename 21s, day2_remove 1m2s, day2_count 52s, day2_teardown 1m57s, plan_approval 31s, greenfield 41s, strict 1m4s",
-      "last_run_note": "Last run at commit `67a421b8f6` on 2026-09-16T07:17:40Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m51.8s.",
+      "runtime_total": "8m57.8s",
+      "runtime_cells": "cold_deploy 1m34s, migrate 4s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 1m2s, day2_count 52s, day2_teardown 1m57s, plan_approval 32s, greenfield 48s, strict 1m5s",
+      "last_run_note": "Last run at commit `23be0d26ca` on 2026-09-16T07:32:55Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m57.8s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m36s",
+          "duration": "1m34s",
           "detail": "14 objects over eight kinds (namespace, ServiceAccount, Secret, 4 ConfigMaps, 2 headless Services and a ClusterIP one, 2 StatefulSets, a Deployment, a PodDisruptionBudget) from plain terraform against kind v1.36.1, a real terraform.tfstate with 14 instances, zero tofu-estate labels read back with kubectl. The two volume_claim_templates produced 3 PVCs nobody declared, all Bound on kind's own standard class (rancher.io/local-path, WaitForFirstConsumer, reclaim Delete) with no StorageClass in the root, and stock's state holds none of them; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
@@ -3902,7 +3902,7 @@
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "12s",
+          "duration": "11s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s-stateful unchanged at 14 across the estate's eight kinds, and still zero of the three PVCs, counted with kubectl"
         },
         {
@@ -3956,21 +3956,21 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "32s",
           "detail": "plan -out wrote one update (api-config gains reviewed=yes); the world then moved out of band (a stray label on shard-0, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed key); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "41s",
+          "duration": "48s",
           "detail": "14 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s-stateful (kubectl, eight kinds) and none of the three PVCs; the record store held 11 file(s); replanned empty with and without the cache; the cluster's inventory matches stock's cold deploy on the same cluster object by object, labels never compared - ConfigMap and Secret data, each Service's headless-ness, ports and selector, both StatefulSets' replicas, serviceName, containers and volume_claim_templates (claim-template labels included), the Deployment, the PodDisruptionBudget, and the three controller-created PVCs with their merged labels, absent ownerReferences and pvc-protection finalizer. BREAK=1 drops the redis StatefulSet from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "1m4s",
+          "duration": "1m5s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
