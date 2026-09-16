@@ -89,8 +89,9 @@ BREAK=1 just smoke k8s-custom-resource and report the four "caught"
 lines: the scenario writes spec.replicas = 0 under a CRD that bounds it
 at minimum 1 and the replan must be refused by name in the server's
 words; strips the tofu-estate label with kubectl and the replan must
-propose restoring it; strips it again with the block removed and the
-replan must not list the object; then deletes the custom resource and
+refuse the CronTab by name and propose the create the block declares,
+leaving the label off until an operator writes it back; strips it again
+with the block removed and the replan must not list the object; then deletes the custom resource and
 the replan must propose creating it.
 ```
 

@@ -1,5 +1,5 @@
 # k8s-the-label-is-the-boundary
-# CLAIM 23 - The label is the boundary: one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~4 min.
+# CLAIM 23 - The label is the boundary: the plan refuses a block that declares another estate's object before any cluster is consulted, and one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~5 min.
 #
 # The Kubernetes sibling of claim 13 (#1066, under #1016's ruling). RBAC has
 # no attribute predicate, so the label is advisory until something fences on
@@ -20,12 +20,20 @@
 # granted: if the API server still said no, something other than the
 # policy was the fence.
 #
+# Step 4 is the half that is not the cluster's (#1108). A block declaring
+# an object another estate owns is refused by the PLAN, by name, in the
+# sentence a declared AWS resource carrying another estate's tofu-estate
+# tag gets - and the BREAK arm runs that same step again with the policy
+# deleted, where it must still hold. "Never write a wrong marker" is a
+# property of the plan; the policy is what stops everything that never
+# went through choudoufu at all.
+#
 # The carve is live-mv's Kubernetes leg (#1081's fifth item): with no
 # address on the object a rename within one estate has nothing governed to
-# write and live-mv says so, exit 0 (step 8); a move between estates is the
+# write and live-mv says so, exit 0 (step 9); a move between estates is the
 # one tofu-estate label write, which live-mv -from-estate makes through the
 # provider under the caller's own ServiceAccount, so the policy judges it
-# exactly as it judges a plain kubectl label (steps 9 and 10).
+# exactly as it judges a plain kubectl label (steps 10 and 11).
 
 W="$SMOKE_WORKROOT/k8s-boundary"; APP="$W/app"; NET="$W/net"; DATA="$W/data"; LOGS="$W/logs"
 mkdir -p "$APP" "$NET" "$DATA" "$LOGS"
@@ -147,6 +155,51 @@ greeting_of() { kc get configmap "$1" -n "$2" -o jsonpath='{.data.greeting}{"\n"
 set_greeting() { local f="$1" from="$2" to="$3" t; t="$(mktemp)"
   sed "s/greeting = \"$from\"/greeting = \"$to\"/" "$f" > "$t" && mv "$t" "$f" || fail "boundary" "could not rewrite $f"
   grep -qF "greeting = \"$to\"" "$f" || fail "boundary" "the edit $from -> $to did not land in $f"; }
+# wrong_estate_plan manufactures the shape GitHub issue #1108 is about and
+# asserts the PLAN's own verdict on it: a block in net/ declaring, by
+# namespace and name, the ConfigMap that already exists carrying
+# tofu-estate=app. The plan must refuse it by name, say which estate does
+# own it, propose only the create the block declares, and leave the live
+# object alone - and it must do all of that with nothing in the cluster
+# consulted, which is why it is called twice: once with the policy
+# installed and once, in the BREAK arm, with the policy gone. $1 names the
+# arm, for the failure message and the saved plan only; the verdict must be
+# identical either way. The block is removed again before anything is
+# asserted, so a failure leaves net/ as it was found.
+wrong_estate_plan() {
+  local arm="$1" out flat
+  cat > "$NET/foreign.tf" <<'TF'
+resource "kubernetes_config_map" "foreign" {
+  metadata {
+    name      = "gateway"
+    namespace = "boundary"
+  }
+  data = { greeting = "hijacked" }
+}
+TF
+  out="$(cd "$NET" && as_role bob chdf plan -input=false -no-color 2>&1 || true)"
+  printf '%s\n' "$out" > "$LOGS/wrong-estate-$arm.plan"
+  rm -f "$NET/foreign.tf"
+  flat="$(tr '\n' ' ' <<< "$out" | tr -s ' ')"
+  grep -q 'kubernetes_config_map.foreign' <<< "$out" \
+    || fail "boundary" "$arm: the plan never mentions the block that declares another estate's object (full plan in $LOGS/wrong-estate-$arm.plan)"
+  grep -q 'carries tofu-estate="app"' <<< "$flat" \
+    || fail "boundary" "$arm: the plan does not refuse the object by the estate it carries - it was bound by name and the plan would relabel it (full plan in $LOGS/wrong-estate-$arm.plan): $(grep -E '^Plan:|~ |will be' <<< "$out" | head -5)"
+  grep -q 'belongs to another estate and nothing in this plan reads, changes or destroys it' <<< "$flat" \
+    || fail "boundary" "$arm: the refusal is not the sentence a declared AWS resource carrying another estate's tag gets: $(grep -i 'another estate' <<< "$out" | head -3)"
+  grep -qE '^Plan: 1 to add, 0 to change, 0 to destroy' <<< "$out" \
+    || fail "boundary" "$arm: the plan is not a single create of what the block declares (full plan in $LOGS/wrong-estate-$arm.plan): $(grep -E '^Plan:' <<< "$out")"
+  grep -q '"tofu-estate":"app"' <<< "$(labels_of gateway boundary)" \
+    || fail "boundary" "$arm: the gateway ConfigMap no longer carries app's label: $(labels_of gateway boundary)"
+  [ "$(greeting_of gateway boundary)" != "hijacked" ] \
+    || fail "boundary" "$arm: the refused block's own data reached the live object"
+  grep -E 'IN_THE_WAY|^Plan:' <<< "$out" | head -2 | evidence
+  refusal_sentence "$out" | evidence
+}
+# refusal_sentence pulls the one wrapped sentence the plan prints about an
+# object another estate owns back onto a single line, for the evidence.
+refusal_sentence() { tr '\n' ' ' <<< "$1" | tr -s ' ' | grep -o 'A live kubernetes_config_map[^.]*carries tofu-estate="app"[^.]*\.' | head -1; }
+
 # denied fails the scenario unless $1 (a captured command output) carries
 # the API server's own refusal from this policy. The tool never says no
 # here; admission does, and it names the policy in the message.
@@ -259,6 +312,24 @@ grep -q '"tofu-estate":"app"' <<< "$(labels_of database boundary)" || fail "boun
 grep -q '"tofu-estate":"net"' <<< "$(labels_of router net)" || fail "boundary" "the router ConfigMap does not carry tofu-estate=net"
 proof "two estates on one cluster, each stood up by the principal that holds it, and the label the policy reads is on every object."
 
+step "4. a block declaring an object another estate owns - the PLAN refuses it, with nothing in the cluster consulted"
+explain \
+  "Everything else in this scenario is the API server saying no. This" \
+  "step is the half that has to hold when no policy is installed at all." \
+  "A block in net/ declares the ConfigMap Alice's estate owns, by its" \
+  "namespace and name, which is how every Kubernetes object binds. The" \
+  "plan must refuse it by name, say which estate does own it, propose" \
+  "only the create the block declares, and leave the live object alone -" \
+  "the same verdict, in the same sentence, that a declared AWS resource" \
+  "carrying another estate's tofu-estate tag gets, and it must not lean" \
+  "on the policy to get there. Before #1108 the projection read no label" \
+  "at all on this substrate: the plan bound the object by name and" \
+  "proposed relabelling it to net, and admission was the only thing" \
+  "between that plan and a wrong marker written over Alice's."
+cmd "(a block in net/ naming boundary/gateway) ; choudoufu plan   # in net/, as bob"
+wrong_estate_plan with-policy
+proof "the plan refuses the object by name, names app as its owner, and proposes one create and nothing else. No write was attempted, so nothing in the cluster was asked."
+
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - remove the policy; the cross-estate writes must go through"
   explain \
@@ -271,6 +342,19 @@ if [ "${BREAK:-0}" = "1" ]; then
   kc delete validatingadmissionpolicy choudoufu-estate-boundary >/dev/null || fail "boundary" "BREAK: could not remove the policy"
   kc delete validatingadmissionpolicybinding choudoufu-estate-boundary >/dev/null || fail "boundary" "BREAK: could not remove the binding"
   sleep 3
+
+  step "BREAK control - the plan's own refusal must NOT go through: step 4 again, policy gone"
+  explain \
+    "Every other assertion in this arm requires a write the main run" \
+    "refused to succeed. This one is the exception, and it is the point of" \
+    "step 4: the plan's refusal of another estate's object is the plan's," \
+    "not the cluster's, so removing the policy must change nothing about" \
+    "it. If the refusal disappeared with the policy, the plan side was" \
+    "leaning on admission and #1108 is not fixed."
+  cmd "(the same block in net/) ; choudoufu plan   # in net/, as bob, policy gone"
+  wrong_estate_plan no-policy
+  proof "identical to step 4 with the policy installed: refused by name, one create proposed, Alice's object untouched. The plan never asked the cluster who may write it."
+
   set_greeting "$APP/main.tf" gateway gateway-v2
   OUT="$(cd "$APP" && as_role bob chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "BREAK: with no policy, Bob's write on Alice's estate was still refused: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
   denied "$OUT" && fail "boundary" "BREAK: the apply succeeded but the output still carries a refusal: $OUT"
@@ -311,7 +395,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
-step "4. Alice converges her estate"
+step "5. Alice converges her estate"
 explain \
   "A value in the gateway ConfigMap changes in configuration. Alice" \
   "applies it. The provider's update carries the object as it is and as" \
@@ -324,7 +408,7 @@ OUT="$(cd "$APP" && as_role alice chdf apply -auto-approve -input=false -no-colo
 greeting_of gateway boundary | evidence
 proof "Alice's write landed on her estate. Admission read the label off the object and the authorizer said yes."
 
-step "5. Bob, through choudoufu, is refused on Alice's estate - by the API server, not by this tool"
+step "6. Bob, through choudoufu, is refused on Alice's estate - by the API server, not by this tool"
 explain \
   "Bob has a checkout of the same configuration. The next change is his" \
   "to attempt, under his own ServiceAccount. The plan binds every object" \
@@ -346,7 +430,7 @@ OUT="$(cd "$APP" && as_role alice chdf apply -auto-approve -input=false -no-colo
 [ "$(greeting_of gateway boundary)" = "gateway-v3" ] || fail "boundary" "Alice's second write did not land"
 proof "the same change under Alice's ServiceAccount lands. The configuration is identical; the credential is what the policy read."
 
-step "6. Bob, tool-less, is refused on Alice's object - with no choudoufu in the call path"
+step "7. Bob, tool-less, is refused on Alice's object - with no choudoufu in the call path"
 explain \
   "Every write so far went through choudoufu. The fence is admission, not" \
   "the binary, so under Bob's ServiceAccount, with nothing of this tool" \
@@ -376,9 +460,9 @@ cmd "kubectl get configmap database -n boundary   # reads are not admission's to
 as_role bob kubectl get configmap database -n boundary -o name >/dev/null || fail "boundary" "Bob's read of Alice's object was refused; admission does not fence reads, so something else did"
 proof "three plain kubectl writes, no choudoufu anywhere in the process, all refused by the same policy that fences choudoufu's own writes - and a plain read went through, because admission never sees one. The fence binds the credential, not the tool, and it is write-only."
 
-step "7. Bob's own estate, tool-less, and the API server lets it through - the next plan sees it"
+step "8. Bob's own estate, tool-less, and the API server lets it through - the next plan sees it"
 explain \
-  "The same policy that refused step 6 permits what the grant names on" \
+  "The same policy that refused step 7 permits what the grant names on" \
   "what Bob holds. A plain kubectl label on the router ConfigMap (estate" \
   "net) needs no choudoufu to succeed, and nothing about it is hidden" \
   "from the tool afterward: the next plan reads the live object, not a" \
@@ -400,7 +484,7 @@ cmd "choudoufu apply -auto-approve   # in net/, as bob - reconciling his own too
 grep -q 'owner' <<< "$(labels_of router net)" && fail "boundary" "the reconciling apply did not remove the stray label"
 proof "reconciled, still under Bob's own ServiceAccount. The estate is clean again before the carve begins."
 
-step "8. a rename is a configuration edit: live-mv has nothing governed to write"
+step "9. a rename is a configuration edit: live-mv has nothing governed to write"
 explain \
   "On AWS a rename ends with live-mv rewriting tofu-address on the live" \
   "object. Here the object carries no address: it is bound to its block by" \
@@ -420,7 +504,7 @@ grep -q "No changes." <<< "$OUT" || fail "boundary" "net does not plan clean aft
 echo "net under bob, block renamed: No changes." | evidence
 proof "exit 0 and one sentence: nothing to write. The block is renamed, the object is untouched, and the plan is empty - the rename was the edit."
 
-step "9. the carve begins with a git move, and the relabel is refused from both sides"
+step "10. the carve begins with a git move, and the relabel is refused from both sides"
 explain \
   "The database block moves from app's configuration into a new root," \
   "data, the way any split starts. The ownership write that completes it" \
@@ -452,7 +536,7 @@ refusal_line "$OUT" | evidence
 grep -q '"tofu-estate":"app"' <<< "$(labels_of database boundary)" || fail "boundary" "the database left the estate despite the refusals"
 proof "the carve itself was refused, per object, from both sides: the estate being left and the estate being entered - and live-mv met the same refusal a plain kubectl did, because the write it makes is the same write. A state mv has no such moment; nothing evaluates it."
 
-step "10. handover is an RBAC change: grant Alice data, and the same live-mv goes through"
+step "11. handover is an RBAC change: grant Alice data, and the same live-mv goes through"
 explain \
   "Nothing on the object and nothing in the policy changes. The cluster" \
   "admin applies the same grant template for estate data to Alice, and" \
@@ -472,7 +556,7 @@ labels_of database boundary | evidence
 grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "the database does not carry tofu-estate=data after Alice's live-mv"
 proof "tofu-estate=data, written by live-mv under the one principal a policy lets write it, and read back by kubectl. Where there was one estate there are two, and no state was split."
 
-step "11. every estate plans clean, each under its own principal"
+step "12. every estate plans clean, each under its own principal"
 explain \
   "Alice plans data and app; Bob plans net. Each sweep lists its own" \
   "estate by label and finds nothing to do. app no longer declares the" \
@@ -489,7 +573,7 @@ for spec in "alice $DATA data" "alice $APP app" "bob $NET net"; do
 done
 proof "No changes, three times, each under the principal that holds the estate. The boundary moved with one label write, and every side agrees where it is."
 
-step "12. teardown - each estate by its own destroy, under its own principal"
+step "13. teardown - each estate by its own destroy, under its own principal"
 OUT="$(cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of data failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -q 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$OUT" || fail "boundary" "data's destroy did not remove exactly one object: $OUT"
 OUT="$(cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of app failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"

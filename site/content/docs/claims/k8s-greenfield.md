@@ -25,7 +25,8 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
 Explain each step's verdict line to me as it prints. Then run
 BREAK=1 just smoke k8s-greenfield and report the "caught, twice" line:
 the scenario strips the label with kubectl, live-ls must drop the object
-from its listing, and the replan must propose restoring the label.
+from its listing, and the replan must refuse the object by name and
+propose the create the block declares.
 ```
 
 The steps, in the order they print:

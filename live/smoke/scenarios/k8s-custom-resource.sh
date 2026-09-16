@@ -350,26 +350,37 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ -z "$LIVE_REPLICAS" ] || fail "k8s-custom-resource" "BREAK: the dry run wrote spec.replicas=$LIVE_REPLICAS to the live object"
   proof "caught: the server refused replicas 0 under the CRD's minimum of 1 - a rule only the server checks - the plan was refused by name in the server's words, no plan was produced and nothing was written. The edit is reverted."
 
-  step "BREAK control - strip the label out of band; the replan must propose restoring it"
+  step "BREAK control - strip the label out of band; the replan must refuse the object by name"
   explain \
     "You asked for proof the assertions can fail. This removes the" \
     "tofu-estate label with kubectl, behind choudoufu's back. The provider" \
     "treats metadata.labels as a computed field by default and would accept" \
     "the stripped object as the truth; if the next plan is empty, the" \
-    "label is decoration and nothing holds the object inside the boundary."
+    "label is decoration and nothing holds the object inside the boundary." \
+    "What the plan must do is what it does with an unlabelled ConfigMap and" \
+    "with a stripped tofu-estate tag on AWS (#1108): an object carrying no" \
+    "marker is nobody's, so the plan refuses it by name and proposes" \
+    "creating what the block declares. Adopting it back is a label write an" \
+    "operator makes, which is what the next line does with kubectl."
   cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate-"
   kc label crontab my-crontab -n smoke-crd tofu-estate- >/dev/null || fail "k8s-custom-resource" "BREAK: could not strip the label"
   SOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
   if grep -q "No changes." <<< "$SOUT"; then
     fail "k8s-custom-resource" "BREAK: the plan is still empty after the label was stripped - the label is not what the plan holds the object by"
   fi
-  grep -E '^Plan:|will be updated|tofu-estate' <<< "$SOUT" | head -3 | evidence
-  grep -q 'kubernetes_manifest.crontab will be updated in-place' <<< "$SOUT" \
-    || fail "k8s-custom-resource" "BREAK: the plan changed but does not propose updating kubernetes_manifest.crontab: $SOUT"
-  ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "k8s-custom-resource" "BREAK: the restoring apply failed"
-  RESTORED="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.labels.tofu-estate}')"
-  [ "$RESTORED" = "smoke-crd" ] || fail "k8s-custom-resource" "BREAK: the apply did not restore the label (tofu-estate=$RESTORED)"
-  proof "caught: the stripped label is exactly what the plan proposed to put back, and the apply put it back."
+  grep -E '^Plan:|will be created|carries no tofu-estate label' <<< "$SOUT" | head -3 | evidence
+  grep -q 'carries no tofu-estate label' <<< "$SOUT" \
+    || fail "k8s-custom-resource" "BREAK: the plan does not refuse the unlabelled custom resource by name - it was adopted in silence: $(grep -E '^Plan:|will be' <<< "$SOUT" | head -3)"
+  grep -q 'kubernetes_manifest.crontab will be created' <<< "$SOUT" \
+    || fail "k8s-custom-resource" "BREAK: the plan changed but does not propose creating kubernetes_manifest.crontab: $SOUT"
+  STILL="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.labels.tofu-estate}')"
+  [ -z "$STILL" ] || fail "k8s-custom-resource" "BREAK: the plan put the label back on an object it does not own (tofu-estate=$STILL)"
+  cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate=smoke-crd   # the operator adopts it back"
+  kc label crontab my-crontab -n smoke-crd tofu-estate=smoke-crd >/dev/null || fail "k8s-custom-resource" "BREAK: could not adopt the object back"
+  AOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  grep -q "No changes." <<< "$AOUT" \
+    || fail "k8s-custom-resource" "BREAK: the replan after the operator's own label write is not empty: $(grep -E '^Plan:|will be' <<< "$AOUT" | head -3)"
+  proof "caught: with its label gone the CronTab is nobody's, the plan refuses it by name and proposes the create the block declares rather than relabelling it, and the label stays off until an operator writes it - after which the replan is empty again."
 
   step "BREAK control - strip the label and remove the block; the replan must not list the object"
   explain \

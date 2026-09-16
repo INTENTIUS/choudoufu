@@ -1,5 +1,5 @@
 # k8s-greenfield
-# CLAIM 21 - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, live-ls lists the estate by that label alone, a stripped label is repaired by the next plan, and the estate lives its whole life without a state file. ~2 min.
+# CLAIM 21 - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, live-ls lists the estate by that label alone, a stripped label takes the object out of the estate and the next plan refuses it by name, and the estate lives its whole life without a state file. ~2 min.
 #
 # The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
 # label; #1057's harness made it a demo first). The marker is ONE label,
@@ -9,9 +9,12 @@
 # provider block and lists the estate the way the sweep does, one
 # label-selected list per kind, each object joined back to its block on
 # the kind and the natural key. BREAK=1 strips the label with kubectl and
-# requires both the listing to lose the object and the replan to propose
-# restoring it, which proves the inventory and the empty-replan assertions
-# are real and the label is what both read.
+# requires both the listing to lose the object and the replan to refuse it
+# by name, which proves the inventory and the empty-replan assertions are
+# real and the label is what both read. The refusal rather than a repair is
+# #1108: an unlabelled object is nobody's, exactly as a stripped
+# tofu-estate tag makes an AWS resource nobody's, and adoption is a write
+# an operator makes.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-greenfield"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -103,14 +106,19 @@ fi
 proof "4 objects listed by kind and natural key, each joined to the block that declares it, from the cluster's own labels. No AWS call was attempted: the substrate came from the provider block."
 
 if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - strip the label; the listing must lose the object and the replan must propose restoring it"
+  step "BREAK control - strip the label; the listing must lose the object and the replan must refuse it by name"
   explain \
     "You asked for proof the assertions can fail. This removes the" \
     "tofu-estate label from the ConfigMap with kubectl, behind" \
     "choudoufu's back - the kind of edit a hostile or careless hand" \
     "would make. If live-ls still lists the ConfigMap, the inventory is" \
     "not reading the label; if the next plan is still empty, the marker" \
-    "is not what the plan reads and this whole scenario is scenery."
+    "is not what the plan reads and this whole scenario is scenery." \
+    "What the plan must do instead is what AWS does with a stripped" \
+    "tofu-estate tag (#1108): an object with no marker is nobody's, so it" \
+    "is refused by name and the plan proposes creating what the block" \
+    "declares, rather than relabelling an object this estate can no" \
+    "longer show it owns. Adoption is a write an operator makes."
   cmd "kubectl label configmap app-config -n smoke-k8s tofu-estate-"
   kc label configmap app-config -n smoke-k8s tofu-estate- >/dev/null || fail "k8s-greenfield" "BREAK: could not strip the label"
   cmd "choudoufu live-ls -estate=smoke-k8s ."
@@ -122,13 +130,25 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -q 'Estate "smoke-k8s": 3 resource(s) carry its marker' <<< "$BLS" \
     || fail "k8s-greenfield" "BREAK: live-ls should list the 3 objects that still carry the label: $BLS"
   BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  printf '%s\n' "$BOUT" > "$SMOKE_WORKROOT/logs/k8s-greenfield-break.plan"
   if grep -q "No changes." <<< "$BOUT"; then
     fail "k8s-greenfield" "BREAK: the plan is still empty after the label was stripped - the marker is not what the plan reads"
   fi
-  grep -E '^Plan:|tofu-estate' <<< "$BOUT" | head -3 | evidence
-  grep -q '"tofu-estate" = "smoke-k8s"' <<< "$BOUT" \
-    || fail "k8s-greenfield" "BREAK: the plan changed but does not propose restoring tofu-estate: $BOUT"
-  proof "caught, twice. The stripped label took the ConfigMap out of the listing and is exactly what the plan proposes to restore, so the inventory and every empty-plan claim in this scenario are real checks and the label is load-bearing."
+  grep -E 'carries no tofu-estate label|adopt by writing|^Plan:' <<< "$BOUT" | head -3 | evidence
+  grep -q 'kubernetes_config_map.app' <<< "$BOUT" \
+    || fail "k8s-greenfield" "BREAK: the plan does not name the ConfigMap whose label was stripped: $BOUT"
+  grep -q 'carries no tofu-estate label' <<< "$BOUT" \
+    || fail "k8s-greenfield" "BREAK: the plan does not refuse the unlabelled object by name - it was adopted in silence (full plan in $SMOKE_WORKROOT/logs/k8s-greenfield-break.plan): $(grep -E '^Plan:|~ ' <<< "$BOUT" | head -5)"
+  grep -q 'adopt by writing: tofu-estate=smoke-k8s$' <<< "$BOUT" \
+    || fail "k8s-greenfield" "BREAK: the adoption hint is not the one label write that would adopt it: $(grep -n 'adopt by writing' <<< "$BOUT")"
+  if grep -q 'tofu-address' <<< "$BOUT"; then
+    fail "k8s-greenfield" "BREAK: the plan names a tofu-address on a Kubernetes object; the marker here is the estate label alone (#1016): $BOUT"
+  fi
+  grep -qE '^Plan: 1 to add, 0 to change, 0 to destroy' <<< "$BOUT" \
+    || fail "k8s-greenfield" "BREAK: the plan does not propose creating exactly the declared ConfigMap: $(grep -E '^Plan:' <<< "$BOUT")"
+  kc get configmap app-config -n smoke-k8s >/dev/null 2>&1 \
+    || fail "k8s-greenfield" "BREAK: the unlabelled ConfigMap is gone - a refused object must be left alone"
+  proof "caught, twice. The stripped label took the ConfigMap out of the listing AND out of the estate: the plan refuses it by name, proposes creating what the block declares, and offers the one label write that would adopt it. The inventory and every empty-plan claim in this scenario are real checks, and nothing here leans on the cluster - no admission policy is installed."
   exit 0
 fi
 

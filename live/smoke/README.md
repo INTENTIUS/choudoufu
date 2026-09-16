@@ -69,7 +69,8 @@ step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
 from the provider block, one label-selected list per kind, each object
 joined to its block on the kind and the natural key - with the listing
 empty again after the destroy; its `BREAK=1` strips the label and requires
-`live-ls` to drop the object and the replan to propose restoring it. The
+`live-ls` to drop the object and the replan to refuse it by name (#1108: an
+unlabelled object is nobody's, and adoption is an operator's write). The
 marker is the estate alone, never the address (#1016). Its step 6 rewrites
 the ConfigMap block from `kubernetes_config_map` to
 `kubernetes_config_map_v1` with no `moved` block and requires the replan
