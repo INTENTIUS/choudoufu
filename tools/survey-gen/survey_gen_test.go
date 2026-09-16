@@ -295,13 +295,24 @@ var pathExceptions = map[string]pathException{
 	"aws_db_subnet_group":       {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 	"aws_ecs_service":           {hand: pathClientNamed, generated: pathMarker, reason: "cluster and name are Optional+Computed in the schema; falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 	"aws_eks_node_group":        {hand: pathClientNamed, generated: pathMarker, reason: "cluster_name/node_group_name are Optional+Computed (node_group_name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_iam_instance_profile":  {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_iam_role":              {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_s3_bucket":             {hand: pathClientNamed, generated: pathMarker, reason: "bucket is Optional+Computed (bucket_prefix idiom), the archetype in identity/doc.go; falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_autoscaling_group":     {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom), and tags are tag blocks rather than a tags map, so the fallback is enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_iam_role_policy":       {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_kms_alias":             {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_lambda_permission":     {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	// aws_iam_instance_profile and aws_iam_role moved off pathMarker on
+	// 2026-09-15 (issue #1133), with no change to the name-prefix cause
+	// this cohort tracks: the classifier now reads
+	// discovery.TaggingAPIUnservedType before crediting taggability with a
+	// tag-filtered-list route, and both are in the aws_iam_ service that
+	// predicate names (issue #692). aws_iam_role has no native list
+	// resource and no unscoped Cloud Control list handler that reaches it
+	// through the same enumeration question the untaggable branches ask,
+	// so it falls to enumerable-unbindable rather than marker; instance
+	// profile does too, listable through AWS::IAM::InstanceProfile with no
+	// scoping input.
+	"aws_iam_instance_profile": {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); taggable, but aws_iam_ is a service the tag-filtered list does not serve (issue #692/#1133), so it falls to enumerable-unbindable via Cloud Control's unscoped list", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_iam_role":             {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); taggable, but aws_iam_ is a service the tag-filtered list does not serve (issue #692/#1133), so it falls to enumerable-unbindable via its native list resource", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_s3_bucket":            {hand: pathClientNamed, generated: pathMarker, reason: "bucket is Optional+Computed (bucket_prefix idiom), the archetype in identity/doc.go; falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_autoscaling_group":    {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom), and tags are tag blocks rather than a tags map, so the fallback is enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_iam_role_policy":      {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_kms_alias":            {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_lambda_permission":    {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 
 	// --- account-derived import identity (SURVEY.md flags F3-F4) ---
 	//
@@ -314,7 +325,17 @@ var pathExceptions = map[string]pathException{
 	// choudoufu#26 tracks, not on anything upstream; the second is
 	// permanent, since no account/region template will ever reconstruct a
 	// server-minted secret suffix.
-	"aws_iam_policy":            {hand: pathClientNamed, generated: pathMarker, reason: "required import attribute is the policy arn (flag F3); the mechanism would build it, but floci's iam:GetPolicy omits Tags so the row cannot be proven live (choudoufu#26) and it is not wired", cohort: cohortAccountDerived, tracking: "choudoufu#26"},
+	// aws_iam_policy moved off pathMarker on 2026-09-15 (issue #1133), for
+	// the same reason the name-prefix cohort's two IAM movers did: it is
+	// taggable, but aws_iam_ is a service the tag-filtered list does not
+	// serve at all (issue #692), which the classifier now reads before
+	// crediting taggability with a recovery route. It falls to
+	// enumerable-unbindable through its own native list resource, one
+	// step short of the F3 question this cohort is about - which stays
+	// unresolved and unrelated: floci's iam:GetPolicy still omits Tags, so
+	// even the account-derived identity this row's own comment describes
+	// could not be proven live.
+	"aws_iam_policy":            {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "required import attribute is the policy arn (flag F3); the mechanism would build it, but taggable-service routing (issue #692/#1133) now falls it to enumerable-unbindable via its native list resource before F3 is ever reached, and floci's iam:GetPolicy omits Tags so the row cannot be proven live either way (choudoufu#26)", cohort: cohortAccountDerived, tracking: "choudoufu#26"},
 	"aws_secretsmanager_secret": {hand: pathClientNamed, generated: pathMarker, reason: "required import attribute is the arn with a six-character server-generated suffix (flag F4), which no account/region template reconstructs; deferred to the marker path the classifier already reads off its taggability", cohort: cohortAccountDerived, tracking: "permanent"},
 
 	// --- docs tier: no identity schema in v6.58.0 ---

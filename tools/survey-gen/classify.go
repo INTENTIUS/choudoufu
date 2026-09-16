@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -475,10 +476,52 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 		}
 	}
 
+	// tagListRecoverable is the taggable signal narrowed by whether the
+	// sweep's tagging leg actually reaches this type's service at all
+	// (internal/live/discovery.TaggingAPIUnservedType, issue #692). A type
+	// can be taggable and still have no tag-filtered list route: today
+	// that is every aws_iam_ type, because GetResources never indexes IAM
+	// roles and - per issue #1134's real-AWS measurement - indexes IAM
+	// policies and instance profiles only in us-east-1, a per-region fact
+	// this coarse, per-service predicate cannot express (issue #1144).
+	// Reading Taggable alone here, as before #1133, told the survey a
+	// route exists that the shipped sweep deliberately does not take -
+	// the same class of defect issue #881 found in the sweep itself.
+	tagListRecoverable := row.Signals.Taggable && !discovery.TaggingAPIUnservedType(typeName)
+
 	switch cfnType, scoping, listable := enumerate(typeName); {
-	case row.Signals.Taggable:
+	case tagListRecoverable:
 		row.Path = pathMarker
 		row.Evidence = identityNote + "; taggable, so recoverable by tag-filtered list"
+
+	// A taggable type whose service the tagging leg does not serve falls
+	// through to the same enumeration questions the untaggable cases below
+	// already ask - deliberately conservative: it costs the survey
+	// nothing it did not already not have (the sweep never took the
+	// tag-filtered route for this type either), and it is strictly truer
+	// than claiming that route unconditionally. Kept as its own branch,
+	// rather than folded into the untaggable cases with a shared prefix,
+	// so the untaggable evidence sentences below stay byte-identical to
+	// what they said before #1133 for every type this predicate does not
+	// touch.
+	case row.Signals.Taggable:
+		const unservedNote = "taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so "
+		switch {
+		case hasList:
+			row.Path = pathEnumerableUnbindable
+			row.Evidence = identityNote + "; " + unservedNote + "the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+		case listable && len(scoping) == 0:
+			row.Path = pathEnumerableUnbindable
+			row.Evidence = identityNote + "; " + unservedNote + "Cloud Control listing " + cfnType + " with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+		case listable:
+			row.Path = pathOps
+			row.Evidence = identityNote + "; " + unservedNote + "no native list resource, and Cloud Control's list handler for " + cfnType +
+				" requires " + strings.Join(scoping, " and ") + " as scoping input, which no enumeration leg supplies today"
+		default:
+			row.Path = pathOps
+			row.Evidence = identityNote + "; " + unservedNote + "no native list resource and no Cloud Control list handler, so no admission path recovers it"
+		}
+
 	case hasList:
 		row.Path = pathEnumerableUnbindable
 		row.Evidence = identityNote + "; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"

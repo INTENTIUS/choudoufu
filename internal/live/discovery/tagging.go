@@ -482,6 +482,22 @@ func nativeSweepReaches(req Request, schemas listclient.Schemas, typeName string
 // vouches for - was structurally useless for exactly the estates it
 // helps most. A type in an unserved service sweeps through the native
 // per-type leg instead.
+//
+// This is coarser than the truth, and issue #1134's real-AWS measurement
+// says so precisely: RGTA never indexes aws_iam_role in any region, but it
+// DOES index aws_iam_policy and aws_iam_instance_profile - 500 each,
+// and only in us-east-1, because IAM is global and indexes there. This map
+// has no per-type or per-region axis to say that, so the "aws_iam_" entry
+// answers true for all three, which is right for roles and wrong for
+// policies and instance profiles everywhere the truth is really "true only
+// in us-east-1". Routing those two away from the tagging leg unconditionally
+// costs nothing this map didn't already cost before #1134 measured it -
+// see issue #881 - and is strictly safer than the alternative of claiming a
+// route this predicate cannot place in a region. Building the per-type,
+// per-region model is issue #1144's, not this map's; #1133 is the first
+// consumer outside the sweep itself (tools/survey-gen/classify.go, via
+// [TaggingAPIUnservedType]) to read this set, and it inherits the same
+// coarseness until #1144 lands.
 var taggingAPIUnservedServices = map[string]bool{
 	"aws_iam_": true,
 }
@@ -497,6 +513,16 @@ func taggingAPIUnservedType(typeName string) bool {
 		}
 	}
 	return false
+}
+
+// TaggingAPIUnservedType is [taggingAPIUnservedType] exported for callers
+// outside this package that need the same routing preference without
+// re-deriving it - today tools/survey-gen/classify.go (issue #1133), which
+// stops the survey from asserting a tag-filtered-list recovery route this
+// package's own sweep does not take. See [taggingAPIUnservedServices]'s doc
+// comment for the coarseness this inherits and issue #1144 for the fix.
+func TaggingAPIUnservedType(typeName string) bool {
+	return taggingAPIUnservedType(typeName)
 }
 
 // arnJoinCFNType is the CFN type the tag sweep should reason about for
