@@ -1,5 +1,5 @@
 # k8s-custom-resource
-# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; the plan submits the planned object to the server with dryRun=All and prints its acceptance, and a manifest the server rejects refuses the plan by name in the server's words; a label stripped out of band is restored by the next plan, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal., and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused. ~5 min.
+# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; the plan submits the planned object to the server with dryRun=All and prints its acceptance, and a manifest the server rejects refuses the plan by name in the server's words; a label stripped out of band takes the object out of the estate and the next plan refuses it by name, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal; and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused. ~5 min.
 #
 # The first unit of #1079 (ruled 2026-09-12): every custom resource is
 # declared through kubernetes_manifest, whose whole object is one dynamic
@@ -350,26 +350,44 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ -z "$LIVE_REPLICAS" ] || fail "k8s-custom-resource" "BREAK: the dry run wrote spec.replicas=$LIVE_REPLICAS to the live object"
   proof "caught: the server refused replicas 0 under the CRD's minimum of 1 - a rule only the server checks - the plan was refused by name in the server's words, no plan was produced and nothing was written. The edit is reverted."
 
-  step "BREAK control - strip the label out of band; the replan must propose restoring it"
+  step "BREAK control - strip the label out of band; the replan must refuse the object by name"
   explain \
     "You asked for proof the assertions can fail. This removes the" \
     "tofu-estate label with kubectl, behind choudoufu's back. The provider" \
     "treats metadata.labels as a computed field by default and would accept" \
     "the stripped object as the truth; if the next plan is empty, the" \
-    "label is decoration and nothing holds the object inside the boundary."
+    "label is decoration and nothing holds the object inside the boundary." \
+    "What the plan must do is what it does with an unlabelled ConfigMap and" \
+    "with a stripped tofu-estate tag on AWS (#1108): an object carrying no" \
+    "marker is nobody's, so the plan refuses it by name and falls back to" \
+    "creating what the block declares - and the server's own dry run then" \
+    "refuses that create, because the object it would not adopt is still" \
+    "holding the name. Adopting it back is a label write an operator makes," \
+    "which is what the next line does with kubectl."
   cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate-"
   kc label crontab my-crontab -n smoke-crd tofu-estate- >/dev/null || fail "k8s-custom-resource" "BREAK: could not strip the label"
   SOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  SFLAT="$(tr '\n' ' ' <<< "$SOUT" | tr -s ' ')"
   if grep -q "No changes." <<< "$SOUT"; then
     fail "k8s-custom-resource" "BREAK: the plan is still empty after the label was stripped - the label is not what the plan holds the object by"
   fi
-  grep -E '^Plan:|will be updated|tofu-estate' <<< "$SOUT" | head -3 | evidence
-  grep -q 'kubernetes_manifest.crontab will be updated in-place' <<< "$SOUT" \
-    || fail "k8s-custom-resource" "BREAK: the plan changed but does not propose updating kubernetes_manifest.crontab: $SOUT"
-  ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "k8s-custom-resource" "BREAK: the restoring apply failed"
-  RESTORED="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.labels.tofu-estate}')"
-  [ "$RESTORED" = "smoke-crd" ] || fail "k8s-custom-resource" "BREAK: the apply did not restore the label (tofu-estate=$RESTORED)"
-  proof "caught: the stripped label is exactly what the plan proposed to put back, and the apply put it back."
+  grep -E 'kubernetes_manifest.crontab \[UNOWNED\]|API server rejected the planned object' <<< "$SOUT" | head -2 | evidence
+  grep -q 'kubernetes_manifest.crontab \[UNOWNED\]' <<< "$SOUT" \
+    || fail "k8s-custom-resource" "BREAK: the plan does not refuse the unlabelled custom resource by name - it was adopted in silence: $(grep -E '^Plan:|will be' <<< "$SOUT" | head -3)"
+  grep -q 'carries no tofu-estate label, so this estate does not own it' <<< "$SFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the refusal does not say the object carries no marker for this estate: $SOUT"
+  grep -q 'The API server refused the create kubernetes_manifest.crontab plans' <<< "$SFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the refused object was not followed by the server refusing the create it fell back to: $SOUT"
+  grep -q 'crontabs.stable.example.com "my-crontab" already exists' <<< "$SFLAT" \
+    || fail "k8s-custom-resource" "BREAK: the server's answer is not that the unowned object still holds the name: $SOUT"
+  STILL="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.labels.tofu-estate}')"
+  [ -z "$STILL" ] || fail "k8s-custom-resource" "BREAK: the plan put the label back on an object it does not own (tofu-estate=$STILL)"
+  cmd "kubectl label crontab my-crontab -n smoke-crd tofu-estate=smoke-crd   # the operator adopts it back"
+  kc label crontab my-crontab -n smoke-crd tofu-estate=smoke-crd >/dev/null || fail "k8s-custom-resource" "BREAK: could not adopt the object back"
+  AOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  grep -q "No changes." <<< "$AOUT" \
+    || fail "k8s-custom-resource" "BREAK: the replan after the operator's own label write is not empty: $(grep -E '^Plan:|will be' <<< "$AOUT" | head -3)"
+  proof "caught: with its label gone the CronTab is nobody's. The plan refuses it by name rather than relabelling it, falls back to the create the block declares, and the server's dry run refuses that too because the unowned object still holds the name. The label stays off until an operator writes it - after which the replan is empty again."
 
   step "BREAK control - strip the label and remove the block; the replan must not list the object"
   explain \

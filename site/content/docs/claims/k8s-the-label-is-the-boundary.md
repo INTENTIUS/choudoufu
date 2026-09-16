@@ -60,38 +60,49 @@ The steps, in the order they print:
    the exact question the policy will ask.
 3. `each principal stands its own estate up` - three objects under Alice,
    two under Bob, every create carrying the label.
-4. `Alice converges her estate` - an update on her own object lands.
-5. `Bob, through choudoufu, is refused on Alice's estate` - the same
+4. `a block declaring an object another estate owns - the PLAN refuses
+   it, with nothing in the cluster consulted` - a block in `net/` names
+   the ConfigMap `app` owns, by namespace and name, and the plan refuses
+   it by name in the sentence a declared AWS resource carrying another
+   estate's `tofu-estate` tag gets, proposes only the create the block
+   declares, and leaves the live object alone
+   ([#1108](https://github.com/INTENTIUS/choudoufu/issues/1108)).
+5. `Alice converges her estate` - an update on her own object lands.
+6. `Bob, through choudoufu, is refused on Alice's estate` - the same
    configuration under his ServiceAccount, and the apply comes back
    `Forbidden` naming the policy and the estate; then Alice applies the
    pending change.
-6. `Bob, tool-less, is refused on Alice's object` - a plain `kubectl
+7. `Bob, tool-less, is refused on Alice's object` - a plain `kubectl
    label`, a plain `kubectl delete` and a plain strip of the marker, all
    refused, and a plain `kubectl get` let through.
-7. `Bob's own estate, tool-less, and the API server lets it through` -
+8. `Bob's own estate, tool-less, and the API server lets it through` -
    the next plan sees the drift and reconciles it.
-8. `a rename is a configuration edit: live-mv has nothing governed to
+9. `a rename is a configuration edit: live-mv has nothing governed to
    write` - Bob renames the router block, runs the same `live-mv` an AWS
    runbook ends a rename with, and it reports `Nothing to write` and exits
    0; the next plan is empty.
-9. `the carve begins with a git move, and the relabel is refused from
-   both sides` - Alice runs `live-mv -from-estate=app` in `data/` and is
-   refused by the policy on the estate the object would enter, as is her
-   plain `kubectl label`; Bob is refused on the estate it is leaving.
-10. `handover is an RBAC change: grant Alice data, and the same live-mv
+10. `the carve begins with a git move, and the relabel is refused from
+    both sides` - Alice runs `live-mv -from-estate=app` in `data/` and is
+    refused by the policy on the estate the object would enter, as is her
+    plain `kubectl label`; Bob is refused on the estate it is leaving.
+11. `handover is an RBAC change: grant Alice data, and the same live-mv
     goes through` - the grant template for `data` is applied to Alice,
     the same `live-mv` lands, and `kubectl` reads `tofu-estate=data` back.
-11. `every estate plans clean, each under its own principal` - `app` no
+12. `every estate plans clean, each under its own principal` - `app` no
     longer declares the block and the object no longer carries its label,
     so its plan is honestly empty.
-12. `teardown - each estate by its own destroy, under its own principal`.
+13. `teardown - each estate by its own destroy, under its own principal`.
 
-The `BREAK=1` run deletes the policy after step 3 and requires the three
+The `BREAK=1` run deletes the policy after step 4 and requires the three
 writes the main run refuses, Bob's apply on Alice's estate, his plain
 `kubectl label` on her object, and Alice's `live-mv -from-estate=app` into
 an estate she was never granted, to succeed. If the API server still said
 no, something other than the policy was the fence and the claim would
-prove nothing.
+prove nothing. Step 4 is the one assertion that must NOT change when the
+policy goes: the same arm runs it again with the policy deleted and
+requires the identical refusal, because "never write a wrong marker" is a
+property of the plan and not of the cluster. A plan that stopped refusing
+once the policy was gone would have been leaning on admission.
 
 What is exempt, and why: the control plane (nodes, the kube-system
 controllers, the scheduler and the API server itself) and any object

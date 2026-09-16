@@ -260,7 +260,18 @@ func (v *StatelessAdoptionHuman) Adoption(rep StatelessAdoption) {
 				// does not run when pasted.
 				out("      adopt with: " + r.Hint + "\n")
 			}
-			out("      or write: tofu-estate=" + r.MarkerEstate + " tofu-address=" + r.MarkerAddress + "\n")
+			// An empty MarkerAddress is a marker surface with no
+			// tofu-address on it - both Kubernetes label surfaces, where
+			// #1016 ruled the marker is the estate label alone (GitHub
+			// issue #1108, which is what lets such a resource reach this
+			// ledger at all). The same rule as the plan's own Unowned
+			// section: offer the write that adopts, never a bare
+			// "tofu-address=".
+			if r.MarkerAddress == "" {
+				out("      or write: tofu-estate=" + r.MarkerEstate + "\n")
+			} else {
+				out("      or write: tofu-estate=" + r.MarkerEstate + " tofu-address=" + r.MarkerAddress + "\n")
+			}
 		})
 
 	v.adoptionSection(rep, AdoptionNoPath, "No adoption path", statelessAdoptionNoPathIntro,

@@ -372,3 +372,42 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 		t.Errorf("Document wrote to stderr on a successful marshal: %q", got)
 	}
 }
+
+// TestStatelessPlan_unownedAdoptionHintOnALabelSurface: GitHub issue
+// #1108's consequence for this view. Reading a Kubernetes object's label
+// is what makes it possible for one to appear in this section at all, and
+// the adoption hint an operator copies out of it has to be the write that
+// would actually adopt it. On a label surface that is one estate label:
+// #1016 ruled there is no tofu-address on this substrate, so a hint naming
+// one sends the reader to write a marker nothing reads - and, with the
+// MarkerAddress field empty, would print a bare trailing "tofu-address=".
+//
+// Proved red by restoring the single-branch body of the ADOPTABLE case in
+// [StatelessPlanView.Unowned]:
+//
+//	out("      adopt by writing: tofu-estate=" + u.MarkerEstate + " tofu-address=" + u.MarkerAddress + "\n")
+func TestStatelessPlan_unownedAdoptionHintOnALabelSurface(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.Unowned([]StatelessUnowned{
+		{
+			Addr:         "kubernetes_config_map.app",
+			TypeName:     "kubernetes_config_map",
+			LiveID:       "smoke-k8s/app-config",
+			MarkerEstate: "smoke-k8s",
+		},
+	})
+
+	got := done(t).Stdout()
+
+	if want := "      adopt by writing: tofu-estate=smoke-k8s\n"; !strings.Contains(got, want) {
+		t.Errorf("the section does not carry the label-only adoption hint %q:\n%s", want, got)
+	}
+	if strings.Contains(got, "tofu-address") {
+		t.Errorf("the adoption hint for a label surface names tofu-address, which #1016 ruled does not exist there:\n%s", got)
+	}
+	if strings.Contains(got, "Write both tags") {
+		t.Errorf("the adoption hint for a label surface says to write two tags:\n%s", got)
+	}
+}

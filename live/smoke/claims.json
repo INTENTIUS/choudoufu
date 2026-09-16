@@ -492,7 +492,7 @@
       "minutes": 2,
       "needs_go": false,
       "theme": "adopt",
-      "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to propose restoring it",
+      "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns",
       "substrate": "kubernetes",
       "providers": {
         "aws": {
@@ -532,13 +532,13 @@
     {
       "id": 23,
       "slug": "k8s-the-label-is-the-boundary",
-      "title": "The label is the boundary: one admission policy fences every write to an estate's objects, and live-mv -from-estate is the governed relabel",
+      "title": "The label is the boundary: the plan refuses another estate's object on its own, and one admission policy fences every write to an estate's objects",
       "scenario": "live/smoke/scenarios/k8s-the-label-is-the-boundary.sh",
       "command": "just smoke k8s-the-label-is-the-boundary",
-      "minutes": 4,
+      "minutes": 5,
       "needs_go": false,
       "theme": "gate",
-      "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through",
+      "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through, while step 4's plan-side refusal of another estate's object must still hold with the policy gone",
       "substrate": "kubernetes",
       "providers": {
         "aws": {
@@ -561,7 +561,7 @@
       "minutes": 5,
       "needs_go": false,
       "theme": "adopt",
-      "break_mode": "BREAK=1 writes spec.replicas = 0 under a CRD that bounds it at minimum 1, a rule only the server checks, and requires the replan refused by name with the server's message quoted and no plan produced; strips the tofu-estate label with kubectl and requires the replan to propose the update that restores it; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it; and it installs a MutatingAdmissionPolicy that rewrites spec.image on every update, then migrates the stock-made CronTab, requiring live-import to refuse the label write by name (\"would also change spec.image\"), count it as 1 failed, and leave the object's label and spec untouched",
+      "break_mode": "BREAK=1 writes spec.replicas = 0 under a CRD that bounds it at minimum 1, a rule only the server checks, and requires the replan refused by name with the server's message quoted and no plan produced; strips the tofu-estate label with kubectl and requires the replan to refuse the CronTab by name and the server's dry run to refuse the create it falls back to, leaving the label off until an operator writes it back; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it; and it installs a MutatingAdmissionPolicy that rewrites spec.image on every update, then migrates the stock-made CronTab, requiring live-import to refuse the label write by name (\"would also change spec.image\"), count it as 1 failed, and leave the object's label and spec untouched",
       "substrate": "kubernetes",
       "providers": {
         "aws": {

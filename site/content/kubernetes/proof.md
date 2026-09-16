@@ -44,13 +44,17 @@ second cloud: a verdict line per step, exit 0 only when every claim held,
 ConfigMap under a `live` block with no AWS provider anywhere, reads the
 `tofu-estate` label back with kubectl, replans empty, loses its cache
 without consequence, and destroys exactly; its `BREAK=1` strips the label
-and requires the replan to propose restoring it
+and requires the replan to refuse the object by name, because an object
+carrying no marker is nobody's
 ([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
 [Claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}}) runs the
 sweep on the same harness, and [claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})
-runs the gate: two ServiceAccounts, two estates, a plain `kubectl label`
-refused by the API server across the boundary, and a carve by relabel the
-policy governs, with `BREAK=1` removing the policy.
+runs the gate: a block declaring another estate's object refused by the
+plan itself before any cluster is consulted, two ServiceAccounts, two
+estates, a plain `kubectl label` refused by the API server across the
+boundary, and a carve by relabel the policy governs, with `BREAK=1`
+removing the policy and requiring the plan-side refusal to hold without
+it.
 [Claim 24]({{< relref "/docs/claims/k8s-custom-resource" >}}) runs a
 custom resource through the whole of it on a CRD the scenario installs:
 refused by name while the CRD is missing, bound by the key inside its

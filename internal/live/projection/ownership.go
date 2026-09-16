@@ -91,6 +91,21 @@ type Unowned struct {
 	// just not by this run.
 	Estate string
 
+	// AddressMarker reports whether this resource type's marker surface
+	// carries a tofu-address beside the estate marker - true for the AWS
+	// tag map, false for both Kubernetes label surfaces, where #1016 ruled
+	// the marker is the estate label alone because the object's own group,
+	// kind, namespace and name are the join key back to configuration.
+	//
+	// It exists so that whoever renders the adoption hint offers the write
+	// that would actually adopt this object. Before GitHub issue #1108 no
+	// Kubernetes object could ever become an Unowned entry, so the hint
+	// naming two tags was right everywhere it could be printed; the moment
+	// the label is read it is printed on objects where writing a
+	// tofu-address label is not the adoption and would leave a marker
+	// nothing reads.
+	AddressMarker bool
+
 	// Detail is one sentence aimed at an operator.
 	Detail string
 }
@@ -144,6 +159,21 @@ const (
 // reconciliation silently start rejecting resources this estate already
 // manages, which is not power the issue asks this quadrant to have.
 //
+// "Marker", likewise, is whichever carrier the type's own schema has -
+// [markerSurfaceOf]. GitHub issue #1108: the surface read used to be the
+// AWS tag map and nothing else, so every Kubernetes type fell through the
+// "nowhere to put a marker" case below and was admitted without its label
+// ever being read. The consequences were both of the ones this function
+// exists to prevent, on a whole substrate: an object carrying another
+// estate's label was bound by its natural key and the plan proposed
+// relabelling it to this estate, leaving the admission policy of #1066 -
+// where a cluster admin has installed it - as the only thing between that
+// plan and a wrong marker written over somebody else's; and an unlabelled
+// object was adopted with nothing said. Reading the label puts both back
+// where the tag surface already had them: the first refuses by name with
+// the sentence below that names the estate the object does carry, the
+// second is declared_untagged and its policy verb decides.
+//
 // A type with nowhere to put a marker is admitted: the marker contract is
 // defined over taggable types, and the resources in the v0 subset that carry
 // no tags - a bucket policy, a role policy attachment, a route, a route table
@@ -178,6 +208,7 @@ const (
 // [ownershipStale].
 func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst bool) ownershipVerdict {
 	own := b.opts.Ownership
+	surface := markerSurfaceOf(schema.Block)
 	switch {
 	case own == nil:
 		return ownershipOK
@@ -241,11 +272,11 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		// invisible until the next full read) is priced by the
 		// -refresh=false contract this arm only ever runs under.
 		return ownershipOK
-	case !markerCapable(schema.Block):
+	case surface == surfaceNone:
 		return ownershipOK
 	}
 
-	tags, taggable := markers.TagsOf(obj)
+	tags, taggable := surface.markersOf(obj)
 	if !taggable {
 		if recordFirst {
 			// Nothing on the object says whose it is, which is exactly
@@ -261,12 +292,12 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		// ownership fact, and it is not a licence to adopt: the object has
 		// nothing on it that says whose it is.
 		b.unowned(addr, typeName, importID, "", fmt.Sprintf(
-			"The provider read the %s with identity %q back without a tags attribute, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
-			typeName, importID, markers.TagEstate), noMarkerCause(typeName), false)
+			"The provider read the %s with identity %q back without a %s, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
+			typeName, importID, surface.carrierPhrase(), markers.TagEstate), noMarkerCause(typeName), surface.carriesAddress(), false)
 		return ownershipUnowned
 	}
 
-	if recordFirst {
+	if recordFirst && surface.carriesAddress() {
 		// The stale-record rule ("In upstream terms", #389, ruled
 		// 2026-08-23): a record is trusted for a taggable type only while
 		// the live object's own tofu-address marker still names this
@@ -290,11 +321,13 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 	estate := tags[markers.TagEstate]
 	tagged := estate != "" && own.Estate != "" && estate == own.Estate
 
-	if tagged {
+	if tagged && surface.carriesAddress() {
 		// This estate's marker is on the object, so the second half of the
 		// marker spec's ownership question applies: WHICH of this estate's
 		// instances is it? GitHub issue #244 - both this layer and discovery
 		// deferred that to the other, in comments, and neither performed it.
+		//
+		// Only on the tag surface: see [markerSurface.carriesAddress].
 		if detail, cause, ok := b.addressNames(addr, typeName, importID, tags); !ok {
 			b.unownedAddress(addr, typeName, importID, estate, detail, cause)
 			return ownershipUnowned
@@ -341,6 +374,14 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		detail = fmt.Sprintf(
 			"A live %s exists with identity %q, and this run has no estate name, so there is nothing to check its ownership marker against. Pass -estate=<name>, or name the estate in the live block, and re-run. See live/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID)
+	case estate == "" && !surface.carriesAddress():
+		// The Kubernetes wording. Same quadrant, same verdict, same two
+		// ways out; what differs is that the marker to write is one
+		// label and there is no address to write beside it (#1016).
+		detail = fmt.Sprintf(
+			"A live %s already exists with identity %q and carries no %s label, so this estate does not own it and the plan proposes creating the resource this configuration declares - which, for an object the API server keys by namespace and name, the cluster will refuse while the unowned one holds it. Adopt it by writing the label %s=%q onto it, then re-run; or set policy { declared_untagged = \"adopt\" } in the live block to have this run adopt it for you; or point this resource at a name nobody is using.",
+			typeName, importID, markers.TagEstate,
+			markers.TagEstate, own.Estate)
 	case estate == "":
 		detail = fmt.Sprintf(
 			"A live %s already exists with identity %q and carries no %s marker, so this estate does not own it and the plan proposes creating the resource this configuration declares - which, for a type whose name must be unique, the cloud will refuse while the unowned one holds it. Adopt it by writing %s=%q and %s=%q onto it, then re-run; or set policy { declared_untagged = \"adopt\" } in the live block to have this run adopt it for you; or point this resource at a name nobody is using.",
@@ -352,7 +393,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate and nothing in this plan reads, changes or destroys it. See live/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID, markers.TagEstate, estate)
 	}
-	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), nonDefault && verb == policy.Keep)
+	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), surface.carriesAddress(), nonDefault && verb == policy.Keep)
 	return ownershipUnowned
 }
 
@@ -544,13 +585,14 @@ func (b *builder) recordStale(addr addrs.AbsResourceInstance, typeName, importID
 // marked for a different one of its instances". Both keep a resource out of
 // the prior state on the same terms, and they must not read as the same
 // finding - each has its own entry in [refusals].
-func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, estate, detail, cause string, quiet bool) {
+func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, estate, detail, cause string, addressMarker, quiet bool) {
 	b.unownedList = append(b.unownedList, Unowned{
-		Addr:     addr,
-		TypeName: typeName,
-		ImportID: importID,
-		Estate:   estate,
-		Detail:   detail,
+		Addr:          addr,
+		TypeName:      typeName,
+		ImportID:      importID,
+		Estate:        estate,
+		AddressMarker: addressMarker,
+		Detail:        detail,
 	})
 	if !quiet {
 		b.diags = b.diags.Append(tfdiags.Sourceless(
@@ -578,7 +620,10 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 		TypeName: typeName,
 		ImportID: importID,
 		Estate:   estate,
-		Detail:   detail,
+		// Only the tag surface reaches this refusal at all - see
+		// [markerSurface.carriesAddress].
+		AddressMarker: true,
+		Detail:        detail,
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(
 		tfdiags.Warning,
@@ -588,18 +633,115 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 	b.omit(addr, ReasonUnowned, detail, cause)
 }
 
+// markerSurface names which carrier a resource type has for its ownership
+// marker. GitHub issue #1108: until it there was only one, and the switch
+// below returned "no surface" for every Kubernetes type, so [checkOwnership]
+// admitted a Kubernetes object without ever reading its label - another
+// estate's object relabelled by the plan, an unlabelled one adopted in
+// silence, and the ownership policy's verbs never reached on that substrate
+// at all.
+type markerSurface int
+
+const (
+	// surfaceNone is a type with nowhere to carry a marker. See
+	// [checkOwnership]'s doc comment for why that is admitted rather than
+	// refused.
+	surfaceNone markerSurface = iota
+	// surfaceTags is the AWS shape: a settable top-level tags map holding
+	// tofu-estate and tofu-address.
+	surfaceTags
+	// surfaceLabels is the Kubernetes metadata-block shape
+	// ([markers.LabelSurface]): metadata[0].labels, holding tofu-estate
+	// alone.
+	surfaceLabels
+	// surfaceManifest is the kubernetes_manifest shape
+	// ([markers.ManifestSurface]): manifest.metadata.labels, again
+	// tofu-estate alone.
+	surfaceManifest
+)
+
+// markerSurfaceOf reads a type's marker carrier off the provider's own
+// schema for it, never off a list of type names, for the same reason
+// [markers.Taggable] and [markers.LabelSurface] are read that way.
+//
+// The tags arm is deliberately the looser "is there a tags or tags_all
+// attribute at all" this function has always asked, rather than
+// [markers.TagSurface]: narrowing it would change which AWS types the
+// ownership rule covers, which is not this issue's question. The two
+// Kubernetes arms are disjoint from it and from each other by construction
+// - [markers.LabelSurface] refuses a taggable type and
+// [markers.ManifestSurface] refuses both a taggable type and one with a
+// metadata block - so the order of the arms cannot decide an answer.
+func markerSurfaceOf(block *configschema.Block) markerSurface {
+	if block == nil {
+		return surfaceNone
+	}
+	for _, name := range []string{"tags", "tags_all"} {
+		if _, ok := block.Attributes[name]; ok {
+			return surfaceTags
+		}
+	}
+	if _, ok := markers.LabelSurface(block); ok {
+		return surfaceLabels
+	}
+	if markers.ManifestSurface(block) {
+		return surfaceManifest
+	}
+	return surfaceNone
+}
+
 // markerCapable reports whether a resource type has anywhere to carry an
 // ownership marker, read from the provider's own schema for the type. It is
 // the same question [discovery.markerCapable] asks of a list schema, asked of
 // the managed resource schema a projection has in hand.
 func markerCapable(block *configschema.Block) bool {
-	if block == nil {
-		return false
+	return markerSurfaceOf(block) != surfaceNone
+}
+
+// markersOf reads the marker map off the live object the provider handed
+// back, from whichever place this type's surface keeps it. The second
+// return is the surface reader's own: false means "this object has no such
+// map at all", which is a provider bug on a type whose schema declares one
+// and is never a licence to adopt.
+func (s markerSurface) markersOf(obj cty.Value) (map[string]string, bool) {
+	switch s {
+	case surfaceTags:
+		return markers.TagsOf(obj)
+	case surfaceLabels:
+		return markers.LabelsOf(obj)
+	case surfaceManifest:
+		// The prior manifest [mirrorManifestMarker] has already carried
+		// the live object's own answer for [markers.TagEstate] into -
+		// see that function's doc comment, and #1079's reason for it:
+		// the provider's computed_fields default makes the live labels
+		// the truth of metadata.labels, so this is where the live
+		// object's estate label is readable on this shape.
+		return markers.ManifestLabelsOf(obj)
 	}
-	for _, name := range []string{"tags", "tags_all"} {
-		if _, ok := block.Attributes[name]; ok {
-			return true
-		}
+	return nil, false
+}
+
+// carriesAddress reports whether this surface carries a tofu-address
+// marker beside the estate one. Only the AWS tag map does: #1016's ruling
+// is that the Kubernetes marker is the estate label alone, because the
+// object's own group, kind, namespace and name are the join key back to
+// configuration and nearly half of real addresses are illegal as a label
+// value anyway. So the second half of the ownership question
+// ([builder.addressNames]) and the stale-record check that shares its rule
+// are asked on the tag surface and nowhere else, rather than being asked
+// of a label that is not supposed to exist and reading its absence as a
+// finding.
+func (s markerSurface) carriesAddress() bool { return s == surfaceTags }
+
+// carrierPhrase names where the marker map lives, for the one refusal that
+// has to tell an operator the provider returned no such map. The tags
+// wording is unchanged from before this surface existed.
+func (s markerSurface) carrierPhrase() string {
+	switch s {
+	case surfaceLabels:
+		return "metadata.labels map"
+	case surfaceManifest:
+		return "manifest.metadata.labels map"
 	}
-	return false
+	return "tags attribute"
 }

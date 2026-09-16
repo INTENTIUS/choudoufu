@@ -114,8 +114,11 @@ func TestStatelessAdoptionReport_readsTheUnownedSectionsOwnVerdict(t *testing.T)
 			{Addr: adoptionAddr(t, "aws_thing_tagged.theirs"), Reason: projection.ReasonUnowned, Detail: "unmarked"},
 		},
 		Unowned: []projection.Unowned{
-			{Addr: adoptionAddr(t, "aws_thing_tagged.mine"), TypeName: "aws_thing_tagged", ImportID: "thing-1"},
-			{Addr: adoptionAddr(t, "aws_thing_tagged.theirs"), TypeName: "aws_thing_tagged", ImportID: "thing-2", Estate: "other"},
+			// AddressMarker is the tag surface's answer (#1108): these
+			// are AWS types, so the adoption the ledger offers is the
+			// tofu-estate/tofu-address pair.
+			{Addr: adoptionAddr(t, "aws_thing_tagged.mine"), TypeName: "aws_thing_tagged", ImportID: "thing-1", AddressMarker: true},
+			{Addr: adoptionAddr(t, "aws_thing_tagged.theirs"), TypeName: "aws_thing_tagged", ImportID: "thing-2", Estate: "other", AddressMarker: true},
 		},
 	}
 	unowned := statelessUnownedReport(res, "dev")

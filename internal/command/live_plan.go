@@ -2577,7 +2577,14 @@ func statelessUnownedReport(res *projection.Result, estate string) []views.State
 		}
 		if u.Estate == "" && estate != "" {
 			item.MarkerEstate = estate
-			item.MarkerAddress = markers.EscapeAddress(u.Addr.String())
+			if u.AddressMarker {
+				// GitHub issue #1108: only a tag surface carries a
+				// tofu-address. On a Kubernetes label surface the
+				// adoption is the one estate label and nothing else
+				// (#1016), so the field stays empty and the view
+				// offers the write that would actually adopt it.
+				item.MarkerAddress = markers.EscapeAddress(u.Addr.String())
+			}
 		}
 		items = append(items, item)
 	}
