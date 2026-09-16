@@ -142,7 +142,7 @@ a key it does not recognise. The object is created, the run prints
 plan reads the estate's own object as somebody else's, `live-ls` reports
 the estate empty, the next apply wedges on `configmaps "app-config" already
 exists`, and `declared_untagged = "adopt"` reports `1 changed` over a label
-it never wrote, on every run. Those two summary lines are #1190; the
+it never wrote, on every run. Those two summary lines are #1192; the
 scenario asserts them verbatim because they are what a user sees. Its
 `BREAK=1` points the identical policy at a decoy label instead of the
 marker and requires the decoy stripped, the marker landed, `live-ls`

@@ -26,10 +26,10 @@
 # object is created, the run reports it created, and the marker never
 # lands - so the estate believes it owns an object no marker says is its.
 # Nothing in the write path checks that the marker it sent is the marker
-# the server stored. #1190 tracks that; this scenario asserts today's
+# the server stored. #1192 tracks that; this scenario asserts today's
 # behaviour verbatim, including the "Apply complete! Resources: 0 added, 1
 # changed, 0 destroyed" that an adopting run prints over a label it did not
-# manage to write, because that is what a user sees. Closing #1190 changes
+# manage to write, because that is what a user sees. Closing #1192 changes
 # steps 6 and 7 on purpose.
 #
 # BREAK=1 installs the same stripping policy against a DECOY label instead
@@ -487,7 +487,7 @@ explain \
   "not recognise, and tofu-estate is one of them. choudoufu sends the" \
   "marker on the create, the server stores the object without it, and" \
   "the run reports the object created. Nothing in the write path asks" \
-  "whether the marker it sent came back, so nothing notices. #1190." \
+  "whether the marker it sent came back, so nothing notices. #1192." \
   "The estate is left owning an object no marker says is its."
 cmd "kubectl apply -f stripper.yaml && choudoufu apply -auto-approve"
 ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
@@ -504,7 +504,7 @@ APPLY6="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>
   || fail "$SCEN" "the apply under the stripping policy failed: $APPLY6"
 grep -E 'Creation complete|Apply complete!' <<< "$APPLY6" | evidence
 grep -qE 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed' <<< "$APPLY6" \
-  || fail "$SCEN" "the run did not report the create; if it now refuses or warns, #1190 has been closed and this claim's wording is out of date: $APPLY6"
+  || fail "$SCEN" "the run did not report the create; if it now refuses or warns, #1192 has been closed and this claim's wording is out of date: $APPLY6"
 kc get configmap app-config -n "$NS" >/dev/null 2>&1 \
   || fail "$SCEN" "the object was not created at all; the policy is rejecting rather than mutating"
 STORED="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels}')"
@@ -512,7 +512,7 @@ echo "stored labels: ${STORED:-<none>}" | evidence
 case "$STORED" in
   *tofu-estate*) fail "$SCEN" "the marker survived the stripping policy; there is no fault to measure: $STORED" ;;
 esac
-proof "\"1 added\", says the run. No tofu-estate label, says the cluster. The write the estate's whole ownership model rests on was discarded and the run that made it reported success - that is #1190."
+proof "\"1 added\", says the run. No tofu-estate label, says the cluster. The write the estate's whole ownership model rests on was discarded and the run that made it reported success - that is #1192."
 
 step "7. what the next run says, and what the remedy it names is worth"
 explain \
@@ -559,7 +559,7 @@ for n in 1 2; do
   ADOPT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || ADOPT_RC=$?
   grep -E 'Apply complete!' <<< "$ADOPT" | sed "s/^/adopt run $n: /" | evidence
   [ "$ADOPT_RC" = "0" ] \
-    || fail "$SCEN" "adopt run $n did not exit 0; if it now refuses, #1190 is closed and this claim's wording is out of date: $ADOPT"
+    || fail "$SCEN" "adopt run $n did not exit 0; if it now refuses, #1192 is closed and this claim's wording is out of date: $ADOPT"
   grep -qE 'Apply complete! Resources: 0 added, 1 changed, 0 destroyed' <<< "$ADOPT" \
     || fail "$SCEN" "adopt run $n did not report the adoption as one change: $ADOPT"
   AFTER="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels.tofu-estate}')"
@@ -567,7 +567,7 @@ for n in 1 2; do
     || fail "$SCEN" "adopt run $n actually wrote the marker under the stripping policy: tofu-estate=$AFTER"
 done
 kc get configmap app-config -n "$NS" -o jsonpath='labels={.metadata.labels}{"\n"}' | evidence
-proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is not: \"0 added, 1 changed, 0 destroyed\" and exit 0, twice over, with no label written either time. That summary line is #1190."
+proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is not: \"0 added, 1 changed, 0 destroyed\" and exit 0, twice over, with no label written either time. That summary line is #1192."
 
 step "8. the policy is lifted - the adoption lands and the estate is whole"
 explain \

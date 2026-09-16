@@ -124,7 +124,7 @@ with exit 0, on every run, over a label that was never stored.
 `1 added` over an object created without its marker, and `1 changed` over
 an adoption that did not happen, are both false. Nothing in the write path
 asks whether the marker it sent is the marker the server stored.
-[#1190](https://github.com/INTENTIUS/choudoufu/issues/1190) is that gap,
+[#1192](https://github.com/INTENTIUS/choudoufu/issues/1192) is that gap,
 and choudoufu already has the mechanism: `live-import` dry-runs its label
 patch and diffs the result against the live object, which is how
 [claim 24]({{< relref "/docs/claims/k8s-custom-resource" >}})'s control
@@ -132,7 +132,7 @@ catches a policy rewriting a custom resource's spec. The apply path does
 not do the equivalent.
 
 This scenario asserts both lines verbatim, because they are what a user
-sees today. Closing #1190 changes steps 6 and 7 on purpose.
+sees today. Closing #1192 changes steps 6 and 7 on purpose.
 
 Unlike [claim 25]({{< relref "/docs/claims/k8s-a-held-delete-is-not-gone" >}}),
 where stock prints the same misleading line, there is no oracle here to be

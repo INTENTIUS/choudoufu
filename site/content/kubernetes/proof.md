@@ -84,7 +84,7 @@ it does not recognise - creates the object without its marker while the
 run reports it created, so the next plan reads the estate's own object as
 somebody else's and the next apply wedges on the name. The plan is honest
 that nothing there is owned; the run that made it was not, and that is
-[#1190](https://github.com/INTENTIUS/choudoufu/issues/1190). Its `BREAK=1`
+[#1192](https://github.com/INTENTIUS/choudoufu/issues/1192). Its `BREAK=1`
 points the identical policy at a decoy label and requires the decoy
 stripped, the marker landed and the second apply clean, so the wedge is
 provably the stripped marker's doing.
