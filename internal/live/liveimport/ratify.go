@@ -16,6 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -32,6 +34,26 @@ import (
 // resource its identity.
 type Providers interface {
 	ConfiguredProvider(ctx context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error)
+}
+
+// Clusters supplies the Kubernetes cluster client for a provider
+// configuration - the same seam internal/command's statelessProviders
+// already implements for the estate sweep and the server-side dry run,
+// narrowed to the one write this package makes.
+//
+// It exists because the manifest shape's marker is not written through
+// the provider (GitHub issue #1109, ruled with #1104 on 2026-09-13): a
+// kubernetes_manifest object has no typed metadata block, so a
+// labels-only write through the provider would be a re-apply of the whole
+// manifest, and the label goes as one merge patch under the caller's own
+// credential instead. See internal/live/kubesweep/patch.go.
+//
+// A nil Clusters is what every caller before this existed supplied, and
+// the effect is exactly what it was for them: no manifest-shape resource
+// can be labelled, and -approve says so per resource rather than failing
+// the run.
+type Clusters interface {
+	LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error)
 }
 
 // Status is the ratification verdict for one resource instance. Every value
@@ -171,6 +193,33 @@ type eligible struct {
 	// settles it (GitHub issue #1073). The two surfaces are disjoint by
 	// construction; a type is one or the other or untaggable.
 	labelled bool
+
+	// manifested says the marker is carried inside a dynamic manifest
+	// argument ([markers.ManifestSurface]) - a custom resource declared
+	// through kubernetes_manifest - so Approve writes it through
+	// [approveManifest], one API merge patch rather than a write through
+	// the provider (GitHub issue #1109, ruled with #1104 on 2026-09-13).
+	// The three surfaces are disjoint by construction, and the slot pass
+	// never settles a manifest member for [labelled]'s own reason: the
+	// Kubernetes marker is one label and carries no address.
+	manifested bool
+
+	// manifestKey is the natural key read out of the state's own recorded
+	// object, [markers.ManifestKeyOf]. Set only when manifested.
+	manifestKey markers.ManifestKey
+
+	// fieldManager is the field manager the migrated block declared, or ""
+	// for the provider's own default. Set only when manifested.
+	fieldManager string
+
+	// patcher is the cluster client Approve makes the label write through,
+	// built at ratification so that Approve opens no new connection - the
+	// same reason provider above is carried forward rather than reopened.
+	// nil when this run could not build one, and patcherErr then says why,
+	// which is what Approve reports instead of writing. Set only when
+	// manifested.
+	patcher    kubesweep.LabelPatcher
+	patcherErr error
 }
 
 // recordable is [eligible]'s sibling for a record-backed instance: what
@@ -273,6 +322,13 @@ type Request struct {
 	// Providers supplies a configured provider per provider configuration
 	// address, keyed exactly as [states.Resource.ProviderConfig] names it.
 	Providers Providers
+
+	// Clusters supplies the Kubernetes cluster client the manifest shape's
+	// one-label merge patch is sent through (GitHub issue #1109). Nil for
+	// a caller that has none, which is every caller with no Kubernetes
+	// resource in its state file and every test that does not exercise
+	// the write; see [Clusters].
+	Clusters Clusters
 
 	// Secrets is the root module's `strict { secrets = ... }` setting,
 	// GitHub issue #365, resolved by the caller with identity.SecretsFor.
@@ -619,7 +675,14 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// carrier too. Checked after the tags map, which [markers.LabelSurface]
 	// itself refuses to double-count.
 	labelled := !selected && !taggable(schema.Block) && labelSurface(schema.Block)
-	if !selected && !taggable(schema.Block) && !labelled {
+
+	// GitHub issue #1109: the manifest shape is the third carrier, and was
+	// not one here, so every kubernetes_manifest entry in a stock state
+	// file - every custom resource an estate declares - was ratified
+	// UNTAGGABLE and migrated without its label. Checked after the other
+	// two, which [markers.ManifestSurface] itself refuses to double-count.
+	manifested := !selected && !taggable(schema.Block) && !labelled && manifestSurface(schema.Block)
+	if !selected && !taggable(schema.Block) && !labelled && !manifested {
 		return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
 	}
 
@@ -631,6 +694,23 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	}
 	priorVal, _ := prior.Value.UnmarkDeep()
 	entry.LiveID = liveIDFrom(typeName, priorVal)
+
+	// GitHub issue #1109. A manifest-shape instance has no flat id
+	// attribute at all - its whole object is one dynamic argument - so
+	// [liveIDFrom] answers "" for it and the report used to print "live
+	// id: -" for every custom resource. Its live id is the provider's own
+	// documented import id, built from the four natural-key components
+	// inside the manifest, which is the same string the sweep files a
+	// listed object under and the same one identity resolution renders
+	// from a declaration.
+	var manifestKey markers.ManifestKey
+	if manifested {
+		var keyOK bool
+		manifestKey, keyOK = markers.ManifestKeyOf(priorVal)
+		if keyOK {
+			entry.LiveID = kubesweep.ManifestImportID(manifestKey.APIVersion, manifestKey.Kind, manifestKey.Namespace, manifestKey.Name)
+		}
+	}
 
 	readResp := provider.ReadResource(ctx, providers.ReadResourceRequest{
 		TypeName:      typeName,
@@ -675,7 +755,49 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	return entry, carriers{eligible: &eligible{residuable: sub, labelled: labelled}}
+	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested}
+	if manifested {
+		elig.manifestKey = manifestKey
+		elig.fieldManager = manifestFieldManager(priorVal)
+		elig.patcher, elig.patcherErr = manifestPatcher(ctx, req, providerAddr)
+		if !manifestKey.Complete() {
+			// Said here rather than only at Approve, so the READ-ONLY run
+			// reports it: a dry run whose whole job is to tell an operator
+			// what -approve will do must not stay silent about a resource
+			// -approve is going to fail on. The verdict itself stays what
+			// the live read made it - the object is there and it does
+			// match - because what is missing is this run's ability to
+			// NAME it, not the object.
+			entry.Detail += fmt.Sprintf(" Its recorded state names no apiVersion, kind and metadata.name, so -approve cannot find the live object to label it: it will report %s failed.", addr)
+		} else if elig.patcher == nil {
+			entry.Detail += fmt.Sprintf(" No cluster client could be built from provider configuration %s, so -approve cannot write its tofu-estate label: %s.", providerAddr, elig.patcherErr)
+		}
+	}
+	return entry, carriers{eligible: elig}
+}
+
+// manifestPatcher is the cluster client one manifest-shape instance's
+// label write goes through, from [Request.Clusters], or the error that
+// stood in its way. A run whose caller supplied no [Clusters] at all - a
+// test, or a command that has not been given the seam - reports the
+// absence as the error, because to a manifest-shape resource it is the
+// same outcome: no label can be written, and the reason has to be said
+// rather than swallowed.
+//
+// A nil client with a nil error never reaches Approve: the error is
+// substituted here.
+func manifestPatcher(ctx context.Context, req Request, providerAddr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
+	if req.Clusters == nil {
+		return nil, fmt.Errorf("this run was started without a Kubernetes cluster client")
+	}
+	patcher, err := req.Clusters.LabelPatcher(ctx, providerAddr)
+	if err != nil {
+		return nil, err
+	}
+	if patcher == nil {
+		return nil, fmt.Errorf("no cluster client was built for %s", providerAddr)
+	}
+	return patcher, nil
 }
 
 // ratifyUntaggable is ratifyOne's verdict for an ADMITTED instance whose

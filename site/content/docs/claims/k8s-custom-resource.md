@@ -124,8 +124,37 @@ The steps, in the order they print:
 9. `the block returns - the object is created again` - 1 added.
 10. `destroy - exactly what was made` - the CronTab goes; the CRD, which
     nothing declared, stands.
+11. `migrate: a custom resource stock made, adopted by live-import` -
+    plain `terraform apply` creates a second namespace and a CronTab and
+    records both in a real `terraform.tfstate`, with no label on either.
+    The same source with a `live` block on it is then adopted:
+    `live-import` reads the state once, reports the CronTab's live id as
+    `apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd-stock,name=adopted-crontab`
+    rather than as untaggable, and `-approve` reports both instances newly
+    stamped, with nothing failed and nothing skipped. kubectl reads
+    `tofu-estate=smoke-crd-stock` on the custom resource, and its spec is
+    untouched.
+12. `the migrated estate replans empty, and the sweep can now see the
+    adopted object` - the plan with no state file is empty, and deleting
+    the adopted block proposes destroying exactly
+    `kubernetes_manifest.orphan_crontab_smoke-crd-stock_adopted-crontab`.
 
-The `BREAK=1` run has four controls after step 5. First it writes
+Steps 11 and 12 are what
+[#1109](https://github.com/INTENTIUS/choudoufu/issues/1109) closed. Before
+it, the summary line read `1 newly stamped ... 1 skipped` and the CronTab
+carried no label: the manifest shape was not a live-import carrier, so a
+migrated custom resource was bound by its natural key, counted as
+migrated, and left outside the boundary - the sweep did not list it, the
+admission policy did not fence it, and the report said nothing, because
+untaggable is a legitimate outcome for a type that has nowhere to carry a
+marker. The label goes on as one API merge patch under the caller's own
+credential, not through the provider: `kubernetes_manifest` has no
+metadata block, so a labels-only write through the provider would be a
+re-apply of the whole manifest rebuilt from a state file that may be days
+stale.
+
+The `BREAK=1` run has five controls, all after step 5, and it exits
+there - steps 6 to 12 are the main run only. First it writes
 `spec.replicas = 0` into the manifest; the CRD bounds the field at
 minimum 1, a rule the provider does not check and the server does, so
 the replan must be refused by name (`Kubernetes API server rejected the
@@ -139,3 +168,16 @@ must not list the object at all, because an object with no label is
 nobody's. Then it deletes the CronTab; the replan must propose creating
 it. If any plan read the other way, the label, the natural key or the
 dry run was scenery.
+
+The fifth control is the one the migration's own safety rests on. It
+stands up step 11's fixture itself - a CronTab stock made, with a state
+file behind it - and then runs the adoption against it. A `MutatingAdmissionPolicy` is installed that rewrites
+`spec.image` on every update to a CronTab. The label patch names one key
+under `metadata.labels` and can reach nothing else - but the server can,
+and "the request is small" is an assertion rather than a check. So the
+patch is sent first with `dryRun=All`, and the object the server says it
+would store is compared with the object it holds; the migration must
+refuse by name (`would also change spec.image`), count the resource as
+failed, and leave the object with no label and its original image. With the policy
+removed the same command goes through in the main run, so the refusal is
+the dry run's and not the tool's dislike of the type.

@@ -615,6 +615,12 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		// GitHub issue #1073: one label, no address, no slot - labels.go.
 		return approveLabel(ctx, estate, addr, e)
 	}
+	if e.manifested {
+		// GitHub issue #1109: the same one label, on an object with no
+		// typed metadata block to write it into, so it goes as an API
+		// merge patch rather than through the provider - manifest.go.
+		return approveManifest(ctx, estate, addr, e)
+	}
 	out := StampOutcome{Addr: addr, TypeName: e.typeName}
 
 	wantAddress := discovery.EscapeAddress(addr.String())

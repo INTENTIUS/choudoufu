@@ -102,6 +102,83 @@ func ManifestLabelsOf(obj cty.Value) (map[string]string, bool) {
 	return manifestLabels(obj.GetAttr(ManifestSurfaceAttr))
 }
 
+// ManifestKey is the natural key GitHub issue #1016 ruled a Kubernetes
+// object is bound by, as it is written inside a manifest-surface
+// resource's own dynamic argument: apiVersion, kind, and metadata.name
+// with metadata.namespace for a namespaced kind. It is the same four
+// components internal/live/identity's synthesizeManifestIdentity reads
+// out of the CONFIGURATION to render the provider's import id; this
+// reads them out of an evaluated object, which is what a migration
+// (GitHub issue #1109) has instead of a declaration.
+type ManifestKey struct {
+	APIVersion string
+	Kind       string
+	Namespace  string
+	Name       string
+}
+
+// Complete reports whether the three components that are never optional
+// were all found. A cluster-scoped kind has no namespace, so Namespace is
+// not among them.
+func (k ManifestKey) Complete() bool {
+	return k.APIVersion != "" && k.Kind != "" && k.Name != ""
+}
+
+// ManifestKeyOf reads the natural key off a manifest-surface resource's
+// whole object value, preferring the `manifest` argument - the operator's
+// own declaration, which is what a stock state file records for it - and
+// falling back to the computed `object` the provider read back, for a
+// state that stores manifest as a typed null (which is what the provider
+// hands back after an import, before any apply has run).
+//
+// The second return is false when neither attribute yields all three
+// required components, which is the only condition a caller can act on:
+// an object this pass cannot name cannot be found on the cluster either.
+func ManifestKeyOf(obj cty.Value) (ManifestKey, bool) {
+	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
+		return ManifestKey{}, false
+	}
+	for _, attr := range []string{ManifestSurfaceAttr, "object"} {
+		if !obj.Type().HasAttribute(attr) {
+			continue
+		}
+		if k, ok := manifestKey(obj.GetAttr(attr)); ok {
+			return k, true
+		}
+	}
+	return ManifestKey{}, false
+}
+
+// manifestKey reads the four components off one evaluated manifest-shaped
+// value.
+func manifestKey(manifest cty.Value) (ManifestKey, bool) {
+	if manifest.IsNull() || !manifest.IsKnown() || manifest.IsMarked() || !manifest.Type().IsObjectType() {
+		return ManifestKey{}, false
+	}
+	str := func(v cty.Value, name string) string {
+		if !v.Type().IsObjectType() || !v.Type().HasAttribute(name) {
+			return ""
+		}
+		got := v.GetAttr(name)
+		if got.IsNull() || !got.IsKnown() || got.IsMarked() || got.Type() != cty.String {
+			return ""
+		}
+		return got.AsString()
+	}
+	key := ManifestKey{
+		APIVersion: str(manifest, "apiVersion"),
+		Kind:       str(manifest, "kind"),
+	}
+	if manifest.Type().HasAttribute(LabelSurfaceBlock) {
+		meta := manifest.GetAttr(LabelSurfaceBlock)
+		if !meta.IsNull() && meta.IsKnown() && !meta.IsMarked() && meta.Type().IsObjectType() {
+			key.Name = str(meta, "name")
+			key.Namespace = str(meta, "namespace")
+		}
+	}
+	return key, key.Complete()
+}
+
 // manifestLabels reads metadata.labels off an evaluated manifest value.
 func manifestLabels(manifest cty.Value) (map[string]string, bool) {
 	if manifest.IsNull() || !manifest.IsKnown() || manifest.IsMarked() || !manifest.Type().IsObjectType() {
