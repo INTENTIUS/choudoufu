@@ -364,17 +364,17 @@
     "kubernetes": {
       "label": "kubernetes lane",
       "estates": 4,
-      "clear": 2,
+      "clear": 3,
       "stages": {
         "cold_deploy": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_count": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 3,
@@ -382,14 +382,14 @@
           "not_run": 1
         },
         "day2_remove": {
-          "pass": 2,
+          "pass": 3,
           "fail": 1,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_rename": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_replace": {
           "pass": 0,
@@ -398,44 +398,44 @@
           "n_a": 4
         },
         "day2_teardown": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "drift_reconverge": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "migrate": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "plan_approval": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "strict": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_apply": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 3,
+          "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
@@ -3923,23 +3923,112 @@
       "substrate": "kind",
       "script": "live/e2e/reference-k8s-cert-manager/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
-        "day2_count": "not_run",
+        "cold_deploy": "pass",
+        "day2_count": "pass",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_remove": "pass",
+        "day2_rename": "pass",
         "day2_replace": "n/a",
-        "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
-        "greenfield": "not_run",
-        "migrate": "not_run",
-        "plan_approval": "not_run",
-        "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
+        "day2_teardown": "pass",
+        "drift_reconverge": "pass",
+        "greenfield": "pass",
+        "migrate": "pass",
+        "plan_approval": "pass",
+        "strict": "pass",
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "protocol": "legacy"
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "day2_count": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "day2_remove": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "day2_rename": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "day2_teardown": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "drift_reconverge": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "greenfield": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "migrate": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "plan_approval": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "strict": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "test_apply": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        },
+        "test_plan": {
+          "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+          "date": "2026-09-17T21:06:43Z"
+        }
+      },
+      "clear": true,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
+        "date": "2026-09-17T21:06:43Z",
+        "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "50 objects (cert-manager v1.21.2's 47-object bundle over 11 kinds plus 3 custom resources over 3 custom kinds) from plain terraform against kind v1.36.1, a real terraform.tfstate with 50 instances, zero tofu-estate labels read back with kubectl, and the Certificate Ready=True from the self-signed ClusterIssuer; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 47 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring a CRD and an object of that CRD cannot be planned at all against an empty cluster - depends_on does not help and re-running fails identically forever (#1173, measured: 'no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"'). On top of that both cert-manager webhooks are failurePolicy: Fail, so the validating webhook has to be SERVING before a custom resource can be admitted - including through the server-side dry run kubernetes_manifest does at plan time. The whole installation therefore goes up first, with -target, on every side; the three custom resources are what the main apply creates. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 before creating anything - \"no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"\" - so the pre-apply is load-bearing and not decoration. BREAK_PREAPPLY=1 requires that one-pass plan to succeed and correctly fails",
+          "day2_count": "scaling a COUNTED CUSTOM KIND (kubernetes_manifest.issuer_shard, a cert-manager.io/v1 Issuer whose object name is shard-${count.index} inside the manifest object) from 2 to 1 destroyed exactly shard-1, planned at kubernetes_manifest.orphan_issuer_cert-manager_shard-1 (shard-0 untouched, both read with kubectl); back to 2 created exactly one object under the same name; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
+          "day2_remove": "two blocks removed, one destroy each. Deleting the namespaced custom kind (Issuer) proposed exactly one destroy at the sweep's synthetic orphan address kubernetes_manifest.orphan_issuer_cert-manager_selfsigned (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address. Deleting the Certificate then proposed exactly ONE destroy too, and crucially NOT the Secret its controller created: example-com-tls carries controller.cert-manager.io/fao and no tofu-estate label, and it is still on the cluster afterwards ({\"controller.cert-manager.io/fao\":\"true\"}), which is the controller-copy exclusion this estate exists to check. Stock's plans for both removals on the oracle cluster are also exactly one destroy each; the next plan is empty and 48 objects remain labelled",
+          "day2_rename": "moved block over a cluster-scoped custom kind: kubernetes_manifest.clusterissuer_selfsigned -> .clusterissuer_review with zero churn (no add, no change, no destroy), the live ClusterIssuer untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066)",
+          "day2_teardown": "apply -destroy removed exactly the 48 remaining objects in one apply - no second pass needed on the way down, although the way up took two - the namespace is gone, all six cert-manager CRDs are gone, and no object of any of the estate's 14 kinds carries tofu-estate=reference-k8s-cert-manager (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 48 its state held",
+          "drift_reconverge": "a CUSTOM resource (the Certificate, kind cert-manager.io/v1) deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.certificate_example_com (1 add, 0 change, 0 destroy), matching stock's own plan on the oracle cluster for the same deletion; apply created 1, spec.commonName reads back as configured, the recreated object carries the estate label again (50 labelled), and neither the ClusterIssuer nor the namespaced Issuer was touched. The change is a delete rather than a patch because every object here is a server-side-applied kubernetes_manifest: a kubectl patch makes kubectl a field manager and the reconverging apply then fails with a field-manager conflict on BOTH sides, which measures SSA ownership rather than drift. BREAK=1 deletes a second object and the single-object assertion correctly fails",
+          "greenfield": "50 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s-cert-manager (kubectl, 14 kinds), and the Certificate Ready=True from the self-signed ClusterIssuer exactly as stock's cold deploy left it; the record store held 1 file(s); replanned empty with and without the cache. Greenfield needs the SAME declared pre-apply the cold deploy did, read from live/gauntlet/estates.json rather than repeated here - the cluster is empty again, so the CRD plan-time constraint is back and it is a property of the configuration, not of who is applying it. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails",
+          "migrate": "50 of 50 stamped, 0 skipped; every object carries tofu-estate=reference-k8s-cert-manager, counted back with kubectl across all 14 kinds including the three custom ones (ClusterIssuer, Issuer, Certificate) whose CRDs the pre-apply installed. The eligibility line was: 50 of 50 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED).",
+          "plan_approval": "plan -out wrote one update to a namespaced custom kind (the Certificate gains a second dnsName); the world then moved out of band (the cainjector Deployment's replicas moved to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads one dnsName); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and both dnsNames read back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed) over a root of 50 kubernetes_manifest instances; objects carrying tofu-estate=reference-k8s-cert-manager unchanged at 50 across the estate's 14 kinds, counted with kubectl",
+          "test_plan": "the plan with no state file is empty; all 50 objects bind by namespace and name, and eight identities spanning every shape the root has - a cluster-scoped Namespace and two CRDs, a cluster-scoped custom kind (ClusterIssuer), two namespaced custom kinds (Issuer, Certificate), a Deployment and a ValidatingWebhookConfiguration - were confirmed present by value with kubectl"
+        },
+        "duration_s": 1641,
+        "stage_seconds": {
+          "cold_deploy": 118,
+          "day2_count": 325,
+          "day2_remove": 216,
+          "day2_rename": 99,
+          "day2_teardown": 144,
+          "drift_reconverge": 99,
+          "greenfield": 231,
+          "migrate": 51,
+          "plan_approval": 221,
+          "strict": 55,
+          "test_apply": 50,
+          "test_plan": 31
+        }
+      }
     },
     {
       "name": "reference-k8s-stateful",
