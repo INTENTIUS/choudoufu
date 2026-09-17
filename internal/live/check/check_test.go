@@ -190,6 +190,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// one is a sweep gap - is made in internal/live/discovery, which
 		// is a classified layer and where the refusal is registered.
 		"servicetags": true,
+		// GitHub issues #1196 and #1148's retry vocabulary: two settings,
+		// their defaults, their bounds, and the SDK load options they turn
+		// into. It refuses nothing itself - internal/live/lint does, against
+		// this table - the same division internal/live/policy and
+		// internal/live/strict have.
+		"retry": true,
 		// GitHub issue #365's strict-profile vocabulary: a setting type,
 		// the valid set, the default, and which settings a build
 		// implements. It refuses nothing itself - internal/live/lint does,
