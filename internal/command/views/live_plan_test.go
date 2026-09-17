@@ -336,6 +336,7 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
       "adopt_tofu_address": "aws_s3_bucket.data"
     }
   ],
+  "foreign": null,
   "adoptable": [
     {
       "addr": "aws_vpc.adoptable",

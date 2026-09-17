@@ -594,6 +594,26 @@ type LivePlanDocument struct {
 	// section already renders as prose ([StatelessUnowned]).
 	Unowned []StatelessUnowned `json:"unowned"`
 
+	// Foreign is every live resource the estate-wide sweep found that nobody
+	// claims - the machine-readable half of the "Not swept" / unclaimed prose
+	// the human render already prints.
+	//
+	// It was absent from this document until #1197. The run computed it, the
+	// human render showed it, and every machine reader - live-discover, and
+	// INTENTIUS/chant's choudoufuLivePlan activity - had no way to ask "what
+	// does nobody claim", even though the answer was in hand at the moment
+	// this document was built. A category the document does not carry cannot
+	// be selected on either, so this is the prerequisite for any account-side
+	// filter.
+	//
+	// Empty on a run that did not ask the account-bounded question: the sweep
+	// is only performed under -adoption-only or TOFU_LIVE_COLLECT_UNCLAIMED,
+	// and an observation run has nothing to report here rather than a silent
+	// zero meaning "nothing foreign exists". [LivePlanDocument.Swept] is what
+	// says which types were actually listed, and it is the field to read
+	// before concluding anything from an empty list.
+	Foreign []LivePlanForeign `json:"foreign"`
+
 	// Adoptable is every live resource the estate-wide sweep matched to a
 	// declared instance BY CONTENT - the identity-bearing arguments agree
 	// exactly, and the object carries no marker for this estate - the
@@ -642,6 +662,38 @@ type LivePlanDocument struct {
 // field names follow [StatelessUnowned]'s rather than the Go type's - a
 // consumer that already handles an unowned row handles this one with the
 // same code, plus the match.
+// LivePlanForeign is one live resource nobody claims, in the shape a machine
+// reader consumes. Field names follow [LivePlanAdoptable]'s for the same
+// reason that one follows [StatelessUnowned]'s: a consumer that already
+// handles an unowned or adoptable row handles this one with the same code.
+//
+// The difference from [LivePlanAdoptable] is the whole point of the category:
+// an adoptable resource matched a declared instance exactly, and this one
+// matched nothing. There is no address to adopt it to and no marker pair to
+// write, which is why neither field appears here.
+type LivePlanForeign struct {
+	// TypeName and LiveID are the resource type and the identity the live
+	// resource was found with.
+	TypeName string `json:"type"`
+	LiveID   string `json:"identity"`
+
+	// DisplayName is the human-facing name the render shows, when the type
+	// has one distinct from its identity.
+	DisplayName string `json:"display_name,omitempty"`
+
+	// HeldBy is the tofu-estate marker the resource carries, empty when it
+	// carries none - the same field [StatelessUnowned] uses under the same
+	// name, read the same way. A foreign resource carries no marker for THIS
+	// estate by construction; a non-empty value here means another estate
+	// owns it, which is exactly what a reader chasing a mis-owned resource
+	// is looking for.
+	HeldBy string `json:"tofu_estate,omitempty"`
+
+	// Why is the sweep's own one-line reason this resource counts as
+	// unclaimed, carried verbatim rather than re-derived.
+	Why string `json:"why,omitempty"`
+}
+
 type LivePlanAdoptable struct {
 	// Addr is the declared instance the live resource matched.
 	Addr string `json:"addr"`
