@@ -274,40 +274,64 @@ func TestK8sOwnership_policyVerbsReachTheLabelSurface(t *testing.T) {
 	}
 }
 
-// TestK8sOwnership_anotherEstateUnderAdoptMatchesTheTagSurface pins the
-// property this unit actually promises - the matrix applies to a label
-// surface EXACTLY as it applies to a tags surface - on the one input where
-// that is uncomfortable.
+// TestK8sOwnership_anotherEstateUnderAdoptIsRefusedOnBothSurfaces is
+// GitHub issue #1166's ruling, pinned on the two surfaces at once so they
+// cannot drift.
 //
-// [checkOwnership] reads "untagged" as "does not carry THIS estate's
-// marker", so an object carrying ANOTHER estate's marker lands in the
-// declared_untagged quadrant and `policy { declared_untagged = "adopt" }`
-// admits it, after which stamping writes this estate's marker over the
-// other estate's. That is not something #1108 introduced and it is not a
-// property of Kubernetes: the identical input on aws_cloudwatch_log_group
-// through BuildWith admits the resource and records
-// declared_untagged=adopt, measured on this tree before the fix. It is
-// filed separately as GitHub issue #1166; what belongs here is the
-// symmetry, so that whichever way that ruling goes, it moves both surfaces
-// together rather than leaving Kubernetes with a policy matrix of its own.
-func TestK8sOwnership_anotherEstateUnderAdoptMatchesTheTagSurface(t *testing.T) {
-	b := k8sOwnershipBuilder(&Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", "adopt")})
-
-	verdict := b.checkOwnership(k8sConfigMapAddr(t), configMapTestType, "smoke-k8s/app-config",
-		configMapTypeSchema(),
-		k8sLiveConfigMap(map[string]string{markers.TagEstate: "other"}),
-		true, false, false)
-
-	if verdict != ownershipOK {
-		t.Fatalf("the label surface refused under declared_untagged = adopt where the tag surface admits: verdict %d. The two surfaces must share one matrix.", verdict)
+// This test used to pin the opposite verdict. [checkOwnership] read
+// "untagged" as "does not carry THIS estate's marker", so an object
+// carrying ANOTHER estate's marker landed in the declared_untagged
+// quadrant and `policy { declared_untagged = "adopt" }` admitted it, after
+// which stamping wrote this estate's marker over the other estate's. The
+// maintainer ruled on 2026-09-16 that such an object is not untagged - it
+// is tagged, for somebody else - and that the quadrant does not reach it
+// at all, the way [builder.addressNames] already sits outside the
+// quadrants.
+//
+// What the issue asked for, and what this pins, is that the narrowing move
+// both surfaces together: the label surface and the tag surface run the
+// same input through the same function here, and both must refuse, both
+// must name the estate the object actually carries, and neither may record
+// a declared-quadrant outcome for it.
+func TestK8sOwnership_anotherEstateUnderAdoptIsRefusedOnBothSurfaces(t *testing.T) {
+	surfaces := map[string]struct {
+		typeName string
+		importID string
+		schema   providers.Schema
+		obj      cty.Value
+	}{
+		"labels": {configMapTestType, "smoke-k8s/app-config", configMapTypeSchema(),
+			k8sLiveConfigMap(map[string]string{markers.TagEstate: "other"})},
+		"tags": {"aws_cloudwatch_log_group", "/somebody/logs", tagSurfaceSchema(),
+			tagSurfaceObject(map[string]string{markers.TagEstate: "other"})},
 	}
-	if len(b.policyList) != 1 || b.policyList[0].Verb != policy.Adopt || b.policyList[0].Tagged {
-		t.Fatalf("policy outcomes = %+v, want one declared_untagged=adopt entry, as the tag surface records", b.policyList)
+
+	for name, tc := range surfaces {
+		t.Run(name, func(t *testing.T) {
+			b := k8sOwnershipBuilder(&Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", "adopt")})
+
+			verdict := b.checkOwnership(k8sConfigMapAddr(t), tc.typeName, tc.importID, tc.schema, tc.obj, true, false, false)
+
+			if verdict != ownershipUnowned {
+				t.Fatalf("declared_untagged = adopt admitted an object carrying another estate's marker on the %s surface: verdict %d", name, verdict)
+			}
+			if len(b.policyList) != 0 {
+				t.Errorf("a declared-quadrant outcome was recorded for an object outside the quadrants: %+v", b.policyList)
+			}
+			if len(b.unownedList) != 1 || b.unownedList[0].Estate != "other" {
+				t.Fatalf("the refusal does not name the estate the object carries: %+v", b.unownedList)
+			}
+			for _, want := range []string{`"other"`, "live-import -approve", "live-mv -from-estate"} {
+				if !strings.Contains(b.unownedList[0].Detail, want) {
+					t.Errorf("the refusal does not mention %q:\n%s", want, b.unownedList[0].Detail)
+				}
+			}
+		})
 	}
 
 	// With no policy block at all - the shipped default - the same object
-	// is refused. The adoption above is something an operator asked for in
-	// writing.
+	// is refused in exactly the same way. The narrowing did not make the
+	// two paths diverge.
 	def := k8sOwnershipBuilder(&Ownership{Estate: policyEstate})
 	if got := def.checkOwnership(k8sConfigMapAddr(t), configMapTestType, "smoke-k8s/app-config",
 		configMapTypeSchema(),
@@ -315,6 +339,36 @@ func TestK8sOwnership_anotherEstateUnderAdoptMatchesTheTagSurface(t *testing.T) 
 		true, false, false); got != ownershipUnowned {
 		t.Fatalf("the default refused nothing: verdict %d", got)
 	}
+}
+
+// tagSurfaceSchema and tagSurfaceObject are the smallest AWS-shaped pair
+// [checkOwnership] will read a tag surface out of, so the test above can
+// put the identical input through both surfaces in one place rather than
+// trusting two tests in two files to stay in step.
+func tagSurfaceSchema() providers.Schema {
+	return providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":   {Type: cty.String, Computed: true},
+			"name": {Type: cty.String, Optional: true},
+			"tags": {Type: cty.Map(cty.String), Optional: true},
+		},
+	}}
+}
+
+func tagSurfaceObject(tags map[string]string) cty.Value {
+	tagVal := cty.NullVal(cty.Map(cty.String))
+	if tags != nil {
+		vals := make(map[string]cty.Value, len(tags))
+		for k, v := range tags {
+			vals[k] = cty.StringVal(v)
+		}
+		tagVal = cty.MapVal(vals)
+	}
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":   cty.StringVal("/somebody/logs"),
+		"name": cty.StringVal("/somebody/logs"),
+		"tags": tagVal,
+	})
 }
 
 // TestK8sOwnership_undeclaredObjectStillReadsItsLabel: the marker read is
