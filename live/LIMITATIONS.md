@@ -83,6 +83,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `receipt-leaf` | Nothing may reference a receipt's attributes | error | live/RECEIPTS.md, "Guard 4. The leaf rule" | none |
 | `receipt-secret` | Receipt inputs reference secrets by pointer, never by value | error | live/RECEIPTS.md, "Secrets discipline" | none |
 | `receipt-value` | A receipt's value is a hash or a constant, and its type is never SecureString | error | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" | none |
+| `retry` | Retry setting is not one this fork's schema defines | error | "retry" | `live/e2e/limits/retry/` |
 | `state-backend` | State backends are not available under live resource markers | warning | "backend-block" / "cloud-block" | `live/e2e/limits/backend-block/`, `live/e2e/limits/cloud-block/` |
 | `strict-marker-repair` | Marker repair setting is not one this build implements | error | "strict-marker-repair" | `live/e2e/limits/strict-marker-repair/` |
 | `strict-markers` | Markers selection cannot be read as a selection | error | "strict-markers" | `live/e2e/limits/strict-markers/` |
@@ -93,7 +94,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**28 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 25 of the 28 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**29 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 26 of the 29 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1538,6 +1539,53 @@ and take the default.
 **Enforcement.** `RulePolicyThreshold`, `internal/live/lint/policy.go`
 (`checkLivePolicy`). Fixture at `live/e2e/limits/policy-threshold/`.
 
+### retry
+
+**Construct.** A `retry { max_attempts = ... }` or `retry { mode = "..." }`
+argument that cannot be resolved to a retry behaviour: an attempt count
+outside the range, or a mode spelling this fork does not define.
+
+**Why it is refused rather than resolved.** The two modes differ in what they
+do when the cloud pushes back. `standard` spends a fixed attempt budget at a
+fixed rate. `adaptive` slows its send rate against the service's own
+throttling signal and speeds back up when it stops. A spelling that is neither
+could plausibly be read as either, and resolving it to the default would run
+the estate under precisely the setting its author was trying to change.
+
+`max_attempts` is bounded at both ends for different reasons. Below 1 it means
+never calling the cloud at all, because the first try is an attempt. Above the
+ceiling it stops being a retry policy: every attempt past the first costs its
+own backoff, so a very large budget spends wall-clock rather than succeeding,
+and a call that cannot make progress should fail loudly instead of retrying
+for an hour.
+
+**Why the block exists at all.** aws-sdk-go-v2 defaults to three attempts, and
+three is not enough for an estate that writes a record per resource. A
+scale-50 certification against real AWS failed `test_apply` on nothing but
+
+```
+exceeded maximum number of attempts, 3 ... ThrottlingException: Rate exceeded
+```
+
+while the plan it was applying was empty — the estate was correct and the run
+failed anyway. The scale-128 run that followed cleared only because
+`AWS_RETRY_MODE=adaptive` and `AWS_MAX_ATTEMPTS=10` were exported by hand from
+outside the tool, which is the right fix in the wrong place: invisible in the
+configuration, and absent from the evidence the run recorded. GitHub issues
+#1196 and #1148.
+
+**What an omitted block means.** The aws-sdk-go-v2 defaults, which is exactly
+what every configuration written before this block existed gets. Writing the
+defaults out longhand is legitimate: it records an estate's retry behaviour
+rather than inheriting it.
+
+**Where it applies.** The record store's AWS clients, which is where the
+attempt budget actually bites — an estate writes one record per resource, so a
+large one reaches Parameter Store's throughput ceiling on its own. When a
+record write does fail on throttling, the error names that ceiling and the
+account setting that raises it, rather than an attempt count a reader would
+have to translate.
+
 ### strict-marker-repair
 
 **Construct.** A `strict` block inside a `live` block whose `marker_repair`
@@ -2471,6 +2519,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | receipt-leaf | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 4. The leaf rule" |
 | 0 | 0 | lint | receipt-secret | error | `internal/live/lint` | live/RECEIPTS.md, "Secrets discipline" |
 | 0 | 0 | lint | receipt-value | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
+| - | - | lint | retry | error | `internal/live/lint` | "retry" |
 | 0 | 0 | lint | state-backend | warning | `internal/live/lint` | "backend-block" / "cloud-block" |
 | - | - | lint | strict-marker-repair | error | `internal/live/lint` | "strict-marker-repair" |
 | - | - | lint | strict-markers | error | `internal/live/lint` | "strict-markers" |
@@ -2539,7 +2588,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**232 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**233 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

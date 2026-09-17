@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/retry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
@@ -43,8 +44,16 @@ const defaultRecordDirName = ".tofu-records"
 // credential chain (environment, shared config, IMDS) unless rs.Region asks
 // for a specific region; this package has no opinion on credentials beyond
 // that, the same position every other AWS client this fork builds takes.
-func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, moduleDir string) (staterecord.Store, error) {
-	store, err := newRecordStore(ctx, rs, estate, moduleDir)
+//
+// rt is the live block's retry block, nil when it declares none, and it
+// decides how many attempts a record write gets and under which retry mode.
+// It is threaded in rather than read from the environment because the record
+// store is where the attempt budget actually bites: an estate writes one
+// record per resource, so a large one reaches Parameter Store's throughput
+// ceiling on its own, and the SDK's default of three attempts is not enough
+// to cross it (#1196, #1148).
+func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string) (staterecord.Store, error) {
+	store, err := newRecordStore(ctx, rs, rt, estate, moduleDir)
 	if err != nil || store == nil {
 		return store, err
 	}
@@ -140,7 +149,7 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 // configuration set, once. Issue #916.
 const backendKeyPrefix = ""
 
-func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, moduleDir string) (staterecord.Store, error) {
+func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string) (staterecord.Store, error) {
 	if rs == nil {
 		return nil, nil
 	}
@@ -161,7 +170,7 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, mo
 		return store, nil
 
 	case "ssm":
-		awsCfg, err := loadAWSConfig(ctx, rs.Region)
+		awsCfg, err := loadAWSConfig(ctx, rs.Region, rt)
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"ssm\": %w", err)
 		}
@@ -176,7 +185,7 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, estate, mo
 		return store, nil
 
 	case "s3":
-		awsCfg, err := loadAWSConfig(ctx, rs.Region)
+		awsCfg, err := loadAWSConfig(ctx, rs.Region, rt)
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
 		}
@@ -223,10 +232,17 @@ func recordStoreKeyPrefix(rs *configs.LiveRecordStore, estate string) string {
 }
 
 // loadAWSConfig is the ordinary aws-sdk-go-v2 default-config chain, with an
-// explicit region when the record_store block named one.
-func loadAWSConfig(ctx context.Context, region string) (aws.Config, error) {
+// explicit region when the record_store block named one and the estate's own
+// retry settings applied on top.
+//
+// The retry options are passed even when they equal the SDK's defaults, so
+// the configuration wins over AWS_MAX_ATTEMPTS and AWS_RETRY_MODE in the
+// environment. See [retry.Config.Options] for why that direction is the one
+// that makes a run's evidence readable.
+func loadAWSConfig(ctx context.Context, region string, rt *configs.LiveRetry) (aws.Config, error) {
+	opts := retry.Build(rt).Options()
 	if region != "" {
-		return awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+		opts = append(opts, awsconfig.WithRegion(region))
 	}
-	return awsconfig.LoadDefaultConfig(ctx)
+	return awsconfig.LoadDefaultConfig(ctx, opts...)
 }

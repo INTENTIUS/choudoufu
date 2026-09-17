@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/retry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -46,6 +47,17 @@ type WriteBackRequest struct {
 	// [WriteBack] a no-op: no live block configured one, so there is
 	// nothing to write back to.
 	Store *RecordStore
+
+	// Retry is the estate's resolved retry settings, used only to explain a
+	// throttling failure in terms an operator can act on. The zero value is
+	// legitimate and means "this caller could not reach them", which
+	// [retry.ThrottleAdvice] renders without claiming an attempt count.
+	Retry retry.Config
+
+	// Backend names the record store's backend ("ssm", "s3", "local") so a
+	// throttling failure can name that service's own ceiling rather than a
+	// generic one. Empty is legitimate and yields the general advice.
+	Backend string
 
 	// PriorVersions is the projection's own record of what it read at plan
 	// time - [Result.RecordVersions] - for every kind=object (record-backed)
@@ -283,7 +295,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 				tombstoneDestroyedDeposed(env, ri, deposedDestroyed[addr.String()])
 				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig)
 			}); err != nil {
-				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
+				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
 			}
 		}
 	}
@@ -303,7 +315,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 		// member, which tombstone never carries forward) reduces to
 		// exactly the delete this replaced.
 		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version, deposedDestroyed[rv.Addr.String()]); err != nil {
-			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
+			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err, req.Backend, req.Retry))
 		}
 	}
 
@@ -1002,7 +1014,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
 			})
 			if err != nil {
-				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
+				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
 			}
 		}
 	}
@@ -1018,7 +1030,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 		// identity write, above), so this is where day2_remove's own
 		// stale-tag-after-destroy collision is actually closed.
 		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version, deposedDestroyed[rv.Addr.String()]); err != nil {
-			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
+			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err, req.Backend, req.Retry))
 		}
 	}
 
@@ -1044,7 +1056,7 @@ func priorVersion(versions []RecordVersion, addr addrs.AbsResourceInstance) stri
 // naming-both-sides discipline live/MARKERS.md's marker-collision handling
 // already uses. verb is "Writing" or "Deleting", matching the operation
 // that failed.
-func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err error) tfdiags.Diagnostics {
+func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err error, backend string, retryCfg retry.Config) tfdiags.Diagnostics {
 	var vErr *staterecord.VersionConflictError
 	if errors.As(err, &vErr) {
 		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Record store write conflict", fmt.Sprintf(
@@ -1052,9 +1064,14 @@ func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err erro
 			verb, addr, displayVersion(vErr.ExpectedVersion), displayVersion(vErr.ActualVersion),
 		)))
 	}
-	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot persist a record", fmt.Sprintf(
-		"%s the persisted record for %s failed: %s.", verb, addr, err,
-	)))
+	detail := fmt.Sprintf("%s the persisted record for %s failed: %s.", verb, addr, err)
+	// GitHub issue #1148: a throttling failure that names only an attempt
+	// count makes a reader translate it against a quota model they may not
+	// know. Name the ceiling and the settings that move it instead.
+	if advice := retry.ThrottleAdvice(err, backend, retryCfg); advice != "" {
+		detail += " " + advice
+	}
+	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot persist a record", detail))
 }
 
 // displayVersion renders staterecord's "" (no record) sentinel as an

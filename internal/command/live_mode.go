@@ -32,6 +32,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/retry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/untag"
@@ -723,6 +724,14 @@ type statelessRunner struct {
 	recordStore    *projection.RecordStore
 	recordVersions []projection.RecordVersion
 
+	// retryCfg and recordBackend carry the estate's retry settings and the
+	// record store's backend name to WriteBack, which needs both only to
+	// explain a throttling failure in terms an operator can act on rather
+	// than as an attempt count they must translate (#1196, #1148). Zero
+	// values are legitimate and yield the general advice.
+	retryCfg      retry.Config
+	recordBackend string
+
 	// rawStore is the same underlying [staterecord.Store] recordStore
 	// wraps, kept separately because two callers still need the raw
 	// interface rather than the envelope view: guided discovery's hint
@@ -925,11 +934,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// write-back paths below no-ops, exactly like a run with no live block
 	// at all skips this whole file.
 	var recordStoreCfg *configs.LiveRecordStore
+	var retryCfg *configs.LiveRetry
 	if config.Module != nil && config.Module.Live != nil {
 		recordStoreCfg = config.Module.Live.RecordStore
+		retryCfg = config.Module.Live.Retry
 	}
 	if recordStoreCfg != nil {
-		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, estate, ".")
+		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, ".")
 		if storeErr != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
 				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,
@@ -950,6 +961,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// facts together, consistently, which is the intended consequence
 		// of collapsing four namespace roots into one.
 		r.recordStore = projection.NewRecordEnvelopeStore(store, recordKeyPrefix)
+		r.retryCfg = retry.Build(retryCfg)
+		r.recordBackend = recordStoreCfg.Type
 		// Issue #349's root-output namespace rides the same underlying
 		// store, but stays a namespace of its own rather than joining the
 		// envelope: orphan discovery never needs to see it, so it keeps the
@@ -1356,6 +1369,8 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 
 	diags = diags.Append(projection.WriteBack(ctx, projection.WriteBackRequest{
 		Store:            r.recordStore,
+		Retry:            r.retryCfg,
+		Backend:          r.recordBackend,
 		PriorVersions:    r.recordVersions,
 		EnvelopeVersions: r.envelopeVersions,
 		Providers:        provAccess,

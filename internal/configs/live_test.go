@@ -960,3 +960,56 @@ func TestModule_liveReads(t *testing.T) {
 		}
 	}
 }
+
+// TestModule_liveRetry covers GitHub issues #1196 and #1148's config surface:
+// a "retry" block nested inside "live", carrying an attempt budget and a mode.
+// The decoder records what was written and judges none of it - which mode
+// spellings mean anything, and what bounds an attempt count has, is
+// internal/live/retry's vocabulary checked at lint time, the same layering
+// LiveStrict and LivePolicy already have.
+//
+// Both arguments are asserted from one fixture on purpose: they are read by
+// the same decoder, and a decoder that put mode into the attempt field would
+// pass two separate single-argument tests.
+func TestModule_liveRetry(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-retry")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	rt := mod.Live.Retry
+	if rt == nil {
+		t.Fatal("no retry block was decoded")
+	}
+	if !rt.MaxAttemptsSet {
+		t.Fatal("MaxAttemptsSet is false for a block that writes max_attempts")
+	}
+	if got, want := rt.MaxAttempts, 10; got != want {
+		t.Errorf("MaxAttempts = %d, want %d", got, want)
+	}
+	if rt.MaxAttemptsRange.Filename == "" {
+		t.Error("MaxAttemptsRange is the zero value, so a diagnostic cannot point at the argument")
+	}
+	if !rt.ModeSet {
+		t.Fatal("ModeSet is false for a block that writes mode")
+	}
+	if got, want := rt.Mode, "adaptive"; got != want {
+		t.Errorf("Mode = %q, want %q", got, want)
+	}
+	if rt.ModeRange.Filename == "" {
+		t.Error("ModeRange is the zero value, so a diagnostic cannot point at the argument")
+	}
+}
+
+// TestModule_liveRetryAbsent pins the contract every nested live block shares:
+// absent means absent. A live block with no retry block leaves Retry nil,
+// which internal/live/retry.Build reads as the aws-sdk-go-v2 defaults - what
+// every configuration written before this block existed gets.
+func TestModule_liveRetryAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live.Retry != nil {
+		t.Errorf("Retry = %#v for a live block that declares no retry block, want nil", mod.Live.Retry)
+	}
+}

@@ -114,7 +114,7 @@ func TestRecordStoreRendersTheKeyPrefixExactlyOnce(t *testing.T) {
 			// #693's provisioning handshake, which talks to AWS. The
 			// wiring under test - which prefix each backend is built
 			// with - is all in the unexported one.
-			store, err := newRecordStore(context.Background(), tc.rs, estate, t.TempDir())
+			store, err := newRecordStore(context.Background(), tc.rs, nil, estate, t.TempDir())
 			if err != nil {
 				t.Fatalf("newRecordStore: %v", err)
 			}

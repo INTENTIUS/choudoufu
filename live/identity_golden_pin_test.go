@@ -3025,7 +3025,7 @@ const (
 	// since #387. The estate itself does bind all 50 (live-import stamps
 	// 50 of 50 against a real cluster, where the schema is present); what
 	// this golden says is only that the offline analysis alone cannot.
-	identityGoldenPinDirs = 671
+	identityGoldenPinDirs = 672
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

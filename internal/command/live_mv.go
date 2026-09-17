@@ -202,7 +202,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// live-mv to exactly its pre-existing behavior for such a type.
 	var recordStore staterecord.Store
 	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, estate, ".")
+		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".")
 		if storeErr != nil {
 			log.Printf("[WARN] live-mv: could not open the record store: %s", storeErr)
 		} else {

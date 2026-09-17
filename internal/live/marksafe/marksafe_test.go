@@ -97,6 +97,12 @@ var guardedPackages = []string{
 	"pins",
 	"pluginschema",
 	"policy",
+	// GitHub issues #1196 and #1148's retry vocabulary: two settings, their
+	// defaults, their bounds, and the aws-sdk-go-v2 load options they turn
+	// into. Numbers, strings and SDK option funcs end to end - it imports no
+	// cty at all - so like "cohorts" and "docrefs" it is held to zero rather
+	// than deferred: it has nothing to defer.
+	"retry",
 	"projection",
 	"providerscope",
 	// The record-store round-trip measurement: it generates an estate,
