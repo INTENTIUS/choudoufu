@@ -161,8 +161,52 @@ func (a *Artifact) SetLiveCertResult(r LiveCertResult) {
 // line. RunEstates already gates on it for the same reason (run.go). This is
 // deliberately NOT a filter on failure - a run that spoke and failed is
 // evidence and is recorded exactly as before.
+//
+// A refusal is the second answer (#1151), and it is the same rule seen from
+// the other side. Once a run can say "I declined this rung, and here is the
+// arithmetic" (ProtocolResult.Refusal), it may well speak a stage or two
+// first - a ceiling hit at migrate leaves a real cold_deploy behind it - so
+// Spoken alone stops being enough. A refused run's evidence goes to
+// live/gauntlet-scale.json, which is keyed by (estate, target, SCALE) and
+// can hold the refused rung beside the measured one; live_cert is keyed by
+// estate alone and has room for exactly one certification, so a refusal at
+// scale 136 must not be what replaces a certification at scale 50.
 func RecordsLiveCert(res *ProtocolResult) bool {
-	return res != nil && res.Spoken
+	return res != nil && res.Spoken && res.Refusal == nil
+}
+
+// LiveCertWrites is what a finished run writes, and why. Split out of
+// cmdLiveCert so the decision can be tested without a checkout, a manifest
+// or a render: the two "do not write" cases are the ones that have gone
+// wrong before, and both of them lose a real-AWS certification when they go
+// wrong (#1100, #1151).
+type LiveCertWrites struct {
+	// LiveCertRow: write the live_cert row in live/gauntlet.json.
+	LiveCertRow bool
+	// ScaleRecord: write the (estate, target, scale) row in
+	// live/gauntlet-scale.json, subject to that file's own superseding rule
+	// and to the run naming a scale at all.
+	ScaleRecord bool
+	// Why is one sentence for the human, whenever something is NOT written.
+	Why string
+}
+
+// PlanLiveCertWrites decides what a finished run records.
+func PlanLiveCertWrites(target string, res *ProtocolResult) LiveCertWrites {
+	if target != "aws" {
+		return LiveCertWrites{Why: "target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)"}
+	}
+	if res == nil || !res.Spoken {
+		return LiveCertWrites{Why: fmt.Sprintf("the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)", ArtifactPath)}
+	}
+	if res.Refusal != nil {
+		return LiveCertWrites{
+			ScaleRecord: true,
+			Why: fmt.Sprintf("the run REFUSED this rung, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s, which is keyed by scale and can hold it beside the rung below.",
+				ArtifactPath, ScaleRecordsPath),
+		}
+	}
+	return LiveCertWrites{LiveCertRow: true, ScaleRecord: true}
 }
 
 // RunLiveCert runs live/live-cert/<estate>.sh (or LIVECERT_SCRIPT_OVERRIDE

@@ -464,17 +464,18 @@ func cmdLiveCert(root string, args []string) error {
 		}
 	}
 	fmt.Printf("live-cert %s: target=%s exit=%d clear=%v\n", estate, *target, exit, r.Clear)
-
-	if *target != "aws" {
-		fmt.Println("target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)")
-		return nil
+	if res != nil && res.Refusal != nil {
+		fmt.Printf("live-cert %s: REFUSED - %s\n", estate, res.Refusal.Reason)
+		if res.Refusal.Needed != nil {
+			fmt.Printf("live-cert %s: the arithmetic: %d needed against a limit of %d %s\n", estate, *res.Refusal.Needed, *res.Refusal.Limit, res.Refusal.Unit)
+		}
 	}
 
-	// A run that spoke no stage refused before it started, and live_cert
-	// keeps one row per estate - recording it would destroy the last real
-	// certification. See RecordsLiveCert (#1100).
-	if !RecordsLiveCert(res) {
-		fmt.Printf("live-cert %s: the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)\n", estate, ArtifactPath)
+	writes := PlanLiveCertWrites(*target, res)
+	if writes.Why != "" {
+		fmt.Printf("live-cert %s: %s\n", estate, writes.Why)
+	}
+	if !writes.LiveCertRow && !writes.ScaleRecord {
 		return nil
 	}
 
@@ -482,22 +483,13 @@ func cmdLiveCert(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.SetLiveCertResult(*r)
-	if err := SaveArtifact(root, a); err != nil {
-		return err
+	if writes.LiveCertRow {
+		a.SetLiveCertResult(*r)
+		if err := SaveArtifact(root, a); err != nil {
+			return err
+		}
+		fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
 	}
-	tt, err := LoadTypeIndexTotals(root)
-	if err != nil {
-		return err
-	}
-	scale, err := loadScaleRecordsBytes(root)
-	if err != nil {
-		return err
-	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
-		return err
-	}
-	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
 
 	// Issue #1051: every real-AWS run also upserts its own structured
 	// ScaleRecord into live/gauntlet-scale.json, the same instant its prose
@@ -508,11 +500,26 @@ func cmdLiveCert(root string, args []string) error {
 	// this schema recognizes no scale for - a live-aws certification that
 	// is not about scale, e.g. reference-ec2-vpc, has nothing for this file
 	// to add.
+	//
+	// A refused run goes through the SAME path (#1151): it is keyed by
+	// scale, so it lands on its own rung and leaves every other one alone,
+	// under SupersedeScaleRecord's rule rather than a bare upsert.
 	scaleSource := fmt.Sprintf("gauntlet live-cert %s (commit %s)", estate, r.Commit)
 	scaleRec := BuildScaleRecordFromLiveCert(*r, scaleSource)
+	if res != nil {
+		scaleRec = scaleRec.WithRefusal(res.Refusal)
+	}
 	if scaleRec.Scale == 0 && scaleRec.Resources == nil {
-		fmt.Printf("live-cert %s: no scale/resources recognized in this run's own detail text - live/gauntlet-scale.json left unchanged\n", estate)
-		return nil
+		if scaleRec.IsRefusal() {
+			// The refusal is real but has nowhere to go: a row keyed by
+			// scale needs a scale, and inventing one, or writing it at
+			// scale 0, would put it on a rung nobody ran. Say so rather
+			// than dropping it quietly.
+			fmt.Printf("live-cert %s: the refusal names no scale (GAUNTLET refused= carried no scale=), so it cannot be placed on the ladder - %s left unchanged. The refusal is in this run's log and in the output above.\n", estate, ScaleRecordsPath)
+		} else {
+			fmt.Printf("live-cert %s: no scale/resources recognized in this run's own detail text - live/gauntlet-scale.json left unchanged\n", estate)
+		}
+		return renderAfterLiveCert(root, m, a)
 	}
 	if err := ValidateScaleRecord(scaleRec); err != nil {
 		return fmt.Errorf("live-cert %s: built an invalid scale record: %w", estate, err)
@@ -521,12 +528,41 @@ func cmdLiveCert(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	sa.UpsertScaleRecord(scaleRec)
+	written, err := sa.SupersedeScaleRecord(scaleRec)
+	if err != nil {
+		return fmt.Errorf("live-cert %s: %w", estate, err)
+	}
 	if err := SaveScaleArtifact(root, sa); err != nil {
 		return err
 	}
-	fmt.Printf("recorded scale measurement for %s at scale=%d (%s)\n", estate, scaleRec.Scale, ScaleRecordsPath)
-	return nil
+	if written.IsRefusal() {
+		fmt.Printf("recorded a REFUSAL for %s at scale=%d (%s): %s\n", estate, written.Scale, ScaleRecordsPath, written.Refusal.Reason)
+	} else {
+		fmt.Printf("recorded scale measurement for %s at scale=%d (%s)\n", estate, written.Scale, ScaleRecordsPath)
+	}
+	if n := len(written.Supersedes); n > 0 {
+		prev := written.Supersedes[n-1]
+		fmt.Printf("  it superseded the row measured at %s on %s (outcome %s); the chain is %d row(s) deep and is in the record's own supersedes field\n",
+			short(prev.Commit), prev.Date, outcomeOrLegacy(ScaleRecord{Outcome: prev.Outcome}), n)
+	}
+	return renderAfterLiveCert(root, m, a)
+}
+
+// renderAfterLiveCert re-renders every file live/gauntlet.json and
+// live/gauntlet-scale.json drive, reading the scale artifact back off disk so
+// the site's copy carries whatever this run just wrote - including a refusal,
+// which writes no live_cert row and so used to reach no render at all.
+func renderAfterLiveCert(root string, m *Manifest, a *Artifact) error {
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return err
+	}
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return err
+	}
+	_, err = Render(root, m, a, tt, scale)
+	return err
 }
 
 // cmdMergeArtifact is `gauntlet merge-artifact <base> <ours> <theirs>`

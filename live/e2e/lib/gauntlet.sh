@@ -96,6 +96,57 @@ gauntlet_end() {
   printf 'GAUNTLET end=1\n'
 }
 
+# gauntlet_refused <scale> <needed> <limit> <unit> <reason...>
+#
+# The run declines the rung: not a stage that failed, a rung that will not be
+# attempted, with the arithmetic that says why (issue #1151). Any of the
+# first four arguments may be "-" for "this refusal has no such number";
+# needed and limit go together, so give both or neither.
+#
+#   gauntlet_refused 136 10070 10000 ssm-parameters \
+#     "10,069 resources need 10,070 SSM parameters against SSM's hard 10,000 cap (#1146); the uncapped s3 store is blocked behind #1145"
+#   gauntlet_refused - - - - "the account's AMI for this region is gone"
+#
+# Why this is not just `gauntlet_stage <id> not_run "..."`: a stage's not_run
+# says one stage did not happen and claims nothing about the run. This says
+# the RUN declined, which is what tools/gauntlet needs to know before it
+# decides what to write - a refusal is recorded as its own outcome in
+# live/gauntlet-scale.json, keyed by scale, and is deliberately NOT written
+# to live/gauntlet.json's live_cert row, because that row holds one
+# certification per estate and a refusal at one scale must never replace a
+# certification at another. Scale 50 cost hours of paid real-AWS runtime;
+# scale 136's refusal must land beside it, not on top of it.
+#
+# The scale matters for exactly that reason: a refusal usually happens before
+# cold_deploy, so there is no stage detail to read a scale off, and a refusal
+# that cannot name its scale cannot be placed on the ladder at all. Pass it.
+#
+# Emitting this does not end the run - the caller decides what to do next
+# (usually: tear down whatever exists, then exit non-zero).
+gauntlet_refused() {
+  local scale="${1:--}" needed="${2:--}" limit="${3:--}" unit="${4:--}"
+  shift 4 || true
+  local reason
+  reason="$(printf '%s' "$*" | tr '\n\r' '  ')"
+  if [ -z "$reason" ]; then
+    printf 'gauntlet_refused: a refusal with no reason is worth nothing on the record - give one\n' >&2
+    exit 2
+  fi
+  if { [ "$needed" = "-" ] && [ "$limit" != "-" ]; } || { [ "$needed" != "-" ] && [ "$limit" = "-" ]; }; then
+    printf 'gauntlet_refused: needed=%s limit=%s - give both or neither; one side of an arithmetic is not an arithmetic\n' "$needed" "$limit" >&2
+    exit 2
+  fi
+  if [ "$needed" != "-" ] && [ "$unit" = "-" ]; then
+    printf 'gauntlet_refused: needed=%s limit=%s with no unit - two bare numbers say nothing a later reader can check\n' "$needed" "$limit" >&2
+    exit 2
+  fi
+  local line='GAUNTLET refused=1'
+  if [ "$scale" != "-" ]; then line="$line scale=$scale"; fi
+  if [ "$needed" != "-" ]; then line="$line needed=$needed limit=$limit"; fi
+  if [ "$unit" != "-" ]; then line="$line unit=$unit"; fi
+  printf '%s detail=%s\n' "$line" "$reason"
+}
+
 # gauntlet_pin_aws_provider <versions.tf path>: rewrites a freshly copied
 # corpus module's `hashicorp/aws` requirement to an exact version, read from
 # live/oracle-versions.json's aws_provider_version field (issue #1034).
