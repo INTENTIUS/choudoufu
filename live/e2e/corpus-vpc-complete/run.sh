@@ -1512,6 +1512,14 @@ log "  healthy: count oracle at $COUNT_ORACLE_ENDPOINT"
 COUNT_ORACLE_DIR="$WORK/count-oracle"
 mkdir -p "$COUNT_ORACLE_DIR"
 awso() { aws --endpoint-url "$COUNT_ORACLE_ENDPOINT" --region "$REGION" "$@"; }
+# The version field below is the placeholder PINNED-BY-GAUNTLET, not a
+# release: the gauntlet_pin_aws_provider call after this write rewrites it
+# to live/oracle-versions.json's aws_provider_version, the same release the
+# estate side runs. A literal here would be a second copy of the pin, free
+# to drift from the first - issue #1207, where exactly that drift cost two
+# estates every stage past greenfield. If the pin call is ever dropped,
+# `init` fails on this string instead of quietly measuring against a stale
+# release.
 oracle_count_config() { # oracle_count_config <n>: the whole oracle working directory's main.tf
   {
     cat <<'EOF'
@@ -1519,7 +1527,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "PINNED-BY-GAUNTLET"
     }
   }
 }

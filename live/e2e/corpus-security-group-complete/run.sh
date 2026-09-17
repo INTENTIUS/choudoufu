@@ -645,18 +645,25 @@ EOF
 }
 
 # oracle_count_header() is G-ORACLE's own terraform + provider preamble: the
-# same provider pin as the estate (= 6.59.0, the release this checkout's
-# admission tables were generated against) and the same DELTA 1 emulator
-# flags, spelled out here because the oracle's working directory is a fresh
-# one that never sees the corpus example's own provider block. The endpoint
+# same provider pin as the estate and the same DELTA 1 emulator flags,
+# spelled out here because the oracle's working directory is a fresh one
+# that never sees the corpus example's own provider block. The endpoint
 # itself comes from AWS_ENDPOINT_URL, set per command by the caller.
+#
+# The version field is the placeholder PINNED-BY-GAUNTLET, not a release:
+# every caller passes the finished main.tf through gauntlet_pin_aws_provider,
+# which rewrites it to live/oracle-versions.json's aws_provider_version - the
+# one place the pin lives. A literal here would be a second copy of it, free
+# to drift from the first; that drift is issue #1207, which cost this estate
+# every stage past greenfield. If a pin call is ever dropped, `init` fails on
+# this string instead of quietly measuring against a stale release.
 oracle_count_header() {
   cat <<'EOF'
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "PINNED-BY-GAUNTLET"
     }
   }
 }
@@ -901,7 +908,12 @@ gauntlet_pin_aws_provider "$GREEN_EST/versions.tf" || fail "gauntlet_pin_aws_pro
 # yet either (#365 ruling 4's default refusal of that ambiguity), and a
 # greenfield apply is the one case an operator KNOWS it is a real create.
 # Same fix, same precedent as corpus-alb-complete's own 898091b8f2.
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
+# The version field is matched by SHAPE (any quoted string), never by its
+# digits: gauntlet_pin_aws_provider has already rewritten this file to
+# live/oracle-versions.json's aws_provider_version, so a literal here is a
+# second copy of the pin that silently stops matching the moment the pin
+# moves. It did - issue #1207, 6.59.0 against a pin that had gone to 6.63.0.
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$GREEN_ESTATE\"\n\n    strict {\n      no_source_create = \"create\"\n    }\n  }\n}/" "$GREEN_EST/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the greenfield live-block delta did not match versions.tf - the corpus pin has moved"
 log "  DELTA 1+2+3 applied to a fresh copy: emulator flags, vpc_associations removed, live block (estate=$GREEN_ESTATE)"
 
@@ -1222,7 +1234,12 @@ gauntlet_pin_aws_provider "$ADOPTED_EST/versions.tf" || fail "gauntlet_pin_aws_p
 
 # DELTA 3, onboarding: add the live block. No record_store needed - this
 # estate has no effects-only (null_resource/time_*/random_*) resources.
-perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"= 6\.59\.0\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n  }\n}/" "$ADOPTED_EST/versions.tf"
+# The version field is matched by SHAPE (any quoted string), never by its
+# digits: gauntlet_pin_aws_provider has already rewritten this file to
+# live/oracle-versions.json's aws_provider_version, so a literal here is a
+# second copy of the pin that silently stops matching the moment the pin
+# moves. It did - issue #1207, 6.59.0 against a pin that had gone to 6.63.0.
+perl -0pi -e "s/(required_providers \{\n    aws = \{\n      source  = \"hashicorp\/aws\"\n      version = \"[^\"]*\"\n    \}\n  \}\n)\}/\$1\n  live {\n    estate = \"$ESTATE\"\n  }\n}/" "$ADOPTED_EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED_EST/versions.tf" || fail "DELTA 3 did not match versions.tf - the corpus pin has moved"
 log "  DELTA 3  live block added                                  (onboarding)"
 
