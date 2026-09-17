@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os/exec"
 	"sort"
 	"strings"
@@ -190,17 +189,26 @@ func readinessSection(root string, oldA, newA *Artifact) string {
 	return section
 }
 
-// gitShowFile reads path as it existed at commit, or an error if it did not
-// exist there (or commit is unknown to this checkout) - both read the same
-// way to the caller, which treats any error as "nothing to report".
+// gitShowFile reads path as it existed at commit.
+//
+// Every failure - the path was not there at that commit, the commit is
+// unknown, the object is missing from a blobless clone, git will not start
+// at all - arrives as one error, so a caller that needs to tell them apart
+// must ask separately (artifactAtRevision does, with `git ls-tree`). The
+// error carries git's own stderr rather than a bare "exit status 128"
+// (#1149): it used to discard stderr outright, which left every caller's
+// diagnosis to guesswork.
 func gitShowFile(root, commit, path string) ([]byte, error) {
-	cmd := exec.Command("git", "show", commit+":"+path)
+	cmd := exec.Command("git", "show", commit+":"+path) //nolint:gosec // commit and path are internal, not attacker input
 	cmd.Dir = root
-	var out bytes.Buffer
+	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
-	cmd.Stderr = io.Discard
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return nil, fmt.Errorf("git show %s:%s: %w: %s", commit, path, err, msg)
+		}
+		return nil, fmt.Errorf("git show %s:%s: %w", commit, path, err)
 	}
 	return out.Bytes(), nil
 }

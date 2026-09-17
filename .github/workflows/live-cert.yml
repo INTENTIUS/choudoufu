@@ -174,6 +174,16 @@ jobs:
 
       # Only the certification artifact and what it renders, never source -
       # the same add-paths shape gauntlet.yml's own PR step uses.
+      #
+      # The list has to name every file `gauntlet live-cert` writes, which is
+      # every file Render writes (tools/gauntlet/render.go) plus the scale
+      # artifact. It did not, and the two scale files were the ones missing -
+      # the same defect as #1187 one layer out. A scale point produced in the
+      # runner and left out of the pull request is discarded exactly as
+      # thoroughly as one never published at all, and it is always the newest
+      # point, from the run someone went to the most trouble and expense to
+      # get. `gauntlet check` / TestRenderedDocsAreCurrent catch the rendered
+      # half on the resulting PR; nothing catches a file that was never added.
       - name: Open a pull request with the recorded certification
         id: open_pr
         continue-on-error: true
@@ -186,7 +196,11 @@ jobs:
           body-path: pr-body.md
           add-paths: |
             live/gauntlet.json
+            live/gauntlet/estates.json
+            live/gauntlet-scale.json
             site/data/gauntlet.json
+            site/data/gauntlet_board.json
+            site/data/gauntlet_scale.json
             live/GAUNTLET.md
             site/content/docs/progress/
           delete-branch: true

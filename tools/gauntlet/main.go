@@ -26,6 +26,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -164,23 +165,52 @@ func fatalIf(err error) {
 	}
 }
 
-// repoRoot finds the checkout root from the working directory.
-func repoRoot() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+// gitOutput runs a git command in dir and returns its trimmed stdout. On
+// failure the error carries git's OWN first line of stderr, not just the
+// bare "exit status 128" that exec.Cmd.Output()'s ExitError formats as
+// (#1149).
+//
+// The distinction is the whole issue. When a machine's git began refusing
+// every invocation with "You have not agreed to the Xcode license
+// agreements", `gauntlet live-cert` reported "built an invalid scale record:
+// missing required field(s): commit" - a message that names the record
+// builder and says nothing about the toolchain, so the reader debugs the
+// wrong half of the program. Every git call in this package that a human
+// ever reads the error of goes through here.
+func gitOutput(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...) //nolint:gosec // a fixed subcommand list, arguments are internal
+	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("not in a git checkout: %w", err)
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-func headCommit(root string) string {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = root
-	out, err := cmd.Output()
+// repoRoot finds the checkout root from the working directory.
+func repoRoot() (string, error) {
+	out, err := gitOutput("", "rev-parse", "--show-toplevel")
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("not in a git checkout: %w", err)
 	}
-	return strings.TrimSpace(string(out))
+	return out, nil
+}
+
+// headCommit is the provenance stamp every recorded run carries.
+//
+// It used to swallow git's error and return "" (#1149). An empty commit is
+// not a commit, and downstream it became "missing required field(s):
+// commit", which dropped the scale record of an eleven-hour real-AWS run
+// while the live_cert row for the same run wrote fine - one half of a run's
+// evidence landing and the other half silently not. The error is the
+// caller's to refuse with.
+func headCommit(root string) (string, error) {
+	return gitOutput(root, "rev-parse", "HEAD")
 }
 
 // isShallowRepo reports whether root is a shallow git checkout - one with a
@@ -192,13 +222,11 @@ func headCommit(root string) string {
 // read as "not an ancestor" purely because its object was never fetched -
 // a false positive for the #509 defect class, not a true one.
 func isShallowRepo(root string) (bool, error) {
-	cmd := exec.Command("git", "rev-parse", "--is-shallow-repository")
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "rev-parse", "--is-shallow-repository")
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(string(out)) == "true", nil
+	return out == "true", nil
 }
 
 func emulatorPin(root string) string {
@@ -278,7 +306,13 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	commit := headCommit(root)
+	// #1149: refuse before the run rather than stamping every row it
+	// produces with an empty commit. A row whose provenance cannot be
+	// established is not cheaper to discover afterwards.
+	commit, err := headCommit(root)
+	if err != nil {
+		return err
+	}
 	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Parallel: *parallel, Stdout: os.Stdout}, commit, emulatorPin(root))
 	if err != nil {
 		return err
@@ -365,7 +399,10 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	commit := headCommit(root)
+	commit, err := headCommit(root) // #1149: same rule as cmdRun - no provenance, no run
+	if err != nil {
+		return err
+	}
 	start := time.Now()
 	failures, err := RunBehaviors(root, bi, BehaviorsRunOptions{Names: fs.Args(), All: *all, Port: *port, Parallel: *parallel, Env: envs, Stdout: os.Stdout}, commit)
 	elapsed := time.Since(start)
@@ -486,17 +523,6 @@ func cmdLiveCert(root string, args []string) error {
 	if err := SaveArtifact(root, a); err != nil {
 		return err
 	}
-	tt, err := LoadTypeIndexTotals(root)
-	if err != nil {
-		return err
-	}
-	scale, err := loadScaleRecordsBytes(root)
-	if err != nil {
-		return err
-	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
-		return err
-	}
 	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
 
 	// Issue #1051: every real-AWS run also upserts its own structured
@@ -508,25 +534,68 @@ func cmdLiveCert(root string, args []string) error {
 	// this schema recognizes no scale for - a live-aws certification that
 	// is not about scale, e.g. reference-ec2-vpc, has nothing for this file
 	// to add.
+	//
+	// Issue #1149: any OTHER reason the scale row does not get written is a
+	// failure of the run, not an omission. The live_cert row is already on
+	// disk by now - deliberately, it is hours of real-AWS evidence and is
+	// never withheld - so the two halves of the run's evidence would
+	// otherwise disagree with nothing saying so. scaleErr is carried past
+	// the render below rather than returned here, so a half-written run
+	// does not also leave a stale published copy behind it.
+	var scaleErr error
+	scaleNote := ""
 	scaleSource := fmt.Sprintf("gauntlet live-cert %s (commit %s)", estate, r.Commit)
 	scaleRec := BuildScaleRecordFromLiveCert(*r, scaleSource)
-	if scaleRec.Scale == 0 && scaleRec.Resources == nil {
-		fmt.Printf("live-cert %s: no scale/resources recognized in this run's own detail text - live/gauntlet-scale.json left unchanged\n", estate)
-		return nil
+	switch {
+	case scaleRec.Scale == 0 && scaleRec.Resources == nil:
+		scaleNote = fmt.Sprintf("live-cert %s: no scale/resources recognized in this run's own detail text - %s left unchanged, which is expected for a certification that is not a scale measurement\n", estate, ScaleRecordsPath)
+	default:
+		scaleErr = saveLiveCertScaleRecord(root, scaleRec)
+		if scaleErr == nil {
+			scaleNote = fmt.Sprintf("recorded scale measurement for %s at scale=%d (%s)\n", estate, scaleRec.Scale, ScaleRecordsPath)
+		}
 	}
-	if err := ValidateScaleRecord(scaleRec); err != nil {
-		return fmt.Errorf("live-cert %s: built an invalid scale record: %w", estate, err)
+
+	// One render, after BOTH halves are on disk (issue #1187). It used to
+	// run between them: `SaveScaleArtifact` wrote live/gauntlet-scale.json
+	// and nothing afterwards touched SiteScalePath, which only Render
+	// writes. After the scale-128 certification the two files disagreed by
+	// exactly one record - the new one, the entire point of a 39,610-second
+	// real-AWS run - and the site simply lacked the point while the repo
+	// looked fine. The missing record is always the newest, which is always
+	// the one someone went to the most trouble to produce.
+	tt, err := LoadTypeIndexTotals(root)
+	if err != nil {
+		return errors.Join(scaleErr, err)
+	}
+	scale, err := loadScaleRecordsBytes(root)
+	if err != nil {
+		return errors.Join(scaleErr, err)
+	}
+	if _, err := Render(root, m, a, tt, scale); err != nil {
+		return errors.Join(scaleErr, err)
+	}
+	if scaleErr != nil {
+		return fmt.Errorf("live-cert %s: the live_cert row for this run is recorded in %s but its scale record is NOT in %s, so the two halves of this run's evidence disagree - fix the cause and re-record with `gauntlet scale-import-slice`/`scale-backfill` rather than re-running: %w", estate, ArtifactPath, ScaleRecordsPath, scaleErr)
+	}
+	fmt.Print(scaleNote)
+	return nil
+}
+
+// saveLiveCertScaleRecord validates rec and upserts it into
+// live/gauntlet-scale.json. Split out so cmdLiveCert's own control flow
+// shows the one thing #1149 is about: every failure here is returned, none
+// of them leaves the file silently unchanged.
+func saveLiveCertScaleRecord(root string, rec ScaleRecord) error {
+	if err := ValidateScaleRecord(rec); err != nil {
+		return fmt.Errorf("built an invalid scale record: %w", err)
 	}
 	sa, err := LoadScaleArtifact(root)
 	if err != nil {
 		return err
 	}
-	sa.UpsertScaleRecord(scaleRec)
-	if err := SaveScaleArtifact(root, sa); err != nil {
-		return err
-	}
-	fmt.Printf("recorded scale measurement for %s at scale=%d (%s)\n", estate, scaleRec.Scale, ScaleRecordsPath)
-	return nil
+	sa.UpsertScaleRecord(rec)
+	return SaveScaleArtifact(root, sa)
 }
 
 // cmdMergeArtifact is `gauntlet merge-artifact <base> <ours> <theirs>`

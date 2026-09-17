@@ -319,9 +319,9 @@ func TestEveryLastRunCommitIsAnAncestorOfHEAD(t *testing.T) {
 	if shallow {
 		t.Fatal("this checkout is shallow (git rev-parse --is-shallow-repository = true); last_run.commit ancestry cannot be verified without full history - fetch full history (git fetch --unshallow, or a checkout with fetch-depth: 0) rather than let this guard skip")
 	}
-	head := headCommit(root)
-	if head == "" {
-		t.Fatal("could not resolve HEAD via git rev-parse")
+	head, err := headCommit(root)
+	if err != nil {
+		t.Fatalf("could not resolve HEAD via git rev-parse: %v", err)
 	}
 	a, err := LoadArtifact(root)
 	if err != nil {
