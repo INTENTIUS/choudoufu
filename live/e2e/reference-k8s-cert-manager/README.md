@@ -88,16 +88,16 @@ It lands red on two stages, with an issue naming each, under the phase's
 rule that a lane which is a gap list beats a lane which is clear on estates
 that dodge the hard cases.
 
-## Re-measured after the three fixes: 12 of 12
+## Re-measured with #1178 fixed: 12 of 12
 
-`bash live/e2e/reference-k8s-cert-manager/run.sh`, 2026-09-17, on the
-`live/k8s-counted-1178` branch at `a502965495` (main `891ffc346d` plus
-#1178's fix and its unit tests), `TOFU_BIN` a binary built from exactly that
-commit - the two commits after it on this branch are the seed's for_each
-memoization, which returns the same values, and this text. Same substrate as
-the landing run above: kind `v1.36.1` (`kindest/node:v1.36.1`),
-`hashicorp/kubernetes` 3.2.1, stock Terraform v1.15.8, darwin/arm64, two
-clusters created and deleted by the run. Exit 0.
+`bash live/e2e/reference-k8s-cert-manager/run.sh`, 2026-09-17, with
+`TOFU_BIN` a binary built from main `891ffc346d` plus #1178's fix and its
+unit tests - and nothing else. What this branch adds on top of what that
+binary ran is the seed's for_each memoization, which returns the same values
+its unit test pins, and this text. Same substrate as the landing run above:
+kind `v1.36.1` (`kindest/node:v1.36.1`), `hashicorp/kubernetes` 3.2.1, stock
+Terraform v1.15.8, darwin/arm64, two clusters created and deleted by the
+run. Exit 0.
 
 | stage | verdict | s |
 |---|---|---|
@@ -115,9 +115,11 @@ clusters created and deleted by the run. Exit 0.
 | strict | pass | 56 |
 
 `day2_count` is #1178's own proof, and its verdict line is quoted in that
-issue. `greenfield` and `plan_approval` are green off the back of #1176 and
-#1177, which landed on main before this branch; this run measured them but
-is not their evidence.
+issue. `greenfield` is green off the back of #1176, which was already on
+main at this branch's base; this run measured it but is not its evidence.
+`plan_approval` passed at ratification too - it records #1177's answer
+rather than requiring stock parity - and it still recorded that answer
+here, because #1177's fix landed on main after the binary above was built.
 
 ## What it found
 
