@@ -191,6 +191,23 @@ set -uo pipefail
 # actual identity/plan/apply behavior below is the evidence for whether that
 # assumption holds, not a claim taken on faith.
 #
+# GAUNTLET_PIN_COVERAGE_FLOAT(3): deliberate - this estate is a control measuring whether hashicorp/aws's pre-6.x schemas hold across the 5.x/6.x boundary; pinning modules/monitoring's own `~> 5.0` would collapse the thing it exists to measure (see THE OTHER SCOPING DECISION above).
+#
+# All four copy_module calls below (PLAIN, ESTATE, GREEN, ORACLE_GREEN) are
+# deliberately left unpinned, per the decision above. The exemption is three,
+# not four, because live/pins_drift_test.go's
+# TestGauntletCrossingScriptsCoverEveryCorpusCopy (issue #1139) counts
+# DISTINCT pinned destinations and this script has one: the three
+# gauntlet_pin_aws_provider calls further down all rewrite the same
+# "$COUNT_ORACLE_DIR/main.tf", a synthetic root built from a heredoc for the
+# day2_count oracle and never a corpus copy. Four copy points less one pinned
+# destination is a deficit of three, and the guard requires an exemption that
+# spends the deficit exactly - an exemption of four would leave a spare
+# credit that silently covers whatever floating copy point someone adds here
+# next. The float is still exposed to #1041's two-registry lag WITHIN the 5.x
+# line (issue #1207's second item) - a narrower, accepted risk, not the fix
+# this exemption makes.
+#
 # STAGES:
 #   1. COLD DEPLOY   plain `tofu apply` (real OpenTofu core, no choudoufu),
 #                     the unmodified module, targeted to the two alarms and
