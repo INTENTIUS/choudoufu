@@ -91,8 +91,10 @@ that dodge the hard cases.
 ## Re-measured after the three fixes: 12 of 12
 
 `bash live/e2e/reference-k8s-cert-manager/run.sh`, 2026-09-17, on the
-`live/k8s-counted-1178` branch at `fe5729eb0a` (main `891ffc346d` plus
-#1178's fix), `TOFU_BIN` a binary built from that commit, same substrate as
+`live/k8s-counted-1178` branch at `a502965495` (main `891ffc346d` plus
+#1178's fix and its unit tests), `TOFU_BIN` a binary built from exactly that
+commit - the two commits after it on this branch are the seed's for_each
+memoization, which returns the same values, and this text. Same substrate as
 the landing run above: kind `v1.36.1` (`kindest/node:v1.36.1`),
 `hashicorp/kubernetes` 3.2.1, stock Terraform v1.15.8, darwin/arm64, two
 clusters created and deleted by the run. Exit 0.
