@@ -1064,7 +1064,8 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// that narrow case. Neither one is wrong about what happened; nothing
 	// is silently dropped.
 	if jsonRequested {
-		adoptable, swept := livePlanAdoptable(statelessForeignReport(classified, disco))
+		foreignReport := statelessForeignReport(classified, disco)
+		adoptable, swept := livePlanAdoptable(foreignReport)
 		statelessView.Document(views.LivePlanDocument{
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
@@ -1072,6 +1073,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Bound:            boundReport,
 			Omissions:        oms,
 			Unowned:          unownedItems,
+			Foreign:          livePlanForeign(foreignReport),
 			Adoptable:        adoptable,
 			Swept:            swept,
 			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
@@ -2328,6 +2330,43 @@ func statelessDiscoveryPassProviders(sweep, needs []addrs.AbsProviderConfig) []a
 // resources" sections render (GitHub issue #962). Both slices are non-nil
 // so the document prints `[]` rather than `null` for an empty section, the
 // way Bound, Omissions and Unowned already do.
+// livePlanForeign projects the sweep's unclaimed items into the document's
+// own shape (#1197).
+//
+// A separate projection rather than a field on the adoptable one, because the
+// two answer different questions: an adoptable resource matched a declared
+// instance exactly and carries the marker pair that would claim it, and a
+// foreign one matched nothing. Collapsing them would need an adoptable row
+// with its identifying fields empty, which reads as a match that failed
+// rather than a resource nobody declared.
+//
+// Returns nil rather than an empty slice for a run that sweep nothing, so the
+// document's own "foreign": null is distinguishable from "foreign": [] by a
+// reader that cares - and [LivePlanDocument.Swept] says which types were
+// listed, which is the field that decides what an empty list means.
+func livePlanForeign(rep views.StatelessForeign) []views.LivePlanForeign {
+	if len(rep.Items) == 0 {
+		return nil
+	}
+	out := make([]views.LivePlanForeign, 0, len(rep.Items))
+	for _, item := range rep.Items {
+		row := views.LivePlanForeign{
+			TypeName:    item.TypeName,
+			LiveID:      item.LiveID,
+			DisplayName: item.DisplayName,
+			Why:         item.Why,
+		}
+		for _, tag := range item.Tags {
+			if tag.Key == markers.TagEstate {
+				row.HeldBy = tag.Value
+				break
+			}
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
 func livePlanAdoptable(rep views.StatelessForeign) ([]views.LivePlanAdoptable, []string) {
 	adoptable := make([]views.LivePlanAdoptable, 0, len(rep.Candidates))
 	for _, c := range rep.Candidates {
