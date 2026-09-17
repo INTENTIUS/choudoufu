@@ -128,10 +128,18 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		}
 	}
 
-	// The bare "no state file" claim is only checked in the files that
-	// state what live mode IS, or refuse something based on what it is.
-	// Add a new file here when a new instance of the same defect turns
-	// up; do not widen this to a repo-wide scan (see doc comment above).
+	// The enumerated files below - the ones that state what live mode IS,
+	// or refuse a construct based on what it is - get the stricter of the
+	// two scans: every phrase above plus the bare "no state file" claim,
+	// searched over text that has been folded back onto one line first.
+	// The repo-wide scan cannot do either. It cannot look for "no state
+	// file" at all, because e2e fixtures and stock code paths say it
+	// truthfully; and being `git grep`, it cannot see a claim a margin
+	// split in two. It missed exactly that: site/content/docs/use/
+	// compatibility.md read "There is no state to\n  store."
+	//
+	// Add a new file here when a new instance of the defect turns up; do
+	// not widen this to a repo-wide scan (see doc comment above).
 	definitional := []string{
 		"internal/configs/live.go",
 		"internal/configs/module.go",
@@ -158,22 +166,24 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		}
 		src := strings.ToLower(string(b))
 		folded, offsets := foldWrapped(src)
-		idx := 0
-		for {
-			at := strings.Index(folded[idx:], "no state file")
-			if at < 0 {
-				break
+		for _, phrase := range append(append([]string{}, repoWide...), "no state file") {
+			idx := 0
+			for {
+				at := strings.Index(folded[idx:], phrase)
+				if at < 0 {
+					break
+				}
+				pos := idx + at
+				idx = pos + len(phrase)
+				// "no AUTHORITATIVE state file" is the accurate claim -
+				// the file exists, it just is not the record of ownership
+				// - and must not trip this guard.
+				if phrase == "no state file" && strings.HasSuffix(folded[:pos], "no authoritative ") {
+					continue
+				}
+				line := 1 + strings.Count(src[:offsets[pos]], "\n")
+				t.Errorf("%s:%d says %q; live mode keeps a disposable cache (choudoufu-cache.tfstate by default) that just is not consulted for ownership - name what is kept and what changed (a marker is the record of ownership), the way HANDOFF.md's foundation section does, rather than treating the file's absence as the product", rel, line, phrase)
 			}
-			pos := idx + at
-			idx = pos + len("no state file")
-			// "no AUTHORITATIVE state file" is the accurate claim - the
-			// file exists, it just is not the record of ownership - and
-			// must not trip this guard.
-			if strings.HasSuffix(folded[:pos], "no authoritative ") {
-				continue
-			}
-			line := 1 + strings.Count(src[:offsets[pos]], "\n")
-			t.Errorf("%s:%d claims there is no state file; live mode keeps a disposable cache (choudoufu-cache.tfstate by default) that just is not consulted for ownership - say that, not that nothing exists", rel, line)
 		}
 	}
 }
