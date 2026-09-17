@@ -748,6 +748,65 @@ log "=== 11. greenfield: choudoufu applies the shape fresh on the now-empty clus
 write_root "$GREEN" live || fail "could not write the greenfield root"
 ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield init failed"
 green() { ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@" ); }
+
+# greenfield_pre_apply_verdict <exit-code> <target-count>, with the
+# pre-apply's combined output on stdin: the fail detail for a greenfield
+# pre-apply that exited non-zero. Writes the sentence to stdout; the caller
+# hands it to gauntlet_stage.
+#
+# #1204. This branch was written for one cause - #1097's "Kubernetes kind
+# not served by the cluster", raised over the whole configuration before
+# -target prunes anything - and it named that cause unconditionally.
+# Midway through #1176 a different pass was refusing ("Cannot import for
+# projection", six lines above it in the log) and the branch still printed
+# the #1097 sentence, with "0 x" and "none named" sitting inside it: a
+# verdict naming a cause whose own evidence was a count of zero. It sent
+# the reader to the wrong place, and it would have gone on saying the same
+# thing however the behaviour changed, because the sentence did not depend
+# on the count.
+#
+# So the count picks the sentence. Seen at least once: the refusal is
+# reported as the cause, with the count and the blocks it named. Seen zero
+# times: the verdict says in those words that the refusal did not appear
+# and quotes the first error the pre-apply actually emitted, which is the
+# only thing on hand that is evidence. Neither arm is a pass - a greenfield
+# pre-apply that will not run is a failure either way; the fix is to the
+# explanation attached to the failure, not to the failure.
+#
+# The block names are matched with the renderer's "│ " gutter stripped and
+# the line breaks folded to spaces, a stricter version of what
+# live/smoke/scenarios/k8s-custom-resource.sh does to match the same
+# refusal: the diagnostic renderer wraps a detail at the terminal width, so
+# "kubernetes_manifest.foo declares kind Bar at apiVersion baz/v1" is
+# regularly split across two lines with a gutter between them. The old
+# line-oriented match would have reported "none named" over a refusal that
+# named every block - the same defect as #1204 one level down, since "none
+# named" is also a zero count spoken as if it were an observation.
+greenfield_pre_apply_verdict() {
+  local rc="$1" ntargets="$2" out flat kinds named first opening blocks seen
+  out="$(cat)"
+  flat="$(sed -E 's/^[[:space:]]*│[[:space:]]?//' <<< "$out" | tr '\n' ' ' | tr -s ' ')"
+  kinds="$(grep -c 'Error: Kubernetes kind not served by the cluster' <<< "$out")"
+  named="$(grep -oE 'kubernetes_manifest\.[A-Za-z0-9_]+ declares kind [A-Za-z]+ at apiVersion [^ ,]+' <<< "$flat" | sort -u | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
+  first="$(grep -m1 -E '^[[:space:]]*(│[[:space:]]*)?Error: ' <<< "$out" | sed -E 's/^[[:space:]]*│?[[:space:]]*//')"
+  opening="choudoufu cannot perform the pre-apply its own estate declares. The same $ntargets -target arguments stock accepted at cold deploy, against the same empty cluster, exited $rc"
+  if [ "$kinds" -gt 0 ]; then
+    if [ -n "$named" ]; then
+      blocks="which -target EXCLUDES from this apply, named in the refusal: $named"
+    else
+      blocks="over blocks the output does not name in the form this branch reads, so no block is named here"
+    fi
+    printf '%s' "$opening with $kinds x \"Kubernetes kind not served by the cluster\", #1097's missing-CRD refusal - $blocks. Stock prunes an untargeted resource from the graph and never asks the cluster about its kind; choudoufu raises the refusal over the whole configuration before targeting is applied, so the two-apply route that works for the oracle is closed to the tool. cold_deploy passes only because both of its sides are stock. Nothing about the greenfield apply itself was reached"
+    return 0
+  fi
+  if [ -n "$first" ]; then
+    seen="the first error it printed was \"$first\""
+  else
+    seen="it printed no Error: line at all, so it failed without a diagnostic of its own; the last 40 lines of its output are above this verdict in the log"
+  fi
+  printf '%s' "$opening, and #1097's \"Kubernetes kind not served by the cluster\" refusal - the cause this branch was written for - DID NOT APPEAR: 0 occurrences in the pre-apply output, so it is not the reason and is not reported as one. What the pre-apply did do: $seen. That line is where this failure has to be read from; no earlier diagnosis of this stage carries over to it. Nothing about the greenfield apply itself was reached"
+}
+
 # The cluster is empty again, so the CRD constraint is back and greenfield
 # needs the same two applies the cold deploy did. It uses the SAME declared
 # list, read from the manifest - never a second list maintained here.
@@ -757,9 +816,7 @@ while IFS= read -r a; do [ -n "$a" ] && G_TARGETS+=("-target=$a"); done < <(gaun
 G_PRE="$(green apply -auto-approve -input=false -no-color "${G_TARGETS[@]}" 2>&1)"; G_PRE_RC=$?
 if [ "$G_PRE_RC" -ne 0 ]; then
   printf '%s\n' "$G_PRE" | tail -40
-  G_KINDS="$(grep -c 'Error: Kubernetes kind not served by the cluster' <<< "$G_PRE")"
-  G_NAMED="$(grep -oE 'kubernetes_manifest\.[a-z_]+ declares kind [A-Za-z]+' <<< "$G_PRE" | tr '\n' ';')"
-  gauntlet_stage greenfield fail "choudoufu cannot perform the pre-apply its own estate declares. The same ${#G_TARGETS[@]} -target arguments stock accepted at cold deploy, against the same empty cluster, are refused at exit $G_PRE_RC with $G_KINDS x \"Kubernetes kind not served by the cluster\" - one for each of the three custom resources, which -target EXCLUDES from this apply: ${G_NAMED:-none named}. Stock prunes an untargeted resource from the graph and never asks the cluster about its kind; choudoufu raises #1097's missing-CRD refusal over the whole configuration before targeting is applied, so the two-apply route that works for the oracle is closed to the tool. cold_deploy passes only because both of its sides are stock. Nothing about the greenfield apply itself was reached"
+  gauntlet_stage greenfield fail "$(greenfield_pre_apply_verdict "$G_PRE_RC" "${#G_TARGETS[@]}" <<< "$G_PRE")"
   ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 )
   GREENFIELD_SKIPPED=1
 fi
