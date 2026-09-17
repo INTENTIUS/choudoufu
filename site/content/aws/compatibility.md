@@ -22,9 +22,13 @@ no cloud calls.
 
 ## The backend
 
-A `backend` or `cloud` block is refused. There is no state file to back, so
-there is nothing for it to do; delete it and declare the estate instead.
-Workspaces are refused for the same reason.
+A `backend` or `cloud` block is refused. Under a live block the markers on
+the resources are the record of ownership, and the state file is a
+disposable cache (`choudoufu-cache.tfstate`) you are allowed to lose or to
+find stale. A backend would make a state file the authoritative record
+instead, and an estate cannot have two authoritative homes for what it
+owns. Delete it and declare the estate instead. Workspaces are refused for
+the same reason.
 
 ## Expansions and identity arguments
 

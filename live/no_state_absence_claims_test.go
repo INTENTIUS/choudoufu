@@ -89,6 +89,12 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		"eliminating the state file",
 		"eliminates state",
 		"no state to put",
+		// Added after the self-exclusion above made the first real sweep
+		// possible: internal/backend/local/backend.go said a live run had
+		// "no state to store", when what is true is that its state never
+		// reaches THAT backend's workspace directory. One hit in the tree,
+		// and it was the defect.
+		"no state to store",
 	}
 
 	for _, phrase := range repoWide {
@@ -133,6 +139,16 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		"internal/tofu/marks.go",
 		"internal/live/lifecycle/doc.go",
 		"internal/live/onboard/onboard.go",
+		// Found by the first sweep this guard was able to run, and all
+		// four the same defect: the two pages that state the backend
+		// refusal's reason to a prospect, the tutorial paragraph where a
+		// reader forms the model in the first place, and the projection
+		// doc comment that explained a missing output by the file not
+		// existing.
+		"internal/live/projection/outputs.go",
+		"site/content/aws/compatibility.md",
+		"site/content/docs/use/compatibility.md",
+		"site/content/docs/tutorial.md",
 	}
 
 	for _, rel := range definitional {
@@ -140,28 +156,79 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reading %s: %v", rel, err)
 		}
-		lower := strings.ToLower(string(b))
+		src := strings.ToLower(string(b))
+		folded, offsets := foldWrapped(src)
 		idx := 0
 		for {
-			at := strings.Index(lower[idx:], "no state file")
+			at := strings.Index(folded[idx:], "no state file")
 			if at < 0 {
 				break
 			}
 			pos := idx + at
-			// "no AUTHORITATIVE state file" is the accurate claim (the
-			// file exists, it just is not the record of ownership) and
-			// must not trip this guard; it is not a contiguous match of
-			// "no state file" so it never reaches here, but a defensive
-			// check is cheap and documents the exception in the same
-			// place the code enforces it.
-			before := lower[:pos]
-			if strings.HasSuffix(strings.TrimRight(before, " "), "no authoritative") {
-				idx = pos + len("no state file")
+			idx = pos + len("no state file")
+			// "no AUTHORITATIVE state file" is the accurate claim - the
+			// file exists, it just is not the record of ownership - and
+			// must not trip this guard.
+			if strings.HasSuffix(folded[:pos], "no authoritative ") {
 				continue
 			}
-			line := 1 + strings.Count(lower[:pos], "\n")
+			line := 1 + strings.Count(src[:offsets[pos]], "\n")
 			t.Errorf("%s:%d claims there is no state file; live mode keeps a disposable cache (choudoufu-cache.tfstate by default) that just is not consulted for ownership - say that, not that nothing exists", rel, line)
-			idx = pos + len("no state file")
 		}
 	}
+}
+
+// foldWrapped joins a claim that a line break split back into one
+// searchable string, and returns a byte offset back into the original for
+// every byte of the result so a hit still reports the line it came from.
+//
+// Without this the check reads whatever the margin happened to allow.
+// site/content/docs/tutorial.md wrapped "choudoufu has no state / file to
+// read" across two lines and a plain substring search walked straight past
+// it; a Go doc comment hides the same claim behind its "//" lead. So a run
+// of whitespace collapses to a single space, and so does the comment,
+// quote or bullet marker that opens a continuation line.
+//
+// The repo-wide scan above cannot do this - `git grep` is line-based - which
+// is one more reason the phrases it looks for are short ones that fit on a
+// line.
+func foldWrapped(src string) (string, []int) {
+	isSpace := func(c byte) bool {
+		return c == ' ' || c == '\t' || c == '\r' || c == '\n'
+	}
+
+	var out strings.Builder
+	offsets := make([]int, 0, len(src))
+	for i := 0; i < len(src); {
+		if !isSpace(src[i]) {
+			out.WriteByte(src[i])
+			offsets = append(offsets, i)
+			i++
+			continue
+		}
+		start := i
+		newline := false
+		for i < len(src) {
+			if isSpace(src[i]) {
+				newline = newline || src[i] == '\n'
+				i++
+				continue
+			}
+			// A continuation line may reopen with a comment, blockquote or
+			// bullet lead. Only after a newline: "a // b" on one line is
+			// two things, not a wrapped one.
+			if newline && strings.HasPrefix(src[i:], "//") {
+				i += 2
+				continue
+			}
+			if newline && (src[i] == '#' || src[i] == '>' || src[i] == '*') {
+				i++
+				continue
+			}
+			break
+		}
+		out.WriteByte(' ')
+		offsets = append(offsets, start)
+	}
+	return out.String(), offsets
 }

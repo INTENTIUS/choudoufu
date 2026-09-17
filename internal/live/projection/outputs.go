@@ -23,9 +23,11 @@ import (
 // module, in place. It is GitHub issue #348's fix.
 //
 // Nothing else in this package ever populates root module output values,
-// because there is no state file for a stateless run to read a previous
-// run's output values back from - a computed output has no carrier at all
-// (see the "DEFER" row of HANDOFF.md's decision matrix). Left unset, every
+// because a live run never reads a previous run's output values back out
+// of the state file: what it keeps there is a disposable cache (issue
+// #685) it is allowed to find stale or missing, so it is never the carrier
+// for an output - and a computed output has no carrier at all (see the
+// "DEFER" row of HANDOFF.md's decision matrix). Left unset, every
 // declared output looks new to the plan graph's own diff logic
 // (NodeApplyableOutput.setValue in internal/tofu/node_output.go treats a
 // root output absent from the prior state's OutputValues map as

@@ -328,8 +328,11 @@ Check the region before pasting it.
 
 An acceptable configuration can still be refused by how it is invoked.
 
-- A `backend "s3" {}` or `cloud {}` block is refused. There is no state to
-  store.
+- A `backend "s3" {}` or `cloud {}` block is refused. Markers on the
+  resources are the record of ownership and the state file is a disposable
+  cache (`choudoufu-cache.tfstate`); a backend would make a state file the
+  authoritative record instead, and that second authoritative home is what
+  the refusal exists to prevent.
 - Any workspace other than `default` is refused, and so are `workspace new`
   and `workspace select`.
 - Every `tofu state` subcommand is refused, including read-only `state list`
