@@ -17,13 +17,17 @@ import (
 )
 
 // The external source this package's one hand-written list is checked
-// against. [IAMRoutes] is two entries; without this test that is an
+// against. [IAMRoutes] is five entries; without this test that is an
 // assertion, and the shape CLAUDE.md warns about - a ratchet that measures
 // agreement with itself - is exactly what a table plus a test asserting the
 // table's own contents would be. So the set is recomputed here from the
 // committed artifacts, and the table has to equal it.
 //
-// The derivation, and what each clause is doing:
+// There are two arms, one per enumeration leg, and they are disjoint: the
+// native arm requires a list resource and the Cloud Control arm's
+// EnumerationSource clause is only reached for a type that has none.
+//
+// The Cloud Control arm (#1131), and what each clause is doing:
 //
 //	live/mapping.json      the TF type is mapped to a CloudFormation type
 //	live/registry.json     that CFN type's list handler needs no input, so
@@ -40,22 +44,41 @@ import (
 // Those three are the whole of #1129's SweepGapMarkerUnreadable condition on
 // the Cloud Control leg, restated from the artifacts rather than from the
 // code.
+//
+// The native arm (#1125):
+//
+//	live/survey-full.json  the provider type IS taggable - same clause, same
+//	                       reason: a marker was written, so one can be missed
+//	list_resource=true     the provider has a list resource for the type, so
+//	                       internal/live/discovery's scanType is the leg that
+//	                       enumerates it and the Cloud Control arm never
+//	                       applies
+//	the aws_iam_ prefix    internal/live/discovery.TaggingAPIUnservedType's
+//	                       whole content today: the Resource Groups Tagging
+//	                       API is no fallback for the service, so #266's
+//	                       tag-index join cannot supply what the list dropped
+//
+// The third clause is spelled as the prefix rather than read from
+// discovery.TaggingAPIUnservedType because that package imports this one.
+// [nativeArmIAM] is where that is enforced, and it is deliberately the arm
+// this test would have to change if the prefix set ever grew - see
+// [IAMRoutes]'s own doc comment for why IAM's list operations, and only
+// IAM's, are documented as dropping tags.
 
 // surveySignals is the shape of live/survey-full.json this test reads.
 type surveySignals struct {
 	Types []struct {
 		Type    string `json:"type"`
 		Signals struct {
-			Taggable bool `json:"taggable"`
+			Taggable     bool `json:"taggable"`
+			ListResource bool `json:"list_resource"`
 		} `json:"signals"`
 	} `json:"types"`
 }
 
-// markerUnreadableOnTheCloudControlLeg recomputes the set of resource types
-// the Cloud Control leg can enumerate and can never tag-read.
-func markerUnreadableOnTheCloudControlLeg(t *testing.T) []string {
+// readSurvey parses live/survey-full.json, the artifact both arms read.
+func readSurvey(t *testing.T) surveySignals {
 	t.Helper()
-
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "live", "survey-full.json"))
 	if err != nil {
 		t.Fatalf("reading live/survey-full.json: %v", err)
@@ -67,6 +90,35 @@ func markerUnreadableOnTheCloudControlLeg(t *testing.T) []string {
 	if len(survey.Types) == 0 {
 		t.Fatal("live/survey-full.json parsed to zero types, so this test would pass by seeing nothing")
 	}
+	return survey
+}
+
+// nativeArmIAM recomputes the set of IAM types the NATIVE per-type list leg
+// enumerates and whose marker no other route in that leg can read: taggable,
+// with a provider list resource, in the one service the Resource Groups
+// Tagging API does not index.
+func nativeArmIAM(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, e := range readSurvey(t).Types {
+		if !strings.HasPrefix(e.Type, "aws_iam_") {
+			continue
+		}
+		if !e.Signals.Taggable || !e.Signals.ListResource {
+			continue
+		}
+		out = append(out, e.Type)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// markerUnreadableOnTheCloudControlLeg recomputes the set of resource types
+// the Cloud Control leg can enumerate and can never tag-read.
+func markerUnreadableOnTheCloudControlLeg(t *testing.T) []string {
+	t.Helper()
+
+	survey := readSurvey(t)
 
 	roster, err := registry.Embedded()
 	if err != nil {
@@ -91,23 +143,38 @@ func markerUnreadableOnTheCloudControlLeg(t *testing.T) []string {
 	return out
 }
 
-// TestIAMRoutesMatchTheDerivedSet is the check: every IAM type in the
-// derived set has an entry in [IAMRoutes], and [IAMRoutes] has no entry that
-// is not in it.
+// TestIAMRoutesMatchTheDerivedSet is the check: every IAM type in either
+// arm of the derived set has an entry in [IAMRoutes], and [IAMRoutes] has no
+// entry that is not in one of them.
 //
-// Proved red before green by adding "aws_iam_role" to the table (it is
-// mapped to AWS::IAM::Role, whose CFN schema IS taggable, so it is not in
-// the derived set) and by deleting the aws_iam_instance_profile entry.
+// Proved red before green three ways: by deleting the
+// aws_iam_instance_profile entry (Cloud Control arm), by deleting the
+// aws_iam_role entry (native arm), and by adding
+// "aws_iam_service_linked_role" to the table - which is taggable per the
+// survey but has no list resource and is not Cloud-Control-listable either,
+// so neither arm derives it.
 func TestIAMRoutesMatchTheDerivedSet(t *testing.T) {
-	var wantIAM []string
+	inWant := map[string]bool{}
 	for _, tn := range markerUnreadableOnTheCloudControlLeg(t) {
 		if strings.HasPrefix(tn, "aws_iam_") {
-			wantIAM = append(wantIAM, tn)
+			inWant[tn] = true
 		}
 	}
-	if len(wantIAM) == 0 {
-		t.Fatal("the derivation found no IAM type at all, so this test cannot be measuring what it claims: check live/survey-full.json and the embedded roster before touching IAMRoutes")
+	ccArm := len(inWant)
+	for _, tn := range nativeArmIAM(t) {
+		inWant[tn] = true
 	}
+	if ccArm == 0 {
+		t.Fatal("the Cloud Control arm derived no IAM type at all, so this test cannot be measuring what it claims: check live/survey-full.json and the embedded roster before touching IAMRoutes")
+	}
+	if len(inWant) == ccArm {
+		t.Fatal("the native arm derived no IAM type the Cloud Control arm had not already, so #1125's half of this table is unmeasured: check live/survey-full.json's list_resource signal before touching IAMRoutes")
+	}
+	var wantIAM []string
+	for tn := range inWant {
+		wantIAM = append(wantIAM, tn)
+	}
+	sort.Strings(wantIAM)
 
 	var got []string
 	for tn := range IAMRoutes {
