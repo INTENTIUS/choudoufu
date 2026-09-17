@@ -1073,6 +1073,50 @@ else
   AFTER_PROBE="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the plan after the probe's label was removed failed"
   grep -q "No changes." <<< "$AFTER_PROBE" || { printf '%s\n' "$AFTER_PROBE" | tail -30; fail "the plan is not empty again once the probe's label is removed; the cluster is not back where the probe found it"; }
 
+  # The other side of the probe, and the reason it is here (#1179). The
+  # probe above now expects the sweep to propose NOTHING, and so does
+  # BREAK_PVC=1: since the exclusion was fixed, both arms read "No
+  # changes", so between them they no longer distinguish "the exclusion
+  # held" from "the sweep is blind to PVCs". This arm supplies the
+  # difference. It labels the controller-made PVC again AND declares a PVC
+  # the way a person does - kubectl, which owns the new object's spec and
+  # is nobody's control plane - and requires ONE plan to tell them apart:
+  # the declared one proposed, the controller-made one not. A sweep that
+  # excluded every PVC would fail the first assertion; a sweep that
+  # excluded none would fail the second.
+  TWO_PVC="declared-orphan"
+  kca label pvc "$PROBE_PVC" -n "$NS" "tofu-estate=$ESTATE" >/dev/null || fail "could not relabel $PROBE_PVC for the two-sided arm"
+  kca create -n "$NS" -f - >/dev/null <<YAML || fail "could not create $TWO_PVC for the two-sided arm"
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: $TWO_PVC
+  labels:
+    tofu-estate: $ESTATE
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 64Mi
+YAML
+  log "  two-sided arm, both PVCs labelled:"; pvc_facts "$KCA" | grep -E "^($PROBE_PVC|$TWO_PVC) " | sed 's/^/    /'
+  TWO_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm's plan failed"; }
+  TWO_ADDR="kubernetes_persistent_volume_claim_v1.orphan_${NS}_${TWO_PVC}"
+  TWO_HIT=0; grep -qF "$TWO_ADDR will be destroyed" <<< "$TWO_PLAN" && TWO_HIT=1
+  TWO_EXCLUDED=1; grep -qF "$PROBE_ADDR will be destroyed" <<< "$TWO_PLAN" && TWO_EXCLUDED=0
+  TWO_SUMMARY="$(plan_line "$TWO_PLAN")"
+  # Waited for, not fired and forgotten: the next plan below asserts the
+  # cluster is back where it started, and a PVC still Terminating with the
+  # label on it would still be swept.
+  kca delete pvc "$TWO_PVC" -n "$NS" --timeout=60s >/dev/null 2>&1
+  kca label pvc "$PROBE_PVC" -n "$NS" tofu-estate- >/dev/null 2>&1
+  [ "$TWO_HIT" -eq 1 ] || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm: the sweep did not propose $TWO_ADDR, a PVC kubectl declared and labelled ($TWO_SUMMARY). Either the sweep cannot see PVCs at all, in which case the exclusion probe above proves nothing, or the exclusion is now wider than controller-made objects"; }
+  [ "$TWO_EXCLUDED" -eq 1 ] || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm: the sweep proposed $PROBE_ADDR, the controller-made PVC, in the same plan it correctly proposed $TWO_ADDR - #1179's exclusion has regressed"; }
+  log "  two-sided arm: $TWO_SUMMARY, naming $TWO_ADDR and not $PROBE_ADDR"
+  TWO_AFTER="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the plan after the two-sided arm failed"
+  grep -q "No changes." <<< "$TWO_AFTER" || { printf '%s\n' "$TWO_AFTER" | tail -30; fail "the plan is not empty again after the two-sided arm cleaned up; the cluster is not back where it started"; }
+  [ "$(pvc_count_a)" = "0" ] || fail "a PVC still carries tofu-estate=$ESTATE after the two-sided arm cleaned up"
+
   if [ "${BREAK_PVC:-}" = "1" ]; then
     [ "$PROBE_HIT" -eq 1 ] && fail "BREAK_PVC=1: the sweep proposed $PROBE_ADDR with no estate label on it - the probe keys on the kind, not on the label, and proves nothing"
     log "  BREAK_PVC=1: caught - with no label on the PVC the sweep proposes nothing ($(plan_line "$PROBE_PLAN")), so 'expect the sweep to propose it' correctly fails"
