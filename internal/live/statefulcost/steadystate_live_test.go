@@ -138,7 +138,11 @@ func TestSteadyStateCostAgainstFloci(t *testing.T) {
 	// numbers are the rebuild-from-live path, not the steady state.
 	cachePath := filepath.Join(liveDir, ".terraform", "choudoufu-cache.tfstate")
 	if fi, err := os.Stat(cachePath); err != nil {
-		t.Errorf("no state cache at %s after choudoufu's own apply (%v) - every plan below is a cache miss", cachePath, err)
+		// Fatal, not an error: with no cache every column below is the
+		// cache-off number wearing the cache-on label, which is exactly the
+		// figure that got published and withdrawn. A run that cannot measure
+		// the thing it claims to measure must produce nothing.
+		t.Fatalf("no state cache at %s after choudoufu's own apply (%v) - every plan below would be a cache miss, so this run can measure nothing", cachePath, err)
 	} else {
 		t.Logf("state cache present: %s, %d bytes", cachePath, fi.Size())
 	}
@@ -188,6 +192,86 @@ func TestSteadyStateCostAgainstFloci(t *testing.T) {
 	}
 
 	report(t, scale, cols)
+	emitSteadyRecord(t, scale, flatPerType, cols)
+}
+
+// emitSteadyRecord writes the run as a gated record (steadyrecord.go), or
+// fails the test with the gate's own reason.
+//
+// The gate is the point of the file, not the writing. This measurement was
+// correct twice and misread twice, both times because the discipline lived in
+// a comment while the numbers lived in a table a human had to read correctly.
+// STEADY_RECORD names where to write; without it the run still gates, so a
+// measurement that cannot be published fails the test rather than printing a
+// table somebody might quote anyway.
+func emitSteadyRecord(t *testing.T, scale, flatPerType int, cols []*column) {
+	t.Helper()
+
+	resources := 74*scale + 5
+	shape := "identity-heavy"
+	if flatPerType > 0 {
+		resources = flatPerType*5 + 1
+		shape = "tagging-served"
+	}
+
+	rec := SteadyRecord{
+		Estate: "terralith", Shape: shape, Resources: resources,
+		Substrate: "floci", Emulator: flocitest.Image(),
+		Commit: os.Getenv("STEADY_COMMIT"),
+		Date:   time.Now().UTC().Format(time.RFC3339),
+	}
+	for _, c := range cols {
+		cond := conditionFor(c.Label)
+		if cond == "" {
+			// A column this record has no condition for is not published
+			// rather than guessed at. Guessing which column a number came
+			// from is the whole failure.
+			t.Logf("steady record: column %q has no declared condition and is omitted", c.Label)
+			continue
+		}
+		rec.Columns = append(rec.Columns, SteadyColumn{
+			Label: c.Label, Condition: cond,
+			Calls: c.Calls, Seconds: c.Seconds, Verdicts: c.Verdicts,
+		})
+	}
+	for _, c := range rec.Columns {
+		switch c.Condition {
+		case ConditionCacheWarm:
+			rec.CacheControl.WarmCalls = c.Median()
+		case ConditionCacheOff:
+			rec.CacheControl.OffCalls = c.Median()
+		}
+	}
+	rec.CacheControl.Served = rec.CacheControl.OffCalls > rec.CacheControl.WarmCalls
+
+	if err := Gate(rec); err != nil {
+		t.Fatalf("this run measured nothing publishable: %s", err)
+	}
+
+	path := os.Getenv("STEADY_RECORD")
+	if path == "" {
+		t.Logf("steady record: gated clean; set STEADY_RECORD=<path> to write it")
+		return
+	}
+	if err := WriteSteadyRecord(path, rec); err != nil {
+		t.Fatalf("writing the steady record: %s", err)
+	}
+	t.Logf("steady record written: %s", path)
+}
+
+// conditionFor maps a column label onto the condition its figures were taken
+// under. Unknown labels return "" and are omitted from the record rather than
+// assigned a plausible condition.
+func conditionFor(label string) Condition {
+	switch label {
+	case "stock-terraform":
+		return ConditionStateFile
+	case "choudoufu-live", "choudoufu-live-cache-warm":
+		return ConditionCacheWarm
+	case "choudoufu-live-cache-off", "choudoufu-refresh-false-cache-off":
+		return ConditionCacheOff
+	}
+	return ""
 }
 
 // timePlansEnv is timePlans with the environment overridden, so a column can
