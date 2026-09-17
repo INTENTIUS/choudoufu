@@ -230,6 +230,9 @@ case "$RECORD_STORE_BACKEND" in
   *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND" >&2; exit 2 ;;
 esac
 SSM_PREFIX="/choudoufu/livecert/$PREFIX"
+# The same namespace without SSM's leading slash: an S3 key prefix, which is
+# what the record_store block above hands the s3 backend.
+RECORD_STORE_KEY_PREFIX="choudoufu/livecert/$PREFIX"
 WORK="${LIVECERT_WORK_DIR:-${LIVECERT_RESUME:-$(mktemp -d)}}"
 mkdir -p "$WORK"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
@@ -283,6 +286,30 @@ ssm_prefix_count() {
   aws ssm get-parameters-by-path --path "$1" --recursive \
     --query 'Parameters[].Name' --output text 2>/dev/null \
     | tr '\t' '\n' | grep -c . || true
+}
+
+# s3_prefix_count is ssm_prefix_count's sibling for the "s3" backend: how many
+# objects the record store holds under this run's key prefix. Paginates by
+# default in the AWS CLI, so a store larger than one page counts correctly -
+# which matters here specifically, because the whole reason this backend is
+# used at scale is that SSM's 10,000-parameter cap is a hard, non-adjustable
+# ceiling and an estate this size is over it.
+s3_prefix_count() {
+  aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1/" \
+    --query 'Contents[].Key' --output text 2>/dev/null \
+    | tr '\t' '\n' | grep -c . || true
+}
+
+# record_store_count counts whichever backend this run declared, so the
+# values check and the teardown below ask one question instead of branching
+# twice and drifting apart - which is how the s3 arm came to be missing from
+# both of them (#1145).
+record_store_count() {
+  case "$RECORD_STORE_BACKEND" in
+    ssm) ssm_prefix_count "$SSM_PREFIX" ;;
+    s3)  s3_prefix_count "$RECORD_STORE_KEY_PREFIX" ;;
+    *)   echo 0 ;;
+  esac
 }
 
 teardown() {
@@ -373,15 +400,30 @@ EOF
   # The record store is not tagged and no destroy reaches it, so it needs its
   # own teardown. Doing it here rather than in sweep() because it must run on
   # every exit path, including a run that never reached test_plan.
-  if [ "$RECORD_STORE_BACKEND" = "ssm" ] && [ "$TARGET" = "aws" ]; then
-    rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
-    log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
-    if [ "${rs_left:-0}" -gt 0 ]; then
-      aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
-        --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
-        | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
-      log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
-    fi
+  if [ "$TARGET" = "aws" ]; then
+    case "$RECORD_STORE_BACKEND" in
+      ssm)
+        rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
+        log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
+        if [ "${rs_left:-0}" -gt 0 ]; then
+          aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+            --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+            | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+          log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
+        fi
+        ;;
+      s3)
+        # #1145: this arm did not exist, so every s3 run leaked its whole
+        # record store - silently, because verify_empty does not look at the
+        # bucket either. An estate this size leaves ~10,000 objects behind.
+        rs_left="$(s3_prefix_count "$RECORD_STORE_KEY_PREFIX")"
+        log "  record store (s3 s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX/): $rs_left object(s) to delete"
+        if [ "${rs_left:-0}" -gt 0 ]; then
+          aws s3 rm "s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX/" --recursive --only-show-errors 2>/dev/null || true
+          log "    remaining after delete: $(s3_prefix_count "$RECORD_STORE_KEY_PREFIX")"
+        fi
+        ;;
+    esac
   fi
 
   if verify_empty; then
@@ -1483,10 +1525,14 @@ if [ "$TARGET" = "aws" ]; then
   log "  identity (tofu-estate=$ESTATE tags in the cloud): $ident_n resource(s)"
   [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
 
-  if [ "$RECORD_STORE_BACKEND" = "ssm" ]; then
-    rec_n="$(ssm_prefix_count "$SSM_PREFIX")"
-    log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
-    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
+  if [ "$RECORD_STORE_BACKEND" = "ssm" ] || [ "$RECORD_STORE_BACKEND" = "s3" ]; then
+    rec_n="$(record_store_count)"
+    case "$RECORD_STORE_BACKEND" in
+      ssm) rec_where="ssm at $SSM_PREFIX"; rec_unit="parameter(s) in Parameter Store" ;;
+      s3)  rec_where="s3 at s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX"; rec_unit="object(s) in the bucket" ;;
+    esac
+    log "  values (record_store $rec_where): $rec_n $rec_unit"
+    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"$RECORD_STORE_BACKEND\" but $rec_where holds nothing - the store was declared and never written"
     # A read-side check was tried here and REMOVED as vacuous rather than
     # kept looking rigorous: it grepped the plan log for "ssm", which matches
     # the provider's own aws_ssm_parameter type sweep 600+ times on any run,
@@ -1497,7 +1543,12 @@ if [ "$TARGET" = "aws" ]; then
     # the read side is proved at the cache stage (5b), whose "state cache
     # supplied N" line comes from the projection itself.
   else
-    log "  values: record_store is \"$RECORD_STORE_BACKEND\" (local disk), so the cloud values piece is NOT under test in this run"
+    # "local" is the only remaining backend, and naming it rather than
+    # interpolating avoids the bug this branch used to have: it called ANY
+    # non-ssm backend "local disk", so an s3 run - genuinely in the cloud -
+    # was reported as untested local storage while its check was skipped
+    # (#1145).
+    log "  values: record_store is \"local\" (a directory on disk), so the cloud values piece is NOT under test in this run"
   fi
 fi
 

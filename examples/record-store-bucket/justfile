@@ -1,0 +1,111 @@
+# The record-store bucket, stood up with the hardening S3Store does not do
+# for you. `just` lists everything.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+tf := env_var_or_default("TOFU_BIN", "tofu")
+region := env_var_or_default("AWS_REGION", "us-east-2")
+
+default:
+    @just --list
+
+# The bucket name. Globally unique, so it is derived from the account rather
+# than guessed — the same account that will hold the estate.
+_bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    acct=$(aws sts get-caller-identity --query Account --output text)
+    echo "choudoufu-records-${acct}-{{region}}"
+
+# What standing it up would do. Reads only; needs no approval.
+plan bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    cd terraform
+    {{tf}} init -input=false >/dev/null
+    {{tf}} plan -input=false -var "bucket=$b" -var "region={{region}}"
+
+# Create or update the bucket. This is the dogfooding path: the README's
+# claims are whatever this actually produces.
+up bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    cd terraform
+    {{tf}} init -input=false >/dev/null
+    {{tf}} apply -input=false -auto-approve -var "bucket=$b" -var "region={{region}}"
+    echo
+    echo "RECORD_STORE_BUCKET=$b"
+
+# Prove the hardening is real rather than declared. Every check reads the
+# live bucket, and the deny-unencrypted one WRITES, because a policy that is
+# never exercised is a policy nobody has tested.
+verify bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    fail=0
+    say() { printf '  %-42s %s\n' "$1" "$2"; }
+
+    enc=$(aws s3api get-bucket-encryption --bucket "$b" \
+      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' \
+      --output text 2>/dev/null || echo NONE)
+    [ "$enc" = "aws:kms" ] && say "default encryption" "ok ($enc)" || { say "default encryption" "FAIL ($enc)"; fail=1; }
+
+    ver=$(aws s3api get-bucket-versioning --bucket "$b" --query Status --output text 2>/dev/null || echo NONE)
+    [ "$ver" = "Enabled" ] && say "versioning" "ok" || { say "versioning" "FAIL ($ver)"; fail=1; }
+
+    pab=$(aws s3api get-public-access-block --bucket "$b" \
+      --query 'PublicAccessBlockConfiguration.BlockPublicPolicy' --output text 2>/dev/null || echo NONE)
+    [ "$pab" = "True" ] && say "public access blocked" "ok" || { say "public access blocked" "FAIL ($pab)"; fail=1; }
+
+    lc=$(aws s3api get-bucket-lifecycle-configuration --bucket "$b" \
+      --query 'Rules[0].NoncurrentVersionExpiration.NoncurrentDays' --output text 2>/dev/null || echo NONE)
+    [ "$lc" != "NONE" ] && say "noncurrent versions expire" "ok (${lc}d)" || { say "noncurrent versions expire" "FAIL"; fail=1; }
+
+    # The one that matters, and the only one that tests the POLICY rather
+    # than the default: an unencrypted PUT must be refused.
+    tmp=$(mktemp)
+    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/unencrypted" \
+         --body "$tmp" >/dev/null 2>&1; then
+      say "unencrypted PUT refused" "FAIL - it was accepted"
+      aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/unencrypted" >/dev/null 2>&1 || true
+      fail=1
+    else
+      say "unencrypted PUT refused" "ok"
+    fi
+    # ...and an encrypted one must still succeed, or the policy is refusing
+    # everything and the check above proves nothing.
+    kms=$(aws s3api get-bucket-encryption --bucket "$b" \
+      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID' \
+      --output text 2>/dev/null || echo "")
+    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/encrypted" \
+         --body "$tmp" --server-side-encryption aws:kms \
+         --ssekms-key-id "$kms" >/dev/null 2>&1; then
+      say "encrypted PUT accepted" "ok"
+      aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/encrypted" >/dev/null 2>&1 || true
+    else
+      say "encrypted PUT accepted" "FAIL - the policy refuses everything"
+      fail=1
+    fi
+    rm -f "$tmp"
+    echo
+    [ "$fail" = "0" ] && echo "bucket $b: hardened" || { echo "bucket $b: NOT hardened"; exit 1; }
+
+# Tear it down. Refuses while records are present: destroying this bucket
+# destroys an estate's identity for every resource it holds.
+down bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    n=$(aws s3api list-objects-v2 --bucket "$b" --prefix choudoufu/ \
+        --query 'length(Contents)' --output text 2>/dev/null || echo 0)
+    [ "$n" = "None" ] && n=0
+    if [ "$n" -gt 0 ]; then
+      echo "refusing: $b holds $n record object(s) under choudoufu/."
+      echo "Destroying this bucket destroys an estate's identity for every resource it records."
+      echo "Empty it deliberately first, or pass a different bucket."
+      exit 1
+    fi
+    cd terraform
+    {{tf}} destroy -input=false -auto-approve -var "bucket=$b" -var "region={{region}}"
