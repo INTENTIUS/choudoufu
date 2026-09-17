@@ -39,7 +39,9 @@
           "note": "As claim 22: the sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/no-silent-orphans.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {

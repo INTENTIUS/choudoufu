@@ -111,17 +111,37 @@ proof "both orphans are gone, by an ordinary reviewed apply - found, named, remo
 
 step "6. where the machinery does not reach, it says so out loud"
 explain \
-  "Honesty is part of the claim. Two of this estate's types (the log" \
-  "group and the bucket) are admitted by the provider's identity schema" \
-  "rather than the fork's own table, and the orphan sweep does not cover" \
-  "them yet - and the apply SAID SO, up front, naming each type and the" \
-  "consequence. Degrading to a loud warning is allowed; silence is not."
-grep -E 'no orphan recovery' <<< "$APPLY_OUT" | head -1 | evidence
-for t in aws_cloudwatch_log_group aws_s3_bucket; do
-  grep -q "$t is admitted by the provider's own identity schema" <<< "$APPLY_OUT" \
-    || fail "orphans" "the apply did not warn about $t's missing orphan recovery - the boundary went silent"
+  "Honesty is part of the claim. A type this estate declares that is" \
+  "admitted only by the provider's own identity schema - no row in this" \
+  "fork's own admission table - sits outside the estate-wide sweep's" \
+  "universe, and the apply must say so up front, naming the type and the" \
+  "consequence, rather than staying silent. Which types (if any) are in" \
+  "that position is read off the same admission table the resolver" \
+  "itself consults, not assumed from one ratification batch's state -" \
+  "a hardcoded pair of type names is exactly what went stale here" \
+  "(#1124: aws_cloudwatch_log_group and aws_s3_bucket both gained rows" \
+  "on 2026-08-16, #263, before this step was even written)."
+DECLARED_TYPES="$(grep -ohE '^resource "[a-z0-9_]+"' "$ROOT/live/e2e/estate-block"/*.tf | cut -d'"' -f2 | sort -u | tr '\n' ' ')"
+DECLARED_TYPES="${DECLARED_TYPES% }"
+UNRATIFIED=""
+for t in $DECLARED_TYPES; do
+  grep -q "^  \"$t\": {" "$ROOT/tools/row-gen/ratified.json" || UNRATIFIED="$UNRATIFIED $t"
 done
-proof "the claim's boundary is announced by the tool itself, at apply time, before anything could be lost."
+WARNED="$(grep -oE "^aws_[a-z0-9_]+ is admitted by the provider's own identity schema" <<< "$APPLY_OUT" | awk '{print $1}' | sort -u || true)"
+if [ -z "$UNRATIFIED" ]; then
+  if [ -n "$WARNED" ]; then
+    fail "orphans" "every type this estate declares ($DECLARED_TYPES) has a row in tools/row-gen/ratified.json, yet the apply still warned about:$WARNED - the table and the warning disagree"
+  fi
+  echo "declared types:$DECLARED_TYPES - every one has a row in tools/row-gen/ratified.json today, so the no-orphan-recovery warning cannot fire, and it did not" | evidence || true
+  proof "the boundary is honestly absent right now: nothing this estate declares is admitted only by the schema. Read off the table rather than hardcoded, so the next ratification batch cannot make this silently untestable again the way #263's did."
+else
+  grep -E 'no orphan recovery' <<< "$APPLY_OUT" | head -1 | evidence || true
+  for t in $UNRATIFIED; do
+    grep -q "$t is admitted by the provider's own identity schema" <<< "$APPLY_OUT" \
+      || fail "orphans" "the apply did not warn about $t's missing orphan recovery - the boundary went silent"
+  done
+  proof "the claim's boundary is announced by the tool itself, at apply time, before anything could be lost:$UNRATIFIED"
+fi
 
 step "7. the same claim where values live in the record store"
 explain \

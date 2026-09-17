@@ -1,0 +1,9 @@
+{
+  "claim": "no-silent-orphans",
+  "provider": "aws",
+  "date": "2026-09-17",
+  "commit": "161369754acb4dde2585712a2752f79c9bbba3cc",
+  "command": "FLOCI_PORT=4680 bash live/smoke/smoke.sh no-silent-orphans",
+  "verdict": "PASS: smoke scenario 'no-silent-orphans' - every claim held (smoke v1.0.0)",
+  "note": "#1124: recorded by hand, run against the floci emulator, not CI - a workflow running the AWS claims is explicitly out of scope for this issue per the maintainer's 2026-09-14 comment. This file exists so claim 1's proven cell carries a date even without one; it is stale the moment the scenario or the admission table changes underneath it and nothing currently re-checks that automatically."
+}
