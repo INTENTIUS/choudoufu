@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -298,4 +299,191 @@ func TestLiveCertWorkflowCarriesEveryFileTheCommandWrites(t *testing.T) {
 			t.Errorf("`gauntlet live-cert` writes %s and live-cert.yml's add-paths does not name it, so a run that produces it opens a pull request without it", rel)
 		}
 	}
+}
+
+// greenfieldVerdictFn lifts greenfield_pre_apply_verdict out of
+// reference-k8s-cert-manager's run.sh, from the committed file and not a
+// copy of it, so a test that drives the function drives the one the estate
+// would run. The extraction is deliberately literal - the exact opening
+// line through the next line that is a bare "}" - and fails loudly if the
+// function is renamed or reshaped, because a silently empty extraction
+// would make every assertion below vacuous.
+func greenfieldVerdictFn(t *testing.T) string {
+	t.Helper()
+	root := testRoot(t)
+	path := filepath.Join(root, "live", "e2e", "reference-k8s-cert-manager", "run.sh")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("%s is not readable in this checkout: %v", path, err)
+	}
+	script := string(b)
+	// The fail branch has to call the function, or extracting it proves
+	// nothing about what the stage reports.
+	if !strings.Contains(script, `gauntlet_stage greenfield fail "$(greenfield_pre_apply_verdict "$G_PRE_RC" "${#G_TARGETS[@]}" <<< "$G_PRE")"`) {
+		t.Fatalf("%s no longer composes the greenfield pre-apply fail verdict through greenfield_pre_apply_verdict; this test would be driving dead code", path)
+	}
+	lines := strings.Split(script, "\n")
+	start := -1
+	for i, ln := range lines {
+		if ln == "greenfield_pre_apply_verdict() {" {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("%s does not define greenfield_pre_apply_verdict() at column 0", path)
+	}
+	for i := start + 1; i < len(lines); i++ {
+		if lines[i] == "}" {
+			return strings.Join(lines[start:i+1], "\n") + "\n"
+		}
+	}
+	t.Fatalf("%s: greenfield_pre_apply_verdict has no closing brace at column 0", path)
+	return ""
+}
+
+// driveGreenfieldVerdict runs the extracted function with the given exit
+// code, -target count and pre-apply output, and returns the verdict
+// sentence it composes.
+func driveGreenfieldVerdict(t *testing.T, rc int, targets int, preApply string) string {
+	t.Helper()
+	dir := t.TempDir()
+	outFile := filepath.Join(dir, "pre-apply.txt")
+	if err := os.WriteFile(outFile, []byte(preApply), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := fmt.Sprintf("set -uo pipefail\n%s\ngreenfield_pre_apply_verdict %d %d < %q\n",
+		greenfieldVerdictFn(t), rc, targets, outFile)
+	out, err := runBash(script)
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+// unservedRefusal is what #1097's refusal looks like on the way out of the
+// renderer: a summary line of its own, then a detail wrapped at the
+// terminal width behind a "│ " gutter. The wrapping is the point - a
+// matcher written against the unwrapped sentence sees nothing here.
+const unservedRefusal = `╷
+│ Error: Kubernetes kind not served by the cluster
+│
+│   on custom-resources.tf line 1, in resource "kubernetes_manifest" "clusterissuer":
+│    1: resource "kubernetes_manifest" "clusterissuer" {
+│
+│ kubernetes_manifest.clusterissuer declares kind ClusterIssuer at
+│ apiVersion cert-manager.io/v1, which the cluster does not serve, so the
+│ provider has no schema to plan the block against and would refuse it at
+│ plan time. Install the CustomResourceDefinition whose spec.group is
+│ "cert-manager.io" and spec.names.kind is "ClusterIssuer", with version
+│ "v1" served, or the aggregated API that serves it, and plan again.
+╵
+`
+
+// somethingElseRefusing is the shape that exposed #1204: the pre-apply
+// failed for a reason that is not #1097's refusal at all. Taken from the
+// issue, which quotes "Cannot import for projection" six lines above the
+// verdict in the #1176 log.
+const somethingElseRefusing = `kubernetes_manifest.namespace: Creating...
+╷
+│ Error: Cannot import for projection
+│
+│   on cert-manager.tf line 12, in resource "kubernetes_manifest" "crd_certificates":
+│   12: resource "kubernetes_manifest" "crd_certificates" {
+│
+│ The instance carries an estate marker but its prior state could not be
+│ built, so the projection has nothing to import.
+╵
+`
+
+// TestGreenfieldVerdictNamesOnlyTheRefusalItSaw is #1204.
+//
+// reference-k8s-cert-manager's greenfield stage has a fail branch for a
+// pre-apply that will not run, and its verdict used to name one cause -
+// #1097's "Kubernetes kind not served by the cluster" - whatever the
+// output said. Midway through #1176 that refusal was gone and a different
+// pass was refusing, and the branch printed
+//
+//	refused at exit 1 with 0 x "Kubernetes kind not served by the cluster" -
+//	one for each of the three custom resources, which -target EXCLUDES from
+//	this apply: none named
+//
+// A verdict whose stated cause has a count of zero behind it is worse than
+// a bare failure: it sends the next reader to the wrong place, and it goes
+// on saying the same thing however the behaviour changes, because the
+// sentence never depended on the count.
+//
+// The branch does not fire in a passing run, so no gauntlet run exercises
+// it. The function is lifted out of the committed script and driven here
+// with both outputs directly. Written from what a verdict promises - that
+// the cause it names is one it observed - and not from the branch's
+// implementation.
+func TestGreenfieldVerdictNamesOnlyTheRefusalItSaw(t *testing.T) {
+	t.Run("a real sighting is reported as the cause, with the blocks it named", func(t *testing.T) {
+		got := driveGreenfieldVerdict(t, 1, 47, unservedRefusal+unservedRefusal)
+		for _, want := range []string{
+			`2 x "Kubernetes kind not served by the cluster"`,
+			"#1097",
+			// Named from the wrapped detail: the gutter and the line
+			// break between "at" and "apiVersion" must not hide it.
+			"kubernetes_manifest.clusterissuer declares kind ClusterIssuer at apiVersion cert-manager.io/v1",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("a verdict over two real #1097 refusals does not contain %q:\n%s", want, got)
+			}
+		}
+		if strings.Contains(got, "none named") || strings.Contains(got, "does not name") {
+			t.Errorf("the refusal named its block and the verdict says otherwise:\n%s", got)
+		}
+	})
+
+	t.Run("zero sightings reports the absence, not the cause", func(t *testing.T) {
+		got := driveGreenfieldVerdict(t, 1, 47, somethingElseRefusing)
+		// The defect itself: a count of zero spoken as an observation.
+		if strings.Contains(got, `0 x "Kubernetes kind not served by the cluster"`) {
+			t.Errorf("the verdict states a cause it counted zero of - this is #1204:\n%s", got)
+		}
+		if strings.Contains(got, "none named") {
+			t.Errorf("the verdict lists the blocks a refusal named when no refusal fired:\n%s", got)
+		}
+		if !strings.Contains(got, "DID NOT APPEAR") {
+			t.Errorf("the verdict does not say the expected refusal was absent:\n%s", got)
+		}
+		// And it points at what actually happened.
+		if !strings.Contains(got, "Error: Cannot import for projection") {
+			t.Errorf("the verdict does not quote the error the pre-apply actually printed:\n%s", got)
+		}
+		// Still a failure. The fix is to the explanation, never to the
+		// verdict: a greenfield pre-apply that will not run has failed.
+		if strings.Contains(got, "passes") && !strings.Contains(got, "cold_deploy passes") {
+			t.Errorf("the absence arm reads as a pass:\n%s", got)
+		}
+	})
+
+	t.Run("no Error: line at all is also not a sighting", func(t *testing.T) {
+		got := driveGreenfieldVerdict(t, 137, 47, "kubernetes_manifest.namespace: Creating...\nkilled\n")
+		if strings.Contains(got, `0 x "Kubernetes kind not served by the cluster"`) {
+			t.Errorf("the verdict states a cause it counted zero of:\n%s", got)
+		}
+		if !strings.Contains(got, "no Error: line at all") {
+			t.Errorf("the verdict does not say the pre-apply produced no diagnostic:\n%s", got)
+		}
+		if !strings.Contains(got, "exited 137") {
+			t.Errorf("the verdict does not report the exit code it was handed:\n%s", got)
+		}
+	})
+
+	t.Run("a sighting whose blocks it cannot parse says so instead of naming none", func(t *testing.T) {
+		got := driveGreenfieldVerdict(t, 1, 47,
+			"╷\n│ Error: Kubernetes kind not served by the cluster\n│\n│ wording this branch does not read\n╵\n")
+		if !strings.Contains(got, `1 x "Kubernetes kind not served by the cluster"`) {
+			t.Errorf("the refusal fired once and the verdict does not say so:\n%s", got)
+		}
+		if strings.Contains(got, "none named") {
+			t.Errorf("%q is a zero count spoken as an observation, the same defect one level down:\n%s", "none named", got)
+		}
+		if !strings.Contains(got, "does not name") {
+			t.Errorf("the verdict does not say the blocks were unreadable:\n%s", got)
+		}
+	})
 }
