@@ -3180,6 +3180,24 @@ func (n *NodeAbstractResourceInstance) apply(
 				}
 			}
 		}
+
+		// GitHub issue #1192, and the reason it sits immediately after the
+		// block above: that block is where core learns the stored object
+		// differs from the planned one, and where - for a legacy-SDK
+		// provider, which is to say nearly every provider in use - it
+		// decides to tolerate the difference and write it to a log nobody
+		// reads. Tolerating a shimmed type is right; tolerating a
+		// discarded ownership marker is how a run comes to report a write
+		// the cluster or the account never stored. The seam that stamped
+		// the marker is the only thing that knows which attribute it was,
+		// so it is the thing asked. See AppliedMarkerVerifier: this costs
+		// no extra request, because newVal is what the provider already
+		// returned from ApplyResourceChange.
+		if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
+			if v, ok := adjuster.(AppliedMarkerVerifier); ok {
+				diags = diags.Append(v.VerifyAppliedMarkers(ctx, n.Addr, change.Action, change.After, newVal, *schema))
+			}
+		}
 	}
 
 	// If a provider returns a null or non-null object at the wrong time then
