@@ -21,6 +21,63 @@ import (
 // is implemented, and every one was proven red against the code as it stood
 // before its fix - see the pull request for the red output, quoted.
 
+// renderedScratchCheckout copies this checkout's generator INPUTS into a
+// temp directory and renders once, so the result is a self-consistent
+// miniature checkout: every generated file present and current. It returns
+// the temp root and the relative paths Render wrote.
+//
+// Tests use it instead of the real tree so a RED arm can corrupt a
+// generated file - which is the only way to prove a staleness guard is
+// load-bearing - without ever writing to the tree under test.
+func renderedScratchCheckout(t *testing.T) (string, []string) {
+	t.Helper()
+	root := testRoot(t)
+	tmp := t.TempDir()
+	for _, rel := range []string{
+		ManifestPath, ArtifactPath, BehaviorIndexPath, TypeIndexPath,
+		OracleVersionsPin, ScaleRecordsPath, "live/floci-image",
+	} {
+		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil {
+			t.Skipf("%s is not readable in this checkout: %v", rel, err)
+		}
+		dst := filepath.Join(tmp, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dst, b, 0o644); err != nil { //nolint:gosec // a temp copy of a committed artifact
+			t.Fatal(err)
+		}
+	}
+	m, a, err := loadAll(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt, err := LoadTypeIndexTotals(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scale, err := loadScaleRecordsBytes(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scale == nil {
+		t.Fatalf("%s is empty in this checkout, so there is nothing to publish and nothing to compare", ScaleRecordsPath)
+	}
+	written, err := Render(tmp, m, a, tt, scale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale, err := StaleFiles(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stale) > 0 {
+		t.Fatalf("a freshly rendered scratch checkout already reads stale (%s); any RED arm built on it would prove nothing", strings.Join(stale, ", "))
+	}
+	return tmp, written
+}
+
 // brokenGitOnPATH puts a `git` that always exits 128 at the front of PATH,
 // reproducing the failure that started this family: a machine whose
 // /usr/bin/git began refusing every invocation with "You have not agreed to
@@ -99,6 +156,27 @@ func TestRunLiveCertRefusesBeforeSpendingWhenGitCannotAnswer(t *testing.T) {
 	}
 }
 
+// TestArtifactAtRevisionRefusesWhenGitCannotAnswer is #1142's audit finding
+// with the largest blast radius in this package.
+//
+// artifactAtRevision read any `git show <rev>:live/gauntlet.json` failure as
+// "the file did not exist at that commit" and returned an empty artifact
+// with a nil error. MergeArtifact calls it for base, ours and theirs, and
+// writes the result to live/gauntlet.json, so one unreadable object - a
+// blobless clone, a corrupt blob, a git that will not start - deletes every
+// estate row that side measured and still prints `merged: N of M clear`.
+// The absence has to be asked about separately from the failure.
+func TestArtifactAtRevisionRefusesWhenGitCannotAnswer(t *testing.T) {
+	brokenGitOnPATH(t)
+	a, err := artifactAtRevision(t.TempDir(), "0123456789abcdef0123456789abcdef01234567")
+	if err == nil {
+		t.Fatalf("artifactAtRevision returned an artifact (%d estate row(s)) and no error while git exits 128; an empty artifact here silently deletes every row the revision recorded", len(a.Estates))
+	}
+	if !strings.Contains(err.Error(), "Xcode license") {
+		t.Errorf("artifactAtRevision error = %q; want it to quote git's own stderr", err)
+	}
+}
+
 // TestSaveScaleArtifactPublishesTheSiteCopy is #1187's prevention.
 //
 // live/gauntlet-scale.json has four producers - live-cert, scale-backfill,
@@ -150,46 +228,7 @@ func TestSaveScaleArtifactPublishesTheSiteCopy(t *testing.T) {
 // published copy only - can be exercised without ever writing to the tree
 // under test.
 func TestStaleFilesCatchesAStaleSiteScaleCopy(t *testing.T) {
-	root := testRoot(t)
-	tmp := t.TempDir()
-	for _, rel := range []string{
-		ManifestPath, ArtifactPath, BehaviorIndexPath, TypeIndexPath,
-		OracleVersionsPin, ScaleRecordsPath, "live/floci-image",
-	} {
-		b, err := os.ReadFile(filepath.Join(root, rel))
-		if err != nil {
-			t.Skipf("%s is not readable in this checkout: %v", rel, err)
-		}
-		dst := filepath.Join(tmp, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(dst, b, 0o644); err != nil { //nolint:gosec // a temp copy of a committed artifact
-			t.Fatal(err)
-		}
-	}
-
-	// Render once so every generated file in tmp is current; StaleFiles
-	// must then find nothing, which is the control this test needs before
-	// its RED arm means anything.
-	m, a, err := loadAll(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tt, err := LoadTypeIndexTotals(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	scale, err := loadScaleRecordsBytes(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if scale == nil {
-		t.Fatalf("%s is empty in this checkout, so there is nothing to publish and nothing to compare", ScaleRecordsPath)
-	}
-	if _, err := Render(tmp, m, a, tt, scale); err != nil {
-		t.Fatal(err)
-	}
+	tmp, _ := renderedScratchCheckout(t)
 	stale, err := StaleFiles(tmp)
 	if err != nil {
 		t.Fatal(err)
@@ -228,5 +267,35 @@ func TestStaleFilesCatchesAStaleSiteScaleCopy(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("%s is short one record and `gauntlet check` did not name it (stale = %v) - a published scale point can go missing with nothing saying so", SiteScalePath, stale)
+	}
+}
+
+// TestLiveCertWorkflowCarriesEveryFileTheCommandWrites is #1187 one layer
+// out, and the reason the fix inside `gauntlet live-cert` was not enough on
+// its own.
+//
+// live-cert.yml opens the pull request that lands a real-AWS certification,
+// and it does so with an explicit add-paths list. A file the command writes
+// and the list does not name never reaches main, which discards it exactly
+// as thoroughly as never writing it - and the list named neither scale file
+// while the command wrote both.
+//
+// The wanted set is taken from Render's own output rather than retyped, so
+// adding a generated file cannot silently leave the publication behind.
+func TestLiveCertWorkflowCarriesEveryFileTheCommandWrites(t *testing.T) {
+	root := testRoot(t)
+	b, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live-cert.yml"))
+	if err != nil {
+		t.Skipf("live-cert.yml is not readable in this checkout: %v", err)
+	}
+	workflow := string(b)
+
+	_, written := renderedScratchCheckout(t)
+	// ScaleRecordsPath is the one file live-cert writes that Render does
+	// not: Render publishes the copy, SaveScaleArtifact writes the source.
+	for _, rel := range append(written, ScaleRecordsPath) {
+		if !strings.Contains(workflow, "\n            "+rel+"\n") {
+			t.Errorf("`gauntlet live-cert` writes %s and live-cert.yml's add-paths does not name it, so a run that produces it opens a pull request without it", rel)
+		}
 	}
 }

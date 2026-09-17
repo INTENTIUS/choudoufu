@@ -115,13 +115,32 @@ func checkNoProductCodeMoved(root, base, ours, theirs string) error {
 // artifactAtRevision loads live/gauntlet.json's content as of a git
 // revision. A revision where the file doesn't exist yet reads as an empty
 // artifact - the same rule loadArtifactFile uses for a missing working-tree
-// file, extended to a missing historical one. rev must already be a
-// resolved commit (resolveCommit), so any gitShowFile error here can only
-// mean "the path did not exist at that commit", never "unknown revision".
+// file, extended to a missing historical one.
+//
+// Which of those it is has to be ASKED, not inferred from an exit status
+// (#1142's class, found by that issue's audit). `git show <rev>:<path>`
+// fails identically for "not at that commit", "object missing from a
+// blobless or partial clone", "corrupt object" and "git will not start",
+// and this used to turn every one of them into an empty artifact with no
+// error. Empty is not a harmless default here: MergeArtifact writes its
+// result to live/gauntlet.json and re-renders, so one failed `git show` on
+// the `ours` side deletes every estate row that side measured and still
+// prints `merged: N of M clear`. `git ls-tree` separates the cases cleanly
+// - exit 0 with empty output is genuinely "not at that commit", and a
+// non-zero exit is git declining to answer, which is a refusal.
+//
+// rev must already be a resolved commit (resolveCommit).
 func artifactAtRevision(root, rev string) (*Artifact, error) {
+	listed, err := gitOutput(root, "ls-tree", "--name-only", rev, "--", ArtifactPath)
+	if err != nil {
+		return nil, fmt.Errorf("merge-artifact: cannot tell whether %s exists at %s: %w", ArtifactPath, rev, err)
+	}
+	if listed == "" {
+		return &Artifact{Schema: 1}, nil
+	}
 	b, err := gitShowFile(root, rev, ArtifactPath)
 	if err != nil {
-		return &Artifact{Schema: 1}, nil
+		return nil, fmt.Errorf("merge-artifact: %s is present at %s but could not be read: %w", ArtifactPath, rev, err)
 	}
 	var a Artifact
 	if err := json.Unmarshal(b, &a); err != nil {

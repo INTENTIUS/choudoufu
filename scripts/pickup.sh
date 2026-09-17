@@ -448,7 +448,12 @@ fi
 # Worktrees the Agent tool made (isolation: worktree) live under .claude/worktrees
 # and are gitignored; their branches are worktree-agent-*. List them so they
 # are not mistaken for nothing.
-agentwt=$(git worktree list --porcelain | awk '/^worktree .*\.claude\/worktrees\//{print $2}')
+# #1142: this used to run `git worktree list` again and pipe it straight
+# into awk, so the exit status checked was awk's and a git that could not
+# list worktrees made the whole section disappear - which reads as "no agent
+# worktrees", not as "could not look". It reuses WTLIST above, whose failure
+# is already announced once.
+agentwt=$(printf '%s\n' "$WTLIST" | awk '/^worktree .*\.claude\/worktrees\//{print $2}')
 if [ -n "$agentwt" ]; then
   echo '  Agent-tool worktrees (.claude/worktrees/, branches worktree-agent-*):'
   for w in $agentwt; do
