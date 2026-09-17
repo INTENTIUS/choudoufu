@@ -237,17 +237,25 @@ const (
 // "No changes." for the same edit - so what is wrong is the prior handed
 // over, not this fork's diff.
 //
-// What this does about it: every key the prior manifest ALREADY CARRIES at
+// What this does about it: every key in the mirrored set at
 // metadata.labels and metadata.annotations takes the LIVE object's value
-// for that key, or is dropped when the live object has no such key. Since
-// the prior manifest is the seed, its keys are exactly the keys the
-// CONFIGURATION declares, and a key the configuration does not declare
-// never enters the prior at all. That is the same rule this function
-// applied to [markers.TagEstate] alone before #1177 - the marker arm is a
-// special case of it, not a separate one - and for a key the configuration
-// declares it reproduces what a state file's last-applied value says.
+// for that key, or is dropped when the live object has no such key. The
+// mirrored set is
 //
-// # Why the prior's own keys, and not the live maps wholesale
+//	(keys the prior manifest already carries) ∪ (owned[field])
+//
+// where the prior manifest is the seed, so its keys are exactly the keys
+// the CONFIGURATION declares, and owned is GitHub issue #1211's other
+// half: the keys this estate's own Kubernetes field manager wrote,
+// according to the live object's metadata.managedFields. For a key the
+// configuration declares, this reproduces what a state file's
+// last-applied value says; for a key the configuration USED to declare,
+// the owned set is what remembers it, which is the whole of #1211's fix.
+//
+// The marker arm - [markers.TagEstate] alone - is a special case of the
+// first half, not a separate one.
+//
+// # Why exactly that set, and not the live maps wholesale
 //
 // computed_fields exists so that a label or an annotation the API SERVER or
 // a controller adds does not churn the plan, and Kubernetes adds plenty:
@@ -257,11 +265,25 @@ const (
 // prior, the configuration would then differ from the prior, and the
 // provider's rule takes the configuration for the WHOLE path when it does -
 // so every plan would propose deleting every server-added key, forever,
-// against a server that re-adds them. Restricting the mirror to the keys
-// configuration declares leaves that half of computed_fields exactly as
-// stock has it.
+// against a server that re-adds them. #1211's scouting measured that
+// exact churn on a real cluster: the wholesale mirror made the removal
+// plan AND proposed deleting `kubernetes.io/metadata.name` and a key
+// `kubectl label` had written, the server wrote both straight back, and
+// the next plan proposed the same deletions again.
 //
-// # The two places this still differs from a state-backed run
+// The owned set is immune to that by construction. A key some other
+// manager wrote is not in our manager's managedFields entry, so it is
+// never mirrored, so the configuration and the prior agree about it and
+// the live value stands - which is what `k8s-a-label-is-a-change` step 5
+// requires and what the wholesale mirror could not deliver.
+//
+// owned is nil for every non-Kubernetes read, and nil whenever the run
+// could not learn the answer - see [ownedManifestKeys], which is where
+// the "could not learn" case earns its warning. Nil restores exactly the
+// behaviour #1177 shipped: correct for everything the configuration
+// declares, and blind to a removal.
+//
+// # Where this still differs from a state-backed run
 //
 //   - A declared label or annotation changed or deleted OUT OF BAND churns
 //     the plan here, where stock's computed_fields swallows it. That is the
@@ -269,21 +291,15 @@ const (
 //     label` on a declared key visible to a saved plan's staleness check,
 //     and the marker arm has always behaved this way for tofu-estate for
 //     the same reason.
-//   - A key REMOVED from the configuration is not proposed for removal.
-//     Nothing in a stateless run remembers it was ever applied, so it is
-//     not in the prior either, the configuration and the prior agree, and
-//     the provider keeps the live value. It was not removable before this
-//     change either; GitHub issue #1211 carries it, and the source that
-//     could settle it is the live object's own metadata.managedFields,
-//     which names the keys this fork's field manager last wrote - the
-//     provider strips managedFields out of the `object` it hands back
-//     (RemoveServerSideFields), so reading it needs a call this path does
-//     not make today.
+//   - A key removed from the configuration that our field manager never
+//     wrote is still not proposed for removal, and should not be: it is
+//     someone else's key that this configuration happened to name, and
+//     server-side apply would decline to remove it anyway.
 //
 // A value that cannot be read without unmarking (marksafe's discipline) is
 // returned as it was, per map: one marked labels value does not cost the
 // annotations their mirror.
-func mirrorManifestComputedFields(v cty.Value, block *configschema.Block) cty.Value {
+func mirrorManifestComputedFields(v cty.Value, block *configschema.Block, owned map[string]map[string]bool) cty.Value {
 	if !markers.ManifestSurface(block) || v == cty.NilVal || v.IsNull() || !v.IsKnown() || v.IsMarked() || !v.Type().IsObjectType() {
 		return v
 	}
@@ -319,7 +335,7 @@ func mirrorManifestComputedFields(v cty.Value, block *configschema.Block) cty.Va
 		if !ok {
 			continue
 		}
-		mirrored, ok := mirrorMetadataMap(cur, live)
+		mirrored, ok := mirrorMetadataMap(cur, live, owned[field])
 		if !ok || mirrored.RawEquals(cur) {
 			continue
 		}
@@ -386,17 +402,25 @@ func liveMetadataMap(meta cty.Value, field string) (map[string]string, bool) {
 }
 
 // mirrorMetadataMap rebuilds one of the prior manifest's metadata maps with
-// the live object's value for every key it already carries, dropping a key
-// the live object does not have. The container type the configuration wrote
-// is preserved - an object constructor's own object type, or a map where
-// the operator typed one - because the manifest argument is dynamic and the
-// value the provider compares against is this one.
+// the live object's value for every key it already carries, plus every key
+// in owned, dropping any key the live object does not have. The container
+// type the configuration wrote is preserved - an object constructor's own
+// object type, or a map where the operator typed one - because the
+// manifest argument is dynamic and the value the provider compares against
+// is this one. An owned key the configuration does not declare widens an
+// object type by one attribute, which is exactly the difference that makes
+// the removal plan.
+//
+// owned is nil for every caller before GitHub issue #1211 and for every
+// run that could not read metadata.managedFields, and a nil map reads as
+// empty, so the union is then the prior's own keys and this behaves
+// precisely as #1177 shipped it.
 //
 // It refuses (false, the caller leaves the map as it was) rather than
 // guessing: a null or unknown map has no declared key to mirror, and a
 // non-string value is not something a label or an annotation can hold, so
 // one is a sign the caller is not looking at what it thinks it is.
-func mirrorMetadataMap(cur cty.Value, live map[string]string) (cty.Value, bool) {
+func mirrorMetadataMap(cur cty.Value, live map[string]string, owned map[string]bool) (cty.Value, bool) {
 	if cur.IsNull() || !cur.IsKnown() || cur.IsMarked() || !cur.CanIterateElements() {
 		return cty.NilVal, false
 	}
@@ -414,6 +438,22 @@ func mirrorMetadataMap(cur cty.Value, live map[string]string) (cty.Value, bool) 
 			continue
 		}
 		elems[k.AsString()] = cty.StringVal(got)
+	}
+	// GitHub issue #1211. A key our own field manager wrote and the live
+	// object still has, which the configuration no longer declares: it
+	// enters the prior with its live value, the configuration differs
+	// from the prior, and the provider plans the removal. A key some
+	// other manager wrote is not here, which is why this cannot churn -
+	// see the caller's doc comment.
+	for key := range owned {
+		if _, already := elems[key]; already {
+			continue
+		}
+		got, ok := live[key]
+		if !ok {
+			continue
+		}
+		elems[key] = cty.StringVal(got)
 	}
 	asMap := cur.Type().IsMapType()
 	switch {

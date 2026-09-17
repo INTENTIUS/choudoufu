@@ -1215,6 +1215,21 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// on the path a live-block configuration takes under plain
 		// "choudoufu plan" and "choudoufu apply".
 		ReadParallelism: readPar,
+		// GitHub issue #1211: which metadata.labels and
+		// metadata.annotations keys this estate's own field manager owns
+		// on each live kubernetes_manifest object, read through the
+		// marker sweep's cluster clients. Without it a label DELETED
+		// from the configuration is in neither the configuration nor the
+		// prior manifest, the two agree, and the plan reports no changes
+		// over a label that is still on the object.
+		//
+		// This one call site serves BOTH plan and apply: PriorState is
+		// the shared projection, so an apply re-derives the same prior
+		// and plans the same removal. That is the whole of what the
+		// apply side needs - server-side apply then removes exactly the
+		// keys our manager owns and spares everyone else's, which is
+		// measured on #1211.
+		ManifestOwnedKeys: statelessManifestOwnedKeys(config, provs),
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are

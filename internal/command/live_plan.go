@@ -822,6 +822,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// and the bulk of what this command spends its time on, so this is the
 		// construction site the variable exists for.
 		ReadParallelism: readPar,
+		// GitHub issue #1211: which metadata.labels and
+		// metadata.annotations keys this estate's own field manager owns
+		// on each live kubernetes_manifest object, read through the
+		// marker sweep's cluster clients. Without it a label DELETED
+		// from the configuration is in neither the configuration nor the
+		// prior manifest, the two agree, and the report says no changes
+		// over a label that is still on the object.
+		ManifestOwnedKeys: statelessManifestOwnedKeys(config, provs),
 	})
 	// Issue #349. Same store again, sixth namespace, and unreachable today
 	// for the same structural reason ProvisionedStore is: hintStore is
