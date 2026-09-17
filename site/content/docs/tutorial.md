@@ -65,8 +65,10 @@ anywhere yet. That's the baseline every later step gets compared against.
 Step 3 is the handover, and it's almost anticlimactic: the script deletes
 `terraform.tfstate` in front of you, and nothing else changes, not the
 configuration, not the resources sitting in the emulator. That deletion is
-the entire migration to marker mode. From here on, choudoufu has no state
-file to read. It rebuilds what it needs to know by reading two tags,
+the entire migration to marker mode. From here on the state file stops
+being the record of what you own: choudoufu still keeps one, a disposable
+cache at `choudoufu-cache.tfstate` that it is allowed to find stale or
+missing, and it rebuilds what it needs to know by reading two tags,
 `tofu-estate` and `tofu-address`, straight off the live resources.
 
 Steps 4 and 5 ask for a plan right after the handover, once with a

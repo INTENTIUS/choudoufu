@@ -321,11 +321,11 @@ func worstCaseChildKey(ctx context.Context, cfg *configs.Config, name string) ad
 }
 
 // checkStateBackends warns about backend and cloud blocks (GitHub issue
-// #210: [RuleStateBackend] is [SeverityWarning], not fatal). Stateless mode
-// has no state file, so there is nowhere for a backend to put one and
-// nothing for a lock to protect - and it never asks: no file under
-// internal/live reads mod.Backend or mod.CloudConfig, so the block sits
-// unread rather than merely unwise.
+// #210: [RuleStateBackend] is [SeverityWarning], not fatal). The block is
+// not wrong to have a state file to write to - it does - but the run that
+// reaches this warning never reads it: no file under internal/live reads
+// mod.Backend or mod.CloudConfig, so the block sits unread rather than
+// merely unwise, and its lock protects nothing this run takes.
 //
 // That is true only of the run that reaches this warning, though, and this
 // warning can only ever be reached from a module with no live block: mod

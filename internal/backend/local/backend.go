@@ -255,9 +255,13 @@ func (b *Local) DeleteWorkspace(ctx context.Context, name string, force bool) er
 }
 
 func (b *Local) StateMgr(ctx context.Context, name string) (statemgr.Full, error) {
-	// A stateless run has no state to store, so it never reaches a file
-	// path, a workspace directory or a backend. This is deliberately the
-	// first thing here: everything below creates something on disk.
+	// A live run's state never reaches this backend's file path, workspace
+	// directory or delegate: the run carries its own manager, and what it
+	// persists is the disposable cache of issue #685
+	// (choudoufu-cache.tfstate under the data dir), written elsewhere and
+	// allowed to be stale or missing. This is deliberately the first thing
+	// here: everything below creates something in the workspace directory
+	// on disk.
 	if b.Stateless != nil {
 		return b.Stateless.StateMgr(), nil
 	}
