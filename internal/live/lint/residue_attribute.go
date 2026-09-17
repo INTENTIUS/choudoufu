@@ -85,7 +85,7 @@ func CheckResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sc
 	// operator's to make: under `strict { secrets = "store" }`, the default,
 	// internal/live/projection's residue mechanism records a sensitive
 	// settable argument the same way it records an ordinary one, so the
-	// sentence "no memory of the value survives a run" would be false.
+	// warning's "no record is written for it" would be false.
 	//
 	// Read once, from the root, through the same function every other layer
 	// reads it with. The write-only half is unaffected and stays: no setting
@@ -295,9 +295,9 @@ func residueWarning(addr, path, kind string, subject hcl.Range) *hcl.Diagnostic 
 	}
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagWarning,
-		Summary:  "Attribute value cannot round-trip a stateless replan",
+		Summary:  "Attribute value cannot round-trip a live replan",
 		Detail: fmt.Sprintf(
-			"%s sets %q, and %s. No memory of the value survives a run, so every stateless plan will propose sending it again - the same perpetual diff stock `terraform import` produces for this argument. The plan is correct and the apply converges; set the value knowingly. See live/LIMITATIONS.md, \"Attribute-level residue\" (GitHub issue #126).",
+			"%s sets %q, and %s. So nothing a later plan consults carries the value back: no ownership marker holds it, no record is written for it, and the disposable state cache is no substitute - a live plan comes out the same with a fresh cache, a stale one, or none at all (GitHub issue #685). Every live plan will therefore propose sending the value again - the same perpetual diff stock `terraform import` produces for this argument. The plan is correct and the apply converges; set the value knowingly. See live/LIMITATIONS.md, \"Attribute-level residue\" (GitHub issue #126).",
 			addr, path, reason,
 		),
 		Subject: subject.Ptr(),

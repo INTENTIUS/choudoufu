@@ -580,7 +580,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 
 	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
 		closeProviders()
-		return skip(fmt.Sprintf("%s is outside the stateless subset (%d issue(s)); run \"choudoufu live-check %s\" for the detail.", dir, len(issues), dir))
+		return skip(fmt.Sprintf("%s is outside the subset a live run can plan (%d issue(s)); run \"choudoufu live-check %s\" for the detail.", dir, len(issues), dir))
 	}
 
 	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)

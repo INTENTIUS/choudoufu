@@ -120,7 +120,9 @@ func reportOverlongAddress(inst addrs.ResourceInstance, modInst addrs.ModuleInst
 				"an address across at most %d tag values of %d characters each (live/MARKERS.md, "+
 				"\"tofu-address continuation tags\"), a ceiling of %d characters in total. The "+
 				"address becomes the tofu-address marker (and its continuation tags) on the live "+
-				"resource, and that marker is the only record of ownership a stateless run has, so "+
+				"resource, and for a resource that carries tags that marker is where a live run "+
+				"reads ownership from: the disposable state cache is never consulted for it, and "+
+				"the record store answers only for types with nowhere to hang a tag. So "+
 				"an address that does not fit is refused here rather than truncated: silently "+
 				"truncating an ownership key is worse than refusing to admit the resource. Shorten "+
 				"the resource label, the instance key, or the module nesting",

@@ -378,7 +378,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		if untaggable != nil {
 			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, untaggable.providerAddr, untaggable.typeName, untaggable.schema, untaggable.applied); err != nil {
 				res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
-					"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
+					"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again until its identity is recorded some other way.",
 					entry.Addr, err,
 				)))
 			} else if recorded {
