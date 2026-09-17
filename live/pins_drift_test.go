@@ -373,3 +373,131 @@ func decodeInto(t *testing.T, rel string, v any) {
 		t.Fatalf("decoding live/%s: %v", rel, err)
 	}
 }
+
+// exactVersionPinLiteral matches an HCL `version = "= X.Y.Z"` assignment -
+// the exact-constraint shape gauntlet_pin_aws_provider itself writes, and
+// the only shape a hashicorp/aws requirement takes anywhere in the
+// gauntlet. It is deliberately NOT a bare X.Y.Z: corpus-eks-basic rewrites
+// a terraform-aws-eks MODULE version (`version = "6.6.1"`, no "=") as part
+// of its own reduction, and a module version is a real literal that must
+// stay one - gauntlet_pin_aws_provider never touches it, so it cannot
+// drift from the provider pin.
+//
+// The optional backslashes are what let one pattern read both shapes a
+// script writes this in: the HCL text of a heredoc, and the perl -0pi
+// search pattern of a live-block delta, where every dot and sometimes
+// every quote is escaped (`version = \"= 6\.59\.0\"`). Callers strip
+// backslashes before matching, so both collapse to the same string.
+var exactVersionPinLiteral = regexp.MustCompile(`version\s*=\s*"\s*=\s*[0-9]+\.[0-9]+\.[0-9]+\s*"`)
+
+// TestGauntletPinCallersCarryNoVersionLiteral is issue #1207's guard, and
+// it exists because #1041's guard above cannot see this bug by
+// construction. #1041 checks that a crossing script CALLS
+// gauntlet_pin_aws_provider. Both scripts #1207 names call it - six times
+// and twice - and then contradict the call: they spell the provider
+// release out a second time, as a literal, and use that literal either as
+// the search pattern of the perl rewrite that inserts their live block, or
+// as the requirement of a stock oracle's own working directory.
+//
+// The first shape is fatal the moment the pin moves. gauntlet_pin_aws_
+// provider rewrites the copied versions.tf to
+// live/oracle-versions.json's aws_provider_version one step earlier, so a
+// pattern anchored on the OLD release matches nothing, the delta is never
+// applied, and the script's own `grep -q estate=` fails:
+// corpus-security-group-complete and corpus-autoscaling-complete both died
+// this way when the pin went 6.59.0 -> 6.63.0, nine and eleven stages
+// never run, while the board still read their five-day-old clear=true.
+//
+// The second shape is quieter and was the reason not to fix only the two
+// loud ones. A stock oracle's heredoc-authored main.tf that is passed
+// through gauntlet_pin_aws_provider has its literal overwritten, so the
+// digits are dead text - harmless today, and the next reader's evidence
+// that the two shapes are the same bug (corpus-vpc-complete carried
+// "= 6.59.0" and passed 11/11 on the day the other two could not reach
+// stage 1). One that is NOT passed through it is neither dead nor
+// harmless: corpus-iam-policy's day2_count oracle really did init at
+// 6.58.0 and corpus-iam-read-only-policy's at 6.59.0, each standing in as
+// "what stock does" for an estate running 6.63.0 - the two-halves-two-
+// versions split issue #1034 exists to prevent, arrived from inside one
+// script instead of from two registries.
+//
+// So the rule is not "call the helper" but "do not also carry the answer":
+// a script that calls gauntlet_pin_aws_provider must not spell an exact
+// provider version anywhere in its own code. A placeholder that is not a
+// valid constraint (the scripts use "PINNED-BY-GAUNTLET") is what the
+// heredocs write instead, so that dropping the pin call fails `init`
+// loudly rather than silently measuring against a stale release.
+//
+// Scope, and what this deliberately does not cover:
+//
+//   - Scripts that never call the helper are not checked here. The ~15
+//     pre-protocol legacy demos under e2e/corpus-*/run.sh (corpus-
+//     cloudfront, corpus-crossing, corpus-message-queue and siblings) each
+//     rewrite a corpus module's own constraint to a literal they choose,
+//     read that same literal back, and are self-consistent; they are not
+//     registered in live/gauntlet/estates.json, `tools/gauntlet run` never
+//     runs them, and they are out of scope here the same way they are out
+//     of scope for #1041's guard and for the artifact.
+//   - e2e/reference-ec2-vpc/run.sh is the one registered estate that
+//     speaks the protocol, carries 19 exact literals, and still is not
+//     checked: it copies no corpus module and hand-authors its own
+//     versions.tf, which is the separate defect #1041's own PR body seeds.
+//     Widening this guard to it would be a real fix, but a different one.
+func TestGauntletPinCallersCarryNoVersionLiteral(t *testing.T) {
+	entries, err := filepath.Glob("e2e/*/run.sh")
+	if err != nil {
+		t.Fatalf("globbing e2e/*/run.sh: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatalf("e2e/*/run.sh matched nothing - the guard would silently check zero scripts")
+	}
+
+	checked := 0
+	for _, rel := range entries {
+		if !gauntletCrossingScriptPattern.MatchString(rel) {
+			continue
+		}
+		data, err := os.ReadFile(rel)
+		if err != nil {
+			t.Errorf("reading live/%s: %v", rel, err)
+			continue
+		}
+		lines := strings.Split(string(data), "\n")
+
+		// Whole-line comments are dropped exactly as #1041's guard drops
+		// them, and for the same reason: the prose above and the prose in
+		// these scripts names both the helper and the releases it replaced.
+		callsPin := false
+		for _, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				continue
+			}
+			if strings.Contains(line, "gauntlet_pin_aws_provider") {
+				callsPin = true
+				break
+			}
+		}
+		if !callsPin {
+			continue
+		}
+		checked++
+
+		for i, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				continue
+			}
+			// A perl search pattern escapes the dots, and a double-quoted
+			// perl -e escapes the quotes too; collapsing backslashes makes
+			// both read as the HCL they match against.
+			if lit := exactVersionPinLiteral.FindString(strings.ReplaceAll(line, `\`, "")); lit != "" {
+				t.Errorf("live/%s:%d calls gauntlet_pin_aws_provider and then spells an exact provider version out itself (%s) - that literal is a second copy of live/oracle-versions.json's aws_provider_version and stops agreeing with it at the next bump. Match the version field by shape (version = \"[^\"]*\") in a rewrite, or write the placeholder \"PINNED-BY-GAUNTLET\" in a heredoc and let the pin call fill it in (issue #1207)",
+					rel, i+1, lit)
+			}
+		}
+	}
+
+	if checked == 0 {
+		t.Fatalf("no e2e/*/run.sh calls gauntlet_pin_aws_provider - this guard checked nothing, which is worse than not existing")
+	}
+	t.Logf("checked %d crossing script(s) that call gauntlet_pin_aws_provider", checked)
+}
