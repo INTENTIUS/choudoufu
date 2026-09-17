@@ -9,14 +9,15 @@
 // concurrency taxonomy's crash row, run rather than argued), and the
 // existence-flavor receipt test (RA.6).
 //
-// Every other stateless package tests the piece it owns. This package tests
-// the claims those pieces add up to, which no single package can: that an
-// estate can be created, inspected, corrected and shrunk with plain
-// "choudoufu apply" and plain "choudoufu plan", against a real provider
-// talking to a real (emulated) cloud, with no state file existing at any
-// point in between. It is a package rather than a file in another one
-// because it belongs to no component - it runs the built binary and reads
-// the cloud with the AWS CLI.
+// Every other live-marker package tests the piece it owns. This package
+// tests the claims those pieces add up to, which no single package can:
+// that an estate can be created, inspected, corrected and shrunk with
+// plain "choudoufu apply" and plain "choudoufu plan", against a real
+// provider talking to a real (emulated) cloud, with markers on the
+// resources - never the state file - deciding ownership at every point in
+// between. It is a package rather than a file in another one because it
+// belongs to no component - it runs the built binary and reads the cloud
+// with the AWS CLI.
 //
 // The tests are gated on TF_ACC or TF_FLOCI_TEST (see
 // internal/live/flocitest) and need Docker and the AWS CLI.

@@ -22,8 +22,10 @@ import (
 // difference. Upstream compares the raw path sets, which is exact
 // bookkeeping when the prior comes from a state file that recorded the
 // planned paths verbatim on the last apply. This fork's live-marker plan
-// has no state file: the prior is projected from the provider's own read,
-// marked from the schema (the whole `data` map of a kubernetes_secret_v1,
+// never reads its state file for the prior - the cache is disposable and
+// is not consulted for ownership - so the prior is projected fresh from
+// the provider's own read instead, marked from the schema (the whole
+// `data` map of a kubernetes_secret_v1,
 // say), while the planned side is marked from the schema AND from the
 // configuration, which can mark values INSIDE that map (each key fed by a
 // sensitive variable, or by a format() over one). The two sets then

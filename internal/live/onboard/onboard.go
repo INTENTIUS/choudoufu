@@ -12,8 +12,9 @@
 // every corpus entry, and - verified by scanning all 250 of them - not one
 // declares a live block, a record_store or the sidecar file. So nothing
 // measured the form the product is actually for: someone writes ordinary
-// Terraform, adds a live block, applies, and choudoufu manages it from then
-// on with no state file.
+// Terraform, adds a live block, applies, and choudoufu manages it from
+// then on with markers on the resources as the record of ownership - the
+// state file becomes a disposable cache rather than disappearing.
 //
 // The edit that gets from one to the other is small and mechanical, and it
 // had been made by hand a dozen times - once per end-to-end crossing under

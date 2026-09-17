@@ -383,16 +383,22 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 		m.Live = s
 	}
 
-	// Stateless mode and a state store are mutually exclusive by construction:
-	// a stateless run has no state to put anywhere, so a backend beside it is
-	// not a redundant setting but a contradiction about where the truth lives.
+	// A live block and a state store are mutually exclusive by
+	// construction, but not because a live run has nowhere to write state -
+	// it keeps state the same way OpenTofu does, in a disposable cache.
+	// What a backend or cloud block would add is a SECOND authoritative
+	// home for state, when the live block has already made the markers on
+	// the resources themselves that record: a plan under a live block
+	// never reads the cache to decide what it owns, so a backend
+	// configuring where an authoritative state file lives is a
+	// contradiction about where the truth lives, not a redundant setting.
 	// Refusing it here, in the decoder, means no command can reach a state
-	// manager while believing it is in stateless mode.
+	// manager while markers are the record of ownership.
 	if m.Live != nil && m.Backend != nil {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Both a backend and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'backend' block configuring where state is stored. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
+			Detail:   fmt.Sprintf("A module may declare either one 'live' block, where markers on the resources are the record of ownership and any local state is a disposable cache (choudoufu-cache.tfstate), OR one 'backend' block making a state file the authoritative record instead. A module cannot have two authoritative homes for state. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
 			Subject:  &m.Backend.DeclRange,
 		})
 	}
@@ -400,7 +406,7 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Both a cloud and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, which removes state entirely, OR one 'cloud' block configuring a cloud backend. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
+			Detail:   fmt.Sprintf("A module may declare either one 'live' block, where markers on the resources are the record of ownership and any local state is a disposable cache (choudoufu-cache.tfstate), OR one 'cloud' block making a state file the authoritative record instead. A module cannot have two authoritative homes for state. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
 			Subject:  &m.CloudConfig.DeclRange,
 		})
 	}
