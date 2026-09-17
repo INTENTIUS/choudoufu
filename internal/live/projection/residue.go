@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -593,7 +594,7 @@ func residueCandidates(schema providers.Schema, applied cty.Value, secrets stric
 	if !storing && identity.CredentialMaterial(schema.Block) {
 		return nil
 	}
-	identityAttrs := residueIdentityAttrs(schema)
+	identityAttrs := residueStubIdentityAttrs(schema)
 
 	var out []string
 	for name, attr := range schema.Block.Attributes {
@@ -1231,6 +1232,69 @@ func residueIdentityAttrs(schema providers.Schema) map[string]bool {
 	return out
 }
 
+// residueStubIdentityAttrs is [residueIdentityAttrs] as the residue
+// asks it, which is one type wider (GitHub issue #1190).
+//
+// [residueIdentityAttrs] answers from the two places a FLAT attribute can
+// carry an identity: the SDK's own "id", and whatever the provider's
+// resource identity schema names. A type whose identity is neither - no
+// "id" attribute, no identity schema - answers the empty set there, and
+// [identityOnly] then refuses to build a prior at all ("the applied object
+// carries no identity to read by"), so [classifyResidue] returns before it
+// issues a single read and the instance records NOTHING: no residue, and
+// with no recordable flat identity either, an envelope that
+// [recordEnvelope.isEmpty] deletes rather than writes.
+//
+// hashicorp/kubernetes's kubernetes_manifest is exactly that type, and the
+// consequence was measured on it: a `field_manager` block - a block the API
+// server can never answer for, since it records the manager that wrote a
+// field and not the manager a request asked for - was proposed as an
+// in-place update on every plan, for ever, because nothing on the live path
+// could say what the last apply set it to. `timeouts` on an
+// hashicorp/aws resource is the same shape and does not have the defect
+// (see [residueEligibleBlock]'s own worked example); the difference is not
+// the block, it is that an aws type has an "id" and a manifest does not.
+//
+// The identity a manifest-shaped type does have is authored inside its one
+// dynamic `manifest` argument - apiVersion, kind, metadata.namespace and
+// metadata.name, the four keys [identity.ManifestShape]'s own synthesized
+// entry reads through [identity.Component.Path] - so the manifest argument
+// is what has to cross into the identity-only prior, and it crosses whole:
+// nothing shallower than the argument itself can carry those four keys
+// through [identityOnly], which nulls or keeps one top-level attribute at a
+// time.
+//
+// [markers.ManifestLiveAttr] crosses too, and that one is not a choice.
+// This provider's ReadResource reads the prior's `object` to know what to
+// GET and refuses outright without it - "Current state of resource has no
+// 'object' attribute: This should not happen. The state may be incomplete
+// or corrupted", which is the diagnostic a stub carrying a null `object`
+// earned on a real cluster before this line existed. A read that never
+// happens classifies nothing, so the two attributes are one requirement,
+// not a wide reading of one.
+//
+// The cost is named here rather than discovered later: read A is no longer
+// a BARE prior for this type, so for anything the manifest or the live
+// object determines it can no longer tell "the provider sourced this from
+// the remote" apart from "the provider echoed what the prior held". The two
+// candidates that would answer differently under the two readings are
+// exactly `manifest` and `object`, and naming them here excludes both from
+// being candidates at all - which for `manifest` is also the line that
+// keeps a kind: Secret's whole body out of the record store, and for
+// `object` costs nothing, since a computed attribute the provider answers
+// from the remote is never residue under either reading. Everything else a
+// manifest-shaped type offers (field_manager, timeouts, wait) is
+// config-only: the API server has no answer for it to give, from a bare
+// prior or from this one, so the A/B test reads it the same way either way.
+func residueStubIdentityAttrs(schema providers.Schema) map[string]bool {
+	out := residueIdentityAttrs(schema)
+	if identity.ManifestShape(schema.Block) {
+		out[markers.ManifestSurfaceAttr] = true
+		out[markers.ManifestLiveAttr] = true
+	}
+	return out
+}
+
 // residueConfigSourced reports, for every flat attribute a schema names,
 // whether configuration is the ONLY thing that can ever set its value: the
 // plugin protocol's own Required/Optional/Computed contract (see
@@ -1617,7 +1681,7 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 				continue
 			}
 		}
-		if bv.IsNull() || bv.IsMarked() || !bv.RawEquals(residueNormalizeSDKZeroLeaves(want)) {
+		if bv.IsNull() || bv.IsMarked() || !(bv.RawEquals(want) || bv.RawEquals(residueNormalizeSDKZeroLeaves(want))) {
 			// The provider did not preserve what the prior held, so a
 			// record would not survive a read either - and, for the
 			// widened branch above, this is also what proves the live
@@ -1630,6 +1694,19 @@ func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[s
 			// why a null PRIMITIVE leaf becoming its own zero value is the
 			// SDK's own deterministic, content-free transformation rather
 			// than the provider disagreeing with what was applied.
+			//
+			// It is the tolerance and not the test, which is what the
+			// disjunction above is for (GitHub issue #1190). A provider
+			// built on terraform-plugin-framework has no such inability
+			// and echoes the applied value back EXACTLY, nulls and all -
+			// hashicorp/kubernetes's kubernetes_manifest answers
+			// field_manager = [{name = "...", force_conflicts = null}] to
+			// the byte - so normalizing only the left-hand side turned the
+			// most faithful possible answer into a mismatch and dropped
+			// the candidate. Read B is satisfied by the provider echoing
+			// what was applied, however it spells an unset leaf; the
+			// normalized form is a second accepted spelling, not a
+			// replacement for the first.
 			continue
 		}
 		if isAmbientEcho(want, ambient) {
@@ -1876,14 +1953,14 @@ func classifyResidueAll(schema providers.Schema, applied cty.Value, secrets stri
 	ambient := ambientIdentityValues(schema, identityObj)
 	merged := make(map[string]cty.Value)
 	if len(candidates) > 0 {
-		if attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), residueConfigSourced(schema), read, ambient); ok {
+		if attrs, ok := classifyResidue(applied, candidates, residueStubIdentityAttrs(schema), residueConfigSourced(schema), read, ambient); ok {
 			for k, v := range attrs {
 				merged[k] = v
 			}
 		}
 	}
 	if len(pathCandidates) > 0 {
-		if attrs, ok := classifyResiduePaths(applied, pathCandidates, residueIdentityAttrs(schema), read, ambient); ok {
+		if attrs, ok := classifyResiduePaths(applied, pathCandidates, residueStubIdentityAttrs(schema), read, ambient); ok {
 			for k, v := range attrs {
 				merged[k] = v
 			}
