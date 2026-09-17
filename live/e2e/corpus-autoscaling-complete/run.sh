@@ -289,7 +289,12 @@ emulator_delta "$ADOPTED"
 # half-built object, and the tainted bit stock keeps in its state file needs
 # somewhere to live. Without this line the estate is refused at stage 3 with
 # exactly that diagnostic, which is what it did until 2026-08-21.
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$ADOPTED/versions.tf"
+# The version field is matched by SHAPE (any quoted string), never by its
+# digits: gauntlet_pin_aws_provider has already rewritten this file to
+# live/oracle-versions.json's aws_provider_version, so a literal here is a
+# second copy of the pin that silently stops matching the moment the pin
+# moves. It did - issue #1207, 6.59.0 against a pin that had gone to 6.63.0.
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$ADOPTED/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED/versions.tf" || fail "the live-block delta did not match versions.tf"
 grep -q 'record_store "local"' "$ADOPTED/versions.tf" || fail "the record_store delta did not match versions.tf"
 log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: choudoufu, live block added)"
@@ -1405,6 +1410,14 @@ COUNTEOF
   log "=== G0. day2_count stock oracle: stand a 2-instance count block up with $TF_COLD_BIN, scale it 2 -> 1 -> 2 ==="
   ORACLE_COUNT_DIR="$WORK/plain-count-oracle"
   mkdir -p "$ORACLE_COUNT_DIR"
+  # The version field below is the placeholder PINNED-BY-GAUNTLET, not a
+  # release: the gauntlet_pin_aws_provider call after this write rewrites it
+  # to live/oracle-versions.json's aws_provider_version, the same release the
+  # estate side runs. A literal here would be a second copy of the pin, free
+  # to drift from the first - issue #1207, where exactly that drift cost two
+  # estates every stage past greenfield. If the pin call is ever dropped,
+  # `init` fails on this string instead of quietly measuring against a stale
+  # release.
   write_count_oracle() { # <count>
     {
       cat <<'HCL'
@@ -1412,7 +1425,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.59.0"
+      version = "PINNED-BY-GAUNTLET"
     }
   }
 }
@@ -1783,7 +1796,12 @@ emulator_delta "$GREEN"
 # A greenfield apply is the one case an operator KNOWS every such instance
 # is a real create. Same fix, same precedent as corpus-alb-complete's own
 # 898091b8f2 and corpus-ec2-instance-complete's own equivalent.
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n\n    strict {\n      no_source_create = "create"\n    }\n  }\n}/' "$GREEN/versions.tf"
+# The version field is matched by SHAPE (any quoted string), never by its
+# digits: gauntlet_pin_aws_provider has already rewritten this file to
+# live/oracle-versions.json's aws_provider_version, so a literal here is a
+# second copy of the pin that silently stops matching the moment the pin
+# moves. It did - issue #1207, 6.59.0 against a pin that had gone to 6.63.0.
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "[^"]*"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$GREEN_ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n\n    strict {\n      no_source_create = "create"\n    }\n  }\n}/' "$GREEN/versions.tf"
 grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN/versions.tf" || fail "the greenfield live-block delta did not match versions.tf"
 log "  DELTA  emulator flags + provider pin + live block (record_store, same reason as \$ADOPTED - main.tf:889's provisioner; strict.no_source_create=create for #388's default-flip greenfield ambiguity)"
 

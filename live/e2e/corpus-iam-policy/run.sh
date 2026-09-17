@@ -1377,12 +1377,23 @@ EOF
     log "=== G0. day2_count stock oracle: create a 2-instance count block, scale it to 1 and back, against the adopted estate's own endpoint (idle since day2_remove finished) ==="
     ORACLE_COUNT_DIR="$WORK/oracle-count"
     mkdir -p "$ORACLE_COUNT_DIR"
+    # PINNED-BY-GAUNTLET below is a placeholder, not a version. This oracle
+    # directory is a fresh one that never sees the corpus example's own
+    # versions.tf, so it needs its own required_providers block - but a
+    # literal release spelled out here is a SECOND copy of the pin, free to
+    # drift from the one gauntlet_pin_aws_provider already applied to $EST.
+    # That drift is issue #1207: this oracle sat at 6.58.0 while the estate
+    # it is the oracle for ran live/oracle-versions.json's 6.63.0, which is
+    # exactly the "two halves read two different provider versions" split
+    # #1034 exists to prevent. The pin call below rewrites it before init,
+    # and if that call is ever dropped, `terraform init` fails loudly on
+    # this string instead of quietly measuring against a stale release.
     cat > "$ORACLE_COUNT_DIR/main.tf" <<'HCL'
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "= 6.58.0"
+      version = "PINNED-BY-GAUNTLET"
     }
   }
 }
@@ -1411,6 +1422,7 @@ resource "aws_iam_policy" "count_test" {
   })
 }
 HCL
+    gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
     ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
       ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's terraform init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
