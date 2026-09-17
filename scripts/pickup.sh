@@ -34,7 +34,16 @@ FETCH=1
 # ".git", which is how the two cases are told apart here. A known hard-coded
 # path would break for anyone who cloned this repo somewhere else, so it is
 # used only as the last-resort fallback, never as the mechanism.
-COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null)"
+#
+# #1142: the fallback to $ROOT is correct for "we are IN the primary", and
+# silently wrong for "git could not answer" - a worktree then reports itself
+# as the primary checkout. PRIMARY_GUESSED records which of the two happened
+# so the dirty line below can say so instead of asserting it.
+PRIMARY_GUESSED=""
+if COMMON_DIR="$(git rev-parse --git-common-dir 2>&1)"; then :; else
+  PRIMARY_GUESSED="git could not resolve --git-common-dir ($(printf '%s' "$COMMON_DIR" | head -1)), so the primary checkout is assumed to be this one"
+  COMMON_DIR=""
+fi
 case "$COMMON_DIR" in
   /*) PRIMARY="$(cd "$(dirname "$COMMON_DIR")" && pwd)" ;;
   *)  PRIMARY="$ROOT" ;;
@@ -43,11 +52,54 @@ esac
 have() { command -v "$1" >/dev/null 2>&1; }
 hr() { printf '\n== %s\n' "$1"; }
 
+# gv runs a git command and prints its output on success. On failure it
+# prints "(git failed: <git's own first line>)" and returns 1 (#1142).
+#
+# git can fail in ways that are not answers, and this script used to read
+# every one of them as data. `git log -1 --format=%h -- path` prints nothing
+# both for "that path has no history here" and for "git refused to start";
+# `git merge-base --is-ancestor` exits 1 for "not an ancestor" and 128 for "I
+# could not answer". Anything below that reads git either goes through gv or
+# checks the exit status itself, so a broken toolchain reaches the reader as
+# a broken toolchain rather than as a blank field or a false finding.
+gv() {
+  local out rc
+  out="$(git "$@" 2>&1)"; rc=$?
+  if [ "$rc" != 0 ]; then
+    printf '(git failed: %s)' "$(printf '%s' "$out" | head -1)"
+    return 1
+  fi
+  printf '%s' "$out"
+}
+
+# One probe before anything reads git, so a broken git is named once at the
+# top instead of being inferred from a page of blanks. This is the exact
+# failure of 2026-09-15: /usr/bin/git began refusing every invocation with
+# "You have not agreed to the Xcode license agreements" after a background
+# Xcode update, and pickup reported 29 false DANGLING PROVENANCE rows, a
+# blank HEAD, a blank readiness commit and `none` for local branches - every
+# line of it wrong, none of it saying so.
+GIT_BROKEN=""
+if ! git_probe="$(git rev-parse --git-dir 2>&1)"; then
+  GIT_BROKEN="$(printf '%s' "$git_probe" | head -2 | tr '\n' ' ')"
+fi
+
 # ---------------------------------------------------------------- 1. the tree
 hr "tree"
+if [ -n "$GIT_BROKEN" ]; then
+  printf 'GIT BROKEN every git-derived line below is unreliable and this report is not evidence of anything: %s\n' "$GIT_BROKEN"
+  printf '           on macOS this is usually xcode-select pointing at an Xcode whose licence has not been accepted. DEVELOPER_DIR=/Library/Developer/CommandLineTools is the workaround, and unlike a PATH prepend it also reaches the bare exec.Command("git") inside tools/gauntlet.\n'
+fi
 printf 'checkout   %s\n' "$ROOT"
-printf 'branch     %s\n' "$(git branch --show-current 2>/dev/null || echo '(detached)')"
-printf 'HEAD       %s\n' "$(git log -1 --format='%h %ad %s' --date=short)"
+branch_out="$(git branch --show-current 2>&1)"; branch_rc=$?
+if [ "$branch_rc" != 0 ]; then
+  printf 'branch     (git failed: %s)\n' "$(printf '%s' "$branch_out" | head -1)"
+elif [ -z "$branch_out" ]; then
+  printf 'branch     (detached)\n'
+else
+  printf 'branch     %s\n' "$branch_out"
+fi
+printf 'HEAD       %s\n' "$(gv log -1 --format='%h %ad %s' --date=short)"
 if [ "$FETCH" = 1 ] && git remote get-url origin >/dev/null 2>&1; then
   if git fetch -q origin main 2>/dev/null; then
     ahead=$(git rev-list --count origin/main..main 2>/dev/null || echo '?')
@@ -58,7 +110,17 @@ if [ "$FETCH" = 1 ] && git remote get-url origin >/dev/null 2>&1; then
     echo 'origin     fetch failed (offline?); origin/main may be stale'
   fi
 fi
-dirty=$(git -C "$PRIMARY" status --porcelain | wc -l | tr -d ' ')
+# #1142: `git status | wc -l` reads a git failure as "nothing uncommitted",
+# which is the most dangerous possible default for this particular line - it
+# is the one that tells a session someone else worked in the main tree.
+[ -n "$PRIMARY_GUESSED" ] && printf 'primary    ASSUMED: %s\n' "$PRIMARY_GUESSED"
+dirty_out="$(git -C "$PRIMARY" status --porcelain 2>&1)"; dirty_rc=$?
+if [ "$dirty_rc" != 0 ]; then
+  dirty=0
+  printf 'dirty      COULD NOT CHECK the primary checkout (%s): %s\n' "$PRIMARY" "$(printf '%s' "$dirty_out" | head -1)"
+else
+  dirty=$(printf '%s' "$dirty_out" | grep -c . | tr -d ' ')
+fi
 if [ "$dirty" != "0" ]; then
   echo "dirty      $dirty uncommitted path(s) in the primary checkout ($PRIMARY; a session worked in the main tree; read them before anything else):"
   git -C "$PRIMARY" status --porcelain | head -20 | sed 's/^/             /'
@@ -66,9 +128,24 @@ fi
 
 # ------------------------------------------------------------ 2. the artifact
 hr "artifact (live/gauntlet.json)"
-art_commit=$(git log -1 --format=%h -- live/gauntlet.json)
-head_commit=$(git log -1 --format=%h)
-printf 'last written at %s (HEAD is %s)\n' "$art_commit" "$head_commit"
+art_commit=$(gv log -1 --format=%h -- live/gauntlet.json)
+head_commit=$(gv log -1 --format=%h)
+printf 'last written at %s (HEAD is %s)\n' "${art_commit:-(no history for this path on this branch)}" "$head_commit"
+# #1142's follow-up comment: say which copy the numbers below came from. The
+# python block reads live/gauntlet.json off the WORKING TREE; in a worktree
+# whose own run has just rewritten it, that is not what HEAD holds, and the
+# two answer different questions. `git show <commit>:<path>` and a grep of
+# the checkout disagreeing silently is how a peer session concluded a run id
+# was absent from a file that contained it.
+art_diff_out="$(git diff --name-only HEAD -- live/gauntlet.json 2>&1)"; art_diff_rc=$?
+if [ "$art_diff_rc" != 0 ]; then
+  art_src="the working copy; could not compare it against HEAD (git failed: $(printf '%s' "$art_diff_out" | head -1))"
+elif [ -n "$art_diff_out" ]; then
+  art_src="the WORKING COPY, which differs from HEAD - the figures below are uncommitted, not what the branch records"
+else
+  art_src="the working copy, byte-identical to HEAD"
+fi
+printf 'read from       %s\n' "$art_src"
 # Issue #496: the nightly workflow was disabled 2026-09-02 after its PR-open
 # step failed for nine straight nights (org policy blocks GITHUB_TOKEN from
 # opening PRs, and GAUNTLET_PR_TOKEN's own failure was buried at the bottom
@@ -82,9 +159,15 @@ wf_state=""
 if have gh; then
   wf_state=$(gh api "repos/$REPO/actions/workflows" -q '.workflows[] | select(.name=="Gauntlet") | .state' 2>/dev/null)
 fi
-art_epoch=$(git log -1 --format=%at -- live/gauntlet.json 2>/dev/null)
-if [ -n "$art_epoch" ]; then
-  art_date_only=$(git log -1 --format=%ad --date=short -- live/gauntlet.json)
+# #1142: "no output" from git log has two causes - the path genuinely has no
+# history here, and git could not run at all - and the old code printed the
+# first explanation for both.
+art_epoch_out="$(git log -1 --format=%at -- live/gauntlet.json 2>&1)"; art_epoch_rc=$?
+if [ "$art_epoch_rc" != 0 ]; then
+  when="UNKNOWN - git could not answer: $(printf '%s' "$art_epoch_out" | head -1)"
+elif [ -n "$art_epoch_out" ]; then
+  art_epoch="$art_epoch_out"
+  art_date_only=$(gv log -1 --format=%ad --date=short -- live/gauntlet.json)
   days_ago=$(( ( $(date +%s) - art_epoch ) / 86400 ))
   plural=""; [ "$days_ago" != "1" ] && plural="s"
   when="$art_date_only ($days_ago day$plural ago)"
@@ -130,15 +213,51 @@ if stale:
 # (TestEveryLastRunCommitIsAnAncestorOfHEAD). Surfaced here too so a
 # dangling pointer is visible in the one place every session already looks,
 # not only at CI time.
+#
+# Issue #1142: this check used to be `returncode == 0`, which collapses
+# git's three distinct answers into two. `git merge-base --is-ancestor`
+# exits 0 for "ancestor", 1 for "not an ancestor", and something else -
+# 128, or 1 from a wrapper - for "I could not answer". On 2026-09-15 a
+# machine's git started refusing every invocation and this line reported
+# all 29 estate rows as orphaned, every one false. A stop-and-investigate
+# finding that fires on its own tooling being broken teaches the reader to
+# skim past it, which is precisely what #1012 recorded about the `dirty`
+# line two sections up. So: three answers, and an error is never a finding.
 import subprocess
-def _is_ancestor(sha):
-    return subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'],
-                           capture_output=True).returncode == 0
-dangling=[(e['name'], e['last_run']['commit']) for e in g['estates']
-          if e.get('last_run') and e['last_run'].get('commit') and not _is_ancestor(e['last_run']['commit'])]
-if dangling:
-    shown=', '.join(f"{n} ({c[:10]})" for n, c in dangling[:8]) + ('...' if len(dangling) > 8 else '')
-    print(f"DANGLING PROVENANCE: {len(dangling)} estate(s) last_run.commit is not an ancestor of HEAD (issue #509's class - a rebase or squash merge silently orphaned it): {shown}")
+def _git(args):
+    p = subprocess.run(['git'] + args, capture_output=True, text=True)
+    msg = (p.stderr or p.stdout or '').strip().splitlines()
+    return p.returncode, (msg[0] if msg else f'git exited {p.returncode}')
+probe_rc, probe_err = _git(['rev-parse', '--verify', 'HEAD'])
+if probe_rc != 0:
+    print(f"PROVENANCE CHECK COULD NOT RUN: git cannot resolve HEAD, so no estate's last_run.commit was dereferenced - this is NOT a finding either way: {probe_err}")
+else:
+    dangling=[]; unreadable=[]
+    for e in g['estates']:
+        sha=(e.get('last_run') or {}).get('commit')
+        if not sha: continue
+        # --verify --quiet distinguishes the two reasons a hash can fail to
+        # resolve: exit 1 is "no such object in this checkout" (a real
+        # orphan, #509's class in its strongest form), anything else is git
+        # failing to answer at all.
+        rc, err = _git(['rev-parse', '--verify', '--quiet', sha + '^{commit}'])
+        if rc == 1:
+            dangling.append((e['name'], sha, 'no such commit object in this checkout'))
+            continue
+        if rc != 0:
+            unreadable.append((e['name'], sha, err)); continue
+        rc, err = _git(['merge-base', '--is-ancestor', sha, 'HEAD'])
+        if rc == 0: continue
+        if rc == 1:
+            dangling.append((e['name'], sha, 'not an ancestor of HEAD'))
+        else:
+            unreadable.append((e['name'], sha, err))
+    if dangling:
+        shown=', '.join(f"{n} ({c[:10]}: {why})" for n, c, why in dangling[:8]) + ('...' if len(dangling) > 8 else '')
+        print(f"DANGLING PROVENANCE: {len(dangling)} estate(s) last_run.commit does not resolve against HEAD's history (issue #509's class - a rebase or squash merge silently orphaned it): {shown}")
+    if unreadable:
+        shown=', '.join(f"{n} ({c[:10]}: {why})" for n, c, why in unreadable[:4]) + ('...' if len(unreadable) > 4 else '')
+        print(f"PROVENANCE CHECK COULD NOT RUN for {len(unreadable)} estate(s): git could not answer, so their provenance is unknown and this is NOT a finding either way: {shown}")
 EOF
 fi
 if have go; then
@@ -149,7 +268,10 @@ if have go; then
   fi
 fi
 if have python3 && [ -f live/readiness.json ]; then
-  r_commit=$(git log -1 --format=%h -- live/readiness.json)
+  # #1142: this printed "readiness: ... at " with an empty commit when git
+  # failed, which reads as a rendering bug rather than as a broken toolchain.
+  r_commit=$(gv log -1 --format=%h -- live/readiness.json)
+  r_commit="${r_commit:-(no history for this path on this branch)}"
   python3 - "$r_commit" <<'EOF4'
 import json,sys
 commit=sys.argv[1]
@@ -212,7 +334,12 @@ rm -f "$PRJSON"
 
 # ------------------------------------------------ 5. branches and worktrees
 hr "local branches (gauntlet/*, live/*) and their worktrees"
-WTLIST="$(git worktree list --porcelain)"
+# #1142: an unreadable worktree list used to look exactly like "no branch
+# has a worktree", which changes every disposition printed below.
+if ! WTLIST="$(git worktree list --porcelain 2>&1)"; then
+  printf '  WORKTREE LIST UNAVAILABLE (git failed: %s) - every "worktree", "gate" and "uncommitted" line below is MISSING, not empty\n' "$(printf '%s' "$WTLIST" | head -1)"
+  WTLIST=""
+fi
 wt_of_branch() { # branch -> worktree path or ""
   printf '%s\n' "$WTLIST" | awk -v want="refs/heads/$1" '
     /^worktree /{wt=substr($0,10)}
@@ -224,11 +351,28 @@ pr_of_branch() { # branch -> "#N" or ""
   gh pr list -R "$REPO" --state open --head "$1" --json number -q '.[0].number' 2>/dev/null | sed 's/^\([0-9]\)/#\1/'
 }
 
+# #1142: the loop used to be fed straight from `git for-each-ref ...
+# 2>/dev/null`, so a git that could not run produced no lines, `found`
+# stayed 0, and the script printed `none` - indistinguishable from a
+# checkout with no branches, and the difference decides whether a session
+# thinks there is outstanding work.
+REFLIST_ERR=""
+if REFLIST="$(git for-each-ref --format='%(refname:short)' refs/heads/gauntlet refs/heads/live refs/heads/wall 2>&1)"; then
+  reflist_rc=0
+else
+  reflist_rc=1
+  REFLIST_ERR="$(printf '%s' "$REFLIST" | head -1)"
+  REFLIST=""
+fi
+[ -n "$REFLIST" ] && REFLIST="$REFLIST
+"
 found=0
+anc_rc=0
 while IFS= read -r b; do
   [ -z "$b" ] && continue
   [ "$b" = "main" ] && continue
   found=1
+  anc_rc=0
   ahead=$(git rev-list --count "main..$b" 2>/dev/null || echo '?')
   behind=$(git rev-list --count "$b..main" 2>/dev/null || echo '?')
   last=$(git log -1 --format='%ad %s' --date=short "$b" 2>/dev/null | cut -c1-80)
@@ -270,8 +414,13 @@ while IFS= read -r b; do
     disp="ACTIVE?       -> files in this worktree were $recent; a worker may be running (Agent-tool workers show no process). Do not touch it; check .claude/scripts/agent-progress.sh or wait"
   elif [ "$uncommitted" != "0" ]; then
     disp="UNCOMMITTED   -> $uncommitted changed path(s) in the worktree and no recent write: a worker stopped before committing. Read the diff, commit it on this branch with the unit ID, then treat as COMMITS, NO PR"
-  elif git merge-base --is-ancestor "$b" main 2>/dev/null && [ "$ahead" = "0" ]; then
+  elif { git merge-base --is-ancestor "$b" main >/dev/null 2>&1; anc_rc=$?; [ "$anc_rc" = 0 ]; } && [ "$ahead" = "0" ]; then
     disp="MERGED/EMPTY  -> delete branch and worktree (ancestor of main with 0 commits ahead, nothing uncommitted, no recent write)"
+  elif [ "$anc_rc" != 0 ] && [ "$anc_rc" != 1 ]; then
+    # #1142, same shape as the artifact section's provenance check: exit 1
+    # is "not an ancestor of main", anything else is git declining to say,
+    # and a disposition guessed from a broken git is worse than none.
+    disp="UNKNOWN       -> git could not decide whether this branch is merged (exit $anc_rc); read it by hand rather than trusting a disposition"
   elif [ -n "$pr" ]; then
     disp="PR OPEN $pr   -> orchestrator: verify (scripts/ci-gate.sh check, GAUNTLET lines, artifact diff) then merge on green"
   elif [ "$ahead" != "0" ]; then
@@ -289,8 +438,12 @@ while IFS= read -r b; do
     printf '\n'
   fi
   printf '      %s\n' "$disp"
-done < <(git for-each-ref --format='%(refname:short)' refs/heads/gauntlet refs/heads/live refs/heads/wall 2>/dev/null)
-[ "$found" = 0 ] && echo '  none'
+done < <(printf '%s' "$REFLIST")
+if [ "$reflist_rc" != 0 ]; then
+  echo "  COULD NOT LIST BRANCHES (git failed: $REFLIST_ERR) - this is not 'none'"
+elif [ "$found" = 0 ]; then
+  echo '  none'
+fi
 
 # Worktrees the Agent tool made (isolation: worktree) live under .claude/worktrees
 # and are gitignored; their branches are worktree-agent-*. List them so they
