@@ -95,7 +95,7 @@ func k8sLiveConfigMap(labels map[string]string) cty.Value {
 // read path at the point ownership is checked: the prior manifest the
 // projection seeded and stamped with THIS estate's label, and the live
 // object the provider read back carrying priorLabels. It returns the value
-// after [mirrorManifestMarker], because that is the order build.go runs
+// after [mirrorManifestComputedFields], because that is the order build.go runs
 // them in (readImported mirrors, materialize then checks ownership), and
 // the mirror is what puts the live object's own answer for the marker key
 // into the manifest this surface reads.
@@ -131,7 +131,7 @@ func k8sLiveManifest(t *testing.T, stampedEstate string, liveLabels map[string]s
 		"field_manager":   cty.ListValEmpty(cty.Object(map[string]cty.Type{"name": cty.String})),
 		"wait":            cty.ListValEmpty(cty.Object(map[string]cty.Type{"rollout": cty.Bool})),
 	})
-	return mirrorManifestMarker(v, manifestTypeSchema().Block)
+	return mirrorManifestComputedFields(v, manifestTypeSchema().Block)
 }
 
 func k8sConfigMapAddr(t *testing.T) addrs.AbsResourceInstance {
@@ -395,7 +395,7 @@ func TestK8sOwnership_recordFirstDoesNotDemandAnAddressLabel(t *testing.T) {
 // TestK8sOwnership_manifestSurfaceReadsItsLabel is the same defect on
 // kubernetes_manifest, the type every custom resource is declared through.
 // The value under test is the one build.go's read path produces: the
-// stamped prior manifest with [mirrorManifestMarker] having carried the
+// stamped prior manifest with [mirrorManifestComputedFields] having carried the
 // live object's own answer for the marker key into it.
 func TestK8sOwnership_manifestSurfaceReadsItsLabel(t *testing.T) {
 	addr := manifestAddr(t)

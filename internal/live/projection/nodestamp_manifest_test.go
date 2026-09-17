@@ -319,18 +319,34 @@ func TestStampManifestSeedCarriesTheLabel(t *testing.T) {
 	}
 }
 
-func manifestReadValue(manifestLabels, liveLabels cty.Value) cty.Value {
+// manifestReadValue is the shape build.go's read path holds when it calls
+// [mirrorManifestComputedFields]: the prior manifest the seed built and
+// stamped, and the live object the provider read back. metaAttrs is what
+// goes in the prior manifest's metadata beside name and namespace, liveMeta
+// what goes in the live object's.
+func manifestReadValue(metaAttrs, liveMeta map[string]cty.Value) cty.Value {
+	manifest := manifestTestManifest(cty.NilVal)
+	manifestMeta := manifest.GetAttr("metadata").AsValueMap()
+	for k, v := range metaAttrs {
+		manifestMeta[k] = v
+	}
+	manifestAttrs := manifest.AsValueMap()
+	manifestAttrs["metadata"] = cty.ObjectVal(manifestMeta)
+
+	liveAttrs := map[string]cty.Value{
+		"name":      cty.StringVal("my-crontab"),
+		"namespace": cty.StringVal("smoke-crd"),
+	}
+	for k, v := range liveMeta {
+		liveAttrs[k] = v
+	}
 	live := cty.ObjectVal(map[string]cty.Value{
 		"apiVersion": cty.StringVal("stable.example.com/v1"),
 		"kind":       cty.StringVal("CronTab"),
-		"metadata": cty.ObjectVal(map[string]cty.Value{
-			"name":      cty.StringVal("my-crontab"),
-			"namespace": cty.StringVal("smoke-crd"),
-			"labels":    liveLabels,
-		}),
+		"metadata":   cty.ObjectVal(liveAttrs),
 	})
 	return cty.ObjectVal(map[string]cty.Value{
-		"manifest":        manifestTestManifest(manifestLabels),
+		"manifest":        cty.ObjectVal(manifestAttrs),
 		"object":          live,
 		"computed_fields": cty.NullVal(cty.List(cty.String)),
 		"field_manager":   cty.ListValEmpty(cty.Object(map[string]cty.Type{"name": cty.String})),
@@ -338,27 +354,94 @@ func manifestReadValue(manifestLabels, liveLabels cty.Value) cty.Value {
 	})
 }
 
-func TestMirrorManifestMarkerFollowsTheLiveObject(t *testing.T) {
-	stamped := cty.ObjectVal(map[string]cty.Value{"app": cty.StringVal("cron"), markers.TagEstate: cty.StringVal("smoke-crd")})
+// liveStringMap is a live object's metadata map as the provider types it:
+// map of string, null when the object carries none.
+func liveStringMap(kv map[string]string) cty.Value {
+	if kv == nil {
+		return cty.NullVal(cty.Map(cty.String))
+	}
+	vals := make(map[string]cty.Value, len(kv))
+	for k, v := range kv {
+		vals[k] = cty.StringVal(v)
+	}
+	if len(vals) == 0 {
+		return cty.MapValEmpty(cty.String)
+	}
+	return cty.MapVal(vals)
+}
+
+// priorObjectMap is a prior manifest's metadata map as the seed produces
+// it: an object constructor's own object type, carrying exactly the keys
+// the configuration declares.
+func priorObjectMap(kv map[string]string) cty.Value {
+	vals := make(map[string]cty.Value, len(kv))
+	for k, v := range kv {
+		vals[k] = cty.StringVal(v)
+	}
+	if len(vals) == 0 {
+		return cty.EmptyObjectVal
+	}
+	return cty.ObjectVal(vals)
+}
+
+// priorLabelsOf reads the labels back off a rebuilt prior manifest, and
+// priorMapOf either metadata map.
+func priorMapOf(t *testing.T, v cty.Value, field string) map[string]string {
+	t.Helper()
+	meta := v.GetAttr("manifest").GetAttr("metadata")
+	if !meta.Type().HasAttribute(field) {
+		t.Fatalf("the prior manifest's metadata has no %s: %#v", field, meta)
+	}
+	got := meta.GetAttr(field)
+	out := map[string]string{}
+	if got.IsNull() {
+		return out
+	}
+	for it := got.ElementIterator(); it.Next(); {
+		k, val := it.Element()
+		out[k.AsString()] = val.AsString()
+	}
+	return out
+}
+
+// TestMirrorManifestComputedFieldsFollowsTheLiveObject is GitHub issue
+// #1177's unit: every key the CONFIGURATION declares in metadata.labels
+// takes the LIVE object's value for that key, or is dropped when the live
+// object has no such key, so that the provider's computed_fields rule has
+// a real comparison to make instead of comparing the configuration with
+// itself. The marker cases were #1079's and are unchanged; the declared-
+// label cases are #1177's.
+func TestMirrorManifestComputedFieldsFollowsTheLiveObject(t *testing.T) {
 	block := manifestTypeSchema().Block
+	prior := map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}
 	cases := map[string]struct {
-		live cty.Value
+		live map[string]string
 		want map[string]string
 	}{
-		"label stripped":       {cty.MapVal(map[string]cty.Value{"app": cty.StringVal("cron")}), map[string]string{"app": "cron"}},
-		"no labels at all":     {cty.NullVal(cty.Map(cty.String)), map[string]string{"app": "cron"}},
-		"label intact":         {cty.MapVal(map[string]cty.Value{"app": cty.StringVal("cron"), markers.TagEstate: cty.StringVal("smoke-crd")}), map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}},
-		"label names another":  {cty.MapVal(map[string]cty.Value{markers.TagEstate: cty.StringVal("other")}), map[string]string{"app": "cron", markers.TagEstate: "other"}},
-		"controller added one": {cty.MapVal(map[string]cty.Value{"app": cty.StringVal("cron"), markers.TagEstate: cty.StringVal("smoke-crd"), "added": cty.StringVal("yes")}), map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}},
+		// #1079's marker cases.
+		"marker stripped":      {map[string]string{"app": "cron"}, map[string]string{"app": "cron"}},
+		"marker names another": {map[string]string{"app": "cron", markers.TagEstate: "other"}, map[string]string{"app": "cron", markers.TagEstate: "other"}},
+		"everything intact":    {map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}, map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}},
+		// #1177: an ordinary declared label is mirrored exactly as the
+		// marker is. The configuration says "cron"; the prior must say
+		// what the server says, or the two can never differ.
+		"declared label edited out of band":  {map[string]string{"app": "worker", markers.TagEstate: "smoke-crd"}, map[string]string{"app": "worker", markers.TagEstate: "smoke-crd"}},
+		"declared label deleted out of band": {map[string]string{markers.TagEstate: "smoke-crd"}, map[string]string{markers.TagEstate: "smoke-crd"}},
+		"no labels on the object at all":     {nil, map[string]string{}},
+		// The half of computed_fields that must NOT move: a key the
+		// configuration does not declare never enters the prior, so the
+		// configuration and the prior still agree and the provider keeps
+		// the server's own addition instead of planning it away.
+		"controller added one": {map[string]string{"app": "cron", markers.TagEstate: "smoke-crd", "added": "yes"}, map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			in := manifestReadValue(stamped, tc.live)
-			got := mirrorManifestMarker(in, block)
-			labels, ok := markers.ManifestLabelsOf(got)
-			if !ok {
-				t.Fatalf("no manifest labels on %#v", got)
-			}
+			in := manifestReadValue(
+				map[string]cty.Value{"labels": priorObjectMap(prior)},
+				map[string]cty.Value{"labels": liveStringMap(tc.live)},
+			)
+			got := mirrorManifestComputedFields(in, block)
+			labels := priorMapOf(t, got, "labels")
 			if len(labels) != len(tc.want) {
 				t.Fatalf("labels = %v, want %v", labels, tc.want)
 			}
@@ -377,20 +460,90 @@ func TestMirrorManifestMarkerFollowsTheLiveObject(t *testing.T) {
 	}
 }
 
-func TestMirrorManifestMarkerLeavesTheRestAlone(t *testing.T) {
+// TestMirrorManifestComputedFieldsMirrorsAnnotations: the provider's
+// computed_fields default names metadata.annotations beside
+// metadata.labels, and GitHub issue #1177's own reproduction is an
+// annotation. Nothing writes a marker there, so this is the arm that has
+// no #1079 half at all - it exists only because the provider's rule
+// governs both maps identically.
+func TestMirrorManifestComputedFieldsMirrorsAnnotations(t *testing.T) {
 	block := manifestTypeSchema().Block
-	// An unstamped prior manifest (nothing to mirror), a marked one, and
-	// a type that is not a manifest surface all come back as they were.
-	plain := manifestReadValue(cty.ObjectVal(map[string]cty.Value{"app": cty.StringVal("cron")}), cty.NullVal(cty.Map(cty.String)))
-	if got := mirrorManifestMarker(plain, block); !got.RawEquals(plain) {
-		t.Errorf("an unstamped prior was rewritten: %#v", got)
+	in := manifestReadValue(
+		map[string]cty.Value{
+			"labels":      priorObjectMap(map[string]string{markers.TagEstate: "smoke-crd"}),
+			"annotations": priorObjectMap(map[string]string{"reviewed": "yes"}),
+		},
+		map[string]cty.Value{
+			"labels":      liveStringMap(map[string]string{markers.TagEstate: "smoke-crd"}),
+			"annotations": liveStringMap(map[string]string{"reviewed": "no", "kubectl.kubernetes.io/last-applied-configuration": "{}"}),
+		},
+	)
+	got := mirrorManifestComputedFields(in, block)
+	ann := priorMapOf(t, got, "annotations")
+	if len(ann) != 1 || ann["reviewed"] != "no" {
+		t.Fatalf("annotations = %v, want the live object's own %q and nothing it added", ann, "no")
 	}
-	marked := manifestReadValue(cty.ObjectVal(map[string]cty.Value{markers.TagEstate: cty.StringVal("smoke-crd")}).Mark("sensitive"), cty.NullVal(cty.Map(cty.String)))
-	if got := mirrorManifestMarker(marked, block); !got.RawEquals(marked) {
+	if labels := priorMapOf(t, got, "labels"); labels[markers.TagEstate] != "smoke-crd" {
+		t.Errorf("the marker was lost while the annotations were mirrored: %v", labels)
+	}
+}
+
+// TestMirrorManifestComputedFieldsLeavesTheRestAlone: the value comes back
+// byte-identical when there is nothing to mirror, when a map cannot be read
+// without unmarking, and when the type is not a manifest surface at all.
+func TestMirrorManifestComputedFieldsLeavesTheRestAlone(t *testing.T) {
+	block := manifestTypeSchema().Block
+
+	// Already agreeing: the live object holds exactly what the prior does.
+	agreeing := manifestReadValue(
+		map[string]cty.Value{"labels": priorObjectMap(map[string]string{"app": "cron"})},
+		map[string]cty.Value{"labels": liveStringMap(map[string]string{"app": "cron", "added": "yes"})},
+	)
+	if got := mirrorManifestComputedFields(agreeing, block); !got.RawEquals(agreeing) {
+		t.Errorf("a prior that already matched the live object was rewritten: %#v", got)
+	}
+
+	// No metadata.labels in the configuration at all: no declared key, so
+	// nothing to mirror, and nothing invented from the live object either.
+	undeclared := manifestReadValue(
+		nil,
+		map[string]cty.Value{"labels": liveStringMap(map[string]string{"added": "yes"})},
+	)
+	if got := mirrorManifestComputedFields(undeclared, block); !got.RawEquals(undeclared) {
+		t.Errorf("an undeclared labels map was invented: %#v", got)
+	}
+
+	marked := manifestReadValue(
+		map[string]cty.Value{"labels": priorObjectMap(map[string]string{markers.TagEstate: "smoke-crd"}).Mark("sensitive")},
+		map[string]cty.Value{"labels": liveStringMap(nil)},
+	)
+	if got := mirrorManifestComputedFields(marked, block); !got.RawEquals(marked) {
 		t.Errorf("a marked labels value was rewritten: %#v", got)
 	}
+
 	cm := configMapTestConfig(cty.NullVal(cty.Map(cty.String)))
-	if got := mirrorManifestMarker(cm, configMapTypeSchema().Block); !got.RawEquals(cm) {
+	if got := mirrorManifestComputedFields(cm, configMapTypeSchema().Block); !got.RawEquals(cm) {
 		t.Errorf("a metadata-block type was rewritten")
+	}
+}
+
+// TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible is the guard
+// that fails if the mirror is removed or narrowed back to the marker key:
+// the whole point of GitHub issue #1177 is that the CONFIGURATION and the
+// PRIOR MANIFEST must be able to differ at a declared label, because the
+// provider's computed_fields rule takes the live value whenever they do
+// not. This asserts the difference exists, which is the condition the
+// provider branches on, rather than a rebuilt value's shape.
+func TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible(t *testing.T) {
+	block := manifestTypeSchema().Block
+	// The configuration - and so the seed, and so the prior manifest going
+	// in - says tier=two. The live object still says tier=one.
+	in := manifestReadValue(
+		map[string]cty.Value{"labels": priorObjectMap(map[string]string{"tier": "two", markers.TagEstate: "smoke-crd"})},
+		map[string]cty.Value{"labels": liveStringMap(map[string]string{"tier": "one", markers.TagEstate: "smoke-crd"})},
+	)
+	configured := in.GetAttr("manifest").GetAttr("metadata").GetAttr("labels")
+	if got := mirrorManifestComputedFields(in, block).GetAttr("manifest").GetAttr("metadata").GetAttr("labels"); got.RawEquals(configured) {
+		t.Fatalf("the prior manifest still equals the configuration at metadata.labels (%#v); the provider's computed_fields rule can never see the edit", got)
 	}
 }

@@ -4396,6 +4396,44 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider` and
 `TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders`.)
 
+**An out-of-band change to a `kubernetes_manifest` label or annotation the
+configuration declares churns the plan, where stock swallows it; one the
+configuration has stopped declaring is never removed.** Both follow from the
+same fact, and both are what a stateless run costs on this one type. The
+provider's `computed_fields` argument (default `metadata.annotations` and
+`metadata.labels`) tells it to take the LIVE object's value at those paths
+unless the configuration differs from the PRIOR MANIFEST, which in a
+state-backed run is what was last applied. choudoufu has no last-applied
+value to offer: it builds the prior manifest fresh on every plan, from the
+configuration, and GitHub issue #1177 is what that costs when it is done
+naively - the comparison compares the configuration with itself, and no edit
+to a label or an annotation could ever plan or apply at all.
+`mirrorManifestComputedFields` gives the prior the live object's value for
+every key the configuration declares, which makes the edit visible, and two
+differences from stock follow from the same substitution. A declared key
+changed or deleted with `kubectl` now reads as a difference and the plan
+proposes writing the configuration back, where stock's `computed_fields`
+takes the live value and says `No changes.` - that direction is deliberate
+(it is what #1079's marker arm has always done for `tofu-estate`, and it is
+what lets a saved plan's staleness check see an out-of-band `kubectl
+label`), and "config edited" and "live drifted" are not distinguishable
+without a last-applied value, so making the first visible necessarily makes
+the second visible. A key REMOVED from the configuration is the other
+direction: it is absent from the prior for the same reason it is absent from
+the configuration, the two agree, the provider keeps the live value, and the
+label stays on the object where stock would remove it (#1211; the source
+that could settle it is the live object's own `metadata.managedFields`,
+which the provider strips out of the `object` it hands back). A key the
+configuration does not declare is untouched in every case, which is the half
+of `computed_fields` that matters most: `kubernetes.io/metadata.name`,
+`kubectl.kubernetes.io/last-applied-configuration`, `cert-manager.io/*` and
+`meta.helm.sh/*` are the server's and stay the server's.
+(`internal/live/projection/nodestamp_manifest.go`,
+`mirrorManifestComputedFields`; pinned by
+`TestMirrorManifestComputedFieldsFollowsTheLiveObject` and
+`TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible`, and end to end
+by the `k8s-a-label-is-a-change` smoke scenario.)
+
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_accessanalyzer_archive_rule`,
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,

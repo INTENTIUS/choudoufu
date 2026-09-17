@@ -48,6 +48,30 @@ const ManifestSurfaceAttr = "manifest"
 // internal/live/projection's residueStubIdentityAttrs.
 const ManifestLiveAttr = "object"
 
+// AnnotationSurfaceAttr is the other metadata map beside
+// [LabelSurfaceAttr]. No marker is ever written to it - #1016's ruling is
+// that the Kubernetes marker is the estate label alone - but the
+// provider's computed_fields default governs it exactly as it governs
+// labels, so the projection has to treat the two the same way when it
+// builds a prior manifest.
+const AnnotationSurfaceAttr = "annotations"
+
+// ManifestComputedMetadataAttrs names the metadata maps the provider's own
+// computed_fields default governs: ["metadata.annotations",
+// "metadata.labels"] at hashicorp/kubernetes 3.2.1, which is what the
+// resource uses when the argument is not set.
+//
+// The list is the DEFAULT, deliberately, and not read back out of a
+// configured computed_fields. A configuration that sets the argument can
+// name a path outside metadata (this list then says nothing about it, and
+// GitHub issue #1177's fix does not reach it) or drop one of these two
+// (the provider then diffs that map normally, and a prior built from the
+// live object's own values for the declared keys is a better prior for an
+// ordinary diff than one built from the configuration, not a worse one).
+// Neither case makes the wider list wrong; both are recorded on
+// mirrorManifestComputedFields in internal/live/projection.
+var ManifestComputedMetadataAttrs = []string{LabelSurfaceAttr, AnnotationSurfaceAttr}
+
 // ManifestSurface reports whether a resource type carries its marker inside
 // a dynamic manifest argument: a required `manifest` of dynamic type, a
 // computed `object` of dynamic type the provider reads back, and no
