@@ -379,3 +379,60 @@ func TestGatherAddress_frontGapIsCorrupt(t *testing.T) {
 		t.Errorf("GatherAddress(%v) = %q, corrupt=false; want corrupt=true (a continuation tag present with tofu-address itself missing is a gap)", tags, got)
 	}
 }
+
+// TestGatherAddress_presentButEmptyIsNotAnAddressClaim is GitHub issue
+// #1206's primitive-level pin: a tofu-address key that is PRESENT with an
+// EMPTY value.
+//
+// The distinction that matters is presence versus content. AWS accepts an
+// empty tag value, so the key can exist and say nothing, and that one shape
+// satisfies every "is the key there" test while naming no resource at all.
+// Every reader in this fork content-checks - [GatherAddress] hands them ""
+// and they branch on the string, not on the key - and this test exists so
+// that stays true, because the moment one of them switches to a presence
+// test, an object carrying `tofu-address = ""` starts reading as owned.
+//
+// #1206 itself turned out not to be a marker defect at all (an AWS-CLI
+// read-back mistook a NoSuchEntity error's empty stdout for an empty
+// marker), but the audit it forced found no layer that accepts the shape,
+// and an invariant nothing enforces is one nobody notices losing.
+func TestGatherAddress_presentButEmptyIsNotAnAddressClaim(t *testing.T) {
+	present := map[string]string{TagEstate: "some-estate", TagAddress: ""}
+	absent := map[string]string{TagEstate: "some-estate"}
+
+	// The premise, stated so this test cannot silently stop covering the
+	// case it is named for: the two maps differ by key presence alone.
+	if _, ok := present[TagAddress]; !ok {
+		t.Fatal("the fixture does not carry the tofu-address key at all, so it does not exercise present-but-empty")
+	}
+	if _, ok := absent[TagAddress]; ok {
+		t.Fatal("the comparison fixture carries a tofu-address key; it is supposed to be the absent case")
+	}
+
+	gotRaw, gotCorrupt := GatherAddress(present)
+	wantRaw, wantCorrupt := GatherAddress(absent)
+	if gotRaw != wantRaw || gotCorrupt != wantCorrupt {
+		t.Errorf("a present-but-empty tofu-address reads back as (%q, %v); an absent one reads (%q, %v). They have to agree: an empty value names nothing, exactly as no value does.",
+			gotRaw, gotCorrupt, wantRaw, wantCorrupt)
+	}
+	if gotRaw != "" {
+		t.Errorf("GatherAddress returned %q for an empty marker value", gotRaw)
+	}
+	if gotCorrupt {
+		t.Error("a present-but-empty tofu-address was reported as a corrupt continuation chain; that message is about a gap in tofu-address-2, tofu-address-3, ... and would mislead")
+	}
+
+	// None of the three ways an empty value could be turned back into an
+	// address claim may succeed.
+	if ValidMarkerAddress(EscapeAddress(gotRaw)) {
+		t.Error("the empty marker value passes ValidMarkerAddress, so every reader gated on it would treat the object as marked")
+	}
+	if _, ok := UnescapeAddress(gotRaw); ok {
+		t.Error("the empty marker value parses back into a resource address")
+	}
+	for _, addr := range []string{"aws_vpc.main", "module.m.aws_iam_policy.policy:0"} {
+		if AddressMatches(gotRaw, addr) {
+			t.Errorf("the empty marker value matches %s, so it would be read as that instance's own claim", addr)
+		}
+	}
+}
