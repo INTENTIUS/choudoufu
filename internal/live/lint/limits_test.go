@@ -80,6 +80,11 @@ var enforcedLimits = map[string]Rule{
 	// these three are the refusals, one per rule, in the shape the limits
 	// wing requires - doc entry, fixture, and asserted rule.
 	"policy-verb": RulePolicyVerb,
+	// GitHub issues #1196 and #1148. A retry mode outside the vocabulary:
+	// "aggressive" is neither "standard" nor "adaptive", and resolving it
+	// to the default would run the estate under the very setting its
+	// author was changing. See live/LIMITATIONS.md, "retry".
+	"retry": RuleRetry,
 	// GitHub issue #365 slice 3. The one shape the secrets toggle refuses:
 	// a spelling outside the vocabulary. See live/LIMITATIONS.md,
 	// "strict-secrets".

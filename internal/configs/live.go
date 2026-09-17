@@ -145,6 +145,57 @@ type Live struct {
 	// judgement needs internal/live/strict's vocabulary and belongs to
 	// internal/live/lint.
 	Strict *LiveStrict
+
+	// Retry is the optional nested "retry" block: how many attempts a cloud
+	// call gets before the run gives up, and which of the SDK's two retry
+	// modes it spends them under. Nil when the live block declares no retry
+	// block, which must mean exactly what a configuration written before the
+	// block existed got - the aws-sdk-go-v2 defaults - for the same
+	// "absent means absent" reason Policy, RecordStore and Strict have.
+	//
+	// Why this is configuration at all, rather than a constant someone picks
+	// once: the SDK's default is three attempts, and three is not enough for
+	// an estate that writes thousands of records. A real scale-50
+	// certification against AWS failed test_apply on nothing but
+	// "exceeded maximum number of attempts, 3 ... ThrottlingException"
+	// while its plan was empty, and the scale-128 run that followed cleared
+	// only because AWS_RETRY_MODE and AWS_MAX_ATTEMPTS were exported by hand
+	// from outside the tool - a fix that is invisible in the configuration
+	// and absent from the recorded evidence (#1196, #1148).
+	//
+	// Like [Live.Policy] and [Live.Strict], this is the raw decode only.
+	// Which mode spellings mean anything, and what bounds an attempt count
+	// has, is internal/live/retry's vocabulary, checked at lint time by
+	// internal/live/lint.
+	Retry *LiveRetry
+}
+
+// LiveRetry is the "retry" block nested inside a live block. See
+// [Live.Retry].
+type LiveRetry struct {
+	// MaxAttempts is the literal number an author wrote for the
+	// "max_attempts" argument: the total number of tries a cloud call gets,
+	// the first one included, which is how aws-sdk-go-v2 counts them.
+	//
+	// MaxAttemptsSet distinguishes an omitted argument, which resolves to
+	// the SDK's own default and therefore to today's behavior, from one
+	// written out. Whether the number is in range is internal/live/retry's
+	// judgement, not this package's.
+	MaxAttempts      int
+	MaxAttemptsSet   bool
+	MaxAttemptsRange hcl.Range
+
+	// Mode is the literal string an author wrote for the "mode" argument -
+	// "standard", "adaptive", or whatever they typed, valid or not.
+	// Validity is internal/live/retry's vocabulary, checked at lint time,
+	// for the same reason [LiveStrict]'s spellings are checked there.
+	Mode      string
+	ModeSet   bool
+	ModeRange hcl.Range
+
+	// DeclRange is the "retry" block's own header, which is what a
+	// diagnostic about the block as a whole points at.
+	DeclRange hcl.Range
 }
 
 // LiveStrict is the "strict" block nested inside a live block. See
@@ -498,6 +549,14 @@ var liveBlockSchema = &hcl.BodySchema{
 		{Type: "policy"},
 		{Type: "record_store", LabelNames: []string{"type"}},
 		{Type: "strict"},
+		{Type: "retry"},
+	},
+}
+
+var liveRetrySchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "max_attempts"},
+		{Name: "mode"},
 	},
 }
 
@@ -630,7 +689,7 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		})
 	}
 
-	var policyBlocks, recordStoreBlocks, strictBlocks []*hcl.Block
+	var policyBlocks, recordStoreBlocks, strictBlocks, retryBlocks []*hcl.Block
 	for _, block := range content.Blocks {
 		switch block.Type {
 		case "policy":
@@ -639,6 +698,8 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 			recordStoreBlocks = append(recordStoreBlocks, block)
 		case "strict":
 			strictBlocks = append(strictBlocks, block)
+		case "retry":
+			retryBlocks = append(retryBlocks, block)
 		}
 	}
 
@@ -713,7 +774,103 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		s.Strict = st
 	}
 
+	switch len(retryBlocks) {
+	case 0:
+		// No retry block: Retry stays nil, which internal/live/retry.Build
+		// reads as "the aws-sdk-go-v2 defaults", and therefore as today's
+		// behavior. Same contract as Policy and Strict above.
+	case 1:
+		rt, rtDiags := decodeRetryBlock(retryBlocks[0])
+		diags = append(diags, rtDiags...)
+		s.Retry = rt
+	default:
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate retry block",
+			Detail:   "A live block may have at most one retry block.",
+			Subject:  retryBlocks[1].DefRange.Ptr(),
+		})
+		rt, rtDiags := decodeRetryBlock(retryBlocks[0])
+		diags = append(diags, rtDiags...)
+		s.Retry = rt
+	}
+
 	return s, diags
+}
+
+// decodeRetryBlock decodes a live block's nested "retry" block. See
+// [LiveRetry].
+//
+// Like [decodeStrictBlock] this records what was written and judges none of
+// it: an out-of-range attempt count and an invented mode spelling both decode
+// cleanly here and are refused by internal/live/lint, which can name the
+// vocabulary because it may depend on internal/live/retry.
+func decodeRetryBlock(block *hcl.Block) (*LiveRetry, hcl.Diagnostics) {
+	rt := &LiveRetry{DeclRange: block.DefRange}
+
+	content, diags := block.Body.Content(liveRetrySchema)
+
+	if attr, exists := content.Attributes["max_attempts"]; exists {
+		rt.MaxAttemptsRange = attr.Range
+		val, valDiags := decodeLiteralInt(attr, "max_attempts")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			rt.MaxAttempts = val
+			rt.MaxAttemptsSet = true
+		}
+	}
+
+	if attr, exists := content.Attributes["mode"]; exists {
+		rt.ModeRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "mode")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			rt.Mode = val
+			rt.ModeSet = true
+		}
+	}
+
+	return rt, diags
+}
+
+// decodeLiteralInt reads attr as a required-literal whole-number argument,
+// the same literal-only rule [decodeLiteralString] applies to strings: the
+// expression must not be built from a variable or a function call, and the
+// value must be a known, non-null, integral number. label names the argument
+// in the diagnostics this produces.
+//
+// It refuses a fractional number here rather than truncating, because
+// "max_attempts = 2.5" is a typo in every case and silently reading it as 2
+// would be the kind of quiet reinterpretation this fork refuses everywhere
+// else.
+func decodeLiteralInt(attr *hcl.Attribute, label string) (int, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		return 0, diags
+	}
+	if val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.Number {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal whole number.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return 0, diags
+	}
+	bf := val.AsBigFloat()
+	n, acc := bf.Int64()
+	if acc != big.Exact {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal whole number.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return 0, diags
+	}
+	return int(n), diags
 }
 
 // decodeStrictBlock decodes a live block's nested "strict" block: GitHub

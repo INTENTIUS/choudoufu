@@ -83,6 +83,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `receipt-leaf` | Nothing may reference a receipt's attributes | error | live/RECEIPTS.md, "Guard 4. The leaf rule" | none |
 | `receipt-secret` | Receipt inputs reference secrets by pointer, never by value | error | live/RECEIPTS.md, "Secrets discipline" | none |
 | `receipt-value` | A receipt's value is a hash or a constant, and its type is never SecureString | error | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" | none |
+| `retry` | Retry setting is not one this fork's schema defines | error | "retry" | `live/e2e/limits/retry/` |
 | `state-backend` | State backends are not available under live resource markers | warning | "backend-block" / "cloud-block" | `live/e2e/limits/backend-block/`, `live/e2e/limits/cloud-block/` |
 | `strict-marker-repair` | Marker repair setting is not one this build implements | error | "strict-marker-repair" | `live/e2e/limits/strict-marker-repair/` |
 | `strict-markers` | Markers selection cannot be read as a selection | error | "strict-markers" | `live/e2e/limits/strict-markers/` |
@@ -1537,6 +1538,53 @@ and take the default.
 
 **Enforcement.** `RulePolicyThreshold`, `internal/live/lint/policy.go`
 (`checkLivePolicy`). Fixture at `live/e2e/limits/policy-threshold/`.
+
+### retry
+
+**Construct.** A `retry { max_attempts = ... }` or `retry { mode = "..." }`
+argument that cannot be resolved to a retry behaviour: an attempt count
+outside the range, or a mode spelling this fork does not define.
+
+**Why it is refused rather than resolved.** The two modes differ in what they
+do when the cloud pushes back. `standard` spends a fixed attempt budget at a
+fixed rate. `adaptive` slows its send rate against the service's own
+throttling signal and speeds back up when it stops. A spelling that is neither
+could plausibly be read as either, and resolving it to the default would run
+the estate under precisely the setting its author was trying to change.
+
+`max_attempts` is bounded at both ends for different reasons. Below 1 it means
+never calling the cloud at all, because the first try is an attempt. Above the
+ceiling it stops being a retry policy: every attempt past the first costs its
+own backoff, so a very large budget spends wall-clock rather than succeeding,
+and a call that cannot make progress should fail loudly instead of retrying
+for an hour.
+
+**Why the block exists at all.** aws-sdk-go-v2 defaults to three attempts, and
+three is not enough for an estate that writes a record per resource. A
+scale-50 certification against real AWS failed `test_apply` on nothing but
+
+```
+exceeded maximum number of attempts, 3 ... ThrottlingException: Rate exceeded
+```
+
+while the plan it was applying was empty — the estate was correct and the run
+failed anyway. The scale-128 run that followed cleared only because
+`AWS_RETRY_MODE=adaptive` and `AWS_MAX_ATTEMPTS=10` were exported by hand from
+outside the tool, which is the right fix in the wrong place: invisible in the
+configuration, and absent from the evidence the run recorded. GitHub issues
+#1196 and #1148.
+
+**What an omitted block means.** The aws-sdk-go-v2 defaults, which is exactly
+what every configuration written before this block existed gets. Writing the
+defaults out longhand is legitimate: it records an estate's retry behaviour
+rather than inheriting it.
+
+**Where it applies.** The record store's AWS clients, which is where the
+attempt budget actually bites — an estate writes one record per resource, so a
+large one reaches Parameter Store's throughput ceiling on its own. When a
+record write does fail on throttling, the error names that ceiling and the
+account setting that raises it, rather than an attempt count a reader would
+have to translate.
 
 ### strict-marker-repair
 

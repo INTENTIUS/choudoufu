@@ -164,8 +164,10 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	// below already treats as "nothing to record" rather than an error -
 	// the same as a plan or apply run with no record_store declared.
 	var recordStoreCfg *configs.LiveRecordStore
+	var retryCfg *configs.LiveRetry
 	if config.Module != nil && config.Module.Live != nil {
 		recordStoreCfg = config.Module.Live.RecordStore
+		retryCfg = config.Module.Live.Retry
 	}
 	// GitHub issue #364: one store now for GitHub issue #340's record-backed
 	// half (a record-backed resource's whole object lives directly under
@@ -177,7 +179,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	var recordStore *projection.RecordStore
 	var rootOutputStore *projection.RootOutputStore
 	if recordStoreCfg != nil {
-		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, args.Estate, ".")
+		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, args.Estate, ".")
 		if storeErr != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
 				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,

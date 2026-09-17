@@ -163,6 +163,15 @@ const (
 	// somewhere else.
 	RuleStrictMarkersUnrecordable Rule = "strict-markers-unrecordable"
 
+	// RuleRetry covers a live block's retry block whose max_attempts is out
+	// of range or whose mode names something outside internal/live/retry's
+	// vocabulary. One rule rather than two, because the block has two
+	// arguments and a single typo in either has the same shape: a setting
+	// that cannot be resolved to a retry behaviour, where guessing one would
+	// run the estate under settings its author did not choose. GitHub issues
+	// #1196 and #1148. See retry.go.
+	RuleRetry Rule = "retry"
+
 	// RuleStrictSecrets covers a live block's strict block whose secrets
 	// argument names something outside internal/live/strict's vocabulary.
 	// Both settings the vocabulary defines are implemented, so unlike
@@ -383,6 +392,10 @@ var ruleInfo = map[Rule]struct {
 	RuleStrictMarkersUnrecordable: {
 		summary: "Markers selection reaches a type no record can identify",
 		docsRef: `live/LIMITATIONS.md, "strict-markers-unrecordable"`,
+	},
+	RuleRetry: {
+		summary: "Retry setting is not one this fork's schema defines",
+		docsRef: `live/LIMITATIONS.md, "retry"`,
 	},
 	RuleStrictSecrets: {
 		summary: "Secrets setting is not one this fork's schema defines",
