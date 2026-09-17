@@ -70,7 +70,7 @@ import (
 // change a value that was already being seeded - an each.value the for_each
 // expression does not statically evaluate stays unseeded rather than
 // becoming a guess.
-func seedRepetition(ctx context.Context, mod *configs.Module, rc *configs.Resource, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+func (b *builder) seedRepetition(ctx context.Context, modPath addrs.Module, mod *configs.Module, rc *configs.Resource, key addrs.InstanceKey) (instances.RepetitionData, bool) {
 	switch k := key.(type) {
 	case addrs.IntKey:
 		if rc == nil || rc.Count == nil {
@@ -87,7 +87,7 @@ func seedRepetition(ctx context.Context, mod *configs.Module, rc *configs.Resour
 			return instances.RepetitionData{}, false
 		}
 		rd := instances.RepetitionData{EachKey: cty.StringVal(string(k))}
-		if elems, ok := staticeval.ForEachElements(ctx, mod, rc.ForEach); ok {
+		if elems, ok := b.forEachElements(ctx, modPath, mod, rc); ok {
 			if val, has := elems[string(k)]; has {
 				rd.EachValue = val
 			}
@@ -95,4 +95,53 @@ func seedRepetition(ctx context.Context, mod *configs.Module, rc *configs.Resour
 		return rd, true
 	}
 	return instances.RepetitionData{}, false
+}
+
+// forEachElements is [staticeval.ForEachElements] memoized per resource
+// block, because [builder.prepareRead] asks once per INSTANCE and the answer
+// is a property of the BLOCK. Without it a for_each over n elements would
+// evaluate its own expression and rebuild its own n-element map once for
+// every one of those n instances - twice, in fact, since the concrete phase
+// prepares each read in [builder.startReadPrefetch] and again in
+// [builder.readFor] - which is quadratic in the size of a for_each this
+// repository's scale estates deliberately make large.
+//
+// The memo is keyed by module path and block address, which is exactly what
+// the answer depends on: [configs.Module.StaticEvaluator] is per module, not
+// per module INSTANCE, so every instance of an expanded module already shares
+// the one evaluator (and with it the one frozen set of module-call variables)
+// that [configuredAttrsSeed] has always used. A negative answer is cached as
+// firmly as a positive one - a for_each configuration cannot evaluate does
+// not become evaluable by asking again.
+//
+// The lock is not for [builder.prepareRead]'s own callers, which are
+// sequential by construction (see [builder.startReadPrefetch]'s "on this
+// goroutine"), but so that this memo can never be the reason a later change
+// to that sequencing turns into a data race.
+func (b *builder) forEachElements(ctx context.Context, modPath addrs.Module, mod *configs.Module, rc *configs.Resource) (map[string]cty.Value, bool) {
+	key := modPath.String() + "|" + rc.Addr().String()
+
+	b.seedEachMu.Lock()
+	if got, hit := b.seedEach[key]; hit {
+		b.seedEachMu.Unlock()
+		return got.elems, got.ok
+	}
+	b.seedEachMu.Unlock()
+
+	elems, ok := staticeval.ForEachElements(ctx, mod, rc.ForEach)
+
+	b.seedEachMu.Lock()
+	if b.seedEach == nil {
+		b.seedEach = map[string]seedEachElems{}
+	}
+	b.seedEach[key] = seedEachElems{elems: elems, ok: ok}
+	b.seedEachMu.Unlock()
+	return elems, ok
+}
+
+// seedEachElems is one block's [staticeval.ForEachElements] answer, the
+// "could not evaluate" case included so it is cached rather than retried.
+type seedEachElems struct {
+	elems map[string]cty.Value
+	ok    bool
 }

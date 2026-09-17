@@ -113,7 +113,7 @@ func TestExpandedManifestSeedNeedsRepetitionData(t *testing.T) {
 				t.Fatalf("the bare module evaluator seeded a manifest naming %q; this control must fail, or the test below proves nothing", name)
 			}
 
-			rd, ok := seedRepetition(ctx, mod, rc, tc.key)
+			rd, ok := (&builder{}).seedRepetition(ctx, cfg.Path, mod, rc, tc.key)
 			if !ok {
 				t.Fatalf("seedRepetition declined %s%s", tc.resource, tc.key)
 			}
@@ -141,7 +141,7 @@ func TestSeedRepetitionReadsTheInstanceKey(t *testing.T) {
 	counted := mod.ManagedResources["kubernetes_manifest.shard"]
 	keyed := mod.ManagedResources["kubernetes_manifest.byname"]
 
-	rd, ok := seedRepetition(ctx, mod, counted, addrs.IntKey(3))
+	rd, ok := (&builder{}).seedRepetition(ctx, cfg.Path, mod, counted, addrs.IntKey(3))
 	if !ok || rd.CountIndex == cty.NilVal {
 		t.Fatalf("an IntKey produced %#v, ok=%v; count.index must come from the key", rd, ok)
 	}
@@ -152,7 +152,7 @@ func TestSeedRepetitionReadsTheInstanceKey(t *testing.T) {
 		t.Errorf("a counted instance was given each.key/each.value: %#v", rd)
 	}
 
-	rd, ok = seedRepetition(ctx, mod, keyed, addrs.StringKey("beta"))
+	rd, ok = (&builder{}).seedRepetition(ctx, cfg.Path, mod, keyed, addrs.StringKey("beta"))
 	if !ok {
 		t.Fatal("a StringKey on a for_each block was declined")
 	}
@@ -168,16 +168,16 @@ func TestSeedRepetitionReadsTheInstanceKey(t *testing.T) {
 
 	// The shapes that must decline rather than invent a value: an unkeyed
 	// instance, and a key whose kind the block's own expansion contradicts.
-	if _, ok := seedRepetition(ctx, mod, counted, addrs.NoKey); ok {
+	if _, ok := (&builder{}).seedRepetition(ctx, cfg.Path, mod, counted, addrs.NoKey); ok {
 		t.Error("an unkeyed instance was given repetition data")
 	}
-	if _, ok := seedRepetition(ctx, mod, counted, addrs.StringKey("alpha")); ok {
+	if _, ok := (&builder{}).seedRepetition(ctx, cfg.Path, mod, counted, addrs.StringKey("alpha")); ok {
 		t.Error("a StringKey on a block with no for_each was given each.key")
 	}
-	if _, ok := seedRepetition(ctx, mod, keyed, addrs.IntKey(0)); ok {
+	if _, ok := (&builder{}).seedRepetition(ctx, cfg.Path, mod, keyed, addrs.IntKey(0)); ok {
 		t.Error("an IntKey on a block with no count was given a count.index")
 	}
-	if _, ok := seedRepetition(ctx, nil, nil, addrs.IntKey(0)); ok {
+	if _, ok := (&builder{}).seedRepetition(ctx, addrs.RootModule, nil, nil, addrs.IntKey(0)); ok {
 		t.Error("a nil resource block was given repetition data")
 	}
 }
@@ -211,7 +211,7 @@ resource "kubernetes_manifest" "byname" {
 	if rc == nil {
 		t.Fatalf("fixture does not declare the block; it declares %v", keysOfResources(cfg))
 	}
-	rd, ok := seedRepetition(context.Background(), cfg.Module, rc, addrs.StringKey("alpha"))
+	rd, ok := (&builder{}).seedRepetition(context.Background(), cfg.Path, cfg.Module, rc, addrs.StringKey("alpha"))
 	if !ok {
 		t.Fatal("the instance was declined outright; each.key is knowable from the key alone")
 	}
@@ -220,5 +220,60 @@ resource "kubernetes_manifest" "byname" {
 	}
 	if rd.EachValue != cty.NilVal {
 		t.Errorf("each.value = %#v for a for_each configuration cannot evaluate; it must stay unset", rd.EachValue)
+	}
+}
+
+// TestForEachElementsMemoIsPerBlock pins that [builder.forEachElements]'s
+// memo - which exists so a for_each of n elements is not evaluated n times
+// over - keys on the block and not on anything coarser. Two blocks in one
+// module must not share an answer, and two instances of one block must get
+// the same one.
+//
+// Proved red by keying the memo on the module path alone: "byname" then
+// answers with "other"'s elements and each.value comes back wrong, which is
+// the seed carrying a value from a different block.
+func TestForEachElementsMemoIsPerBlock(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
+resource "kubernetes_manifest" "byname" {
+  for_each = { alpha = "one", beta = "two" }
+  manifest = { apiVersion = "v1", kind = "ConfigMap", metadata = { name = each.key } }
+}
+
+resource "kubernetes_manifest" "other" {
+  for_each = { alpha = "ONE", beta = "TWO" }
+  manifest = { apiVersion = "v1", kind = "Secret", metadata = { name = each.key } }
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir)
+	mod := cfg.Module
+	b := &builder{}
+
+	for _, tc := range []struct{ resource, key, want string }{
+		{"kubernetes_manifest.byname", "alpha", "one"},
+		{"kubernetes_manifest.other", "alpha", "ONE"},
+		{"kubernetes_manifest.byname", "beta", "two"},
+		{"kubernetes_manifest.other", "beta", "TWO"},
+		// Repeats, now served from the memo rather than recomputed.
+		{"kubernetes_manifest.byname", "alpha", "one"},
+		{"kubernetes_manifest.other", "beta", "TWO"},
+	} {
+		rc := mod.ManagedResources[tc.resource]
+		if rc == nil {
+			t.Fatalf("fixture does not declare %s", tc.resource)
+		}
+		rd, ok := b.seedRepetition(ctx, cfg.Path, mod, rc, addrs.StringKey(tc.key))
+		if !ok || rd.EachValue == cty.NilVal {
+			t.Fatalf("%s[%q] produced %#v, ok=%v", tc.resource, tc.key, rd, ok)
+		}
+		if got := rd.EachValue.AsString(); got != tc.want {
+			t.Errorf("%s[%q] each.value = %q, want %q", tc.resource, tc.key, got, tc.want)
+		}
+	}
+	if len(b.seedEach) != 2 {
+		t.Errorf("the memo holds %d entries for two blocks: %v", len(b.seedEach), b.seedEach)
 	}
 }
