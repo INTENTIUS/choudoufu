@@ -282,6 +282,15 @@ func TestBoardLiveCertIsSeparate(t *testing.T) {
 // ProtocolResult.Spoken is the field that already answers this: it is false
 // when a script emitted no GAUNTLET line, and `gauntlet run` consults it for
 // precisely this reason (run.go's `if res.Spoken` branch). live-cert did not.
+//
+// Issue #1232: this test used to build the refusal row, never apply it, and
+// then assert the artifact was unchanged - an assertion nothing could turn
+// red, because no write was ever attempted. It now runs the refusal through
+// the SAME gate cmdLiveCert runs every finished run through
+// (PlanLiveCertWrites -> RecordsLiveCert), so removing that guard displaces
+// the real row and the test fails. The measured arm at the end is what keeps
+// the refusal arms honest: it proves this harness CAN displace a row, so a
+// surviving row means the guard held rather than that nothing was wired up.
 func TestLiveCertRefusalDoesNotDisplaceARealRun(t *testing.T) {
 	real := LiveCertResult{
 		Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
@@ -289,28 +298,119 @@ func TestLiveCertRefusalDoesNotDisplaceARealRun(t *testing.T) {
 		Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictFail},
 		Detail: map[string]string{"cold_deploy": "3705 resources from stock terraform against aws at scale=50 in 2023s"},
 	}
-	a := &Artifact{}
-	a.SetLiveCertResult(real)
 
-	refusal := LiveCertResult{
-		Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
-		Date: "2026-09-13T05:48:11Z", ExitCode: 2,
+	// apply is cmdLiveCert's write step, and only that step: consult the
+	// plan, write the row when it says to. main.go's `if writes.LiveCertRow
+	// { a.SetLiveCertResult(*r) }` is the line being modelled, and
+	// PlanLiveCertWrites is called rather than restated so a drift between
+	// the plan and RecordsLiveCert shows up here too.
+	apply := func(a *Artifact, r LiveCertResult, res *ProtocolResult) bool {
+		w := PlanLiveCertWrites("aws", res)
+		if w.LiveCertRow {
+			a.SetLiveCertResult(r)
+		}
+		return w.LiveCertRow
 	}
-	spoke := &ProtocolResult{Spoken: false}
 
-	if RecordsLiveCert(spoke) {
-		t.Fatal("a run that spoke no stage must not be recorded: live_cert keeps one row per estate, so recording it destroys the last real certification")
+	// The two shapes a refused run arrives in. Both parse into a row that
+	// WOULD overwrite the certification, and both must be turned away.
+	refusals := []struct {
+		name string
+		row  LiveCertResult
+		res  *ProtocolResult
+	}{{
+		// #1100: the harness refused before anything ran, so the script
+		// emitted no GAUNTLET line at all.
+		name: "a run that spoke no stage",
+		row: LiveCertResult{
+			Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
+			Date: "2026-09-13T05:48:11Z", ExitCode: 2,
+		},
+		res: &ProtocolResult{Spoken: false},
+	}, {
+		// #1151/#1231: the run declined the rung and said so. It may have
+		// spoken a stage or two first, which is exactly why Spoken alone
+		// stopped being enough - Refusal != nil is the second clause of
+		// RecordsLiveCert.
+		name: "a run that declined the rung after a stage passed",
+		row: LiveCertResult{
+			Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
+			Date: "2026-09-13T06:02:44Z", ExitCode: 2,
+			Stages: map[string]string{"cold_deploy": VerdictPass},
+			Detail: map[string]string{"cold_deploy": "a rung that never finished"},
+		},
+		res: &ProtocolResult{
+			Spoken:  true,
+			Stages:  map[string]string{"cold_deploy": VerdictPass},
+			Refusal: &ProtocolRefusal{Reason: "SSM's hard 10k cap", Scale: 136},
+		},
+	}}
+
+	for _, tc := range refusals {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &Artifact{}
+			a.SetLiveCertResult(real)
+
+			if wrote := apply(a, tc.row, tc.res); wrote {
+				t.Error("the refusal was recorded: live_cert keeps one row per estate, so recording it destroys the last real certification")
+			}
+
+			// The correct post-state is the one seeded: exactly one row,
+			// and it is `real` by value. A refusal is kept out of
+			// live_cert entirely (#1231), so there is no second row and no
+			// merged row either - its evidence belongs on its own rung in
+			// live/gauntlet-scale.json.
+			if len(a.LiveCert) != 1 {
+				t.Fatalf("LiveCert has %d row(s), want 1: %+v", len(a.LiveCert), a.LiveCert)
+			}
+			got := a.LiveCert[0]
+			if got.Date != real.Date || got.ExitCode != real.ExitCode {
+				t.Errorf("the real run was displaced: date=%q exit=%d, want date=%q exit=%d", got.Date, got.ExitCode, real.Date, real.ExitCode)
+			}
+			if len(got.Stages) != len(real.Stages) || got.Stages["test_plan"] != VerdictFail {
+				t.Errorf("the real run's stages were displaced: %v, want %v", got.Stages, real.Stages)
+			}
+			if got.Detail["cold_deploy"] != real.Detail["cold_deploy"] {
+				t.Errorf("the real run's detail was displaced: %q, want %q", got.Detail["cold_deploy"], real.Detail["cold_deploy"])
+			}
+		})
+	}
+
+	// And the other side of the same rule, which is what stops the arms
+	// above from passing because nothing writes at all: a run that measured
+	// something DOES replace the certification, failed stages included.
+	t.Run("a measured run still replaces the certification", func(t *testing.T) {
+		a := &Artifact{}
+		a.SetLiveCertResult(real)
+
+		measured := LiveCertResult{
+			Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
+			Date: "2026-09-15T09:14:02Z", ExitCode: 0, Clear: true,
+			Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictPass, "test_apply": VerdictPass},
+			Detail: map[string]string{"cold_deploy": "3705 resources at scale=50"},
+		}
+		res := &ProtocolResult{Spoken: true, Stages: measured.Stages}
+
+		if wrote := apply(a, measured, res); !wrote {
+			t.Fatal("a measured run was not recorded - this guard must not turn into a refusal to record runs, and if nothing writes here the refusal arms above prove nothing")
+		}
+		if len(a.LiveCert) != 1 {
+			t.Fatalf("LiveCert has %d row(s), want 1 - live_cert is one row per estate: %+v", len(a.LiveCert), a.LiveCert)
+		}
+		if got := a.LiveCert[0]; got.Date != measured.Date || !got.Clear {
+			t.Errorf("the measurement did not replace the older row: date=%q clear=%v", got.Date, got.Clear)
+		}
+	})
+
+	// The predicate itself, directly: the displacement arms go through
+	// PlanLiveCertWrites, so assert the clause they both rest on as well.
+	if RecordsLiveCert(&ProtocolResult{Spoken: false}) {
+		t.Error("a run that spoke no stage must not be recorded (#1100)")
+	}
+	if RecordsLiveCert(&ProtocolResult{Spoken: true, Refusal: &ProtocolRefusal{Reason: "the cap", Scale: 136}}) {
+		t.Error("a run that declined the rung must not be recorded (#1151/#1231), however many stages it spoke first")
 	}
 	if !RecordsLiveCert(&ProtocolResult{Spoken: true}) {
 		t.Error("a run that spoke at least one stage must still be recorded - this guard must not turn into a refusal to record failures, which are evidence")
 	}
-
-	// And the artifact must still hold the real run untouched.
-	if len(a.LiveCert) != 1 {
-		t.Fatalf("LiveCert has %d row(s), want 1", len(a.LiveCert))
-	}
-	if got := a.LiveCert[0]; got.Date != real.Date || got.ExitCode != 1 || len(got.Detail) == 0 {
-		t.Errorf("the real run was displaced: date=%q exit=%d details=%d", got.Date, got.ExitCode, len(got.Detail))
-	}
-	_ = refusal
 }
