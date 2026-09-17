@@ -7,10 +7,12 @@ package residue
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -500,4 +502,545 @@ func TestGauntletPinCallersCarryNoVersionLiteral(t *testing.T) {
 		t.Fatalf("no e2e/*/run.sh calls gauntlet_pin_aws_provider - this guard checked nothing, which is worse than not existing")
 	}
 	t.Logf("checked %d crossing script(s) that call gauntlet_pin_aws_provider", checked)
+}
+
+// --- issue #1139: coverage, not presence -----------------------------------
+//
+// TestGauntletCrossingScriptsPinOneAWSProvider above (issue #1041) asks only
+// whether a script calls gauntlet_pin_aws_provider ANYWHERE. One occurrence
+// anywhere in the file satisfies it, so a script that copies several
+// independent trees out of the corpus (PLAIN / GREEN / ADOPTED / an oracle,
+// each its own directory, each its own `terraform/tofu init`) and pins only
+// one of them passes exactly like a script that pins all of them.
+// corpus-leynos-monitoring is the live example this issue names: it copies
+// its monitoring module fresh into four separate trees (copy_module called
+// for $PLAIN, $ESTATE, $GREEN and $ORACLE_GREEN) and never pins any of
+// them - the three gauntlet_pin_aws_provider calls the presence guard finds
+// all target an unrelated synthetic day2_count oracle
+// ($COUNT_ORACLE_DIR/main.tf) built from a heredoc, not a corpus copy.
+//
+// analyzeCorpusCopyCoverage below counts, instead of merely detecting:
+//
+//   - a "copy point" is a place the script establishes a FRESH tree from a
+//     .corpus/ source - either a call to a helper function whose body itself
+//     copies from a corpus-derived variable (copy_tree/copy_estate/
+//     copy_module and the like: this repo's dominant shape, one call per
+//     tree), or, for a script with no such helper, a bare `cp`/`rsync` line
+//     at the top level that reads from one. Consecutive bare-copy lines
+//     (within 2 lines of each other) are one copy point, not one per
+//     statement: several scripts assemble a single tree with more than one
+//     `cp` (module files, then the example directory). A bare copy whose
+//     only destination(s) sit under a "/modules/" path is not counted at
+//     all - every script observed here follows the convention documented in
+//     e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider doc comment, that a
+//     referenced child module's own required_providers (if it has one) is
+//     satisfied by intersection with the root's exact pin and is never
+//     itself an init target, so copying one fresh needs no pin of its own.
+//   - a "pin point" is a direct top-level gauntlet_pin_aws_provider call, or
+//     a call to a wrapper function whose body calls it (apply_deltas,
+//     write_root, version_pin and the like - again, one call per tree is
+//     this repo's dominant shape).
+//
+// Coverage is copy points <= pin points + any stated exemption (see
+// gauntletPinCoverageFloatMarker below). This is a count, not a per-tree
+// destination match: it cannot see a script that pins the SAME tree N times
+// while N-1 others float, only a script that pins fewer times in total than
+// it copies fresh. That is a real, accepted limit (recorded here rather
+// than silently), and it is still a strictly stronger check than presence -
+// it is exactly what catches corpus-leynos-monitoring's four un-pinned
+// copies against its three misdirected pins, and every one of the other 24
+// scripts gauntletCrossingScriptsThatDeclareAWS finds today already
+// satisfies it by the pattern they already use.
+//
+// gauntletPinCoverageFloatMarkerPattern: a script may deliberately leave a
+// copy floating - corpus-leynos-monitoring's root does, on purpose, because
+// it is a control measuring whether hashicorp/aws's old, stable
+// aws_cloudwatch_metric_alarm/aws_cloudwatch_dashboard schemas hold across
+// the 5.x/6.x boundary, and pinning it to an exact 6.x release would
+// collapse the thing it exists to measure (see that script's own "THE OTHER
+// SCOPING DECISION" comment). A script records that decision with
+//
+//	# GAUNTLET_PIN_COVERAGE_FLOAT(n): <reason>
+//
+// where n is the number of copy points the exemption covers and reason is
+// not empty. Both are required and checked: a marker with no reason, an
+// empty reason, or a non-positive n is reported as an error in its own
+// right, on the theory this issue states directly - "an exemption without a
+// stated reason is how a coverage guard becomes a presence guard again."
+// There is deliberately no blanket "exempt this whole script" flag: the
+// count must be spent against the actual deficit, so a future copy point
+// added to an already-exempted script is not silently covered by someone
+// else's old, unrelated reason.
+var (
+	corpusVarAssignPattern     = regexp.MustCompile(`^\s*(?:local\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$`)
+	heredocStartPattern        = regexp.MustCompile(`<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
+	shellFuncDefPattern        = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{(.*)$`)
+	shellTopLevelCallPattern   = regexp.MustCompile(`^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(.*)$`)
+	quotedShellArgPattern      = regexp.MustCompile(`"([^"]*)"`)
+	gauntletPinCoverageFloatRe = regexp.MustCompile(`GAUNTLET_PIN_COVERAGE_FLOAT\(([^)]*)\)\s*:\s*(\S.*)$`)
+)
+
+// heredocLineMask marks every physical line of lines that lies inside a
+// <<EOF-style heredoc body, including the line carrying the closing
+// delimiter itself. Those lines are payload - frequently literal HCL,
+// which can carry a bare "}" - and every scan below must skip them or risk
+// mistaking a heredoc's own content for shell structure (a real bug caught
+// while building this guard: write_root()-style functions in several
+// scripts write a `}` as part of the HCL they emit, which ended a naive
+// brace-counted function body several hundred lines early).
+func heredocLineMask(lines []string) []bool {
+	n := len(lines)
+	mask := make([]bool, n)
+	i := 0
+	for i < n {
+		if strings.Contains(lines[i], "<<") {
+			if m := heredocStartPattern.FindStringSubmatch(lines[i]); m != nil {
+				delim := m[1]
+				j := i + 1
+				for j < n && strings.TrimSpace(lines[j]) != delim {
+					mask[j] = true
+					j++
+				}
+				if j < n {
+					mask[j] = true
+				}
+				i = j + 1
+				continue
+			}
+		}
+		i++
+	}
+	return mask
+}
+
+// corpusCodeLine returns lines[i] unless it is heredoc payload or a
+// whole-line shell comment (the same convention codeOnlyLines uses above),
+// in which case it returns "" - present in the slice so line numbers still
+// line up, absent from every content match.
+func corpusCodeLine(lines []string, inHeredoc []bool, i int) string {
+	if inHeredoc[i] {
+		return ""
+	}
+	if strings.HasPrefix(strings.TrimSpace(lines[i]), "#") {
+		return ""
+	}
+	return lines[i]
+}
+
+// corpusSourceVars finds every shell variable assigned, directly or
+// transitively, from a path naming ".corpus" - a fixed point over ordinary
+// NAME=value assignments, since a script commonly assigns one corpus-
+// derived variable (CORPUS_DIR) and then several more (SRC, SRC_MODULE,
+// SRC_EXAMPLE...) from it.
+func corpusSourceVars(lines []string, inHeredoc []bool) map[string]bool {
+	assigns := map[string][]string{}
+	for i := range lines {
+		cl := corpusCodeLine(lines, inHeredoc, i)
+		if m := corpusVarAssignPattern.FindStringSubmatch(cl); m != nil {
+			assigns[m[1]] = append(assigns[m[1]], m[2])
+		}
+	}
+	corpusVars := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for name, rhss := range assigns {
+			if corpusVars[name] {
+				continue
+			}
+			for _, rhs := range rhss {
+				if strings.Contains(rhs, ".corpus") {
+					corpusVars[name], changed = true, true
+					break
+				}
+				matched := false
+				for cv := range corpusVars {
+					if strings.Contains(rhs, "$"+cv) {
+						corpusVars[name], changed, matched = true, true, true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+		}
+	}
+	return corpusVars
+}
+
+// shellFuncBody is a function definition's extent: defLine is the `name()
+// {` line itself, bodyStart/bodyEnd (inclusive) the lines between the
+// braces. defLine is tracked separately from the body because a
+// multi-line function's OWN declaration line is not part of [bodyStart,
+// bodyEnd] - and, unguarded, textually matches shellTopLevelCallPattern
+// exactly like a real call to that function would (`copy_tree() {` and
+// `copy_tree "$PLAIN"` both start with the identifier "copy_tree"). Every
+// range check below must treat defLine and [bodyStart, bodyEnd] as one
+// combined exclusion, or a script's own function definitions inflate its
+// copy/pin counts by one call each - found while proving this guard
+// against a script with two separate pin-wrapper functions, where it
+// silently hid a real one-copy-point deficit.
+type shellFuncBody struct{ defLine, bodyStart, bodyEnd int }
+
+func (fb shellFuncBody) contains(i int) bool {
+	return i == fb.defLine || (i >= fb.bodyStart && i <= fb.bodyEnd)
+}
+
+// shellFunctionBodies finds every `name() { ... }` definition, using only
+// non-heredoc, non-comment lines to find the closing brace.
+func shellFunctionBodies(lines []string, inHeredoc []bool) map[string]shellFuncBody {
+	n := len(lines)
+	bodies := map[string]shellFuncBody{}
+	i := 0
+	for i < n {
+		if inHeredoc[i] {
+			i++
+			continue
+		}
+		m := shellFuncDefPattern.FindStringSubmatch(lines[i])
+		if m == nil {
+			i++
+			continue
+		}
+		name, rest := m[1], m[2]
+		if strings.HasSuffix(strings.TrimSpace(rest), "}") {
+			bodies[name] = shellFuncBody{defLine: i, bodyStart: i, bodyEnd: i}
+			i++
+			continue
+		}
+		bodyStart := i + 1
+		j := bodyStart
+		for j < n && !(!inHeredoc[j] && strings.TrimSpace(lines[j]) == "}") {
+			j++
+		}
+		end := j - 1
+		if j >= n {
+			end = n - 1
+		}
+		bodies[name] = shellFuncBody{defLine: i, bodyStart: bodyStart, bodyEnd: end}
+		i = j + 1
+	}
+	return bodies
+}
+
+func shellFuncBodyCode(lines []string, inHeredoc []bool, fb shellFuncBody) string {
+	var b strings.Builder
+	for i := fb.bodyStart; i <= fb.bodyEnd && i < len(lines); i++ {
+		b.WriteString(corpusCodeLine(lines, inHeredoc, i))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func insideAnyShellFuncBody(bodies map[string]shellFuncBody, i int) bool {
+	for _, fb := range bodies {
+		if fb.contains(i) {
+			return true
+		}
+	}
+	return false
+}
+
+// corpusCopyPattern builds the "this line copies from the corpus" matcher
+// for one script's own set of corpus-source variables (issue #1041's
+// scripts use SRC, SRC_MODULE, SRC_EXAMPLE, SRC_AWS... - the name varies,
+// what they share is being assigned from a .corpus path). Matches both
+// `cp` (every script but one) and `rsync` (corpus-sumaform-aws, the one
+// script that copies its corpus tree with rsync instead of cp -R).
+func corpusCopyPattern(corpusVars map[string]bool) *regexp.Regexp {
+	if len(corpusVars) == 0 {
+		return regexp.MustCompile(`\x00never-matches\x00`)
+	}
+	names := make([]string, 0, len(corpusVars))
+	for v := range corpusVars {
+		names = append(names, regexp.QuoteMeta(v))
+	}
+	sort.Strings(names)
+	return regexp.MustCompile(`\b(?:cp|rsync)\b.*\$\{?(` + strings.Join(names, "|") + `)\b`)
+}
+
+// corpusCopyCoverage is analyzeCorpusCopyCoverage's verdict for one script.
+type corpusCopyCoverage struct {
+	copyPoints     int
+	copyPointLines []int // 1-based source line of each copy point, for the failure message
+	pinPoints      int
+	exempted       int
+	exemptions     []string // "n: reason", one per valid GAUNTLET_PIN_COVERAGE_FLOAT marker
+	malformed      []string // marker text that failed to state a positive count and a reason
+}
+
+// analyzeCorpusCopyCoverage is this issue's coverage count - see the
+// package-level doc comment above for what a "copy point" and a "pin
+// point" are and why counting each this way is a real, stated limit
+// rather than a guarantee that every specific tree is covered.
+func analyzeCorpusCopyCoverage(src string) corpusCopyCoverage {
+	lines := strings.Split(src, "\n")
+	inHeredoc := heredocLineMask(lines)
+	corpusVars := corpusSourceVars(lines, inHeredoc)
+	copyPattern := corpusCopyPattern(corpusVars)
+
+	bodies := shellFunctionBodies(lines, inHeredoc)
+	copyFuncs := map[string]bool{}
+	pinFuncs := map[string]bool{}
+	for name, fb := range bodies {
+		bc := shellFuncBodyCode(lines, inHeredoc, fb)
+		if copyPattern.MatchString(bc) {
+			copyFuncs[name] = true
+		}
+		if strings.Contains(bc, "gauntlet_pin_aws_provider") {
+			pinFuncs[name] = true
+		}
+	}
+
+	var copyPoints, pinPoints int
+	var copyPointLines []int
+	var directCopyLines []int
+
+	for i := range lines {
+		if insideAnyShellFuncBody(bodies, i) {
+			continue
+		}
+		cl := corpusCodeLine(lines, inHeredoc, i)
+		if strings.TrimSpace(cl) == "" {
+			continue
+		}
+		fname := ""
+		if m := shellTopLevelCallPattern.FindStringSubmatch(cl); m != nil {
+			fname = m[1]
+			if copyFuncs[fname] {
+				copyPoints++
+				copyPointLines = append(copyPointLines, i+1)
+			}
+			if fname == "gauntlet_pin_aws_provider" || pinFuncs[fname] {
+				pinPoints++
+			}
+		}
+		if copyPattern.MatchString(cl) && !copyFuncs[fname] {
+			args := []string{}
+			for _, m := range quotedShellArgPattern.FindAllStringSubmatch(cl, -1) {
+				args = append(args, m[1])
+			}
+			excludeAsChildModule := false
+			if len(args) > 0 {
+				check := args
+				if len(args) > 1 {
+					check = args[1:]
+				}
+				excludeAsChildModule = true
+				for _, a := range check {
+					if !strings.Contains(a, "/modules/") && !strings.HasSuffix(strings.TrimRight(a, "/"), "/modules") {
+						excludeAsChildModule = false
+						break
+					}
+				}
+			}
+			if !excludeAsChildModule {
+				directCopyLines = append(directCopyLines, i)
+			}
+		}
+	}
+
+	// Consecutive bare-copy lines (gap <= 2) assemble ONE tree, not one
+	// copy point each - see the doc comment above.
+	sort.Ints(directCopyLines)
+	var run []int
+	flush := func() {
+		if len(run) > 0 {
+			copyPoints++
+			copyPointLines = append(copyPointLines, run[0]+1)
+			run = nil
+		}
+	}
+	for _, ln := range directCopyLines {
+		if len(run) > 0 && ln-run[len(run)-1] <= 2 {
+			run = append(run, ln)
+		} else {
+			flush()
+			run = []int{ln}
+		}
+	}
+	flush()
+
+	sort.Ints(copyPointLines)
+	cov := corpusCopyCoverage{copyPoints: copyPoints, copyPointLines: copyPointLines, pinPoints: pinPoints}
+	for i, raw := range lines {
+		if inHeredoc[i] || !strings.Contains(raw, "GAUNTLET_PIN_COVERAGE_FLOAT") {
+			continue
+		}
+		m := gauntletPinCoverageFloatRe.FindStringSubmatch(raw)
+		if m == nil {
+			cov.malformed = append(cov.malformed, fmt.Sprintf("line %d: GAUNTLET_PIN_COVERAGE_FLOAT marker does not match the required GAUNTLET_PIN_COVERAGE_FLOAT(N): <reason> shape", i+1))
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(m[1]))
+		reason := strings.TrimSpace(m[2])
+		if err != nil || n <= 0 || reason == "" {
+			cov.malformed = append(cov.malformed, fmt.Sprintf("line %d: GAUNTLET_PIN_COVERAGE_FLOAT(%s) must name a positive count and a non-empty reason - a bare or zero exemption is how a coverage guard becomes a presence guard again", i+1, strings.TrimSpace(m[1])))
+			continue
+		}
+		cov.exempted += n
+		cov.exemptions = append(cov.exemptions, fmt.Sprintf("%d: %s", n, reason))
+	}
+	return cov
+}
+
+// TestGauntletCrossingScriptsCoverEveryCorpusCopy is issue #1139's guard: it
+// widens TestGauntletCrossingScriptsPinOneAWSProvider's presence check
+// (does the script call gauntlet_pin_aws_provider at all) to a coverage
+// count (does it call it - or a wrapper that calls it once per tree - at
+// least as many times as it establishes a fresh tree from the corpus). See
+// the package-level doc comment above analyzeCorpusCopyCoverage for the
+// exact rule, its stated limit, and the GAUNTLET_PIN_COVERAGE_FLOAT
+// exemption shape.
+func TestGauntletCrossingScriptsCoverEveryCorpusCopy(t *testing.T) {
+	scripts := gauntletCrossingScriptsThatDeclareAWS(t)
+	checked := 0
+	for _, rel := range scripts {
+		data, err := os.ReadFile(rel)
+		if err != nil {
+			t.Errorf("reading live/%s: %v", rel, err)
+			continue
+		}
+		checked++
+		cov := analyzeCorpusCopyCoverage(string(data))
+		for _, bad := range cov.malformed {
+			t.Errorf("live/%s: %s", rel, bad)
+		}
+		if len(cov.exemptions) > 0 {
+			t.Logf("live/%s: %d copy point(s) exempted: %v", rel, cov.exempted, cov.exemptions)
+		}
+		deficit := cov.copyPoints - cov.pinPoints - cov.exempted
+		if deficit > 0 {
+			t.Errorf("live/%s establishes a fresh tree from the corpus at %d place(s) (lines %v) but calls gauntlet_pin_aws_provider (directly, or through a wrapper function called once per tree) at only %d, with %d exempted by a stated GAUNTLET_PIN_COVERAGE_FLOAT marker - at least %d of the listed place(s) are left uncovered and will float to whatever registry.terraform.io serves the morning stage 1 runs (issue #1139, widening #1041's presence-only check; this is a count, not a per-tree match, so it cannot say WHICH of the listed lines are the uncovered ones, only that not all of them can be)",
+				rel, cov.copyPoints, cov.copyPointLines, cov.pinPoints, cov.exempted, deficit)
+		}
+	}
+	if checked == 0 {
+		t.Fatalf("no crossing script checked - this guard checked nothing, which is worse than not existing")
+	}
+	t.Logf("checked coverage for %d crossing script(s)", checked)
+}
+
+// TestAnalyzeCorpusCopyCoverage exercises analyzeCorpusCopyCoverage directly
+// against manufactured scripts, so the coverage rule's red and green paths
+// - and the exemption's own validation - are proven independent of what
+// today's 25 real scripts happen to look like. The first case reproduces
+// corpus-leynos-monitoring's actual shape (a copy helper called four times,
+// a pin helper called for an unrelated synthetic root) as a second,
+// disposable instance of the bug this issue names.
+func TestAnalyzeCorpusCopyCoverage(t *testing.T) {
+	const fourTreesOnePinned = `#!/usr/bin/env bash
+SRC="$ROOT/.corpus/widget/module"
+copy_module() { mkdir -p "$1"; cp -R "$SRC" "$1/module"; }
+
+copy_module "$PLAIN"
+copy_module "$GREEN"
+copy_module "$ADOPTED"
+copy_module "$ORACLE"
+
+# unrelated synthetic root, never a corpus copy - same shape as
+# corpus-leynos-monitoring's COUNT_ORACLE_DIR.
+mkdir -p "$COUNT_ORACLE_DIR"
+gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf"
+`
+
+	const fourTreesFullyPinned = `#!/usr/bin/env bash
+SRC="$ROOT/.corpus/widget/module"
+copy_tree() { mkdir -p "$1"; cp -R "$SRC" "$1/module"; }
+apply_deltas() {
+  local est="$1"
+  gauntlet_pin_aws_provider "$est/versions.tf"
+}
+
+copy_tree "$PLAIN"
+apply_deltas "$PLAIN"
+copy_tree "$GREEN"
+apply_deltas "$GREEN"
+copy_tree "$ADOPTED"
+apply_deltas "$ADOPTED"
+copy_tree "$ORACLE"
+apply_deltas "$ORACLE"
+`
+
+	exempted4 := "\n# GAUNTLET_PIN_COVERAGE_FLOAT(4): deliberate - a manufactured control, see the test that names this string.\n"
+	exempted1 := "\n# GAUNTLET_PIN_COVERAGE_FLOAT(1): deliberate - covers only one of the four, on purpose, for this test.\n"
+	exemptedNoReason := "\n# GAUNTLET_PIN_COVERAGE_FLOAT(4):   \n"
+	exemptedZero := "\n# GAUNTLET_PIN_COVERAGE_FLOAT(0): deliberate.\n"
+
+	tests := []struct {
+		name           string
+		src            string
+		wantCopy       int
+		wantPin        int
+		wantExempted   int
+		wantMalformed  bool
+		wantDeficitPos bool // true if copyPoints-pinPoints-exempted > 0 (the test would fail)
+	}{
+		{
+			name:           "four copies one misdirected pin is a deficit - corpus-leynos-monitoring's actual shape",
+			src:            fourTreesOnePinned,
+			wantCopy:       4,
+			wantPin:        1,
+			wantDeficitPos: true,
+		},
+		{
+			name:     "four copies through a wrapper that pins once per call is fully covered",
+			src:      fourTreesFullyPinned,
+			wantCopy: 4,
+			wantPin:  4,
+		},
+		{
+			name:         "a full, stated exemption clears the deficit",
+			src:          fourTreesOnePinned + exempted4,
+			wantCopy:     4,
+			wantPin:      1,
+			wantExempted: 4,
+		},
+		{
+			name:           "a partial exemption leaves the remainder uncovered",
+			src:            fourTreesOnePinned + exempted1,
+			wantCopy:       4,
+			wantPin:        1,
+			wantExempted:   1,
+			wantDeficitPos: true,
+		},
+		{
+			name:           "an exemption with no reason is rejected outright, not silently accepted",
+			src:            fourTreesOnePinned + exemptedNoReason,
+			wantCopy:       4,
+			wantPin:        1,
+			wantMalformed:  true,
+			wantDeficitPos: true,
+		},
+		{
+			name:           "an exemption for zero copy points is rejected outright",
+			src:            fourTreesOnePinned + exemptedZero,
+			wantCopy:       4,
+			wantPin:        1,
+			wantMalformed:  true,
+			wantDeficitPos: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cov := analyzeCorpusCopyCoverage(tc.src)
+			if cov.copyPoints != tc.wantCopy {
+				t.Errorf("copyPoints = %d, want %d (lines %v)", cov.copyPoints, tc.wantCopy, cov.copyPointLines)
+			}
+			if cov.pinPoints != tc.wantPin {
+				t.Errorf("pinPoints = %d, want %d", cov.pinPoints, tc.wantPin)
+			}
+			if cov.exempted != tc.wantExempted {
+				t.Errorf("exempted = %d, want %d", cov.exempted, tc.wantExempted)
+			}
+			if gotMalformed := len(cov.malformed) > 0; gotMalformed != tc.wantMalformed {
+				t.Errorf("malformed = %v (%v), want %v", gotMalformed, cov.malformed, tc.wantMalformed)
+			}
+			deficit := cov.copyPoints - cov.pinPoints - cov.exempted
+			if gotDeficitPos := deficit > 0; gotDeficitPos != tc.wantDeficitPos {
+				t.Errorf("deficit = %d (positive=%v), want positive=%v", deficit, gotDeficitPos, tc.wantDeficitPos)
+			}
+		})
+	}
 }
