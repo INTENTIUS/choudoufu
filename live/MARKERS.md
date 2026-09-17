@@ -233,6 +233,64 @@ legacy `Endpoints` the endpoints controller mirrors a Service's labels
 onto). Both were made by a controller, not declared, and are never orphans
 - which is what makes an estate label copied through a pod template safe.
 
+### What the record store holds on Kubernetes
+
+Ruled on #1188, 2026-09-17, from a measurement on kind (Kubernetes v1.36.1,
+hashicorp/kubernetes 3.2.1, choudoufu at 891ffc346d). The record envelope
+has six payload members and on this substrate only two of them can ever be
+non-empty, so a Kubernetes instance with no record file is usually correct
+rather than missing.
+
+| member | Kubernetes | why |
+|---|---|---|
+| `object` | never | no `kubernetes_*` row is `RecordBacked`; `kind=object` is #73's types with no cloud object at all, and a Kubernetes object is a cloud object |
+| `identity` | four types only, and inert | `LocatedRecordFrom` reaches `locatedRatifiedComponentsRecord`, which needs a row in `identity.DefaultTable`; #326 wrote four (`kubernetes_cluster_role_binding`, `kubernetes_config_map`, `kubernetes_namespace`, `kubernetes_storage_class`) and the other 73 metadata-shaped types are admitted by #1064's synthesized rule, which `LookupType` does not see |
+| `residue` | yes, and load-bearing | the `wait_for_*` arguments and a `timeouts` block |
+| `provisioned` | yes, if the block declares a create-time provisioner | a property of the configuration, not of the substrate |
+| `deposed` | never | a name is unique in its namespace, so nothing is created before the object it replaces is gone and there is no create-before-destroy window |
+| `tombstone` | writable only behind `identity`, never read | the label is a field of the object, so a deleted object leaves no lingering marker to tell from a second claimant; both readers are gated on two claimants sharing one address, which the synthetic orphan address makes impossible |
+
+The split in the `identity` row is the ratified row, not the version suffix
+the type is spelled with: `kubernetes_service_account` is unversioned, has
+no row and records no identity, while `kubernetes_storage_class` is
+unversioned, has one and does.
+`internal/live/projection/record_k8s_test.go` pins both halves.
+
+So on Kubernetes an estate's identity is carried by the `tofu-estate` label
+and the configuration-derived namespace and name, and the record carries
+what the API server never returns. Measured on an eleven-instance estate
+over ten types: eight instances got a record file, seven of those held a
+`residue` member and three an `identity` member; deleting the whole record
+store and the cache and replanning proposed **0 to add and 0 to destroy** -
+every object still bound - and two in-place updates, the residue of
+`kubernetes_namespace_v1` (`wait_for_default_service_account`, `timeouts`)
+and of `kubernetes_secret_v1` (`wait_for_service_account_token`). One apply
+rewrote the records and the plan after it was empty, so a lost record store
+costs one converging apply here, not an object.
+
+That is also what the record contributes to a crashed apply, and it is not
+nothing. An apply of two objects interrupted by a real SIGTERM between the
+two creates **wrote the record for the object it had created** (record files
+7 -> 8) and the recovery plan was exactly the remainder, `Plan: 1 to add`.
+Removing that one record from the same position turned the recovery plan
+into `Plan: 1 to add, 1 to change`, proposing `+
+wait_for_service_account_token = true` against the object the crash left
+behind. `day2_crash` does not see this because its crash pair is a
+`kubernetes_config_map(_v1)`, which is the one type in the lane's surface
+with neither a ratified row nor a config-only argument - which is why the
+stage's own evidence line reads 12 -> 12 on the two `_v1` estates and 9 ->
+10 on reference-k8s.
+
+A record is not a rescue for an object whose label was stripped, on either
+substrate. With a valid identity record naming `NAMESPACE/NAME`, stripping
+`tofu-estate` off the object made the next plan propose creating it again -
+the same outcome as for a type with no record at all. `checkOwnership`
+treats an absent marker as disagreement rather than as silence for a
+record-bound instance (#389, ruled 2026-08-23), because a record is not
+independent evidence of anything once the marker it should have written
+stops confirming it. `day2_crash`'s `BREAK_CRASH_UNBOUND=1` control is
+measuring that rule, not a gap in it.
+
 ### Granting a Kubernetes estate
 
 RBAC cannot read the label: a `PolicyRule` has verbs, groups, resources
