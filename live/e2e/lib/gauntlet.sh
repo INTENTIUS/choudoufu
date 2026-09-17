@@ -123,6 +123,11 @@ gauntlet_end() {
 #
 # Emitting this does not end the run - the caller decides what to do next
 # (usually: tear down whatever exists, then exit non-zero).
+#
+# For live-cert runs today. `gauntlet run` parses the line but has nowhere to
+# put it - an estate row is keyed by estate, not by scale, and has no outcome
+# field - so it prints that it could not record the refusal rather than
+# filing the run as an ordinary one.
 gauntlet_refused() {
   local scale="${1:--}" needed="${2:--}" limit="${3:--}" unit="${4:--}"
   shift 4 || true

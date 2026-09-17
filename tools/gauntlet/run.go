@@ -375,6 +375,15 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 			for _, u := range res.Unknown {
 				fmt.Fprintf(opts.Stdout, "%s: reported unknown stage %q; add it to tools/gauntlet/stages.go or fix the script\n", e.Name, u)
 			}
+			// A refusal (#1151) is a live-cert concept: it is recorded in
+			// live/gauntlet-scale.json, which is keyed by scale and has an
+			// outcome field, and an EstateResult row has neither. Nothing
+			// here can record one, so say so rather than drop it - a
+			// crossing script that refuses and is silently filed as an
+			// ordinary run is the same silence this field exists to end.
+			if res.Refusal != nil {
+				fmt.Fprintf(opts.Stdout, "%s: the script REFUSED (%s), but an estate row has no refusal outcome - this run is recorded as an ordinary one and the refusal survives only in the log. gauntlet_refused is for live-cert runs today (#1151)\n", e.Name, res.Refusal.Reason)
+			}
 		} else {
 			// Legacy script: verdicts stay as imported; only the run is recorded.
 			if r.Protocol == "" {
