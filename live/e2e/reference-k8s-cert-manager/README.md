@@ -88,6 +88,39 @@ It lands red on two stages, with an issue naming each, under the phase's
 rule that a lane which is a gap list beats a lane which is clear on estates
 that dodge the hard cases.
 
+## Re-measured with #1178 fixed: 12 of 12
+
+`bash live/e2e/reference-k8s-cert-manager/run.sh`, 2026-09-17, with
+`TOFU_BIN` a binary built from main `891ffc346d` plus #1178's fix and its
+unit tests - and nothing else. What this branch adds on top of what that
+binary ran is the seed's for_each memoization, which returns the same values
+its unit test pins, and this text. Same substrate as the landing run above:
+kind `v1.36.1` (`kindest/node:v1.36.1`), `hashicorp/kubernetes` 3.2.1, stock
+Terraform v1.15.8, darwin/arm64, two clusters created and deleted by the
+run. Exit 0.
+
+| stage | verdict | s |
+|---|---|---|
+| cold_deploy | pass | 117 |
+| migrate | pass | 49 |
+| test_plan | pass | 31 |
+| test_apply | pass | 50 |
+| drift_reconverge | pass | 99 |
+| plan_approval | pass | 171 |
+| day2_rename | pass | 99 |
+| day2_remove | pass | 217 |
+| day2_count | pass | 325 |
+| day2_teardown | pass | 144 |
+| greenfield | pass | 229 |
+| strict | pass | 56 |
+
+`day2_count` is #1178's own proof, and its verdict line is quoted in that
+issue. `greenfield` is green off the back of #1176, which was already on
+main at this branch's base; this run measured it but is not its evidence.
+`plan_approval` passed at ratification too - it records #1177's answer
+rather than requiring stock parity - and it still recorded that answer
+here, because #1177's fix landed on main after the binary above was built.
+
 ## What it found
 
 - **#1176** - `-target` does not narrow #1097's missing-CRD refusal, so the
@@ -100,8 +133,14 @@ that dodge the hard cases.
   `plan_approval` measures this on the way in and records both answers.
 - **#1178** - a counted `kubernetes_manifest` never binds to the objects it
   created: the next plan proposes creating them again and the sweep
-  simultaneously calls them orphans. This is why the counted resource lives
-  in `run.sh` and not in `root/`.
+  simultaneously calls them orphans. Fixed 2026-09-17, and the cause turned
+  out not to be `count` as such: the projection built its configured seed
+  with the bare module-level evaluator, which refuses `count.index`, so an
+  expanded manifest's whole `manifest` argument was dropped from the prior
+  state and the estate marker inside it went with it. `for_each` was
+  affected identically. The counted resource still lives in `run.sh`
+  rather than `root/` because scaling it 2 -> 1 -> 2 is the stage's
+  measurement and the rest of the estate counts a root of 50.
 
 ## What it proved
 
