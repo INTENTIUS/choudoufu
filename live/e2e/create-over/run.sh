@@ -90,6 +90,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 
 awsl() { aws --endpoint-url "$ENDPOINT" --region us-east-1 "$@"; }
 
@@ -217,7 +219,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" 
 # the defect this said "Foreign resources: 1 live resource not owned by
 # estate", naming the role the run was looking for.
 grep -qE '^Foreign resources: none' <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Foreign resources:'
+  || { gauntlet_print_evidence "$PLAN_OUT"
        fail "the plan does not report 'Foreign resources: none'. The estate owns exactly two live resources and both carry its markers, so anything else here means one of them was read as unowned - the defect's own signature, even if the plan happens to be empty. Under the defect this line read 'Foreign resources: 1 live resource not owned by estate'."; }
 log "  subject: aws_iam_role.subject bound to $ROLE1 from the tag index; nothing proposed, nothing foreign"
 
@@ -266,7 +268,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN3_OUT"
   || { printf '%s\n' "$PLAN3_OUT" | grep -vE '^\s*$' | tail -30
        fail "the third plan is not empty, so the run does not converge"; }
 grep -qE '^Foreign resources: none' <<< "$PLAN3_OUT" \
-  || { printf '%s\n' "$PLAN3_OUT" | grep -E '^Foreign resources:'
+  || { gauntlet_print_evidence "$PLAN3_OUT"
        fail "the third plan does not report 'Foreign resources: none'"; }
 log "  converged: nothing to create, nothing foreign"
 

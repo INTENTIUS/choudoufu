@@ -86,6 +86,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 
 awsl() { aws --endpoint-url "$ENDPOINT" --region us-east-1 "$@"; }
 
@@ -193,7 +195,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" 
 # count: that would mean a live object carrying this estate's markers was
 # read as unowned, which is #266's own signature even behind an empty plan.
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"
+  || { gauntlet_print_evidence "$PLAN_OUT"
        fail "the plan reports foreign resources. The estate owns every live object named here and the three users carry its markers, so anything counted on this line means one of them was read as unowned."; }
 log "  nothing to create, nothing foreign"
 
@@ -238,7 +240,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN2_OUT"
   || { printf '%s\n' "$PLAN2_OUT" | grep -vE '^\s*$' | tail -30
        fail "the second plan is not empty, so the run does not converge"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN2_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN2_OUT"; fail "the second plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$PLAN2_OUT"; fail "the second plan reports foreign resources"; }
 
 # An empty plan is a proposal. This is what applying it does: still 3
 # memberships, not 6.

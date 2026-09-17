@@ -92,6 +92,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 record_key() { printf '%s' "$1" | base64 | tr '+/' '-_' | tr -d '=\n'; }
@@ -351,9 +353,9 @@ FINAL_PLAN_OUT="$(cd "$ESTATE_DIR" && "$TOFU" plan -input=false -no-color 2>&1)"
   fail "the post-recovery plan exited $FINAL_PLAN_RC"
 }
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
-  || { grep -E '^  #|^Foreign resources:' <<< "$FINAL_PLAN_OUT"; fail "the post-recovery plan is not empty"; }
+  || { gauntlet_print_evidence "$FINAL_PLAN_OUT"; fail "the post-recovery plan is not empty"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$FINAL_PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$FINAL_PLAN_OUT"; fail "the post-recovery plan reports a foreign resource - the terminated object's lingering tag is still being read as a live, unowned claimant"; }
+  || { gauntlet_print_evidence "$FINAL_PLAN_OUT"; fail "the post-recovery plan reports a foreign resource - the terminated object's lingering tag is still being read as a live, unowned claimant"; }
 log "  No changes, Foreign resources: none. The crash window is closed, recovered without a human, and the destroyed identity is not a phantom second claimant."
 
 log ""
