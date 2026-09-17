@@ -104,6 +104,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 awsl() { aws --endpoint-url "$ENDPOINT" --region us-west-1 "$@"; }
 
 # ── 0. tools ────────────────────────────────────────────────────────────────
@@ -268,7 +270,7 @@ fi
 grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan1.log" \
   || { grep -E '^  # ' "$WORK/plan1.log" | head -20; fail "the plan is not empty"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' "$WORK/plan1.log" \
-  || { grep -E '^Foreign resources:' "$WORK/plan1.log"; fail "the plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$(cat "$WORK/plan1.log")"; fail "the plan reports foreign resources"; }
 log "  no state file, nothing to create, nothing foreign"
 
 # ── 5b. THE VALUE, not the verdict ──────────────────────────────────────────

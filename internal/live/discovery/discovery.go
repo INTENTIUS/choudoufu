@@ -2197,6 +2197,15 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// See bindtags.go for the three gates that keep this from adopting
 		// somebody else's object.
 		if tags[TagEstate] == "" {
+			// GitHub issue #1125. joinBlind and joinAbsent are held here
+			// rather than incremented in the switch below because the
+			// service tag-read leg runs AFTER the index has failed and can
+			// still produce the marker: an object whose tags this run did
+			// read is not one the index was blind to in any sense that
+			// matters, and counting it before the last route has been tried
+			// would have [sweepMarkerReadGap] file a gap over a type whose
+			// markers this run read perfectly well.
+			var blindPending, absentPending bool
 			joined, outcome := req.markers.join(ctx, typeName, importID)
 			switch outcome {
 			case joinBound:
@@ -2244,7 +2253,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// depends on sawReadableTags, which is not known until the
 				// listing is over.
 				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
-					joinBlind++
+					blindPending = true
 				}
 			case joinUnavailable:
 				// The index was not asked at all - no Tagging client this
@@ -2262,8 +2271,50 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// service list" for the actual argument, which is about
 				// what this run has evidence for.
 				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
-					joinAbsent++
+					absentPending = true
 				}
+			}
+
+			// GitHub issue #1125: the native leg's half of #1131's
+			// per-service tag-read. [scanTypeCloudControl] has called
+			// [serviceTagRead] since PR #1161 and this leg did not, which
+			// is the whole reason a deleted aws_iam_role block left its
+			// live, marked role standing while the aws_iam_instance_profile
+			// beside it was destroyed correctly: the profile has no native
+			// list resource and reaches Cloud Control, the role has one and
+			// reaches here. Same object shape, same unreadable marker, same
+			// repair - the only difference was which function enumerated it.
+			//
+			// Placed after the index join rather than before it because the
+			// index is already paid for: one GetResources for the whole
+			// sweep against one ListRoleTags per role. [serviceTagRead]'s
+			// own third clause ([markerIndex.servesType]) says the same
+			// thing from the other side and keeps this off entirely on a
+			// target whose index does serve the type - which is not
+			// hypothetical for IAM, #1134 having measured real AWS serving
+			// iam:policy and iam:instance-profile in us-east-1 while the
+			// pinned emulator serves no IAM at all (#1152).
+			if tags[TagEstate] == "" {
+				if svcTags, ok := serviceTagRead(ctx, req, typeName, importID, &scan); ok {
+					tags, taggable = svcTags, true
+					// Unconditionally, including for an empty answer, and
+					// this is the one place that differs from the list
+					// call's own rule twenty lines up. A LIST that returns
+					// no tags is ambiguous - the route may drop them - so
+					// only a non-empty answer refutes "this type's markers
+					// are unreadable". A tag-read API returning no tags is
+					// not ambiguous: reporting tags is the operation's only
+					// job, so it answered, and the object genuinely carries
+					// none.
+					markerReadWorked = true
+					blindPending, absentPending = false, false
+				}
+			}
+			if blindPending {
+				joinBlind++
+			}
+			if absentPending {
+				joinAbsent++
 			}
 		}
 		if tags[TagEstate] == "" && !sweep {

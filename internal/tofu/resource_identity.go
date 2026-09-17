@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -123,4 +124,39 @@ type IgnoreChangesAdjuster interface {
 	// configs.Resource.Managed.IgnoreChanges already lists. A nil or empty
 	// result adds nothing.
 	AdjustIgnoreChanges(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema) []cty.Path
+}
+
+// AppliedMarkerVerifier is an optional capability a [ConfigValueAdjuster]
+// may additionally implement (checked with a type assertion on the same
+// value [EvalContext.ConfigValueAdjuster] returns, like
+// [IgnoreChangesAdjuster]), so that whatever stamped an ownership marker
+// into the planned value can be shown what the provider returned after the
+// write and say whether the marker survived it.
+//
+// GitHub issue #1192: [ConfigValueAdjuster] writes the marker into the
+// value sent to the provider and nothing reads it back. A Kubernetes
+// admission policy enforcing a label scheme, or an AWS Organizations tag
+// policy, can store an object without the key that was sent, and every
+// layer above then believes a marker was written that is not there. The
+// apply already has the evidence in hand: the object the provider returned
+// from ApplyResourceChange, which for any provider that reads its resource
+// back is the stored object. Core already compares it against the planned
+// value with objchange.AssertObjectCompatible - and for a legacy-SDK
+// provider (which hashicorp/kubernetes and hashicorp/aws both are)
+// deliberately downgrades every difference to a log line, because the
+// legacy type system's shimming cannot pass that check precisely. That
+// downgrade is right for an ordinary attribute and wrong for the one
+// attribute a fork's ownership model rests on, so this hook exists to let
+// the fork judge its own marker rather than widening core's rule.
+//
+// It is given the planned value and the applied value, never a live read:
+// no extra API call is made on its behalf, and a provider that echoes the
+// planned value back instead of reading its resource simply gives it
+// nothing to find.
+type AppliedMarkerVerifier interface {
+	// VerifyAppliedMarkers reports on any ownership marker present in
+	// planned that the applied object does not carry. A nil result (the
+	// default for an adjuster that does not implement this) says nothing
+	// and changes nothing. It must not be called for a delete.
+	VerifyAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, action plans.Action, planned, applied cty.Value, schema providers.Schema) tfdiags.Diagnostics
 }

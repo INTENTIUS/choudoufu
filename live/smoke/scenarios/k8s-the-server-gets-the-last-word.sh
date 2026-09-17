@@ -1,5 +1,5 @@
 # k8s-the-server-gets-the-last-word
-# CLAIM 26 - Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads and the estate keeps its marker, and a mutation that strips the marker on the way in leaves an object this estate cannot claim - the next apply wedges on the name and every plan says the object is outside the estate, while the run that made it reported success. ~4 min.
+# CLAIM 26 - Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads and the estate keeps its marker, and a mutation that strips the marker on the way in is named by the run that made it - the create warns that the marker it sent is not on the object the server stored, and the adopting update that follows fails rather than reporting a change nothing kept. ~4 min.
 #
 # The second fault of #1110. Everything a plan says is a statement about
 # what the API server will accept, made before it was asked. Admission is
@@ -23,22 +23,33 @@
 # What the third part measures, and it is the boundary case: a policy
 # webhook enforcing a label scheme will strip or rewrite the labels it does
 # not recognise, and tofu-estate is a label it does not recognise. The
-# object is created, the run reports it created, and the marker never
-# lands - so the estate believes it owns an object no marker says is its.
-# Nothing in the write path checks that the marker it sent is the marker
-# the server stored. #1192 tracks that; this scenario asserts today's
-# behaviour verbatim, including the "Apply complete! Resources: 0 added, 1
-# changed, 0 destroyed" that an adopting run prints over a label it did not
-# manage to write, because that is what a user sees. Closing #1192 changes
-# steps 6 and 7 on purpose.
+# object is created and the marker never lands, so the estate would
+# otherwise believe it owns an object no marker says is its.
+#
+# #1192 was that nothing in the write path checked whether the marker it
+# sent was the marker the server stored, and it is closed here. No read-back
+# was needed: the object the provider returns from ApplyResourceChange IS
+# the stored object, and core was already computing the exact difference
+# ('.metadata[0].labels: element "tofu-estate" has vanished') and logging it
+# at WARN, because objchange.AssertObjectCompatible is deliberately
+# tolerated for a legacy-SDK provider. Steps 6 and 7 now assert the two
+# halves of the answer, and they are different on purpose: a create that
+# loses its marker warns, because the object really was added and the count
+# is true about it, while an adopting update that loses its marker is an
+# error, because its whole content was the marker and nothing it wrote
+# lasted - proved in step 7 by a resourceVersion that does not move across
+# two runs. An exit code is what a nightly gate reads, so the second one
+# could not stay a warning.
 #
 # BREAK=1 installs the same stripping policy against a DECOY label instead
 # of tofu-estate - identical machinery, identical namespace, one key
 # different - and requires the opposite outcome: the decoy stripped (so the
 # policy is provably in the chain and provably mutating), the marker landed,
-# live-ls listing the object as this estate's, and the second apply not
-# wedging. Without that control the whole third part would read the same if
-# choudoufu simply never wrote a label.
+# no "Ownership marker was not stored" anywhere in the run, live-ls listing
+# the object as this estate's, and the second apply not wedging. Without
+# that control the whole third part would read the same if choudoufu simply
+# never wrote a label, and its two new assertions would read the same if the
+# diagnostic fired unconditionally.
 
 SCEN="k8s-the-server-gets-the-last-word"
 
@@ -438,10 +449,12 @@ if [ "${BREAK:-0}" = "1" ]; then
     "instead - same kind, same namespace, same JSONPatch, one key" \
     "different - and requires the opposite outcome. The decoy must be" \
     "stripped, so the policy is provably in the chain and provably" \
-    "mutating. The marker must land, live-ls must list the object as" \
-    "this estate's, and the second apply must not wedge. If any of that" \
-    "failed here, the main arm would be measuring choudoufu failing to" \
-    "write a label and the stripper would be scenery."
+    "mutating. The marker must land, the run must NOT say the marker" \
+    "was not stored, live-ls must list the object as this estate's, and" \
+    "the second apply must not wedge. If any of that failed here, the" \
+    "main arm would be measuring choudoufu failing to write a label, or" \
+    "a diagnostic that fires whatever the server does, and the stripper" \
+    "would be scenery."
   cmd "kubectl apply -f stripper.yaml   # strips smoke-decoy, not tofu-estate"
   ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
     || fail "$SCEN" "BREAK: could not clear the estate before the control"
@@ -460,6 +473,13 @@ if [ "${BREAK:-0}" = "1" ]; then
   fi
   grep -q "\"tofu-estate\":\"$ESTATE\"" <<< "$BLABELS" \
     || fail "$SCEN" "BREAK: with only the decoy stripped the marker STILL did not land - the main arm would be measuring a broken marker write, not a stripped one: $BLABELS"
+  # The control for #1192's new assertions: with the marker landing, the
+  # diagnostic steps 6 and 7 require must be absent. Without this the two
+  # greps over there would pass just as well against a run that printed
+  # "Ownership marker was not stored" unconditionally.
+  if grep -q 'Ownership marker was not stored' <<< "$BAPPLY"; then
+    fail "$SCEN" "BREAK: the marker landed and the run still said it was not stored, so steps 6 and 7 are asserting scenery: $BAPPLY"
+  fi
   BLS="$(cd "$SMOKE_WORK" && chdf live-ls -estate="$ESTATE" -no-color . 2>&1)" \
     || fail "$SCEN" "BREAK: live-ls failed: $BLS"
   grep -E 'carry its marker' <<< "$BLS" | evidence
@@ -480,15 +500,17 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
-step "6. a mutating policy strips tofu-estate on the way in - the create is reported, the marker is not stored"
+step "6. a mutating policy strips tofu-estate on the way in - the create is reported, and so is the marker that did not land"
 explain \
   "The boundary case, and the one a real cluster will do to you: a" \
   "policy webhook enforcing a label scheme removes the labels it does" \
   "not recognise, and tofu-estate is one of them. choudoufu sends the" \
-  "marker on the create, the server stores the object without it, and" \
-  "the run reports the object created. Nothing in the write path asks" \
-  "whether the marker it sent came back, so nothing notices. #1192." \
-  "The estate is left owning an object no marker says is its."
+  "marker on the create and the server stores the object without it." \
+  "The object really was added, so \"1 added\" is true - but it is not" \
+  "the whole truth, and #1192 was that the run said nothing else. It" \
+  "does now: the object the provider hands back after ApplyResourceChange" \
+  "is the stored object, and the marker is not in it. No extra read is" \
+  "issued to learn that; the value was already in the process."
 cmd "kubectl apply -f stripper.yaml && choudoufu apply -auto-approve"
 ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
   || fail "$SCEN" "could not clear the estate before the stripping step"
@@ -502,9 +524,9 @@ wait_admission 'smoke-decoy=present' 'tofu-estate' "the stripping policy removin
 config_block hello
 APPLY6="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "the apply under the stripping policy failed: $APPLY6"
-grep -E 'Creation complete|Apply complete!' <<< "$APPLY6" | evidence
+grep -E 'Creation complete|Apply complete!|^Warning: Ownership marker was not stored' <<< "$APPLY6" | evidence
 grep -qE 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed' <<< "$APPLY6" \
-  || fail "$SCEN" "the run did not report the create; if it now refuses or warns, #1192 has been closed and this claim's wording is out of date: $APPLY6"
+  || fail "$SCEN" "the run did not report the create; the object is real and the count about it is true, so this line must not change: $APPLY6"
 kc get configmap app-config -n "$NS" >/dev/null 2>&1 \
   || fail "$SCEN" "the object was not created at all; the policy is rejecting rather than mutating"
 STORED="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels}')"
@@ -512,7 +534,17 @@ echo "stored labels: ${STORED:-<none>}" | evidence
 case "$STORED" in
   *tofu-estate*) fail "$SCEN" "the marker survived the stripping policy; there is no fault to measure: $STORED" ;;
 esac
-proof "\"1 added\", says the run. No tofu-estate label, says the cluster. The write the estate's whole ownership model rests on was discarded and the run that made it reported success - that is #1192."
+# #1192's first half. The create is honest about the object and must now
+# also be honest about the marker, at warning severity: the object exists,
+# the run really did add it, and the next plan is loud on its own.
+grep -q 'Warning: Ownership marker was not stored' <<< "$APPLY6" \
+  || fail "$SCEN" "the create said nothing about the marker the server discarded (#1192): $APPLY6"
+grep -A6 'Ownership marker was not stored' <<< "$APPLY6" | grep -qE 'tofu-estate: sent "'"$ESTATE"'", not stored' \
+  || fail "$SCEN" "the diagnostic does not name the marker it sent and what came back: $(grep -A8 'Ownership marker was not stored' <<< "$APPLY6")"
+if grep -q 'Error: Ownership marker was not stored' <<< "$APPLY6"; then
+  fail "$SCEN" "the create was refused; a created object must not be an error - the object exists and something has to say so: $APPLY6"
+fi
+proof "\"1 added\", says the run, and the object really was added. What it also says now is that the tofu-estate label it sent is not on the object the server stored - read off the value the provider already returned, with no extra request. That was #1192's first half."
 
 step "7. what the next run says, and what the remedy it names is worth"
 explain \
@@ -524,8 +556,15 @@ explain \
   "name the API server will not let it take twice. Both remedies the" \
   "warning names - write the label with kubectl, or set" \
   "declared_untagged = adopt - are writes, and the policy strips them" \
-  "too; the adopting run reports \"1 changed\" over a label that is not" \
-  "there, and will do so on every run forever."
+  "too. The kubectl relabel vanishes. The adopting run used to report" \
+  "\"0 added, 1 changed, 0 destroyed\" and exit 0 over a label that was" \
+  "never written, on every run forever, which is the half of #1192" \
+  "nothing else in the run would ever have corrected. An adopting" \
+  "update carries nothing but the marker, so when the marker does not" \
+  "land the write accomplished nothing at all: it is now an error, and" \
+  "the run prints no completion line. Nothing is stranded by that - the" \
+  "object is exactly as it was before the run, and step 8 adopts it in" \
+  "one apply once the policy allows the label."
 cmd "choudoufu plan && choudoufu apply -auto-approve && kubectl label ... && (declared_untagged = \"adopt\") choudoufu apply -auto-approve"
 PLAN7="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
   || fail "$SCEN" "plan after the stripped create failed: $PLAN7"
@@ -554,20 +593,42 @@ echo "after kubectl label: tofu-estate=${HAND:-<none>}" | evidence
 [ -z "$HAND" ] \
   || fail "$SCEN" "the by-hand relabel survived the policy; the remedy the warning names would work and this step is wrong: $HAND"
 versions_block adopt
+# resourceVersion is the API server's own answer to "did this write change
+# the stored object": it is set to the etcd revision of the object's last
+# write and does not move when a write stores something byte-identical. The
+# first adopting run is allowed to move it - the provider's update sends a
+# labels map where the stripped create left none, and the policy removing
+# the marker from it still leaves an empty map behind. What must not move is
+# the second one: that is the "on every run, for ever" part of #1192, and it
+# is the difference between a loop that converges on nothing and one that is
+# actually writing something each time.
+RV_BEFORE="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.resourceVersion}')"
+declare -a RVS=()
 for n in 1 2; do
   ADOPT_RC=0
   ADOPT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || ADOPT_RC=$?
-  grep -E 'Apply complete!' <<< "$ADOPT" | sed "s/^/adopt run $n: /" | evidence
-  [ "$ADOPT_RC" = "0" ] \
-    || fail "$SCEN" "adopt run $n did not exit 0; if it now refuses, #1192 is closed and this claim's wording is out of date: $ADOPT"
-  grep -qE 'Apply complete! Resources: 0 added, 1 changed, 0 destroyed' <<< "$ADOPT" \
-    || fail "$SCEN" "adopt run $n did not report the adoption as one change: $ADOPT"
+  grep -E 'Apply complete!|^Error: ' <<< "$ADOPT" | head -1 | sed "s/^/adopt run $n: /" | evidence
+  # #1192's second half, and the one an exit code reads. An adopting
+  # update whose whole content is the marker, applied against a server
+  # that discards the marker, changed nothing - so the run must not exit
+  # 0, and must not print a completion line counting a change.
+  [ "$ADOPT_RC" != "0" ] \
+    || fail "$SCEN" "adopt run $n exited 0 over a marker the server did not store (#1192): $ADOPT"
+  grep -q 'Error: Ownership marker was not stored' <<< "$ADOPT" \
+    || fail "$SCEN" "adopt run $n failed for some other reason than the unstored marker: $(grep -E '^Error' <<< "$ADOPT" | head -2)"
+  if grep -qE 'Apply complete! Resources: 0 added, 1 changed, 0 destroyed' <<< "$ADOPT"; then
+    fail "$SCEN" "adopt run $n still reports one change over a label that was never written (#1192): $ADOPT"
+  fi
   AFTER="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels.tofu-estate}')"
   [ -z "$AFTER" ] \
     || fail "$SCEN" "adopt run $n actually wrote the marker under the stripping policy: tofu-estate=$AFTER"
+  RVS+=("$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.resourceVersion}')")
 done
+echo "resourceVersion: $RV_BEFORE before, ${RVS[0]} after adopt run 1, ${RVS[1]} after adopt run 2" | evidence
+[ "${RVS[0]}" = "${RVS[1]}" ] \
+  || fail "$SCEN" "the second adopting run changed the stored object; it was supposed to be the same write landing on nothing, for ever: ${RVS[0]} -> ${RVS[1]}"
 kc get configmap app-config -n "$NS" -o jsonpath='labels={.metadata.labels}{"\n"}' | evidence
-proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is not: \"0 added, 1 changed, 0 destroyed\" and exit 0, twice over, with no label written either time. That summary line is #1192."
+proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is now honest too: it names the marker the server did not store and exits non-zero, with no completion line. resourceVersion ${RVS[0]} after the first adopting run and ${RVS[1]} after the second, so the run repeats a write the server keeps nothing of - and reporting \"0 added, 1 changed, 0 destroyed\" and exit 0 over that, on every run forever, was #1192."
 
 step "8. the policy is lifted - the adoption lands and the estate is whole"
 explain \
@@ -606,7 +667,9 @@ echo "  already approved. A fail-closed webhook refused it, and the run said"
 echo "  so in the server's own words with the approved artifact still on disk"
 echo "  and the object untouched. A mutating policy rewrote a declared field,"
 echo "  and both choudoufu and stock proposed the same change forever. A"
-echo "  mutating policy removed the estate marker, and the object was created"
-echo "  without it while the run reported success - the plan afterwards is"
-echo "  honest that nothing there is owned, but the run that made it was not,"
-echo "  and neither is the adopting run that reports a label it never wrote."
+echo "  mutating policy removed the estate marker, and the run that created"
+echo "  the object said so - naming the marker it sent and what came back,"
+echo "  off the value the provider had already returned. The adopting run"
+echo "  that follows writes nothing that lasts, and no longer reports a"
+echo "  change: it fails, with the object left exactly as it was, and one"
+echo "  apply adopts it the moment the label scheme allows the marker."

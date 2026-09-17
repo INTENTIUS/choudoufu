@@ -325,6 +325,12 @@ To avoid doing this one resource at a time, set
 every resource in that situation at once. Read what the other three settings do
 first.
 
+"That situation" is an object carrying no estate marker at all - the
+`[ADOPTABLE]` entries. An `[IN_THE_WAY]` entry held by another estate is not in
+it, and no verb you can set will claim one. [What the matrix does not
+govern]({{< relref "/docs/use/ownership-policy#what-the-matrix-does-not-govern" >}})
+has the two commands that do cross that boundary.
+
 ## What has no adoption path
 
 `aws_route`, `aws_route_table_association` and `aws_iam_role_policy_attachment`

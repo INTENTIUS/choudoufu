@@ -193,7 +193,7 @@ arguments follow.
 
 | Argument | Meaning |
 |---|---|
-| `declared_tagged`, `declared_untagged`, `undeclared_tagged`, `undeclared_untagged` | The verb for each quadrant. |
+| `declared_tagged`, `declared_untagged`, `undeclared_tagged`, `undeclared_untagged` | The verb for each quadrant. "Untagged" means carrying no estate marker at all; an object marked for another estate is outside all four. |
 | `tag_key`, `tag_value` | Override the marker tag names. |
 | `threshold` | Guard for a delete quadrant. The run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number, and lint refuses zero. |
 

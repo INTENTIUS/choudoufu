@@ -47,17 +47,26 @@
 #   * they carry the kubernetes.io/pvc-protection finalizer;
 #   * they have NO metadata.ownerReferences, because a StatefulSet's
 #     default persistentVolumeClaimRetentionPolicy is Retain;
-#   * and on kind they have NO metadata.managedFields either.
+#   * their metadata.managedFields name kube-scheduler and
+#     kube-controller-manager and nobody else. This line read "on kind they
+#     have NO metadata.managedFields either" until #1179 was fixed, and
+#     that was an artefact of the instrument: kubectl's own get strips
+#     managedFields from its output unless --show-managed-fields is passed,
+#     which pvc_facts and inventory below now do. The API server has them
+#     and so does the dynamic client kubesweep lists through.
 #
-# Both of those last two are the inputs to kubesweep.ControllerMade, the
-# one test that keeps a controller's label copies out of the estate sweep -
-# "what is excluded, and why it is the whole safety of this", in that
-# package's own words, which names "a StatefulSet's volumeClaimTemplate
-# labels reach its PVCs" as the case it exists for. Neither signal is
-# present on such a PVC, so the exclusion does not fire for the object its
-# own documentation names. day2_remove measures that directly, records
-# fail, and #1179 carries the finding. Do not design around it: the red
-# row IS the result this estate was admitted to produce.
+# Those are the inputs to kubesweep.ControllerMade, the one test that keeps
+# a controller's label copies out of the estate sweep - "what is excluded,
+# and why it is the whole safety of this", in that package's own words,
+# which names "a StatefulSet's volumeClaimTemplate labels reach its PVCs"
+# as the case it exists for. The first signal is genuinely absent on such a
+# PVC and the package comment's claim that it is what excludes them was
+# false; the second is what actually excludes them. #1179 fixed both the
+# comment and the rule, because the rule as written asked for managedFields
+# naming ONLY control-plane managers and one `kubectl label` - the very
+# thing day2_remove's probe does to manufacture the marker - added a
+# kubectl-label manager and took the PVC out of the exclusion for good.
+# ControllerMade now asks which managers wrote the object's own content.
 #
 # The consequence is precise, and it is why an ordinary teardown has never
 # caught it: destroying the WHOLE root takes the PVCs with it, because the
@@ -625,24 +634,38 @@ count_a() { KUBECONFIG="$KCA" gauntlet_kind_count "$ESTATE" $KINDS; }
 # at every stage of a correct run.
 pvc_count_a() { KUBECONFIG="$KCA" gauntlet_kind_count "$ESTATE" persistentvolumeclaims; }
 # pvc_facts prints one normalised line per PVC in the namespace on the
-# cluster $1 names: name, labels, whether ownerReferences and managedFields
-# are present, finalizers, phase. This is the measurement the estate exists
-# to make, so it is read from the server and printed rather than summarised.
+# cluster $1 names: name, labels, whether ownerReferences is present, the
+# managedFields managers and which of them wrote the PVC's spec, finalizers,
+# phase. This is the measurement the estate exists to make, so it is read
+# from the server and printed rather than summarised.
+#
+# --show-managed-fields is load-bearing (#1179). Without it kubectl strips
+# managedFields from its own output, and this function reported
+# "managedFields=0" for three PVCs that carry three entries each - which is
+# the reading #1179 was filed on. The spec writer is printed separately
+# because that, not the manager list, is what kubesweep.ControllerMade
+# judges: a `kubectl label` adds a manager without writing any spec.
 pvc_facts() {
   KUBECONFIG="$1" NS="$NS" python3 - <<'PY'
 import json, os, subprocess
 ns = os.environ["NS"]
-out = subprocess.run(["kubectl", "get", "pvc", "-n", ns, "-o", "json"], capture_output=True, text=True)
+out = subprocess.run(["kubectl", "get", "pvc", "-n", ns, "-o", "json", "--show-managed-fields"], capture_output=True, text=True)
 if out.returncode != 0:
     print("ERROR: " + out.stderr.strip()); raise SystemExit(1)
 items = json.loads(out.stdout).get("items", [])
 for o in sorted(items, key=lambda x: x["metadata"]["name"]):
     m = o["metadata"]
     labels = ",".join("%s=%s" % kv for kv in sorted((m.get("labels") or {}).items()))
-    print("%s labels=[%s] ownerReferences=%s managedFields=%d finalizers=%s storageClass=%s phase=%s" % (
+    entries = m.get("managedFields") or []
+    managers = ",".join(sorted({e.get("manager", "?") for e in entries})) or "none"
+    specw = sorted({e.get("manager", "?") for e in entries
+                    if not e.get("subresource")
+                    and any(k not in ("f:metadata", "f:status", "f:apiVersion", "f:kind")
+                            for k in (e.get("fieldsV1") or {}))})
+    print("%s labels=[%s] ownerReferences=%s managers=[%s] specWrittenBy=[%s] finalizers=%s storageClass=%s phase=%s" % (
         m["name"], labels,
         "present" if m.get("ownerReferences") else "absent",
-        len(m.get("managedFields") or []),
+        managers, ",".join(specw) or "none",
         ",".join(m.get("finalizers") or []) or "none",
         o["spec"].get("storageClassName"), o.get("status", {}).get("phase")))
 PY
@@ -716,14 +739,18 @@ o = get("poddisruptionbudget", "redis")
 inv["poddisruptionbudget/redis"] = None if o is None else {
     "maxUnavailable": o["spec"].get("maxUnavailable"), "minAvailable": o["spec"].get("minAvailable"),
     "selector": o["spec"].get("selector", {}).get("matchLabels")}
-pvcs = subprocess.run(["kubectl", "get", "pvc", "-n", ns, "-o", "json"], capture_output=True, text=True)
+# --show-managed-fields for the same reason pvc_facts passes it (#1179):
+# without it kubectl hides what this line claims to compare. The managers
+# are compared as a set, not a count, because the count can pick up a
+# transient entry the two clusters need not have written in the same order.
+pvcs = subprocess.run(["kubectl", "get", "pvc", "-n", ns, "-o", "json", "--show-managed-fields"], capture_output=True, text=True)
 if pvcs.returncode == 0:
     for o in json.loads(pvcs.stdout).get("items", []):
         m = o["metadata"]
         inv["persistentvolumeclaim/" + m["name"]] = {
             "labels": m.get("labels"),
             "ownerReferences": "present" if m.get("ownerReferences") else "absent",
-            "managedFields": len(m.get("managedFields") or []),
+            "managedFields": sorted({e.get("manager", "?") for e in (m.get("managedFields") or [])}),
             "finalizers": m.get("finalizers"),
             "accessModes": o["spec"].get("accessModes"),
             "storageClassName": o["spec"].get("storageClassName"),
@@ -1008,16 +1035,23 @@ else
 
   # The exclusion probe. kubesweep's package documentation names "a
   # StatefulSet's volumeClaimTemplate labels reach its PVCs" as the case
-  # ControllerMade exists to exclude, on two signals: a non-empty
-  # ownerReferences ("which every object a controller creates from a
-  # template carries ... a PVC's from its StatefulSet"), or managedFields
-  # naming only control-plane managers. Measured above, an orphaned
-  # volume_claim_template PVC on kind has NEITHER. This puts the estate's
-  # own label on one of them - the exact cluster state a claim template
-  # carrying the marker produces, manufactured with kubectl rather than by
-  # writing a marker into the configuration, which cold_deploy forbids -
-  # and reads what the sweep then proposes. The plan is read, never
-  # applied: the finding is what choudoufu is willing to destroy.
+  # ControllerMade exists to exclude. Measured above, an orphaned
+  # volume_claim_template PVC on kind carries no ownerReferences at all, so
+  # the signal that comment said keeps them out does not fire; what keeps
+  # them out is managedFields, and kube-controller-manager is the only
+  # manager that wrote the PVC's spec.
+  #
+  # This puts the estate's own label on one of them with kubectl, since
+  # cold_deploy forbids writing a marker into the configuration. Note what
+  # that manufacture is and is not (#1179): `kubectl label` adds a
+  # kubectl-label manager to managedFields, which a claim template carrying
+  # the marker would not - the controller would have written the label
+  # itself. So this probe reads a slightly HARSHER state than the
+  # documented case: a controller-made PVC that some other client has since
+  # touched. Both must be excluded, and the harsher one is what the old
+  # "every manager is a control-plane manager" rule failed. The plan is
+  # read, never applied: the finding is what choudoufu is willing to
+  # destroy.
   PROBE_PVC="data-redis-0"
   PRE_PROBE="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the pre-probe plan failed"
   grep -q "persistent_volume_claim" <<< "$PRE_PROBE" && fail "the plan already names a PVC before the probe labelled one; the probe would prove nothing"
@@ -1026,6 +1060,11 @@ else
   else
     log "  BREAK_PVC=1: the PVC is left unlabelled and the sweep is still expected to propose it"
   fi
+  # What the probe's own manufacture did to the signal the sweep reads.
+  # Recorded rather than asserted: if a future kubectl stops registering a
+  # field manager for a label edit, this line is what says so.
+  PROBE_FACTS="$(pvc_facts "$KCA" | grep "^$PROBE_PVC ")"
+  log "  probe PVC as the sweep now sees it: $PROBE_FACTS"
   PROBE_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$PROBE_PLAN" | tail -30; fail "the probe plan failed"; }
   PROBE_ADDR="kubernetes_persistent_volume_claim_v1.orphan_${NS}_${PROBE_PVC}"
   PROBE_HIT=0
@@ -1033,6 +1072,50 @@ else
   kca label pvc "$PROBE_PVC" -n "$NS" tofu-estate- >/dev/null 2>&1
   AFTER_PROBE="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the plan after the probe's label was removed failed"
   grep -q "No changes." <<< "$AFTER_PROBE" || { printf '%s\n' "$AFTER_PROBE" | tail -30; fail "the plan is not empty again once the probe's label is removed; the cluster is not back where the probe found it"; }
+
+  # The other side of the probe, and the reason it is here (#1179). The
+  # probe above now expects the sweep to propose NOTHING, and so does
+  # BREAK_PVC=1: since the exclusion was fixed, both arms read "No
+  # changes", so between them they no longer distinguish "the exclusion
+  # held" from "the sweep is blind to PVCs". This arm supplies the
+  # difference. It labels the controller-made PVC again AND declares a PVC
+  # the way a person does - kubectl, which owns the new object's spec and
+  # is nobody's control plane - and requires ONE plan to tell them apart:
+  # the declared one proposed, the controller-made one not. A sweep that
+  # excluded every PVC would fail the first assertion; a sweep that
+  # excluded none would fail the second.
+  TWO_PVC="declared-orphan"
+  kca label pvc "$PROBE_PVC" -n "$NS" "tofu-estate=$ESTATE" >/dev/null || fail "could not relabel $PROBE_PVC for the two-sided arm"
+  kca create -n "$NS" -f - >/dev/null <<YAML || fail "could not create $TWO_PVC for the two-sided arm"
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: $TWO_PVC
+  labels:
+    tofu-estate: $ESTATE
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 64Mi
+YAML
+  log "  two-sided arm, both PVCs labelled:"; pvc_facts "$KCA" | grep -E "^($PROBE_PVC|$TWO_PVC) " | sed 's/^/    /'
+  TWO_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm's plan failed"; }
+  TWO_ADDR="kubernetes_persistent_volume_claim_v1.orphan_${NS}_${TWO_PVC}"
+  TWO_HIT=0; grep -qF "$TWO_ADDR will be destroyed" <<< "$TWO_PLAN" && TWO_HIT=1
+  TWO_EXCLUDED=1; grep -qF "$PROBE_ADDR will be destroyed" <<< "$TWO_PLAN" && TWO_EXCLUDED=0
+  TWO_SUMMARY="$(plan_line "$TWO_PLAN")"
+  # Waited for, not fired and forgotten: the next plan below asserts the
+  # cluster is back where it started, and a PVC still Terminating with the
+  # label on it would still be swept.
+  kca delete pvc "$TWO_PVC" -n "$NS" --timeout=60s >/dev/null 2>&1
+  kca label pvc "$PROBE_PVC" -n "$NS" tofu-estate- >/dev/null 2>&1
+  [ "$TWO_HIT" -eq 1 ] || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm: the sweep did not propose $TWO_ADDR, a PVC kubectl declared and labelled ($TWO_SUMMARY). Either the sweep cannot see PVCs at all, in which case the exclusion probe above proves nothing, or the exclusion is now wider than controller-made objects"; }
+  [ "$TWO_EXCLUDED" -eq 1 ] || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm: the sweep proposed $PROBE_ADDR, the controller-made PVC, in the same plan it correctly proposed $TWO_ADDR - #1179's exclusion has regressed"; }
+  log "  two-sided arm: $TWO_SUMMARY, naming $TWO_ADDR and not $PROBE_ADDR"
+  TWO_AFTER="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the plan after the two-sided arm failed"
+  grep -q "No changes." <<< "$TWO_AFTER" || { printf '%s\n' "$TWO_AFTER" | tail -30; fail "the plan is not empty again after the two-sided arm cleaned up; the cluster is not back where it started"; }
+  [ "$(pvc_count_a)" = "0" ] || fail "a PVC still carries tofu-estate=$ESTATE after the two-sided arm cleaned up"
 
   if [ "${BREAK_PVC:-}" = "1" ]; then
     [ "$PROBE_HIT" -eq 1 ] && fail "BREAK_PVC=1: the sweep proposed $PROBE_ADDR with no estate label on it - the probe keys on the kind, not on the label, and proves nothing"
@@ -1043,9 +1126,9 @@ else
     PROBE_SUMMARY="$(grep -E "^Owned and undeclared" <<< "$PROBE_PLAN" | head -1)"
     log "  PVC exclusion probe: $PROBE_SUMMARY"
     log "  PVC exclusion probe: $PROBE_LINE"
-    gauntlet_stage day2_remove fail "#1179. The block-removal half passes: dropping kubernetes_stateful_set_v1.redis proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone (kubectl get statefulset redis: NotFound), the next plan empty, 13 objects still labelled, and stock's plan for the same removal on the oracle cluster is also exactly one destroy. What it leaves behind is the finding. The two redis PVCs and postgres's survive the removal unchanged and Bound (stock's own removal on the oracle cluster leaves the same $O_PVC_LEFT), carrying labels the StatefulSet controller wrote: app=redis (the SELECTOR's value, merged over the claim template's app=redis-data - #1107's second research comment records \"the claim template's labels verbatim\", which its probe could not distinguish because its template and selector agreed), plus the template's own tier=storage and role=cache-volume; the kubernetes.io/pvc-protection finalizer; NO metadata.ownerReferences; and NO metadata.managedFields at all. Those last two are exactly the two signals internal/live/kubesweep's ControllerMade tests, and that package's own documentation names this object - \"a StatefulSet's volumeClaimTemplate labels reach its PVCs\" - as the case the exclusion exists for, asserting that ownerReferences is \"what every object a controller creates from a template carries ... a PVC's from its StatefulSet\". It is not. With the estate's label put on data-redis-0 the way a claim template carrying it would (kubectl label, since cold_deploy forbids a marker in the configuration), the sweep proposes destroying it: $PROBE_SUMMARY / $PROBE_LINE. The label was removed again and the plan is empty, so nothing was destroyed by this run; the finding is what the plan is willing to do to a persistent volume nobody declared. BREAK_PVC=1 runs the probe with no label and the expectation correctly fails"
+    gauntlet_stage day2_remove fail "#1179 regressed. The block-removal half passes: dropping kubernetes_stateful_set_v1.redis proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone (kubectl get statefulset redis: NotFound), the next plan empty, 13 objects still labelled, and stock's plan for the same removal on the oracle cluster is also exactly one destroy. What it leaves behind is the finding. The two redis PVCs and postgres's survive the removal unchanged and Bound (stock's own removal on the oracle cluster leaves the same $O_PVC_LEFT), carrying labels the StatefulSet controller wrote: app=redis (the SELECTOR's value, merged over the claim template's app=redis-data - #1107's second research comment records \"the claim template's labels verbatim\", which its probe could not distinguish because its template and selector agreed), plus the template's own tier=storage and role=cache-volume; the kubernetes.io/pvc-protection finalizer; and NO metadata.ownerReferences, because the default persistentVolumeClaimRetentionPolicy is Retain. That last is the signal internal/live/kubesweep's package comment named as \"the test that keeps them out\", and it is absent on the very object that comment names. What must keep them out instead is the managedFields signal: kube-controller-manager is the only manager that wrote the PVC's spec ($PROBE_FACTS). With the estate's label put on data-redis-0 with kubectl - which also adds a kubectl-label manager, so this is a harsher state than a claim template carrying the marker would produce - the sweep proposes destroying it: $PROBE_SUMMARY / $PROBE_LINE. The label was removed again and the plan is empty, so nothing was destroyed by this run; the finding is what the plan is willing to do to a persistent volume nobody declared. BREAK_PVC=1 runs the probe with no label and the expectation correctly fails"
   else
-    gauntlet_stage day2_remove pass "deleting kubernetes_stateful_set_v1.redis's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone from the cluster (kubectl get statefulset redis: NotFound) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy. The three controller-created PVCs survive the removal unchanged and Bound, as they do under stock ($O_PVC_LEFT left there too), carrying labels the controller wrote - app=redis from the SELECTOR merged over the claim template's app=redis-data, plus the template's tier=storage and role=cache-volume - the pvc-protection finalizer, no ownerReferences and no managedFields; with the estate's label put on one of them the sweep still proposed nothing, so kubesweep's controller-copy exclusion held. BREAK_REMOVE=1 keeps the block and no destroy is proposed; BREAK_PVC=1 runs the probe unlabelled and correctly fails"
+    gauntlet_stage day2_remove pass "deleting kubernetes_stateful_set_v1.redis's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\"), applied cleanly, the object gone from the cluster (kubectl get statefulset redis: NotFound) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy. The three controller-created PVCs survive the removal unchanged and Bound, as they do under stock ($O_PVC_LEFT left there too), carrying labels the controller wrote - app=redis from the SELECTOR merged over the claim template's app=redis-data, plus the template's tier=storage and role=cache-volume - the pvc-protection finalizer, and no ownerReferences, since the default persistentVolumeClaimRetentionPolicy is Retain and they are built to outlive the StatefulSet. Their managedFields name kube-scheduler and kube-controller-manager, and kube-controller-manager alone wrote their spec, which is the signal kubesweep.ControllerMade judges after #1179 (the owner-reference signal its package comment credited is absent here, and kubectl get hides managedFields without --show-managed-fields, which is how #1179 came to record them as absent too). With the estate's label put on one of them by kubectl - a harsher state than a claim template carrying the marker, since kubectl also registers itself as a field manager ($PROBE_FACTS) - the sweep still proposed nothing, so the controller-copy exclusion held. The two-sided arm then labelled that PVC again and declared one with kubectl (spec written by kubectl-create, nobody's control plane) in the same namespace, and one plan told them apart: $TWO_SUMMARY, naming $TWO_ADDR and not $PROBE_ADDR, so the exclusion is not the sweep being blind to the kind. Both were cleaned up and the plan is empty again. BREAK_REMOVE=1 keeps the block and no destroy is proposed; BREAK_PVC=1 runs the probe unlabelled and correctly fails"
   fi
 fi
 

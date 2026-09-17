@@ -88,6 +88,25 @@ that nothing there is owned; the run that made it was not, and that is
 points the identical policy at a decoy label and requires the decoy
 stripped, the marker landed and the second apply clean, so the wedge is
 provably the stripped marker's doing.
+[Claim 27]({{< relref "/docs/claims/k8s-a-label-is-a-change" >}})
+runs the ordinary day-2 edit. On `kubernetes_manifest` the provider's
+`computed_fields` default keeps the live value of `metadata.labels` and
+`metadata.annotations` unless the configuration differs from the prior
+manifest, and a run with no state file has to build that prior - build it
+from the current configuration and the comparison compares the
+configuration with itself, so no label or annotation edit ever plans or
+applies. Stock prints `No changes.` too when handed the same prior, which
+is how the finding was settled. The scenario measures stock's own answer
+for the edit on the same cluster, requires choudoufu to match it and to
+write the object, and then requires a Namespace's server-written
+`kubernetes.io/metadata.name` to churn nothing - the half of
+`computed_fields` the fix has to leave alone. Its `BREAK=1` runs the
+identical `kubectl label --overwrite` against a key the configuration does
+not declare and requires the plan to stay empty. The one difference from
+stock is printed rather than hidden: an out-of-band change to a key the
+configuration *declares* plans here and does not there, because "the
+configuration was edited" and "the live object drifted" are the same
+observation without a last-applied value to tell them apart.
 
 ## The gauntlet lane
 
