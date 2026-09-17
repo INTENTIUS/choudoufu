@@ -54,6 +54,27 @@ import (
 func TestNoStateAbsenceClaims(t *testing.T) {
 	root := repoRoot(t)
 
+	// The one file the repo-wide scan below skips, and the only one it
+	// will ever skip: this guard's own source. It has to spell each
+	// banned phrase out three times over - once in the list, once in the
+	// doc comment that says why the phrase is banned, and once in the
+	// failure message that quotes the claim back at the author - so a
+	// guard that scanned itself reports its own definitions forever and
+	// can never go green. It did: this test landed red on PR #1225 with
+	// twelve hits, every one of them a line of this file.
+	//
+	// The exemption is one path, compared with ==, never a prefix, a
+	// directory or a second entry, so it cannot be reused to quiet a
+	// real violation somewhere else. The three other ways out of the
+	// self-match are all worse and are deliberately not taken: softening
+	// the phrase list loses the prose this guard exists to catch,
+	// weakening the patterns until they no longer match their own
+	// definitions is the same thing wearing a disguise, and moving the
+	// phrases into a data file hides the rule from the reader who comes
+	// looking for it. The list belongs in source, in this file, and this
+	// file is therefore the one thing the scan does not read.
+	const selfPath = "live/no_state_absence_claims_test.go"
+
 	// Phrases that are wrong everywhere: no file in this tree has a
 	// legitimate reason to say live mode removes or eliminates state, or
 	// that a stateless run has no state to put anywhere. Matched
@@ -71,7 +92,10 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 	}
 
 	for _, phrase := range repoWide {
-		out, err := exec.Command("git", "-C", root, "grep", "-rnIiF", phrase, "--").Output()
+		// --full-name pins the reported paths to the checkout root, so the
+		// selfPath comparison below is against a stable spelling whatever
+		// directory the test binary happens to run in.
+		out, err := exec.Command("git", "-C", root, "grep", "--full-name", "-rnIiF", phrase, "--").Output()
 		if err != nil {
 			// git grep exits 1 when nothing matches; anything else is a
 			// real failure worth seeing.
@@ -84,7 +108,17 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 			if line == "" {
 				continue
 			}
-			t.Errorf("%s asserts a live block removes or eliminates state, or has nothing to store; the state file loses its authority, not its existence (issue #685) - name what is actually kept (a disposable cache) and what changed (a marker is the record of ownership), the way HANDOFF.md's foundation section does", line)
+			path, _, ok := strings.Cut(line, ":")
+			if !ok {
+				// Not a "path:line:text" record. Fail loudly rather than
+				// skip: a scan that silently drops what it cannot parse
+				// is a guard that passes by not looking.
+				t.Fatalf("git grep -F %q: cannot read a path out of %q", phrase, line)
+			}
+			if path == selfPath {
+				continue
+			}
+			t.Errorf("%s\n\tasserts a live block removes or eliminates state, or has nothing to store; the state file loses its authority, not its existence (issue #685) - name what is actually kept (a disposable cache, choudoufu-cache.tfstate) and what changed (a marker is the record of ownership), the way HANDOFF.md's foundation section does", line)
 		}
 	}
 
