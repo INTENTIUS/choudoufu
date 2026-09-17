@@ -178,6 +178,43 @@ func TestVerifyAppliedMarkersTagSurface(t *testing.T) {
 		}
 	})
 
+	t.Run("marked carrier is silent and leaks nothing", func(t *testing.T) {
+		// A marked tags map holding the marker is a value this fork's own
+		// stamp produces: stampedTags unmarks, writes, and re-marks. The
+		// check must read it as unreadable rather than as empty - reading
+		// it through an iterator would drop the mark, yield exactly the
+		// plain map a stripped carrier yields, and put the values into a
+		// printed diagnostic.
+		sensitive := cty.NewValueMarks("sensitive")
+		planned := awsObj(tagMap(marked).WithMarks(sensitive), tagMap(marked).WithMarks(sensitive))
+		applied := awsObj(tagMap(map[string]string{"Name": "q"}), tagMap(map[string]string{"Name": "q"}))
+		if diags := n.VerifyAppliedMarkers(context.Background(), addr, plans.Update, planned, applied, schema); len(diags) != 0 {
+			t.Fatalf("a marked planned carrier must be read as unreadable, not as a strip: %s", diags.Err())
+		}
+
+		// The other direction, and the one that would leak: the marker was
+		// sent in the clear and the object came back with a marked tags
+		// map. Nothing may be reported, and nothing may be printed.
+		planned2 := awsObj(tagMap(marked), tagMap(marked))
+		applied2 := awsObj(tagMap(map[string]string{"Name": "q"}).WithMarks(sensitive), tagMap(map[string]string{"Name": "q"}).WithMarks(sensitive))
+		if diags := n.VerifyAppliedMarkers(context.Background(), addr, plans.Update, planned2, applied2, schema); len(diags) != 0 {
+			t.Fatalf("a marked applied carrier must be read as unreadable, not as a strip: %s", diags.Err())
+		}
+	})
+
+	t.Run("a marked tags attribute abandons the whole carrier", func(t *testing.T) {
+		// tags_all is readable and carries no marker; tags is marked and
+		// is where the marker lives. Skipping only the marked attribute
+		// would report the marker missing - a false positive assembled out
+		// of a mark - so the whole carrier is abandoned instead.
+		sensitive := cty.NewValueMarks("sensitive")
+		planned := awsObj(tagMap(marked), tagMap(marked))
+		applied := awsObj(tagMap(marked).WithMarks(sensitive), tagMap(map[string]string{"Name": "q"}))
+		if diags := n.VerifyAppliedMarkers(context.Background(), addr, plans.Update, planned, applied, schema); len(diags) != 0 {
+			t.Fatalf("a marker hidden in a marked tags map must not read as missing from tags_all: %s", diags.Err())
+		}
+	})
+
 	t.Run("nothing stamped is silent", func(t *testing.T) {
 		// An estate with no marker in the planned value - a record-rung
 		// selection, or a policy untag - has nothing to check.

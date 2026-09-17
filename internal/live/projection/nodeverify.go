@@ -59,6 +59,31 @@ import (
 // hashicorp/aws provider hands back the stored tags or the ones it sent is
 // per resource type and unmeasured.
 
+// A MARKED tags or labels map is a real case here, not a theoretical one.
+// [NodeResolver.stampedTags] and [NodeResolver.stampedMetadata] both Unmark
+// the carrier, add the marker, and put the marks back (WithMarks), so a
+// marked map holding tofu-estate is a planned value this fork itself
+// produces - from a tags argument merged out of a sensitive local, say.
+//
+// Such a carrier is read as UNREADABLE, the same answer a null one gets,
+// and never as an empty one. Two reasons that point the same way:
+//
+//   - The values would reach a printed string. This file's whole output is
+//     "sent X, stored Y", and a mark on the map is the configuration saying
+//     those values are not for printing. internal/live/marksafe exists
+//     because iterating a marked value drops the mark in silence, and a
+//     diagnostic is exactly where that would surface.
+//   - Reading it anyway would manufacture a false positive. A marked map
+//     read through an iterator yields the same plain map a STRIPPED carrier
+//     yields, and this check's one discipline is that an absence of
+//     information is never evidence that a marker was discarded.
+//
+// The cost is stated plainly: an instance whose carrier is marked gets no
+// #1192 protection. Its marker may be discarded on the way in and this
+// file will not say so. That is the conservative direction of a check whose
+// false positives fail an apply, and it is the same trade
+// [carrierMarkers] makes for a provider that returns a null carrier.
+
 // SummaryMarkerNotStored is the one diagnostic this file raises, at either
 // severity. See [NodeResolver.VerifyAppliedMarkers] for which and why.
 const SummaryMarkerNotStored = "Ownership marker was not stored"
@@ -193,7 +218,16 @@ func carrierMarkers(obj cty.Value, schema providers.Schema) (map[string]string, 
 				continue
 			}
 			v := obj.GetAttr(name)
-			if v.IsNull() || !v.IsKnown() || v.IsMarked() || !v.CanIterateElements() {
+			if v.IsMarked() {
+				// A marked attribute abandons the whole carrier rather
+				// than skipping this one - see this file's note on a
+				// marked carrier, above SummaryMarkerNotStored. Skipping
+				// it would let a marker present only in the marked `tags`
+				// read as missing from an unmarked `tags_all`, which is a
+				// false positive built out of a mark.
+				return nil, false
+			}
+			if v.IsNull() || !v.IsKnown() || !v.CanIterateElements() {
 				continue
 			}
 			found = true
@@ -250,10 +284,23 @@ func labelSurfaceLabels(obj cty.Value) (cty.Value, bool) {
 
 // collectStrings copies a map value's string entries into out, skipping
 // anything that is not a plain known string on both sides.
+//
+// The IsMarked guard is not defensive duplication of the callers' - it is
+// the proof internal/live/marksafe requires, and the reason it requires one
+// here is worth keeping. Nothing in that analysis crosses a function
+// boundary (see its package doc, "What it still does not see"), so a
+// receiver its caller checked is unproven at the point of the call. That is
+// the right rule: ElementIterator drops a mark silently, so the day someone
+// edits [labelSurfaceLabels] or the tags loop and removes a check, these
+// values would keep flowing into a diagnostic string with nothing left to
+// say they had been sensitive. The guard belongs where the iterator is.
 func collectStrings(v cty.Value, out map[string]string) {
+	if v.IsMarked() {
+		return
+	}
 	for it := v.ElementIterator(); it.Next(); {
 		k, val := it.Element()
-		if k.Type() != cty.String || k.IsNull() || val.IsNull() || !val.IsKnown() || val.IsMarked() || val.Type() != cty.String {
+		if k.Type() != cty.String || k.IsNull() || k.IsMarked() || val.IsNull() || !val.IsKnown() || val.IsMarked() || val.Type() != cty.String {
 			continue
 		}
 		out[k.AsString()] = val.AsString()
