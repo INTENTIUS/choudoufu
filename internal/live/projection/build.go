@@ -2192,6 +2192,7 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		target:         importTarget(w, schema),
 		attrsSeed:      attrsSeed,
 		attrsSeedMarks: attrsSeedMarks,
+		timeouts:       configuredTimeouts(ctx, seedEval, modPath, rc, schema),
 	}
 }
 
@@ -2353,6 +2354,19 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		return false
 	case ownershipUnowned:
 		return true
+	}
+
+	// GitHub issue #1185: the configured `timeouts` block, put back into
+	// the private blob a destroy reads its deadline from. The read handed
+	// back the provider's own declared defaults, because that is all
+	// ImportResourceState has to seed an imported instance's meta with;
+	// a state-backed run would be carrying what the last apply wrote
+	// there. See [configuredTimeouts] for the whole mechanism and the
+	// measurement. Nothing in obj.Value moves, so this is after the
+	// ownership check only because everything that writes to obj is.
+	if updated, changed := withConfiguredTimeouts(obj.Private, f.prep.timeouts); changed {
+		log.Printf("[TRACE] projection: %s carries a timeouts block; re-derived the provider's delete/create/update meta from configuration rather than leaving the import stub's declared defaults", addr)
+		obj.Private = updated
 	}
 
 	// GitHub issue #275's residue, applied AFTER the ownership check and
