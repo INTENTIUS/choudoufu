@@ -620,6 +620,29 @@
         }
       },
       "evidence": []
+    },
+    {
+      "id": 27,
+      "slug": "k8s-a-label-is-a-change",
+      "title": "An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, the same answer stock gives for the same edit with a state file behind it, an annotation added and then changed does the same, and a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing",
+      "scenario": "live/smoke/scenarios/k8s-a-label-is-a-change.sh",
+      "command": "just smoke k8s-a-label-is-a-change",
+      "minutes": 4,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 runs the identical kubectl command against a key the configuration does NOT declare - same object, same --overwrite, one key different - and requires the opposite outcome, \"No changes.\", with the label still on the object afterwards. Without it every plan the main arm requires would read the same if choudoufu simply planned on any difference between the configuration and the live object, and step 5's point - that the provider's computed_fields rule still keeps the server's own keys out of the plan - would be scenery.",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "No AWS scenario measures this. The defect it closes is a property of one provider's plan logic rather than of the substrate: hashicorp/kubernetes's kubernetes_manifest reads the PRIOR value of metadata.labels and metadata.annotations to decide whether to keep the live one (its computed_fields argument), and a stateless run has to build that prior. The AWS tag path has no equivalent branch - configuredTagsSeed's prior feeds a provider that diffs tags against configuration directly - so the same edit on an AWS tag has always planned. What is genuinely unproven on AWS is the sibling question step 5 answers on Kubernetes: that a tag a service or another account's automation adds out of band does not churn the plan."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
     }
   ]
 }
