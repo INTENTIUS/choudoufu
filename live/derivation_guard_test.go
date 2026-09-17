@@ -217,23 +217,32 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 1, Code: 0,
 	},
 	"internal/live/servicetags/iam.go": {
-		Reason: "IAMRoutes (GitHub issue #1131): which IAM tag-read operation answers for which resource type, for the " +
-			"types Cloud Control enumerates and can never tag-read. Two entries, and the two halves of each are held " +
-			"to different standards on purpose. WHICH types belong here is NOT hand data and is not trusted here: " +
+		Reason: "IAMRoutes (GitHub issues #1131 and #1125): which IAM tag-read operation answers for which resource type, " +
+			"for the types a sweep leg enumerates and can never tag-read. Five entries, and the two halves of each are " +
+			"held to different standards on purpose. WHICH types belong here is NOT hand data and is not trusted here: " +
 			"internal/live/servicetags's TestIAMRoutesMatchTheDerivedSet recomputes the membership on every run from " +
-			"live/mapping.json, live/registry.json and live/survey-full.json (mapped and list-handler-input-free, CFN " +
-			"tagging.taggable false, provider taggable true - #1129's SweepGapMarkerUnreadable condition restated from " +
-			"the artifacts) and fails if the table and the derivation disagree in either direction, so a provider or " +
-			"artifact bump moves the table rather than leaving it stale. What is genuinely hand data is the other " +
-			"half: WHICH IAM operation reads an object of that type's tags and which input field its identifier goes " +
-			"in. iam:ListInstanceProfileTags takes InstanceProfileName and iam:ListMFADeviceTags takes SerialNumber, " +
-			"and for a virtual MFA device that serial number IS the ARN the import identity already carries - facts " +
-			"about IAM's own API surface stated in AWS's API reference and in no schema this repository holds. " +
-			"live/registry.json records the CFN read handler's permissions (iam:GetInstanceProfile) and nothing about " +
-			"a tag-read operation; the scraped provider docs describe import IDs, not service operations. The op " +
-			"table cannot be widened by a rule, only by reading another service's reference the same way, which is " +
-			"what makes each new service a decision rather than a sweep.",
-		Data: 2, Code: 0,
+			"live/mapping.json, live/registry.json and live/survey-full.json and fails if the table and the derivation " +
+			"disagree in either direction, so a provider or artifact bump moves the table rather than leaving it stale. " +
+			"It has one arm per enumeration leg and they are disjoint. The Cloud Control arm (#1131, aws_iam_instance_profile " +
+			"and aws_iam_virtual_mfa_device): mapped and list-handler-input-free, CFN tagging.taggable false, provider " +
+			"taggable true - #1129's SweepGapMarkerUnreadable condition restated from the artifacts. The native arm " +
+			"(#1125, aws_iam_policy, aws_iam_role and aws_iam_user): provider taggable true AND list_resource true, so " +
+			"internal/live/discovery's scanType is the leg that sees them, in the one service " +
+			"discovery.TaggingAPIUnservedType names, so #266's tag-index join cannot supply what the list call dropped. " +
+			"What is genuinely hand data is the other half: WHICH IAM operation reads an object of that type's tags and " +
+			"which input field its identifier goes in. iam:ListInstanceProfileTags takes InstanceProfileName, " +
+			"iam:ListMFADeviceTags takes SerialNumber - and for a virtual MFA device that serial number IS the ARN the " +
+			"import identity already carries - iam:ListPolicyTags takes PolicyArn, iam:ListRoleTags takes RoleName and " +
+			"iam:ListUserTags takes UserName. Facts about IAM's own API surface stated in AWS's API reference and in no " +
+			"schema this repository holds. So is the fact that makes the native arm a gap at all, and IAM states that one " +
+			"too, per operation: ListRoles documents \"this operation does not return the following attributes, even " +
+			"though they are an attribute of the returned object: PermissionsBoundary, RoleLastUsed, Tags\", ListUsers " +
+			"the same for PermissionsBoundary and Tags, and ListPolicies \"this operation does not return tags, even " +
+			"though they are an attribute of the returned object\". live/registry.json records the CFN read handler's " +
+			"permissions (iam:GetInstanceProfile) and nothing about a tag-read operation; the scraped provider docs " +
+			"describe import IDs, not service operations. The op table cannot be widened by a rule, only by reading " +
+			"another service's reference the same way, which is what makes each new service a decision rather than a sweep.",
+		Data: 5, Code: 0,
 	},
 	"live/residue.go": {
 		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off live/e2e/run.sh and the harness rather than " +
@@ -598,7 +607,24 @@ const (
 	// What is hand data is which IAM operation reads each type's tags and
 	// which input field takes the identifier, which AWS states in its API
 	// reference and no artifact here holds.
-	typeLiteralDataTotal = 1170
+	// 1170 -> 1173 data, code unchanged at 131, on 2026-09-17 (issue
+	// #1125): the same file's IAMRoutes gains aws_iam_policy, aws_iam_role
+	// and aws_iam_user. Code did not move again, and for the same reason:
+	// the leg still dispatches on the map and internal/live/discovery's
+	// scanType calls serviceTagRead with no type name anywhere in its
+	// control flow. Membership is still not hand data -
+	// TestIAMRoutesMatchTheDerivedSet gains a second arm for these three
+	// (provider taggable AND list_resource, in the one service the tagging
+	// index does not serve) and derives exactly them. The hand half grows
+	// by three operation/input-field pairs: iam:ListPolicyTags/PolicyArn,
+	// iam:ListRoleTags/RoleName, iam:ListUserTags/UserName. They are
+	// wired here rather than three files over because the Cloud Control
+	// leg never sees these types at all: each has a native provider list
+	// resource, so scanType enumerates them, and IAM's own list operations
+	// document dropping tags ("this operation does not return the
+	// following attributes, even though they are an attribute of the
+	// returned object: ... Tags" - ListRoles, botocore 1.43.70).
+	typeLiteralDataTotal = 1173
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

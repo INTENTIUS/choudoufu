@@ -34,6 +34,16 @@ import (
 // `continue`s on an ordinary sweep (CollectUnclaimed unset), which is where
 // the object disappeared: no Orphan, no Unclaimed, no Problem, and the type
 // still recorded in [Result.SweepCovered] as searched.
+//
+// What this fixture still measures after #1125, stated so the next reader
+// does not take it for the product's answer: the request here carries no
+// [Request.ServiceTags], so the service tag-read leg is absent and the gap
+// is the honest end of the road. An ordinary plan DOES carry that reader
+// (internal/command/live_plan.go builds it beside the Cloud Control and
+// Tagging clients), and nativeservicetagread_test.go is the same fixture
+// with it, where the destroy is proposed instead. Both are real: the leg is
+// off when the run has no IAM endpoint, and the gap stays when its call
+// fails.
 func TestNativeSweepSaysSoWhenNoLegCanReadAListedObjectsMarker(t *testing.T) {
 	const (
 		unservedType = "aws_iam_role"
