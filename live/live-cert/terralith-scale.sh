@@ -54,6 +54,19 @@ set -uo pipefail
 #   SCALE           terralith-gen's own -scale (default 1, the smallest
 #                    tier - #546's own rule: prove teardown at each tier
 #                    before growing).
+#   RECORD_STORE_BACKEND  local, ssm or s3; anything else is refused before
+#                    the run starts. Default ssm for TARGET=aws, local for
+#                    TARGET=floci. ssm and s3 are the two that put the
+#                    VALUES half of the state model in the cloud, and both
+#                    are checked at 4a2 and torn down at the end; local is
+#                    a directory inside WORK and goes with it. s3 is the
+#                    only backend with no capacity cap, which is what the
+#                    10k rung of the scale ladder needs.
+#   RECORD_STORE_BUCKET  Required for RECORD_STORE_BACKEND=s3, ignored
+#                    otherwise. An EXISTING bucket the run writes two key
+#                    namespaces into and deletes those two namespaces from
+#                    at teardown; the bucket itself is never created or
+#                    deleted, and nothing else in it is touched.
 #   THROTTLE_LOG     1 (default) captures TF_LOG=DEBUG for cold_deploy's
 #                    apply and migrate's -approve (both bounded, single-pass
 #                    operations) to a file under WORK, so this run can grep
@@ -111,8 +124,9 @@ set -uo pipefail
 #                    the resumed state names real objects by PREFIX, so a
 #                    mismatch would silently plan against the wrong
 #                    account's naming. The caller must export the SAME
-#                    PREFIX/SCALE (and RECORD_STORE_BACKEND, if set
-#                    non-default) the held run used; a resumed run's
+#                    PREFIX/SCALE (and RECORD_STORE_BACKEND plus
+#                    RECORD_STORE_BUCKET, if set non-default) the held run
+#                    used; a resumed run's
 #                    cold_deploy/migrate stages are logged as
 #                    "verdict=skipped", never "pass" - they are not
 #                    GAUNTLET protocol lines and never reach
@@ -169,6 +183,13 @@ if [ -n "$TEARDOWN_ONLY_DIR" ]; then
   TARGET="${TARGET:-$(livecert_marker_get "$COLD_MARKER_EARLY" TARGET)}"
   REGION="${REGION:-$(livecert_marker_get "$COLD_MARKER_EARLY" REGION)}"
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-$(livecert_marker_get "$COLD_MARKER_EARLY" RECORD_STORE_BACKEND)}"
+  # The bucket travels with the backend (#1145). Without it a held s3
+  # estate could not be torn down at all: the RECORD_STORE_BUCKET:? refusal
+  # a few dozen lines below fires before the dispatch reaches teardown(),
+  # so every object stays in the bucket and the operator is told only that
+  # a variable is missing. Empty for every other backend, where the
+  # refusal does not apply.
+  RECORD_STORE_BUCKET="${RECORD_STORE_BUCKET:-$(livecert_marker_get "$COLD_MARKER_EARLY" RECORD_STORE_BUCKET)}"
   SCALE="${SCALE:-$(livecert_marker_get "$COLD_MARKER_EARLY" SCALE)}"
   [ -n "$PREFIX" ] && [ -n "$TARGET" ] && [ -n "$REGION" ] \
     || { echo "teardown: $COLD_MARKER_EARLY is missing PREFIX/TARGET/REGION - a marker from an older script version?" >&2; exit 2; }
@@ -206,14 +227,27 @@ HOLD_TAG=""
 #
 # "ssm" is the default for TARGET=aws because it needs nothing created first:
 # it writes under a prefix derived from the estate name, and teardown is a
-# prefix delete. "s3" needs a bucket the run would have to make and destroy.
+# prefix delete. "s3" needs RECORD_STORE_BUCKET to name a bucket that
+# already exists - the run writes two key namespaces into it and deletes
+# those two at teardown, and never creates or destroys the bucket itself.
 # floci keeps "local", because the point there is speed and the emulator's
-# Parameter Store is not what is under test.
+# Parameter Store is not what is under test - but a floci run that names
+# ssm or s3 explicitly now gets the same 4a2 values check and the same
+# record-store teardown an aws run gets, against the emulator's own
+# endpoint (#1145). That is how the s3 arms get exercised without paying
+# for a real-AWS cycle.
 if [ "$TARGET" = "aws" ]; then
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-ssm}"
 else
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-local}"
 fi
+#
+# Every branch on RECORD_STORE_BACKEND below this point is a three-way case
+# with a loud default, never an `if ssm ... else`. Issue #1145: the two that
+# were written as `if ssm` treated s3 as local disk - one skipped the
+# values-piece check while printing that the store was local disk, the other
+# skipped teardown's record-store cleanup and left every object behind.
+RECORD_KEY_PREFIX="choudoufu/livecert/$PREFIX"
 case "$RECORD_STORE_BACKEND" in
   local) RECORD_STORE_ARGS='      path = ".tofu-records"' ;;
   # key_prefix is a record KEY prefix, not an SSM parameter path, so it is
@@ -221,15 +255,32 @@ case "$RECORD_STORE_BACKEND" in
   # shape loudly). The ssm backend renders it into the parameter name
   # "/choudoufu/livecert/$PREFIX/...", which is what SSM_PREFIX below
   # counts and tears down. Issue #916.
-  ssm)   RECORD_STORE_ARGS="      key_prefix = \"choudoufu/livecert/$PREFIX\"
+  ssm)   RECORD_STORE_ARGS="      key_prefix = \"$RECORD_KEY_PREFIX\"
       region     = \"$REGION\"" ;;
   s3)    : "${RECORD_STORE_BUCKET:?RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET}"
          RECORD_STORE_ARGS="      bucket     = \"$RECORD_STORE_BUCKET\"
-      key_prefix = \"choudoufu/livecert/$PREFIX\"
+      key_prefix = \"$RECORD_KEY_PREFIX\"
       region     = \"$REGION\"" ;;
-  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND" >&2; exit 2 ;;
+  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND (want local, ssm or s3)" >&2; exit 2 ;;
 esac
-SSM_PREFIX="/choudoufu/livecert/$PREFIX"
+# Where this run's records land, per backend, as an outside observer names
+# them. The ssm backend prepends "/" to the key prefix to make a legal
+# parameter path; the s3 backend uses the key prefix verbatim as an object
+# key prefix. Both measured against floci on 2026-09-17 with the fixture in
+# issue #1145's thread.
+SSM_PREFIX="/$RECORD_KEY_PREFIX"
+S3_PREFIX="$RECORD_KEY_PREFIX/"
+# The guided-discovery hint (internal/live/projection/hint_store.go's
+# HintKey) does NOT live under the configured key_prefix: it is keyed
+# "tofu-hints/<estate>/guided", deliberately disjoint from the record
+# namespace so orphan discovery can never mistake it for a record. A
+# key_prefix-scoped teardown therefore misses it. Measured against floci on
+# 2026-09-17: an apply with record_store "s3" left
+# "tofu-hints/<estate>/guided" in the bucket beside the three keys under the
+# prefix, and the ssm run left "/tofu-hints/<estate>/guided" in Parameter
+# Store - which the pre-#1145 ssm teardown, prefix-scoped, also left behind.
+HINT_SSM_PREFIX="/tofu-hints/$ESTATE"
+HINT_S3_PREFIX="tofu-hints/$ESTATE/"
 WORK="${LIVECERT_WORK_DIR:-${LIVECERT_RESUME:-$(mktemp -d)}}"
 mkdir -p "$WORK"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
@@ -280,8 +331,33 @@ UNTRUSTED_TEARDOWN_TIMEOUT_S="${UNTRUSTED_TEARDOWN_TIMEOUT_S:-180}"
 # the same bug in teardown skipped the delete loop and left 75 parameters
 # behind. Counting names line-by-line aggregates across pages correctly.
 ssm_prefix_count() {
-  aws ssm get-parameters-by-path --path "$1" --recursive \
+  livecert_aws ssm get-parameters-by-path --path "$1" --recursive \
     --query 'Parameters[].Name' --output text 2>/dev/null \
+    | tr '\t' '\n' | grep -c . || true
+}
+
+# s3_prefix_count is ssm_prefix_count's opposite number for the s3 backend:
+# same line-counting shape, for the same paging reason, with one extra trap
+# of its own.
+#
+# `Contents` is ABSENT from a list-objects-v2 response that matched nothing,
+# where `Parameters` is present-and-empty in the ssm case. JMESPath projects
+# a missing key to null, and `--output text` renders null as the literal
+# string "None" - so the direct transliteration of ssm_prefix_count returns
+# 1 for an empty prefix. Measured against floci on 2026-09-17:
+#
+#   $ aws s3api list-objects-v2 --bucket B --prefix nothing/here/ \
+#       --query 'Contents[].Key' --output text | od -c
+#   0000000    N   o   n   e  \n
+#
+# That number is wrong in the direction that hides both defects this
+# function exists for: the values-piece check would pass on a store nothing
+# ever wrote to, and teardown's "remaining after delete" would report one
+# phantom object forever. `|| `[]`` makes the empty case an empty list,
+# which --output text renders as nothing at all.
+s3_prefix_count() {
+  livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1" \
+    --query 'Contents[].Key || `[]`' --output text 2>/dev/null \
     | tr '\t' '\n' | grep -c . || true
 }
 
@@ -373,16 +449,64 @@ EOF
   # The record store is not tagged and no destroy reaches it, so it needs its
   # own teardown. Doing it here rather than in sweep() because it must run on
   # every exit path, including a run that never reached test_plan.
-  if [ "$RECORD_STORE_BACKEND" = "ssm" ] && [ "$TARGET" = "aws" ]; then
-    rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
-    log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
-    if [ "${rs_left:-0}" -gt 0 ]; then
-      aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
-        --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
-        | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
-      log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
-    fi
-  fi
+  #
+  # Three-way, with a loud default (#1145). The two namespaces are deleted
+  # separately because the guided-discovery hint does not live under the
+  # configured key_prefix - see HINT_SSM_PREFIX/HINT_S3_PREFIX above. The
+  # TARGET=aws gate the ssm arm used to carry is gone with it: both arms now
+  # go through livecert_aws, which addresses floci's endpoint on a floci run
+  # and the account on an aws one, so the cleanup a real run will do is the
+  # cleanup an emulator run exercises.
+  case "$RECORD_STORE_BACKEND" in
+    local)
+      # Nothing to delete out of band: the local store is ".tofu-records"
+      # inside $ADOPTED_DIR, which is inside $WORK, which this function
+      # removes wholesale at its very end (LIVECERT_KEEP_WORK=1 opts out,
+      # and then the records are meant to still be there).
+      log "  record store (local disk): a directory inside \$WORK, removed with it at the end of teardown unless LIVECERT_KEEP_WORK=1; nothing to delete out of band"
+      ;;
+    ssm)
+      rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
+      log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
+      if [ "${rs_left:-0}" -gt 0 ]; then
+        livecert_aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+          --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+          | while read -r n; do [ -n "$n" ] && livecert_aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+        log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
+      fi
+      hint_left="$(ssm_prefix_count "$HINT_SSM_PREFIX")"
+      log "  guided-discovery hint (ssm $HINT_SSM_PREFIX): $hint_left parameter(s) to delete"
+      if [ "${hint_left:-0}" -gt 0 ]; then
+        livecert_aws ssm get-parameters-by-path --path "$HINT_SSM_PREFIX" --recursive \
+          --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+          | while read -r n; do [ -n "$n" ] && livecert_aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+        log "    remaining after delete: $(ssm_prefix_count "$HINT_SSM_PREFIX")"
+      fi
+      ;;
+    s3)
+      # `s3 rm --recursive` rather than a per-key delete-object loop: it
+      # batches 1000 keys per DeleteObjects request and pages the listing
+      # itself, which is what makes this survivable at the 10k rung the s3
+      # backend exists for. It exits 0 on a prefix that matches nothing.
+      # The BUCKET is the operator's and is never deleted - only the two key
+      # namespaces this run wrote.
+      rs_left="$(s3_prefix_count "$S3_PREFIX")"
+      log "  record store (s3 s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rs_left object(s) to delete"
+      if [ "${rs_left:-0}" -gt 0 ]; then
+        livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$S3_PREFIX" --recursive >/dev/null 2>&1
+        log "    remaining after delete: $(s3_prefix_count "$S3_PREFIX")"
+      fi
+      hint_left="$(s3_prefix_count "$HINT_S3_PREFIX")"
+      log "  guided-discovery hint (s3 s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX): $hint_left object(s) to delete"
+      if [ "${hint_left:-0}" -gt 0 ]; then
+        livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX" --recursive >/dev/null 2>&1
+        log "    remaining after delete: $(s3_prefix_count "$HINT_S3_PREFIX")"
+      fi
+      ;;
+    *)
+      log "  record store: UNKNOWN backend \"$RECORD_STORE_BACKEND\" - nothing was deleted; whatever this run wrote is still there"
+      ;;
+  esac
 
   if verify_empty; then
     log "  VERIFIED EMPTY by listing: nothing matching prefix=$PREFIX or tag tofu-cert-run=$RUN_ID remains"
@@ -626,6 +750,34 @@ verify_empty() {
     printf '%s\n' "$all" | tr '\t' '\n' | grep -F "/${PREFIX}-cluster"
     return 0
   }
+  # The record store is part of "empty" (#1145). Before this, verify_empty
+  # named only the estate's own AWS resources, so "VERIFIED EMPTY by listing:
+  # nothing matching prefix=$PREFIX ... remains" was printed over a store
+  # still holding every record this run wrote - objects whose keys begin with
+  # that very prefix. Both namespaces are listed, for the same reason
+  # teardown deletes both. Each is an independent listing, not a re-read of
+  # the counts teardown already printed, so a delete that silently did
+  # nothing is caught here rather than believed.
+  case "$RECORD_STORE_BACKEND" in
+    local) ;;
+    ssm)
+      checked_list "record store parameter(s) under $SSM_PREFIX" \
+        livecert_aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive --query 'Parameters[].Name' --output text
+      checked_list "guided-discovery hint parameter(s) under $HINT_SSM_PREFIX" \
+        livecert_aws ssm get-parameters-by-path --path "$HINT_SSM_PREFIX" --recursive --query 'Parameters[].Name' --output text
+      ;;
+    s3)
+      checked_list "record store object(s) under s3://$RECORD_STORE_BUCKET/$S3_PREFIX" \
+        livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$S3_PREFIX" --query 'Contents[].Key || `[]`' --output text
+      checked_list "guided-discovery hint object(s) under s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX" \
+        livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$HINT_S3_PREFIX" --query 'Contents[].Key || `[]`' --output text
+      ;;
+    *)
+      printf '  verify_empty: UNKNOWN record store backend "%s" - the store was not checked, so this run is NOT verified empty\n' "$RECORD_STORE_BACKEND"
+      DIRTY=1
+      ;;
+  esac
+
   checked_list "ECS cluster(s)" ecs_clusters_for_prefix
   checked_list "ACTIVE ECS task definition(s) (deregistering these is not required for emptiness - they are free and AWS retains INACTIVE families - but ACTIVE ones would mean the estate config was never removed)" \
     livecert_aws ecs list-task-definitions --family-prefix "${PREFIX}-svc-" --status ACTIVE --query 'taskDefinitionArns' --output text
@@ -1206,6 +1358,7 @@ grep -qE "Apply complete! Resources: ${EXPECTED} added" "$WORK/cold_deploy_apply
   printf 'REGION=%s\n' "$REGION"
   printf 'RUN_ID=%s\n' "$RUN_ID"
   printf 'RECORD_STORE_BACKEND=%s\n' "$RECORD_STORE_BACKEND"
+  printf 'RECORD_STORE_BUCKET=%s\n' "${RECORD_STORE_BUCKET:-}"
   printf 'EXPECTED=%s\n' "$EXPECTED"
   printf 'TIMESTAMP=%s\n' "$(date -u +%FT%TZ)"
 } > "$WORK/.livecert-cold-state"
@@ -1482,8 +1635,21 @@ if [ "$TARGET" = "aws" ]; then
   ident_n="$(livecert_rgta_count tofu-estate "$ESTATE")"
   log "  identity (tofu-estate=$ESTATE tags in the cloud): $ident_n resource(s)"
   [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
+fi
 
-  if [ "$RECORD_STORE_BACKEND" = "ssm" ]; then
+# The values check is NOT under the TARGET=aws gate the identity check
+# above keeps (#1145). Identity needs resourcegroupstaggingapi, whose floci
+# coverage is its own question; the record store does not - floci serves
+# both Parameter Store and S3, so a floci run that declares a cloud backend
+# can and must prove the same thing an aws run does. That is what makes the
+# s3 arm below something an emulator run exercises rather than a branch
+# nothing has ever executed.
+#
+# Three-way with a loud default. It used to be `if ssm ... else`, and the
+# else printed "(local disk)" over an s3 store: an s3 run skipped this check
+# entirely and said the reason was a backend it was not using.
+case "$RECORD_STORE_BACKEND" in
+  ssm)
     rec_n="$(ssm_prefix_count "$SSM_PREFIX")"
     log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
     [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
@@ -1496,10 +1662,20 @@ if [ "$TARGET" = "aws" ]; then
     # honest to grep for until that client logs too. Write-side proof stands;
     # the read side is proved at the cache stage (5b), whose "state cache
     # supplied N" line comes from the projection itself.
-  else
-    log "  values: record_store is \"$RECORD_STORE_BACKEND\" (local disk), so the cloud values piece is NOT under test in this run"
-  fi
-fi
+    ;;
+  s3)
+    rec_n="$(s3_prefix_count "$S3_PREFIX")"
+    log "  values (record_store s3 at s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rec_n object(s) in the bucket"
+    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"s3\" but s3://$RECORD_STORE_BUCKET/$S3_PREFIX holds no objects - the store was declared and never written"
+    # Same read-side caveat as the ssm arm: nothing honest to grep for yet.
+    ;;
+  local)
+    log "  values: record_store is \"local\", a directory on disk beside the module, so the CLOUD values piece is NOT under test in this run"
+    ;;
+  *)
+    fail "values piece not checked: unknown record_store backend \"$RECORD_STORE_BACKEND\" - refusing to report a state-model verdict for a store this harness cannot list"
+    ;;
+esac
 
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
 if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
