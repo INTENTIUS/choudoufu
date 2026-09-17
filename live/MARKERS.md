@@ -874,7 +874,11 @@ change in the number of live instances assigns or retires slots.
 
 - A resource carrying a `tofu-estate` tag belongs to that estate. The
   value is the entire ownership claim, and there is no secondary
-  check.
+  check. The ownership policy does not weaken this: `declared_untagged`
+  means "carries no estate marker at all", so no verb in that quadrant
+  admits an object marked for someone else. Crossing the boundary is
+  `live-mv -from-estate` or `live-import -approve`, one named object at a
+  time.
 - A resource carrying neither `tofu-estate` nor `tofu-address` is foreign.
   It sits outside every estate's ownership and is reported, protected, and
   never auto-deleted.
