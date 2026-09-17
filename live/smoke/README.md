@@ -157,17 +157,24 @@ label produces the same perpetual `0 to add, 1 to change, 0 to destroy` on
 every plan that plain stock produces, measured side by side in step 5, with
 the marker untouched. The third is the boundary case: a policy that strips
 `tofu-estate` on the way in, which is what a label-scheme enforcer does to
-a key it does not recognise. The object is created, the run prints
-`Apply complete! Resources: 1 added`, and no marker is stored - so the next
-plan reads the estate's own object as somebody else's, `live-ls` reports
-the estate empty, the next apply wedges on `configmaps "app-config" already
-exists`, and `declared_untagged = "adopt"` reports `1 changed` over a label
-it never wrote, on every run. Those two summary lines are #1192; the
-scenario asserts them verbatim because they are what a user sees. Its
-`BREAK=1` points the identical policy at a decoy label instead of the
-marker and requires the decoy stripped, the marker landed, `live-ls`
-listing the object and the second apply not wedging - without it the whole
-third part would read the same if choudoufu never wrote a label at all.
+a key it does not recognise. The object is created and no marker is stored,
+so the next plan reads the estate's own object as somebody else's,
+`live-ls` reports the estate empty and the next apply wedges on
+`configmaps "app-config" already exists`. #1192 was that the run making it
+said nothing: `Apply complete! Resources: 1 added` with no mention of the
+marker, and `declared_untagged = "adopt"` reporting `0 added, 1 changed, 0
+destroyed` and exit 0 over a label it never wrote, on every run for ever.
+Steps 6 and 7 now assert the answer. The create warns, because the object
+really was added; the adopting run errors and prints no completion line,
+because its whole content was the marker and nothing it wrote lasted -
+shown by a `resourceVersion` that does not move across two runs. The
+judgement is made on the object the provider already returned from
+`ApplyResourceChange`, so it costs no extra request. Its `BREAK=1` points
+the identical policy at a decoy label instead of the marker and requires
+the decoy stripped, the marker landed, no `Ownership marker was not stored`
+in the run, `live-ls` listing the object and the second apply not wedging -
+without it the whole third part would read the same if choudoufu never
+wrote a label at all.
 
 `k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
 sibling of claim 13: the cluster admin installs

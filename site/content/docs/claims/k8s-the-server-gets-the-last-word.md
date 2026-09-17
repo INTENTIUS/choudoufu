@@ -76,11 +76,22 @@ the object without it; the run reports:
 
 ```text
 kubernetes_config_map.app: Creation complete after 0s [id=smoke-k8s/app-config]
+
+Warning: Ownership marker was not stored
+
+kubernetes_config_map.app was created, but the object the provider returned
+after the write does not carry the ownership marker this run sent:
+  - tofu-estate: sent "smoke-k8s", not stored
+...
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
 and `kubectl get configmap app-config -o jsonpath='{.metadata.labels}'`
-returns nothing at all.
+returns nothing at all. `1 added` is true - the object really was added -
+and the warning is the rest of the truth. Until
+[#1192](https://github.com/INTENTIUS/choudoufu/issues/1192) closed there
+was no warning: the run said `1 added` and nothing else, and the marker the
+whole ownership model rests on was gone with no trace in the output.
 
 ## What the next run says
 
@@ -113,31 +124,60 @@ warning names are writes, and the policy strips them too: a `kubectl label`
 leaves no label behind, and `policy { declared_untagged = "adopt" }` prints
 
 ```text
-kubernetes_config_map.app: Modifications complete after 0s [id=smoke-k8s/app-config]
-Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+Error: Ownership marker was not stored
+
+kubernetes_config_map.app was updated, but the object the provider returned
+after the write does not carry the ownership marker this run sent:
+  - tofu-estate: sent "smoke-k8s", not stored
+
+Nothing this run wrote to that object lasted ...
 ```
 
-with exit 0, on every run, over a label that was never stored.
+and exits non-zero, with no `Apply complete!` line. Step 7 runs it twice
+and reads the object's `resourceVersion` after each, and requires the two
+to be equal. The API server sets that field to the revision of the object's
+last write, so a second run that leaves it alone wrote nothing the server
+kept - which is the "on every run, for ever" part, measured rather than
+asserted.
 
-## The line that is not true, and why it is asserted anyway
+## Two lines that were not true
 
-`1 added` over an object created without its marker, and `1 changed` over
-an adoption that did not happen, are both false. Nothing in the write path
-asks whether the marker it sent is the marker the server stored.
-[#1192](https://github.com/INTENTIUS/choudoufu/issues/1192) is that gap,
-and choudoufu already has the mechanism: `live-import` dry-runs its label
-patch and diffs the result against the live object, which is how
-[claim 24]({{< relref "/docs/claims/k8s-custom-resource" >}})'s control
-catches a policy rewriting a custom resource's spec. The apply path does
-not do the equivalent.
+Until #1192 closed, the create printed `1 added` and said nothing about the
+marker, and the adopting run printed `0 added, 1 changed, 0 destroyed` and
+exited 0 - on every run, for ever, over a label that was never stored. A
+nightly gate reading exit codes saw an estate converging cleanly and owning
+nothing.
 
-This scenario asserts both lines verbatim, because they are what a user
-sees today. Closing #1192 changes steps 6 and 7 on purpose.
+The fix needed no read-back, which is worth saying because that was the
+obvious shape for it. The object the provider returns from
+`ApplyResourceChange` **is** the stored object for any provider that reads
+its resource back, and core was already computing the difference and
+throwing it away: with `TF_LOG=trace` the run logs
+`.metadata[0].labels: element "tofu-estate" has vanished`, at `WARN`,
+because `objchange.AssertObjectCompatible`'s findings are deliberately
+tolerated for a legacy-SDK provider - which `hashicorp/kubernetes` and
+`hashicorp/aws` both are. Tolerating a shimmed type is right; tolerating a
+discarded ownership marker is not, so the seam that stamped the marker is
+now handed that same value and asked about its own attribute. No extra
+request is issued.
+
+The two severities are different on purpose. A create that loses its marker
+warns: the object was really added, the count is true about it, and the next
+plan is loud on its own. An adopting update that loses its marker is an
+error: its entire content was the marker, nothing it wrote lasted, and it is
+the one shape with no other alarm anywhere. Nothing is stranded by the
+error - the object is exactly as it was before the run, and step 8 adopts it
+in a single apply the moment the label scheme permits `tofu-estate`.
 
 Unlike [claim 25]({{< relref "/docs/claims/k8s-a-held-delete-is-not-gone" >}}),
 where stock prints the same misleading line, there is no oracle here to be
 compatible with: stock has no marker, so the marker write is choudoufu's
-own and so is the gap.
+own and so was the gap.
+
+The AWS half of #1192 stays open. An Organizations tag policy can rewrite a
+tag on the way in, and the same hook would report it - but only where the
+provider hands back the tags it stored rather than the ones it was sent,
+and that is per resource type and unmeasured.
 
 ## The control
 
@@ -145,9 +185,11 @@ own and so is the gap.
 of `tofu-estate` - same kind, same namespace, same JSONPatch, one key
 different - and requires the opposite outcome: the decoy stripped, so the
 policy is provably in the admission chain and provably mutating; the marker
-landed; `live-ls` listing the object as this estate's; and the second apply
-not wedging. Without it the third part would read identically if choudoufu
-simply never wrote a label at all.
+landed, with no `Ownership marker was not stored` anywhere in the run;
+`live-ls` listing the object as this estate's; and the second apply not
+wedging. Without it the third part would read identically if choudoufu
+simply never wrote a label at all, and its two new assertions would read
+identically if the diagnostic fired whatever the server did.
 
 ## What is not measured here
 
