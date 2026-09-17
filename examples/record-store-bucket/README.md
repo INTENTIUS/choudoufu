@@ -13,6 +13,29 @@ just down      # tear it down, refusing while records are present
 Nothing here is a template to fill in. It is a project that runs, and every
 claim below is something `just verify` checks against the bucket it made.
 
+## Two paths, and why both exist
+
+```
+just plan / up / verify / down      # tofu directly: the quick path
+just install && just ops            # prove the Ops resolve and lint
+just chant-plan / chant-apply       # through the Ops: the governed path
+```
+
+The quick path runs `tofu` and needs nothing installed. It is for standing a
+bucket up to try this, and it is what the numbers in this README came from.
+
+The governed path runs the same root through chant Ops, and `bucket-apply`
+stops at an approval gate. That gate is the reason the Op exists:
+`gate: "always"`, not the default `"on-destroy"`, because the usual argument
+for the default is wrong here in both directions — a bucket-policy change
+destroys nothing and can still lock every run out of its own records, and a KMS
+key change destroys nothing and can still make every existing record
+unreadable.
+
+The risk of carrying two paths is a chant project nothing ever runs, so
+`just ops` resolves both Ops through the real lexicon and lints them. A broken
+Op fails there rather than the first time somebody reaches for the gate.
+
 ## Why this exists
 
 `S3Store`'s own doc comment is explicit:

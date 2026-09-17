@@ -8,6 +8,32 @@ region := env_var_or_default("AWS_REGION", "us-east-2")
 default:
     @just --list
 
+# Install the chant project's dependencies (needed for ops/chant-*).
+install:
+    npm install
+
+# This example carries two paths on purpose (README, "Two paths"), and the
+# risk of that is a chant project nothing ever runs. `list` resolves both Ops
+# through the real lexicon; `lint` runs the terraform lexicon's own rules over
+# them. A broken Op fails here rather than the first time somebody reaches for
+# the governed path.
+
+# Prove the Ops are real rather than decorative.
+ops:
+    npx chant list src
+    npx chant lint src
+
+# Governed path: plan through the Op. Read-only.
+chant-plan:
+    npx chant run bucket-plan
+
+# gate: "always" is deliberate - a bucket-policy change destroys nothing and
+# can still lock every run out of its own records.
+
+# Governed path: apply through the Op, stopping at its approval gate.
+chant-apply:
+    npx chant run bucket-apply
+
 # The bucket name. Globally unique, so it is derived from the account rather
 # than guessed — the same account that will hold the estate.
 _bucket:
@@ -25,8 +51,7 @@ plan bucket="":
     {{tf}} init -input=false >/dev/null
     {{tf}} plan -input=false -var "bucket=$b" -var "region={{region}}"
 
-# Create or update the bucket. This is the dogfooding path: the README's
-# claims are whatever this actually produces.
+# Create or update the bucket, and print RECORD_STORE_BUCKET.
 up bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -37,9 +62,7 @@ up bucket="":
     echo
     echo "RECORD_STORE_BUCKET=$b"
 
-# Prove the hardening is real rather than declared. Every check reads the
-# live bucket, and the deny-unencrypted one WRITES, because a policy that is
-# never exercised is a policy nobody has tested.
+# Prove the hardening is real, against the live bucket. Two checks write.
 verify bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -92,8 +115,7 @@ verify bucket="":
     echo
     [ "$fail" = "0" ] && echo "bucket $b: hardened" || { echo "bucket $b: NOT hardened"; exit 1; }
 
-# Tear it down. Refuses while records are present: destroying this bucket
-# destroys an estate's identity for every resource it holds.
+# Tear it down. Refuses while records are present.
 down bucket="":
     #!/usr/bin/env bash
     set -euo pipefail

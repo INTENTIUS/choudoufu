@@ -1,0 +1,20 @@
+{
+  "name": "choudoufu-example-record-store-bucket",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The bucket a live estate's record_store \"s3\" writes into, with the hardening S3Store leaves to the caller: SSE-KMS, a policy that denies unencrypted puts, versioning for the tombstone path, and a lifecycle rule that expires versions and never current records.",
+  "scripts": {
+    "lint": "chant lint src",
+    "list": "chant list src",
+    "plan": "chant run bucket-plan",
+    "apply": "chant run bucket-apply"
+  },
+  "dependencies": {
+    "@intentius/chant": "0.73.0",
+    "@intentius/chant-lexicon-terraform": "0.74.0"
+  },
+  "devDependencies": {
+    "typescript": "*"
+  }
+}
