@@ -134,9 +134,11 @@ Nothing this run wrote to that object lasted ...
 ```
 
 and exits non-zero, with no `Apply complete!` line. Step 7 runs it twice
-and reads the object's `resourceVersion` after each: 756 and 756. The API
-server sets that field to the revision of the object's last write, so two
-runs that leave it alone wrote nothing the server kept.
+and reads the object's `resourceVersion` after each, and requires the two
+to be equal. The API server sets that field to the revision of the object's
+last write, so a second run that leaves it alone wrote nothing the server
+kept - which is the "on every run, for ever" part, measured rather than
+asserted.
 
 ## Two lines that were not true
 
