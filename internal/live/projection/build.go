@@ -2050,9 +2050,11 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 	modPath := addr.Module.Module()
 	var rc *configs.Resource
 	var modEval *configs.StaticEvaluator
+	var mod *configs.Module
 	if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
 		rc = modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
 		modEval = modCfg.Module.StaticEvaluator
+		mod = modCfg.Module
 	}
 	if rc == nil && !w.undeclared {
 		detail := fmt.Sprintf(
@@ -2121,6 +2123,15 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 	seedEval := modEval
 	if lookup, _ := identity.DataLookupFor(b.opts.DataResults, modPath); lookup != nil && seedEval != nil {
 		seedEval = seedEval.WithDataResults(lookup)
+	}
+	// GitHub issue #1178: an EXPANDED block's arguments are written against
+	// its own count.index/each.key/each.value, which the bare module-level
+	// evaluator refuses by contract - so without this every such argument
+	// was left out of the seed entirely. See [seedRepetition] for the whole
+	// mechanism and for why kubernetes_manifest is where the gap became a
+	// wrong plan rather than a missing optimisation.
+	if rd, ok := seedRepetition(ctx, mod, rc, addr.Resource.Key); ok && seedEval != nil {
+		seedEval = seedEval.WithRepetitionData(rd)
 	}
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
 	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources)
