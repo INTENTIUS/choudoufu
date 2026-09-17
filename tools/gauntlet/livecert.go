@@ -191,22 +191,27 @@ type LiveCertWrites struct {
 	Why string
 }
 
-// PlanLiveCertWrites decides what a finished run records.
+// PlanLiveCertWrites decides what a finished run records. The live_cert half
+// of the answer is RecordsLiveCert's, called rather than restated, so the
+// rule has one definition and the two cannot drift apart.
 func PlanLiveCertWrites(target string, res *ProtocolResult) LiveCertWrites {
 	if target != "aws" {
 		return LiveCertWrites{Why: "target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)"}
 	}
-	if res == nil || !res.Spoken {
-		return LiveCertWrites{Why: fmt.Sprintf("the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)", ArtifactPath)}
+	w := LiveCertWrites{LiveCertRow: RecordsLiveCert(res), ScaleRecord: true}
+	if w.LiveCertRow {
+		return w
 	}
-	if res.Refusal != nil {
-		return LiveCertWrites{
-			ScaleRecord: true,
-			Why: fmt.Sprintf("the run REFUSED this rung, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s, which is keyed by scale and can hold it beside the rung below.",
-				ArtifactPath, ScaleRecordsPath),
-		}
+	switch {
+	case res != nil && res.Refusal != nil:
+		// A refusal has somewhere to go: a rung of its own.
+		w.Why = fmt.Sprintf("the run REFUSED this rung, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s, which is keyed by scale and can hold it beside the rung below.", ArtifactPath, ScaleRecordsPath)
+	default:
+		// A run that spoke nothing measured nothing, at any scale.
+		w.ScaleRecord = false
+		w.Why = fmt.Sprintf("the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)", ArtifactPath)
 	}
-	return LiveCertWrites{LiveCertRow: true, ScaleRecord: true}
+	return w
 }
 
 // RunLiveCert runs live/live-cert/<estate>.sh (or LIVECERT_SCRIPT_OVERRIDE
