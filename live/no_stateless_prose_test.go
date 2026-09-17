@@ -49,18 +49,22 @@ import (
 //
 // live/no_state_absence_claims_test.go enforces a different sentence of
 // internal/configs/live.go's rule - the one about treating the file's
-// absence as the product - by searching for a short list of claims
-// ("removes state entirely", "eliminates the state file", the bare "no
-// state file" in the files that define what live mode IS). None of those
-// phrases appears in the five diagnostics #1172 item 1 named: they carry
-// the wrong NAME rather than a false absence claim, so the phrase list
-// walked straight past them, and three of the four files they live in
-// (internal/live/lint/overlong_address.go,
+// absence as the product - by sweeping for the fixed claims its own
+// repoWide list enumerates, plus one further claim over the enumerated
+// files that define what live mode IS. Read that list there; it is not
+// repeated here, because a file that recites those phrases is a file that
+// guard has to report, and #1225 spent a round discovering that about its
+// own source.
+//
+// None of the claims on it appears in the diagnostics #1172 item 1 named:
+// those carry the wrong NAME rather than a false absence claim, so a
+// phrase sweep walks straight past them, and three of the four files they
+// live in (internal/live/lint/overlong_address.go,
 // internal/live/lint/residue_attribute.go,
-// internal/live/liveimport/stamp.go) are not on that guard's enumerated
-// definitional list either. The two guards are kept apart rather than
-// merged: that one is phrase-based and repo-wide over every tracked file,
-// this one is AST-based and Go-only, and folding either into the other
+// internal/live/liveimport/stamp.go) are outside that guard's enumerated
+// file list as well. The two are kept apart rather than merged: that one
+// is a phrase sweep, repo-wide over every tracked file of any kind; this
+// one is an AST string sweep, Go-only. Folding either into the other
 // would cost the half that does not fit.
 func TestNoStatelessProseInShippedStrings(t *testing.T) {
 	root := repoRoot(t)
