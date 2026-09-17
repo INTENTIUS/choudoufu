@@ -53,11 +53,17 @@
 // labels reach its PVCs. A tofu-estate label an author put in a template
 // therefore lands on objects nobody declared, and every one of them would
 // be an orphan and a delete candidate - a wrong marker nobody wrote, which
-// HANDOFF's safety rule names as worse than a refusal. The test that keeps
-// them out is the object's own metadata.ownerReferences: a non-empty one
-// means a controller owns it, and [Client.List] never returns such an
-// object. The server-created singletons (the default ServiceAccount,
-// kube-root-ca.crt) carry no estate label and are never selected.
+// HANDOFF's safety rule names as worse than a refusal. [ControllerMade] is
+// the test that keeps them out and [Client.List] never returns an object
+// it judges, and it does not rest on metadata.ownerReferences alone. This
+// comment said it did until GitHub issue #1179, and the PVC half of the
+// sentence above is exactly where that was false: a StatefulSet's
+// volumeClaimTemplate PVCs carry no owner reference, because the default
+// persistentVolumeClaimRetentionPolicy is Retain and they are built to
+// outlive the StatefulSet. What excludes them is the second signal, the
+// managers that wrote the object's own content. The server-created
+// singletons (the default ServiceAccount, kube-root-ca.crt) carry no
+// estate label and are never selected.
 package kubesweep
 
 import (
