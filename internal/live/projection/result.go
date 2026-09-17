@@ -319,6 +319,22 @@ const (
 	// for the SAME address a plan is about to create a duplicate of,
 	// never a cached or historical one.
 	ReasonVerifiedNotImportable Reason = "VERIFIED_NOT_IMPORTABLE"
+
+	// ReasonOutOfScope means this run passed -target or -exclude and the
+	// instance's own block is not in the plan graph the run will build
+	// (GitHub issue #1176, extending #352's [identity.Scope] one pass
+	// further). Nothing is read for it and nothing is proposed: the plan's
+	// own targeting removes the block a moment later, so a projection
+	// entry for it could not change any proposed action even if the read
+	// had succeeded.
+	//
+	// Reading it is not merely wasted, it is a way to fail a run that
+	// would otherwise work. reference-k8s-cert-manager is the worked
+	// case: its three custom resources cannot be looked up until the CRDs
+	// the other 47 blocks install exist, which is exactly why the estate
+	// declares a -target pre-apply for those 47 - and importing the three
+	// anyway made the provider error, which is a hard refusal here.
+	ReasonOutOfScope Reason = "OUT_OF_SCOPE"
 )
 
 // Has reports whether the projection contains an object for the given

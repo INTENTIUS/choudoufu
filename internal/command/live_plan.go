@@ -772,6 +772,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// instead of promising that marker discovery will find it.
 		StrandedByProviderChange: disco.StrandedByProviderChange(),
 		Ownership:                statelessOwnershipWith(estate, disco, pol, reconcileVerified),
+		// GitHub issue #1176: the same [identity.Scope] resolution and
+		// discovery were given. Nil for an untargeted run. An instance
+		// the plan graph will not hold is omitted rather than read, so a
+		// provider is never asked about a resource this run cannot act
+		// on - a lookup that can fail the whole plan when it errors.
+		Scope: scope,
 		// GitHub issue #364: one store for GitHub issue #270's record-located
 		// instances (the reason this is wired at all - without it nothing
 		// can say which live object the instance owns, so live-plan would

@@ -85,7 +85,15 @@ func TestLivePlan_noChanges(t *testing.T) {
 	if !strings.Contains(stdout, "Not read from the live system") {
 		t.Errorf("no omissions section in the output:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "aws_vpc.main") || !strings.Contains(stdout, "NEEDS_DISCOVERY") {
+	// OUT_OF_SCOPE rather than NEEDS_DISCOVERY since GitHub issue #1176.
+	// Both were true of aws_vpc.main - its identity is server-assigned AND
+	// this run targets the bucket - but the reason a run reports should be
+	// the one that decided it, and here that is the -target flag: nothing
+	// would have been read for this instance whatever discovery found,
+	// because the plan graph does not hold its block. NEEDS_DISCOVERY's own
+	// sentence promises the next converged run binds it, which on a
+	// deliberately narrowed run is a promise about some other run.
+	if !strings.Contains(stdout, "aws_vpc.main") || !strings.Contains(stdout, "OUT_OF_SCOPE") {
 		t.Errorf("the omissions section does not name aws_vpc.main and its reason:\n%s", stdout)
 	}
 }
