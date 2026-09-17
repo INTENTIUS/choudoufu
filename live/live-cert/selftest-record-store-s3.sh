@@ -452,8 +452,12 @@ fi
 # between a leaking run and a green verdict.
 ########################################################################
 log ""
-log "=== case 5 (BREAK arm): verify_empty over a store that still holds records ==="
-seed_store
+log "=== case 5 (BREAK arm): verify_empty over a store that still holds something ==="
+# Run TWICE, seeding one namespace at a time. A single run seeding both
+# would stay green with either listing deleted from verify_empty, because
+# the other one would still find its object - an allowlist that bounds who
+# rather than what. Proven: deleting only the record-store listing from
+# verify_empty left the combined version of this case passing.
 R5="$WORK/case5.sh"
 {
   common_preamble
@@ -462,10 +466,23 @@ R5="$WORK/case5.sh"
   printf 'RECORD_STORE_BACKEND=s3\n'
   printf '%s\n' 'if verify_empty; then printf "VERDICT: empty\n"; else printf "VERDICT: not empty\n"; fi'
 } > "$R5"
-C5_OUT="$(bash "$R5" 2>&1)"
-printf '%s\n' "$C5_OUT" | sed 's/^/    | /'
-if ! grep -qF 'VERDICT: not empty' <<< "$C5_OUT"; then
-  fail_note "verify_empty reported EMPTY over a bucket holding 3 record objects and a hint - the VERIFIED EMPTY line cannot be trusted"
+
+reset_store
+put_object "choudoufu/livecert/$PREFIX/aws_vpc/YXdzX3ZwYy5tYWlu"
+log "  5a: one record object, no hint"
+C5A_OUT="$(bash "$R5" 2>&1)"
+printf '%s\n' "$C5A_OUT" | sed 's/^/    | /'
+if ! grep -qF 'VERDICT: not empty' <<< "$C5A_OUT"; then
+  fail_note "verify_empty reported EMPTY over a bucket holding a record object - the VERIFIED EMPTY line does not cover the record namespace"
+fi
+
+reset_store
+put_object "tofu-hints/$ESTATE/guided"
+log "  5b: one hint object, no records"
+C5B_OUT="$(bash "$R5" 2>&1)"
+printf '%s\n' "$C5B_OUT" | sed 's/^/    | /'
+if ! grep -qF 'VERDICT: not empty' <<< "$C5B_OUT"; then
+  fail_note "verify_empty reported EMPTY over a bucket holding a guided-discovery hint object - the VERIFIED EMPTY line does not cover the hint namespace"
 fi
 
 ########################################################################
@@ -539,6 +556,35 @@ fi
 [ "$A6_REC" = "0" ] || fail_note "ssm teardown left $A6_REC record parameter(s) under /choudoufu/livecert/$PREFIX"
 [ "$A6_HINT" = "0" ] || fail_note "ssm teardown left $A6_HINT guided-discovery hint parameter(s) under /tofu-hints/$ESTATE"
 [ "$A6_OTHER" = "1" ] || fail_note "ssm teardown touched an unrelated parameter: 1 before, $A6_OTHER after"
+
+# The same one-namespace-at-a-time BREAK arm case 5 runs for s3, so each of
+# the ssm listings in verify_empty is independently load-bearing.
+R6V="$WORK/case6v.sh"
+{
+  common_preamble
+  printf '%s\n' "$VERIFY_SRC"
+  printf 'TARGET=aws\n'
+  printf 'RECORD_STORE_BACKEND=ssm\n'
+  printf '%s\n' 'if verify_empty; then printf "VERDICT: empty\n"; else printf "VERDICT: not empty\n"; fi'
+} > "$R6V"
+seed_one_param() {
+  if [ -n "$ENDPOINT" ]; then
+    for n in $(aws --endpoint-url "$ENDPOINT" --region "$REGION" ssm describe-parameters --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n'); do
+      aws --endpoint-url "$ENDPOINT" --region "$REGION" ssm delete-parameter --name "$n" >/dev/null 2>&1
+    done
+    aws --endpoint-url "$ENDPOINT" --region "$REGION" ssm put-parameter --name "$1" --value x --type String --overwrite >/dev/null 2>&1
+  else
+    printf '%s\n' "$1" > "$PARAM"
+  fi
+}
+seed_one_param "/choudoufu/livecert/$PREFIX/aws_vpc/YXdzX3ZwYy5tYWlu"
+log "  6a (BREAK arm): verify_empty with one ssm record parameter, no hint"
+C6A="$(bash "$R6V" 2>&1)"; printf '%s\n' "$C6A" | sed 's/^/    | /'
+grep -qF 'VERDICT: not empty' <<< "$C6A" || fail_note "verify_empty reported EMPTY over Parameter Store holding a record parameter"
+seed_one_param "/tofu-hints/$ESTATE/guided"
+log "  6b (BREAK arm): verify_empty with one ssm hint parameter, no records"
+C6B="$(bash "$R6V" 2>&1)"; printf '%s\n' "$C6B" | sed 's/^/    | /'
+grep -qF 'VERDICT: not empty' <<< "$C6B" || fail_note "verify_empty reported EMPTY over Parameter Store holding a guided-discovery hint parameter"
 
 ########################################################################
 # Case 7: `terralith-scale.sh teardown <work dir>` on a HELD s3 estate.

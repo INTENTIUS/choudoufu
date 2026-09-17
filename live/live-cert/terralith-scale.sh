@@ -463,7 +463,7 @@ EOF
       # inside $ADOPTED_DIR, which is inside $WORK, which this function
       # removes wholesale at its very end (LIVECERT_KEEP_WORK=1 opts out,
       # and then the records are meant to still be there).
-      log "  record store (local disk): removed with \$WORK at the end of teardown, nothing to delete out of band"
+      log "  record store (local disk): a directory inside \$WORK, removed with it at the end of teardown unless LIVECERT_KEEP_WORK=1; nothing to delete out of band"
       ;;
     ssm)
       rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
