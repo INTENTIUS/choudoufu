@@ -580,6 +580,18 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 
 	parts := strings.Split(escaped, ".")
 	total := len(parts)
+	if total < 2 {
+		// Unreachable through [ValidMarkerAddress], whose own empty check
+		// and two-segment-minimum pattern already exclude this - which is
+		// the problem. GitHub issue #1206's red proof relaxed
+		// ValidMarkerAddress to admit the empty string for one run, to
+		// show the new guard catches it, and this line panicked on
+		// parts[-1] before the guard could report anything. A marker value
+		// this package cannot read is refused, never fatal, and that must
+		// not depend on a caller two functions away staying exactly as it
+		// is today.
+		return zero, false
+	}
 	typeName := parts[total-2]
 	name, key, hasKey := strings.Cut(parts[total-1], ":")
 	if typeName == "" || name == "" {

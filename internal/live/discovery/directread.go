@@ -457,6 +457,17 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 	if corrupt {
 		return directReadForeign, nil, fmt.Sprintf("a live %s exists at %s carrying estate %q's marker, but its tofu-address could not be read", typeName, candidateARN, req.Estate)
 	}
+	if raw == "" {
+		// GitHub issue #1206. The refusal below already covered this - an
+		// empty value fails [ValidMarkerAddress] - but it reported it as
+		// "a marker for a different address ()", which reads as a bug in
+		// the message rather than as a finding about the object. An empty
+		// tofu-address is its own shape and deserves its own sentence: AWS
+		// accepts an empty tag value, so the key can be present and say
+		// nothing, and the one thing an operator must not conclude is that
+		// the key being there means the object is claimed.
+		return directReadForeign, nil, fmt.Sprintf("a live %s exists at %s carrying estate %q's marker and a %s tag whose value is EMPTY, which names no resource at all - a marker key present with no value is not an ownership claim, and this run will not read it as one", typeName, candidateARN, req.Estate, TagAddress)
+	}
 	gotEscaped := EscapeAddress(raw)
 	if !ValidMarkerAddress(gotEscaped) || gotEscaped != escaped || markerTypeOf(gotEscaped) != typeName {
 		return directReadForeign, nil, fmt.Sprintf("a live %s exists at %s carrying estate %q's marker for a different address (%s)", typeName, candidateARN, req.Estate, raw)

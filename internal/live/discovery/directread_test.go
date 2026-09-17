@@ -611,3 +611,65 @@ func TestDirectReadResolvesAccountIDFromARNOnlyIdentity(t *testing.T) {
 		t.Errorf("a bound instance still carries a DIRECT_READ_UNRESOLVED refusal: %v", found)
 	}
 }
+
+// TestDirectReadRefusesAnEmptyAddressMarker is GitHub issue #1206's guard on
+// the direct-read leg: a live object at the composed identity that carries
+// this estate's tofu-estate AND a tofu-address key whose VALUE is empty.
+//
+// That shape is not hypothetical decoration. AWS accepts an empty tag value,
+// so a hand-edit, a half-finished write or another tool can leave one
+// behind, and it is the one marker shape that reads as ownership to anything
+// asking "is the key there" while naming no resource at all. #1206 itself
+// was a read-back that mistook an error's empty stdout for exactly this, and
+// sent three readings of the estate's failure looking for a stamp defect
+// that never existed.
+//
+// The rule this pins: an empty value is refused, not bound. It is NOT the
+// "carries no marker yet" case, because this leg reached the object by an
+// ARN composed from configuration and then consulted the marker precisely to
+// decide whether binding is safe - a marker that names nothing settles
+// nothing, and a create the provider would reject with EntityAlreadyExists
+// is the worse outcome.
+func TestDirectReadRefusesAnEmptyAddressMarker(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_policy")
+
+	cloud.own("aws_iam_policy", directReadPolicyARN, `aws_iam_policy.team_0002_policy`)
+	stripTags(t, cloud, "aws_iam_policy", directReadPolicyARN)
+	// This estate's own tofu-estate, and a tofu-address that is PRESENT and
+	// EMPTY - the presence-versus-content split. Compare
+	// TestDirectReadRefusesAForeignMarker, which is the same fixture with a
+	// non-empty value naming somebody else.
+	cloud.withDirectReadTags(t, "aws_iam_policy", directReadPolicyARN, map[string]string{
+		TagEstate:  estateName,
+		TagAddress: "",
+	})
+	cloud.obj("aws_iam_policy", "arn:aws:iam::000000000000:policy/filler", nil)
+
+	req := directReadFixtureRequest(t, cloud)
+
+	res, diags := Discover(context.Background(), req)
+	if !diags.HasErrors() {
+		t.Fatalf("an empty tofu-address at the composed identity produced no error:\n%s", res)
+	}
+	if _, ok := res.BindingFor(mustAddr(t, "aws_iam_policy.team_0002_policy")); ok {
+		t.Fatal("bound to an object whose tofu-address marker is present but empty - an empty value was read as an ownership claim")
+	}
+	found := problemsOfKind(res, ProblemDirectReadUnresolved)
+	if len(found) != 1 {
+		t.Fatalf("want exactly one DIRECT_READ_UNRESOLVED refusal, got %d:\n%s", len(found), res)
+	}
+	if found[0].Kind.Severity() != SeverityError {
+		t.Error("the refusal is a warning; an empty marker cannot settle whether the create is safe, so it must be an error")
+	}
+	if got := found[0].Addr.String(); got != `aws_iam_policy.team_0002_policy` {
+		t.Errorf("the refusal names %s, want aws_iam_policy.team_0002_policy", got)
+	}
+	// The refusal has to say WHY in words an operator can act on. Before
+	// #1206 this same object was refused with "carrying estate ...'s marker
+	// for a different address ()", which reads as a defect in the message.
+	if !strings.Contains(found[0].Detail, "whose value is EMPTY") {
+		t.Errorf("the refusal does not say the marker value is empty, so an operator cannot tell this apart from a marker naming another address:\n%s", found[0].Detail)
+	}
+	t.Logf("GREEN, quoted verbatim: %s", found[0].Detail)
+}

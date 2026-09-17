@@ -222,6 +222,67 @@ fail() {
   exit 1
 }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+
+# policy_arn_by_prefix looks a name_prefix-generated IAM policy up by the
+# prefix its name starts with, and returns exactly one arn or fails.
+#
+# GitHub issue #1206, and the reason this is a function rather than nine
+# copies of an inline query. Every one of those copies read
+#
+#   aws iam list-policies --path-prefix / \
+#     --query "Policies[?starts_with(PolicyName, '<prefix>') == \`true\`].Arn | [0]" \
+#     --output text
+#
+# and two separate things are wrong with it.
+#
+#   1. --path-prefix / narrows NOTHING. list-policies defaults to
+#      Scope=All, floci serves 1566 AWS-managed policies, and AWS-managed
+#      policies live at path "/" - so the filter every one of them passes
+#      was being relied on to exclude them. --scope Local is the narrowing
+#      that was meant: this estate's policies are all customer-managed.
+#
+#   2. The AWS CLI applies --query PER PAGE of an auto-paginated listing,
+#      not to the merged result. 1566 policies at the default 100 per page
+#      is 16 pages, so the command printed 16 lines: the arn from the page
+#      that held the match, and the literal "None" from the fifteen that
+#      did not. The caller captured all 16 as the "arn".
+#
+# That composite string then passed the `[ -n "$X" ] && [ "$X" != "None" ]`
+# guard each call site wrote - a 16-line string is neither empty nor equal
+# to "None" - and was handed to `iam list-policy-tags --policy-arn`, which
+# answered NoSuchEntity on stderr and printed nothing on stdout. An empty
+# stdout read back as `carries tofu-address=`, an EMPTY ownership marker,
+# and #1206 was filed against the stamp. The stamp was never wrong.
+#
+# So the single-arn assertion below is the point of the function, not the
+# --scope Local: it is what makes the class fail loudly instead of
+# travelling on as a corrupt arn. A listing that pages, or a prefix that
+# matches two policies, stops here naming what it actually got.
+#
+# The answer comes back in $POLICY_ARN_OUT rather than on stdout, because
+# fail() writes this script's gauntlet verdict line to STDOUT: called from
+# inside a command substitution it would be swallowed into the variable
+# being assigned and tools/gauntlet would record no verdict at all.
+POLICY_ARN_OUT=""
+policy_arn_by_prefix() {
+  local awsfn="$1" prefix="$2" what="$3" out
+  out="$("$awsfn" iam list-policies --scope Local \
+    --query "Policies[?starts_with(PolicyName, '$prefix') == \`true\`].Arn" --output text)" \
+    || fail "the AWS CLI could not list customer-managed policies while looking for $what"
+  # --output text renders a flat list of strings tab-separated on one line,
+  # and one line per page when the CLI pages; both become one arn per line
+  # here so the count below means what it says.
+  out="$(tr '\t' '\n' <<< "$out" | grep -v '^[[:space:]]*$' || true)"
+  [ -n "$out" ] || fail "could not find $what: no customer-managed policy has a name starting with \"$prefix\""
+  [ "$(wc -l <<< "$out")" -eq 1 ] \
+    || fail "the lookup for $what did not return a single arn - either the prefix \"$prefix\" matches more than one policy or the AWS CLI paged the listing and emitted one result per page. Got: $(tr '\n' ' ' <<< "$out")"
+  case "$out" in
+    arn:aws:iam::*:policy/*) ;;
+    *) fail "the lookup for $what returned \"$out\", which is not an IAM policy arn" ;;
+  esac
+  POLICY_ARN_OUT="$out"
+}
+
 gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -294,9 +355,8 @@ log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
 [ -f "$EST/terraform.tfstate" ] || fail "plain terraform left no state file to migrate from"
 
 POLICY1_ARN="arn:aws:iam::${ACCOUNT}:policy/example_from_data_source"
-POLICY2_ARN="$(awsl iam list-policies --path-prefix / \
-  --query "Policies[?starts_with(PolicyName, 'example-') == \`true\`].Arn | [0]" --output text)"
-[ -n "$POLICY2_ARN" ] && [ "$POLICY2_ARN" != "None" ] || fail "could not find the name_prefix policy through the AWS CLI"
+policy_arn_by_prefix awsl 'example-' "the name_prefix policy"
+POLICY2_ARN="$POLICY_ARN_OUT"
 log "  both policies live: $POLICY1_ARN and $POLICY2_ARN"
 
 UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
@@ -490,9 +550,8 @@ log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
 log "=== PART GREENFIELD 2. markers, read through the AWS CLI directly ==="
 awslg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
 GREEN_POLICY1_ARN="arn:aws:iam::${ACCOUNT}:policy/example_from_data_source"
-GREEN_POLICY2_ARN="$(awslg iam list-policies --path-prefix / \
-  --query "Policies[?starts_with(PolicyName, 'example-') == \`true\`].Arn | [0]" --output text)"
-[ -n "$GREEN_POLICY2_ARN" ] && [ "$GREEN_POLICY2_ARN" != "None" ] || fail "could not find the greenfield name_prefix policy through the AWS CLI"
+policy_arn_by_prefix awslg 'example-' "the greenfield name_prefix policy"
+GREEN_POLICY2_ARN="$POLICY_ARN_OUT"
 GREEN_WANT_ADDR1="module.iam_policy_from_data_source.aws_iam_policy.policy:0"
 GREEN_WANT_ADDR2="module.iam_policy.aws_iam_policy.policy:0"
 GREEN_ADDR1="$(awslg iam list-policy-tags --policy-arn "$GREEN_POLICY1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
@@ -1180,9 +1239,8 @@ EOF
       || { echo "$F_OLD_STILL"; fail "get-policy for $D_POLICY2_ARN failed with an unexpected error, not NoSuchEntity - it may still exist"; }
     log "  $D_POLICY2_ARN no longer exists (NoSuchEntity) - confirmed via the AWS CLI, not through choudoufu's own report"
 
-    F_NEW_ARN="$(awsl iam list-policies --path-prefix / \
-      --query "Policies[?starts_with(PolicyName, 'example-v2-') == \`true\`].Arn | [0]" --output text)"
-    [ -n "$F_NEW_ARN" ] && [ "$F_NEW_ARN" != "None" ] || fail "could not find the replaced name_prefix policy (example-v2-*) through the AWS CLI"
+    policy_arn_by_prefix awsl 'example-v2-' "the replaced name_prefix policy (example-v2-*)"
+    F_NEW_ARN="$POLICY_ARN_OUT"
     F_NEW_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$F_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
     [ "$F_NEW_ADDR_TAG" = "module.iam_policy_renamed2.aws_iam_policy.policy:0" ] \
       || fail "$F_NEW_ARN carries tofu-address=$F_NEW_ADDR_TAG after the replace, not module.iam_policy_renamed2.aws_iam_policy.policy:0 - the marker did not move onto the new object"
@@ -1417,12 +1475,10 @@ HCL
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
     grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
       || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "stock did not create exactly 2 count-test policies for the day2_count oracle"; }
-    ORACLE_CT0_ARN="$(awsl iam list-policies --path-prefix / \
-      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-0-') == \`true\`].Arn | [0]" --output text)"
-    ORACLE_CT1_ARN="$(awsl iam list-policies --path-prefix / \
-      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
-    [ -n "$ORACLE_CT0_ARN" ] && [ "$ORACLE_CT0_ARN" != "None" ] || fail "no oracle count_test[0] policy found by its name_prefix"
-    [ -n "$ORACLE_CT1_ARN" ] && [ "$ORACLE_CT1_ARN" != "None" ] || fail "no oracle count_test[1] policy found by its name_prefix"
+    policy_arn_by_prefix awsl 'iam-policy-crossing-count-test-0-' "the oracle count_test[0] policy"
+    ORACLE_CT0_ARN="$POLICY_ARN_OUT"
+    policy_arn_by_prefix awsl 'iam-policy-crossing-count-test-1-' "the oracle count_test[1] policy"
+    ORACLE_CT1_ARN="$POLICY_ARN_OUT"
     log "  stock: 2 instances created, count_test[0]=$ORACLE_CT0_ARN count_test[1]=$ORACLE_CT1_ARN"
 
     sed -i.bak 's/^  count       = 2$/  count       = 1/' "$ORACLE_COUNT_DIR/main.tf"; rm -f "$ORACLE_COUNT_DIR/main.tf.bak"
@@ -1453,9 +1509,8 @@ HCL
     [ "$ORACLE_UP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_UP_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's scale-up apply failed"; }
     grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$ORACLE_UP_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$ORACLE_UP_APPLY_OUT"; fail "the day2_count stock oracle's scale-up apply was not exactly one create"; }
-    ORACLE_CT1_NEW_ARN="$(awsl iam list-policies --path-prefix / \
-      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
-    [ -n "$ORACLE_CT1_NEW_ARN" ] && [ "$ORACLE_CT1_NEW_ARN" != "None" ] || fail "no oracle count_test[1] policy found after the scale-up"
+    policy_arn_by_prefix awsl 'iam-policy-crossing-count-test-1-' "the oracle count_test[1] policy after the scale-up"
+    ORACLE_CT1_NEW_ARN="$POLICY_ARN_OUT"
     [ "$ORACLE_CT1_NEW_ARN" != "$ORACLE_CT1_ARN" ] || fail "stock's recreated count_test[1] came back with the SAME arn it had before being destroyed - the destroy oracle is not real"
     log "  stock: exactly one create (count_test[1] recreated as $ORACLE_CT1_NEW_ARN, was $ORACLE_CT1_ARN), count_test[0]=$ORACLE_CT0_ARN untouched across the down-then-up cycle"
 
@@ -1501,12 +1556,10 @@ HCL
     grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$COUNT_ADD_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$COUNT_ADD_APPLY_OUT"; fail "the count-block-add apply did not create exactly 2 resources"; }
 
-    CT0_ARN="$(awsl iam list-policies --path-prefix / \
-      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-0-') == \`true\`].Arn | [0]" --output text)"
-    CT1_ARN="$(awsl iam list-policies --path-prefix / \
-      --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
-    [ -n "$CT0_ARN" ] && [ "$CT0_ARN" != "None" ] || fail "no live count_test[0] policy found by its name_prefix"
-    [ -n "$CT1_ARN" ] && [ "$CT1_ARN" != "None" ] || fail "no live count_test[1] policy found by its name_prefix"
+    policy_arn_by_prefix awsl 'iam-policy-crossing-count-test-0-' "the live count_test[0] policy"
+    CT0_ARN="$POLICY_ARN_OUT"
+    policy_arn_by_prefix awsl 'iam-policy-crossing-count-test-1-' "the live count_test[1] policy"
+    CT1_ARN="$POLICY_ARN_OUT"
     CT0_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT0_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
     CT1_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
     [ "$CT0_ADDR_TAG" = 'aws_iam_policy.count_test:0' ] || fail "count_test[0]'s live tofu-address tag is $CT0_ADDR_TAG, not aws_iam_policy.count_test:0 (live/MARKERS.md: a count instance's tag value is colon-escaped, e.g. aws_eip.this[2] -> aws_eip.this:2)"
@@ -1570,9 +1623,8 @@ HCL
       grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$COUNT_UP_APPLY_OUT" \
         || { grep -E 'Apply complete' <<< "$COUNT_UP_APPLY_OUT"; fail "the scale-up apply was not exactly one create"; }
 
-      CT1_NEW_ARN="$(awsl iam list-policies --path-prefix / \
-        --query "Policies[?starts_with(PolicyName, 'iam-policy-crossing-count-test-1-') == \`true\`].Arn | [0]" --output text)"
-      [ -n "$CT1_NEW_ARN" ] && [ "$CT1_NEW_ARN" != "None" ] || fail "no live count_test[1] policy found by its name_prefix after the scale-up"
+      policy_arn_by_prefix awsl 'iam-policy-crossing-count-test-1-' "the live count_test[1] policy after the scale-up"
+      CT1_NEW_ARN="$POLICY_ARN_OUT"
       [ "$CT1_NEW_ARN" != "$CT1_ARN" ] || fail "count_test[1] came back with the SAME arn ($CT1_ARN) it had before being destroyed - the destroy in G2 was not real"
       CT1_NEW_ADDR_TAG="$(awsl iam list-policy-tags --policy-arn "$CT1_NEW_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
       [ "$CT1_NEW_ADDR_TAG" = 'aws_iam_policy.count_test:1' ] || fail "the recreated count_test[1] ($CT1_NEW_ARN) carries tofu-address=$CT1_NEW_ADDR_TAG, not aws_iam_policy.count_test:1"
