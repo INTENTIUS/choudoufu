@@ -82,6 +82,10 @@ type estateTypes struct {
 // artifact. ctx bounds check.Load's own parsing pass; there is no network or
 // docker anywhere in this path.
 func Generate(ctx context.Context, root string) (Artifact, error) {
+	if err := checkCorpusPopulated(root); err != nil {
+		return Artifact{}, err
+	}
+
 	art := Artifact{
 		Schema:      artifactSchema,
 		GeneratedBy: "go run ./tools/estate-types",

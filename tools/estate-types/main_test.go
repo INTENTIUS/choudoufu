@@ -116,6 +116,52 @@ func TestEveryEstateHasTypes(t *testing.T) {
 	}
 }
 
+// TestCorpusEstatesUseAllConfigDirs is the guard beside
+// TestEveryEstateHasTypes's row-presence check, for the corruption that
+// check cannot see (issue #1183). A row can carry a non-empty Types list
+// from estateSpec.ScanScript's own text-scan fallback while the real
+// .corpus configuration next to it silently failed to load - several
+// corpus-* estates keep a handful of script-only types when .corpus goes
+// missing or is only partly fetched, which passes a plain "Types is
+// non-empty" check while the board's real type count collapses underneath
+// it. Comparing how many directories a row actually loaded (ConfigDirs)
+// against how many its own spec named (estateSpec.ConfigDirs) catches that:
+// it fires the moment even one expected .corpus directory goes missing,
+// whether or not the row still has non-zero Types from some other source.
+func TestCorpusEstatesUseAllConfigDirs(t *testing.T) {
+	root := testRoot(t)
+	art, err := Read(root)
+	if err != nil {
+		t.Fatalf("reading %s: %v (run \"go run ./tools/estate-types\")", ArtifactPath, err)
+	}
+
+	rows := map[string]estateTypes{}
+	for _, e := range art.Estates {
+		rows[e.Name] = e
+	}
+
+	for _, spec := range estateSpecs {
+		want := len(spec.ConfigDirs)
+		if spec.Name == "corpus-sumaform-aws" {
+			// ConfigDirs is nil on purpose (see spec.go's own Note); its
+			// real dependency is the two directories sumaform.go
+			// materializes out of .corpus/sumaform.
+			want = 2
+		}
+		if want == 0 {
+			continue
+		}
+		row, ok := rows[spec.Name]
+		if !ok {
+			continue // TestEveryEstateHasTypes already reports a missing row.
+		}
+		if got := len(row.ConfigDirs); got != want {
+			t.Errorf("%s: estate %q expected %d config dir(s) to have loaded, got %d (config_dirs=%v notes=%v); an unpopulated or partially fetched .corpus collapses this estate's real types silently unless this check fires",
+				ArtifactPath, spec.Name, want, got, row.ConfigDirs, row.Notes)
+		}
+	}
+}
+
 // TestArtifactIsCurrent regenerates the artifact from .corpus and diffs it
 // against the committed file, so a stale index is caught rather than
 // trusted. Skipped when .corpus is not populated - internal/live/check's
