@@ -494,8 +494,13 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 
 INSTANCE_ID="$(cd "$EST" && terraform output -raw ec2_complete_id)"
 ROLE_NAME="$(cd "$EST" && terraform output -raw ec2_complete_iam_role_name)"
+# aws_iam_instance_profile's `id` attribute IS the instance profile name
+# (terraform-provider-aws convention), which is what
+# `iam list-instance-profile-tags --instance-profile-name` wants (#1160).
+INSTANCE_PROFILE_NAME="$(cd "$EST" && terraform output -raw ec2_complete_iam_instance_profile_id)"
 [ -n "$INSTANCE_ID" ] || fail "could not read ec2_complete_id from terraform output"
 [ -n "$ROLE_NAME" ] || fail "could not read ec2_complete_iam_role_name from terraform output"
+[ -n "$INSTANCE_PROFILE_NAME" ] || fail "could not read ec2_complete_iam_instance_profile_id from terraform output"
 # THIS SECTION USED TO select the EIP with a server-side
 # `Name=instance-id,Values=$INSTANCE_ID` filter and take
 # `Addresses[0]`, on the unstated assumption that this account has
@@ -986,25 +991,59 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$BEFORE_N" = "24" ] || fail "expected 24 tofu-estate-tagged objects before stage 4, got $BEFORE_N"
+
+# resourcegroupstaggingapi GetResources does not index IAM at all on this
+# floci pin (live/floci-capabilities.json's aws_iam_role/aws_iam_instance_profile
+# tagging-sweep rows are both "unimplemented" there), and real AWS never
+# indexes aws_iam_role through GetResources either (#1134) - so of the 24
+# objects STAGE 2's migrate stamped, the 2 IAM ones (this estate's instance
+# role and instance profile) are structurally invisible to GetResources and
+# have to be counted a different way. Both DO carry their markers natively
+# through IAM's own read APIs regardless of what GetResources can see
+# (confirmed live, same capability file), so this counts the two legs
+# separately and sums them rather than moving 24 to 22 (#1160): the oracle
+# becomes able to see everything migrate stamped, instead of being scoped
+# down to what it happened to already see.
+# Sets EC2_TAGGED_N (total), EC2_TAGGED_RGTA_N and EC2_TAGGED_IAM_N as
+# globals - not a command substitution, deliberately, so it does not run in
+# a subshell and lose the split counts.
+gauntlet_ec2_tagged_count() {
+  local role_tag profile_tag
+  EC2_TAGGED_RGTA_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    2>/dev/null || echo 0)"
+  EC2_TAGGED_IAM_N=0
+  role_tag="$(awsl iam list-role-tags --role-name "$ROLE_NAME" \
+    --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text 2>/dev/null || echo "")"
+  [ "$role_tag" = "$ESTATE" ] && EC2_TAGGED_IAM_N=$((EC2_TAGGED_IAM_N + 1))
+  profile_tag="$(awsl iam list-instance-profile-tags --instance-profile-name "$INSTANCE_PROFILE_NAME" \
+    --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text 2>/dev/null || echo "")"
+  [ "$profile_tag" = "$ESTATE" ] && EC2_TAGGED_IAM_N=$((EC2_TAGGED_IAM_N + 1))
+  EC2_TAGGED_N=$((EC2_TAGGED_RGTA_N + EC2_TAGGED_IAM_N))
+}
+
+gauntlet_ec2_tagged_count
+BEFORE_N="$EC2_TAGGED_N"
+BEFORE_RGTA_N="$EC2_TAGGED_RGTA_N"
+BEFORE_IAM_N="$EC2_TAGGED_IAM_N"
+[ "$BEFORE_N" = "24" ] || fail "expected 24 tofu-estate-tagged objects before stage 4 (resourcegroupstaggingapi GetResources $BEFORE_RGTA_N + IAM role/instance-profile read directly $BEFORE_IAM_N), got $BEFORE_N"
+log "  before: $BEFORE_N tofu-estate-tagged objects (GetResources $BEFORE_RGTA_N + IAM role/instance-profile checked directly via list-role-tags/list-instance-profile-tags $BEFORE_IAM_N, since GetResources cannot see IAM - #1160)"
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+gauntlet_ec2_tagged_count
+AFTER_N="$EC2_TAGGED_N"
+AFTER_RGTA_N="$EC2_TAGGED_RGTA_N"
+AFTER_IAM_N="$EC2_TAGGED_IAM_N"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N (GetResources $BEFORE_RGTA_N -> $AFTER_RGTA_N, IAM role/instance-profile $BEFORE_IAM_N -> $AFTER_IAM_N)"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 
 log ""
-gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file"
+gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after (resourcegroupstaggingapi GetResources $BEFORE_RGTA_N of them - it does not index IAM, #1160 - plus the instance's aws_iam_role and aws_iam_instance_profile checked directly via list-role-tags/list-instance-profile-tags, $BEFORE_IAM_N of them), no state file"
 log "STAGE 4 (test apply): PASS"
 log ""
 
