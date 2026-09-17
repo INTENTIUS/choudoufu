@@ -95,6 +95,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 
 awsl() { aws --endpoint-url "$ENDPOINT" --region us-east-1 "$@"; }
 
@@ -305,7 +307,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" 
 # proposed for destruction" would then be true of a run that looked at
 # nothing.
 grep -qE '^Foreign resources: none among the [0-9]+ types? swept' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"
+  || { gauntlet_print_evidence "$PLAN_OUT"
        fail "the foreign sweep did not report a completed sweep with nothing foreign in it. Either a live object this estate owns was read as unowned, or no sweep ran - and the second makes every negative claim below vacuous."; }
 log "  nothing to create, nothing to destroy, and the sweep found nothing foreign"
 
@@ -461,7 +463,7 @@ grep -qF 'Owned and undeclared:' <<< "$LOST_OUT" \
 grep -qE "will be destroyed" <<< "$LOST_OUT" \
   && { grep -E 'will be destroyed' <<< "$LOST_OUT"; fail "the run proposed destroying something with a located record missing"; }
 grep -qE '^Foreign resources: none among the [0-9]+ types? swept' <<< "$LOST_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$LOST_OUT"; fail "the foreign sweep did not complete cleanly with a located record missing"; }
+  || { gauntlet_print_evidence "$LOST_OUT"; fail "the foreign sweep did not complete cleanly with a located record missing"; }
 
 # And the bound on that negative, taken from the run's own words rather than
 # left implicit. The located types are NOT enumerated by any sweep - they

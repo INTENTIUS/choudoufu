@@ -125,6 +125,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
@@ -322,7 +324,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" 
   || { grep -vE '^\d{4}-' <<< "$PLAN_OUT" | grep -vE '^\s*$' | tail -40
        fail "the plan is not empty"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"
+  || { gauntlet_print_evidence "$PLAN_OUT"
        fail "the plan reports foreign resources; every live object here carries this estate's markers"; }
 
 WANT=()

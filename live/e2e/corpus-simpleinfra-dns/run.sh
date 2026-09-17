@@ -1015,7 +1015,7 @@ plan_into > "$WORK/plan1.log" 2>&1; PLAN_RC=$?
 grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan1.log" \
   || { grep -E '^  # ' "$WORK/plan1.log" | head -20; fail "live-plan is not empty"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' "$WORK/plan1.log" \
-  || { grep -E '^Foreign resources:' "$WORK/plan1.log"; fail "the plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$(cat "$WORK/plan1.log")"; fail "the plan reports foreign resources"; }
 log "  no resource change proposed and nothing foreign, with zero local memory of the migration that stamped it"
 
 # ── 3b. THE VALUE, not the verdict ──────────────────────────────────────────
