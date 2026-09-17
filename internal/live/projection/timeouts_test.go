@@ -218,23 +218,54 @@ func TestWithConfiguredTimeoutsOverwritesOnlyTheConfiguredKeys(t *testing.T) {
 	}
 }
 
-// TestWithConfiguredTimeoutsLeavesANonSdkPrivateAlone is the gate. A
-// terraform-plugin-framework resource's private state is a
+// TestWithConfiguredTimeoutsLeavesANonSdkPrivateAlone is the gate, and
+// every shape that has to reach it.
+//
+// A terraform-plugin-framework resource's private state is a
 // map[string][]byte the framework unmarshals strictly; writing an object
 // under a new key would make it fail to load its own private state. The
 // same applies to a provider with no private data at all.
+//
+// "null meta" is the case this test was written around after review: a JSON
+// null under the SDK's own key unmarshals into a nil map with NO error, and
+// writing into that nil map is a panic - "assignment to entry in nil map"
+// on the projection build path, which takes down the whole plan for any
+// resource carrying a timeouts block. It is also the case that decides the
+// ruling: the null is LEFT ALONE rather than populated, because
+// helper/schema's metaEncode writes the key only when it has a duration to
+// put under it, so a null there is not an SDKv2 meta missing its values -
+// it is somebody else's private, and re-deriving one would be inventing it.
+//
+// "half-readable meta" is the case the error half of the gate exists for
+// and the nil half cannot see: [json.Unmarshal] leaves the map NON-nil with
+// a partial entry when it fails on a value, so only the returned error
+// tells that apart from a good decode.
 func TestWithConfiguredTimeoutsLeavesANonSdkPrivateAlone(t *testing.T) {
 	cfg := map[string]int64{"delete": int64(20 * time.Second)}
 	for name, private := range map[string][]byte{
-		"framework":  []byte(`{"framework_key":"YmFzZTY0"}`),
-		"empty":      nil,
-		"not json":   []byte("\x00\x01opaque"),
-		"json array": []byte(`[1,2,3]`),
+		"framework":          []byte(`{"framework_key":"YmFzZTY0"}`),
+		"empty":              nil,
+		"not json":           []byte("\x00\x01opaque"),
+		"json array":         []byte(`[1,2,3]`),
+		"null private":       []byte(`null`),
+		"empty object":       []byte(`{}`),
+		"null meta":          []byte(`{"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0":null,"schema_version":"0"}`),
+		"meta not an object": []byte(`{"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0":"5m","schema_version":"0"}`),
+		"half-readable meta": []byte(`{"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0":{"delete":"twenty"},"schema_version":"0"}`),
 	} {
 		t.Run(name, func(t *testing.T) {
+			// A panic here is the defect this test exists for, not a test
+			// harness problem: it happens inside the projection build.
+			defer func() {
+				if rec := recover(); rec != nil {
+					t.Fatalf("withConfiguredTimeouts panicked on %s: %v.\n"+
+						"This runs on the projection build path for every live plan of a resource carrying a "+
+						"timeouts block, so a panic here takes the whole plan down", private, rec)
+				}
+			}()
 			got, changed := withConfiguredTimeouts(private, cfg)
 			if changed {
-				t.Errorf("withConfiguredTimeouts rewrote a private blob carrying no %s key: %s", sdkv2TimeoutMetaKey, got)
+				t.Errorf("withConfiguredTimeouts rewrote a private blob carrying no readable %s meta: %s", sdkv2TimeoutMetaKey, got)
 			}
 			if string(got) != string(private) {
 				t.Errorf("private came back as %q, want %q byte for byte", got, private)

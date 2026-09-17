@@ -85,8 +85,10 @@ import (
 //
 // # What it deliberately does not reach
 //
-//   - A resource whose private carries no SDKv2 timeout key at all. That is
-//     the gate in [withConfiguredTimeouts], and it is what keeps this away
+//   - A resource whose private carries no READABLE SDKv2 timeout meta:
+//     the key absent, its value JSON null, or its value something other
+//     than a map of durations. That is the gate in
+//     [withConfiguredTimeouts], and it is what keeps this away
 //     from terraform-plugin-framework resources, whose private state is a
 //     map[string][]byte the framework unmarshals strictly and whose
 //     `timeouts` block is read from the state OBJECT rather than the meta.
@@ -194,30 +196,70 @@ func configuredTimeouts(ctx context.Context, eval *configs.StaticEvaluator, modP
 // withConfiguredTimeouts merges cfg into private's SDKv2 timeout meta and
 // reports whether anything changed.
 //
-// The gate is the meta key's presence. helper/schema renders a `timeouts`
-// block into a resource's schema only for the fields its own
-// [schema.ResourceTimeout] declares non-nil, and metaEncode writes exactly
-// those same fields into the instance state's meta - so for any SDKv2
-// resource whose schema HAS a timeouts block the imported stub's private
-// always already carries this key. A private without it is therefore not an
-// SDKv2 resource missing its defaults; it is something else's private
-// (terraform-plugin-framework's map[string][]byte, most of all), and this
-// leaves it byte-for-byte alone rather than writing a key its owner would
-// choke on.
+// # What it acts on, and what it refuses
+//
+// It acts on a private that already carries a READABLE timeout meta under
+// the SDK's own key. helper/schema renders a `timeouts` block into a
+// resource's schema only for the fields its own [schema.ResourceTimeout]
+// declares non-nil, and metaEncode writes exactly those same fields into
+// the instance state's meta - so for any SDKv2 resource whose schema HAS a
+// timeouts block the imported stub's private always already carries this
+// key with a real map of durations under it. Anything else is somebody
+// else's private (terraform-plugin-framework's map[string][]byte, most of
+// all) or a shape this package cannot read back, and it is returned
+// byte-for-byte unchanged rather than rewritten into something its owner
+// would choke on.
+//
+// # The one condition that enforces that, and why it is one condition
+//
+// Both halves of the `err != nil || times == nil` below are load-bearing,
+// and an earlier version of this function had neither the second half nor
+// an honest account of the first:
+//
+//   - err != nil catches a private whose meta value cannot be read as a map
+//     of numbers at all: a partially-decodable map ({"delete":"twenty"})
+//     leaves `times` NON-nil with a half-filled entry, so only the error
+//     tells that one apart from a good decode. It also catches the ABSENT
+//     key, because `meta[...]` yields a nil [json.RawMessage] and json
+//     refuses that with "unexpected end of JSON input" - which is how a
+//     framework private, or a private carrying no timeout meta at all, is
+//     turned away.
+//   - times == nil catches `"<key>": null`, which [json.Unmarshal] accepts
+//     with NO error while leaving the map nil. That was a panic -
+//     "assignment to entry in nil map" at the write below - on the
+//     projection build path, which takes the whole plan down, and it is
+//     reachable for any resource carrying a timeouts block. Found in
+//     review of the first version of this fix; pinned by
+//     TestWithConfiguredTimeoutsLeavesANonSdkPrivateAlone's "null meta"
+//     case.
+//
+// A JSON null there is LEFT ALONE rather than treated as an empty map to
+// populate, deliberately. helper/schema never writes one: metaEncode
+// writes the key only when it has at least one duration to put under it.
+// So a null under this key is not an SDKv2 meta missing its values, it is
+// something this package did not write and does not understand - the same
+// reading that turns a framework private away - and synthesizing a meta the
+// provider never had would be inventing one rather than restoring one.
+//
+// There is deliberately no separate `if !ok` early return for the absent
+// key. It read as the gate and could not fail: with the key absent the very
+// next unmarshal refuses a nil [json.RawMessage] anyway, so removing that
+// branch changed no behaviour and no test. A check that cannot fail is not
+// a check, so it is gone and the condition that does the work says so.
 func withConfiguredTimeouts(private []byte, cfg map[string]int64) ([]byte, bool) {
 	if len(cfg) == 0 || len(private) == 0 {
 		return private, false
 	}
+	// A private of literal `null` decodes to a nil meta with no error; the
+	// nil map is then read (legal) and yields a nil raw message for the key,
+	// which the gate below refuses. Pinned by the "null private" case, so
+	// this is a stated property rather than a lucky one.
 	var meta map[string]json.RawMessage
 	if err := json.Unmarshal(private, &meta); err != nil {
 		return private, false
 	}
-	raw, ok := meta[sdkv2TimeoutMetaKey]
-	if !ok {
-		return private, false
-	}
 	var times map[string]int64
-	if err := json.Unmarshal(raw, &times); err != nil {
+	if err := json.Unmarshal(meta[sdkv2TimeoutMetaKey], &times); err != nil || times == nil {
 		return private, false
 	}
 
