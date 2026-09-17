@@ -18,15 +18,31 @@ import (
 // Live represents a module's live configuration: a "live" block inside a
 // "terraform" block, or the [LiveSidecarFilename] sidecar file, whose whole
 // body is the same content the block would carry. Its presence is what puts a
-// run into what the code currently calls stateless mode: no backend, no
-// lock, and no AUTHORITATIVE state file. The ruling (maintainer,
-// 2026-08-30; issue #685; pinned by live/stale_state_ruling_test.go): the
-// state file loses its authority, not its existence. A disposable cache
-// writes by default to choudoufu-cache.tfstate under the data dir; it is
-// never consulted for ownership, live wins any disagreement, and losing
-// it costs a slower run and nothing else - a guard proves a fresh, a
-// stale and a missing cache plan byte-identically. No comment, refusal
-// text or test may treat the file's absence as the product.
+// run into live mode: no backend, no lock, and no AUTHORITATIVE state file.
+//
+// Throughout internal/ that mode is spelled "stateless" - statelessRunner,
+// StatelessRun, StatelessUnowned and roughly 2,500 more occurrences across
+// 247 files when this was written. The name is inaccurate, it is known to
+// be inaccurate, and it stays: the maintainer ruled on 2026-09-17 (issue
+// #1172) that stateless* is permanently-internal vocabulary with no rename
+// scheduled. The harm the name does is that it regenerates itself into new
+// prose - a reader of StatelessRun writes "stateless" into the next refusal
+// message - and that is now stopped at the boundary where it does damage
+// instead of at the source: live/no_stateless_prose_test.go reads string
+// literals only, over every non-test .go file in internal/, so the word
+// cannot reach a user however many identifiers carry it, and
+// live/no_state_absence_claims_test.go catches the false claim the name
+// invites. Read such an identifier as a synonym for "live", never as a
+// description of what a run keeps.
+//
+// The ruling (maintainer, 2026-08-30; issue #685; pinned by
+// live/stale_state_ruling_test.go): the state file loses its authority,
+// not its existence. A disposable cache writes by default to
+// choudoufu-cache.tfstate under the data dir; it is never consulted for
+// ownership, live wins any disagreement, and losing it costs a slower run
+// and nothing else - a guard proves a fresh, a stale and a missing cache
+// plan byte-identically. No comment, refusal text or test may treat the
+// file's absence as the product.
 //
 // It is deliberately a configuration block and not a command-line flag.
 // Whether a team's infrastructure treats a state file as the record of

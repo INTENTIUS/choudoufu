@@ -30,16 +30,20 @@ import (
 //
 // # What this guard does NOT touch, deliberately
 //
-// The ~2,300 IDENTIFIERS carrying the word (statelessProviders,
-// statelessRunner, StatelessRun, StatelessForeign, ...) are item 3 of
-// #1172 and an open maintainer decision. So are the doc comments that
-// explain them, and the "what the code currently calls stateless mode"
-// hedge at internal/configs/live.go's head, which is honest about a
-// known-wrong name and must stay honest until that decision is made. This
-// guard therefore reads STRING LITERALS ONLY, parsed out of the AST with
-// comments discarded, which is exactly the set a user can be shown and
-// exactly the set item 1 covers. Renaming an identifier cannot make it
-// pass and cannot make it fail.
+// The ~2,500 IDENTIFIERS carrying the word (statelessProviders,
+// statelessRunner, StatelessRun, StatelessForeign, ...) were item 3 of
+// #1172, and the maintainer ruled on 2026-09-17: stateless* is
+// permanently-internal vocabulary, exported names included, and no rename
+// is scheduled. So the doc comments that explain them keep the word too,
+// and internal/configs/live.go's head now says so outright rather than
+// hedging that the name is what the code calls it for now.
+//
+// This guard is what makes that ruling safe, and is the reason given for
+// it: the harm the name does is that it regenerates into new prose, and
+// this stops the prose. It reads STRING LITERALS ONLY, parsed out of the
+// AST with comments discarded, which is exactly the set a user can be
+// shown and exactly the set item 1 covers. Renaming an identifier cannot
+// make it pass and cannot make it fail.
 //
 // Test files are out of scope for the same reason: nothing in a _test.go
 // reaches a user. The shipped string is what this checks, and a test
