@@ -154,6 +154,13 @@ type readPrep struct {
 
 	attrsSeed      map[string]cty.Value
 	attrsSeedMarks []cty.PathValueMarks
+
+	// timeouts is the resource's own `timeouts` block, decoded to
+	// nanoseconds - GitHub issue #1185. Unlike attrsSeed it is not sent to
+	// the provider on the way IN: it is merged into the private blob the
+	// read produced, because the private blob is the carrier a destroy
+	// reads its deadline from. See [configuredTimeouts].
+	timeouts map[string]int64
 }
 
 // readTerminal is one of [builder.prepareRead]'s four refusals, carried as

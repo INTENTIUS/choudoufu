@@ -3025,7 +3025,17 @@ const (
 	// since #387. The estate itself does bind all 50 (live-import stamps
 	// 50 of 50 against a real cluster, where the schema is present); what
 	// this golden says is only that the offline analysis alone cannot.
-	identityGoldenPinDirs = 672
+	//
+	// Then 672 -> 673 for GitHub issue #1185: one new fixture,
+	// internal/live/projection/testdata/timeouts, three resources of a
+	// stub type declaring a `timeouts` block three ways. It renders ZERO
+	// rows - `stub_ns` is not a real provider type, so the offline sweep
+	// has no schema and no ratified row for it, exactly as
+	// internal/live/projection/testdata/attrs-seed's `stub_lc` has
+	// rendered none since it was added - so instances, every class count
+	// and body-sha256 are all unmoved, and the diff against the previous
+	// file is the two "dirs=" header lines and nothing else.
+	identityGoldenPinDirs = 673
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
