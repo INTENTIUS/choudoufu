@@ -1601,6 +1601,36 @@ type residueReader func(prior cty.Value) (cty.Value, error)
 // PR description for the reproduce command): seeding PriorState with the
 // correct ARN before any read at all makes the provider echo it back
 // unchanged, matching this reasoning's own prediction.
+//
+// # Why a BLOCK is decided here and never from the schema alone
+//
+// The widening above rests on one schema flag: Computed, which the
+// protocol defines as "the provider may answer this independently of
+// configuration". A block type has no such flag. Nothing in
+// [configschema.NestedBlock] says whether the provider sources a block
+// from the remote or merely preserves whatever the prior held, and issue
+// #275 measured the whole of hashicorp/aws 6.59.0 looking for a static
+// answer and did not find one - which is why eligibility for a block is
+// decided EMPIRICALLY, by read A and read B, and not by a predicate over
+// the schema.
+//
+// That is also the standing argument against the tempting shortcut, and
+// it is recorded here because it has now been proposed twice (GitHub
+// issues #1185 and #1190 both floated widening [configuredAttrsSeed] past
+// attributes to cover `timeouts` and `field_manager`). Seeding a block
+// into the prior straight from configuration, with no read to check it
+// against, would fill in `aws_security_group.ingress` and
+// `aws_default_network_acl.egress` - blocks the provider genuinely DOES
+// read back from the remote - with whatever configuration says, so a rule
+// someone changed out of band would arrive at the plan already matching
+// and the drift would never be proposed. Trading a masked drift for a
+// cured perpetual diff is strictly the wrong direction: the perpetual diff
+// is loud and costs a no-op apply, the masked drift is silent and leaves
+// the live system wrong. Read A is what refuses those two blocks today -
+// floci answering a bare-identity read with no rules is a different answer
+// from the applied rule set, so they fail read A's test and are never
+// recorded - and nothing static could have told them apart from
+// `timeouts`.
 func classifyResidue(applied cty.Value, candidates []string, identityAttrs map[string]bool, configSourced map[string]bool, read residueReader, ambient map[string]cty.Value) (map[string]cty.Value, bool) {
 	if len(candidates) == 0 || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil, false
