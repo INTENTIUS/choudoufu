@@ -209,74 +209,119 @@ const (
 	SummaryManifestMarked      = "Cannot set ownership markers on a marked manifest value"
 )
 
-// mirrorManifestMarker is the read side of the manifest stamp. The
-// provider's computed_fields default names metadata.labels, so when it
-// plans an update it takes the LIVE labels as that field's truth whenever
-// the configured labels have not changed since the prior manifest: a label
-// stripped out of band never churns its plan, and the object would stay
-// outside the estate's boundary (claim 23's admission policy, the sweep)
-// with an empty plan saying everything was fine. The projection therefore
-// carries the live object's answer for the one marker key into the prior
-// manifest it builds: if the live object lacks tofu-estate, or carries a
-// different value, the prior manifest's labels say the same, the stamped
-// configuration then differs from the prior at metadata.labels, and the
-// provider plans the update that writes the label back. Every other label
-// is left to the provider's own rule. A value the projection cannot read
-// without unmarking (marksafe's discipline) is returned as it was.
-func mirrorManifestMarker(v cty.Value, block *configschema.Block) cty.Value {
+// mirrorManifestComputedFields is the read side of the manifest stamp, and
+// GitHub issue #1177's fix.
+//
+// [configuredAttrsSeed] seeds the prior `manifest` from the CURRENT
+// configuration, on the rule its own doc comment argues: a non-Computed
+// attribute is one nothing but configuration can ever set, so a persisted
+// state file's prior for it could hold nothing else. On this type that rule
+// is half true. A state file holds what was LAST APPLIED, and last-applied
+// and currently-configured differ in exactly one situation - the operator
+// has edited the configuration and not applied it yet - which is the
+// situation a plan exists to report. For nearly every provider the
+// difference is invisible, because [objchange.ProposedNew] takes the
+// configured value for a non-Computed attribute whatever the prior holds.
+//
+// This provider is the exception, and it is why #1177 exists. Its
+// computed_fields argument (default metadata.annotations and
+// metadata.labels) tells PlanResourceChange to take the LIVE object's
+// value at those paths unless the configuration differs from the PRIOR
+// MANIFEST. Seed the prior manifest from the configuration and that
+// comparison compares the configuration against itself: it can never
+// differ, the live value always wins, and every edit to a label or an
+// annotation plans as "No changes." and applies as nothing written. The
+// finding was settled against stock rather than inferred - a stock state
+// file doctored to hold exactly what the seed produces (prior manifest
+// carrying the NEW label, object left at the old one) makes STOCK print
+// "No changes." for the same edit - so what is wrong is the prior handed
+// over, not this fork's diff.
+//
+// What this does about it: every key the prior manifest ALREADY CARRIES at
+// metadata.labels and metadata.annotations takes the LIVE object's value
+// for that key, or is dropped when the live object has no such key. Since
+// the prior manifest is the seed, its keys are exactly the keys the
+// CONFIGURATION declares, and a key the configuration does not declare
+// never enters the prior at all. That is the same rule this function
+// applied to [markers.TagEstate] alone before #1177 - the marker arm is a
+// special case of it, not a separate one - and for a key the configuration
+// declares it reproduces what a state file's last-applied value says.
+//
+// # Why the prior's own keys, and not the live maps wholesale
+//
+// computed_fields exists so that a label or an annotation the API SERVER or
+// a controller adds does not churn the plan, and Kubernetes adds plenty:
+// kubernetes.io/metadata.name on every Namespace,
+// kubectl.kubernetes.io/last-applied-configuration, cert-manager.io/*,
+// meta.helm.sh/*. Mirroring the live maps wholesale would put those in the
+// prior, the configuration would then differ from the prior, and the
+// provider's rule takes the configuration for the WHOLE path when it does -
+// so every plan would propose deleting every server-added key, forever,
+// against a server that re-adds them. Restricting the mirror to the keys
+// configuration declares leaves that half of computed_fields exactly as
+// stock has it.
+//
+// # The two places this still differs from a state-backed run
+//
+//   - A declared label or annotation changed or deleted OUT OF BAND churns
+//     the plan here, where stock's computed_fields swallows it. That is the
+//     direction #1177 asks for: it is what makes an out-of-band `kubectl
+//     label` on a declared key visible to a saved plan's staleness check,
+//     and the marker arm has always behaved this way for tofu-estate for
+//     the same reason.
+//   - A key REMOVED from the configuration is not proposed for removal.
+//     Nothing in a stateless run remembers it was ever applied, so it is
+//     not in the prior either, the configuration and the prior agree, and
+//     the provider keeps the live value. It was not removable before this
+//     change either; GitHub issue #1211 carries it, and the source that
+//     could settle it is the live object's own metadata.managedFields,
+//     which names the keys this fork's field manager last wrote - the
+//     provider strips managedFields out of the `object` it hands back
+//     (RemoveServerSideFields), so reading it needs a call this path does
+//     not make today.
+//
+// A value that cannot be read without unmarking (marksafe's discipline) is
+// returned as it was, per map: one marked labels value does not cost the
+// annotations their mirror.
+func mirrorManifestComputedFields(v cty.Value, block *configschema.Block) cty.Value {
 	if !markers.ManifestSurface(block) || v == cty.NilVal || v.IsNull() || !v.IsKnown() || v.IsMarked() || !v.Type().IsObjectType() {
 		return v
 	}
-	if !v.Type().HasAttribute(markers.ManifestSurfaceAttr) || !v.Type().HasAttribute("object") {
+	if !v.Type().HasAttribute(markers.ManifestSurfaceAttr) || !v.Type().HasAttribute(markers.ManifestLiveAttr) {
 		return v
 	}
 	manifest := v.GetAttr(markers.ManifestSurfaceAttr)
-	live := v.GetAttr("object")
-	manifestLabels, meta, ok := manifestLabelsMap(manifest)
+	meta, ok := manifestMetadata(manifest)
 	if !ok {
 		return v
 	}
-	current, has := manifestLabels[markers.TagEstate]
-	if !has {
-		// Nothing stamped in the prior manifest: the stamp on the
-		// configuration side is the whole story, and the seed already
-		// carries it for a cache-less read.
+	liveMeta, ok := manifestMetadata(v.GetAttr(markers.ManifestLiveAttr))
+	if !ok {
 		return v
 	}
-	liveLabels, liveOK := liveLabelsMap(live)
-	if !liveOK {
-		return v
-	}
-	liveVal, liveHas := liveLabels[markers.TagEstate]
-	if liveHas && current.IsKnown() && !current.IsMarked() && current.Type() == cty.String && liveVal == current.AsString() {
-		return v
-	}
-	elems := make(map[string]cty.Value, len(manifestLabels))
-	for k, val := range manifestLabels {
-		if k == markers.TagEstate {
+
+	metaAttrs := meta.AsValueMap()
+	changed := false
+	for _, field := range markers.ManifestComputedMetadataAttrs {
+		cur, has := metaAttrs[field]
+		if !has {
 			continue
 		}
-		elems[k] = val
+		live, ok := liveMetadataMap(liveMeta, field)
+		if !ok {
+			continue
+		}
+		mirrored, ok := mirrorMetadataMap(cur, live)
+		if !ok || mirrored.RawEquals(cur) {
+			continue
+		}
+		metaAttrs[field] = mirrored
+		changed = true
 	}
-	if liveHas {
-		elems[markers.TagEstate] = cty.StringVal(liveVal)
-	}
-	var newLabels cty.Value
-	switch {
-	case len(elems) == 0:
-		newLabels = cty.EmptyObjectVal
-	case meta.GetAttr(markers.LabelSurfaceAttr).Type().IsMapType():
-		newLabels = cty.MapVal(elems)
-	default:
-		newLabels = cty.ObjectVal(elems)
-	}
-	if manifest.IsMarked() || meta.IsMarked() {
-		// Already refused by the helpers above; restated here on the
-		// same variables so the proof is local to the reads.
+	if !changed {
 		return v
 	}
-	metaAttrs := meta.AsValueMap()
-	metaAttrs[markers.LabelSurfaceAttr] = newLabels
+
 	manifestAttrs := manifest.AsValueMap()
 	manifestAttrs[markers.LabelSurfaceBlock] = cty.ObjectVal(metaAttrs)
 	attrs := v.AsValueMap()
@@ -284,58 +329,45 @@ func mirrorManifestMarker(v cty.Value, block *configschema.Block) cty.Value {
 	return cty.ObjectVal(attrs)
 }
 
-// manifestLabelsMap reads a prior manifest's metadata.labels as values,
-// with the metadata object it came from. Absent, null or unknown labels
-// read as none; anything marked, or not an object, refuses.
-func manifestLabelsMap(manifest cty.Value) (map[string]cty.Value, cty.Value, bool) {
-	if manifest.IsNull() || !manifest.IsKnown() || manifest.IsMarked() || !manifest.Type().IsObjectType() || !manifest.Type().HasAttribute(markers.LabelSurfaceBlock) {
-		return nil, cty.NilVal, false
+// manifestMetadata reads the metadata object off one manifest-shaped value:
+// the prior manifest the seed built, or the live object the provider read
+// back, both of which are objects with a metadata object inside. Anything
+// absent, null, unknown, marked or not an object refuses, because the
+// caller rebuilds what this returns and a marked value is never taken
+// apart.
+func manifestMetadata(manifest cty.Value) (cty.Value, bool) {
+	if manifest == cty.NilVal || manifest.IsNull() || !manifest.IsKnown() || manifest.IsMarked() {
+		return cty.NilVal, false
+	}
+	if !manifest.Type().IsObjectType() || !manifest.Type().HasAttribute(markers.LabelSurfaceBlock) {
+		return cty.NilVal, false
 	}
 	meta := manifest.GetAttr(markers.LabelSurfaceBlock)
-	if meta.IsNull() || !meta.IsKnown() || meta.IsMarked() || !meta.Type().IsObjectType() || !meta.Type().HasAttribute(markers.LabelSurfaceAttr) {
-		return nil, cty.NilVal, false
+	if meta.IsNull() || !meta.IsKnown() || meta.IsMarked() || !meta.Type().IsObjectType() {
+		return cty.NilVal, false
 	}
-	labels := meta.GetAttr(markers.LabelSurfaceAttr)
-	out := map[string]cty.Value{}
-	if labels.IsNull() || !labels.IsKnown() {
-		return out, meta, true
-	}
-	if labels.IsMarked() || !labels.CanIterateElements() {
-		return nil, cty.NilVal, false
-	}
-	for it := labels.ElementIterator(); it.Next(); {
-		k, val := it.Element()
-		if k.Type() != cty.String || k.IsNull() {
-			continue
-		}
-		out[k.AsString()] = val
-	}
-	return out, meta, true
+	return meta, true
 }
 
-// liveLabelsMap reads the live object's metadata.labels as strings: the
-// provider hands `object` back typed by the kind's OpenAPI schema, where
-// labels is a map of strings, null when the object carries none.
-func liveLabelsMap(object cty.Value) (map[string]string, bool) {
-	if object.IsNull() || !object.IsKnown() || object.IsMarked() || !object.Type().IsObjectType() || !object.Type().HasAttribute(markers.LabelSurfaceBlock) {
-		return nil, false
-	}
-	meta := object.GetAttr(markers.LabelSurfaceBlock)
-	if meta.IsNull() || !meta.IsKnown() || meta.IsMarked() || !meta.Type().IsObjectType() {
-		return nil, false
-	}
+// liveMetadataMap reads one of the live object's metadata string maps. The
+// provider types them from the kind's own OpenAPI schema, where labels and
+// annotations are both a map of strings, null when the object carries none
+// - so an attribute that is absent and one that is null both read as "this
+// object has no keys here", which is what they are, and not as a failure.
+// The second return is false only when the map is there but cannot be read.
+func liveMetadataMap(meta cty.Value, field string) (map[string]string, bool) {
 	out := map[string]string{}
-	if !meta.Type().HasAttribute(markers.LabelSurfaceAttr) {
+	if !meta.Type().HasAttribute(field) {
 		return out, true
 	}
-	labels := meta.GetAttr(markers.LabelSurfaceAttr)
-	if labels.IsNull() || !labels.IsKnown() {
+	m := meta.GetAttr(field)
+	if m.IsNull() || !m.IsKnown() {
 		return out, true
 	}
-	if labels.IsMarked() || !labels.CanIterateElements() {
+	if m.IsMarked() || !m.CanIterateElements() {
 		return nil, false
 	}
-	for it := labels.ElementIterator(); it.Next(); {
+	for it := m.ElementIterator(); it.Next(); {
 		k, val := it.Element()
 		if k.Type() != cty.String || k.IsNull() || val.IsNull() || !val.IsKnown() || val.IsMarked() || val.Type() != cty.String {
 			continue
@@ -343,4 +375,47 @@ func liveLabelsMap(object cty.Value) (map[string]string, bool) {
 		out[k.AsString()] = val.AsString()
 	}
 	return out, true
+}
+
+// mirrorMetadataMap rebuilds one of the prior manifest's metadata maps with
+// the live object's value for every key it already carries, dropping a key
+// the live object does not have. The container type the configuration wrote
+// is preserved - an object constructor's own object type, or a map where
+// the operator typed one - because the manifest argument is dynamic and the
+// value the provider compares against is this one.
+//
+// It refuses (false, the caller leaves the map as it was) rather than
+// guessing: a null or unknown map has no declared key to mirror, and a
+// non-string value is not something a label or an annotation can hold, so
+// one is a sign the caller is not looking at what it thinks it is.
+func mirrorMetadataMap(cur cty.Value, live map[string]string) (cty.Value, bool) {
+	if cur.IsNull() || !cur.IsKnown() || cur.IsMarked() || !cur.CanIterateElements() {
+		return cty.NilVal, false
+	}
+	elems := map[string]cty.Value{}
+	for it := cur.ElementIterator(); it.Next(); {
+		k, val := it.Element()
+		if k.Type() != cty.String || k.IsNull() {
+			return cty.NilVal, false
+		}
+		if val.IsMarked() || (!val.IsNull() && val.IsKnown() && val.Type() != cty.String) {
+			return cty.NilVal, false
+		}
+		got, ok := live[k.AsString()]
+		if !ok {
+			continue
+		}
+		elems[k.AsString()] = cty.StringVal(got)
+	}
+	asMap := cur.Type().IsMapType()
+	switch {
+	case len(elems) == 0 && asMap:
+		return cty.MapValEmpty(cty.String), true
+	case len(elems) == 0:
+		return cty.EmptyObjectVal, true
+	case asMap:
+		return cty.MapVal(elems), true
+	default:
+		return cty.ObjectVal(elems), true
+	}
 }

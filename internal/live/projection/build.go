@@ -3832,10 +3832,14 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 		log.Printf("[WARN] projection: provider produced an invalid new value containing null blocks for %s %q", typeName, importID)
 	}
 
-	// GitHub issue #1079: a manifest-surface prior carries the live
-	// object's answer for the marker key, or a stripped label never plans.
-	// See mirrorManifestMarker's own doc comment.
-	newVal = mirrorManifestMarker(newVal, schema.Block)
+	// GitHub issues #1079 and #1177: a manifest-surface prior carries the
+	// live object's own value for every metadata label and annotation the
+	// configuration declares. Without it the prior manifest is the
+	// configuration, the provider's computed_fields rule compares the
+	// configuration against itself, and neither a stripped marker nor an
+	// edited label ever plans. See mirrorManifestComputedFields's own doc
+	// comment.
+	newVal = mirrorManifestComputedFields(newVal, schema.Block)
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.
