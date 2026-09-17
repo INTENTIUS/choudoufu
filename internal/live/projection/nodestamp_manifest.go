@@ -300,6 +300,14 @@ func mirrorManifestComputedFields(v cty.Value, block *configschema.Block) cty.Va
 		return v
 	}
 
+	if manifest.IsMarked() || meta.IsMarked() {
+		// Already refused by [manifestMetadata] above; restated here on
+		// the same two variables so the proof is local to the reads that
+		// need it, which is what internal/live/marksafe asks of every
+		// AsValueMap call site.
+		return v
+	}
+
 	metaAttrs := meta.AsValueMap()
 	changed := false
 	for _, field := range markers.ManifestComputedMetadataAttrs {
