@@ -712,7 +712,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords, nil, args.AdoptionOnly)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords, nil, args.AdoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -772,6 +772,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// instead of promising that marker discovery will find it.
 		StrandedByProviderChange: disco.StrandedByProviderChange(),
 		Ownership:                statelessOwnershipWith(estate, disco, pol, reconcileVerified),
+		// GitHub issue #1176: the same [identity.Scope] resolution and
+		// discovery were given. Nil for an untargeted run. An instance
+		// the plan graph will not hold is omitted rather than read, so a
+		// provider is never asked about a resource this run cannot act
+		// on - a lookup that can fail the whole plan when it errors.
+		Scope: scope,
 		// GitHub issue #364: one store for GitHub issue #270's record-located
 		// instances (the reason this is wired at all - without it nothing
 		// can say which live object the instance owns, so live-plan would
@@ -1226,7 +1232,7 @@ func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, n
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, adoptionOnly bool) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, adoptionOnly bool, scope identity.Scope) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -1305,7 +1311,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			diags = diags.Append(warn)
 			return nil, noProvider, nil, diags
@@ -1332,7 +1338,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			// Sweep-only provider, unusable for the same reason stock never
 			// asks this question in one shot either: its own configuration
@@ -1495,7 +1501,7 @@ func recordKeyPrefixFor(config *configs.Config, estate string) string {
 // sweepPar is [discovery.Request.SweepParallelism] for this pass, already
 // resolved and validated by [statelessDiscover] - see
 // [sweepParallelismSetting].
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, sweepPar int, collectUnclaimed bool) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, sweepPar int, collectUnclaimed bool, scope identity.Scope) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -1524,8 +1530,15 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		RecordBackedAddrs: recordBacked,
 		DeposedRecords:    deposedRecords,
 		Resolutions:       resolutions,
-		Provider:          provider,
-		Region:            provs.region(providerAddr),
+		// GitHub issue #1176: the same [identity.Scope] resolution was
+		// given, carried one pass further. Nil for an untargeted run, and
+		// then nothing in discovery behaves differently. It does NOT
+		// narrow Resolutions - see [discovery.Request.Scope] for the two
+		// questions that do consult it and why the sweep's own listing
+		// is not one of them.
+		Scope:    scope,
+		Provider: provider,
+		Region:   provs.region(providerAddr),
 		// the stale-state ruling's (#604) ruling: this is the
 		// account-inventory question ("what is in my account that this
 		// estate does not know about"), and it does not stay

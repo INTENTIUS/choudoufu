@@ -140,6 +140,20 @@ type Options struct {
 	// single-provider run.
 	StrandedByProviderChange map[string]string
 
+	// Scope is this run's -target / -exclude filtering, the same
+	// [identity.Scope] resolution and discovery are given (GitHub issues
+	// #352 and #1176). Nil - every untargeted run, and every caller before
+	// this field existed - means every block is in scope and nothing here
+	// behaves differently.
+	//
+	// An instance whose block it excludes is omitted with
+	// [ReasonOutOfScope] before any provider is asked anything about it.
+	// The plan's own targeting removes that block from the graph a moment
+	// later, so a projected object for it could not change one proposed
+	// action; what it CAN do is fail the run, because a lookup is a real
+	// provider call that can error. See [ReasonOutOfScope].
+	Scope identity.Scope
+
 	// Ownership is the rule deciding which live objects may enter the prior
 	// state. Nil means no check, which is what a caller that has no estate
 	// concept at all - the marker rewrite in internal/live/mv, reading
@@ -602,6 +616,36 @@ func (b *builder) ambientContext(providerAddr addrs.AbsProviderConfig, schema pr
 }
 
 func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
+	// GitHub issue #1176. -target / -exclude, before anything reads
+	// anything: an instance whose block the plan graph will not hold is
+	// omitted here rather than looked up. See [Options.Scope].
+	//
+	// This is not an optimisation. reference-k8s-cert-manager declares a
+	// -target pre-apply of the 47 blocks that install cert-manager
+	// precisely because its three custom resources cannot be looked up
+	// until those CRDs exist; importing them anyway, on a run that
+	// excludes them, made the provider error and refused the whole plan
+	// with "Cannot import for projection".
+	//
+	// The resolutions are still HANDED to this package complete, and that
+	// is deliberate - see [identity.Scope]'s own doc comment for why the
+	// resolution pass keeps an out-of-scope block's resolution rather than
+	// dropping it. The narrowing belongs here, at the point something
+	// would be read, not upstream where the list is also the estate's
+	// declared set.
+	if b.opts.Scope != nil {
+		kept := make([]identity.Resolution, 0, len(resolutions))
+		for _, r := range resolutions {
+			if b.opts.Scope(r.Addr.ConfigResource()) {
+				kept = append(kept, r)
+				continue
+			}
+			b.omit(r.Addr, ReasonOutOfScope,
+				fmt.Sprintf("%s is outside this run's -target/-exclude scope, so nothing was read for it and nothing is proposed. The plan's own targeting removes its block from the graph; run without the flag to act on it.", r.Addr),
+				"this run's -target/-exclude leaves its block out of the plan graph.")
+		}
+		resolutions = kept
+	}
 	// GitHub issue #404: every [identity.Resolution.Undeclared] concrete
 	// resolution is pulled out before anything else runs - including
 	// [applyRecordFirst] - and held for a final pass at the bottom of this

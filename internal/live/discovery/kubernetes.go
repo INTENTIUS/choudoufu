@@ -307,6 +307,19 @@ func refuseUnservedManifests(ctx context.Context, req Request, kinds []kubesweep
 		if r.Addr.Resource.Resource.Type != manifestType || r.Class != identity.ClassConcrete {
 			continue
 		}
+		// GitHub issue #1176. -target prunes this block from the plan
+		// graph, so the provider never asks the cluster for its schema
+		// and the block cannot fail this run whatever the cluster
+		// serves. Refusing it here refuses a run over a resource the
+		// operator deliberately excluded. Silently rather than as a
+		// warning: the estate that found this - reference-k8s-cert-manager
+		// - takes the targeted route on EVERY run, by declaration
+		// (live/gauntlet/estates.json's pre_apply), so a warning would be
+		// three permanent lines the operator can neither act on nor
+		// switch off.
+		if !req.inScope(r.Addr) {
+			continue
+		}
 		apiVersion, kind, _, _, ok := kubesweep.ParseManifestImportID(r.ImportID)
 		if !ok {
 			continue

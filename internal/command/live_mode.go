@@ -1082,7 +1082,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
 	}
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	r.kubeSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {
@@ -1166,6 +1166,12 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// instead of promising that marker discovery will find it.
 		StrandedByProviderChange: disco.StrandedByProviderChange(),
 		Ownership:                statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
+		// GitHub issue #1176: the same [identity.Scope] resolution and
+		// discovery were given. Nil for an untargeted run. An instance
+		// the plan graph will not hold is omitted rather than read, so a
+		// provider is never asked about a resource this run cannot act
+		// on - a lookup that can fail the whole plan when it errors.
+		Scope: scope,
 		// Issue #685. Nil unless CHOUDOUFU_STATE_CACHE named a readable file:
 		// a cache is an optimisation, so every failure to load one is a
 		// missing optimisation and never a failed run.
