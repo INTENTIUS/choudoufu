@@ -59,6 +59,13 @@ import (
 //   - it has no environment-variable override, on purpose. A gate an agent
 //     can satisfy by exporting a variable constrains only the maintainer
 //     (CLAUDE.md, #1102).
+//
+// #1150's second item - put the run id in the log path and make the artifact
+// write conditional, so concurrent runs COULD coexist - is deliberately not
+// done. It is the fix for wanting concurrency; this is the fix for not
+// wanting it. Nothing today wants two certifications of one estate at once,
+// and a per-run log path would leave the artifact race untouched, which is
+// the half that decides what gets published.
 
 // LiveCertLockPath is the lock for one estate's live-cert runs: a sibling of
 // that estate's live-cert log, in the same gitignored directory, named so
