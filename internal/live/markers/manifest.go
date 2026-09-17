@@ -39,6 +39,15 @@ import (
 // carries its whole object in.
 const ManifestSurfaceAttr = "manifest"
 
+// ManifestLiveAttr is the computed attribute the provider reads the LIVE
+// object back into, the other half of the shape [ManifestSurface] admits.
+// It is named because it is load-bearing beyond the shape test: the
+// provider's own ReadResource refuses a prior state that does not carry it
+// ("Current state of resource has no 'object' attribute"), so anything
+// building a prior for one of these types has to keep it - see
+// internal/live/projection's residueStubIdentityAttrs.
+const ManifestLiveAttr = "object"
+
 // ManifestSurface reports whether a resource type carries its marker inside
 // a dynamic manifest argument: a required `manifest` of dynamic type, a
 // computed `object` of dynamic type the provider reads back, and no
@@ -66,7 +75,7 @@ func ManifestSurface(block *configschema.Block) bool {
 	if !ok || manifest == nil || !manifest.Required || manifest.Type != cty.DynamicPseudoType {
 		return false
 	}
-	object, ok := block.Attributes["object"]
+	object, ok := block.Attributes[ManifestLiveAttr]
 	if !ok || object == nil || !object.Computed || object.Type != cty.DynamicPseudoType {
 		return false
 	}
