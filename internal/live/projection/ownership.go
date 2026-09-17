@@ -321,6 +321,33 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 	estate := tags[markers.TagEstate]
 	tagged := estate != "" && own.Estate != "" && estate == own.Estate
 
+	if estate != "" && own.Estate != "" && !tagged {
+		// GitHub issue #1166, ruled 2026-09-16. An object carrying another
+		// estate's tofu-estate is not untagged: it is tagged, for somebody
+		// else. Reading "untagged" as "does not carry THIS estate's
+		// marker" put it in the declared_untagged quadrant, where
+		// policy { declared_untagged = "adopt" } admitted it and the stamp
+		// then wrote this estate's marker over the other estate's - the
+		// wrong-marker class, reached silently from a policy block written
+		// about unmarked resources.
+		//
+		// So it sits outside the quadrants entirely, exactly as
+		// [builder.addressNames] does and for the same reason: the
+		// quadrant question does not apply to it. Not just the admitting
+		// verbs - the verb is never consulted, no declared-quadrant
+		// outcome is recorded, and the refusal is never quiet, because
+		// "keep" and "report" are declared_untagged affordances and this
+		// object is not in that quadrant.
+		//
+		// Taking such an object over remains possible; it is the silence
+		// that is removed. `live-import -approve` and `live-mv
+		// -from-estate` are the deliberate routes, both unchanged by this,
+		// and the refusal names them.
+		b.unowned(addr, typeName, importID, estate, anotherEstateDetail(typeName, importID, estate, own.Policy.Verb(true, false)),
+			noMarkerCause(typeName), surface.carriesAddress(), false)
+		return ownershipUnowned
+	}
+
 	if tagged && surface.carriesAddress() {
 		// This estate's marker is on the object, so the second half of the
 		// marker spec's ownership question applies: WHICH of this estate's
@@ -382,16 +409,16 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			"A live %s already exists with identity %q and carries no %s label, so this estate does not own it and the plan proposes creating the resource this configuration declares - which, for an object the API server keys by namespace and name, the cluster will refuse while the unowned one holds it. Adopt it by writing the label %s=%q onto it, then re-run; or set policy { declared_untagged = \"adopt\" } in the live block to have this run adopt it for you; or point this resource at a name nobody is using.",
 			typeName, importID, markers.TagEstate,
 			markers.TagEstate, own.Estate)
-	case estate == "":
+	default:
+		// estate == "" by construction: the other-estate reading returned
+		// above (#1166) and the tagged reading is admitted, so the only
+		// case left with own.Estate set is an object carrying no estate
+		// marker at all.
 		detail = fmt.Sprintf(
 			"A live %s already exists with identity %q and carries no %s marker, so this estate does not own it and the plan proposes creating the resource this configuration declares - which, for a type whose name must be unique, the cloud will refuse while the unowned one holds it. Adopt it by writing %s=%q and %s=%q onto it, then re-run; or set policy { declared_untagged = \"adopt\" } in the live block to have this run adopt it for you; or point this resource at a name nobody is using.",
 			typeName, importID, markers.TagEstate,
 			markers.TagEstate, own.Estate,
 			markers.TagAddress, markers.EscapeAddress(addr.String()))
-	default:
-		detail = fmt.Sprintf(
-			"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate and nothing in this plan reads, changes or destroys it. See live/MARKERS.md, \"Ownership semantics\".",
-			typeName, importID, markers.TagEstate, estate)
 	}
 	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), surface.carriesAddress(), nonDefault && verb == policy.Keep)
 	return ownershipUnowned
@@ -407,6 +434,35 @@ const (
 	SummaryOutsideEstate = "Live resource outside this estate"
 	SummaryWrongAddress  = "Live resource marked for another address"
 )
+
+// anotherEstateDetail is the refusal an object carrying a DIFFERENT
+// estate's tofu-estate gets (GitHub issue #1166).
+//
+// It says three things, and the second and third are the issue's point. The
+// operator asked for something in writing and is being refused, so the
+// message has to say why the verb did not reach this object rather than
+// leaving them to infer that "untagged" excluded "tagged for someone else";
+// and a refusal that only says no teaches nothing, so it names the two
+// sanctioned routes for taking an object over deliberately. Neither route
+// is affected by this narrowing - `live-import -approve` and `live-mv
+// -from-estate` still cross the estate boundary on purpose, which is what
+// makes refusing the silent crossing reasonable.
+//
+// verb is the verb declared_untagged resolves to for this run. It is
+// reported only when it is something other than the default refusal,
+// because that is the only case where the operator wrote an instruction
+// this object did not obey.
+func anotherEstateDetail(typeName, importID, estate string, verb policy.Verb) string {
+	var asked string
+	if verb != policy.DefaultVerb[policy.DeclaredUntagged] {
+		asked = fmt.Sprintf(
+			" policy { %s = %q } did not govern it: that quadrant is about objects carrying no estate marker at all, and this one is marked - for somebody else.",
+			policy.DeclaredUntagged.Attribute(), verb)
+	}
+	return fmt.Sprintf(
+		"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate and nothing in this plan reads, changes or destroys it.%s Taking it over is something you do deliberately: `live-mv -from-estate=%s` rewrites the marker to this estate one address at a time, and `live-import -approve` stamps this estate's markers over the resources a state file lists. Or point this resource at a name nobody is using. See live/MARKERS.md, \"Ownership semantics\".",
+		typeName, importID, markers.TagEstate, estate, asked, estate)
+}
 
 // noMarkerCause is the subordinate clause a dependent instance's own omission
 // nests, for the estate-marker half of the check.
