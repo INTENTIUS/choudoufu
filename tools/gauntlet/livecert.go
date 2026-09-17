@@ -182,6 +182,10 @@ func RecordsLiveCert(res *ProtocolResult) bool {
 //     second, independent enforcement alongside live/live-cert/run.sh's own
 //     `timeout` wrapper (the brief's "not just an in-script check") and the
 //     account-level AWS Budgets alarm that is infrastructure, not code.
+//   - only one run per estate at a time, held by a lock file beside the log
+//     (livecertlock.go, #1150). A second run refuses, naming the first's run
+//     id, pid and start time, because the two would truncate each other's log
+//     and race each other's artifact write.
 func RunLiveCert(root string, estate, target, region string, ceilingUSD float64, ceilingSeconds int) (*LiveCertResult, *ProtocolResult, int, error) {
 	if target != "floci" && target != "aws" {
 		return nil, nil, 0, fmt.Errorf("target must be floci or aws, got %q", target)
@@ -193,6 +197,25 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	full := filepath.Join(root, script)
 	if _, err := os.Stat(full); err != nil {
 		return nil, nil, 0, fmt.Errorf("no live-cert script for estate %q (%s): %w", estate, script, err)
+	}
+
+	// The run lock (#1150), taken before anything is opened or started and
+	// held for the whole run. root == "" is the in-process test caller
+	// (LIVECERT_SCRIPT_OVERRIDE with no checkout): it has no
+	// live/gauntlet/logs to lock in and writes no log either, so there is
+	// nothing for a second run to truncate - the same condition the log
+	// block below is guarded by, for the same reason.
+	if root != "" {
+		lock, err := AcquireLiveCertLock(root, estate, target, region)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		fmt.Printf("live-cert %s: holding %s as run %s (pid %d)\n", estate, lock.Path(), lock.RunID(), os.Getpid())
+		defer func() {
+			if rerr := lock.Release(); rerr != nil {
+				fmt.Fprintln(os.Stderr, rerr)
+			}
+		}()
 	}
 
 	ctx, cancel := commandTimeoutContext(ceilingSeconds)
