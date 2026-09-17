@@ -76,7 +76,7 @@ func TestLiveLsJSON_GapsIsNeverAbsentOrNull(t *testing.T) {
 // prose warning that accompanies the second.
 func TestLiveLsJSON_SkippedComparisonStatesItsReason(t *testing.T) {
 	skipped := decodeLiveLsDocument(t, renderLiveLsJSON(t, LiveLsReport{
-		Estate: "dev", ConfigDir: ".", GapsSkipped: "./x is outside the stateless subset (3 issue(s)).",
+		Estate: "dev", ConfigDir: ".", GapsSkipped: "./x is outside the subset a live run can plan (3 issue(s)).",
 	}))
 	if skipped.GapsSkipped == "" {
 		t.Error("a skipped comparison printed no reason, so an empty gaps list is indistinguishable from a complete one")
@@ -169,11 +169,11 @@ func TestLiveLsHuman_SkippedComparisonSaysSo(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
 	(&LiveLsHuman{view: NewView(streams)}).Report(LiveLsReport{
 		Estate: "dev", ConfigDir: "/srv/estate",
-		GapsSkipped: "/srv/estate is outside the stateless subset (3 issue(s)).",
+		GapsSkipped: "/srv/estate is outside the subset a live run can plan (3 issue(s)).",
 	})
 	out := done(t).Stdout()
 
-	if !strings.Contains(out, "outside the stateless subset") {
+	if !strings.Contains(out, "outside the subset a live run can plan") {
 		t.Errorf("the prose report does not say why the comparison was skipped:\n%s", out)
 	}
 	if strings.Contains(out, "0 declared instance(s)") {

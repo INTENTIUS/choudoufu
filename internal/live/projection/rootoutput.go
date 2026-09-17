@@ -424,7 +424,7 @@ func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *s
 			version = store.rawVersion(ctx, name)
 		}
 		if _, err := store.Put(ctx, name, val, version); err != nil {
-			log.Printf("[WARN] live: the value of the root output %q could not be remembered, so it will render as newly created on the next stateless plan: %s", name, err)
+			log.Printf("[WARN] live: the value of the root output %q could not be remembered, so it will render as newly created on the next live plan: %s", name, err)
 		}
 	}
 }
