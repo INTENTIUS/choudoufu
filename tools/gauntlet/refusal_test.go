@@ -440,3 +440,118 @@ func TestARefusalSurvivesTheRoundTripToDisk(t *testing.T) {
 		t.Errorf("the scale-50 row is not byte-identical after a refusal was recorded beside it:\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Where #1151 meets #1149: a record that does not get written fails the run
+// ---------------------------------------------------------------------------
+
+// TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing is the
+// judgement this unit had to make when #1149 landed on top of it.
+//
+// #1149's rule is that any reason the scale row does not get written is a
+// failure of the run rather than an omission, because the two halves of a
+// run's evidence must not disagree with nothing saying so. It kept exactly
+// one exception: a certification that was never a scale measurement -
+// reference-ec2-vpc - which has nothing to add and loses nothing by adding
+// nothing.
+//
+// A refusal that names no scale is NOT that exception. A refusal is the only
+// record its run produces, because PlanLiveCertWrites deliberately keeps it
+// out of live_cert (#1151); with no scale there is no rung to put it on, and
+// the run's entire result vanishes into a log. So: failure. The usual cause
+// is a gauntlet_refused call that left out its scale, which is a bug in the
+// script and should read as one.
+func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T) {
+	refusedNoScale := refusal136()
+	refusedNoScale.Scale = 0
+
+	plan := planLiveCertScaleRow("terralith-scale", true, refusedNoScale)
+	if plan.Err == nil {
+		t.Fatalf("a refusal with no scale was treated as an omission (write=%v note=%q) - under #1149's rule a record that does not get written fails the run, and this record is the only one the run produced", plan.Write, plan.Note)
+	}
+	if plan.Write {
+		t.Error("a refusal with no scale would have been written somewhere; there is no rung for it")
+	}
+	if !strings.Contains(plan.Err.Error(), "gauntlet_refused") {
+		t.Errorf("the failure does not name the likely cause, so nobody can act on it: %v", plan.Err)
+	}
+
+	// The one legitimate omission is still an omission: a certification that
+	// was never a scale measurement writes no row and does not fail.
+	notAScaleRun := ScaleRecord{Schema: ScaleRecordSchema, Estate: "reference-ec2-vpc", Target: "aws", Commit: "abc123", Source: "a test"}
+	plan = planLiveCertScaleRow("reference-ec2-vpc", true, notAScaleRun)
+	if plan.Err != nil || plan.Write {
+		t.Errorf("a certification that is not a scale measurement must be a quiet omission, got write=%v err=%v", plan.Write, plan.Err)
+	}
+	if !strings.Contains(plan.Note, "not a scale measurement") {
+		t.Errorf("the omission does not say why it is one: %q", plan.Note)
+	}
+
+	// And an ordinary measured run is written.
+	plan = planLiveCertScaleRow("terralith-scale", true, scale50())
+	if !plan.Write || plan.Err != nil {
+		t.Errorf("a measured scale row was not written: write=%v err=%v note=%q", plan.Write, plan.Err, plan.Note)
+	}
+}
+
+// TestSupersedeRefusalReachesTheCallerAsAnError is the other half of the
+// same seam. SupersedeScaleRecord refusing to let a refusal replace a
+// measurement (#1151) is a failure to write the run's record, so under
+// #1149's rule it must reach cmdLiveCert's caller as an error - not be
+// printed and swallowed, which is what a "we did not write it, carry on"
+// path would do with the one thing this run had to say.
+func TestSupersedeRefusalReachesTheCallerAsAnError(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "live"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sa := &ScaleArtifact{Schema: ScaleRecordSchema, Records: []ScaleRecord{scale50()}}
+	if err := SaveScaleArtifact(root, sa); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(root, ScaleRecordsPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ref := refusal136()
+	ref.Scale = 50 // the rung that is already measured
+	written, err := saveLiveCertScaleRecord(root, ref)
+	if err == nil {
+		t.Fatalf("saveLiveCertScaleRecord accepted a refusal over a measured row and returned %+v", written)
+	}
+	if !strings.Contains(err.Error(), "refusing to replace a measured row") {
+		t.Errorf("the error does not carry SupersedeScaleRecord's own words, so the caller cannot say what happened: %v", err)
+	}
+
+	after, err := os.ReadFile(filepath.Join(root, ScaleRecordsPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Errorf("the artifact changed on a write that reported an error:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
+// TestDescribeScaleWriteNamesWhatItSuperseded holds the reporting half of
+// #1151's second rule: superseding is allowed, and is never silent.
+func TestDescribeScaleWriteNamesWhatItSuperseded(t *testing.T) {
+	rec := scale50()
+	rec.Commit = "3db8029364aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	rec.Supersedes = []ScaleSupersession{{Commit: "8bbef274d671b61342db452436abeb84820578a0", Date: "2026-09-11T12:31:25Z", Outcome: ScaleOutcomeFail}}
+	got := describeScaleWrite("terralith-scale", rec)
+	for _, want := range []string{"scale=50", "superseded", "8bbef274d6", "2026-09-11T12:31:25Z", "fail"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the write report does not mention %q:\n%s", want, got)
+		}
+	}
+
+	ref := refusal136()
+	got = describeScaleWrite("terralith-scale", ref)
+	if !strings.Contains(got, "REFUSAL") || !strings.Contains(got, "#1146") {
+		t.Errorf("a refusal's write report does not say it is a refusal, with the reason:\n%s", got)
+	}
+	if strings.Contains(got, "superseded") {
+		t.Errorf("a row that replaced nothing claims to have superseded something:\n%s", got)
+	}
+}

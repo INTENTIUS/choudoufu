@@ -1124,7 +1124,7 @@ plan_into "$WORK/plan1.log" trace; PLAN_RC=$?
 [ "$PLAN_RC" -eq 0 ] || { grep -E '^Error|^│' "$WORK/plan1.log" | head -40; fail "live-plan exited $PLAN_RC"; }
 [ ! -f "$EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
 grep -qE '^Foreign resources: (none|nothing was swept)' "$WORK/plan1.log" \
-  || { grep -E '^Foreign resources:' "$WORK/plan1.log"; fail "the plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$(cat "$WORK/plan1.log")"; fail "the plan reports foreign resources"; }
 log "  live-plan ran clean, nothing foreign, and no state file was written"
 
 # The identities the run actually rendered, out of its own trace.

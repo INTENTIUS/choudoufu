@@ -2572,6 +2572,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
 | - | - | projection | Ownership marker conflict | error | `internal/live/projection` | "Ownership marker conflict" |
 | - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
+| - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
@@ -2588,7 +2589,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**233 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**234 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4138,6 +4139,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Ownership marker was not stored
+
+**What.** GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Parent-derived identity with no formula
 
 **What.** A resource's identity is meant to be derived from its parent's, and the identity table carries no formula saying how.
@@ -4395,6 +4404,44 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `internal/live/discovery/testdata/alias-e2e/`, and at the command level by
 `TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider` and
 `TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders`.)
+
+**An out-of-band change to a `kubernetes_manifest` label or annotation the
+configuration declares churns the plan, where stock swallows it; one the
+configuration has stopped declaring is never removed.** Both follow from the
+same fact, and both are what a stateless run costs on this one type. The
+provider's `computed_fields` argument (default `metadata.annotations` and
+`metadata.labels`) tells it to take the LIVE object's value at those paths
+unless the configuration differs from the PRIOR MANIFEST, which in a
+state-backed run is what was last applied. choudoufu has no last-applied
+value to offer: it builds the prior manifest fresh on every plan, from the
+configuration, and GitHub issue #1177 is what that costs when it is done
+naively - the comparison compares the configuration with itself, and no edit
+to a label or an annotation could ever plan or apply at all.
+`mirrorManifestComputedFields` gives the prior the live object's value for
+every key the configuration declares, which makes the edit visible, and two
+differences from stock follow from the same substitution. A declared key
+changed or deleted with `kubectl` now reads as a difference and the plan
+proposes writing the configuration back, where stock's `computed_fields`
+takes the live value and says `No changes.` - that direction is deliberate
+(it is what #1079's marker arm has always done for `tofu-estate`, and it is
+what lets a saved plan's staleness check see an out-of-band `kubectl
+label`), and "config edited" and "live drifted" are not distinguishable
+without a last-applied value, so making the first visible necessarily makes
+the second visible. A key REMOVED from the configuration is the other
+direction: it is absent from the prior for the same reason it is absent from
+the configuration, the two agree, the provider keeps the live value, and the
+label stays on the object where stock would remove it (#1211; the source
+that could settle it is the live object's own `metadata.managedFields`,
+which the provider strips out of the `object` it hands back). A key the
+configuration does not declare is untouched in every case, which is the half
+of `computed_fields` that matters most: `kubernetes.io/metadata.name`,
+`kubectl.kubernetes.io/last-applied-configuration`, `cert-manager.io/*` and
+`meta.helm.sh/*` are the server's and stay the server's.
+(`internal/live/projection/nodestamp_manifest.go`,
+`mirrorManifestComputedFields`; pinned by
+`TestMirrorManifestComputedFieldsFollowsTheLiveObject` and
+`TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible`, and end to end
+by the `k8s-a-label-is-a-change` smoke scenario.)
 
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_accessanalyzer_archive_rule`,

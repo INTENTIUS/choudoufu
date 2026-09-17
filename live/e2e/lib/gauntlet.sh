@@ -507,3 +507,37 @@ gauntlet_stage_from_exit() {
     gauntlet_stage "$id" fail "$@"
   fi
 }
+
+# gauntlet_print_evidence <text>
+#
+# Prints <text> whole. Issue #1158: a failure branch that greps a summary
+# line out of its own captured output and prints only that discards
+# everything the view printed underneath it - PR #1129 (terralith-scale's
+# day2_remove, greping away the plan's "Not swept for removal" section) and
+# PR #1157 (corpus-ec2-instance-complete's two foreign-object assertions,
+# greping away the itemized `Foreign resources:` list) each cost a full
+# re-run to even ask the question the missing section already answered. 24
+# more scripts shared the exact same `grep -E '^Foreign resources:'` discard
+# (PR #1157 enumerated 23 of them; corpus-mastino-dns was the 24th, missed
+# by that search because an embedded NUL byte in one of its comments makes
+# some grep implementations treat the file as binary and skip it silently -
+# live/foreign_resources_evidence_guard_test.go scans with Go's os.ReadFile
+# instead, precisely so this cannot happen again). This is the one helper
+# they now call instead of 24 copies of it.
+#
+# Call it with the WHOLE captured output - a variable, or "$(cat "$file")"
+# for a file-backed capture - never with a `grep` of it: grepping first is
+# exactly the discard this function exists to stop, and this function
+# cannot recover what its caller already filtered away.
+#
+# It takes the text as an ARGUMENT, not as a format string: `printf '%s\n'
+# "$1"` never interprets a `%` inside the evidence itself as a directive,
+# where `printf "$1"` would silently eat or misprint part of it. That
+# distinction matters more than usual here - a helper whose entire job is
+# "show the caller everything" that quietly drops a slice of it would be
+# this issue's own defect, one level up (see #1158's own caution about a
+# sibling helper in corpus-iam-policy that echoed a value through command
+# substitution and silently dropped part of it).
+gauntlet_print_evidence() {
+  printf '%s\n' "$1"
+}

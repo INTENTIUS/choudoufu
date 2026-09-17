@@ -7,6 +7,7 @@ package kubesweep
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -430,22 +431,47 @@ var controlPlaneManagers = map[string]bool{
 }
 
 // ControllerMade reports whether a live object was made by a controller
-// rather than declared by anyone, on two signals, either sufficient:
+// rather than declared by anyone, on three signals, any one sufficient:
 //
-//   - a non-empty metadata.ownerReferences, which every object a
-//     controller creates from a template carries (a ReplicaSet's from its
+//   - a non-empty metadata.ownerReferences. This catches the objects a
+//     garbage-collected controller makes (a ReplicaSet's from its
 //     Deployment, a Pod's from its ReplicaSet, an EndpointSlice's from its
-//     Service, a PVC's from its StatefulSet);
-//   - metadata.managedFields naming only control-plane managers, which
-//     catches the controller-made objects that carry no owner reference -
-//     the legacy core/v1 Endpoints the endpoints controller mirrors a
-//     Service's labels onto, found by #1065's own scenario the first time
-//     it ran, is the confirmed instance. An object nobody but the control
-//     plane has ever written was written by nobody who declares things.
+//     Service). It does NOT catch everything a controller creates from a
+//     template, which this comment asserted until GitHub issue #1179: a
+//     StatefulSet's volumeClaimTemplate PVCs carry no owner reference at
+//     all under the default persistentVolumeClaimRetentionPolicy of
+//     Retain, because they are meant to outlive the StatefulSet.
+//   - metadata.managedFields whose content-writing entries are all
+//     control-plane managers. An object's content - everything outside
+//     metadata and outside the status subresource - is written into being
+//     by whoever created it, so the manager that owns f:spec (f:data for a
+//     ConfigMap, f:subsets for an Endpoints) is the object's author. A PVC
+//     a StatefulSet made has kube-controller-manager owning f:spec however
+//     many other managers have since touched its labels, which is what
+//     #1179 needs and what "every manager is a control-plane manager"
+//     below cannot give: one kubectl label on a controller-made PVC
+//     removes that object from the exclusion for good, and the sweep then
+//     proposes destroying a bound volume.
+//   - failing that, every managedFields entry naming a control-plane
+//     manager, for an object whose managers claim nothing but metadata -
+//     a ServiceAccount, say. This is the signal #1065 added for the legacy
+//     core/v1 Endpoints the endpoints controller mirrors a Service's
+//     labels onto.
+//
+// The second signal can only widen the exclusion over the third, never
+// narrow it: an object every one of whose managers is control-plane has
+// only control-plane content writers too. So a change here cannot turn an
+// excluded object into a delete candidate, only the other way, and the
+// cost of being wrong is an orphan the sweep declines to propose rather
+// than a live object it offers to destroy.
 //
 // An object with no managedFields at all (a cluster older than the field
 // manager mechanism, or a client that strips them) is judged on owner
-// references alone.
+// references alone. Note that kubectl's own get strips managedFields from
+// its output unless --show-managed-fields is passed, which is how #1179
+// came to record a volumeClaimTemplate PVC as carrying none; the API
+// server has them and so does the dynamic client [Client.List] reads
+// through.
 func ControllerMade(obj *unstructured.Unstructured) bool {
 	if len(obj.GetOwnerReferences()) > 0 {
 		return true
@@ -454,10 +480,49 @@ func ControllerMade(obj *unstructured.Unstructured) bool {
 	if len(managed) == 0 {
 		return false
 	}
+	sawAuthor, authorsAreControlPlane, allAreControlPlane := false, true, true
 	for _, entry := range managed {
 		if !controlPlaneManagers[entry.Manager] {
-			return false
+			allAreControlPlane = false
+		}
+		if entry.Subresource != "" || !claimsContent(entry.FieldsV1) {
+			continue
+		}
+		sawAuthor = true
+		if !controlPlaneManagers[entry.Manager] {
+			authorsAreControlPlane = false
 		}
 	}
-	return true
+	if sawAuthor {
+		return authorsAreControlPlane
+	}
+	return allAreControlPlane
+}
+
+// claimsContent reports whether a managedFields entry owns any of the
+// object's own content: a top-level field that is not metadata, status,
+// apiVersion or kind. metadata is where a later toucher writes (a label, an
+// annotation) without having created anything; status is the control
+// plane's report on the object and is never declared. What is left - spec,
+// data, subsets, rules, roleRef - is the object itself, and only its author
+// writes it on creation.
+func claimsContent(fields *metav1.FieldsV1) bool {
+	if fields == nil || len(fields.Raw) == 0 {
+		return false
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(fields.Raw, &top); err != nil {
+		// An entry we cannot read claims nothing, so the caller falls
+		// back to judging every manager, which is the older and
+		// narrower rule.
+		return false
+	}
+	for key := range top {
+		switch key {
+		case "f:metadata", "f:status", "f:apiVersion", "f:kind":
+		default:
+			return true
+		}
+	}
+	return false
 }

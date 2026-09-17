@@ -248,6 +248,30 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		return nil, nil, 0, fmt.Errorf("no live-cert script for estate %q (%s): %w", estate, script, err)
 	}
 
+	// The provenance stamp is resolved BEFORE the script starts (#1149).
+	//
+	// It used to be resolved after, from a headCommit that swallowed git's
+	// error and returned "", and an empty Commit surfaced downstream as
+	// "built an invalid scale record: missing required field(s): commit" -
+	// after the run had already spent its hours and its money. Every outcome
+	// of asking git late is worse than asking early: the run still costs
+	// what it costs, the operator debugs a record builder instead of a
+	// toolchain, and the artifact ends up holding one half of the evidence.
+	// Asking here costs one `git rev-parse` and refuses a run that could not
+	// have been recorded honestly anyway. It also pins the commit to the
+	// tree the run STARTED from, which is the tree it actually measured.
+	//
+	// It comes before the run lock below, and the order is deliberate: this
+	// refusal is one `git rev-parse` and it refuses a run that could never
+	// have been recorded, so there is no reason to take a lock - and then
+	// have to release it - on its behalf. A lock taken and dropped again in
+	// the same millisecond is also one more window in which a crash leaves a
+	// stale lock a human has to clear.
+	commit, err := headCommit(root)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("estate %q: refusing to start a live-cert whose provenance commit cannot be resolved (nothing has been created, nothing spent): %w", estate, err)
+	}
+
 	// The run lock (#1150), taken before anything is opened or started and
 	// held for the whole run. root == "" is the in-process test caller
 	// (LIVECERT_SCRIPT_OVERRIDE with no checkout): it has no
@@ -255,9 +279,9 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	// nothing for a second run to truncate - the same condition the log
 	// block below is guarded by, for the same reason.
 	if root != "" {
-		lock, err := AcquireLiveCertLock(root, estate, target, region)
-		if err != nil {
-			return nil, nil, 0, err
+		lock, lerr := AcquireLiveCertLock(root, estate, target, region)
+		if lerr != nil {
+			return nil, nil, 0, lerr
 		}
 		fmt.Printf("live-cert %s: holding %s as run %s (pid %d)\n", estate, lock.Path(), lock.RunID(), os.Getpid())
 		defer func() {
@@ -365,7 +389,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 
 	r := LiveCertResult{
 		Estate: estate, Protocol: ProtocolLiveAWS, Target: target, Region: region,
-		CeilingUSD: ceilingUSD, Stages: res.Stages, Commit: headCommit(root),
+		CeilingUSD: ceilingUSD, Stages: res.Stages, Commit: commit,
 		Date: time.Now().UTC().Format(time.RFC3339), ExitCode: exit, Detail: res.Detail,
 		DurationS: roundSeconds(elapsed),
 	}

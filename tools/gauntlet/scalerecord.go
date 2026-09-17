@@ -1177,11 +1177,23 @@ func LoadScaleArtifact(root string) (*ScaleArtifact, error) {
 	return &a, nil
 }
 
-// SaveScaleArtifact writes a to live/gauntlet-scale.json, sorted by
-// (Estate, Target, Scale) so a diff shows only what actually changed.
-// a.Emulator is stamped fresh from live/floci-image on every call - see its
-// own doc comment for why this, like Artifact.Emulator, is always the
-// CURRENT pin rather than whatever the caller happened to leave it at.
+// SaveScaleArtifact writes a to live/gauntlet-scale.json AND to its
+// published copy, SiteScalePath, sorted by (Estate, Target, Scale) so a
+// diff shows only what actually changed. a.Emulator is stamped fresh from
+// live/floci-image on every call - see its own doc comment for why this,
+// like Artifact.Emulator, is always the CURRENT pin rather than whatever
+// the caller happened to leave it at.
+//
+// Both files, from one call, because of issue #1187. The site copy is a
+// byte-for-byte copy of this file that only `gauntlet render` used to
+// write, and four separate commands write the source - live-cert,
+// scale-backfill, scale-import-slice and scale-patch-seconds - none of
+// which rendered afterwards. Publishing from the same call that writes the
+// source is the only arrangement a fifth producer cannot forget; the
+// alternative is a step at four call sites, which is exactly the shape that
+// left the scale-128 point out of the site after a 39,610-second real-AWS
+// run. Render still writes SiteScalePath from the same bytes, so the two
+// paths agree rather than race.
 func SaveScaleArtifact(root string, a *ScaleArtifact) error {
 	a.Emulator = emulatorPin(root)
 	sortScaleRecords(a.Records)
@@ -1190,7 +1202,14 @@ func SaveScaleArtifact(root string, a *ScaleArtifact) error {
 		return err
 	}
 	b = append(b, '\n')
-	return os.WriteFile(filepath.Join(root, ScaleRecordsPath), b, 0o644) //nolint:gosec // a committed artifact, not a secret
+	if err := os.WriteFile(filepath.Join(root, ScaleRecordsPath), b, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
+		return err
+	}
+	site := filepath.Join(root, SiteScalePath)
+	if err := os.MkdirAll(filepath.Dir(site), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(site, b, 0o644) //nolint:gosec // a committed artifact, not a secret
 }
 
 func sortScaleRecords(recs []ScaleRecord) {

@@ -10,8 +10,9 @@
 # here from cert-manager's own self-signed documentation: a cluster-scoped
 # ClusterIssuer, a namespaced Issuer and a Certificate. 50 objects over 13
 # kinds, six CRDs, three public quay.io images, no credentials. day2_count
-# adds a fourth, counted, for the length of its own stage and takes it away
-# again - see there for why it is not in the committed root.
+# adds a fourth custom resource, counted, for the length of its own stage
+# and takes it away again - see there for why it is the stage's and not the
+# committed root's.
 #
 # What it drives that nothing else in the lane does:
 #
@@ -174,9 +175,17 @@ write_root() { # $1 dir, $2 live|stock
 
 # append_shards <dir> <n> / remove_shards <dir>: day2_count's counted
 # custom resource. It lives here rather than in the committed root because
-# choudoufu cannot re-plan it (see the stage), and a root that cannot be
-# re-planned would fail test_plan and every stage after it - measuring one
-# defect by hiding eleven other measurements.
+# the stage's whole measurement is the block ARRIVING, scaling 2 -> 1 -> 2
+# and leaving again: a block that is always there cannot be scaled from
+# nothing, and every other stage's object count (TOTAL_N, the kubectl label
+# counts) is written against a root of 50.
+#
+# It used to live here for a second reason as well, which no longer holds:
+# until #1178 was fixed choudoufu could not re-plan a counted
+# kubernetes_manifest at all, so a root carrying the block would have failed
+# test_plan and every stage after it. The stage below still has both arms -
+# it records the defect verbatim if it comes back rather than asserting it
+# cannot - and it cleans up either way.
 append_shards() {
   cat >> "$1/custom-resources.tf" <<EOF
 
@@ -632,14 +641,19 @@ fi
 # ── 9. day2_count: a counted custom resource ─────────────────────────────
 #
 # The counted block is added HERE and removed again at the end of the
-# stage, rather than living in the committed root, because choudoufu cannot
-# re-plan it: measured 2026-09-16, every plan after the instances exist
-# proposes CREATING them again and the API server rejects the dry run with
-# "already exists", while the sweep simultaneously reports the same objects
-# as undeclared orphans. A root carrying that block fails test_plan and
-# every stage after it, so keeping it in the root would trade eleven
-# measurements for one. The stage below makes that one measurement on
-# purpose and then cleans up.
+# stage, rather than living in the committed root: scaling it 2 -> 1 -> 2
+# is the measurement, and every other stage counts a root of 50 objects.
+#
+# What this stage first measured, on 2026-09-16, was #1178: every plan after
+# the instances existed proposed CREATING them again and the API server
+# rejected the dry run with "already exists", while the sweep
+# simultaneously reported the same objects as undeclared orphans. The cause
+# was one layer below count - the projection built its configured seed with
+# the bare module-level evaluator, which refuses count.index, so a counted
+# manifest's whole `manifest` argument was dropped from the prior state and
+# the estate marker inside it went with it (the same gap hit for_each).
+# Fixed 2026-09-17; the COUNT_VERDICT arm below is kept so a regression is
+# recorded verbatim rather than asserted away, and either arm cleans up.
 gauntlet_begin_stage day2_count
 log "=== 9. day2_count: kubernetes_manifest.issuer_shard, a counted custom kind, 2 -> 1 -> 2 ==="
 COUNT_VERDICT=""

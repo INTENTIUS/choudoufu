@@ -9,8 +9,10 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +29,33 @@ import (
 // BOTH invocations returned a nil error. Nothing surfaced the overlap, which
 // is exactly how a false real-AWS cold_deploy failure got recorded on
 // 2026-09-15.
+
+// tempCheckout is a temp dir that is a real git checkout with one commit.
+//
+// RunLiveCert resolves its provenance commit before it does anything else
+// (#1149), so a bare t.TempDir() is refused before the run lock is ever
+// reached - which is the correct order and is guarded below, but it means a
+// lock test needs somewhere `git rev-parse HEAD` can answer.
+//
+// Never t.Skip on a git that will not run: a skip here would leave every
+// guard in this file permanently green on any machine where git is
+// misconfigured, which is the failure mode this repository has already been
+// bitten by.
+func tempCheckout(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"-c", "user.email=guard@example.invalid", "-c", "user.name=guard", "commit", "-q", "--allow-empty", "-m", "root commit"},
+	} {
+		cmd := exec.Command("git", args...) //nolint:gosec // fixed arguments, a test's own temp dir
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v in the test checkout failed: %v\n%s", args, err, out)
+		}
+	}
+	return root
+}
 
 // writeOverlapScript writes a fake live-cert script that produces a large,
 // pid-labelled log with a gap in the middle, so a second run's truncation of
@@ -58,7 +87,7 @@ func writeOverlapScript(t *testing.T, root, estate string) {
 }
 
 func TestSecondLiveCertForOneEstateRefusesAndTheLogStaysOneRun(t *testing.T) {
-	root := t.TempDir()
+	root := tempCheckout(t)
 	writeOverlapScript(t, root, "lockestate")
 
 	var mu sync.Mutex
@@ -133,7 +162,7 @@ func TestSecondLiveCertForOneEstateRefusesAndTheLogStaysOneRun(t *testing.T) {
 }
 
 func TestLiveCertLockIsReleasedSoTheNextRunCanStart(t *testing.T) {
-	root := t.TempDir()
+	root := tempCheckout(t)
 	writeOverlapScript(t, root, "seqestate")
 	for i := range 2 {
 		if _, _, _, err := RunLiveCert(root, "seqestate", "floci", "us-east-1", 5, 120); err != nil {
@@ -211,5 +240,45 @@ func TestLiveCertLockReleaseLeavesSomeoneElsesLockAlone(t *testing.T) {
 	}
 	if _, err := os.Stat(lock.Path()); err != nil {
 		t.Errorf("the other run's lock is gone: %v", err)
+	}
+}
+
+// TestProvenanceIsResolvedBeforeTheRunLockIsTaken pins the ORDER the two
+// refusals in RunLiveCert compose in, which only became a question when
+// #1149's provenance stamp landed beside #1150's run lock (both refuse
+// before the script starts, and both were written without the other).
+//
+// Provenance first. It is one `git rev-parse`, and it refuses a run that
+// could never have been recorded honestly no matter what else happened - so
+// there is no reason to take a lock, and then have to release it, on its
+// behalf, and no reason to add a window where a crash between the two leaves
+// a stale lock for a human to clear.
+//
+// The discriminator is deliberate: another run already holds the lock AND
+// git is broken. Lock-first refuses with a *LiveCertBusyError; provenance-
+// first refuses with git's own words. Swapping the two blocks in
+// RunLiveCert makes this test red rather than merely reordering some output.
+func TestProvenanceIsResolvedBeforeTheRunLockIsTaken(t *testing.T) {
+	root := tempCheckout(t)
+	writeOverlapScript(t, root, "orderestate")
+	if err := os.MkdirAll(filepath.Join(root, LogDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	held := "run_id=lc1757000002-4242\npid=" + strconv.Itoa(os.Getpid()) + "\nstarted=2026-09-17T04:00:00Z\nestate=orderestate\ntarget=aws\nregion=us-east-2\n"
+	if err := os.WriteFile(LiveCertLockPath(root, "orderestate"), []byte(held), 0o644); err != nil { //nolint:gosec // a test's own temp dir
+		t.Fatal(err)
+	}
+	brokenGitOnPATH(t)
+
+	_, _, _, err := RunLiveCert(root, "orderestate", "floci", "us-east-1", 5, 30)
+	if err == nil {
+		t.Fatal("RunLiveCert started with a broken git AND a held lock")
+	}
+	var busy *LiveCertBusyError
+	if errors.As(err, &busy) {
+		t.Fatalf("RunLiveCert refused on the run lock before it had resolved provenance: %v\nA run whose provenance cannot be stamped could never have been recorded, so it must not contend for a lock at all (#1149 before #1150)", err)
+	}
+	if !strings.Contains(err.Error(), "Xcode license") {
+		t.Errorf("RunLiveCert error = %q; want git's own words, from the provenance check that runs first", err)
 	}
 }

@@ -14,9 +14,13 @@ With no `policy` block you get the defaults below, which are today's behaviour.
 | The situation you are in | Setting | Default | What the default does |
 |---|---|---|---|
 | You declare it, and it carries your marker. The ordinary case. | `declared_tagged` | `converge` | Plans and applies it against your configuration, like any resource. |
-| You declare it, but no live resource carries your marker for it. | `declared_untagged` | `refuse` | Declines to touch it until you adopt it. |
+| You declare it, and the live resource at that identity carries no estate marker at all. | `declared_untagged` | `refuse` | Declines to touch it until you adopt it. |
 | **You removed it from your configuration, and it still carries your marker.** | `undeclared_tagged` | **`delete`** | **Destroys it on the next plan.** |
 | It carries no marker, and you never declared it. Somebody else's. | `undeclared_untagged` | `keep` | Leaves it alone. |
+
+An object carrying *another* estate's `tofu-estate` is in none of these four
+situations. See [What the matrix does not
+govern](#what-the-matrix-does-not-govern) below.
 
 {{% hint warning %}}
 The third row is the one to know before deleting a resource block. Removing the
@@ -44,6 +48,31 @@ does nothing else.
 Combinations with no coherent meaning are refused at lint. You cannot `adopt`
 something carrying neither a declaration nor a marker, and you cannot `delete`
 something your configuration still declares.
+
+## What the matrix does not govern
+
+The word "untagged" in `declared_untagged` means *carries no estate marker at
+all*. It does not mean "does not carry mine".
+
+So a live object sitting at an identity you declare while carrying another
+estate's `tofu-estate` falls outside the matrix. No verb reaches it: `adopt`
+and `converge` will not claim it, and `keep` and `report` do not get to soften
+the refusal either. Every plan refuses it by name, quotes the estate it
+actually carries, and leaves it alone.
+
+That is deliberate. `tofu-estate` is the whole ownership claim, so admitting
+somebody else's object here would have the next apply stamp your marker over
+theirs, on the strength of a setting you wrote about unmarked resources.
+
+Two commands still cross that boundary, because with them you are saying which
+object you mean:
+
+- `choudoufu live-mv -from-estate=<old> <address> <address>` rewrites one
+  object's marker into this estate. [Rename a resource]({{< relref
+  "/docs/use/rename-a-resource" >}}) covers it.
+- `choudoufu live-import -approve` stamps this estate's markers over the
+  resources a state file lists. [Migrate an existing estate]({{< relref
+  "/docs/use/migrate" >}}) covers it.
 
 ## Reconciling a whole account
 

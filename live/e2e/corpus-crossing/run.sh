@@ -107,6 +107,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 awsl() { aws --endpoint-url "$ENDPOINT" --region eu-west-1 "$@"; }
 
 # Every delta below asserts it landed. A corpus pin that moved out from under
@@ -380,7 +382,7 @@ grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan1.log
   || { grep -vE '^[0-9]{4}-' "$WORK/plan1.log" | grep -E '^  # ' | head -20
        fail "the plan is not empty"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' "$WORK/plan1.log" \
-  || { grep -E '^Foreign resources:' "$WORK/plan1.log"; fail "the plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$(cat "$WORK/plan1.log")"; fail "the plan reports foreign resources"; }
 log "  nothing to create, nothing foreign"
 
 # ── 6. THE VALUE, not the verdict ───────────────────────────────────────────

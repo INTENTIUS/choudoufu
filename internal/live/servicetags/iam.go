@@ -24,15 +24,22 @@ import (
 type IAMAPI interface {
 	ListInstanceProfileTags(ctx context.Context, params *iam.ListInstanceProfileTagsInput, optFns ...func(*iam.Options)) (*iam.ListInstanceProfileTagsOutput, error)
 	ListMFADeviceTags(ctx context.Context, params *iam.ListMFADeviceTagsInput, optFns ...func(*iam.Options)) (*iam.ListMFADeviceTagsOutput, error)
+	ListPolicyTags(ctx context.Context, params *iam.ListPolicyTagsInput, optFns ...func(*iam.Options)) (*iam.ListPolicyTagsOutput, error)
+	ListRoleTags(ctx context.Context, params *iam.ListRoleTagsInput, optFns ...func(*iam.Options)) (*iam.ListRoleTagsOutput, error)
+	ListUserTags(ctx context.Context, params *iam.ListUserTagsInput, optFns ...func(*iam.Options)) (*iam.ListUserTagsOutput, error)
 }
 
 // IAMRoutes is which resource types this reader can answer for, and it is
 // not a list of the types IAM CAN tag-read: it is the intersection of that
-// with the types the sweep can reach and cannot otherwise read, which is
-// two.
+// with the types a sweep leg can reach and cannot otherwise read, which is
+// five.
 //
 // The derivation, recomputed from the committed artifacts by
-// TestIAMRoutesMatchTheDerivedSet:
+// TestIAMRoutesMatchTheDerivedSet. There are two arms, one per enumeration
+// leg, and they are disjoint because a type either has a native list
+// resource or it does not.
+//
+// The Cloud Control arm (#1131, the original two):
 //
 //   - the type is mapped to a CloudFormation type (live/mapping.json) whose
 //     list handler needs no input (live/registry.json), so Cloud Control
@@ -44,23 +51,47 @@ type IAMAPI interface {
 //     internal/live/stamp writes a marker onto it and there is a marker
 //     there to miss.
 //
-// Eighteen types satisfy those three. Two of them are IAM's, and IAM is the
-// service wired here because it is the one #1134 measured the Resource
-// Groups Tagging API failing to cover and the one the pinned emulator
-// serves a tag-read operation for. The other sixteen sit in services the
-// tagging index does cover, so the gate in internal/live/discovery keeps
-// this leg off for them; if one ever proves otherwise, it gets its own
-// service wired here and its own entry in the table, not a general
-// mechanism written in advance of a need.
-// TestDerivedSetBeyondIAMIsNamedNotSilent names those sixteen.
+// The native arm (#1125, the three added here):
 //
-// aws_iam_role and aws_iam_policy are deliberately absent even though
-// #1134's real-AWS probe found the tagging index never serves iam:role.
-// Both have a native provider list resource, so they never reach the Cloud
-// Control leg at all - they reach internal/live/discovery's scanType, whose
-// own marker gap (#1136, SweepGapMarkerUnreadable via sweepMarkerReadGap)
-// this leg is not wired into. Wiring it there is the follow-up #1131 names
-// and this unit does not do.
+//   - live/survey-full.json says the provider type IS taggable, same clause
+//     as above and for the same reason: a marker was written, so there is
+//     one to miss;
+//   - live/survey-full.json says the type HAS a list resource, so
+//     internal/live/discovery's scanType is the leg that sees it and the
+//     Cloud Control arm above never applies to it;
+//   - the type is IAM's, which is
+//     internal/live/discovery.TaggingAPIUnservedType's whole content today:
+//     the Resource Groups Tagging API is not a fallback for it, so #266's
+//     tag-index join cannot supply the marker the list call dropped.
+//
+// The third clause is why the native arm is written as "IAM" rather than as
+// a general rule. It has to be read from the routing preference that sends
+// IAM away from the tagging leg, and that predicate lives in
+// internal/live/discovery, which imports this package. The test spells the
+// clause out as the aws_iam_ prefix rather than importing it back.
+//
+// What makes the native arm a real gap rather than a hypothetical one is
+// IAM's own API reference, which states it on each list operation. Verbatim,
+// from botocore 1.43.70's iam/2010-05-08 model - ListRoles: "IAM
+// resource-listing operations return a subset of the available attributes
+// for the resource. This operation does not return the following attributes,
+// even though they are an attribute of the returned object: PermissionsBoundary,
+// RoleLastUsed, Tags". ListUsers says the same with PermissionsBoundary and
+// Tags; ListPolicies and ListInstanceProfiles say "this operation does not
+// return tags, even though they are an attribute of the returned object".
+// So for all three native-arm types the provider's list resource is reading
+// an API that drops tags by design, which is the same permanent fact the
+// Cloud Control arm's missing Tags property is.
+//
+// Five types satisfy one arm or the other, and all five are IAM's. IAM is
+// the service wired here because it is the one #1134 measured the Resource
+// Groups Tagging API failing to cover and the one the pinned emulator
+// serves a tag-read operation for. Sixteen more types satisfy the Cloud
+// Control arm in services the tagging index does cover, so the gate in
+// internal/live/discovery keeps this leg off for them; if one ever proves
+// otherwise, it gets its own service wired here and its own entry in the
+// table, not a general mechanism written in advance of a need.
+// TestDerivedSetBeyondIAMIsNamedNotSilent names those sixteen.
 var IAMRoutes = map[string]iamTagOp{
 	// iam:ListInstanceProfileTags. The import identity of an
 	// aws_iam_instance_profile is the profile name, which is exactly what
@@ -84,6 +115,54 @@ var IAMRoutes = map[string]iamTagOp{
 		out, err := api.ListMFADeviceTags(ctx, &iam.ListMFADeviceTagsInput{
 			SerialNumber: aws.String(importID),
 			Marker:       markerOrNil(marker),
+		})
+		if err != nil {
+			return nil, nil, false, err
+		}
+		return out.Tags, out.Marker, out.IsTruncated, nil
+	},
+
+	// iam:ListPolicyTags. The identifier discovery's importIdentity hands
+	// this leg is the first of the identity table's IdentityAttrs the
+	// listed object carries, and aws_iam_policy's are ["arn", "id"] - the
+	// provider's own list identity schema carries arn and nothing else
+	// (discovery.go's #1054 comment, measured with TF_LOG=debug), and the
+	// provider's id for a managed policy is that same ARN. Either way the
+	// string is an ARN, which is what PolicyArn wants.
+	"aws_iam_policy": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+		out, err := api.ListPolicyTags(ctx, &iam.ListPolicyTagsInput{
+			PolicyArn: aws.String(importID),
+			Marker:    markerOrNil(marker),
+		})
+		if err != nil {
+			return nil, nil, false, err
+		}
+		return out.Tags, out.Marker, out.IsTruncated, nil
+	},
+
+	// iam:ListRoleTags. aws_iam_role's IdentityAttrs are ["id", "name"] and
+	// the provider sets a role's id to its name, so the identifier is the
+	// role name whichever of the two the listed object carried - which is
+	// what RoleName wants. live/survey-full.json agrees from the other
+	// side: required_for_import ["name"].
+	"aws_iam_role": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+		out, err := api.ListRoleTags(ctx, &iam.ListRoleTagsInput{
+			RoleName: aws.String(importID),
+			Marker:   markerOrNil(marker),
+		})
+		if err != nil {
+			return nil, nil, false, err
+		}
+		return out.Tags, out.Marker, out.IsTruncated, nil
+	},
+
+	// iam:ListUserTags. Same shape as the role above: IdentityAttrs
+	// ["id", "name"], the provider sets a user's id to its name, and
+	// UserName wants that name.
+	"aws_iam_user": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+		out, err := api.ListUserTags(ctx, &iam.ListUserTagsInput{
+			UserName: aws.String(importID),
+			Marker:   markerOrNil(marker),
 		})
 		if err != nil {
 			return nil, nil, false, err

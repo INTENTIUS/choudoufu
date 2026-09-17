@@ -220,6 +220,154 @@ func TestControllerMade(t *testing.T) {
 	}
 }
 
+// pvcManagedFields are the managedFields entries kind v1.36.1's API server
+// holds for the PVCs a kubernetes_stateful_set_v1's volume_claim_template
+// produced, read with kubectl get --raw (kubectl's own get strips
+// managedFields from its output without --show-managed-fields, which is how
+// GitHub issue #1179 came to record these objects as carrying none) and
+// pasted verbatim. This is the external source TestControllerMadePVC
+// consults: mutate it and the test stops agreeing with the rule.
+var pvcManagedFields = []metav1.ManagedFieldsEntry{
+	{
+		Manager:   "kube-scheduler",
+		Operation: metav1.ManagedFieldsOperationUpdate,
+		FieldsV1:  &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:annotations":{".":{},"f:volume.kubernetes.io/selected-node":{}}}}`)},
+	},
+	{
+		Manager:   "kube-controller-manager",
+		Operation: metav1.ManagedFieldsOperationUpdate,
+		FieldsV1:  &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:annotations":{"f:pv.kubernetes.io/bind-completed":{},"f:pv.kubernetes.io/bound-by-controller":{},"f:volume.beta.kubernetes.io/storage-provisioner":{},"f:volume.kubernetes.io/storage-provisioner":{}},"f:labels":{".":{},"f:app":{},"f:role":{},"f:tier":{}}},"f:spec":{"f:accessModes":{},"f:resources":{"f:requests":{".":{},"f:storage":{}}},"f:volumeMode":{},"f:volumeName":{}}}`)},
+	},
+	{
+		Manager:     "kube-controller-manager",
+		Operation:   metav1.ManagedFieldsOperationUpdate,
+		Subresource: "status",
+		FieldsV1:    &metav1.FieldsV1{Raw: []byte(`{"f:status":{"f:accessModes":{},"f:capacity":{".":{},"f:storage":{}},"f:phase":{}}}`)},
+	},
+}
+
+// kubectlLabelEntry is what one `kubectl label pvc ... tofu-estate=x` adds,
+// verbatim from the same cluster: a manager nobody would call control-plane
+// that owns one label and nothing else.
+var kubectlLabelEntry = metav1.ManagedFieldsEntry{
+	Manager:   "kubectl-label",
+	Operation: metav1.ManagedFieldsOperationUpdate,
+	FieldsV1:  &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:labels":{"f:tofu-estate":{}}}}`)},
+}
+
+func pvc(name string, entries ...metav1.ManagedFieldsEntry) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("v1")
+	u.SetKind("PersistentVolumeClaim")
+	u.SetNamespace("probe")
+	u.SetName(name)
+	u.SetFinalizers([]string{"kubernetes.io/pvc-protection"})
+	u.SetManagedFields(entries)
+	return u
+}
+
+// TestControllerMadePVC (GitHub issue #1179): a StatefulSet's
+// volumeClaimTemplate PVC carries NO ownerReferences - the default
+// persistentVolumeClaimRetentionPolicy is Retain, so the controller writes
+// no owner and there is nothing to garbage-collect it - which is the fact
+// ControllerMade's first signal was documented to rest on and does not.
+// What identifies it is who wrote its content: kube-controller-manager owns
+// f:spec, and goes on owning it however many other managers later touch its
+// labels. Destroying such a PVC destroys a bound volume, so this is the one
+// exclusion whose failure costs data rather than coverage.
+func TestControllerMadePVC(t *testing.T) {
+	fromTemplate := pvc("data-tagged-0", pvcManagedFields...)
+	if len(fromTemplate.GetOwnerReferences()) != 0 {
+		t.Fatal("the fixture carries an owner reference; kind's does not and the test would prove nothing")
+	}
+	if !ControllerMade(fromTemplate) {
+		t.Error("a volumeClaimTemplate PVC straight from the controller was not judged controller-made")
+	}
+
+	// #1179's own manufacture: the estate labels an already-created PVC
+	// with kubectl rather than through a claim template, which adds a
+	// kubectl-label manager. Under the old rule that one metadata-only
+	// touch removed the PVC from the exclusion for good and the sweep
+	// proposed destroying it.
+	touched := pvc("data-redis-0", append(append([]metav1.ManagedFieldsEntry(nil), pvcManagedFields...), kubectlLabelEntry)...)
+	if !ControllerMade(touched) {
+		t.Error("a controller-made PVC that one kubectl label had touched was judged declared; the sweep would offer to destroy a bound volume")
+	}
+
+	// The other direction, which must not move: a PVC someone declared
+	// and then labelled has a non-control-plane manager owning f:spec.
+	declared := pvc("handwritten",
+		metav1.ManagedFieldsEntry{
+			Manager:   "kubectl-client-side-apply",
+			Operation: metav1.ManagedFieldsOperationUpdate,
+			FieldsV1:  &metav1.FieldsV1{Raw: []byte(`{"f:metadata":{"f:annotations":{".":{},"f:kubectl.kubernetes.io/last-applied-configuration":{}},"f:labels":{".":{},"f:tier":{}}},"f:spec":{"f:accessModes":{},"f:resources":{"f:requests":{".":{},"f:storage":{}}},"f:volumeMode":{}}}`)},
+		},
+		kubectlLabelEntry,
+	)
+	if ControllerMade(declared) {
+		t.Error("a PVC whose spec kubectl wrote was judged controller-made; a real orphan would never be proposed")
+	}
+}
+
+// TestControllerMadeOnlyWidens is the guard on the direction of the #1179
+// change. The content-writer signal must be a superset of the older
+// every-manager one: an object all of whose managers are control-plane
+// necessarily has only control-plane content writers, so nothing that the
+// old rule excluded can become a delete candidate. The rule may cost
+// coverage when it is wrong; it may never cost a live object.
+func TestControllerMadeOnlyWidens(t *testing.T) {
+	cp := []string{"kube-controller-manager", "kube-scheduler", "kubelet", "kube-apiserver"}
+	bodies := []string{
+		`{"f:metadata":{"f:labels":{"f:a":{}}}}`,
+		`{"f:spec":{"f:replicas":{}}}`,
+		`{"f:data":{"f:key":{}}}`,
+		`{"f:subsets":{}}`,
+		`{"f:status":{"f:phase":{}}}`,
+		`{"f:metadata":{},"f:spec":{}}`,
+		``,
+	}
+	subs := []string{"", "status", "scale"}
+	seenTrue := false
+	for _, m1 := range cp {
+		for _, m2 := range cp {
+			for _, b1 := range bodies {
+				for _, b2 := range bodies {
+					for _, s := range subs {
+						o := pvc("all-control-plane",
+							entry(m1, "", b1),
+							entry(m2, s, b2),
+						)
+						if !ControllerMade(o) {
+							t.Fatalf("managers %q/%q with bodies %q/%q (sub %q) were all control-plane and the object was judged declared", m1, m2, b1, b2, s)
+						}
+						seenTrue = true
+					}
+				}
+			}
+		}
+	}
+	if !seenTrue {
+		t.Fatal("the guard asserted nothing")
+	}
+	// And the guard fails when it should: swap one manager for a
+	// content-writing foreign one and the verdict flips.
+	flipped := pvc("mixed",
+		entry("kube-controller-manager", "", `{"f:metadata":{"f:labels":{"f:a":{}}}}`),
+		entry("terraform-provider-kubernetes_v3.2.1", "", `{"f:spec":{"f:resources":{}}}`),
+	)
+	if ControllerMade(flipped) {
+		t.Fatal("an object whose spec the provider wrote was judged controller-made; the guard above would pass on anything")
+	}
+}
+
+func entry(manager, subresource, body string) metav1.ManagedFieldsEntry {
+	e := metav1.ManagedFieldsEntry{Manager: manager, Operation: metav1.ManagedFieldsOperationUpdate, Subresource: subresource}
+	if body != "" {
+		e.FieldsV1 = &metav1.FieldsV1{Raw: []byte(body)}
+	}
+	return e
+}
+
 // TestKindsListsEveryServedKindUnderTheManifestType (GitHub issue #1079):
 // with kubernetes_manifest in the type universe, a served kind no built-in
 // type manages - a CRD, here - is listed under it, imports by the manifest

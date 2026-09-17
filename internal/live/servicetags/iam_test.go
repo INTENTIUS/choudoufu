@@ -15,16 +15,22 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 )
 
-// fakeIAM answers the two operations [IAMRoutes] uses, from a script the
+// fakeIAM answers the five operations [IAMRoutes] uses, from a script the
 // test writes, and records what it was asked. The wire shape is the SDK's
 // own, so what is faked is the service and not the client.
 type fakeIAM struct {
 	profilePages []*iam.ListInstanceProfileTagsOutput
 	mfaPages     []*iam.ListMFADeviceTagsOutput
+	policyPages  []*iam.ListPolicyTagsOutput
+	rolePages    []*iam.ListRoleTagsOutput
+	userPages    []*iam.ListUserTagsOutput
 	err          error
 
 	profileNames []string
 	serials      []string
+	policyARNs   []string
+	roleNames    []string
+	userNames    []string
 	markers      []string
 }
 
@@ -50,7 +56,114 @@ func (f *fakeIAM) ListMFADeviceTags(_ context.Context, in *iam.ListMFADeviceTags
 	return out, nil
 }
 
+func (f *fakeIAM) ListPolicyTags(_ context.Context, in *iam.ListPolicyTagsInput, _ ...func(*iam.Options)) (*iam.ListPolicyTagsOutput, error) {
+	f.policyARNs = append(f.policyARNs, aws.ToString(in.PolicyArn))
+	f.markers = append(f.markers, aws.ToString(in.Marker))
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := f.policyPages[0]
+	f.policyPages = f.policyPages[1:]
+	return out, nil
+}
+
+func (f *fakeIAM) ListRoleTags(_ context.Context, in *iam.ListRoleTagsInput, _ ...func(*iam.Options)) (*iam.ListRoleTagsOutput, error) {
+	f.roleNames = append(f.roleNames, aws.ToString(in.RoleName))
+	f.markers = append(f.markers, aws.ToString(in.Marker))
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := f.rolePages[0]
+	f.rolePages = f.rolePages[1:]
+	return out, nil
+}
+
+func (f *fakeIAM) ListUserTags(_ context.Context, in *iam.ListUserTagsInput, _ ...func(*iam.Options)) (*iam.ListUserTagsOutput, error) {
+	f.userNames = append(f.userNames, aws.ToString(in.UserName))
+	f.markers = append(f.markers, aws.ToString(in.Marker))
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := f.userPages[0]
+	f.userPages = f.userPages[1:]
+	return out, nil
+}
+
 func tag(k, v string) iamtypes.Tag { return iamtypes.Tag{Key: aws.String(k), Value: aws.String(v)} }
+
+// TestIAMReadsTheNativeArmsMarkers is #1125's half of the table: the three
+// types the provider's own list resource enumerates and whose IAM list
+// operation drops tags by design. Each asserts the identifier reaches the
+// right input field, because a role name in a PolicyArn slot would fail
+// silently as "no tags" against a real endpoint.
+func TestIAMReadsTheNativeArmsMarkers(t *testing.T) {
+	t.Run("aws_iam_role", func(t *testing.T) {
+		api := &fakeIAM{rolePages: []*iam.ListRoleTagsOutput{{
+			Tags: []iamtypes.Tag{
+				tag("tofu-estate", "ec2complete"),
+				tag("tofu-address", "module.ec2_complete.aws_iam_role.this:0"),
+			},
+		}}}
+		got, err := NewIAM(api).ReadTags(context.Background(), "aws_iam_role", "ex-complete")
+		if err != nil {
+			t.Fatalf("ReadTags: %v", err)
+		}
+		if got["tofu-estate"] != "ec2complete" || got["tofu-address"] != "module.ec2_complete.aws_iam_role.this:0" {
+			t.Fatalf("read %v, want both markers", got)
+		}
+		if len(api.roleNames) != 1 || api.roleNames[0] != "ex-complete" {
+			t.Fatalf("ListRoleTags was asked for RoleName %v, want exactly [ex-complete]", api.roleNames)
+		}
+	})
+
+	t.Run("aws_iam_policy", func(t *testing.T) {
+		const arn = "arn:aws:iam::123456789012:policy/ex-complete"
+		api := &fakeIAM{policyPages: []*iam.ListPolicyTagsOutput{{
+			Tags: []iamtypes.Tag{tag("tofu-estate", "ec2complete")},
+		}}}
+		got, err := NewIAM(api).ReadTags(context.Background(), "aws_iam_policy", arn)
+		if err != nil {
+			t.Fatalf("ReadTags: %v", err)
+		}
+		if got["tofu-estate"] != "ec2complete" {
+			t.Fatalf("read %v, want tofu-estate", got)
+		}
+		if len(api.policyARNs) != 1 || api.policyARNs[0] != arn {
+			t.Fatalf("ListPolicyTags was asked for PolicyArn %v, want exactly [%s]", api.policyARNs, arn)
+		}
+	})
+
+	t.Run("aws_iam_user", func(t *testing.T) {
+		api := &fakeIAM{userPages: []*iam.ListUserTagsOutput{{
+			Tags: []iamtypes.Tag{tag("tofu-estate", "ec2complete")},
+		}}}
+		got, err := NewIAM(api).ReadTags(context.Background(), "aws_iam_user", "ex-user")
+		if err != nil {
+			t.Fatalf("ReadTags: %v", err)
+		}
+		if got["tofu-estate"] != "ec2complete" {
+			t.Fatalf("read %v, want tofu-estate", got)
+		}
+		if len(api.userNames) != 1 || api.userNames[0] != "ex-user" {
+			t.Fatalf("ListUserTags was asked for UserName %v, want exactly [ex-user]", api.userNames)
+		}
+	})
+}
+
+// TestIAMEmptyTagReadIsAnAnswer pins the distinction discovery's native leg
+// relies on: a tag-read API returning no tags is a successful read of an
+// object that carries none, not a failure. ReadTags must return an empty map
+// and no error, because the caller turns "ok" into markerReadWorked.
+func TestIAMEmptyTagReadIsAnAnswer(t *testing.T) {
+	api := &fakeIAM{rolePages: []*iam.ListRoleTagsOutput{{}}}
+	got, err := NewIAM(api).ReadTags(context.Background(), "aws_iam_role", "someone-elses-role")
+	if err != nil {
+		t.Fatalf("ReadTags: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("read %v, want an empty map", got)
+	}
+}
 
 // TestIAMReadsAnInstanceProfilesMarker is the one call #881 turns on: the
 // marker Cloud Control cannot carry, read off the object by name.
@@ -153,12 +266,21 @@ func TestIAMReadTagsErrorsAreNotEmptyTagSets(t *testing.T) {
 
 // TestIAMHasNoRouteForAnUnwiredType, and it is an error rather than an empty
 // map for the same reason.
+//
+// The type is aws_iam_role_policy_attachment, and it is the right one to
+// stand here rather than an arbitrary miss: it is the OTHER address #1125's
+// corpus-ec2-instance-complete reproduction found undestroyed, and it is
+// unwired permanently. IAM has no TagRolePolicyAttachment and no
+// ListRolePolicyAttachmentTags - an attachment is not a taggable object -
+// so its recovery is the record rung and parent derivation, never this leg.
+// Before #1125 this test used aws_iam_role, which now has a route.
 func TestIAMHasNoRouteForAnUnwiredType(t *testing.T) {
+	const unwired = "aws_iam_role_policy_attachment"
 	r := NewIAM(&fakeIAM{})
-	if r.Route("aws_iam_role") {
-		t.Error("Route says yes for aws_iam_role, which reaches the native leg and not this one")
+	if r.Route(unwired) {
+		t.Errorf("Route says yes for %s, which carries no tags at all and can never be tag-read", unwired)
 	}
-	_, err := r.ReadTags(context.Background(), "aws_iam_role", "some-role")
+	_, err := r.ReadTags(context.Background(), unwired, "ex-complete/arn:aws:iam::aws:policy/AdministratorAccess")
 	if !ErrNoRoute(err) {
 		t.Fatalf("ReadTags for an unrouted type returned %v, want the no-route error", err)
 	}

@@ -104,6 +104,8 @@ trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -295,7 +297,7 @@ PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
 grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
   && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$PLAN_OUT"; fail "the plan reports foreign resources"; }
 log "  no resource change proposed; nothing foreign"
 
 WANT_INTERNAL="$INTERNAL_ZONE_ID"

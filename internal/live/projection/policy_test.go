@@ -263,3 +263,86 @@ func TestOwnershipPolicy_DefaultVerbsProduceNoOutcomes(t *testing.T) {
 		t.Error("admission differs between no policy and an explicit-default policy")
 	}
 }
+
+// TestOwnershipPolicy_DeclaredUntaggedDoesNotReachAnotherEstate is GitHub
+// issue #1166, ruled 2026-09-16: an object carrying another estate's
+// tofu-estate is not untagged. It is tagged, for somebody else, and the
+// declared_untagged quadrant does not govern it at all - not its admitting
+// verbs, not its quieter ones. The question the quadrant asks does not
+// apply, the same reason [builder.addressNames] sits outside the quadrants.
+//
+// Before the fix, "untagged" was read as "does not carry THIS estate's
+// marker", so policy { declared_untagged = "adopt" } admitted somebody
+// else's log group and the stamp then wrote this estate's marker over
+// theirs. Proved red on this tree: every arm below admitted the resource
+// and recorded a declared_untagged outcome.
+//
+// The deliberate routes out - live-import -approve and live-mv
+// -from-estate - are untouched by this and are what the refusal points at.
+func TestOwnershipPolicy_DeclaredUntaggedDoesNotReachAnotherEstate(t *testing.T) {
+	for _, verb := range []string{"adopt", "converge", "keep", "report"} {
+		t.Run(verb, func(t *testing.T) {
+			cfg := loadConfig(t, "testdata/named")
+
+			cloud := newFakeCloud()
+			cloud.putTagged("aws_cloudwatch_log_group", "/somebody/logs", map[string]string{
+				"id": "/somebody/logs", "name": "/somebody/logs",
+			}, map[string]string{markers.TagEstate: "the-other-estate"})
+
+			pol := buildPolicy(t, "", verb)
+			res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+				{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/somebody/logs"},
+			}, cloud.providers(t), Options{Ownership: &Ownership{Estate: policyEstate, Policy: pol}})
+
+			assertNoErrors(t, diags)
+			if res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+				t.Fatalf("declared_untagged = %q admitted an object carrying another estate's marker:\n%s", verb, res)
+			}
+			if len(res.Unowned) != 1 || res.Unowned[0].Estate != "the-other-estate" {
+				t.Fatalf("the refusal does not name the owning estate: %+v", res.Unowned)
+			}
+			if len(res.Policy) != 0 {
+				t.Errorf("a declared-quadrant outcome was recorded for an object outside the quadrants: %+v", res.Policy)
+			}
+			// Never quiet, including under "keep": the quiet variant is a
+			// declared_untagged affordance and this object is not in that
+			// quadrant.
+			if !hasDiag(diags, SummaryOutsideEstate, `"the-other-estate"`) {
+				t.Errorf("the warning does not quote the estate the object carries:\n%s", renderDiags(diags))
+			}
+			for _, route := range []string{"live-import -approve", "live-mv -from-estate"} {
+				if !hasDiag(diags, SummaryOutsideEstate, route) {
+					t.Errorf("the refusal does not name the sanctioned route %q:\n%s", route, renderDiags(diags))
+				}
+			}
+		})
+	}
+}
+
+// TestOwnershipPolicy_DeclaredUntaggedStillAdoptsAnUnmarkedObject is the
+// other half of #1166's narrowing, and the thing it must not break: an
+// object carrying NO estate marker at all is exactly what the quadrant is
+// for, and adopt still admits it. Without this, the narrowing above could
+// be satisfied by disabling the verb.
+func TestOwnershipPolicy_DeclaredUntaggedStillAdoptsAnUnmarkedObject(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newFakeCloud()
+	// A live object with tags, but none of them an estate marker: the
+	// "declared, not yet marked" case, not the "somebody else's" one.
+	cloud.putTagged("aws_cloudwatch_log_group", "/somebody/logs", map[string]string{
+		"id": "/somebody/logs", "name": "/somebody/logs",
+	}, map[string]string{"Team": "platform"})
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/somebody/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", "adopt")}})
+
+	assertNoErrors(t, diags)
+	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("declared_untagged = \"adopt\" no longer adopts an unmarked object, which is the quadrant's whole purpose:\n%s", res)
+	}
+	if len(res.Policy) != 1 || res.Policy[0].Verb != policy.Adopt || res.Policy[0].Tagged {
+		t.Fatalf("Policy outcomes = %+v, want one declared_untagged=adopt entry", res.Policy)
+	}
+}

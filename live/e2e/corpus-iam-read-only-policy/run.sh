@@ -752,7 +752,7 @@ PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
 grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
   && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
-  || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the plan reports foreign resources"; }
+  || { gauntlet_print_evidence "$PLAN_OUT"; fail "the plan reports foreign resources"; }
 log "  no resource change proposed; nothing foreign"
 
 WANT_ADDR2="$WANT_ADDR"
