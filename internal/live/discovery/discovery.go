@@ -104,6 +104,40 @@ type Request struct {
 	// so that [Result.Resolutions] is a complete list.
 	Resolutions []identity.Resolution
 
+	// Scope is this run's -target / -exclude filtering, the same
+	// [identity.Scope] the resolution pass was given (GitHub issue #352),
+	// carried one pass further for GitHub issue #1176. Nil - every
+	// untargeted run, and every caller before this field existed - means
+	// every block is in scope and nothing below behaves differently.
+	//
+	// Discovery is handed the WHOLE configuration's resolutions on
+	// purpose, targeted or not: [identity.Scope]'s own doc comment says
+	// why, and it is the estate sweep's safety property. An out-of-scope
+	// block's resolution is what stops the sweep reading that block's
+	// live objects as orphans to remove. So the scope is not a filter on
+	// the input here; it is the answer to a different question, which
+	// only two places ask:
+	//
+	//   - [refuseUnservedManifests] must not refuse a block this run
+	//     cannot plan. A resource -target excludes is pruned from the
+	//     plan graph before the provider ever asks the cluster for its
+	//     schema, so asking on its behalf produces an error naming a
+	//     resource the operator did not ask to act on and cannot act on
+	//     by fixing anything this run would do. A warning would be worse
+	//     than silence: on this fork's own reference-k8s-cert-manager the
+	//     pre-apply route takes exactly this shape on every run, so the
+	//     warning would be permanent furniture. See GitHub issue #1176.
+	//
+	//   - [classifyOrphans] must not PROPOSE a removal outside the
+	//     scope, for the same reason in the destructive direction. See
+	//     its own out-of-scope case for the ruling and its bound.
+	//
+	// Nothing else consults it, and in particular the sweep still LISTS
+	// everything: a narrower listing would lose the declared-instance
+	// verification and the unclaimed inventory, neither of which is
+	// targeting's business.
+	Scope identity.Scope
+
 	// Provider is a configured provider handle that speaks the list
 	// protocol - the same handles listclient takes, which in practice means
 	// *plugin.GRPCProvider or *plugin6.GRPCProvider.
@@ -3695,6 +3729,47 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 			}
 		default:
 			o.Removal = true
+		}
+
+		// GitHub issue #1176's second half, and the one ruling in it: what
+		// the sweep's REMOVAL leg does under -target / -exclude.
+		//
+		// It runs, and it scopes to the targets. Running matters: the leg's
+		// listing is also what verifies declared instances and fills the
+		// unclaimed inventory, and neither of those is targeting's business.
+		// Scoping matters because the alternative is proposing to destroy a
+		// live object during a run the operator deliberately narrowed - the
+		// same "a refusal the user cannot act on" shape as the manifest
+		// refusal above, in the destructive direction, where it is not a
+		// refusal but a destroy.
+		//
+		// This sits after the switch rather than inside it so that every
+		// problem the classifier reports today is still reported: a
+		// malformed marker, a marker naming another type, an identity the
+		// provider never served and a two-claimant collision are facts
+		// about the estate, not about this run's targeting, and an operator
+		// who narrowed a run has not asked to stop hearing them. The only
+		// thing suppressed is the PROPOSAL.
+		//
+		// The bound, stated because it is a divergence from stock and not a
+		// small one. [statelessTargetScope] builds the scope from the
+		// configuration's own plan graph over an EMPTY state, so it can only
+		// answer for blocks the configuration still has. An orphan whose
+		// block is gone from configuration entirely is therefore never in
+		// scope, and its removal is always withheld while -target is in
+		// play - where stock, whose targeting matches state-only nodes too,
+		// would destroy it if the operator named its old address. That is a
+		// removal this fork does not propose and stock does: a false
+		// negative, in the direction the classifier's own doc comment says
+		// to err in, and one command away from being corrected, since the
+		// same run without -target proposes it. The reverse - destroying an
+		// object during a run that was told to leave it alone - is not
+		// recoverable with any number of commands.
+		if o.Removal && !req.inScope(o.Addr) {
+			o.Removal = false
+			o.Withheld = fmt.Sprintf(
+				"this run's -target/-exclude leaves %s out of the plan graph, so nothing it owns is destroyed here; run without the flag to have this removal proposed",
+				o.Addr.ContainingResource().Config())
 		}
 	}
 
