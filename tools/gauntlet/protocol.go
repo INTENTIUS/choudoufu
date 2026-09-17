@@ -32,6 +32,15 @@ import (
 // never prints the protocol line is legacy: the runner records its exit code
 // and leaves the imported verdicts alone.
 //
+// A run that declines to go on - not a stage that failed, a run that will
+// not attempt the rung at all - says so with one more line (#1151):
+//
+//	GAUNTLET refused=1 [scale=<n>] [needed=<n> limit=<n> unit=<token>] detail=<reason>
+//
+// emitted by gauntlet_refused. That is a fourth outcome beside pass, fail
+// and not_run, and it is the difference between "choudoufu could not do this"
+// and "this was never attempted, here is the arithmetic that says why".
+//
 // The grammar is deliberately one line per event with key=value pairs, no
 // JSON, so a script can print it with printf and a human can grep it.
 const (
@@ -56,6 +65,34 @@ type ProtocolResult struct {
 	// PreApplySides names the sides that pre-applied, comma separated, in
 	// the order they ran - "estate,oracle".
 	PreApplySides string
+	// Refusal is set when the run declined the rung outright (#1151): a
+	// ceiling it cannot raise, a precondition it will not fake. Nil for
+	// every ordinary run, including one whose stages failed - a failure is
+	// a measurement and a refusal is the absence of one.
+	Refusal *ProtocolRefusal
+}
+
+// ProtocolRefusal is one `GAUNTLET refused=1 ...` line: why a run would not
+// attempt what it was asked for, and the arithmetic behind it.
+//
+// Reason is required - a refusal with no reason is worth nothing on the
+// record, which is the whole point of recording it rather than skipping the
+// rung silently. The numbers are optional because not every refusal has
+// any: "the s3 record store is unsound (#1145)" is a reason with no
+// arithmetic, while "10,070 records against a hard 10,000 cap" is both.
+type ProtocolRefusal struct {
+	Reason string
+	// Scale is the terralith-gen -scale the refused run was for, when the
+	// run has one. It matters because a refusal usually happens before any
+	// stage speaks, so there is no cold_deploy detail to read the scale off
+	// - and a refusal that cannot name its scale cannot be placed on the
+	// ladder at all (see cmdLiveCert).
+	Scale int
+	// Needed and Limit are the two sides of the arithmetic, in Unit. Either
+	// both are present or neither is.
+	Needed *int
+	Limit  *int
+	Unit   string
 }
 
 // ParseProtocol reads stdout and returns the verdicts. Lines that do not
@@ -82,6 +119,18 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 			continue
 		}
 		if _, ok := fields["end"]; ok {
+			continue
+		}
+		// GAUNTLET refused=1 [scale=N] [needed=N limit=N unit=token] detail=<reason>
+		if _, ok := fields["refused"]; ok {
+			ref, rerr := parseRefusal(line, fields)
+			if rerr != nil {
+				return nil, rerr
+			}
+			if res.Refusal != nil {
+				return nil, fmt.Errorf("line %d: a second GAUNTLET refused= line; a run refuses once, for one reason, or the record cannot say which reason it carries", line)
+			}
+			res.Refusal = ref
 			continue
 		}
 		// GAUNTLET pre_apply=<addr>[,<addr>...] sides=<label>[,<label>...]
@@ -128,6 +177,44 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 		return nil, err
 	}
 	return res, nil
+}
+
+// parseRefusal reads one `GAUNTLET refused=1 ...` line's fields. Every
+// malformation is an error rather than a tolerated shape, for the same
+// reason a malformed stage line is: a half-spoken refusal would be recorded
+// as a refusal with a missing reason, which is worse than no line at all.
+func parseRefusal(line int, fields map[string]string) (*ProtocolRefusal, error) {
+	ref := &ProtocolRefusal{Reason: strings.TrimSpace(fields["detail"]), Unit: fields["unit"]}
+	if ref.Reason == "" {
+		return nil, fmt.Errorf("line %d: GAUNTLET refused= carries no detail= - a refusal's whole value is the reason it names, so one without a reason is refused here rather than recorded empty", line)
+	}
+	if s, ok := fields["scale"]; ok {
+		n, err := strconv.Atoi(s)
+		if err != nil || n <= 0 {
+			return nil, fmt.Errorf("line %d: GAUNTLET refused= has invalid scale %q, want a positive integer", line, s)
+		}
+		ref.Scale = n
+	}
+	needed, hasNeeded := fields["needed"]
+	limit, hasLimit := fields["limit"]
+	if hasNeeded != hasLimit {
+		return nil, fmt.Errorf("line %d: GAUNTLET refused= carries needed= or limit= but not both - one side of an arithmetic is not an arithmetic", line)
+	}
+	if hasNeeded {
+		n, err := strconv.Atoi(needed)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: GAUNTLET refused= has invalid needed %q: %w", line, needed, err)
+		}
+		l, err := strconv.Atoi(limit)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: GAUNTLET refused= has invalid limit %q: %w", line, limit, err)
+		}
+		if ref.Unit == "" {
+			return nil, fmt.Errorf("line %d: GAUNTLET refused= gives needed=%d limit=%d with no unit= - two bare numbers say nothing a later reader can check", line, n, l)
+		}
+		ref.Needed, ref.Limit = &n, &l
+	}
+	return ref, nil
 }
 
 // parseKV splits "k=v k2=v2 detail=the rest of the line" into a map. detail

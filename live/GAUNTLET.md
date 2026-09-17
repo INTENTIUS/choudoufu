@@ -244,6 +244,19 @@ that never prints the protocol line is legacy: the runner records its exit
 code and leaves the imported verdicts as they are. The runner is
 `go run ./tools/gauntlet run [<name>...]`, logs land in `live/gauntlet/logs/`.
 
+A run that will not attempt what it was asked for says so with one more
+line, emitted by `gauntlet_refused` (#1151):
+
+```
+GAUNTLET refused=1 scale=136 needed=10070 limit=10000 unit=ssm-parameters detail=10,069 resources need 10,070 SSM parameters against SSM's hard 10,000 cap (#1146)
+```
+
+That is a run-level outcome, not a stage verdict: a stage cannot refuse.
+`needed`/`limit` go together or not at all, and a `detail` is required - the
+reason and the arithmetic are the whole value of recording a refusal rather
+than skipping the rung in silence. Where it lands is the `live/gauntlet-scale.json`
+section below.
+
 ## The manifest entry
 
 Every estate is one entry in `live/gauntlet/estates.json`:
@@ -414,6 +427,65 @@ the cells and the clear flag they had. `go run
 gauntlet-notes`) diffs two such snapshots into paste-ready release-notes
 markdown - board movement per set, which estates newly cleared or
 regressed, and the emulator pin change - for the release body.
+
+## The scale ladder (`live/gauntlet-scale.json`)
+
+`live/gauntlet.json`'s `live_cert` array keeps **one row per estate**: a new
+certification replaces the last one outright. `live/gauntlet-scale.json` keeps
+**one record per (estate, target, scale)**, which is what lets the ladder
+hold every size at once. The two files answer different questions and
+neither is folded into the other.
+
+One record per (estate, target, scale) is a stated rule, in three parts
+(#1151):
+
+1. A run at one scale never touches another scale's row. The key is the
+   whole identity, not the estate.
+2. Newer wins, but never silently. The new row's `supersedes` names the
+   commit, date and outcome of the row it replaced, so a citation that
+   followed a figure which has since moved still leads somewhere. A
+   scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one this
+   way, and `site/content/docs/what-you-pay.md` quotes that file by path.
+3. A refusal never replaces a measurement. The runner refuses the write
+   and names the row it protected; nothing is written. Dropping a measured
+   row is a reviewed change, not a side effect of a later run that
+   declined to run.
+
+Each record carries an `outcome`: `pass`, `fail`, `not_run` or `refused`.
+The first three are the protocol's own verdict words at run scope - `pass`
+is the run's own `clear` flag, so a run that failed nothing but completed
+nothing reads `not_run`, never `pass`. `refused` is the fourth, and carries
+a `refusal` with the `reason` and, when there is one, the
+`needed`/`limit`/`unit` arithmetic behind it. A record with no `outcome` at
+all predates the field; that means nobody recorded one, and such a row is
+read through its stages the way every reader did before.
+
+A refusal is deliberately **not** written to `live_cert`. That row holds one
+certification per estate, so a refusal at scale 136 landing there would
+destroy the certification at scale 50 - which is what happened on
+2026-09-13 (#1100), and what #1151 closes for the refusals that came after.
+
+## One live-cert per estate at a time
+
+`gauntlet live-cert` takes a lock file beside the log it is about to write,
+`live/gauntlet/logs/live-cert-<estate>.lock`, carrying the run id, pid and start
+time, and a second run for the same estate refuses rather than starting
+(#1150).
+
+Two runs of one estate do not collide in the *account* - every resource is
+named from a per-run prefix, and `verify_empty` and the sweep are scoped to
+it. They collide in the *evidence*: both open the same log with
+`os.Create`, so the second truncates the first while the first keeps writing
+at its old offset, and both write `live/gauntlet.json` at the end. Measured: two
+overlapping runs produced a 295,759-byte log of which 280,961 bytes were
+NUL, carrying lines from both runs, and neither invocation reported
+anything. On 2026-09-15 that overlap - a pre-restart screen session 166
+seconds ahead of a new one - also exhausted the account's IAM role quota and
+produced a **false `cold_deploy` failure** on real AWS.
+
+A lock whose pid is gone is reported as looking stale, with the path to
+delete; the run still refuses. Nothing breaks a lock automatically, because
+pids are reused, and there is no environment variable that turns this off.
 
 ## Selective re-queue (`next -types`)
 

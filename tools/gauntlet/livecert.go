@@ -161,8 +161,57 @@ func (a *Artifact) SetLiveCertResult(r LiveCertResult) {
 // line. RunEstates already gates on it for the same reason (run.go). This is
 // deliberately NOT a filter on failure - a run that spoke and failed is
 // evidence and is recorded exactly as before.
+//
+// A refusal is the second answer (#1151), and it is the same rule seen from
+// the other side. Once a run can say "I declined this rung, and here is the
+// arithmetic" (ProtocolResult.Refusal), it may well speak a stage or two
+// first - a ceiling hit at migrate leaves a real cold_deploy behind it - so
+// Spoken alone stops being enough. A refused run's evidence goes to
+// live/gauntlet-scale.json, which is keyed by (estate, target, SCALE) and
+// can hold the refused rung beside the measured one; live_cert is keyed by
+// estate alone and has room for exactly one certification, so a refusal at
+// scale 136 must not be what replaces a certification at scale 50.
 func RecordsLiveCert(res *ProtocolResult) bool {
-	return res != nil && res.Spoken
+	return res != nil && res.Spoken && res.Refusal == nil
+}
+
+// LiveCertWrites is what a finished run writes, and why. Split out of
+// cmdLiveCert so the decision can be tested without a checkout, a manifest
+// or a render: the two "do not write" cases are the ones that have gone
+// wrong before, and both of them lose a real-AWS certification when they go
+// wrong (#1100, #1151).
+type LiveCertWrites struct {
+	// LiveCertRow: write the live_cert row in live/gauntlet.json.
+	LiveCertRow bool
+	// ScaleRecord: write the (estate, target, scale) row in
+	// live/gauntlet-scale.json, subject to that file's own superseding rule
+	// and to the run naming a scale at all.
+	ScaleRecord bool
+	// Why is one sentence for the human, whenever something is NOT written.
+	Why string
+}
+
+// PlanLiveCertWrites decides what a finished run records. The live_cert half
+// of the answer is RecordsLiveCert's, called rather than restated, so the
+// rule has one definition and the two cannot drift apart.
+func PlanLiveCertWrites(target string, res *ProtocolResult) LiveCertWrites {
+	if target != "aws" {
+		return LiveCertWrites{Why: "target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)"}
+	}
+	w := LiveCertWrites{LiveCertRow: RecordsLiveCert(res), ScaleRecord: true}
+	if w.LiveCertRow {
+		return w
+	}
+	switch {
+	case res != nil && res.Refusal != nil:
+		// A refusal has somewhere to go: a rung of its own.
+		w.Why = fmt.Sprintf("the run REFUSED this rung, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s, which is keyed by scale and can hold it beside the rung below.", ArtifactPath, ScaleRecordsPath)
+	default:
+		// A run that spoke nothing measured nothing, at any scale.
+		w.ScaleRecord = false
+		w.Why = fmt.Sprintf("the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)", ArtifactPath)
+	}
+	return w
 }
 
 // RunLiveCert runs live/live-cert/<estate>.sh (or LIVECERT_SCRIPT_OVERRIDE
@@ -182,6 +231,10 @@ func RecordsLiveCert(res *ProtocolResult) bool {
 //     second, independent enforcement alongside live/live-cert/run.sh's own
 //     `timeout` wrapper (the brief's "not just an in-script check") and the
 //     account-level AWS Budgets alarm that is infrastructure, not code.
+//   - only one run per estate at a time, held by a lock file beside the log
+//     (livecertlock.go, #1150). A second run refuses, naming the first's run
+//     id, pid and start time, because the two would truncate each other's log
+//     and race each other's artifact write.
 func RunLiveCert(root string, estate, target, region string, ceilingUSD float64, ceilingSeconds int) (*LiveCertResult, *ProtocolResult, int, error) {
 	if target != "floci" && target != "aws" {
 		return nil, nil, 0, fmt.Errorf("target must be floci or aws, got %q", target)
@@ -207,9 +260,35 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	// Asking here costs one `git rev-parse` and refuses a run that could not
 	// have been recorded honestly anyway. It also pins the commit to the
 	// tree the run STARTED from, which is the tree it actually measured.
+	//
+	// It comes before the run lock below, and the order is deliberate: this
+	// refusal is one `git rev-parse` and it refuses a run that could never
+	// have been recorded, so there is no reason to take a lock - and then
+	// have to release it - on its behalf. A lock taken and dropped again in
+	// the same millisecond is also one more window in which a crash leaves a
+	// stale lock a human has to clear.
 	commit, err := headCommit(root)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("estate %q: refusing to start a live-cert whose provenance commit cannot be resolved (nothing has been created, nothing spent): %w", estate, err)
+	}
+
+	// The run lock (#1150), taken before anything is opened or started and
+	// held for the whole run. root == "" is the in-process test caller
+	// (LIVECERT_SCRIPT_OVERRIDE with no checkout): it has no
+	// live/gauntlet/logs to lock in and writes no log either, so there is
+	// nothing for a second run to truncate - the same condition the log
+	// block below is guarded by, for the same reason.
+	if root != "" {
+		lock, lerr := AcquireLiveCertLock(root, estate, target, region)
+		if lerr != nil {
+			return nil, nil, 0, lerr
+		}
+		fmt.Printf("live-cert %s: holding %s as run %s (pid %d)\n", estate, lock.Path(), lock.RunID(), os.Getpid())
+		defer func() {
+			if rerr := lock.Release(); rerr != nil {
+				fmt.Fprintln(os.Stderr, rerr)
+			}
+		}()
 	}
 
 	ctx, cancel := commandTimeoutContext(ceilingSeconds)

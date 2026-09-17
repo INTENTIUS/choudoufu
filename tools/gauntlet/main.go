@@ -501,17 +501,18 @@ func cmdLiveCert(root string, args []string) error {
 		}
 	}
 	fmt.Printf("live-cert %s: target=%s exit=%d clear=%v\n", estate, *target, exit, r.Clear)
-
-	if *target != "aws" {
-		fmt.Println("target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)")
-		return nil
+	if res != nil && res.Refusal != nil {
+		fmt.Printf("live-cert %s: REFUSED - %s\n", estate, res.Refusal.Reason)
+		if res.Refusal.Needed != nil {
+			fmt.Printf("live-cert %s: the arithmetic: %d needed against a limit of %d %s\n", estate, *res.Refusal.Needed, *res.Refusal.Limit, res.Refusal.Unit)
+		}
 	}
 
-	// A run that spoke no stage refused before it started, and live_cert
-	// keeps one row per estate - recording it would destroy the last real
-	// certification. See RecordsLiveCert (#1100).
-	if !RecordsLiveCert(res) {
-		fmt.Printf("live-cert %s: the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)\n", estate, ArtifactPath)
+	writes := PlanLiveCertWrites(*target, res)
+	if writes.Why != "" {
+		fmt.Printf("live-cert %s: %s\n", estate, writes.Why)
+	}
+	if !writes.LiveCertRow && !writes.ScaleRecord {
 		return nil
 	}
 
@@ -519,11 +520,13 @@ func cmdLiveCert(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.SetLiveCertResult(*r)
-	if err := SaveArtifact(root, a); err != nil {
-		return err
+	if writes.LiveCertRow {
+		a.SetLiveCertResult(*r)
+		if err := SaveArtifact(root, a); err != nil {
+			return err
+		}
+		fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
 	}
-	fmt.Printf("recorded live-aws certification for %s: clear=%v (live/gauntlet.json live_cert; never counted in sets.core/sets.all)\n", estate, r.Clear)
 
 	// Issue #1051: every real-AWS run also upserts its own structured
 	// ScaleRecord into live/gauntlet-scale.json, the same instant its prose
@@ -542,17 +545,27 @@ func cmdLiveCert(root string, args []string) error {
 	// otherwise disagree with nothing saying so. scaleErr is carried past
 	// the render below rather than returned here, so a half-written run
 	// does not also leave a stale published copy behind it.
-	var scaleErr error
-	scaleNote := ""
+	//
+	// A refused run goes through the SAME path (#1151): the scale record is
+	// keyed by (estate, target, scale), so a refusal lands on its own rung
+	// and leaves every other one alone - under SupersedeScaleRecord's rule
+	// rather than a bare upsert, which is what stops it replacing a rung
+	// that was measured. For a refusal this is the run's ONLY record, since
+	// PlanLiveCertWrites deliberately keeps it out of live_cert, so #1149's
+	// rule binds harder here rather than less: there is no second half to
+	// fall back on.
 	scaleSource := fmt.Sprintf("gauntlet live-cert %s (commit %s)", estate, r.Commit)
 	scaleRec := BuildScaleRecordFromLiveCert(*r, scaleSource)
-	switch {
-	case scaleRec.Scale == 0 && scaleRec.Resources == nil:
-		scaleNote = fmt.Sprintf("live-cert %s: no scale/resources recognized in this run's own detail text - %s left unchanged, which is expected for a certification that is not a scale measurement\n", estate, ScaleRecordsPath)
-	default:
-		scaleErr = saveLiveCertScaleRecord(root, scaleRec)
+	if res != nil {
+		scaleRec = scaleRec.WithRefusal(res.Refusal)
+	}
+	plan := planLiveCertScaleRow(estate, writes.ScaleRecord, scaleRec)
+	scaleErr, scaleNote := plan.Err, plan.Note
+	if plan.Write {
+		var written ScaleRecord
+		written, scaleErr = saveLiveCertScaleRecord(root, scaleRec)
 		if scaleErr == nil {
-			scaleNote = fmt.Sprintf("recorded scale measurement for %s at scale=%d (%s)\n", estate, scaleRec.Scale, ScaleRecordsPath)
+			scaleNote = describeScaleWrite(estate, written)
 		}
 	}
 
@@ -576,26 +589,111 @@ func cmdLiveCert(root string, args []string) error {
 		return errors.Join(scaleErr, err)
 	}
 	if scaleErr != nil {
-		return fmt.Errorf("live-cert %s: the live_cert row for this run is recorded in %s but its scale record is NOT in %s, so the two halves of this run's evidence disagree - fix the cause and re-record with `gauntlet scale-import-slice`/`scale-backfill` rather than re-running: %w", estate, ArtifactPath, ScaleRecordsPath, scaleErr)
+		if writes.LiveCertRow {
+			return fmt.Errorf("live-cert %s: the live_cert row for this run is recorded in %s but its scale record is NOT in %s, so the two halves of this run's evidence disagree - fix the cause and re-record with `gauntlet scale-import-slice`/`scale-backfill` rather than re-running: %w", estate, ArtifactPath, ScaleRecordsPath, scaleErr)
+		}
+		// A refusal writes no live_cert row, by design (#1151), so there
+		// are no two halves to disagree - there is one record and it did
+		// not land. #1149's rule is the same either way: a run whose record
+		// did not get written fails, it does not print a note and return.
+		return fmt.Errorf("live-cert %s: this run produced no live_cert row (it refused, or spoke nothing) AND its record is NOT in %s, so the run's only evidence is its log: %w", estate, ScaleRecordsPath, scaleErr)
 	}
 	fmt.Print(scaleNote)
 	return nil
 }
 
-// saveLiveCertScaleRecord validates rec and upserts it into
-// live/gauntlet-scale.json. Split out so cmdLiveCert's own control flow
-// shows the one thing #1149 is about: every failure here is returned, none
-// of them leaves the file silently unchanged.
-func saveLiveCertScaleRecord(root string, rec ScaleRecord) error {
+// scaleRowPlan is what cmdLiveCert does with the scale record it just built:
+// write it, skip it as a legitimate omission, or fail the run. Exactly one
+// of the three fields is ever set.
+//
+// It is its own function, like PlanLiveCertWrites, because the difference
+// between the last two is a judgement that has to be pinned by a test and
+// cannot be reached through cmdLiveCert without a whole checkout.
+type scaleRowPlan struct {
+	Write bool
+	Note  string
+	Err   error
+}
+
+// planLiveCertScaleRow decides between #1149's rule (a scale row that does
+// not get written fails the run) and its one legitimate exception (a
+// certification that was never a scale measurement).
+func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord) scaleRowPlan {
+	switch {
+	case !writesScaleRecord:
+		// Not reachable from cmdLiveCert, which returns early when a run
+		// records nothing at all. Stated rather than assumed, so a later
+		// change to PlanLiveCertWrites cannot silently start writing a
+		// scale row for a run it decided records nothing.
+		return scaleRowPlan{Note: fmt.Sprintf("live-cert %s: this run records no scale row\n", estate)}
+	case rec.IsRefusal() && rec.Scale == 0:
+		// A refusal with no scale has nowhere to go, and it is the only
+		// evidence this run produced - PlanLiveCertWrites keeps a refusal
+		// out of live_cert by design (#1151), so there is no second half to
+		// fall back on. A row keyed by scale needs a scale; inventing one,
+		// or writing it at scale 0, would put it on a rung nobody ran.
+		//
+		// This is a FAILURE, and the case below it is not, and the line
+		// between them is what #1149's rule turns on: below is a
+		// certification that was never a scale measurement and has nothing
+		// to add, which is an omission with nothing lost. This is a run
+		// whose entire result is about to vanish into a log. The usual
+		// cause is a gauntlet_refused call that left out its scale.
+		return scaleRowPlan{Err: fmt.Errorf("the refusal names no scale - its `GAUNTLET refused=1` line carried no scale=, so there is no rung on the ladder to record it on. Pass the scale (`gauntlet_refused <scale> ...`); an estate with no ladder at all cannot record a refusal today, which is a gap to file rather than a run to let pass quietly")}
+	case rec.Scale == 0 && rec.Resources == nil:
+		return scaleRowPlan{Note: fmt.Sprintf("live-cert %s: no scale/resources recognized in this run's own detail text - %s left unchanged, which is expected for a certification that is not a scale measurement\n", estate, ScaleRecordsPath)}
+	default:
+		return scaleRowPlan{Write: true}
+	}
+}
+
+// describeScaleWrite is what the runner prints about the row it just wrote:
+// which rung, whether it is a measurement or a refusal, and - the part
+// #1151 is about - what it superseded. Superseding used to be invisible: a
+// scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one with no
+// output saying a row had been replaced at all, in a file
+// site/content/docs/what-you-pay.md quotes by path.
+func describeScaleWrite(estate string, rec ScaleRecord) string {
+	var b strings.Builder
+	if rec.IsRefusal() {
+		fmt.Fprintf(&b, "recorded a REFUSAL for %s at scale=%d (%s): %s\n", estate, rec.Scale, ScaleRecordsPath, rec.Refusal.Reason)
+	} else {
+		fmt.Fprintf(&b, "recorded scale measurement for %s at scale=%d (%s)\n", estate, rec.Scale, ScaleRecordsPath)
+	}
+	if n := len(rec.Supersedes); n > 0 {
+		prev := rec.Supersedes[n-1]
+		fmt.Fprintf(&b, "  it superseded the row measured at %s on %s (outcome %s); the chain is %d row(s) deep and is in the record's own supersedes field\n",
+			short(prev.Commit), prev.Date, outcomeOrLegacy(ScaleRecord{Outcome: prev.Outcome}), n)
+	}
+	return b.String()
+}
+
+// saveLiveCertScaleRecord validates rec and writes it into
+// live/gauntlet-scale.json, returning the row as it landed - with whatever
+// it superseded attached, which is the caller's to report.
+//
+// Split out so cmdLiveCert's own control flow shows the one thing #1149 is
+// about: every failure here is returned, none of them leaves the file
+// silently unchanged. SupersedeScaleRecord's own refusal - it will not let a
+// refusal replace a measured row (#1151) - is one of those failures and
+// reaches the caller like any other, rather than being printed and
+// swallowed.
+func saveLiveCertScaleRecord(root string, rec ScaleRecord) (ScaleRecord, error) {
 	if err := ValidateScaleRecord(rec); err != nil {
-		return fmt.Errorf("built an invalid scale record: %w", err)
+		return ScaleRecord{}, fmt.Errorf("built an invalid scale record: %w", err)
 	}
 	sa, err := LoadScaleArtifact(root)
 	if err != nil {
-		return err
+		return ScaleRecord{}, err
 	}
-	sa.UpsertScaleRecord(rec)
-	return SaveScaleArtifact(root, sa)
+	written, err := sa.SupersedeScaleRecord(rec)
+	if err != nil {
+		return ScaleRecord{}, err
+	}
+	if err := SaveScaleArtifact(root, sa); err != nil {
+		return ScaleRecord{}, err
+	}
+	return written, nil
 }
 
 // cmdMergeArtifact is `gauntlet merge-artifact <base> <ours> <theirs>`

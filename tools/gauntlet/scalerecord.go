@@ -121,6 +121,32 @@ type ScaleArtifact struct {
 // estate), a ScaleRecord's whole point is to keep every size on record at
 // once, which is exactly what issue #1051 says live/gauntlet.json's own
 // live_cert array cannot do today.
+//
+// # One record per (estate, target, scale): the rule (#1151)
+//
+// Superseding was the behaviour before it was a rule. UpsertScaleRecord has
+// always replaced a row sharing an incoming row's (Estate, Target, Scale),
+// so a scale-50 row measured on 2026-09-15 took the place of the 2026-09-11
+// one, in a file whose figures site/content/docs/what-you-pay.md quotes by
+// path. Nothing said that was the rule, and nothing said what the replaced
+// row had been. It is now three rules, in order:
+//
+//  1. One record per (estate, target, scale). A run at a different scale
+//     never touches another scale's row - the key is the whole identity, not
+//     the estate.
+//  2. Newer wins, but never silently. SupersedeScaleRecord writes what it
+//     replaced into the new row's Supersedes chain: the old row's commit,
+//     date and outcome, so a reader who followed a citation to a figure that
+//     has since moved can see the row it moved from, at the commit that
+//     measured it.
+//  3. A refusal never replaces a measurement. Outcome == ScaleOutcomeRefused
+//     is the one case where the newer row loses: scale 50's real-AWS run cost
+//     hours of paid runtime, and a later attempt that declined to run is not
+//     an update to it. SupersedeScaleRecord refuses, names the row it would
+//     have destroyed, and writes nothing.
+//
+// The reverse - a measurement replacing a refusal - is ordinary superseding
+// and is allowed: that is the rung finally being measured.
 type ScaleRecord struct {
 	Schema int `json:"schema"`
 	// Estate and Target together with Scale are this record's identity -
@@ -133,6 +159,25 @@ type ScaleRecord struct {
 	// one; absent for an estate this schema cannot size (nothing here
 	// invents a scale a run's own detail never named).
 	Scale int `json:"scale,omitempty"`
+	// Outcome is what this run came to, as a whole: ScaleOutcomePass,
+	// ScaleOutcomeFail, ScaleOutcomeNotRun or ScaleOutcomeRefused. It is a
+	// different question from any one stage's verdict, and the fourth value
+	// is the one issue #1151 exists for - "this rung was not attempted, and
+	// here is the arithmetic that says why" is neither a pass, nor a fail,
+	// nor a stage that happened not to run.
+	//
+	// Absent on a row written before this field existed. Absent means
+	// exactly that and nothing more: read such a row's Stages, the way
+	// every reader had to before.
+	Outcome string `json:"outcome,omitempty"`
+	// Refusal is why the run declined, present if and only if Outcome is
+	// ScaleOutcomeRefused (ValidateScaleRecord holds both directions).
+	Refusal *ScaleRefusal `json:"refusal,omitempty"`
+	// Supersedes is the chain of rows this one replaced at the same
+	// (estate, target, scale), oldest first - written by
+	// SupersedeScaleRecord, never by hand. See this type's own doc comment
+	// for the rule. Empty on a row that replaced nothing.
+	Supersedes []ScaleSupersession `json:"supersedes,omitempty"`
 	// Commit is the checkout state the run measured against - copied
 	// verbatim from the source row (LiveCertResult.Commit or
 	// EstateResult.LastRun.Commit), never re-derived.
@@ -293,6 +338,94 @@ type ScaleRecord struct {
 	// precise failure this repository's provenance discipline exists to
 	// prevent.
 	CallCountsSource string `json:"call_counts_source,omitempty"`
+}
+
+// The four values ScaleRecord.Outcome takes. The first three are the
+// gauntlet protocol's own verdict words, deliberately: a reader who knows
+// what a stage's "pass" means already knows what a run's does. The fourth is
+// #1151's addition and has no stage-level equivalent - a stage cannot refuse,
+// only a run can.
+const (
+	// ScaleOutcomePass: every stage in the run's own scope passed - the
+	// same question LiveCertResult.Clear answers for a live_cert row and
+	// EstateResult.Clear for an emulator row, carried through rather than
+	// recomputed here against a scope this file does not own.
+	ScaleOutcomePass = "pass"
+	// ScaleOutcomeFail: at least one stage failed. The run measured
+	// something and what it measured was a failure.
+	ScaleOutcomeFail = "fail"
+	// ScaleOutcomeNotRun: the run reached no verdict - it spoke no stage, or
+	// it spoke some and never completed its scope without any of them
+	// failing. Nothing here is a claim about the product.
+	ScaleOutcomeNotRun = "not_run"
+	// ScaleOutcomeRefused: the run declined the rung. See ScaleRefusal.
+	ScaleOutcomeRefused = "refused"
+)
+
+var validScaleOutcomes = map[string]bool{
+	ScaleOutcomePass:    true,
+	ScaleOutcomeFail:    true,
+	ScaleOutcomeNotRun:  true,
+	ScaleOutcomeRefused: true,
+}
+
+// ScaleRefusal is why a run declined a rung, and the arithmetic behind it -
+// the structured half of `GAUNTLET refused=1 ...` (protocol.go).
+//
+// The case it was built for: terralith-scale at scale 136 needs 10,070 SSM
+// parameters for 10,069 resources, against a hard, non-adjustable 10,000 cap
+// (#1146), with the only uncapped alternative blocked behind #1145. The
+// maintainer's choice was to record that rather than skip the rung in
+// silence, and a refusal is only worth recording if a later reader can check
+// the arithmetic instead of taking the sentence on trust.
+type ScaleRefusal struct {
+	// Reason is one sentence, the run's own words. Required.
+	Reason string `json:"reason"`
+	// Needed and Limit are the two sides of the arithmetic, in Unit - 10070
+	// and 10000, "ssm-parameters". Either both are present or neither is
+	// (ValidateScaleRecord), because one number alone proves nothing.
+	Needed *int   `json:"needed,omitempty"`
+	Limit  *int   `json:"limit,omitempty"`
+	Unit   string `json:"unit,omitempty"`
+}
+
+// ScaleSupersession is one row this record replaced: enough to find it
+// again, never a copy of it. The record itself is in git, at Commit; this is
+// the pointer, so a reader who followed a citation to a figure that has
+// since moved can see what moved and when.
+type ScaleSupersession struct {
+	Commit  string `json:"commit"`
+	Date    string `json:"date,omitempty"`
+	Outcome string `json:"outcome,omitempty"`
+	Source  string `json:"source,omitempty"`
+}
+
+// IsRefusal reports whether this row is a refusal rather than a measurement.
+// Everything that is not a refusal is evidence of some kind, including a
+// fail and a not_run, and including a legacy row with no Outcome at all -
+// which is why this asks the positive question rather than "is this
+// measured", a question a legacy row could not answer.
+func (r ScaleRecord) IsRefusal() bool { return r.Outcome == ScaleOutcomeRefused }
+
+// scaleOutcome derives a run's own outcome from what it reached. clear is
+// the source row's own Clear flag - the only thing that knows the run's
+// scope, which differs between a live_cert row (four stages) and an emulator
+// row (fourteen) - so this never re-answers "did everything pass" against a
+// scope it would have to guess at.
+//
+// A run with no failure that did not clear is not_run, not pass: it reached
+// no verdict on its own scope, and calling that a pass is precisely the
+// carried-verdict claim #1069 spent a unit removing one level down.
+func scaleOutcome(clear bool, stages map[string]ScaleStage) string {
+	if clear {
+		return ScaleOutcomePass
+	}
+	for _, st := range stages {
+		if st.Verdict == VerdictFail {
+			return ScaleOutcomeFail
+		}
+	}
+	return ScaleOutcomeNotRun
 }
 
 // unaccountedSeconds returns total minus every stage's own known Seconds
@@ -464,6 +597,12 @@ func ValidateScaleRecord(r ScaleRecord) error {
 	if !validScaleTargets[r.Target] {
 		return fmt.Errorf("scale record for estate=%q: target must be \"floci\" or \"aws\", got %q", r.Estate, r.Target)
 	}
+	if r.Outcome != "" && !validScaleOutcomes[r.Outcome] {
+		return fmt.Errorf("scale record for estate=%q target=%q scale=%d: outcome %q is not one of pass/fail/not_run/refused", r.Estate, r.Target, r.Scale, r.Outcome)
+	}
+	if err := validateScaleRefusal(r); err != nil {
+		return err
+	}
 	for id, st := range r.Stages {
 		switch st.Verdict {
 		case VerdictPass, VerdictFail, VerdictNotRun:
@@ -478,6 +617,34 @@ func ValidateScaleRecord(r ScaleRecord) error {
 		if !issueRefRe.MatchString(r.UnaccountedDetail) {
 			return fmt.Errorf("scale record for estate=%q target=%q scale=%d: accounting_inconsistent is true but unaccounted_detail %q names no issue (want a \"#123\" reference) - a known inconsistency must be tracked, not just asserted", r.Estate, r.Target, r.Scale, r.UnaccountedDetail)
 		}
+	}
+	return nil
+}
+
+// validateScaleRefusal holds Outcome and Refusal to each other in both
+// directions. A refusal with no reason is a row asserting that something was
+// not attempted while declining to say why, which is worse on the record
+// than an absent row - the rung would at least read as unmeasured rather
+// than as settled. A reason with no refused outcome is the same row
+// mislabelled, and would render as a pass or a fail carrying an excuse.
+func validateScaleRefusal(r ScaleRecord) error {
+	if r.Outcome == ScaleOutcomeRefused && r.Refusal == nil {
+		return fmt.Errorf("scale record for estate=%q target=%q scale=%d: outcome is %q but there is no refusal - a refusal's whole value is the reason and the arithmetic it carries", r.Estate, r.Target, r.Scale, ScaleOutcomeRefused)
+	}
+	if r.Refusal == nil {
+		return nil
+	}
+	if r.Outcome != ScaleOutcomeRefused {
+		return fmt.Errorf("scale record for estate=%q target=%q scale=%d: a refusal is attached but outcome is %q, not %q", r.Estate, r.Target, r.Scale, r.Outcome, ScaleOutcomeRefused)
+	}
+	if strings.TrimSpace(r.Refusal.Reason) == "" {
+		return fmt.Errorf("scale record for estate=%q target=%q scale=%d: the refusal carries no reason", r.Estate, r.Target, r.Scale)
+	}
+	if (r.Refusal.Needed == nil) != (r.Refusal.Limit == nil) {
+		return fmt.Errorf("scale record for estate=%q target=%q scale=%d: the refusal carries needed or limit but not both - one side of an arithmetic is not an arithmetic", r.Estate, r.Target, r.Scale)
+	}
+	if r.Refusal.Needed != nil && strings.TrimSpace(r.Refusal.Unit) == "" {
+		return fmt.Errorf("scale record for estate=%q target=%q scale=%d: the refusal gives needed=%d limit=%d with no unit - two bare numbers say nothing a later reader can check", r.Estate, r.Target, r.Scale, *r.Refusal.Needed, *r.Refusal.Limit)
 	}
 	return nil
 }
@@ -822,6 +989,28 @@ func BuildScaleRecordFromLiveCert(r LiveCertResult, source string) ScaleRecord {
 		rec.TotalSeconds = &total
 		rec.UnaccountedSeconds = unaccountedSeconds(total, rec.Stages)
 	}
+	rec.Outcome = scaleOutcome(r.Clear, rec.Stages)
+	return rec
+}
+
+// WithRefusal returns rec recorded as a refusal (#1151): outcome refused,
+// the reason and arithmetic attached, and the scale taken from the refusal
+// when the run never spoke a cold_deploy detail to read one off - which is
+// the usual case, because a refusal happens before the estate is applied.
+//
+// Whatever stages the run DID speak before refusing are kept. A run that
+// applied the estate and then hit a ceiling at migrate measured a real
+// cold_deploy at that size, and throwing it away because the run as a whole
+// refused would discard evidence that cost the same money as any other.
+func (rec ScaleRecord) WithRefusal(ref *ProtocolRefusal) ScaleRecord {
+	if ref == nil {
+		return rec
+	}
+	rec.Outcome = ScaleOutcomeRefused
+	rec.Refusal = &ScaleRefusal{Reason: ref.Reason, Needed: ref.Needed, Limit: ref.Limit, Unit: ref.Unit}
+	if rec.Scale == 0 && ref.Scale > 0 {
+		rec.Scale = ref.Scale
+	}
 	return rec
 }
 
@@ -937,6 +1126,7 @@ func BuildScaleRecordFromEstate(e EstateResult, source string) (ScaleRecord, boo
 		rec.TotalSeconds = &total
 		rec.UnaccountedSeconds = unaccountedSeconds(total, rec.Stages)
 	}
+	rec.Outcome = scaleOutcome(e.Clear, rec.Stages)
 	return rec, true
 }
 
@@ -1044,14 +1234,104 @@ func scaleRecordLess(a, b ScaleRecord) bool {
 // Scale) identity, or appends rec if none does - the row-per-size behavior
 // LiveCertResult's own row-per-estate SetLiveCertResult deliberately does
 // NOT have (see ScaleRecord's own doc comment).
+//
+// This is the MECHANICAL upsert, used by the rebuild paths
+// (`scale-backfill`, `scale-import-slice`, `scale-patch-seconds`) that
+// re-derive a row from something already committed. It applies none of
+// #1151's superseding rule, because those callers are not recording a new
+// run: re-deriving a row from the same evidence is not one measurement
+// replacing another, and stamping a supersession on every backfill would
+// make an idempotent command grow the file each time it ran. A caller
+// recording a RUN uses SupersedeScaleRecord.
+//
+// It does carry the existing row's Supersedes chain forward when the
+// incoming row has none, for the same reason
+// UpsertScaleRecordKeepingCallCounts carries the call counts: a rebuild
+// that silently drops provenance the rebuild source never had is how a
+// number ends up in the file with nothing behind it.
 func (a *ScaleArtifact) UpsertScaleRecord(rec ScaleRecord) {
 	for i := range a.Records {
 		if a.Records[i].Estate == rec.Estate && a.Records[i].Target == rec.Target && a.Records[i].Scale == rec.Scale {
+			if len(rec.Supersedes) == 0 {
+				rec.Supersedes = a.Records[i].Supersedes
+			}
 			a.Records[i] = rec
 			return
 		}
 	}
 	a.Records = append(a.Records, rec)
+}
+
+// SupersedeScaleRecord records a RUN: the path `gauntlet live-cert` takes
+// when a real run has just produced a row. It is UpsertScaleRecord under
+// #1151's rule - see ScaleRecord's own doc comment for the rule in full and
+// why it is three rules rather than one.
+//
+// Returns the row as written, so a caller can print what it recorded and
+// what it superseded rather than guessing. On a refusal that would have
+// destroyed a measurement it writes nothing and returns an error naming the
+// row it protected: that is refuse-and-ask, deliberately, because the
+// alternative costs hours of paid real-AWS runtime that cannot be
+// re-measured cheaply, and because a human choosing to drop a measured row
+// can do it as its own reviewed change.
+func (a *ScaleArtifact) SupersedeScaleRecord(rec ScaleRecord) (ScaleRecord, error) {
+	for i := range a.Records {
+		old := a.Records[i]
+		if old.Estate != rec.Estate || old.Target != rec.Target || old.Scale != rec.Scale {
+			continue
+		}
+		if rec.IsRefusal() && !old.IsRefusal() {
+			return ScaleRecord{}, fmt.Errorf(
+				"scale record for estate=%q target=%q scale=%d: refusing to replace a measured row with a refusal.\n"+
+					"  on record: outcome=%s commit=%s date=%s source=%s\n"+
+					"  incoming:  outcome=%s commit=%s date=%s reason=%s\n"+
+					"A refusal is the absence of a measurement, and this rung has one. Nothing was written. If the measured row really is to go, remove it as its own reviewed change (#1151).",
+				rec.Estate, rec.Target, rec.Scale,
+				outcomeOrLegacy(old), short(old.Commit), old.Date, old.Source,
+				outcomeOrLegacy(rec), short(rec.Commit), rec.Date, refusalReason(rec))
+		}
+		// Newer wins, and says what it replaced.
+		rec.Supersedes = append(append([]ScaleSupersession{}, old.Supersedes...), ScaleSupersession{
+			Commit:  old.Commit,
+			Date:    old.Date,
+			Outcome: old.Outcome,
+			Source:  old.Source,
+		})
+		// The call counts come from somewhere this row's own run cannot
+		// measure (the slicing bench, via scale-import-slice), so a run
+		// that has none must not delete the ones already on record - the
+		// same care UpsertScaleRecordKeepingCallCounts documents, owed
+		// here too.
+		if rec.PlanCalls == nil {
+			rec.PlanCalls = old.PlanCalls
+		}
+		if rec.AuditCalls == nil {
+			rec.AuditCalls = old.AuditCalls
+		}
+		if rec.CallCountsSource == "" {
+			rec.CallCountsSource = old.CallCountsSource
+		}
+		a.Records[i] = rec
+		return rec, nil
+	}
+	a.Records = append(a.Records, rec)
+	return rec, nil
+}
+
+// outcomeOrLegacy names a row's outcome for a human, without pretending a
+// row written before the field existed has one.
+func outcomeOrLegacy(r ScaleRecord) string {
+	if r.Outcome == "" {
+		return "(none recorded)"
+	}
+	return r.Outcome
+}
+
+func refusalReason(r ScaleRecord) string {
+	if r.Refusal == nil {
+		return "(none)"
+	}
+	return r.Refusal.Reason
 }
 
 // UpsertScaleRecordKeepingCallCounts is UpsertScaleRecord for a caller whose
