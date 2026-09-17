@@ -2572,6 +2572,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
 | - | - | projection | Ownership marker conflict | error | `internal/live/projection` | "Ownership marker conflict" |
 | - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
+| - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
@@ -4133,6 +4134,14 @@ reserved for the limits wing's fixture directories, and
 #### Ownership marker is not a legal label value
 
 **What.** GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, "Kubernetes: one label".
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership marker was not stored
+
+**What.** GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

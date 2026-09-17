@@ -449,10 +449,12 @@ if [ "${BREAK:-0}" = "1" ]; then
     "instead - same kind, same namespace, same JSONPatch, one key" \
     "different - and requires the opposite outcome. The decoy must be" \
     "stripped, so the policy is provably in the chain and provably" \
-    "mutating. The marker must land, live-ls must list the object as" \
-    "this estate's, and the second apply must not wedge. If any of that" \
-    "failed here, the main arm would be measuring choudoufu failing to" \
-    "write a label and the stripper would be scenery."
+    "mutating. The marker must land, the run must NOT say the marker" \
+    "was not stored, live-ls must list the object as this estate's, and" \
+    "the second apply must not wedge. If any of that failed here, the" \
+    "main arm would be measuring choudoufu failing to write a label, or" \
+    "a diagnostic that fires whatever the server does, and the stripper" \
+    "would be scenery."
   cmd "kubectl apply -f stripper.yaml   # strips smoke-decoy, not tofu-estate"
   ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
     || fail "$SCEN" "BREAK: could not clear the estate before the control"
@@ -591,7 +593,17 @@ echo "after kubectl label: tofu-estate=${HAND:-<none>}" | evidence
 [ -z "$HAND" ] \
   || fail "$SCEN" "the by-hand relabel survived the policy; the remedy the warning names would work and this step is wrong: $HAND"
 versions_block adopt
+# resourceVersion is the API server's own answer to "did this write change
+# the stored object": it is set to the etcd revision of the object's last
+# write and does not move when a write stores something byte-identical. The
+# first adopting run is allowed to move it - the provider's update sends a
+# labels map where the stripped create left none, and the policy removing
+# the marker from it still leaves an empty map behind. What must not move is
+# the second one: that is the "on every run, for ever" part of #1192, and it
+# is the difference between a loop that converges on nothing and one that is
+# actually writing something each time.
 RV_BEFORE="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.resourceVersion}')"
+declare -a RVS=()
 for n in 1 2; do
   ADOPT_RC=0
   ADOPT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || ADOPT_RC=$?
@@ -610,13 +622,13 @@ for n in 1 2; do
   AFTER="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels.tofu-estate}')"
   [ -z "$AFTER" ] \
     || fail "$SCEN" "adopt run $n actually wrote the marker under the stripping policy: tofu-estate=$AFTER"
+  RVS+=("$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.resourceVersion}')")
 done
-RV_AFTER="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.resourceVersion}')"
-echo "resourceVersion before the two adopting runs: $RV_BEFORE, after: $RV_AFTER" | evidence
-[ "$RV_BEFORE" = "$RV_AFTER" ] \
-  || fail "$SCEN" "the object changed across the adopting runs; the API server bumps resourceVersion on any real write, so something DID land and 'nothing changed' is the wrong reading: $RV_BEFORE -> $RV_AFTER"
+echo "resourceVersion: $RV_BEFORE before, ${RVS[0]} after adopt run 1, ${RVS[1]} after adopt run 2" | evidence
+[ "${RVS[0]}" = "${RVS[1]}" ] \
+  || fail "$SCEN" "the second adopting run changed the stored object; it was supposed to be the same write landing on nothing, for ever: ${RVS[0]} -> ${RVS[1]}"
 kc get configmap app-config -n "$NS" -o jsonpath='labels={.metadata.labels}{"\n"}' | evidence
-proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is now honest too: it reports the marker the server did not store and exits non-zero, with no completion line, because an adopting update that loses its marker wrote nothing - resourceVersion $RV_BEFORE before both runs and $RV_BEFORE after them. Reporting \"0 added, 1 changed, 0 destroyed\" and exit 0 on every run forever was #1192."
+proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is now honest too: it names the marker the server did not store and exits non-zero, with no completion line. resourceVersion ${RVS[0]} after the first adopting run and ${RVS[1]} after the second, so the run repeats a write the server keeps nothing of - and reporting \"0 added, 1 changed, 0 destroyed\" and exit 0 over that, on every run forever, was #1192."
 
 step "8. the policy is lifted - the adoption lands and the estate is whole"
 explain \
