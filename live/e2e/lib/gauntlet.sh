@@ -341,6 +341,50 @@ gauntlet_record_count() {
   find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
 }
 
+# gauntlet_record_file <dir> <address>: the path of the one record file
+# under <dir> whose envelope is for <address>, or nothing if there is none.
+# A record's on-disk name is the base64 of its address under a per-type
+# directory, which a script has no business reconstructing; the envelope's
+# own `address` field is the thing to match, so this reads it. Nothing is
+# printed and the status is 1 when no record exists - which is itself a
+# reading, not an error: eight of ten Kubernetes instance types get a
+# record file and kubernetes_config_map_v1 gets none (#1188).
+gauntlet_record_file() {
+  python3 - "$1" "$2" <<'PY'
+import json, os, sys
+root, addr = sys.argv[1], sys.argv[2]
+for dirpath, _, names in os.walk(root):
+    for n in sorted(names):
+        if n.endswith('.lock') or '.tmp-' in n or n == '.store-sentinel':
+            continue
+        p = os.path.join(dirpath, n)
+        try:
+            with open(p) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get('address') == addr:
+            print(p)
+            sys.exit(0)
+sys.exit(1)
+PY
+}
+
+# gauntlet_record_residue <file>: the names of the residue attributes a
+# record envelope carries, one per line, or nothing. Residue is the
+# irrecoverable member - the applied value of a config-only argument the
+# API server never returns - so "which names are in here" is what a caller
+# wants to assert by value rather than "how many files exist".
+gauntlet_record_residue() {
+  python3 - "$1" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+for k in sorted((d.get('residue') or {}).get('attributes') or {}):
+    print(k)
+PY
+}
+
 # gauntlet_tagged_count <aws-invocation...>: runs the given AWS CLI
 # invocation (e.g. `awsl resourcegroupstaggingapi get-resources
 # --tag-filters "Key=tofu-estate,Values=$ESTATE"` - any prefix that ends in
