@@ -302,6 +302,86 @@ ADOPTED_DIR="$WORK/adopted"
 EXPECTED=$((74 * SCALE + 5))    # total resources
 VERIFIED=$((33 * SCALE + 5))    # taggable (VERIFIED/DRIFTED-eligible) resources - 18 named-team + 1 service-exec-role + 6 count-expanded + 6 module-nested + 2 container per scale, plus a fixed 5 (zone, VPC, subnet, SG, cluster)
 
+# ── what the tag index can actually hold (issue #1143) ──────────────────
+#
+# VERIFIED above counts what migrate STAMPS. index_wait() used to poll the
+# Resource Groups Tagging API for that same number, which cannot be reached:
+# a majority of the stamped objects are of types GetResources never returns,
+# or returns only in a region this run does not query. The wait therefore
+# burned its whole bound on every real-AWS run - 3600s of dead time at scale
+# 50 - and then printed a line that read like a measurement of index lag.
+# It was not measuring lag. The target was wrong.
+#
+# index_partition() splits VERIFIED three ways, by TYPE, against what real
+# AWS was measured to do on #1134/#1144:
+#
+#   regional   2*SCALE + 4   aws_ecs_task_definition, aws_ecs_service (1 each
+#                            per scale); aws_ecs_cluster, aws_vpc,
+#                            aws_subnet, aws_security_group (1 each, fixed).
+#                            Ordinary regional objects: the index holds them
+#                            in the region they live in, which is this run's.
+#
+#   global    20*SCALE + 1   aws_iam_policy, aws_iam_instance_profile (10
+#                            each per scale: 6 named-team + 2 count-expanded
+#                            + 2 module-nested); aws_route53_zone (1, fixed).
+#                            IAM and Route53 are global services and the tag
+#                            index holds their objects in us-east-1 ONLY,
+#                            whatever region the caller is in (#1144). So
+#                            these count toward the target only when this
+#                            run's own REGION is us-east-1.
+#
+#   unindexed 11*SCALE       aws_iam_role (6 named-team + 2 count-expanded +
+#                            2 module-nested + 1 service-exec per scale).
+#                            GetResources returns NOTHING for iam:role in any
+#                            region, while iam:ListRoleTags confirms every
+#                            one of them carries tofu-estate (#1134, 550 of
+#                            550 at scale 50, stable over 35 minutes). These
+#                            are unreachable from the tag index anywhere, so
+#                            no bound can ever absorb them.
+#
+# The split is not an estimate. It reproduces all three real-AWS plateaus on
+# record, to the object:
+#
+#   scale  50, us-east-2 -> 2*50+4  = 104   measured 104 (101 ecs + 3 ec2)
+#   scale  50, us-east-1 -> 22*50+5 = 1105  measured 1105 (104 + 1000 iam + 1 zone, unioned)
+#   scale 128, us-east-2 -> 2*128+4 = 260   measured 260 (257 ecs + 3 ec2)
+#
+# DECISION, the one #1143 asks for explicitly: livecert_rgta_count keeps
+# querying $REGION alone; it does NOT additionally query us-east-1 for the
+# global types. The wait exists to let the index settle before test_plan
+# READS it, and what test_plan reads is (a) 4a2's own identity check, the
+# same single-region livecert_rgta_count, and (b) choudoufu's own sweep,
+# which is region-pinned and routes every aws_iam_ type away from the
+# tagging leg entirely (taggingAPIUnservedServices, #692). Unioning us-east-1
+# into the target would make the run wait on objects nothing downstream of
+# the wait consults. Whether the PRODUCT's sweep should become region-aware
+# for global services is #1144's decision, not this harness's; when it lands,
+# index_partition follows it and this comment is the place to say so.
+index_partition() {
+  local region="$1"
+  local regional=$(( 2 * SCALE + 4 ))
+  local global=$(( 20 * SCALE + 1 ))
+  local unindexed=$(( 11 * SCALE ))
+  local target=$regional
+  if [ "$region" = "us-east-1" ]; then
+    target=$(( regional + global ))
+  fi
+  printf '%s %s %s %s\n' "$target" "$regional" "$global" "$unindexed"
+}
+
+# The partition must be TOTAL: every stamped object lands in exactly one of
+# the three buckets. If it does not, either terralith-gen's composition moved
+# under the VERIFIED formula or the formula moved under the split, and either
+# way the target index_wait polls to is no longer derived from anything. Read
+# at config time, before a single billable object exists, because the whole
+# point of #1143 is not to discover a bad target after cold_deploy has
+# already spent the money.
+IFS=' ' read -r _ INDEX_REGIONAL INDEX_GLOBAL INDEX_UNINDEXED <<< "$(index_partition "$REGION")"
+if [ $((INDEX_REGIONAL + INDEX_GLOBAL + INDEX_UNINDEXED)) -ne "$VERIFIED" ]; then
+  echo "index_partition at scale=$SCALE splits VERIFIED into ${INDEX_REGIONAL} regional + ${INDEX_GLOBAL} global + ${INDEX_UNINDEXED} unindexed = $((INDEX_REGIONAL + INDEX_GLOBAL + INDEX_UNINDEXED)), but VERIFIED is ${VERIFIED} - the split and the formula have drifted apart, so index_wait has no derivable target (issue #1143)" >&2
+  exit 2
+fi
+
 log() { printf '%s\n' "$*"; }
 
 case "$TARGET" in
@@ -1532,21 +1612,58 @@ fi # RESUMED == 0 (cold_deploy + migrate)
 # selftest-teardown-timeout.sh already uses for teardown()) and drive it
 # against a stubbed `aws` with no real AWS calls.
 index_wait() {
-  log "=== 3c. index wait: polling the tag index for tofu-estate=$ESTATE every ${LIVECERT_INDEX_POLL_S}s, bound ${LIVECERT_INDEX_WAIT_S}s (#1046) ==="
-  local idx_n elapsed start
+  local idx_n elapsed start target regional global unindexed
+  IFS=' ' read -r target regional global unindexed <<< "$(index_partition "$REGION")"
+  INDEX_TARGET_N=$target
+
+  log "=== 3c. index wait: polling the tag index for tofu-estate=$ESTATE in $REGION every ${LIVECERT_INDEX_POLL_S}s, bound ${LIVECERT_INDEX_WAIT_S}s (#1046, #1143) ==="
+  # Say the whole split out loud, every run. A wait that silently narrowed
+  # its target would be #1143 again from the other side: the run would
+  # converge, look complete, and nobody would know it had stopped counting
+  # most of the estate.
+  log "  migrate stamped ${VERIFIED} objects; ${target} of them are what the tag index can hold when queried in ${REGION}, and ${target} is what this wait polls to:"
+  log "    ${regional} regional - aws_ecs_task_definition, aws_ecs_service (per scale); aws_ecs_cluster, aws_vpc, aws_subnet, aws_security_group (fixed)"
+  if [ "$REGION" = "us-east-1" ]; then
+    log "    ${global} global - aws_iam_policy, aws_iam_instance_profile (per scale); aws_route53_zone (fixed). Counted, because the tag index holds global-service objects in us-east-1 and this run's region IS us-east-1"
+  else
+    log "  NOT waiting for ${global} global object(s) - aws_iam_policy, aws_iam_instance_profile, aws_route53_zone. IAM and Route53 are global services whose objects the tag index holds in us-east-1 ONLY, and this run queries ${REGION} (#1144). They exist and they are stamped; they are not visible from here"
+  fi
+  log "  NOT waiting for ${unindexed} aws_iam_role(s) - resourcegroupstaggingapi GetResources returns nothing for iam:role in ANY region, while iam:ListRoleTags confirms every one of them carries tofu-estate (#1134, measured against real AWS and stable over 35 minutes). No bound can absorb these; waiting for them is what made this step unsatisfiable (#1143)"
+
+  if [ "$target" -le 0 ]; then
+    INDEX_LAG_S=0
+    INDEX_CONVERGED=na
+    log "index wait SKIPPED: nothing this estate stamped is reachable from the tag index in ${REGION}, so there is no target to converge on. Not waiting is the honest answer - a 0-of-0 'converged' would be a false pass, and the bound would be pure dead time"
+    return 0
+  fi
+
   start=$(date +%s)
   while :; do
     idx_n="$(livecert_rgta_count tofu-estate "$ESTATE")"
     elapsed=$(( $(date +%s) - start ))
-    log "  index wait: t=${elapsed}s tag index holds ${idx_n:-0} of ${VERIFIED} stamped"
-    if [ "${idx_n:-0}" -ge "$VERIFIED" ]; then
+    log "  index wait: t=${elapsed}s tag index holds ${idx_n:-0} of a reachable ${target} (of ${VERIFIED} stamped)"
+    if [ "${idx_n:-0}" -ge "$target" ]; then
       INDEX_LAG_S=$elapsed
-      log "index converged after ${INDEX_LAG_S}s: ${idx_n} of ${VERIFIED}"
+      INDEX_CONVERGED=yes
+      log "index converged after ${INDEX_LAG_S}s: ${idx_n} of a reachable ${target}. This is NOT ${VERIFIED} of ${VERIFIED}: $((VERIFIED - target)) stamped object(s) are outside what the tag index can hold from ${REGION} and were never part of the target - see the breakdown above before reading this as 'every object is in the index'"
       return 0
     fi
     if [ "$elapsed" -ge "$LIVECERT_INDEX_WAIT_S" ]; then
       INDEX_LAG_S=$elapsed
-      log "index still at ${idx_n:-0} of ${VERIFIED} after ${LIVECERT_INDEX_WAIT_S}s, proceeding"
+      INDEX_CONVERGED=no
+      # This is the second half of #1143. The old code printed "still at N
+      # of M ... proceeding" and returned 0, and the run went on to pass
+      # test_plan - so a bound that tripped on an IMPOSSIBLE target was
+      # indistinguishable, in the log and in the recorded row alike, from a
+      # bound that tripped on a slow index. Now the target is reachable, so
+      # tripping the bound means something: the index genuinely did not
+      # catch up. Say that, and carry index_converged=no into test_plan's
+      # own detail so the recorded row cannot be read as a converged
+      # measurement either. The run still continues, deliberately:
+      # test_plan's own refusal (DIRECT_READ_UNRESOLVED, #1046/#1049) is the
+      # product's verdict on a lagged index, and this step is a measurement,
+      # not a gate.
+      log "index NOT CONVERGED: ${idx_n:-0} of a reachable ${target} after ${LIVECERT_INDEX_WAIT_S}s. The target is what the index CAN hold from ${REGION}, so this is a genuine index lag, not #1143's unsatisfiable target. Proceeding to test_plan, whose own verdict - not this line - is the run's answer; index_converged=no rides into the recorded row"
       return 0
     fi
     sleep "$LIVECERT_INDEX_POLL_S"
@@ -1556,10 +1673,27 @@ index_wait() {
 LIVECERT_INDEX_WAIT_S="${LIVECERT_INDEX_WAIT_S:-1800}"
 LIVECERT_INDEX_POLL_S="${LIVECERT_INDEX_POLL_S:-30}"
 INDEX_LAG_S=0
+# The reachable target index_wait actually polled to, recorded beside the
+# lag so a reader can tell 104 of 104 from 104 of 1655 without the log.
+INDEX_TARGET_N=0
+# yes | no | na (no reachable target) | skipped (not an aws run). Never
+# empty: test_plan's detail carries it as a token, and an empty token would
+# read to tools/gauntlet/scalerecord.go exactly like the old run that could
+# not distinguish converged from timed-out at all.
+INDEX_CONVERGED=skipped
 if [ "$TARGET" = "aws" ]; then
   index_wait
 else
-  log "=== 3c. index wait: target=$TARGET - the tag index lag is not under test here, skipping ==="
+  # Not "the index lag is not under test here" alone - that sentence is true
+  # but it hides a second reason that is the more interesting one. The
+  # pinned emulator serves an EMPTY ResourceTagMappingList for every IAM
+  # type (lex00/floci#205, tracked as #1152), so it can hold neither the
+  # 20*SCALE+1 global half of index_partition's split nor the 11*SCALE roles
+  # real AWS also withholds. A floci run of this wait would therefore be
+  # measuring floci's divergence from AWS, not index lag, and would time out
+  # for a reason that tells us nothing about the product. live/
+  # indexwait_partition_test.go goes red the day that stops being true.
+  log "=== 3c. index wait: target=$TARGET - skipping. The tag index's own lag is a real-AWS property, and the pinned emulator additionally serves no IAM through GetResources (#1152/lex00/floci#205), so index_partition's global half is unserved here and a wait could only measure the emulator's divergence ==="
 fi
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1714,7 +1848,16 @@ if [ -n "$TP_FAIL" ]; then
   # also names how long the index had been given to catch up before this
   # plan ran, without a second field the runner would need to know about -
   # gauntlet_stage's own detail is free text to end of line (see
-  # live/e2e/lib/gauntlet.sh), so this needs no change there. seconds=/
+  # live/e2e/lib/gauntlet.sh), so this needs no change there.
+  #
+  # index_converged=/index_target= (#1143) ride the same way, and they are
+  # what stop index_lag_s from lying. On its own, index_lag_s=3600 says only
+  # "the wait took an hour"; it cannot say whether the index caught up at
+  # 3600s or the bound tripped, and before #1143 the bound tripped on every
+  # real-AWS run because the target could not be reached. A recorded row now
+  # names the target that was actually polled to and whether it was met.
+  #
+  # seconds=/
   # throttle=/retry= (issue #1051) ride the same way: 4b above already
   # measured them before TP_FAIL was ever checked, so a refused plan still
   # reports whatever it cost up to the refusal. plan_calls_choudoufu=/
@@ -1727,7 +1870,7 @@ if [ -n "$TP_FAIL" ]; then
   PLAN_CALLS_TOKENS=""
   [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
   [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
-  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
+  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="
@@ -1747,7 +1890,7 @@ log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI di
 PLAN_CALLS_TOKENS=""
 [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
 [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and
