@@ -172,9 +172,12 @@ func (r *ReconcileResult) Proposable() []ReconcileCandidate {
 // motivating matrix.
 //
 // It never touches [Result.Orphans] or [Result.Resolutions] itself; the
-// caller (internal/command) merges [ReconcileResult.Roster] into the
+// caller (internal/command) merges [ReconcileResult.Proposable] into the
 // resolution list the same way a swept orphan enters it, once the
-// threshold guard has been checked.
+// threshold guard has been checked. Proposable rather than the whole
+// roster since GitHub issue #1257: a candidate this run's -target /
+// -exclude left out of the plan graph is reported and destroyed by
+// nothing.
 func Reconcile(ctx context.Context, req ReconcileRequest) (*ReconcileResult, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	res := &ReconcileResult{}
