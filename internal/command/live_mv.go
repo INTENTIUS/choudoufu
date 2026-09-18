@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mv"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -135,6 +136,42 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 		return 1
 	}
 	return 0
+}
+
+// liveMvSweepClients builds the two clients mv.Move's sweep can reach a
+// marker through when a list call did not carry one, or returns nil for
+// both when this run has no AWS endpoint to reach them at.
+//
+// They are a pair and not two independent decisions, which is the whole
+// reason this is a function. The first (GitHub issue #266) is the estate's
+// tag index: some list operations drop tags entirely - iam:ListRoles,
+// iam:ListPolicies - so without it a needs-discovery instance of such a
+// type can never be found by a sweep, however correctly it is tagged. The
+// second (#1125/#1131, added here by #1274) is the service's own tag API,
+// and it exists because the first one is not a fallback for every service:
+// #1134 measured the Resource Groups Tagging API serving no iam:role on
+// real AWS, and the pinned emulator serves no IAM at all (lex00/floci#205,
+// #1152). On such a target the index answers nothing about an
+// aws_iam_policy that carries this estate's marker, and before this
+// live-mv had nothing left to ask - so it refused a rename live-plan, which
+// has had the second leg since #1125, performed happily.
+//
+// Both ride [cloudControlTarget]'s gate, the same gate live-plan builds its
+// own copies behind. Nil for both is the pre-#266 behavior, exactly as an
+// ordinary discovery pass degrades when it has neither.
+//
+// The service reader is built with nil credentials, matching the Tagging
+// client beside it: live-mv has never resolved the provider block's
+// principal for its sweep clients the way live-plan does (#957 landed on
+// the plan path only), and widening that is its own change. A nil becomes
+// aws-sdk-go-v2's default chain, lazily - see [sweepServiceCredentials].
+func liveMvSweepClients(region string) (*cloudcontrol.Client, servicetags.Reader) {
+	ep, on := cloudControlTarget()
+	if !on {
+		return nil, nil
+	}
+	return cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region}),
+		newServiceTagsReader(region, ep, nil)
 }
 
 type liveMvArgs struct {
@@ -281,18 +318,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// this run evaluated, exactly as discovery gets it in a plan.
 	region := c.liveMvRegion(ctx, config, provs, args.new, args.old)
 
-	// The same Tagging client live-plan builds (live_plan.go, around its own
-	// req.Tagging assignment), for the same issue #266 fallback: some list
-	// operations drop tags entirely (iam:ListRoles, iam:ListPolicies), and
-	// mv.Move's own sweep needs the estate's tag index to find such an
-	// object at all - see mv.Request.Tagging's doc comment. A nil client
-	// (Cloud Control fallback off, or no endpoint named) degrades live-mv to
-	// exactly its pre-fix behavior for such a type, the same way an ordinary
-	// plan already degrades with no Tagging client.
-	var tagging *cloudcontrol.Client
-	if ep, on := cloudControlTarget(); on {
-		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region})
-	}
+	tagging, serviceTags := liveMvSweepClients(region)
 
 	res, moveDiags := mv.Move(ctx, mv.Request{
 		Estate:             estate,
@@ -306,6 +332,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		DryRun:             args.dryRun,
 		AllowMissingConfig: args.allowMissing,
 		Tagging:            tagging,
+		ServiceTags:        serviceTags,
 		RecordStore:        projection.NewRecordEnvelopeStore(recordStore, recordKeyPrefixFor(config, estate)),
 		ReadParallelism:    readPar,
 	})
