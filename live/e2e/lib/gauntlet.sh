@@ -334,6 +334,87 @@ gauntlet_kind_count() {
   printf '%s\n' "$n"
 }
 
+# gauntlet_k8s_wait_all <kubeconfig> <namespace> <kind> <condition>
+#                       <timeout-seconds> <where>
+#
+# Waits for every object of <kind> in <namespace> to reach <condition>, and
+# keeps the three ways that can go wrong apart (#1285).
+#
+# `kubectl wait --all` is a selector over a set, and against a set that is
+# EMPTY kubectl does not wait for members to turn up - it prints "error: no
+# matching resources found" and returns 1 in about 0.05s. A caller that
+# treats any non-zero exit as the timeout it asked for then reports "did not
+# become ready within 300s" for a question that was answered instantly, and
+# sends the next reader to look at objects that were never there. Measured
+# on kind, kubectl v1.36.1, against a namespace with no Deployments:
+#
+#   $ kubectl wait --for=condition=Available --timeout=300s deployment --all -n empty-ns
+#   error: no matching resources found
+#   rc=1 after 0s
+#
+# An empty match is almost always a setup bug - wrong namespace, the install
+# never ran, the chart renamed its Deployments - and it is a different
+# problem from an object that exists and stays unready, so it gets its own
+# message naming what was looked for and where.
+#
+# This is #1278's complaint one shape over, not its mechanism: that was a
+# status subresource served as `null`, this is a selector matching nothing.
+# It lives here and not in live/smoke/lib.sh's k8s_wait_condition, which
+# #1278 added, because the two trees do not share shell: no script in
+# live/e2e sources the smoke library and none in live/smoke sources this
+# one. They could not anyway - smoke's fail() takes (scenario, message) and
+# exits the scenario, while an e2e crossing script's fail() records the
+# CURRENT_STAGE verdict; and k8s_wait_condition reads one global $KUBECONFIG
+# where a crossing script such as reference-k8s-cert-manager holds two, one
+# per cluster. So this returns 1 and prints, and the caller's own fail()
+# decides what that means.
+#
+# All three legs are bounded: the pre-check is a single kubectl get, and the
+# wait carries kubectl's own --timeout. Nothing here can spin (#1143, #1267).
+#
+#   empty set        -> "no <kind> objects exist in namespace <ns> on <where>"
+#   still not <cond> -> the timeout message, with the elapsed seconds it
+#                       really took and the names it was waiting on
+#   anything else    -> said to have failed BEFORE the bound, never called a
+#                       timeout, with kubectl's own words quoted
+#
+# kubectl's output is captured and printed rather than dropped into
+# /dev/null: the issue's second half, and the same reason #1158 exists.
+gauntlet_k8s_wait_all() {
+  local cfg="$1" ns="$2" kind="$3" cond="$4" timeout="$5" where="$6"
+  local names out rc start elapsed n
+
+  names="$(kubectl --kubeconfig "$cfg" get "$kind" -n "$ns" -o name 2>&1)" || {
+    printf 'gauntlet_k8s_wait_all: could not list %s in namespace %s on %s (so whether they reached %s was never asked): %s\n' \
+      "$kind" "$ns" "$where" "$cond" "$names" >&2
+    return 1
+  }
+  n="$(printf '%s' "$names" | grep -c . || true)"
+  if [ "$n" -eq 0 ]; then
+    printf 'gauntlet_k8s_wait_all: no %s objects exist in namespace %s on %s, so nothing was waited for - `kubectl wait --all` matches an empty set and gives up at once, it does not wait for objects to appear. This is a setup failure (wrong namespace, the install never ran, the objects are named differently), NOT a %ss timeout.\n' \
+      "$kind" "$ns" "$where" "$timeout" >&2
+    kubectl --kubeconfig "$cfg" get all -n "$ns" >&2 2>&1 || true
+    return 1
+  fi
+
+  start="$(date +%s)"
+  out="$(kubectl --kubeconfig "$cfg" wait --for="condition=$cond" --timeout="${timeout}s" "$kind" --all -n "$ns" 2>&1)"; rc=$?
+  elapsed=$(( $(date +%s) - start ))
+  if [ "$rc" -eq 0 ]; then
+    printf '  ready after %ss: all %s %s in namespace %s on %s reached %s\n' "$elapsed" "$n" "$kind" "$ns" "$where" "$cond"
+    return 0
+  fi
+  if [ "$elapsed" -ge "$timeout" ]; then
+    printf 'gauntlet_k8s_wait_all: TIMEOUT - the %s %s in namespace %s on %s did not all reach %s within %ss (waited %ss). Waiting on: %s\nkubectl said: %s\n' \
+      "$n" "$kind" "$ns" "$where" "$cond" "$timeout" "$elapsed" "$(printf '%s' "$names" | tr '\n' ' ')" "$out" >&2
+  else
+    printf 'gauntlet_k8s_wait_all: kubectl wait FAILED after %ss, before the %ss bound it was given, so this is not a timeout - the %s %s in namespace %s on %s were never reported unready, the command itself did not run to completion. Waiting on: %s\nkubectl said: %s\n' \
+      "$elapsed" "$timeout" "$n" "$kind" "$ns" "$where" "$(printf '%s' "$names" | tr '\n' ' ')" "$out" >&2
+  fi
+  kubectl --kubeconfig "$cfg" get pods -n "$ns" >&2 2>&1 || true
+  return 1
+}
+
 # gauntlet_record_count <dir>: counts a record store's on-disk record files
 # under <dir> the way every crossing script already counted them by hand -
 # "-type f", skipping the write-lock and in-progress-write files a
