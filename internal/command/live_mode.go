@@ -909,7 +909,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// or writes the live system: newStatelessProviders only builds the
 	// struct, and resourceSchemas reads unconfigured provider schemas, the
 	// same schema-only call live-plan makes ahead of its own lint check.
-	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+	// GitHub issue #1256's half of the scope: the per-resource rules narrow
+	// to the blocks the plan graph still holds, and every whole-
+	// configuration rule ignores it. See [lint.Context].
+	lctx := lint.Context{Schemas: resourceSchemas, Scope: scope}
+	if issues := lint.CheckWith(ctx, config, lctx); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
@@ -917,7 +921,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
 	// than gating on it. See [lint.CheckResidueAttributes].
-	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+	diags = diags.Append(lint.CheckResidueAttributes(config, lctx))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant.

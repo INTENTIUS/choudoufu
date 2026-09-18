@@ -78,7 +78,14 @@ import (
 //
 // A nil cfg, empty schemas, or a configuration setting none of the flagged
 // attributes returns nil.
-func CheckResidueAttributes(cfg *configs.Config, schemas map[string]providers.Schema) tfdiags.Diagnostics {
+//
+// lctx is [CheckWith]'s own [Context], so that a caller cannot hand the two
+// passes different worlds. It takes both fields: Schemas is what this
+// warning is derived from, and Scope is GitHub issue #1256's target set -
+// the perpetual diff this warns about is a diff over a block the run
+// proposes, and a block -target / -exclude left out of the plan graph is not
+// proposed here. See [scopeExcludes].
+func CheckResidueAttributes(cfg *configs.Config, lctx Context) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	// GitHub issue #365 slice 3. The sensitive half of this warning is a
 	// claim about what a record may hold, and that claim is now the
@@ -90,7 +97,7 @@ func CheckResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sc
 	// Read once, from the root, through the same function every other layer
 	// reads it with. The write-only half is unaffected and stays: no setting
 	// makes a write-only value returnable.
-	walkResidueAttributes(cfg, schemas, identity.SecretsFor(cfg), &diags)
+	walkResidueAttributes(cfg, lctx.Schemas, lctx.Scope, identity.SecretsFor(cfg), &diags)
 	return diags
 }
 
@@ -99,7 +106,7 @@ func CheckResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sc
 // A type with no schema (the effects types, or a run whose providers gave no
 // schemas) is silently skipped: with nothing to consult there is nothing to
 // claim.
-func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Schema, secrets strict.Secrets, diags *tfdiags.Diagnostics) {
+func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Schema, scope identity.Scope, secrets strict.Secrets, diags *tfdiags.Diagnostics) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -111,6 +118,11 @@ func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sch
 	sort.Strings(names)
 	for _, name := range names {
 		resource := cfg.Module.ManagedResources[name]
+		// GitHub issue #1256, ahead of the schema lookup so that a
+		// narrowed run does not pay for a block it is not acting on.
+		if scopeExcludes(scope, cfg.Path, resource.Addr()) {
+			continue
+		}
 		schema, ok := schemas[resource.Type]
 		if !ok || schema.Block == nil {
 			continue
@@ -128,7 +140,7 @@ func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sch
 	}
 	sort.Strings(childNames)
 	for _, name := range childNames {
-		walkResidueAttributes(cfg.Children[name], schemas, secrets, diags)
+		walkResidueAttributes(cfg.Children[name], schemas, scope, secrets, diags)
 	}
 }
 

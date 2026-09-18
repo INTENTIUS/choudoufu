@@ -132,10 +132,21 @@ func DescribeForEachKeyRune(r rune) string {
 //     for_each this pass cannot evaluate is simply not checked here, exactly
 //     as an unevaluable resource for_each is not, and RuleChildModule is
 //     what stops the run.
-func checkForEachKeys(ctx context.Context, cfg *configs.Config, path addrs.Module, issues *[]Issue) {
+func checkForEachKeys(ctx context.Context, cfg *configs.Config, path addrs.Module, scope identity.Scope, issues *[]Issue) {
 	mod := cfg.Module
 	for _, resource := range mod.ManagedResources {
 		if resource.ForEach == nil {
+			continue
+		}
+		// GitHub issue #1256. A key this pass refuses is refused because it
+		// cannot survive the trip into a tofu-address marker, and a block
+		// -target / -exclude removed from the plan graph is never stamped
+		// on this run. The MODULE-call half below takes no scope: a module
+		// call is not an [addrs.ConfigResource], so [identity.Scope] has no
+		// answer about it, and RuleChildModule - which stays
+		// whole-configuration for the same reason - is what refuses a call
+		// this pass cannot expand at all. See [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
 			continue
 		}
 		keys, ok := staticeval.ForEachKeys(ctx, mod, resource.ForEach)
