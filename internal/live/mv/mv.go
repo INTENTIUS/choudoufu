@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -92,14 +93,34 @@ type Request struct {
 	// Tagging is the Resource Groups Tagging API client a caller builds the
 	// same way internal/command/live_plan.go does (nil when Cloud Control
 	// fallback is off, or the run named no endpoint at all). sweep uses it
-	// as issue #266's fallback, through [discovery.JoinMarkerFromTagging],
-	// for a listed object whose own tags come back empty: some list
-	// operations drop tags entirely (iam:ListRoles, iam:ListPolicies), and
-	// without this a needs-discovery instance of such a type can never be
-	// found by locateByList, no matter how correctly it is tagged. A nil
-	// client degrades to the pre-#266 behavior, exactly as an ordinary
-	// discovery pass degrades when it has none.
+	// as issue #266's fallback, through [discovery.MarkerFallback], for a
+	// listed object whose own tags come back empty: some list operations
+	// drop tags entirely (iam:ListRoles, iam:ListPolicies), and without
+	// this a needs-discovery instance of such a type can never be found by
+	// locateByList, no matter how correctly it is tagged. A nil client
+	// degrades to the pre-#266 behavior, exactly as an ordinary discovery
+	// pass degrades when it has none.
 	Tagging *cloudcontrol.Client
+
+	// ServiceTags is the per-service tag reader (#1131, #1125), the second
+	// route to a marker the list call dropped, and it is here because of
+	// GitHub issue #1274: the tag index above is not a fallback for every
+	// service. #1134 measured the Resource Groups Tagging API serving
+	// iam:policy and iam:instance-profile in us-east-1 and serving no
+	// iam:role anywhere, and the pinned emulator serves no IAM at all
+	// (lex00/floci#205, #1152). On such a target Tagging's join comes back
+	// empty for an object that IS this estate's, and before this field
+	// live-mv had nothing left to ask: it refused the rename of a live
+	// aws_iam_policy carrying the very marker it was looking for, while a
+	// live-plan of the same estate read that marker fine - #1274's
+	// D1-passes/D2-fails contrast, the two commands differing only in that
+	// live-plan had this leg and live-mv did not.
+	//
+	// Built by the caller the same way internal/command/live_plan.go builds
+	// discovery.Request.ServiceTags, and supplied to the same shared leg -
+	// see [discovery.MarkerFallback]. Nil is a run that built no reader, and
+	// degrades to exactly the Tagging-only behavior above.
+	ServiceTags servicetags.Reader
 
 	// RecordStore is the estate's record envelope store (GitHub issue #364),
 	// opened the same way live-plan and live-import open theirs. It is what
@@ -913,6 +934,14 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 	}
 	m.res.Swept = true
 
+	// One fallback for the whole sweep, not one per object: the tag index
+	// behind it is a single estate-filtered GetResources call, and the
+	// service leg's own gate asks that index a question about the type
+	// rather than about one object. Built per sweep call rather than per
+	// mover because the index is scoped to an estate and a cross-estate
+	// move sweeps two.
+	fallback := discovery.NewMarkerFallback(estate, m.req.Tagging, m.req.ServiceTags)
+
 	var mine []listed
 	for _, r := range results {
 		tags, taggable := tagsFromListed(r.Resource)
@@ -925,16 +954,20 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 			// iam:ListPolicies among them, per
 			// internal/live/discovery/bindtags.go's doc comment - so an
 			// object that IS this estate's own still reads as untagged
-			// here. Ask the same estate-filtered tag index an ordinary
-			// discovery pass already consults before concluding this
-			// object is not ours: one GetResources call, tags joined back
-			// on by identifier, gated exactly as discovery.JoinMarkerFromTagging
-			// documents (a type-matching marker, this estate's own
-			// tofu-estate, and no more than one match). Only worth asking
-			// when the object's own tags say nothing at all - one that
-			// already answered honestly, even to say "not mine", needs no
-			// second opinion.
-			if joined, ok := discovery.JoinMarkerFromTagging(ctx, m.req.Tagging, estate, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
+			// here. Before concluding this object is not ours, take every
+			// route to its marker an ordinary discovery pass already takes:
+			// the estate's tag index (#266), and where that index does not
+			// serve the type on this target, the service's own tag API
+			// (#1125/#1131, wired here by #1274 - iam:ListPolicyTags is
+			// what reads an aws_iam_policy's marker back on a target whose
+			// GetResources does not index IAM at all). Both live behind
+			// [discovery.MarkerFallback], the same implementation
+			// internal/live/discovery's own sweep uses, gated identically.
+			//
+			// Only worth asking when the object's own tags say nothing at
+			// all - one that already answered honestly, even to say "not
+			// mine", needs no second opinion.
+			if joined, ok := fallback.Tags(ctx, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
 				tags = joined
 			}
 		}
