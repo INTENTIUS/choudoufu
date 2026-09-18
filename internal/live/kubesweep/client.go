@@ -102,19 +102,29 @@ type DryRunResult struct {
 type Client struct {
 	disc discovery.DiscoveryInterface
 	dyn  dynamic.Interface
+	// creds is how this client was told to authenticate, so that a
+	// failure can be reported against what was actually sent
+	// (GitHub issue #1114). Zero - Known false - for a [NewWith] client.
+	creds Credentials
 }
 
 // New connects. Nothing is called until [Client.Kinds] or [Client.List].
+//
+// Building the clients is where an exec block client-go cannot use at all
+// is caught: rest.Config.TransportConfig asks the exec credential
+// provider for an authenticator here, so an api_version it does not know
+// fails now rather than at the first request.
 func New(cfg *restclient.Config) (*Client, error) {
+	creds := CredentialsOf(cfg)
 	disc, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("discovery client: %w", err)
+		return nil, fmt.Errorf("discovery client: %w", creds.explain(err))
 	}
 	dyn, err := dynamic.NewForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("dynamic client: %w", err)
+		return nil, fmt.Errorf("dynamic client: %w", creds.explain(err))
 	}
-	return &Client{disc: disc, dyn: dyn}, nil
+	return &Client{disc: disc, dyn: dyn, creds: creds}, nil
 }
 
 // NewWith is [New] over already-built clients, for tests.
@@ -145,7 +155,7 @@ func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType str
 		// A partial discovery failure (one aggregated API group down)
 		// still returns the groups that answered; only a total failure
 		// is fatal here.
-		return nil, nil, fmt.Errorf("API discovery: %w", err)
+		return nil, nil, fmt.Errorf("API discovery: %w", c.creds.explain(err))
 	}
 	preferred := map[string]string{} // group -> its preferred GroupVersion
 	for _, g := range groups {
@@ -237,7 +247,7 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 		opts.Continue = cont
 		ul, err := res.Namespace(metav1.NamespaceAll).List(ctx, opts)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, c.creds.explain(err)
 		}
 		for _, item := range ul.Items {
 			if ControllerMade(&item) {
@@ -281,7 +291,7 @@ func (c *Client) Serves(ctx context.Context, apiVersion, kind string) (bool, err
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("API discovery for %s: %w", apiVersion, err)
+		return false, fmt.Errorf("API discovery for %s: %w", apiVersion, c.creds.explain(err))
 	}
 	if list == nil {
 		return false, nil
@@ -312,7 +322,7 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 	}
 	client, err := c.resourceClient(apiVersion, kind, obj.GetNamespace())
 	if err != nil {
-		return DryRunResult{}, err
+		return DryRunResult{}, c.creds.explain(err)
 	}
 	submitted := obj.DeepCopy()
 	var answer *unstructured.Unstructured
@@ -322,7 +332,7 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 			if rejected, msg := serverVerdict(getErr); rejected {
 				return DryRunResult{Message: msg}, nil
 			}
-			return DryRunResult{}, fmt.Errorf("reading %s %s before the dry run: %w", kind, NaturalKey(obj.GetNamespace(), obj.GetName()), getErr)
+			return DryRunResult{}, fmt.Errorf("reading %s %s before the dry run: %w", kind, NaturalKey(obj.GetNamespace(), obj.GetName()), c.creds.explain(getErr))
 		}
 		obj.SetResourceVersion(live.GetResourceVersion())
 		// err is the outer variable on purpose: the first live run of
@@ -336,7 +346,7 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 		if rejected, msg := serverVerdict(err); rejected {
 			return DryRunResult{Message: msg}, nil
 		}
-		return DryRunResult{}, err
+		return DryRunResult{}, c.creds.explain(err)
 	}
 	out := DryRunResult{Accepted: true}
 	if answer != nil {
@@ -350,13 +360,20 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 // no - invalid, forbidden, conflict, not found - and its message is the
 // verdict. A 5xx and anything that is not a status error at all is the
 // cluster not answering.
+//
+// 401 is the exception among the 4xx (GitHub issue #1114). It is the
+// server declining to authenticate the caller, which is never an opinion
+// about the manifest: reported as a verdict it would tell a reader the
+// server had refused their object, over a credential problem that
+// refuses every object equally. It falls through to the connection
+// diagnosis instead, which says which credential failed and how.
 func serverVerdict(err error) (bool, string) {
 	var status apierrors.APIStatus
 	if !errors.As(err, &status) {
 		return false, ""
 	}
 	code := status.Status().Code
-	if code < 400 || code >= 500 {
+	if code < 400 || code >= 500 || code == 401 {
 		return false, ""
 	}
 	msg := status.Status().Message

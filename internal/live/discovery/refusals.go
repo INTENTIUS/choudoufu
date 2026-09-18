@@ -119,7 +119,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Kubernetes sweep unavailable",
-		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.",
+		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The warning says which of four things happened (GitHub issue #1114), because on EKS they are not the same problem and used to read alike: the provider configuration supplies no credential at all and the cluster refused an anonymous request; the exec credential plugin - `aws eks get-token`, or aws-iam-authenticator - did not produce a credential, so the cluster was never asked; the cluster answered and would not authenticate the credential it was given, which is the access entry rather than the plugin; or the cluster did not answer at all. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.",
 	},
 	{
 		Summary: "Listed resource matched more than one tagged resource",
