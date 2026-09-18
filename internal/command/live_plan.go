@@ -4261,6 +4261,7 @@ func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
 	a.ClusterCACertificate = str("cluster_ca_certificate")
 	a.ClientCertificate = str("client_certificate")
 	a.ClientKey = str("client_key")
+	a.Exec = kubernetesSweepExec(val)
 	if val.Type().HasAttribute("config_paths") {
 		v := val.GetAttr("config_paths")
 		if !v.IsMarked() && !v.IsNull() && v.IsKnown() && v.CanIterateElements() {
@@ -4273,4 +4274,105 @@ func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
 		}
 	}
 	return a
+}
+
+// kubernetesSweepExec reads the provider block's exec block, which is how
+// every EKS root authenticates and which nothing here read before GitHub
+// issue #1114: host and cluster_ca_certificate come off
+// data.aws_eks_cluster and the bearer token comes from `aws eks
+// get-token` run per request. The block is a nested block of at most one,
+// so the attribute is a list or a tuple of one object; nil when the
+// provider block declares none.
+//
+// A marked argument is left unread, the same rule the scalar arguments
+// follow: a command or an argument list from a sensitive variable falls
+// back to whatever else the block supplies rather than being unmarked
+// here. A marked command means no exec block at all, since a plugin with
+// no command cannot run; a marked entry inside args or env would silently
+// change what the plugin is asked to do, so a mark anywhere in either
+// drops the whole block rather than running the plugin with a hole in its
+// arguments.
+func kubernetesSweepExec(val cty.Value) *kubesweep.ExecCredential {
+	if !val.Type().HasAttribute("exec") {
+		return nil
+	}
+	blocks := val.GetAttr("exec")
+	if blocks.IsMarked() || blocks.IsNull() || !blocks.IsKnown() || !blocks.CanIterateElements() {
+		return nil
+	}
+	for it := blocks.ElementIterator(); it.Next(); {
+		_, block := it.Element()
+		if block.IsMarked() || block.IsNull() || !block.IsKnown() || !block.Type().IsObjectType() {
+			continue
+		}
+		e, ok := kubernetesSweepExecBlock(block)
+		if !ok {
+			continue
+		}
+		return e
+	}
+	return nil
+}
+
+// kubernetesSweepExecBlock is one exec block. ok is false when the block
+// names no command, which is the only argument without which the plugin
+// cannot be run at all, or when any part of it is marked.
+func kubernetesSweepExecBlock(block cty.Value) (*kubesweep.ExecCredential, bool) {
+	str := func(name string) (string, bool) {
+		if !block.Type().HasAttribute(name) {
+			return "", true
+		}
+		v := block.GetAttr(name)
+		if v.IsNull() || !v.IsKnown() {
+			return "", true
+		}
+		if v.IsMarked() || v.Type() != cty.String {
+			return "", false
+		}
+		return v.AsString(), true
+	}
+	command, ok := str("command")
+	if !ok || command == "" {
+		return nil, false
+	}
+	apiVersion, ok := str("api_version")
+	if !ok {
+		return nil, false
+	}
+	e := &kubesweep.ExecCredential{APIVersion: apiVersion, Command: command}
+	if block.Type().HasAttribute("args") {
+		v := block.GetAttr("args")
+		if v.IsMarked() {
+			return nil, false
+		}
+		if !v.IsNull() && v.IsKnown() && v.CanIterateElements() {
+			for it := v.ElementIterator(); it.Next(); {
+				_, a := it.Element()
+				if a.IsMarked() || a.IsNull() || !a.IsKnown() || a.Type() != cty.String {
+					return nil, false
+				}
+				e.Args = append(e.Args, a.AsString())
+			}
+		}
+	}
+	if block.Type().HasAttribute("env") {
+		v := block.GetAttr("env")
+		if v.IsMarked() {
+			return nil, false
+		}
+		if !v.IsNull() && v.IsKnown() && v.CanIterateElements() {
+			e.Env = map[string]string{}
+			for it := v.ElementIterator(); it.Next(); {
+				k, a := it.Element()
+				if k.IsMarked() || k.IsNull() || !k.IsKnown() || k.Type() != cty.String {
+					return nil, false
+				}
+				if a.IsMarked() || a.IsNull() || !a.IsKnown() || a.Type() != cty.String {
+					return nil, false
+				}
+				e.Env[k.AsString()] = a.AsString()
+			}
+		}
+	}
+	return e, true
 }
