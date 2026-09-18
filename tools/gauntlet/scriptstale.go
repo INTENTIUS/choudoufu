@@ -41,9 +41,17 @@ import (
 // ("**Stale**") and are kept in separate fields so a reader is never left
 // guessing which one a cell means: #1069 marks cells and writes
 // BoardEstate.StaleNote, this writes BoardEstate.ScriptNote.
+//
+// The comparison is against a watched SET of directories, not one: the
+// estate's own, and live/e2e/lib/, the protocol library every crossing
+// script sources (#1292). Watching only the first was this mechanism's own
+// version of the failure it exists to catch - a change to
+// `gauntlet_record_count` alters what all 31 rows measure and badged none
+// of them. SharedLibDir carries the derivation of the set and, more
+// importantly, of what is deliberately outside it.
 const (
-	// ScriptCurrent: nothing under the estate's own directory has changed
-	// since the run this row records, apart from inert paths.
+	// ScriptCurrent: nothing under the watched set has changed since the
+	// run this row records, apart from inert paths.
 	ScriptCurrent = "current"
 	// ScriptChanged: at least one file the script could read or execute
 	// differs from the version the recorded run measured.
@@ -53,13 +61,70 @@ const (
 	ScriptUnknown = "unknown"
 )
 
+// SharedLibDir is the second half of the watched set (#1292): the shared
+// protocol library every crossing script sources. A change to
+// `gauntlet_stage`, `gauntlet_record_count`, `gauntlet_tagged_count` or any
+// of their siblings changes what every row measures, and it is outside
+// every estate's own directory, so the estate-directory diff alone badges
+// nothing at all.
+//
+// The instance: #1291 changed `gauntlet_record_count` to refuse a record
+// store root rather than count one. Three estates were re-measured because
+// their counts moved; the other 28 callers kept the same number, and
+// nothing in the board could tell a reader that the guard could equally
+// have changed their answer.
+//
+// WHERE THE LINE IS, and why it is here rather than further out. The
+// watched set was derived rather than remembered: every out-of-directory
+// repository path named by a file under one of the 31 rows' estate
+// directories, plus the ones live/e2e/lib/gauntlet.sh itself names. That
+// scan returns four candidates, and only this one is watched:
+//
+//   - live/e2e/lib/ (31 of 31 scripts) - WATCHED. Two files, no recorded
+//     value to compare against, no per-estate partition, and every script
+//     sources it. Exactly the shape a path diff answers.
+//   - live/floci-image (27 scripts) - NOT watched, because it already has
+//     a STRONGER check. The row records last_run.emulator and
+//     emulatorNote (board.go) compares that recorded value against the pin
+//     now, so a repin says "**Stale**: the current pin is ..." on the rows
+//     that really ran against the old image. A path diff would be weaker:
+//     it would badge on any edit to the file, including one that ends up
+//     at the same digest.
+//   - live/oracle-versions.json (2 scripts directly, plus
+//     gauntlet_aws_pin_version for all of them) - NOT watched, for the
+//     same reason on two of its three fields: oracleNote already compares
+//     the recorded terraform and tofu versions by value. Its third field,
+//     aws_provider_version (#1034), is genuinely unchecked - but the file
+//     is mostly a 40-line prose `_comment`, so diffing it badges all 31
+//     rows on an edit that changes no version at all. Recording the value
+//     the way the other two are recorded is #1253's job and the right fix.
+//   - live/gauntlet/estates.json (via gauntlet_pre_apply_targets) - NOT
+//     watched. One file holds all 31 estates' manifest data, so a diff
+//     badges every row when one estate's pre_apply list moves. Honest
+//     coverage there needs a per-estate subtree comparison, which is a
+//     different mechanism from this one.
+//
+// Not in the scan at all: $ROOT/.corpus/..., which is gitignored (git diff
+// cannot see it) and pinned per row by EstateResult.Pin; and internal/,
+// the product half, which is #1288 and whose whole difficulty is that
+// almost every commit touches it. Widening to either would badge most rows
+// on most merges, and a badge that is always lit is read by nobody - worse
+// than the gap it closes, because a gap is visible the first time someone
+// looks and noise never is.
+const SharedLibDir = "live/e2e/lib"
+
 // ScriptStaleness is one row's answer.
 type ScriptStaleness struct {
 	// State is ScriptCurrent, ScriptChanged or ScriptUnknown.
 	State string
-	// Changed is every material path under the estate's directory that
+	// Changed is every material path under the estate's OWN directory that
 	// differs from the recorded run's version, repo-relative and sorted.
 	Changed []string
+	// Shared is the same for SharedLibDir: the protocol library the script
+	// sources. Kept apart from Changed so the rendered sentence can say
+	// which side moved - "this estate's script was edited" and "the shared
+	// protocol changed under it" send a reader to different places (#1292).
+	Shared []string
 	// Inert is the paths that differ but cannot change what the run
 	// measures (isInertEstatePath). Non-empty with State ScriptCurrent is
 	// the README-only case, and it is rendered rather than hidden so the
@@ -69,8 +134,8 @@ type ScriptStaleness struct {
 	Why string
 }
 
-// isInertEstatePath reports whether a path under an estate's directory
-// cannot change what a run of that estate measures.
+// isInertEstatePath reports whether a path under one of the watched
+// directories cannot change what a run of that estate measures.
 //
 // Markdown only. An estate directory holds its crossing script, the
 // terraform it deploys, and its documentation; the first two are read by
@@ -160,11 +225,32 @@ func EstateDir(r EstateResult) string {
 	return path.Dir(r.Script)
 }
 
-// pathDiff answers "which paths under dir differ between commit and the
-// working tree". An error means the question could not be answered; its
+// watchedDirs is the whole set a row's evidence is compared against: its
+// own estate directory and the shared protocol library it sources. See
+// SharedLibDir for how the set was derived and what was deliberately left
+// out of it.
+//
+// The shared half is watched for EVERY row rather than only for rows whose
+// script can be seen to source it. That is the conservative direction, and
+// this file only ever moves in that direction: over-watching can produce a
+// badge a re-run clears, while under-watching produces a row that reads
+// `current` when it is not, which is the failure #1292 IS.
+// TestEveryRowSourcesTheSharedLibrary keeps the blanket honest - the day a
+// row stops sourcing the library, it fails rather than letting the row be
+// badged for a file it does not read.
+func watchedDirs(r EstateResult) []string {
+	dir := EstateDir(r)
+	if dir == "" {
+		return nil
+	}
+	return []string{dir, SharedLibDir}
+}
+
+// pathDiff answers "which paths under any of dirs differ between commit and
+// the working tree". An error means the question could not be answered; its
 // text becomes ScriptStaleness.Why, so it is written for a reader of the
 // board, not for a stack trace.
-type pathDiff func(commit, dir string) ([]string, error)
+type pathDiff func(commit string, dirs []string) ([]string, error)
 
 // scriptStaleness is the whole rule, with git injected so the three states
 // are testable without a fixture repository (the git half has its own test
@@ -179,7 +265,7 @@ func scriptStaleness(r EstateResult, diff pathDiff) ScriptStaleness {
 	case r.LastRun.Commit == "":
 		return ScriptStaleness{State: ScriptUnknown, Why: "this row's run recorded no commit, so the version it measured cannot be named"}
 	}
-	paths, err := diff(r.LastRun.Commit, dir)
+	paths, err := diff(r.LastRun.Commit, watchedDirs(r))
 	if err != nil {
 		return ScriptStaleness{State: ScriptUnknown, Why: err.Error()}
 	}
@@ -192,11 +278,16 @@ func scriptStaleness(r EstateResult, diff pathDiff) ScriptStaleness {
 			out.Inert = append(out.Inert, p)
 			continue
 		}
+		if strings.HasPrefix(p, SharedLibDir+"/") {
+			out.Shared = append(out.Shared, p)
+			continue
+		}
 		out.Changed = append(out.Changed, p)
 	}
 	sort.Strings(out.Changed)
+	sort.Strings(out.Shared)
 	sort.Strings(out.Inert)
-	if len(out.Changed) > 0 {
+	if len(out.Changed) > 0 || len(out.Shared) > 0 {
 		out.State = ScriptChanged
 	}
 	return out
@@ -233,7 +324,7 @@ func scriptStaleness(r EstateResult, diff pathDiff) ScriptStaleness {
 // long - CI compares a committed tree - but it is the one gap in the
 // comparison and it is stated rather than hidden.
 func gitPathDiff(root string) pathDiff {
-	return func(commit, dir string) ([]string, error) {
+	return func(commit string, dirs []string) ([]string, error) {
 		// One call decides both "is this commit here at all" and "is it in
 		// this branch's history": isAncestor reports (false, nil) for a
 		// commit git can read but that is not an ancestor, and an error for
@@ -250,9 +341,13 @@ func gitPathDiff(root string) pathDiff {
 			// Unknown is the honest answer, and it is also the stable one.
 			return nil, fmt.Errorf("commit `%s` is not an ancestor of HEAD, so what that run measured is not a version of this branch (rebased away, or a run recorded on a branch that never landed)", short(commit))
 		}
-		out, err := gitOutput(root, "diff", "--name-only", commit, "--", dir+"/")
+		args := []string{"diff", "--name-only", commit, "--"}
+		for _, d := range dirs {
+			args = append(args, d+"/")
+		}
+		out, err := gitOutput(root, args...)
 		if err != nil {
-			return nil, fmt.Errorf("git could not diff `%s` against commit `%s` (%v)", dir, short(commit), err)
+			return nil, fmt.Errorf("git could not diff %s against commit `%s` (%v)", codeList(dirs), short(commit), err)
 		}
 		if strings.TrimSpace(out) == "" {
 			return nil, nil
@@ -305,7 +400,7 @@ func formatScriptStaleness(a *Artifact, st map[string]ScriptStaleness) string {
 		switch s.State {
 		case ScriptChanged:
 			changed++
-			lines = append(lines, line{r.Name, ScriptChanged, strings.Join(s.Changed, ", ")})
+			lines = append(lines, line{r.Name, ScriptChanged, strings.Join(append(append([]string(nil), s.Changed...), s.Shared...), ", ")})
 		case ScriptUnknown:
 			lines = append(lines, line{r.Name, ScriptUnknown, s.Why})
 		}
@@ -313,9 +408,9 @@ func formatScriptStaleness(a *Artifact, st map[string]ScriptStaleness) string {
 	sort.Slice(lines, func(i, j int) bool { return lines[i].name < lines[j].name })
 	var b strings.Builder
 	if changed == 0 {
-		fmt.Fprintf(&b, "script staleness (#1264): every one of %d rows was measured against the estate files in the tree now\n", total)
+		fmt.Fprintf(&b, "script staleness (#1264, #1292): every one of %d rows was measured against the estate files and the shared protocol library in the tree now\n", total)
 	} else {
-		fmt.Fprintf(&b, "script staleness (#1264): %d of %d rows were measured before their own estate directory last changed; re-run those estates to re-measure them\n", changed, total)
+		fmt.Fprintf(&b, "script staleness (#1264, #1292): %d of %d rows were measured before their own estate directory or `%s` last changed; re-run those estates to re-measure them\n", changed, total, SharedLibDir)
 	}
 	width := 0
 	for _, l := range lines {
@@ -340,14 +435,32 @@ func formatScriptStaleness(a *Artifact, st map[string]ScriptStaleness) string {
 func scriptStaleNote(s ScriptStaleness, dir string) string {
 	switch s.State {
 	case ScriptChanged:
-		return fmt.Sprintf("**Stale**: this estate's own files have changed since the run recorded above - %s. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).", changedClause(s.Changed))
+		return fmt.Sprintf("**Stale**: since the run recorded above, %s. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).", staleSubject(s))
 	case ScriptUnknown:
-		return fmt.Sprintf("**Unverified**: whether `%s` has changed since the run recorded above cannot be told from this checkout - %s. The verdicts above may describe an earlier version of the script (#1264).", dir, s.Why)
+		return fmt.Sprintf("**Unverified**: whether `%s` or `%s` has changed since the run recorded above cannot be told from this checkout - %s. The verdicts above may describe an earlier version of the script (#1264, #1292).", dir, SharedLibDir, s.Why)
 	default:
 		if len(s.Inert) > 0 {
 			return fmt.Sprintf("Only documentation under this estate's directory has changed since the run recorded above (%s); nothing the script reads or runs (#1264).", codeList(s.Inert))
 		}
 		return ""
+	}
+}
+
+// staleSubject says WHICH side moved, because the two send a reader to
+// different places: an edit to this estate's own script is this estate's
+// business, while a change to the shared protocol library moved under every
+// row at once and the question is whether it moved this one's answer
+// (#1292). A row where both moved says both rather than picking one.
+func staleSubject(s ScriptStaleness) string {
+	own := fmt.Sprintf("this estate's own files have changed (%s)", changedClause(s.Changed))
+	shared := fmt.Sprintf("the shared protocol library `%s` that this script sources has changed (%s)", SharedLibDir, changedClause(s.Shared))
+	switch {
+	case len(s.Shared) == 0:
+		return own
+	case len(s.Changed) == 0:
+		return shared
+	default:
+		return own + ", and " + shared
 	}
 }
 
@@ -387,7 +500,7 @@ func scriptStaleBanner(a *Artifact, st map[string]ScriptStaleness) string {
 		return ""
 	}
 	var changed, unknown []string
-	total := 0
+	total, sharedOnly := 0, 0
 	for _, r := range a.Estates {
 		s, ok := st[r.Name]
 		if !ok {
@@ -397,6 +510,9 @@ func scriptStaleBanner(a *Artifact, st map[string]ScriptStaleness) string {
 		switch s.State {
 		case ScriptChanged:
 			changed = append(changed, r.Name)
+			if len(s.Changed) == 0 {
+				sharedOnly++
+			}
 		case ScriptUnknown:
 			unknown = append(unknown, r.Name)
 		}
@@ -411,7 +527,11 @@ func scriptStaleBanner(a *Artifact, st map[string]ScriptStaleness) string {
 		unknownClause = fmt.Sprintf(" %d more cannot be checked from this checkout: %s.", len(unknown), strings.Join(unknown, ", "))
 	}
 	if len(changed) == 0 {
-		return fmt.Sprintf("Every row below was measured against the estate files that are in the tree now.%s", unknownClause)
+		return fmt.Sprintf("Every row below was measured against the estate files and the shared protocol library that are in the tree now.%s", unknownClause)
 	}
-	return fmt.Sprintf("**%d of %d rows below were measured before their own estate directory last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are %s.%s", len(changed), total, strings.Join(changed, ", "), unknownClause)
+	sharedClause := ""
+	if sharedOnly > 0 {
+		sharedClause = fmt.Sprintf(" For %d of them nothing in their own directory moved: what changed is `%s`, the protocol library every crossing script sources (#1292).", sharedOnly, SharedLibDir)
+	}
+	return fmt.Sprintf("**%d of %d rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264).%s The rows are %s.%s", len(changed), total, sharedClause, strings.Join(changed, ", "), unknownClause)
 }

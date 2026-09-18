@@ -2594,6 +2594,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Provisioner record could not be read | error | `internal/live/projection` | "Provisioner record could not be read" |
 | - | - | projection | Record does not match the live marker | error | `internal/live/projection` | "Record does not match the live marker" |
 | - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
+| - | - | projection | Record store write failed | error | `internal/live/projection` | "Record store write failed" |
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
 | - | - | projection | Record-located instance with no record store | error | `internal/live/projection` | "Record-located instance with no record store" |
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
@@ -2603,7 +2604,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**235 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**236 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2939,7 +2940,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Kubernetes sweep unavailable
 
-**What.** The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.
+**What.** The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The warning says which of four things happened (GitHub issue #1114), because on EKS they are not the same problem and used to read alike: the provider configuration supplies no credential at all and the cluster refused an anonymous request; the exec credential plugin - `aws eks get-token`, or aws-iam-authenticator - did not produce a credential, so the cluster was never asked; the cluster answered and would not authenticate the credential it was given, which is the access entry rather than the plugin; or the cluster did not answer at all. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -4220,6 +4221,14 @@ reserved for the limits wing's fixture directories, and
 #### Record store write conflict
 
 **What.** Two runs wrote the same record concurrently, so this run's write was rejected rather than overwriting the other's.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Record store write failed
+
+**What.** GitHub issue #1287: a migration could not write the record for an instance whose only ownership carrier is that record, so nothing claims the live object and the next plan would propose creating a second copy of it. The migration is incomplete and has to be run again.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

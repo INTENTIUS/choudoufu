@@ -9,9 +9,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zclconf/go-cty/cty"
@@ -825,6 +827,114 @@ func decodeObjectValue(of *objectFields) (cty.Value, []byte, states.ObjectStatus
 type RecordStore struct {
 	store  staterecord.Store
 	prefix string
+
+	// unwritten is GitHub issue #1287's ledger: the keys this run tried to
+	// write and could not, each against the error that stopped it. See
+	// [RecordStore.noteWriteFailure] for why it exists and
+	// [RecordStore.WriteFailedFor] for what a caller outside this package
+	// can ask it.
+	mu        sync.Mutex
+	unwritten map[string]error
+}
+
+// noteWriteFailure records that a content write to key did not land, so that
+// every later read of that key in this run refuses instead of reporting an
+// ordinary absence.
+//
+// GitHub issue #1287, split out of #1283. A record write failing is loud at
+// the moment it fails; what follows is not. Nothing in a store distinguishes
+// "no record was ever written here" from "the write that should have put one
+// here failed thirty milliseconds ago", so the very next read succeeds,
+// reports absence, and absence is the ordinary shape of a resource that does
+// not exist yet - which is how a failed write turns into a plan proposing to
+// create a live resource for a second time.
+//
+// Two kinds of failure are deliberately NOT recorded:
+//
+//   - A [staterecord.VersionConflictError]. A conditional write that lost
+//     its race changed nothing, but something else did: the key holds
+//     whatever that other writer put there, and reading it back is both
+//     possible and truthful. That is a conflict to report, not a blind spot.
+//   - A failed Delete. The record is still there and still readable; a read
+//     that returns it is answering correctly.
+//
+// A later write to the same key that DOES land clears the entry, because at
+// that point the store holds what this run intended it to hold.
+//
+// The one case this is deliberately conservative about: a write that
+// actually committed and then reported an error on the way back - a dropped
+// connection after the backend accepted it. The record is there and correct,
+// and this still refuses to read it. That is the right direction to be wrong
+// in. Refusing costs a re-run; the alternative reads an absence and proposes
+// creating a live resource for a second time, which is the failure this fork
+// exists to prevent.
+func (s *RecordStore) noteWriteFailure(key string, err error) {
+	if s == nil || err == nil {
+		return
+	}
+	var conflict *staterecord.VersionConflictError
+	if errors.As(err, &conflict) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.unwritten == nil {
+		s.unwritten = map[string]error{}
+	}
+	s.unwritten[key] = err
+}
+
+// noteWriteLanded clears key from the ledger after a write that succeeded.
+func (s *RecordStore) noteWriteLanded(key string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.unwritten, key)
+}
+
+// writeFailureFor reports the error that stopped this run writing key, or
+// nil if nothing did.
+func (s *RecordStore) writeFailureFor(key string) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unwritten[key]
+}
+
+// refuseUnwritten is what every read in this type does before asking the
+// store: it turns a key this run failed to write into the reader's own
+// error, which internal/live/projection's three record readers
+// ([builder.materializeFromRecord], [builder.recordEntry] and
+// noderesolver.go's record consult) each already surface as a hard "Cannot
+// read a persisted record" refusal.
+func (s *RecordStore) refuseUnwritten(addr addrs.AbsResourceInstance, key string) error {
+	cause := s.writeFailureFor(key)
+	if cause == nil {
+		return nil
+	}
+	return fmt.Errorf(
+		"this run tried to write the record for %s and could not (%w), so the store holds nothing for it and "+
+			"this read cannot tell that apart from a resource that was never created; refusing rather than "+
+			"reporting an absence that would have the plan propose creating a resource that may already exist "+
+			"(see GitHub issue #1287)",
+		addr, cause)
+}
+
+// WriteFailedFor reports the error that stopped this run writing addr's
+// record, or nil if nothing did. It is exported for the migration path
+// (internal/live/liveimport), which has to tell a store failure - nothing
+// was written, and the next plan will propose creating the resource - apart
+// from a refusal to overwrite a record that is already there and already
+// correct. Only the first is a reason to fail the run.
+func (s *RecordStore) WriteFailedFor(addr addrs.AbsResourceInstance) error {
+	if s == nil {
+		return nil
+	}
+	return s.writeFailureFor(RecordKey(s.prefix, addr))
 }
 
 // NewRecordEnvelopeStore wraps store as the one record envelope store for
@@ -889,6 +999,9 @@ func (s *RecordStore) getEnvelope(ctx context.Context, addr addrs.AbsResourceIns
 		store = staterecord.Fresh(store)
 	}
 	key := RecordKey(s.prefix, addr)
+	if err := s.refuseUnwritten(addr, key); err != nil {
+		return recordEnvelope{}, "", false, err
+	}
 	payload, version, exists, err := store.Get(ctx, key)
 	if err != nil {
 		return recordEnvelope{}, "", false, fmt.Errorf("reading the record for %s: %w", addr, err)
@@ -920,7 +1033,11 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 	// Deliberately beneath any read cache: this exists to observe what the
 	// store holds NOW, so the compare-and-swap it feeds still catches a
 	// writer outside this run.
-	_, version, exists, err := staterecord.Fresh(s.store).Get(ctx, RecordKey(s.prefix, addr))
+	key := RecordKey(s.prefix, addr)
+	if err := s.refuseUnwritten(addr, key); err != nil {
+		return "", err
+	}
+	_, version, exists, err := staterecord.Fresh(s.store).Get(ctx, key)
 	if err != nil {
 		return "", fmt.Errorf("reading the record for %s: %w", addr, err)
 	}
@@ -1262,7 +1379,15 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 	if err != nil {
 		return "", fmt.Errorf("encoding the record for %s: %w", addr, err)
 	}
-	return s.store.PutIfVersion(ctx, key, payload, expectedVersion)
+	newVersion, putErr := s.store.PutIfVersion(ctx, key, payload, expectedVersion)
+	if putErr != nil {
+		// Issue #1287: the write did not land, so nothing later in this run
+		// may read this key's absence as "no such resource".
+		s.noteWriteFailure(key, putErr)
+		return "", putErr
+	}
+	s.noteWriteLanded(key)
+	return newVersion, nil
 }
 
 // MoveRecord relocates the whole record stored for from to the key for to -
@@ -1328,9 +1453,12 @@ func (s *RecordStore) MoveRecord(ctx context.Context, from, to addrs.AbsResource
 	if err != nil {
 		return false, fmt.Errorf("encoding the record moved from %s to %s: %w", from, to, err)
 	}
-	if _, err := s.store.PutIfVersion(ctx, RecordKey(s.prefix, to), payload, ""); err != nil {
+	toKey := RecordKey(s.prefix, to)
+	if _, err := s.store.PutIfVersion(ctx, toKey, payload, ""); err != nil {
+		s.noteWriteFailure(toKey, err)
 		return false, fmt.Errorf("writing the record moved from %s to %s: %w (nothing was deleted at %s)", from, to, err, from)
 	}
+	s.noteWriteLanded(toKey)
 	if err := s.store.Delete(ctx, RecordKey(s.prefix, from), fromVersion); err != nil {
 		return true, fmt.Errorf(
 			"the record for %s was copied to %s, but the old key could not be removed: %w; nothing was lost - %s now holds the correct record - but the stale copy at %s should be cleaned up by hand or by rerunning the same rename",

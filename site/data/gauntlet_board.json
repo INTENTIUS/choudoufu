@@ -3,7 +3,7 @@
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
   "banner": "Estates below were last measured against different emulator pins: 22 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T11:19:44Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h36m32s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 10m23.2s across 1 estate(s) at commit `0d18556b7a`; 32m5s across 1 estate(s) at commit `266e0e332c`; 2h4m3.5s across 22 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 27m36s across 3 estate(s) at commit `979cabd489`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**25 of 31 rows below were measured before their own estate directory last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-k8s-cert-manager, terralith-scale.",
+  "script_banner": "**30 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 5 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "stage_count": 14,
   "stages": [
     {
@@ -195,7 +195,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 7m11.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-alb-complete/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-alb-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -324,7 +324,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 6m48.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-autoscaling-complete/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-autoscaling-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -453,7 +453,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m49.6s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -581,7 +581,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 6m30.8s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-ec2-instance-complete/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ec2-instance-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -710,7 +710,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m42.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-ecs-fargate/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ecs-fargate/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -839,7 +839,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 15m34.6s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -968,7 +968,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 2m14.7s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1097,7 +1097,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 1m52.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1226,7 +1226,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 2m51.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-hongbomiao-harbor/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-hongbomiao-harbor/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1355,7 +1355,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 2m41.9s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-hongbomiao-labelbox/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-hongbomiao-labelbox/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1484,7 +1484,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m8.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-hongbomiao-storage/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-hongbomiao-storage/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1612,6 +1612,8 @@
       "runtime_cells": "cold_deploy 26s, migrate 15s, test_plan 2s, test_apply 5s, drift_reconverge 4s, day2_rename 7s, day2_remove 7s, day2_count 35s, day2_replace 6s, plan_approval 11s, greenfield 43s",
       "last_run_note": "Last run at commit `be3c655840` on 2026-09-18T06:09:04Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 2m40.7s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1740,7 +1742,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 2m53.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-iam-read-only-policy/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-read-only-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1869,7 +1871,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 2m42.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1998,7 +2000,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 1m21.8s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2127,7 +2129,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 6m46.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2256,7 +2258,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 11m49.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2385,7 +2387,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m7.9s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2514,7 +2516,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m23.8s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2643,7 +2645,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 8m2.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2899,7 +2901,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 9m43.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3028,7 +3030,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 4m36.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3157,7 +3159,7 @@
       "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 3m12.3s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3283,6 +3285,8 @@
       "runtime_cells": "cold_deploy 1m25s, migrate 50s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 8s, day2_remove 5s, day2_count 24s, day2_replace 27s, day2_crash 38s, plan_approval 11s, greenfield 3s, strict 3s",
       "last_run_note": "Last run at commit `d0879cc4cc` on 2026-09-18T00:07:36Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 4m22.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3413,7 +3417,7 @@
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stale_note": "**2 stage verdicts below were carried forward from an earlier run** and show as `stale`, not as the verdict they carry: `day2_count` (pass), `day2_replace` (pass). A run that aborts early leaves the stages it never reached reading whatever the last run to reach them said (#1069); the cell is kept because it is still the best thing known about that stage, and marked because it is not evidence about the run recorded below.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/terralith-scale/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3542,7 +3546,7 @@
       "last_run_note": "Last run at commit `933618dec4` on 2026-09-08T22:17:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 10m13.5s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3669,6 +3673,8 @@
       "runtime_cells": "cold_deploy 2m15s, migrate 5s, test_plan 11s, test_apply 11s, drift_reconverge 23s, day2_rename 22s, day2_remove 33s, day2_count 1m6s, day2_crash 1m17s, day2_teardown 37s, plan_approval 32s, greenfield 1m17s, strict 25s",
       "last_run_note": "Last run at commit `979cabd489` on 2026-09-18T10:12:14Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 9m15.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3798,6 +3804,8 @@
       "runtime_cells": "cold_deploy 1m16s, migrate 5s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 20s, day2_remove 32s, day2_count 51s, day2_crash 1m14s, day2_teardown 24s, plan_approval 31s, greenfield 1m3s, strict 18s",
       "last_run_note": "Last run at commit `979cabd489` on 2026-09-18T09:50:00Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 7m16.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3928,7 +3936,7 @@
       "last_run_note": "Last run at commit `266e0e332c` on 2026-09-18T09:24:14Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 32m5s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "script_stale": "changed",
-      "script_note": "**Stale**: this estate's own files have changed since the run recorded above - `live/e2e/reference-k8s-cert-manager/run.sh` differs from the version that run measured. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s-cert-manager/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4058,6 +4066,8 @@
       "runtime_cells": "cold_deploy 1m43s, migrate 4s, test_plan 11s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 1m23s, day2_count 52s, day2_crash 1m14s, day2_teardown 1m57s, plan_approval 31s, greenfield 1m11s, strict 1m5s",
       "last_run_note": "Last run at commit `979cabd489` on 2026-09-18T10:01:26Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 11m4.5s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
