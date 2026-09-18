@@ -393,9 +393,10 @@ func decodeInto(t *testing.T, rel string, v any) {
 // backslashes before matching, so both collapse to the same string.
 var exactVersionPinLiteral = regexp.MustCompile(`version\s*=\s*"\s*=\s*[0-9]+\.[0-9]+\.[0-9]+\s*"`)
 
-// TestGauntletPinCallersCarryNoVersionLiteral is issue #1207's guard, and
-// it exists because #1041's guard above cannot see this bug by
-// construction. #1041 checks that a crossing script CALLS
+// TestGauntletCrossingScriptsCarryNoVersionLiteral is issue #1207's guard,
+// widened by #1216 from "every script that calls the pin helper" to "every
+// registered crossing script that declares hashicorp/aws". It exists
+// because #1041's guard above cannot see this bug by construction. #1041 checks that a crossing script CALLS
 // gauntlet_pin_aws_provider. Both scripts #1207 names call it - six times
 // and twice - and then contradict the call: they spell the provider
 // release out a second time, as a literal, and use that literal either as
@@ -425,11 +426,14 @@ var exactVersionPinLiteral = regexp.MustCompile(`version\s*=\s*"\s*=\s*[0-9]+\.[
 // script instead of from two registries.
 //
 // So the rule is not "call the helper" but "do not also carry the answer":
-// a script that calls gauntlet_pin_aws_provider must not spell an exact
-// provider version anywhere in its own code. A placeholder that is not a
-// valid constraint (the scripts use "PINNED-BY-GAUNTLET") is what the
-// heredocs write instead, so that dropping the pin call fails `init`
-// loudly rather than silently measuring against a stale release.
+// a crossing script whose estate is measured against hashicorp/aws must not
+// spell an exact provider version anywhere in its own code. A placeholder
+// that is not a valid constraint (the scripts use "PINNED-BY-GAUNTLET") is
+// what a heredoc destined for gauntlet_pin_aws_provider writes instead, so
+// that dropping the pin call fails `init` loudly rather than silently
+// measuring against a stale release; a heredoc with no pin call behind it
+// interpolates gauntlet_aws_required_provider, which prints the pinned
+// requirement outright (#1216).
 //
 // Scope, and what this deliberately does not cover:
 //
@@ -441,12 +445,91 @@ var exactVersionPinLiteral = regexp.MustCompile(`version\s*=\s*"\s*=\s*[0-9]+\.[
 //     registered in live/gauntlet/estates.json, `tools/gauntlet run` never
 //     runs them, and they are out of scope here the same way they are out
 //     of scope for #1041's guard and for the artifact.
-//   - e2e/reference-ec2-vpc/run.sh is the one registered estate that
-//     speaks the protocol, carries 19 exact literals, and still is not
-//     checked: it copies no corpus module and hand-authors its own
-//     versions.tf, which is the separate defect #1041's own PR body seeds.
-//     Widening this guard to it would be a real fix, but a different one.
-func TestGauntletPinCallersCarryNoVersionLiteral(t *testing.T) {
+//   - e2e/reference-ec2-vpc/run.sh USED to be the exemption here: the one
+//     registered estate that speaks the protocol, carried 19 exact literals,
+//     and was not checked, because it copies no corpus module, hand-authors
+//     every root from a heredoc, and so had nothing gauntlet_pin_aws_provider
+//     could rewrite and no supported way to reach the pin. It spent five
+//     weeks measured at 6.58.0 while every corpus-copying estate on the same
+//     board moved to 6.59.0 and then 6.63.0 (issue #1216). The exemption is
+//     gone with its cause: gauntlet_aws_required_provider PRINTS the pinned
+//     requirement for a hand-authored root, so the scope below is no longer
+//     "calls the helper" but "is a registered crossing script that declares
+//     hashicorp/aws at all", whichever half of the pin it uses.
+//   - A script that declares no hashicorp/aws is still not checked, and that
+//     is deliberate rather than an oversight: the three reference-k8s
+//     estates each pin hashicorp/kubernetes at an exact release of their
+//     own, which live/oracle-versions.json says nothing about, so there is
+//     no second copy of anything for such a literal to drift from. This rule
+//     stays a rule about the aws pin.
+func TestGauntletCrossingScriptsCarryNoVersionLiteral(t *testing.T) {
+	scripts := gauntletScriptsCheckedForVersionLiterals(t)
+	if len(scripts) == 0 {
+		t.Fatalf("no e2e/*/run.sh is in scope for the version-literal rule - this guard checked nothing, which is worse than not existing")
+	}
+	for _, rel := range scripts {
+		data, err := os.ReadFile(rel)
+		if err != nil {
+			t.Errorf("reading live/%s: %v", rel, err)
+			continue
+		}
+		for _, hit := range exactProviderVersionLiterals(string(data)) {
+			t.Errorf("%s", versionLiteralViolationMessage(rel, hit))
+		}
+	}
+	t.Logf("checked %d registered crossing script(s) for exact provider-version literals: %v", len(scripts), scripts)
+}
+
+// versionLiteralHit is one exact provider-version literal found in a
+// script's own code, with the 1-based line it sits on.
+type versionLiteralHit struct {
+	line    int
+	literal string
+}
+
+// exactProviderVersionLiterals is the rule itself, factored out of the test
+// loop so TestVersionLiteralGuardIsRedOnAHandAuthoredRoot below proves the
+// REAL rule red rather than a paraphrase that could drift from what CI runs.
+//
+// Whole-line comments are dropped exactly as #1041's guard drops them, and
+// for the same reason: the prose above, and the prose in these scripts,
+// names both the helper and the releases it replaced.
+func exactProviderVersionLiterals(src string) []versionLiteralHit {
+	var out []versionLiteralHit
+	for i, line := range strings.Split(src, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		// A perl search pattern escapes the dots, and a double-quoted
+		// perl -e escapes the quotes too; collapsing backslashes makes
+		// both read as the HCL they match against.
+		if lit := exactVersionPinLiteral.FindString(strings.ReplaceAll(line, `\`, "")); lit != "" {
+			out = append(out, versionLiteralHit{line: i + 1, literal: lit})
+		}
+	}
+	return out
+}
+
+func versionLiteralViolationMessage(rel string, hit versionLiteralHit) string {
+	return fmt.Sprintf("live/%s:%d spells an exact provider version out itself (%s) - that literal is a second copy of live/oracle-versions.json's aws_provider_version and stops agreeing with it at the next bump. Match the version field by shape (version = \"[^\"]*\") in a rewrite, write the placeholder \"PINNED-BY-GAUNTLET\" in a heredoc and let gauntlet_pin_aws_provider fill it in, or - for a hand-authored root with no corpus module to rewrite - interpolate gauntlet_aws_required_provider's output (issues #1207, #1216)",
+		rel, hit.line, hit.literal)
+}
+
+// callsGauntletPinAWSProvider reports whether a script calls the pin helper
+// in its own code (not merely in prose).
+func callsGauntletPinAWSProvider(src string) bool {
+	return strings.Contains(codeOnlyLines(src), "gauntlet_pin_aws_provider")
+}
+
+// gauntletScriptsCheckedForVersionLiterals is the version-literal rule's
+// scope: every e2e/<estate>/run.sh that either calls gauntlet_pin_aws_provider
+// (#1207's original scope, kept so no script loses coverage) or is a
+// registered crossing script - one that speaks the protocol, so
+// `tools/gauntlet run` measures it and the board carries its row - declaring
+// hashicorp/aws at all (#1216's widening, which is what reaches
+// reference-ec2-vpc: protocol, aws, no corpus copy, no pin call).
+func gauntletScriptsCheckedForVersionLiterals(t *testing.T) []string {
+	t.Helper()
 	entries, err := filepath.Glob("e2e/*/run.sh")
 	if err != nil {
 		t.Fatalf("globbing e2e/*/run.sh: %v", err)
@@ -454,55 +537,77 @@ func TestGauntletPinCallersCarryNoVersionLiteral(t *testing.T) {
 	if len(entries) == 0 {
 		t.Fatalf("e2e/*/run.sh matched nothing - the guard would silently check zero scripts")
 	}
-
-	checked := 0
+	var matches []string
 	for _, rel := range entries {
 		if !gauntletCrossingScriptPattern.MatchString(rel) {
 			continue
 		}
 		data, err := os.ReadFile(rel)
 		if err != nil {
-			t.Errorf("reading live/%s: %v", rel, err)
-			continue
+			t.Fatalf("reading live/%s: %v", rel, err)
 		}
-		lines := strings.Split(string(data), "\n")
+		src := string(data)
+		registeredAndDeclaresAWS := speaksGauntletProtocol.MatchString(src) && declaresHashicorpAWS.MatchString(src)
+		if callsGauntletPinAWSProvider(src) || registeredAndDeclaresAWS {
+			matches = append(matches, rel)
+		}
+	}
+	sort.Strings(matches)
+	return matches
+}
 
-		// Whole-line comments are dropped exactly as #1041's guard drops
-		// them, and for the same reason: the prose above and the prose in
-		// these scripts names both the helper and the releases it replaced.
-		callsPin := false
-		for _, line := range lines {
-			if strings.HasPrefix(strings.TrimSpace(line), "#") {
-				continue
-			}
-			if strings.Contains(line, "gauntlet_pin_aws_provider") {
-				callsPin = true
-				break
-			}
-		}
-		if !callsPin {
-			continue
-		}
-		checked++
+// TestVersionLiteralGuardIsRedOnAHandAuthoredRoot is the widened guard's
+// red-before-green proof, run on every `go test` rather than once by hand.
+//
+// The three things it asserts are the three ways #1216 could be undone:
+// reference-ec2-vpc back in scope but clean (the fix), the same script with
+// its pre-#1216 text restored and loudly not clean (the defect, proved red
+// against the real file rather than a manufactured one), and the
+// hashicorp/kubernetes estates still out of scope (the widening did not
+// quietly take authority over a pin live/oracle-versions.json does not own).
+func TestVersionLiteralGuardIsRedOnAHandAuthoredRoot(t *testing.T) {
+	const rel = "e2e/reference-ec2-vpc/run.sh"
 
-		for i, line := range lines {
-			if strings.HasPrefix(strings.TrimSpace(line), "#") {
-				continue
-			}
-			// A perl search pattern escapes the dots, and a double-quoted
-			// perl -e escapes the quotes too; collapsing backslashes makes
-			// both read as the HCL they match against.
-			if lit := exactVersionPinLiteral.FindString(strings.ReplaceAll(line, `\`, "")); lit != "" {
-				t.Errorf("live/%s:%d calls gauntlet_pin_aws_provider and then spells an exact provider version out itself (%s) - that literal is a second copy of live/oracle-versions.json's aws_provider_version and stops agreeing with it at the next bump. Match the version field by shape (version = \"[^\"]*\") in a rewrite, or write the placeholder \"PINNED-BY-GAUNTLET\" in a heredoc and let the pin call fill it in (issue #1207)",
-					rel, i+1, lit)
-			}
+	scope := gauntletScriptsCheckedForVersionLiterals(t)
+	inScope := map[string]bool{}
+	for _, s := range scope {
+		inScope[s] = true
+	}
+	if !inScope[rel] {
+		t.Fatalf("live/%s is not in the version-literal rule's scope - #1216's widening is what puts it there (scope today: %v)", rel, scope)
+	}
+	for _, k8s := range []string{"e2e/reference-k8s/run.sh", "e2e/reference-k8s-stateful/run.sh", "e2e/reference-k8s-cert-manager/run.sh"} {
+		if inScope[k8s] {
+			t.Errorf("live/%s is in the version-literal rule's scope, but it pins hashicorp/kubernetes, not hashicorp/aws - live/oracle-versions.json holds no kubernetes pin for such a literal to be a second copy of, so this rule has nothing to say about it", k8s)
 		}
 	}
 
-	if checked == 0 {
-		t.Fatalf("no e2e/*/run.sh calls gauntlet_pin_aws_provider - this guard checked nothing, which is worse than not existing")
+	data, err := os.ReadFile(rel)
+	if err != nil {
+		t.Fatalf("reading live/%s: %v", rel, err)
 	}
-	t.Logf("checked %d crossing script(s) that call gauntlet_pin_aws_provider", checked)
+	real := string(data)
+
+	// Green: the script as it stands reads the pin and spells no version.
+	if hits := exactProviderVersionLiterals(real); len(hits) != 0 {
+		t.Fatalf("live/%s carries %d exact provider-version literal(s) (first: line %d, %s) - it must interpolate gauntlet_aws_required_provider instead (#1216)",
+			rel, len(hits), hits[0].line, hits[0].literal)
+	}
+
+	// Red: put the pre-#1216 text back. The substitution must land on all
+	// nineteen heredocs, or this proof is testing something other than the
+	// defect it names.
+	const usesHelper = "$AWS_REQUIRED_PROVIDER\n"
+	const handPinned = "    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"= 6.58.0\"\n    }\n"
+	if n := strings.Count(real, usesHelper); n != 19 {
+		t.Fatalf("live/%s interpolates $AWS_REQUIRED_PROVIDER %d time(s), want 19 - this proof rewrites the real script's text, so it must fail rather than silently test an unedited original", rel, n)
+	}
+	before := strings.ReplaceAll(real, usesHelper, handPinned)
+	hits := exactProviderVersionLiterals(before)
+	if len(hits) != 19 {
+		t.Fatalf("the pre-#1216 text of live/%s produces %d literal violation(s), want 19 - the rule is not seeing the defect it was widened for", rel, len(hits))
+	}
+	t.Logf("red as required on the pre-#1216 text: %s", versionLiteralViolationMessage(rel, hits[0]))
 }
 
 // --- issue #1139: coverage, not presence -----------------------------------

@@ -270,7 +270,7 @@ gauntlet_pin_aws_provider() {
 # four spaces, the depth of an entry inside `terraform { required_providers
 # { ... } }`); the inner lines are indented two further.
 #
-# live/pins_drift_test.go's TestGauntletPinCallersCarryNoVersionLiteral
+# live/pins_drift_test.go's TestGauntletCrossingScriptsCarryNoVersionLiteral
 # (widened by #1216) checks that no registered crossing script declaring
 # hashicorp/aws spells an exact provider version out itself, which is what
 # makes this the only way a hand-authored root gets one.
