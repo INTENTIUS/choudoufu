@@ -60,7 +60,7 @@ func TestPaginatingOperationsSnapshotIsCanonical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(raw, got) {
-		t.Errorf("live/%s is not in canonical form (two-space indent, sorted keys, sorted and deduplicated operation lists, one trailing newline) - it was edited by hand. Regenerate it: go run ./tools/aws-paginators-gen", snapshotRel)
+		t.Errorf("live/%s is not in canonical form (two-space indent, sorted keys, one trailing newline) - it was edited by hand. Regenerate it: go run ./tools/aws-paginators-gen", snapshotRel)
 	}
 
 	// The digest is what catches the edit the canonical comparison cannot:
@@ -734,5 +734,53 @@ func TestRatchetFailsInBothDirections(t *testing.T) {
 	// And the green arm: agreement is silent.
 	if v := CheckPageQueryRatchet(map[string]int{"a.sh": 3}, map[string]int{"a.sh": 3}, present); len(v) != 0 {
 		t.Errorf("an exact match produced %d violation(s): %v", len(v), v)
+	}
+}
+
+// TestAcronymCasedOperationsResolve is the regression test for the false
+// negative this unit shipped and then caught by re-measuring.
+//
+// The first version derived the API operation name from the CLI
+// subcommand by PascalCasing it in Go: "describe-db-instances" ->
+// "DescribeDbInstances". The real operation is "DescribeDBInstances", so
+// the lookup missed, and all 14 of this tree's
+// `rds describe-db-instances --query '...[0]'` call sites were classified
+// as SAFE. A guard whose one job is not to have false negatives had 22 of
+// them, in four operations, from one letter of casing.
+//
+// The fix is that nothing derives the spelling any more: the generator
+// calls botocore's own xform_name, which is the function awscli itself
+// uses to name its subcommands, and both spellings are vendored. This test
+// pins the four operations that were wrong, by value, so a future
+// "simplification" back to a Go-side transform fails here.
+func TestAcronymCasedOperationsResolve(t *testing.T) {
+	snap := loadSnapshot(t)
+	for _, tc := range []struct{ svc, cli, api string }{
+		{"rds", "describe-db-instances", "DescribeDBInstances"},
+		{"rds", "describe-db-parameter-groups", "DescribeDBParameterGroups"},
+		{"rds", "describe-db-parameters", "DescribeDBParameters"},
+		{"iam", "list-open-id-connect-provider-tags", "ListOpenIDConnectProviderTags"},
+		// And one that a naive transform gets right, so the test is not
+		// only about the hard cases.
+		{"s3api", "list-objects-v2", "ListObjectsV2"},
+	} {
+		got, err := snap.APIName(tc.svc, tc.cli)
+		if err != nil {
+			t.Errorf("%s %s: %v", tc.svc, tc.cli, err)
+			continue
+		}
+		if got != tc.api {
+			t.Errorf("`aws %s %s` resolves to %q, want %q - the CLI spelling must come from botocore's xform_name, never from a Go-side PascalCase", tc.svc, tc.cli, got, tc.api)
+		}
+	}
+
+	// The other direction: an operation with no paginator answers with an
+	// empty name and NO error, which is how "does not page" is spelled.
+	api, err := snap.APIName("s3api", "get-bucket-tagging")
+	if err != nil {
+		t.Fatalf("s3api get-bucket-tagging: %v", err)
+	}
+	if api != "" {
+		t.Errorf("s3api get-bucket-tagging resolved to %q; botocore declares no paginator for it, and the 62 `[0]` call sites on it in this tree are correct as written", api)
 	}
 }

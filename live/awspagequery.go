@@ -139,6 +139,10 @@ const (
 type AWSPageQueryFinding struct {
 	AWSQueryUse
 	Reason FindingReason
+	// APIOperation is the API operation name behind Operation, as botocore
+	// spells it ("DescribeDBInstances" for "describe-db-instances"). Empty
+	// for a ReasonUnattributed finding, which has no operation.
+	APIOperation string
 }
 
 func (f AWSPageQueryFinding) String() string {
@@ -147,7 +151,7 @@ func (f AWSPageQueryFinding) String() string {
 			f.Line, f.Query)
 	}
 	return fmt.Sprintf("line %d: `aws %s %s --query %q` reduces a list to a scalar, and %s paginates - the AWS CLI applies --query to each page before merging, so past page one this reads one page at a time (issues #1042, #1206, #1214)",
-		f.Line, f.Service, f.Operation, f.Query, APIOperationName(f.Operation))
+		f.Line, f.Service, f.Operation, f.Query, f.APIOperation)
 }
 
 // logicalLine is a shell command with its backslash continuations joined,
@@ -331,7 +335,7 @@ func (p *PaginatingOperations) PageQueryFindings(src string) (findings []AWSPage
 		if !u.Reducing {
 			continue
 		}
-		pages, err := p.Paginates(u.Service, u.Operation)
+		api, err := p.APIName(u.Service, u.Operation)
 		if err != nil {
 			if e, ok := err.(ErrUnknownCLIService); ok && !seen[e.Service] {
 				seen[e.Service] = true
@@ -339,8 +343,8 @@ func (p *PaginatingOperations) PageQueryFindings(src string) (findings []AWSPage
 			}
 			continue
 		}
-		if pages {
-			findings = append(findings, AWSPageQueryFinding{AWSQueryUse: u, Reason: ReasonPaginates})
+		if api != "" {
+			findings = append(findings, AWSPageQueryFinding{AWSQueryUse: u, Reason: ReasonPaginates, APIOperation: api})
 		}
 	}
 	sort.Strings(unknown)

@@ -80,19 +80,11 @@ func main() {
 		return
 	}
 
-	dir := *dataDir
-	version := ""
-	if dir == "" {
-		dir, version, err = locateBotocore()
-		if err != nil {
-			fail(err)
-		}
-	}
-
-	snap, err := scan(dir, version)
+	snap, err := scan(*dataDir)
 	if err != nil {
 		fail(err)
 	}
+	version := snap.BotocoreVersion
 	snap.Digest = snap.ContentDigest()
 	want, err := snap.Marshal()
 	if err != nil {
@@ -127,95 +119,75 @@ func countOps(s *residue.PaginatingOperations) int {
 	return n
 }
 
-// locateBotocore asks python3 where botocore lives and which release it is.
-// Shelling out rather than hardcoding a path keeps the tool usable on a
-// machine whose site-packages sits somewhere else.
-func locateBotocore() (dir, version string, err error) {
-	cmd := exec.Command("python3", "-c", "import botocore, os; print(os.path.dirname(botocore.__file__)); print(botocore.__version__)")
+// extractScript is the whole extraction, run inside python so that the
+// CLI spelling of each operation comes from botocore's own xform_name -
+// literally the function awscli uses to name its subcommands - rather than
+// from a Go reimplementation of it.
+//
+// That is not a stylistic preference. The first version of this tool
+// PascalCased the CLI name in Go, which turns "describe-db-instances" into
+// "DescribeDbInstances" while the API operation is "DescribeDBInstances".
+// All 14 of this tree's `rds describe-db-instances --query '...[0]'` call
+// sites were classified as safe by that one-letter difference - a false
+// negative in a guard whose whole purpose is not to have any. Acronym
+// casing is exactly the kind of rule that looks derivable and is not.
+//
+// Both paginators-1.json and paginators-1.sdk-extras.json are read: the
+// sdk-extras files are overlays botocore's own loader merges in, so the CLI
+// pages for those operations too, and leaving them out would make the
+// snapshot narrower than the tool it describes. A service directory with
+// several API versions contributes the UNION of their paginators - which
+// version a shell call site talks to is not visible, and a union can only
+// over-flag, the direction #1214's ruling chose everywhere else.
+const extractScript = `
+import json, os, sys
+import botocore
+from botocore import xform_name
+
+data = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else os.path.join(os.path.dirname(botocore.__file__), "data")
+out = {"botocore_version": botocore.__version__, "service_dirs": 0, "paginator_files": 0, "services": {}}
+for svc in sorted(os.listdir(data)):
+    sdir = os.path.join(data, svc)
+    if not os.path.isdir(sdir):
+        continue
+    out["service_dirs"] += 1
+    ops = {}
+    for ver in sorted(os.listdir(sdir)):
+        vdir = os.path.join(sdir, ver)
+        if not os.path.isdir(vdir):
+            continue
+        for name in ("paginators-1.json", "paginators-1.sdk-extras.json"):
+            path = os.path.join(vdir, name)
+            if not os.path.exists(path):
+                continue
+            out["paginator_files"] += 1
+            with open(path) as f:
+                doc = json.load(f)
+            for op in doc.get("pagination", {}):
+                ops[op] = xform_name(op, "-")
+    if ops:
+        out["services"][svc] = ops
+json.dump(out, sys.stdout)
+`
+
+// scan runs extractScript and parses what it prints.
+func scan(dataDir string) (*residue.PaginatingOperations, error) {
+	cmd := exec.Command("python3", "-c", extractScript, dataDir)
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
-		return "", "", fmt.Errorf("python3 could not import botocore (%v): %s\ninstall it (pip install botocore) or pass -botocore-data", err, strings.TrimSpace(errb.String()))
+		return nil, fmt.Errorf("extracting botocore's paginator data (%v): %s\ninstall botocore (pip install botocore) or pass -botocore-data", err, strings.TrimSpace(errb.String()))
 	}
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) != 2 {
-		return "", "", fmt.Errorf("unexpected output locating botocore: %q", out.String())
-	}
-	return filepath.Join(lines[0], "data"), lines[1], nil
-}
-
-// scan walks <data>/<service>/<api-version>/paginators-1*.json.
-//
-// Both paginators-1.json and paginators-1.sdk-extras.json are read: the
-// sdk-extras files are overlays botocore's own loader merges in, so the
-// CLI pages for those operations too, and leaving them out would make the
-// snapshot narrower than the tool it describes.
-//
-// A service directory with several API versions contributes the UNION of
-// their paginators. The CLI talks to one version, but which one is not
-// visible at a shell call site, and a union can only over-flag - the
-// direction #1214's ruling chose everywhere else.
-func scan(dataDir, version string) (*residue.PaginatingOperations, error) {
-	entries, err := os.ReadDir(dataDir)
-	if err != nil {
-		return nil, fmt.Errorf("reading botocore data directory %s: %w", dataDir, err)
-	}
-	snap := &residue.PaginatingOperations{
-		Generated:       "go run ./tools/aws-paginators-gen  -  DO NOT EDIT  -  " + time.Now().UTC().Format("2006-01-02"),
-		BotocoreVersion: version,
-		Services:        map[string][]string{},
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		snap.ServiceDirs++
-		svc := e.Name()
-		versions, err := os.ReadDir(filepath.Join(dataDir, svc))
-		if err != nil {
-			return nil, err
-		}
-		ops := map[string]bool{}
-		for _, v := range versions {
-			if !v.IsDir() {
-				continue
-			}
-			for _, name := range []string{"paginators-1.json", "paginators-1.sdk-extras.json"} {
-				p := filepath.Join(dataDir, svc, v.Name(), name)
-				data, err := os.ReadFile(p)
-				if os.IsNotExist(err) {
-					continue
-				}
-				if err != nil {
-					return nil, err
-				}
-				snap.PaginatorFiles++
-				var doc struct {
-					Pagination map[string]json.RawMessage `json:"pagination"`
-				}
-				if err := json.Unmarshal(data, &doc); err != nil {
-					return nil, fmt.Errorf("%s: %w", p, err)
-				}
-				for op := range doc.Pagination {
-					ops[op] = true
-				}
-			}
-		}
-		if len(ops) == 0 {
-			continue
-		}
-		list := make([]string, 0, len(ops))
-		for op := range ops {
-			list = append(list, op)
-		}
-		sort.Strings(list)
-		snap.Services[svc] = list
+	var snap residue.PaginatingOperations
+	if err := json.Unmarshal(out.Bytes(), &snap); err != nil {
+		return nil, fmt.Errorf("parsing the extraction: %w", err)
 	}
 	if len(snap.Services) == 0 {
-		return nil, fmt.Errorf("no paginator data under %s - a snapshot with no services would classify every call as non-paginating", dataDir)
+		return nil, fmt.Errorf("no paginator data found - a snapshot with no services would classify every call as non-paginating")
 	}
-	return snap, nil
+	snap.Generated = "go run ./tools/aws-paginators-gen  -  DO NOT EDIT  -  " + time.Now().UTC().Format("2006-01-02")
+	return &snap, nil
 }
 
 // describeDrift compares the committed bytes with the freshly generated
@@ -267,17 +239,17 @@ func describeDrift(got []byte, fresh *residue.PaginatingOperations) string {
 	return strings.Join(lines, "\n")
 }
 
-func diffSets(a, b []string) []string {
-	in := map[string]bool{}
-	for _, s := range b {
-		in[s] = true
-	}
+// diffSets returns the operation names in a whose (name, CLI spelling)
+// pair is not in b - so a change to either half shows up, not just an
+// added or removed operation.
+func diffSets(a, b map[string]string) []string {
 	var out []string
-	for _, s := range a {
-		if !in[s] {
-			out = append(out, s)
+	for api, cli := range a {
+		if b[api] != cli {
+			out = append(out, api)
 		}
 	}
+	sort.Strings(out)
 	return out
 }
 

@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 )
 
 // ── which AWS API operations paginate, and where that answer comes from ──
@@ -90,9 +89,25 @@ type PaginatingOperations struct {
 	// generator, which is the outcome wanted.
 	Digest string `json:"content_sha256"`
 
-	// Services maps a botocore service directory name to its paginating
-	// operation names.
-	Services map[string][]string `json:"services"`
+	// Services maps a botocore service directory name to that service's
+	// paginating operations: API operation name -> the AWS CLI's dashed
+	// spelling of it.
+	//
+	// Both spellings are stored because neither derives reliably from the
+	// other. The CLI's name is what a shell call site writes and is what
+	// the lookup needs; the API name is what botocore's paginator data is
+	// keyed by and what a failure message should print. Turning one into
+	// the other by hand is where this first went wrong: a naive PascalCase
+	// of "describe-db-instances" is "DescribeDbInstances", the API
+	// operation is "DescribeDBInstances", and the mismatch silently
+	// classified all 14 of this tree's `rds describe-db-instances --query
+	// '...[0]'` call sites as safe. A false NEGATIVE, in a guard whose
+	// whole purpose is not to have any.
+	//
+	// So the CLI spelling is not computed here at all. The generator calls
+	// botocore's own xform_name - literally the function awscli uses to
+	// name its subcommands - and the result is vendored.
+	Services map[string]map[string]string `json:"services"`
 }
 
 // ContentDigest is sha256 over the services map rendered canonically, and
@@ -107,8 +122,14 @@ func (p *PaginatingOperations) ContentDigest() string {
 	h := sha256.New()
 	for _, svc := range svcs {
 		fmt.Fprintf(h, "%s\n", svc)
-		for _, op := range dedupeSorted(p.Services[svc]) {
-			fmt.Fprintf(h, "\t%s\n", op)
+		ops := p.Services[svc]
+		names := make([]string, 0, len(ops))
+		for api := range ops {
+			names = append(names, api)
+		}
+		sort.Strings(names)
+		for _, api := range names {
+			fmt.Fprintf(h, "\t%s\t%s\n", api, ops[api])
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
@@ -160,10 +181,7 @@ func (p *PaginatingOperations) Marshal() ([]byte, error) {
 		PaginatorFiles:  p.PaginatorFiles,
 		ServiceDirs:     p.ServiceDirs,
 		Digest:          p.Digest,
-		Services:        make(map[string][]string, len(p.Services)),
-	}
-	for svc, ops := range p.Services {
-		norm.Services[svc] = dedupeSorted(ops)
+		Services:        p.Services,
 	}
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -173,20 +191,6 @@ func (p *PaginatingOperations) Marshal() ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-func dedupeSorted(in []string) []string {
-	seen := make(map[string]bool, len(in))
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if seen[s] {
-			continue
-		}
-		seen[s] = true
-		out = append(out, s)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // ErrUnknownCLIService is returned by Paginates for a CLI service token the
@@ -200,41 +204,33 @@ func (e ErrUnknownCLIService) Error() string {
 }
 
 // Paginates answers whether `aws <cliService> <cliOperation>` is an
-// operation botocore declares a paginator for.
-//
-// cliOperation is the CLI's dashed spelling ("list-policies"); the API
-// operation name is its PascalCase form ("ListPolicies"), which is exactly
-// how awscli derives the command name in the other direction.
+// operation botocore declares a paginator for. cliOperation is the CLI's
+// dashed spelling, e.g. "describe-db-instances".
 func (p *PaginatingOperations) Paginates(cliService, cliOperation string) (bool, error) {
+	api, err := p.APIName(cliService, cliOperation)
+	if err != nil {
+		return false, err
+	}
+	return api != "", nil
+}
+
+// APIName returns the API operation name behind a CLI subcommand, or the
+// empty string when the service has no paginator for it. The error is
+// reserved for an unresolvable SERVICE, which is a different thing and must
+// never read as "does not paginate".
+func (p *PaginatingOperations) APIName(cliService, cliOperation string) (string, error) {
 	dir := cliService
 	if renamed, ok := cliServiceRenames[cliService]; ok {
 		dir = renamed
 	}
 	ops, ok := p.Services[dir]
 	if !ok {
-		return false, ErrUnknownCLIService{Service: cliService}
+		return "", ErrUnknownCLIService{Service: cliService}
 	}
-	want := APIOperationName(cliOperation)
-	for _, op := range ops {
-		if op == want {
-			return true, nil
+	for api, cli := range ops {
+		if cli == cliOperation {
+			return api, nil
 		}
 	}
-	return false, nil
-}
-
-// APIOperationName turns the AWS CLI's dashed subcommand spelling into the
-// API operation name botocore's paginator data is keyed by:
-// "list-policy-tags" -> "ListPolicyTags".
-func APIOperationName(cliOperation string) string {
-	parts := strings.Split(cliOperation, "-")
-	var b strings.Builder
-	for _, part := range parts {
-		if part == "" {
-			continue
-		}
-		b.WriteString(strings.ToUpper(part[:1]))
-		b.WriteString(part[1:])
-	}
-	return b.String()
+	return "", nil
 }
