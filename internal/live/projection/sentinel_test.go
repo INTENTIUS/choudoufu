@@ -40,10 +40,10 @@ func TestSentinelProvisionsAndVerifies(t *testing.T) {
 	ctx := context.Background()
 	store := newTestLocalStore(t)
 
-	if err := provisionStoreSentinel(ctx, store, "records/est-a"); err != nil {
+	if _, err := provisionStoreSentinel(ctx, store, "records/est-a"); err != nil {
 		t.Fatalf("first provision: %v", err)
 	}
-	if err := provisionStoreSentinel(ctx, store, "records/est-a"); err != nil {
+	if _, err := provisionStoreSentinel(ctx, store, "records/est-a"); err != nil {
 		t.Fatalf("second provision (must treat the existing sentinel as success): %v", err)
 	}
 	keys, err := store.List(ctx, "records/est-a/")
@@ -70,7 +70,7 @@ func TestSentinelRefusesAStoreWhoseListIsBroken(t *testing.T) {
 	ctx := context.Background()
 	store := &brokenListStore{Store: newTestLocalStore(t)}
 
-	err := provisionStoreSentinel(ctx, store, "records/est-a")
+	_, err := provisionStoreSentinel(ctx, store, "records/est-a")
 	if err == nil {
 		t.Fatal("provision succeeded against a store whose List returns nothing; a plan against it would propose re-creating the whole estate")
 	}
