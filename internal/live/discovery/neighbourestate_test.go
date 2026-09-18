@@ -50,11 +50,13 @@ func TestNeighbourEstatesRecordDoesNotNarrowTheNativeSweep(t *testing.T) {
 	}
 
 	// The premise, asserted rather than assumed: this estate holds nothing.
+	// An Errorf and not a Fatalf, so that a red run goes on to show the
+	// narrowed sweep - the listing is the cause, the sweep is the harm.
 	own := projection.RecordKeyPrefix(estateName)
 	if keys, err := backend.List(ctx, own); err != nil {
 		t.Fatalf("backend List: %s", err)
 	} else if len(keys) != 0 {
-		t.Fatalf("List(%q) = %v, want nothing: this estate has no records, and a listing that says otherwise is the defect", own, keys)
+		t.Errorf("List(%q) = %v, want nothing: this estate has no records, and a listing that says otherwise is the defect", own, keys)
 	}
 
 	cloud := newFakeCloud()
