@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -1103,4 +1104,210 @@ func assertRunTimestampsDiffer(t *testing.T, a, b *Artifact) {
 	if !stagesDiffer {
 		t.Fatal("the two runs carry identical stage_runs dates; this fixture is meant to stamp them a second apart, so the stage_runs date exclusion below is not being exercised (#1069)")
 	}
+}
+
+// TestRunEstatesPreservesAndPrintsAFailingRunsLog is #1141's guard.
+//
+// That issue records two stage failures, seen once each during #1140's proof
+// runs and never explained. Neither was unexplainable because nobody looked;
+// they were unexplainable because by the time anyone wanted to look, the
+// only copy of what the run said was gone. The mechanism has three parts:
+//
+//   - the log is one file per estate, truncated by os.Create on the next run
+//     of that estate;
+//   - the directory is gitignored and lives in a worktree that gets deleted;
+//   - cmd.Stderr goes only to that file, so the FAIL line, and the tool
+//     diagnostic a script prints just above it, never reached the runner's
+//     own stdout - which is what a worker reads and pastes into a pull
+//     request. #1140's author pasted the runner's stdout faithfully; the
+//     diagnostic was not in it.
+//
+// The fixture imitates the real shape: a stock-tool diagnostic on stdout,
+// then a FAIL line on stderr, then the fail verdict. The assertions are that
+// the runner's stdout carries both, and that a second run of the same estate
+// - the ordinary act that destroyed the evidence before - leaves the
+// preserved copy intact.
+func TestRunEstatesPreservesAndPrintsAFailingRunsLog(t *testing.T) {
+	root := t.TempDir()
+	const failLine = "the day2_count stock oracle's baseline apply failed"
+	const diagnostic = "Error: creating SQS Queue: RequestError: send request failed"
+	// Double quotes in the generated bash: failLine contains an apostrophe,
+	// exactly as the real scripts' messages do.
+	writeFakeEstate(t, root, "losslog",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"for i in $(seq 1 12); do printf 'filler %s\\n' \"$i\"; done\n"+
+			"printf '%s\\n' \""+diagnostic+"\"\n"+
+			"printf 'FAIL: %s\\n' \""+failLine+"\" >&2\n"+
+			"printf 'GAUNTLET stage=day2_count verdict=fail duration_s=1 detail=%s\\n' \""+failLine+"\"\n"+
+			"exit 1\n")
+
+	m := &Manifest{Estates: []Estate{{Name: "losslog", Source: "s", Lane: "reference", Set: SetGrowing}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"losslog"}, Stdout: &out}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+	if r, ok := a.Result("losslog"); !ok || r.Stages["day2_count"] != "fail" {
+		t.Fatalf("the fixture did not record day2_count=fail, so this test is not measuring a failing run: %+v", r)
+	}
+
+	stdout := out.String()
+	if !strings.Contains(stdout, failLine) {
+		t.Errorf("runner stdout does not carry the script's FAIL line %q - a worker reports what the runner printed, and before #1141 that was the summary verdict and nothing else.\nstdout:\n%s", failLine, stdout)
+	}
+	if !strings.Contains(stdout, diagnostic) {
+		t.Errorf("runner stdout does not carry the tool diagnostic %q printed just above the FAIL line - the verdict names the failure, the diagnostic explains it, and #1141 is what happens when only the first survives.\nstdout:\n%s", diagnostic, stdout)
+	}
+
+	preserved := failLogsFor(t, root, "losslog")
+	if len(preserved) != 1 {
+		t.Fatalf("got %d preserved failure logs, want exactly 1: %v", len(preserved), preserved)
+	}
+	if body := readTestFile(t, preserved[0]); !strings.Contains(body, failLine) {
+		t.Fatalf("preserved log %s does not contain the FAIL line", preserved[0])
+	}
+
+	// The loss mechanism itself: run the same estate again, this time green.
+	// os.Create truncates live/gauntlet/logs/losslog.log, which is how the
+	// #1140 evidence disappeared. The preserved copy must survive that.
+	writeFakeEstate(t, root, "losslog",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"printf 'GAUNTLET stage=day2_count verdict=pass duration_s=1\\n'\n")
+	var out2 bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"losslog"}, Stdout: &out2}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+	if body := readTestFile(t, filepath.Join(root, LogDir, "losslog.log")); strings.Contains(body, failLine) {
+		t.Fatal("the live log still holds the earlier failure - this test's premise (os.Create truncates it on the next run) no longer holds, so it is no longer proving anything")
+	}
+	if got := failLogsFor(t, root, "losslog"); len(got) != 1 {
+		t.Fatalf("after a second run there are %d preserved failure logs, want the original 1 still there: %v", len(got), got)
+	} else if body := readTestFile(t, got[0]); !strings.Contains(body, failLine) {
+		t.Fatalf("the preserved log %s no longer contains the FAIL line after a later run of the same estate", got[0])
+	}
+}
+
+// TestRunEstatesDoesNotPreserveAPassingRunsLog is the other half: the
+// preservation is for failures. A green run leaving timestamped copies
+// behind would fill the directory and bury the failures, which is the
+// opposite of the point.
+func TestRunEstatesDoesNotPreserveAPassingRunsLog(t *testing.T) {
+	root := t.TempDir()
+	writeFakeEstate(t, root, "greenlog",
+		"printf 'GAUNTLET protocol=1\\n'\n"+
+			"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0\\n'\n")
+	m := &Manifest{Estates: []Estate{{Name: "greenlog", Source: "s", Lane: "reference", Set: SetGrowing}}}
+	a := &Artifact{Schema: 1}
+	var out bytes.Buffer
+	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"greenlog"}, Stdout: &out}, "c", "e"); err != nil {
+		t.Fatal(err)
+	}
+	if got := failLogsFor(t, root, "greenlog"); len(got) != 0 {
+		t.Fatalf("a passing run preserved %v", got)
+	}
+	if strings.Contains(out.String(), "FAILING RUN") {
+		t.Fatalf("a passing run announced a failing one:\n%s", out.String())
+	}
+}
+
+// TestFailTailEndsAtTheFailLine pins where the excerpt stops. A crossing
+// script prints the tool's own output, then its FAIL line, and only then
+// whatever its EXIT trap says while tearing containers down. An excerpt
+// taken from the end of the file would be teardown chatter; the lines that
+// explain the failure are the ones immediately BEFORE the FAIL line.
+//
+// Stdout and stderr reach the log file through two separate copying
+// goroutines, so their relative order in the file is not guaranteed - which
+// is why this is a unit test over a fixed string rather than an assertion
+// about a live run's log.
+func TestFailTailEndsAtTheFailLine(t *testing.T) {
+	log := strings.Join([]string{
+		"line one",
+		"Error: creating SQS Queue: RequestError",
+		"FAIL: the day2_count stock oracle's baseline apply failed",
+		"removing container choudoufu-corpus-sqs-basic-green-oracle-4242",
+		"teardown complete",
+	}, "\n") + "\n"
+
+	got := failTail(log, 3)
+	if !strings.HasSuffix(got, "FAIL: the day2_count stock oracle's baseline apply failed") {
+		t.Errorf("excerpt does not end at the FAIL line:\n%s", got)
+	}
+	if !strings.Contains(got, "Error: creating SQS Queue: RequestError") {
+		t.Errorf("excerpt drops the diagnostic printed above the FAIL line:\n%s", got)
+	}
+	if strings.Contains(got, "teardown complete") {
+		t.Errorf("excerpt runs past the FAIL line into teardown output:\n%s", got)
+	}
+
+	// No FAIL line at all (the script died before reaching one): the last n
+	// lines are the best available answer, and must still be returned.
+	plain := failTail("a\nb\nc\nd\n", 2)
+	if plain != "c\nd" {
+		t.Errorf("failTail without a FAIL line returned %q, want the last 2 lines", plain)
+	}
+}
+
+// TestRunnerGivesTheChildOneDescriptorForBothStreams is #1141's second
+// guard, and the invariant that made the first one pass on a laptop and
+// fail on a CI runner.
+//
+// The runner used to give the child two pipes - io.MultiWriter for stdout,
+// the log file for stderr - so two copying goroutines appended to one file
+// in whatever order they were scheduled, and the log was not the order the
+// script wrote in. os/exec collapses the two into one descriptor only when
+// Stdout and Stderr are interface-equal (childStderr ->
+// interfaceEqual(c.Stderr, c.Stdout)), so that equality IS the property,
+// and asserting it is not white-box pedantry - it is the thing the standard
+// library branches on.
+//
+// It is asserted structurally rather than by observing an interleaving
+// because the defect is a race. An empirical fixture - a large stdout
+// backlog, a stderr line, another stdout line - was written first and
+// discarded: it passed ten times out of ten against the BROKEN runner, so
+// it was a check that could not fail. The behavioural coverage lives in
+// TestRunEstatesPreservesAndPrintsAFailingRunsLog, which did fail, on CI
+// and locally at -count=60.
+func TestRunnerGivesTheChildOneDescriptorForBothStreams(t *testing.T) {
+	cmd := exec.Command("true")
+	var captured, logf bytes.Buffer
+	attachCombinedOutput(cmd, &captured, &logf)
+
+	if cmd.Stdout == nil || cmd.Stderr == nil {
+		t.Fatalf("attachCombinedOutput left a stream unset: stdout=%v stderr=%v", cmd.Stdout, cmd.Stderr)
+	}
+	if cmd.Stdout != cmd.Stderr {
+		t.Fatalf("the child's stdout and stderr are different writers, so os/exec gives it two pipes and two copying goroutines; their appends to the one log file then interleave in scheduling order, and the lines a reader sees above a FAIL line are not the lines that preceded it (#1141)")
+	}
+
+	// Both streams must still reach both destinations - a single writer
+	// that dropped the parse buffer would satisfy the equality above and
+	// lose every verdict.
+	if _, err := cmd.Stdout.Write([]byte("hello\n")); err != nil {
+		t.Fatal(err)
+	}
+	if captured.String() != "hello\n" {
+		t.Errorf("the parse buffer got %q, want the written line", captured.String())
+	}
+	if logf.String() != "hello\n" {
+		t.Errorf("the log got %q, want the written line", logf.String())
+	}
+}
+
+func failLogsFor(t *testing.T, root, estate string) []string {
+	t.Helper()
+	got, err := filepath.Glob(filepath.Join(root, LogDir, estate+".*.fail.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
