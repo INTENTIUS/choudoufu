@@ -157,6 +157,29 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"stayed 0.",
 		Data: 4, Code: 0,
 	},
+	"internal/live/discovery/tagging.go": {
+		Reason: "taggingAPITypeCoverage (issue #1144): where the Resource Groups Tagging API's search index holds a " +
+			"type's objects, per type and per caller region. Three rows, one per IAM type #1134 measured against a " +
+			"live account at scale 50 - aws_iam_role returned 0 in every region while iam:ListRoleTags showed 550 of " +
+			"550 tagged; aws_iam_policy and aws_iam_instance_profile returned 500 each in us-east-1 and 0 in " +
+			"us-east-2, IAM being global and indexing there. Each row carries its own Evidence string naming that " +
+			"measurement, which is the sanctioned form. " +
+			"Not derivable, and the two candidate derivations are both worse than the table. Deriving it from the " +
+			"service prefix is what the file did BEFORE this issue, and #1134 is the measurement showing the prefix " +
+			"is right for one of the three types and wrong for two; deriving it from live/floci-capabilities.json " +
+			"would derive AWS's behaviour from an emulator, backwards on its face and the exact substitution " +
+			"lex00/floci#205 (#1152) was filed about. No provider schema, no CloudFormation registry row and no " +
+			"scraped doc states which regions GetResources indexes a service in - it is an operational property of " +
+			"one AWS service, observable only by asking it. The remaining aws_iam_ types nobody has asked stay on " +
+			"the prefix DEFAULT in taggingAPIServiceCoverage, which is a prefix and adds no literal here; a fourth " +
+			"row appears only when a fourth type has been measured. " +
+			"Code is 0 and must stay 0: every consumer goes through taggingAPICoverageFor, which is keyed lookup, " +
+			"not a branch on a named type. " +
+			"iamRoleEntry's own aws_iam_role/aws_iam_service_linked_role pair in arnJoinTable is a separate fact " +
+			"one join stage earlier and names its types through discovery.go's package-level consts, which is why " +
+			"it is counted there and not here.",
+		Data: 3, Code: 0,
+	},
 	"internal/live/foreign/classify.go": {
 		Reason: "foreign-resource matchTable: which argument makes a live resource the one a declared block means. Each entry's " +
 			"justification is an AWS uniqueness guarantee (ELBv2 names unique per account/region, an SNS ARN built out of its " +
@@ -624,7 +647,7 @@ const (
 	// document dropping tags ("this operation does not return the
 	// following attributes, even though they are an attribute of the
 	// returned object: ... Tags" - ListRoles, botocore 1.43.70).
-	typeLiteralDataTotal = 1173
+	typeLiteralDataTotal = 1176
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

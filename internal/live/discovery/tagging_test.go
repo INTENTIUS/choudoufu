@@ -946,7 +946,7 @@ func TestSweepFindsAnUnservedServiceTypeTheProviderCannotList(t *testing.T) {
 	} else if schemas.Supports(unservedType) {
 		t.Fatalf("the fake provider lists %s, so this fixture no longer reproduces the no-native-route shape #881 is about", unservedType)
 	}
-	if !taggingAPIUnservedType(unservedType) {
+	if !taggingAPIUnservedTypeInRegion("", unservedType) {
 		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this fixture no longer exercises #692's routing at all", unservedType)
 	}
 
@@ -1023,7 +1023,7 @@ func TestUnservedServiceTypeTheProviderCanListStaysOnTheNativeLeg(t *testing.T) 
 	if !schemas.Supports(unservedType) {
 		t.Fatalf("the fake provider does not list %s, so this control cannot say anything about the with-a-route case", unservedType)
 	}
-	if !taggingAPIUnservedType(unservedType) {
+	if !taggingAPIUnservedTypeInRegion("", unservedType) {
 		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this control no longer exercises #692's routing", unservedType)
 	}
 

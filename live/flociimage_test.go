@@ -66,6 +66,26 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-09-18 repin (issue #1152, lex00/floci#205): the correction to the
+// 2026-09-11 repin below. #202 stopped floci serving IAM through
+// GetResources on the strength of a ROLE probe and generalised it to the
+// service, which matched real AWS for iam:role and diverged from it for
+// iam:policy and iam:instance-profile - #1134 measured 500 of each in
+// us-east-1 on a live account. #205 makes the emulator serve those two in
+// us-east-1, none of the three anywhere else, and iam:role nowhere at all.
+// Re-probed directly on this digest before the repin landed and again
+// through this package's own client: us-east-1 returns the instance profile
+// and the policy, us-west-2 returns neither and returns a tagged EC2 volume
+// in the same call. That unblocked #1144, whose per-type/per-region routing
+// internal/live/discovery's TestPerRegionTaggingRoutingAgainstFloci now
+// exercises end to end against this pin. live/floci-capabilities.json was
+// re-probed in all four modes for the digest (services with -watch
+// networkmanager, cloudcontrol, cloudcontrol-scoped, tagging) plus the three
+// hand rows; the only status moves across the whole manifest are
+// aws_iam_policy and aws_iam_instance_profile going unimplemented ->
+// implemented on the tagging-sweep mechanism. `go run ./tools/gauntlet
+// render` carried gauntlet.json's own emulator field across, as below.
+//
 // 2026-09-11 repin (issue #1045, lex00/floci PR #202 - closes lex00/floci#201):
 // floci was answering GetResources/GetTagKeys/GetTagValues for IAM, which
 // real AWS does not do for iam:role (probed directly, recorded on issue
@@ -129,6 +149,22 @@ var staleFlociMeasurements = map[string]string{
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
 	"cohort-acceptance.json": "measured against the pre-#672 pin, now three repins back; re-measuring costs a full `TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance` sweep across all 31 cohorts, out of scope for three repin rulings that named corpus-vpc-complete, then corpus-alb-complete, then corpus-alb-complete again specifically",
+	// gauntlet-scale.json's top-level emulator field is NOT rewritten by
+	// `gauntlet render` the way gauntlet.json's is - render leaves the
+	// scale ladder's committed bytes alone (tools/gauntlet/render.go's own
+	// comment on `scale`), because every record in it is the output of one
+	// terralith-scale crossing and the field states which emulator those
+	// crossings ran against. Re-measuring means re-running them: three
+	// floci records at SCALE 1, 128 and 136, each a full cold_deploy +
+	// migrate + eleven-stage crossing measured in hours at the top of that
+	// ladder, and four real-AWS records that cost money and are the
+	// maintainer's to start by hand (CLAUDE.md, "Heavy and paid runs").
+	// Nothing in this repin touches what the ladder measures: it changes
+	// which IAM ARNs GetResources returns, and terralith-scale.sh skips
+	// index_wait for TARGET=floci entirely (see its own skip message and
+	// live/indexwait_partition_test.go for that decision, re-made on this
+	// repin).
+	"gauntlet-scale.json": "measured against the pre-#1152 pin; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones, and this repin changes only which IAM ARNs GetResources returns - a call the floci arm of that ladder does not make, because index_wait is skipped for TARGET=floci",
 	// cohort-triage.json is hand triage reconciled against
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.

@@ -35,8 +35,8 @@ import (
 // tags stripped.
 func nativeRoleFixture(t *testing.T, typeName, liveName, addr string) *fakeCloud {
 	t.Helper()
-	if !taggingAPIUnservedType(typeName) {
-		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this fixture no longer exercises the join that cannot answer", typeName)
+	if !taggingAPIUnservedTypeInRegion("", typeName) {
+		t.Fatalf("%s is no longer a type taggingAPITypeCoverage/taggingAPIServiceCoverage put out of the tag index's reach from an unset region, so this fixture no longer exercises the join that cannot answer", typeName)
 	}
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
