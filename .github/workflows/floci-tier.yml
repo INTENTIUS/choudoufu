@@ -122,7 +122,7 @@ jobs:
           set -u
           log="$RUNNER_TEMP/floci-tier.log"
           if [ ! -f "$log" ]; then
-            echo 'The tier produced no log; the failure is before `make test-floci` ever ran.' >> "$GITHUB_STEP_SUMMARY"
+            echo "The tier produced no log, so the failure is in setup: the make test-floci step never ran." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           if grep -q 'is required by this test but is not on PATH' "$log"; then
