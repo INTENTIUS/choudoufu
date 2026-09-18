@@ -254,8 +254,9 @@ GAUNTLET refused=1 scale=136 needed=10070 limit=10000 unit=ssm-parameters detail
 That is a run-level outcome, not a stage verdict: a stage cannot refuse.
 `needed`/`limit` go together or not at all, and a `detail` is required - the
 reason and the arithmetic are the whole value of recording a refusal rather
-than skipping the rung in silence. Where it lands is the `live/gauntlet-scale.json`
-section below.
+than skipping the rung in silence. `scale=` is required of an estate that
+declares a scale ladder and absent from one that does not; where each lands
+is the `live/gauntlet-scale.json` section below.
 
 ## The manifest entry
 
@@ -480,6 +481,31 @@ A refusal is deliberately **not** written to `live_cert`. That row holds one
 certification per estate, so a refusal at scale 136 landing there would
 destroy the certification at scale 50 - which is what happened on
 2026-09-13 (#1100), and what #1151 closes for the refusals that came after.
+
+### Where a refusal that names no rung goes (`refusals`)
+
+Not every estate is run at a size. `reference-ec2-vpc` is one fixed
+five-resource shape certified against a real account, and it has no rung
+anywhere - yet it can still refuse: an account whose region resolves no
+Amazon Linux AMI, a missing permission, a quota that is not about scale.
+A refusal is the only record its run produces (it is kept out of
+`live_cert` by the rule above), so under #1149's rule that record has to
+land or the run fails - and there was no rung to land it on (#1233).
+
+`live/gauntlet-scale.json` therefore has a second array, `refusals`: one refusal
+per (estate, target), scale absent, for an estate that has no ladder. It is
+kept out of `records` for the same reason a refusal is kept out of
+`live_cert` - a row at scale 0 would read as the smallest rung, which is a
+measurement nobody made. Newer supersedes older there too, with the same
+`supersedes` pointer.
+
+Which of the two an estate gets is the estate's own declaration, not an
+inference from what a run happened to print: `"scale_ladder": true` in
+`live/gauntlet/estates.json`, which `terralith-scale` carries and nothing else does.
+A refusal with no `scale=` from a **laddered** estate still fails the run,
+exactly as #1231 ruled - for that estate a missing scale is a
+`gauntlet_refused` call that forgot its rung, and shelving it would hide
+which size was declined.
 
 ## One live-cert per estate at a time
 

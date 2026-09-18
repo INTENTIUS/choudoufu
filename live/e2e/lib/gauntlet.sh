@@ -119,7 +119,18 @@ gauntlet_end() {
 #
 # The scale matters for exactly that reason: a refusal usually happens before
 # cold_deploy, so there is no stage detail to read a scale off, and a refusal
-# that cannot name its scale cannot be placed on the ladder at all. Pass it.
+# that cannot name its scale cannot be placed on the ladder at all. Pass it -
+# if the estate HAS a ladder. An estate run at a size declares
+# `"scale_ladder": true` in live/gauntlet/estates.json, and for one of those
+# a refusal with no scale= fails the run: the rung it declined is the whole
+# point of the record, and shelving it would hide which size was refused.
+#
+# An estate that declares no ladder - reference-ec2-vpc, one fixed shape
+# certified against a real account - passes "-" and its refusal is recorded
+# estate-level, in live/gauntlet-scale.json's `refusals` beside the ladder
+# rather than on it (#1233). That is the "the account's AMI for this region
+# is gone" example above: nothing about it is a size, and it still has to
+# land somewhere, because a refusal is the only record its run produces.
 #
 # Emitting this does not end the run - the caller decides what to do next
 # (usually: tear down whatever exists, then exit non-zero).

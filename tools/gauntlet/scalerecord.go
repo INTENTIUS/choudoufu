@@ -113,6 +113,34 @@ type ScaleArtifact struct {
 	// top-level Emulator.
 	Emulator string        `json:"emulator,omitempty"`
 	Records  []ScaleRecord `json:"records"`
+	// Refusals is the ladder's companion shelf: one refusal per (estate,
+	// target) for an estate that has no ladder to put one on (#1233).
+	//
+	// #1151 records a refusal as a ScaleRecord keyed by (estate, target,
+	// scale) and keeps it out of live_cert, because live_cert holds one
+	// certification per estate and a refusal is the absence of one. #1231
+	// then rules that a refusal which cannot be written fails the run,
+	// since the refusal is the only record its run produces. Composed for
+	// an estate with no scale - reference-ec2-vpc, a certification of one
+	// fixed shape - those two leave a real refusal with nowhere to go:
+	// passing a scale invents a rung nobody ran, and not passing one fails
+	// the run. This field is the third place, so neither ruling has to
+	// bend.
+	//
+	// What goes here: a refusal whose estate declares no scale ladder
+	// (Estate.ScaleLadder). Nothing else. Every row has Scale == 0 and
+	// Outcome == ScaleOutcomeRefused, held by SupersedeEstateRefusal, and
+	// a laddered estate's scale-less refusal still fails the run rather
+	// than landing here - see planLiveCertScaleRow.
+	//
+	// Why a separate array rather than a Scale == 0 row in Records: every
+	// reader of Records reads a ladder - render, the slicing bench's
+	// import, scale-patch-seconds, chant-bench's ingest - and a rung at
+	// scale 0 is a rung nobody ran. Keeping the two apart means an
+	// estate-level refusal cannot be read as a measurement at the smallest
+	// size, which is the same mistake at one remove as a refusal in
+	// live_cert being read as a certification.
+	Refusals []ScaleRecord `json:"refusals,omitempty"`
 }
 
 // ScaleRecord is one measured run of one estate at one scale, against one
@@ -1254,6 +1282,7 @@ func LoadScaleArtifact(root string) (*ScaleArtifact, error) {
 func SaveScaleArtifact(root string, a *ScaleArtifact) error {
 	a.Emulator = emulatorPin(root)
 	sortScaleRecords(a.Records)
+	sortScaleRecords(a.Refusals)
 	b, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
 		return err
@@ -1332,6 +1361,17 @@ func (a *ScaleArtifact) UpsertScaleRecord(rec ScaleRecord) {
 // re-measured cheaply, and because a human choosing to drop a measured row
 // can do it as its own reviewed change.
 func (a *ScaleArtifact) SupersedeScaleRecord(rec ScaleRecord) (ScaleRecord, error) {
+	// A refusal that names no rung is not a ladder row at all (#1233), and
+	// scale 0 is not the smallest rung - it is the absence of one. Held
+	// here as well as in planLiveCertScaleRow because this is the function
+	// that writes the file: a future caller that reaches the ladder with
+	// one of these gets a refusal to write, not a row at scale 0 that
+	// renders as a measurement nobody made.
+	if rec.IsRefusal() && rec.Scale == 0 {
+		return ScaleRecord{}, fmt.Errorf(
+			"scale record for estate=%q target=%q: a refusal that names no scale does not belong on the ladder - scale 0 is not the smallest rung, it is the absence of one. An estate that declares no scale ladder records its refusal on the estate-level shelf (SupersedeEstateRefusal, %s's `refusals`); an estate that declares one must name the rung it declined (#1233)",
+			rec.Estate, rec.Target, ScaleRecordsPath)
+	}
 	for i := range a.Records {
 		old := a.Records[i]
 		if old.Estate != rec.Estate || old.Target != rec.Target || old.Scale != rec.Scale {
@@ -1372,6 +1412,52 @@ func (a *ScaleArtifact) SupersedeScaleRecord(rec ScaleRecord) (ScaleRecord, erro
 		return rec, nil
 	}
 	a.Records = append(a.Records, rec)
+	return rec, nil
+}
+
+// SupersedeEstateRefusal records a refusal for an estate that has no scale
+// ladder to put one on (#1233), on ScaleArtifact.Refusals - keyed by
+// (estate, target), because there is no third component when there is no
+// ladder.
+//
+// It is SupersedeScaleRecord's sibling and keeps the two rules of #1151
+// that still apply here. Newer wins, and never silently: the replaced row's
+// commit, date and outcome go into the new row's Supersedes chain, so an
+// operator reading "this estate refused" can see how long it has been
+// refusing and what it said last time. The third rule - a refusal never
+// replaces a measurement - holds by construction rather than by a check:
+// nothing but a refusal is ever written to this shelf, so there is no
+// measurement here to destroy. The measurement for these estates lives in
+// live_cert, which a refusal is already kept out of (PlanLiveCertWrites).
+//
+// Everything this will not accept is a caller putting a record in the wrong
+// home, which is how a refusal stops reading as one.
+func (a *ScaleArtifact) SupersedeEstateRefusal(rec ScaleRecord) (ScaleRecord, error) {
+	if !rec.IsRefusal() {
+		return ScaleRecord{}, fmt.Errorf(
+			"estate-level refusal for estate=%q target=%q: outcome is %s, not %s - this shelf holds refusals and nothing else; a measurement belongs on the ladder (%s's `records`) or in %s's live_cert (#1233)",
+			rec.Estate, rec.Target, outcomeOrLegacy(rec), ScaleOutcomeRefused, ScaleRecordsPath, ArtifactPath)
+	}
+	if rec.Scale != 0 {
+		return ScaleRecord{}, fmt.Errorf(
+			"estate-level refusal for estate=%q target=%q: it names scale=%d, so it has a rung and belongs on the ladder (SupersedeScaleRecord), where it lands beside whatever that estate has already measured (#1151)",
+			rec.Estate, rec.Target, rec.Scale)
+	}
+	for i := range a.Refusals {
+		old := a.Refusals[i]
+		if old.Estate != rec.Estate || old.Target != rec.Target {
+			continue
+		}
+		rec.Supersedes = append(append([]ScaleSupersession{}, old.Supersedes...), ScaleSupersession{
+			Commit:  old.Commit,
+			Date:    old.Date,
+			Outcome: old.Outcome,
+			Source:  old.Source,
+		})
+		a.Refusals[i] = rec
+		return rec, nil
+	}
+	a.Refusals = append(a.Refusals, rec)
 	return rec, nil
 }
 
