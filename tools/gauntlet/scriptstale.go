@@ -8,7 +8,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -80,6 +83,72 @@ type ScriptStaleness struct {
 // crossing script ever does read a markdown file out of its own directory,
 // that guard fails rather than this quietly becoming wrong.
 func isInertEstatePath(p string) bool { return strings.HasSuffix(p, ".md") }
+
+// estateMarkdownReads is isInertEstatePath's evidence: every place a file
+// under one of dirs names a markdown file that lives in that same
+// directory, outside a comment. A hit means the inert rule is wrong for
+// that estate - a run could be reading the document this treats as
+// unreadable - and TestEstateScriptsReadNoMarkdown fails rather than
+// letting the classification rot.
+//
+// Full-line comments (`#`, `//`) are skipped, because a script pointing at
+// its own MIGRATION.md in prose is not reading it; live/e2e/terralith-scale
+// does exactly that today. An inline comment is not parsed out, so a
+// reference tucked onto the end of a code line reads as a hit: the fix
+// there is to move it to its own line, and the guard's message says so.
+func estateMarkdownReads(root string, dirs []string) ([]string, error) {
+	var hits []string
+	for _, dir := range dirs {
+		base := filepath.Join(root, filepath.FromSlash(dir))
+		var files, mds []string
+		err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if p != base && strings.HasPrefix(d.Name(), ".") {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if isInertEstatePath(d.Name()) {
+				mds = append(mds, d.Name())
+				return nil
+			}
+			files = append(files, p)
+			return nil
+		})
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(mds) == 0 {
+			continue
+		}
+		for _, f := range files {
+			b, err := os.ReadFile(f) //nolint:gosec // paths walked out of the checkout's own estate directories
+			if err != nil {
+				return nil, err
+			}
+			for i, line := range strings.Split(string(b), "\n") {
+				t := strings.TrimSpace(line)
+				if strings.HasPrefix(t, "#") || strings.HasPrefix(t, "//") {
+					continue
+				}
+				for _, md := range mds {
+					if strings.Contains(line, md) {
+						rel, _ := filepath.Rel(root, f)
+						hits = append(hits, fmt.Sprintf("%s:%d names %s", filepath.ToSlash(rel), i+1, md))
+					}
+				}
+			}
+		}
+	}
+	sort.Strings(hits)
+	return hits, nil
+}
 
 // EstateDir is the directory a row's evidence is about: the one holding its
 // crossing script. Empty when the row names no script, or names one with no
