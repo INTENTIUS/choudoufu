@@ -46,6 +46,16 @@ type RegistryCounts struct {
 	// Taggable is how many types have tagging.taggable set.
 	Taggable int `json:"taggable"`
 
+	// TaggingUndeclared is how many types carried no "tagging" key in
+	// their CloudFormation schema, so their whole tagging block in this
+	// artifact - taggable included - is this generator's default rather
+	// than an upstream answer (issue #1327, [Tagging.Declared]). It is
+	// reported rather than only derivable because it is the size of the
+	// population no consumer may read the taggable flag off: a zero here
+	// would mean every row's tagging facet is measured, and a non-zero one
+	// says how much of the artifact is inference.
+	TaggingUndeclared int `json:"tagging_undeclared"`
+
 	// ListFree, ListWithRequiredInput and NoListHandler partition Types by
 	// Enumerability; NoHandlersAtAll is the subset of NoListHandler with no
 	// handlers section at all (Handlers.HasAny() false).
@@ -123,6 +133,9 @@ func tallyEntry(c *RegistryCounts, e Entry) {
 
 	if e.Tagging.Taggable {
 		c.Taggable++
+	}
+	if !e.Tagging.Declared {
+		c.TaggingUndeclared++
 	}
 
 	switch e.Handlers.Enumerability() {
