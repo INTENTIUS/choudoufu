@@ -178,6 +178,11 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 			Client: ssm.NewFromConfig(awsCfg),
 			// Empty on purpose: see backendKeyPrefix.
 			KeyPrefix: backendKeyPrefix,
+			// Issue #1146. Empty when the block names no tier, which sends
+			// no Tier at all and leaves the account's default-tier
+			// configuration in charge - the only default that changes
+			// nothing about what a run before this argument existed did.
+			Tier: staterecord.SSMTier(rs.Tier),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"ssm\": %w", err)

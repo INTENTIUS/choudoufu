@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -382,6 +383,27 @@ type LiveRecordStore struct {
 	RegionSet   bool
 	RegionRange hcl.Range
 
+	// Tier is the "ssm" backend's Parameter Store tier: one of
+	// RecordStoreTiers, checked in decodeRecordStoreBlock. Optional, and
+	// unused by the other two backends, which refuse it.
+	//
+	// It is what raises SSM's record ceiling from 10,000 parameters per
+	// account per region to 100,000 - a hard, non-adjustable AWS quota
+	// (L-C3B871CB) that an estate of ten thousand resources walks into with
+	// nothing to negotiate. Before GitHub issue #1146 there was no way to
+	// select a tier at all, so that ceiling could not be raised even
+	// deliberately.
+	//
+	// Omitted is NOT "standard": it sends no tier and lets the account's own
+	// default-tier configuration decide, because both alternatives are
+	// silent changes an author did not ask for - pinning "standard" would
+	// override a default set outside this tool, and pinning "advanced" would
+	// start a per-parameter monthly charge. See
+	// [internal/live/staterecord.SSMTier].
+	Tier      string
+	TierSet   bool
+	TierRange hcl.Range
+
 	// DeclRange is the "record_store" block's own header, or - for the
 	// implied store - the live block's own header, since that is the
 	// nearest thing the author wrote.
@@ -601,8 +623,22 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "bucket"},
 		{Name: "key_prefix"},
 		{Name: "region"},
+		{Name: "tier"},
 	},
 }
+
+// RecordStoreTiers is every spelling the "ssm" backend's "tier" argument
+// accepts, in the order a diagnostic lists them. GitHub issue #1146.
+//
+// The vocabulary belongs to internal/live/staterecord's SSMTier, which is
+// what actually writes the parameters, and this package cannot import that
+// one (internal/configs depends on nothing under internal/live, and
+// inverting that would put the whole live stack under the configuration
+// loader). So the list is duplicated here on purpose and pinned equal to
+// staterecord.SSMTierNames() by a test in internal/live/projection, which
+// imports both. A spelling added to one and not the other fails that test
+// rather than reaching an author as "valid here, unknown there".
+var RecordStoreTiers = []string{"standard", "advanced", "intelligent_tiering"}
 
 func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 	return decodeLiveBody(block.Body, block.DefRange)
@@ -1134,7 +1170,48 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 		})
 	}
 
+	if attr, exists := content.Attributes["tier"]; exists {
+		rs.TierRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "tier")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			switch {
+			case !slices.Contains(RecordStoreTiers, val):
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store tier",
+					Detail: fmt.Sprintf(
+						"The \"tier\" argument was set to %q. Valid tiers are %s. Omit the argument entirely to leave the tier to the account's own default-tier configuration, which is what every run before this argument existed did.",
+						val, strings.Join(quoteEach(RecordStoreTiers), ", "),
+					),
+					Subject: attr.Expr.Range().Ptr(),
+				})
+			default:
+				rs.Tier = val
+				rs.TierSet = true
+			}
+		}
+	}
+	if rs.Type != "ssm" && rs.TierSet {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"tier\" argument selects an SSM Parameter Store tier and has no meaning for record_store %q. Remove it.", rs.Type),
+			Subject:  rs.TierRange.Ptr(),
+		})
+	}
+
 	return rs, diags
+}
+
+// quoteEach renders a vocabulary for a diagnostic: every value in double
+// quotes, so a reader can tell the spelling apart from the prose around it.
+func quoteEach(vals []string) []string {
+	out := make([]string, len(vals))
+	for i, v := range vals {
+		out[i] = fmt.Sprintf("%q", v)
+	}
+	return out
 }
 
 // decodePolicyBlock decodes a live block's nested "policy" block: the four

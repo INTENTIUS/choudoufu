@@ -2593,6 +2593,8 @@ refused, and each says so in its own entry.
 | - | - | projection | Provider unavailable | error | `internal/live/projection` | "Provider unavailable" |
 | - | - | projection | Provisioner record could not be read | error | `internal/live/projection` | "Provisioner record could not be read" |
 | - | - | projection | Record does not match the live marker | error | `internal/live/projection` | "Record does not match the live marker" |
+| - | - | projection | Record store is close to its ceiling | error | `internal/live/projection` | "Record store is close to its ceiling" |
+| - | - | projection | Record store too small for this estate | error | `internal/live/projection` | "Record store too small for this estate" |
 | - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
 | - | - | projection | Record store write failed | error | `internal/live/projection` | "Record store write failed" |
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
@@ -2604,7 +2606,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**236 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**238 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4213,6 +4215,22 @@ reserved for the limits wing's fixture directories, and
 #### Record does not match the live marker
 
 **What.** GitHub issue #364 unit B's universal record-first read found an object through the estate's record store, but the object's own tofu-address marker does not confirm it - it names a different address, or (for a taggable type) there is no address marker at all. The record is treated as absent rather than as a claim to defend: the instance falls back to marker discovery or static derivation, exactly as if no record existed for it. Always a warning; the plan that follows is correct either way.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Record store is close to its ceiling
+
+**What.** GitHub issue #1146: this estate's records take up more than nine tenths of the configured record store's ceiling. For SSM that ceiling counts every parameter in the account and region, not just this estate's, so whether they fit depends on a number the plan deliberately does not read. A warning rather than a refusal because the outcome is genuinely undecided here; the band above the ceiling is arithmetic and refuses.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Record store too small for this estate
+
+**What.** GitHub issue #1146: this estate needs more records than the configured record store can physically hold - SSM Parameter Store caps standard parameters at 10,000 per account per region (L-C3B871CB, Adjustable: False) and one record is one parameter. Refused at plan time, before the first write, rather than partway through an apply. The record_store block's "tier" argument raises the SSM ceiling to 100,000; the s3 and local backends have no fixed ceiling.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

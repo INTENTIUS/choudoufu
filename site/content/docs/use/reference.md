@@ -183,6 +183,7 @@ backend needs to exist first.
 | `bucket` | `s3` | The bucket holding the records. |
 | `key_prefix` | `ssm`, `s3` | Namespace for this estate's records. A prefix whose first segment is `tofu-receipts` or `tofu-hints` is a decode error, because those namespaces belong to receipts (ordinary declared resources) and the guided-discovery hint respectively. |
 | `region` | `ssm`, `s3` | Region of the store. Unset, the AWS SDK's own default-configuration chain decides. |
+| `tier` | `ssm` | `"standard"`, `"advanced"` or `"intelligent_tiering"`. Standard holds 10,000 parameters per account per region and 4KB values, free. Advanced holds 100,000 and 8KB, and bills per parameter per month. Intelligent tiering reaches the same 100,000 and charges only past 10,000. Unset sends no tier, leaving the account's own default-tier configuration in charge. |
 
 ### `policy` block
 

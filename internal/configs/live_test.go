@@ -509,6 +509,34 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if rs.PathSet || rs.BucketSet {
 			t.Errorf("ssm record_store carries path/bucket: %+v", rs)
 		}
+		// GitHub issue #1146: a block that names no tier must leave
+		// TierSet false, so internal/live/projection sends no Tier at all
+		// and the account's own default-tier configuration keeps deciding.
+		// A default of "standard" here would silently override that choice
+		// for every estate written before the argument existed.
+		if rs.TierSet || rs.Tier != "" {
+			t.Errorf("ssm record_store with no tier argument decoded Tier=%q TierSet=%v", rs.Tier, rs.TierSet)
+		}
+	})
+
+	// GitHub issue #1146: the tier that raises SSM's hard 10,000-parameter
+	// ceiling to 100,000, which before this argument existed could not be
+	// selected even deliberately.
+	t.Run("ssm with a tier", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-ssm-tier")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if got, want := rs.Tier, "advanced"; got != want {
+			t.Errorf("Tier = %q, want %q", got, want)
+		}
+		if !rs.TierSet {
+			t.Error("TierSet is false for a block that wrote the tier argument")
+		}
 	})
 
 	t.Run("s3", func(t *testing.T) {
@@ -635,6 +663,9 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-key-prefix-provisioned.tf", `must not begin with the "tofu-provisioned" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-outputs.tf", `must not begin with the "tofu-outputs" segment`},
 		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
+		{"testdata/invalid-files/live-record-store-tier-unknown.tf", `The "tier" argument was set to "gold"`},
+		{"testdata/invalid-files/live-record-store-tier-on-local.tf", `has no meaning for record_store "local"`},
+		{"testdata/invalid-files/live-record-store-tier-on-s3.tf", `has no meaning for record_store "s3"`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)

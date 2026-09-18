@@ -10,8 +10,13 @@ import (
 	"go/parser"
 	"go/token"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+
+	addrs2 "github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // GitHub issue #1203. #1176 found two live-path passes that reasoned over
@@ -93,6 +98,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"statelessUnmarkedApplyGaps":   {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
 	"lint.CheckWith":               {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
 	"lint.CheckResidueAttributes":  {scopeAware, "lint.Context.Scope, same struct; #1256"},
+	"statelessRecordCapacity":      {scopeAware, "counts only in-scope resolutions; #1146. An out-of-scope block keeps its resolution on purpose (identity.Scope), so counting all of them would refuse a narrowed run against a large estate that writes only the targeted records"},
 	"statelessPolicyReconcile":     {scopeAware, "discovery.ReconcileRequest.Scope; #1257. The roster is still listed and reported in full; what narrows is discovery.ReconcileResult.Proposable, which is both the set merged in as destroy proposals and the set the threshold guard counts"},
 
 	// ---- narrowed before they run ----------------------------------
@@ -263,4 +269,49 @@ func orchestratorBody(file *ast.File, recv, name string) *ast.BlockStmt {
 		return fn.Body
 	}
 	return nil
+}
+
+// TestStatelessRecordCapacityHonoursTheTargetScope is the behavioural half
+// of [statelessRecordCapacity]'s scopeAware classification above. The
+// classification guard can only tell that somebody decided; this asserts
+// the decision is true.
+//
+// The shape it defends against is specific. An out-of-scope resource block
+// KEEPS its resolution ([identity.Scope]'s walkOutOfScope, deliberately, so
+// the estate sweep does not read its live objects as orphans), so
+// resolutions carries the whole configuration even when -target narrowed
+// the run to one resource. A ceiling check that counted that would refuse a
+// one-resource apply against a large estate - a run that writes one record
+// and would have succeeded.
+func TestStatelessRecordCapacityHonoursTheTargetScope(t *testing.T) {
+	// Well past SSM's standard ceiling of 10,000 parameters.
+	const declared = 12000
+
+	resolutions := make([]identity.Resolution, 0, declared)
+	for i := 0; i < declared; i++ {
+		addr := addrs2.Resource{
+			Mode: addrs2.ManagedResourceMode,
+			Type: "aws_instance",
+			Name: "n" + strconv.Itoa(i),
+		}.Instance(addrs2.NoKey).Absolute(addrs2.RootModuleInstance)
+		resolutions = append(resolutions, identity.Resolution{Addr: addr})
+	}
+
+	live := &configs.Live{RecordStore: &configs.LiveRecordStore{Type: "ssm"}}
+
+	t.Run("an untargeted run counts the whole estate", func(t *testing.T) {
+		diags := statelessRecordCapacity(live, resolutions, nil)
+		if !diags.HasErrors() {
+			t.Fatalf("%d records on the standard SSM tier were accepted", declared)
+		}
+	})
+
+	t.Run("a narrowed run counts only what it will touch", func(t *testing.T) {
+		only := resolutions[0].Addr.ConfigResource()
+		scope := func(cr addrs2.ConfigResource) bool { return cr.Equal(only) }
+		diags := statelessRecordCapacity(live, resolutions, scope)
+		if len(diags) != 0 {
+			t.Fatalf("a run targeting one resource of %d was refused or warned:\n%s", declared, diags.Err())
+		}
+	})
 }
