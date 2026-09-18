@@ -968,7 +968,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// recordStoreForReads rather than recordShrinkStore - this check is
 	// unconditional, not gated on [nodeResolveEnabled] the way edge 3's
 	// sweep-demand shrink is.
-	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate))
+	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate, scope))
 	if diags.HasErrors() {
 		return 1, false, diags
 	}
@@ -2112,15 +2112,53 @@ func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFl
 // PriorState, at the same point each already calls
 // [statelessMarkerEstate] - after schemas, resolutions and the estate name
 // are all settled, before the plan walk reaches the first instance.
-func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string) tfdiags.Diagnostics {
+//
+// scope is GitHub issue #1203's addition, the same [identity.Scope] the
+// resolution, discovery and projection passes are already given and nil for
+// every untargeted run. It narrows this pass twice, at two different costs:
+//
+//   - the record reads below, which are one GetIdentity per needs-discovery
+//     instance and FATAL on a read failure. A -target run has no business
+//     failing on a record it was never going to consult, so an out-of-scope
+//     instance is dropped before the store is asked about it.
+//   - the refusal itself, inside [check.NodeStampUnmarkedApply]. See that
+//     function's own doc comment for the ruling and for why an in-scope
+//     block still refuses.
+func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string, scope identity.Scope) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	needs := resolutions.NeedsDiscovery()
+	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
 	recordBacked, recordDiags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, store, needs)
 	diags = diags.Append(recordDiags)
 	if recordDiags.HasErrors() {
 		return diags
 	}
-	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked))
+	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope))
+}
+
+// statelessInScopeResolutions drops the resolutions whose block a
+// -target / -exclude run leaves out of the plan graph.
+//
+// It exists because the resolution list deliberately keeps an out-of-scope
+// block - see [identity.Scope]'s own doc comment: that list is also the
+// estate sweep's declared set, and dropping a block from it would turn
+// every live object it owns into an orphan. So each pass that would ACT on
+// a resolution narrows for itself, at the point it acts, which is the same
+// placement [projection.Options.Scope] and [discovery.Request.Scope] use.
+//
+// A nil scope - every untargeted run - returns the input unchanged rather
+// than a copy, so nothing about an ordinary run's allocation or ordering
+// moves.
+func statelessInScopeResolutions(in []identity.Resolution, scope identity.Scope) []identity.Resolution {
+	if scope == nil {
+		return in
+	}
+	out := make([]identity.Resolution, 0, len(in))
+	for _, r := range in {
+		if scope(r.Addr.ConfigResource()) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // statelessUndiscoveredNote names what a run without discovery leaves
