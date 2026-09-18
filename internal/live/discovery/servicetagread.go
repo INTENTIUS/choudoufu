@@ -88,10 +88,28 @@ import (
 //
 // scan may be nil for a caller with no row to charge the call to.
 func serviceTagRead(ctx context.Context, req Request, typeName, importID string, scan *TypeScan) (map[string]string, bool) {
-	if req.ServiceTags == nil || importID == "" || !req.ServiceTags.Route(typeName) {
+	return serviceTagReadWith(ctx, req.ServiceTags, req.markers, typeName, importID, scan)
+}
+
+// serviceTagReadWith is the leg itself, over the two things it actually
+// needs rather than over a whole [Request]: the reader, and the estate's
+// tag index the third gate clause asks about.
+//
+// Split out for [MarkerFallback], which is the same leg for a caller that
+// runs no [Discover] pass and so has no Request to carry it - internal/live/
+// mv's live-mv sweep, GitHub issue #1274. The alternative was a second
+// implementation of "read the marker through the service's own tag API" in
+// that package, which would have had to grow its own copy of all three gate
+// clauses, and would have diverged from this one the first time either
+// moved.
+//
+// reader and markers may both be nil, and both mean the same thing here:
+// this run has no such route, which is not a fact about the object.
+func serviceTagReadWith(ctx context.Context, reader servicetags.Reader, markers *markerIndex, typeName, importID string, scan *TypeScan) (map[string]string, bool) {
+	if reader == nil || importID == "" || !reader.Route(typeName) {
 		return nil, false
 	}
-	if req.markers.servesType(ctx, typeName) {
+	if markers.servesType(ctx, typeName) {
 		// The index holds this type for this estate, so its silence about
 		// this particular object is an answer about the object rather than
 		// the absence of one - [markerIndex.join] already made it, as
@@ -100,7 +118,7 @@ func serviceTagRead(ctx context.Context, req Request, typeName, importID string,
 		return nil, false
 	}
 
-	tags, err := req.ServiceTags.ReadTags(ctx, typeName, importID)
+	tags, err := reader.ReadTags(ctx, typeName, importID)
 	if scan != nil {
 		scan.ServiceTagReads++
 	}
