@@ -23,7 +23,7 @@
     "e2e/corpus-lambda-simple/run.sh": 13,
     "e2e/corpus-leynos-monitoring/run.sh": 31,
     "e2e/corpus-mastino-dns/run.sh": 17,
-    "e2e/corpus-message-queue/run.sh": 2,
+    "e2e/corpus-message-queue/run.sh": 1,
     "e2e/corpus-mobile-backend/run.sh": 5,
     "e2e/corpus-oidc-provider/run.sh": 5,
     "e2e/corpus-overture-tiles/run.sh": 24,

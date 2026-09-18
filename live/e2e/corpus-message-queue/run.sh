@@ -295,9 +295,9 @@ log "  all 28 queues live, read back through the AWS CLI"
 # Every object here is taggable, so all 29 carry markers and the "identity
 # with no carrier" group is empty for this estate. Asserted as a number: a
 # dead tagging index would otherwise read as a passing run.
-MARKED="$(awsl resourcegroupstaggingapi get-resources \
+MARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$MARKED" = "29" ] \
   || fail "expected 29 objects carrying tofu-estate=$ESTATE in the tagging index, got $MARKED"
 log "  29 of 29 objects carry markers; nothing here relies on a carrier-free identity"

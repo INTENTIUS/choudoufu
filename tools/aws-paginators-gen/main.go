@@ -55,6 +55,7 @@ func main() {
 	var (
 		check       = flag.Bool("check", false, "compare the committed snapshot against botocore and exit non-zero on any difference")
 		baseline    = flag.Bool("baseline", false, "rewrite live/aws-page-query-baseline.json from the crossing scripts as they stand")
+		audit       = flag.Bool("audit", false, "print every --query call site with its verdict, grouped by operation; reads only the committed snapshot")
 		dataDir     = flag.String("botocore-data", "", "botocore's data directory (default: ask python3 where botocore is)")
 		repoRootArg = flag.String("root", ".", "repository root")
 	)
@@ -67,6 +68,13 @@ func main() {
 
 	if *baseline {
 		if err := writeBaseline(root); err != nil {
+			fail(err)
+		}
+		return
+	}
+
+	if *audit {
+		if err := printAudit(root); err != nil {
 			fail(err)
 		}
 		return
@@ -302,6 +310,91 @@ func writeBaseline(root string) error {
 		total += n
 	}
 	fmt.Printf("wrote %s: %d script(s) carrying %d call site(s)\n", residue.PageQueryBaselinePath, len(counts), total)
+	return nil
+}
+
+// printAudit is #1214's item 2: the existing `| [0]` population read
+// against the derived list rather than assumed safe. It prints every
+// --query call site in the crossing scripts with its verdict, grouped by
+// (service, operation), and separates the `| [0]` idiom the issue named
+// from the rest so the two questions can be answered independently.
+//
+// It reads only the committed snapshot, so it runs on a machine with no
+// botocore and produces the same numbers the guard enforces.
+func printAudit(root string) error {
+	liveDir := filepath.Join(root, "live")
+	snap, err := residue.LoadPaginatingOperations(filepath.Join(root, residue.PaginatingOperationsPath))
+	if err != nil {
+		return err
+	}
+	sources, err := residue.CrossingScriptSources(liveDir)
+	if err != nil {
+		return err
+	}
+	type verdict struct {
+		flagged, safe int
+		pages         bool
+		known         bool
+	}
+	byOp := map[string]*verdict{}
+	var scripts []string
+	for rel := range sources {
+		scripts = append(scripts, rel)
+	}
+	sort.Strings(scripts)
+
+	totalQueries, bracketZero, bracketZeroFlagged, unattributed := 0, 0, 0, 0
+	for _, rel := range scripts {
+		uses, _ := residue.AnalyzeAWSPageQueries(sources[rel])
+		for _, u := range uses {
+			totalQueries++
+			isBracketZero := strings.Contains(u.Query, "[0]")
+			if isBracketZero {
+				bracketZero++
+			}
+			if u.Service == "" {
+				unattributed++
+				continue
+			}
+			key := u.Service + " " + u.Operation
+			v := byOp[key]
+			if v == nil {
+				pages, err := snap.Paginates(u.Service, u.Operation)
+				if err != nil {
+					return err
+				}
+				v = &verdict{pages: pages, known: true}
+				byOp[key] = v
+			}
+			if u.Reducing && v.pages {
+				v.flagged++
+				if isBracketZero {
+					bracketZeroFlagged++
+				}
+			} else {
+				v.safe++
+			}
+		}
+	}
+
+	var keys []string
+	for k := range byOp {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if byOp[keys[i]].flagged != byOp[keys[j]].flagged {
+			return byOp[keys[i]].flagged > byOp[keys[j]].flagged
+		}
+		return keys[i] < keys[j]
+	})
+	fmt.Printf("%-52s %8s %8s %s\n", "aws <service> <operation>", "in class", "out", "paginates")
+	for _, k := range keys {
+		v := byOp[k]
+		fmt.Printf("%-52s %8d %8d %v\n", k, v.flagged, v.safe, v.pages)
+	}
+	fmt.Printf("\n%d --query call site(s) across %d script(s)\n", totalQueries, len(scripts))
+	fmt.Printf("%d carry the `[0]` idiom #1214 names; %d of those are on a paginating operation\n", bracketZero, bracketZeroFlagged)
+	fmt.Printf("%d --query call site(s) could not be attributed to an `aws <service> <operation>` pair\n", unattributed)
 	return nil
 }
 

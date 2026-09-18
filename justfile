@@ -420,6 +420,35 @@ limits:
 harness:
     go run ./tools/harness-gen
 
+# ── botocore's paginating-operation set (#1214) ──────────────────────────
+# The AWS CLI applies --query to each page before merging, so a --query that
+# reduces a list to a scalar reads one page at a time (#1042, #1206).
+# live/aws-paginating-operations.json is botocore's own answer to "does this
+# operation page", vendored so the guard in live/awspagequery_test.go runs
+# with no Python installed.
+#
+# These two are the check the vendored file cannot do for itself. They need
+# botocore (`pip install botocore`) and are therefore a command a human runs
+# before trusting the snapshot, not a `go test` - a test would have to skip
+# where botocore is absent, and a skipping guard is permanently green.
+
+# Re-vendor the snapshot from the installed botocore.
+aws-paginators:
+    go run ./tools/aws-paginators-gen
+
+# Fail if the vendored snapshot no longer matches the installed botocore.
+aws-paginators-check:
+    go run ./tools/aws-paginators-gen -check
+
+# Re-measure the per-script call-site baseline the ratchet compares against.
+# Needs no botocore: it reads the vendored snapshot.
+aws-page-query-baseline:
+    go run ./tools/aws-paginators-gen -baseline
+
+# Print every --query call site with its verdict, grouped by operation.
+aws-page-query-audit:
+    go run ./tools/aws-paginators-gen -audit
+
 # Will this configuration work under live markers? (#114) DIR defaults to "."
 live-check dir=".":
     go run ./cmd/choudoufu live-check {{dir}}

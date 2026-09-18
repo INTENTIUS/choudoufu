@@ -358,6 +358,56 @@ gauntlet_tagged_count() {
   "$@" --output json | jq '.ResourceTagMappingList | length'
 }
 
+# gauntlet_first_match <jq-selector> <aws-invocation...>: runs the given AWS
+# CLI invocation with its pages MERGED and prints the first value the jq
+# selector yields - or nothing at all if it yields none.
+#
+# This is the other half of gauntlet_tagged_count's argument (issue #1214).
+# gauntlet_tagged_count exists because summing across pages is easy to get
+# wrong; picking the first match across pages is wrong in the same way and
+# harder to see, because it prints something plausible rather than an
+# obviously silly number. Issue #1206 is the case:
+#
+#   aws iam list-policies --path-prefix / \
+#     --query "Policies[?starts_with(PolicyName, 'x') == \`true\`].Arn | [0]" \
+#     --output text
+#
+# The AWS CLI applies --query to EACH page before merging, so on a listing
+# that took 16 pages that command printed SIXTEEN lines: the arn from the
+# page holding the match, and the literal "None" from the fifteen that did
+# not. The caller captured all sixteen as "the arn", the usual
+# `[ -n "$X" ] && [ "$X" != "None" ]` guard passed (a 16-line string is
+# neither), and `iam list-policy-tags --policy-arn "$X"` answered
+# NoSuchEntity with empty stdout - which read back as an EMPTY ownership
+# marker two layers away. #1206 was filed against the stamp; the stamp was
+# never wrong.
+#
+# Dropping --query is what fixes it, exactly as in gauntlet_tagged_count:
+# with --output json and no --query, the CLI's automatic pagination merges
+# every page into one document before anything filters it, so jq here sees
+# the whole listing. Never add --query back to this call.
+#
+# Usage - the direct replacement for the `[?...] | [0]` idiom:
+#
+#   # was: awsl iam list-policy-tags --policy-arn "$ARN" \
+#   #        --query "Tags[?Key=='tofu-address'].Value | [0]" --output text
+#   ADDR="$(gauntlet_first_match '.Tags[] | select(.Key == "tofu-address") | .Value' \
+#            awsl iam list-policy-tags --policy-arn "$ARN")"
+#
+# TWO DIFFERENCES from the idiom it replaces, both deliberate:
+#
+#   1. No match prints NOTHING, where `--query ... | [0] --output text`
+#      printed the literal string "None". Test the result with
+#      `[ -n "$X" ]`, not `[ "$X" != "None" ]`. "None" is a value the shell
+#      cannot distinguish from a tag whose value really is "None", and
+#      carrying it forward is half of what #1206 cost.
+#   2. The selector is jq, not JMESPath, because the pages are already
+#      merged into JSON by the time it runs.
+gauntlet_first_match() {
+  local selector="$1"; shift
+  "$@" --output json | jq -r "[ $selector ] | .[0] // empty"
+}
+
 # ── the cold-deploy pre-apply (#1173) ────────────────────────────────────
 #
 # Some configurations cannot be planned in one pass. A root that declares a
