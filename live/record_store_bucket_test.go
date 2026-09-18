@@ -13,9 +13,11 @@ import (
 	"testing"
 )
 
-// justRecipe returns the body of one recipe in a justfile: every line from
-// its header to the next unindented, non-comment, non-blank line.
-func justRecipe(t *testing.T, justfile, name string) string {
+// justRecipeWithParams is ci_coverage_test.go's justRecipe for a recipe whose
+// header carries parameters (`verify bucket="":`), which that one's exact
+// `name:` match does not find. It returns every line from the header to the
+// next line that starts in column zero.
+func justRecipeWithParams(t *testing.T, justfile, name string) string {
 	t.Helper()
 	lines := strings.Split(justfile, "\n")
 	header := regexp.MustCompile(`^` + regexp.QuoteMeta(name) + `( [^:]*)?:`)
@@ -49,7 +51,7 @@ func TestRecordStoreBucketVerifyAsksTheBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	verify := justRecipe(t, string(raw), "verify")
+	verify := justRecipeWithParams(t, string(raw), "verify")
 	if !strings.Contains(verify, "live-bucket") {
 		t.Error("`just verify` does not call `choudoufu live-bucket`")
 	}
@@ -62,7 +64,7 @@ func TestRecordStoreBucketVerifyAsksTheBinary(t *testing.T) {
 	// `down` counts VERSIONS under the record roots, not current objects. A
 	// deleted record is a delete marker over a recoverable noncurrent
 	// version, and a count of current objects reads that bucket as empty.
-	down := justRecipe(t, string(raw), "down")
+	down := justRecipeWithParams(t, string(raw), "down")
 	if !strings.Contains(down, "list-object-versions") || !strings.Contains(down, `--prefix "tofu-"`) {
 		t.Error("`just down` does not count object versions under tofu-* before tearing the bucket down")
 	}
