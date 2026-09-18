@@ -160,22 +160,25 @@ SSM_RESOURCE_ARN="arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/tofu-*/ci-pipeli
 # keyPrefix they are asked for (GetParametersByPath matches whole
 # hierarchy segments, not an arbitrary string prefix - see that file's
 # "List's approximation" doc). Two call shapes reach it, both rooted here:
-#   - internal/live/discovery/recordorphan_read.go's "Listing the record
-#     store to find untaggable resources whose configuration block was
-#     removed failed" (the run's own error text) lists
-#     projection.RecordKeyPrefix(estate), i.e. "tofu-records/ci-pipelines-example"
-#     with no trailing slash, so the last segment trimmed off is
-#     "ci-pipelines-example" itself and the folder queried is the bare,
-#     account-wide "/tofu-records" - the namespace root every estate
-#     shares, not this one alone. GetParametersByPath has no way to filter
-#     its own listing to one estate; that filtering happens client-side
-#     in Go after the call, which is why this grant cannot be narrowed
-#     past the shared root.
-#   - internal/live/projection/store.go's provisionStoreSentinel lists
-#     recordStoreKeyPrefix(rs, estate) + "/" (a trailing slash), so the
-#     last segment trimmed off is empty and the folder queried is one
-#     level DEEPER: "/tofu-records/ci-pipelines-example" - a child of the
-#     root above, needing the "/*" form.
+#   - Before GitHub issue #1335, internal/live/discovery/recordorphan_read.go's
+#     "Listing the record store to find untaggable resources whose
+#     configuration block was removed failed" (the run's own error text)
+#     listed projection.RecordKeyPrefix(estate) with no trailing slash, so
+#     the last segment trimmed off was "ci-pipelines-example" itself and
+#     the folder queried was the bare, account-wide "/tofu-records" - the
+#     namespace root every estate shares. That is what run 34636502021
+#     hit, and why the bare ARN below is granted.
+#   - Since #1335 every estate namespace carries its trailing slash
+#     (staterecord.NamespacePrefix), the same shape
+#     internal/live/projection/store.go's provisionStoreSentinel always
+#     listed: the last segment trimmed off is empty and the folder queried
+#     is one level DEEPER, "/tofu-records/ci-pipelines-example" - a child
+#     of the root above, needing the "/*" form. A record listing no longer
+#     pages through every other estate's parameters to filter them out
+#     client-side.
+# Both forms stay granted. The "/*" form is the one a current binary needs;
+# the bare one keeps a role bootstrapped here working with a binary from
+# before #1335, and narrowing it has not been measured against real AWS.
 SSM_RECORD_PATH_ARN="arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/tofu-records"
 
 PLAN_ROLE="choudoufu-ci-pipelines-plan"

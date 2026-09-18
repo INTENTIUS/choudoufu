@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 )
@@ -103,10 +104,18 @@ func TestAnEstateBulkLoadsNoneOfANeighbourEstatesRecords(t *testing.T) {
 	}
 }
 
-// TestAnEstateProposesDestroyingNoneOfANeighbourEstatesRecords is where the
-// harm lands. "prod" has no configuration, so every record it believes is
-// its own is undeclared and materializes for destruction. Its own record
-// must; "prod-eu"'s must not.
+// TestAnEstateProposesDestroyingNoneOfANeighbourEstatesRecords pins the harm
+// #1335 was filed for, which measurement showed was NOT reachable: this test
+// was green against main while the two above were red. "prod" has no
+// configuration, so every record it believes is its own is undeclared and
+// materializes for destruction. Its own record must; "prod-eu"'s must not.
+//
+// Two guards hold it, both independent of how the keys were listed:
+// [RecordAddr] refuses a key outside the delimited prefix, and
+// materializeRecord re-reads by address under this estate's own prefix, where
+// the neighbour's record does not exist. It stayed green even with
+// [staterecord.NamespacePrefix] broken. Keep it: it is what says a future
+// listing defect still cannot become a cross-estate destroy.
 func TestAnEstateProposesDestroyingNoneOfANeighbourEstatesRecords(t *testing.T) {
 	staterecord.ResetRunCacheForTest(t)
 	ctx := context.Background()
@@ -123,5 +132,50 @@ func TestAnEstateProposesDestroyingNoneOfANeighbourEstatesRecords(t *testing.T) 
 	assertMaterialized(t, res, []string{prodAddr.String()})
 	if res.Has(euAddr) {
 		t.Errorf("prod materialized %s, a record under prod-eu's prefix, so prod's plan proposes destroying another estate's resource", euAddr)
+	}
+}
+
+// TestAnOperatorsKeyPrefixGetsTheSameDelimiter is #1335's second acceptance
+// item: an operator's key_prefix must not reintroduce the hazard. It is made
+// unreachable rather than refused - "team/prod" and "team/prod/" are the same
+// namespace and neither spelling is a mistake - so both resolve to one
+// delimited prefix, and the keys written under either are the same bytes.
+func TestAnOperatorsKeyPrefixGetsTheSameDelimiter(t *testing.T) {
+	addr := locatedTestAddr(t, "null_resource", "x")
+	var keys []string
+	for _, spelled := range []string{"team/prod", "team/prod/"} {
+		rs := &configs.LiveRecordStore{Type: "s3", KeyPrefix: spelled, KeyPrefixSet: true}
+		got := RecordStoreKeyPrefix(rs, "ignored-when-an-override-is-set")
+		if got != "team/prod/" {
+			t.Errorf("key_prefix %q resolved to %q, want %q", spelled, got, "team/prod/")
+		}
+		keys = append(keys, RecordKey(got, addr))
+	}
+	if keys[0] != keys[1] {
+		t.Errorf("the two spellings write different keys: %q and %q", keys[0], keys[1])
+	}
+	if strings.Contains(keys[0], "//") {
+		t.Errorf("key %q carries an empty segment", keys[0])
+	}
+
+	// And a caller that skips RecordStoreKeyPrefix altogether is normalized
+	// at the envelope store, which is what List actually reads.
+	if got := NewRecordEnvelopeStore(localHintStore(t), "team/prod").Prefix(); got != "team/prod/" {
+		t.Errorf("NewRecordEnvelopeStore kept the bare prefix %q", got)
+	}
+
+	// Stored keys did not move: the default prefix writes the bytes it
+	// always wrote, so no record already in a store is orphaned by #1335.
+	if got, want := RecordKey(RecordKeyPrefix("prod"), addr), "tofu-records/prod/null_resource/"+recordKeyEncoding.EncodeToString([]byte(addr.String())); got != want {
+		t.Errorf("RecordKey = %q, want %q", got, want)
+	}
+	if got, want := HintKey("prod"), "tofu-hints/prod/guided"; got != want {
+		t.Errorf("HintKey = %q, want %q", got, want)
+	}
+	if got, want := RootOutputKey("prod", "o"), "tofu-outputs/prod/"+recordKeyEncoding.EncodeToString([]byte("o")); got != want {
+		t.Errorf("RootOutputKey = %q, want %q", got, want)
+	}
+	if got, want := SentinelKey(RecordKeyPrefix("prod")), "tofu-records/prod/.store-sentinel"; got != want {
+		t.Errorf("SentinelKey = %q, want %q", got, want)
 	}
 }
