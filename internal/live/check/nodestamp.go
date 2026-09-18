@@ -123,7 +123,10 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 	// record store (see NodeStampUnmarkedApply's own doc comment on its
 	// recordBacked parameter), so every needs-discovery instance reads as
 	// not record-backed here, exactly as it always has.
-	diags = diags.Append(NodeStampUnmarkedApply(cfg, result, schemas, estate, nil))
+	// scope is nil for the same reason recordBacked is: this offline
+	// instrument analyses a configuration, never a narrowed run, so every
+	// block is in scope. See [NodeStampUnmarkedApply]'s own doc comment.
+	diags = diags.Append(NodeStampUnmarkedApply(cfg, result, schemas, estate, nil, nil))
 	diags = diags.Append(nodeStampMarkerConflicts(ctx, cfg, result, schemas, estate))
 	return diags
 }
@@ -172,7 +175,23 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // silently admitting the one instance that has nowhere to be found again.
 // nil (the offline caller's own value, via [nodeStampDiagnostics]) exempts
 // nothing, matching this function's pre-#950 behavior exactly.
-func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool) tfdiags.Diagnostics {
+//
+// scope is GitHub issue #1203's half, and it is #1176's shape applied to
+// this pass: -target / -exclude removes a block from the plan graph, so
+// this run will never create the object the refusal warns about, and the
+// operator cannot act on a diagnostic about it without abandoning the
+// narrowing they asked for. An out-of-scope block is skipped SILENTLY, for
+// the reason [discovery.refuseUnservedManifests] skips its own: an estate
+// that takes the targeted route on every run by declaration would carry a
+// permanent warning it can neither act on nor switch off.
+//
+// What it deliberately does not do is stop the check. A scope that keeps a
+// block still refuses that block: narrowing a run must not disable a check
+// protecting something the run does touch, which is the failure mode that
+// would turn this fix into a hole. Nil - every untargeted run, and every
+// offline caller - is in scope for everything and behaves exactly as this
+// function did before #1203.
+func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool, scope identity.Scope) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	causesByBlock := stampNeedsDiscovery(result)
@@ -188,6 +207,14 @@ func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 			continue
 		}
 		seen[key] = true
+
+		// GitHub issue #1203. The resolution list still carries an
+		// out-of-scope block ([identity.Scope]'s own doc comment says why
+		// it must), so the narrowing happens here, at the pass that would
+		// act. See this function's own doc comment.
+		if scope != nil && !scope(blockAddr) {
+			continue
+		}
 
 		_, rng, ok := lookupResourceBlock(cfg, blockAddr)
 		if !ok {

@@ -94,7 +94,7 @@ func TestNodeStampUnmarkedApply_recordBackedInstanceIsExempt(t *testing.T) {
 	addr := result.NeedsDiscovery()[0].Addr.String()
 
 	t.Run("not record-backed: refuses", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, stampUnmarkedApplyRecordBackedSchemas(), "stampgaps-950", nil)
+		diags := NodeStampUnmarkedApply(cfg, result, stampUnmarkedApplyRecordBackedSchemas(), "stampgaps-950", nil, nil)
 		if !diags.HasErrors() {
 			t.Fatalf("want an error with no recordBacked entry; got none")
 		}
@@ -104,14 +104,14 @@ func TestNodeStampUnmarkedApply_recordBackedInstanceIsExempt(t *testing.T) {
 	})
 
 	t.Run("fully record-backed: exempt", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, stampUnmarkedApplyRecordBackedSchemas(), "stampgaps-950", map[string]bool{addr: true})
+		diags := NodeStampUnmarkedApply(cfg, result, stampUnmarkedApplyRecordBackedSchemas(), "stampgaps-950", map[string]bool{addr: true}, nil)
 		if diags.HasErrors() {
 			t.Fatalf("%q fired on a fully record-backed instance; got: %s", stamp.SummaryUnmarkedApply, diags.Err())
 		}
 	})
 
 	t.Run("a record for a different address does not exempt this one", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, stampUnmarkedApplyRecordBackedSchemas(), "stampgaps-950", map[string]bool{"aws_vpc.someone_else": true})
+		diags := NodeStampUnmarkedApply(cfg, result, stampUnmarkedApplyRecordBackedSchemas(), "stampgaps-950", map[string]bool{"aws_vpc.someone_else": true}, nil)
 		if !diags.HasErrors() {
 			t.Fatalf("want an error; a record for a different address must not exempt %s", addr)
 		}
