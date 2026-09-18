@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 6 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T01:08:29Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h31m42s, but not from one sweep: 7m0.5s across 1 estate(s) at commit `002c29c496`; 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h17m21.2s across 24 estate(s) at commit `3bca740259`; 27m21s across 1 estate(s) at commit `8b5104288b`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 20m15.7s across 2 estate(s) at commit `f9f9ad48be`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 6 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T01:39:06Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h29m20.4s, but not from one sweep: 7m0.5s across 1 estate(s) at commit `002c29c496`; 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h17m21.2s across 24 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 24m59.4s across 1 estate(s) at commit `9fc6a6ddda`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 20m15.7s across 2 estate(s) at commit `f9f9ad48be`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3854,7 +3854,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "cert-manager v1.21.2's own install bundle (cert-manager.yaml at the release, 1,034,400 bytes, sha256 e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f, Apache-2.0 with the licence header inside the artifact) converted mechanically to 47 kubernetes_manifest blocks with tfk8s v0.1.10, plus the three custom resources from cert-manager's own self-signed documentation (ClusterIssuer, Issuer, Certificate) written here: 50 objects over 13 kinds, 6 CRDs, ClusterIssuer the lane's only cluster-scoped custom kind. reference- rather than corpus- because cert-manager ships YAML and the Terraform root is ours (#1174); live/e2e/reference-k8s-cert-manager/convert.sh reproduces it",
       "script": "live/e2e/reference-k8s-cert-manager/run.sh",
       "protocol": "gauntlet",
@@ -3868,36 +3868,37 @@
         "pass",
         "pass",
         "n/a",
-        "not run",
+        "FAIL",
+        "stale",
         "pass",
-        "pass",
-        "pass",
-        "pass"
+        "stale",
+        "stale"
       ],
-      "runtime_total": "27m21s",
-      "runtime_cells": "cold_deploy 1m58s, migrate 51s, test_plan 31s, test_apply 50s, drift_reconverge 1m39s, day2_rename 1m39s, day2_remove 3m36s, day2_count 5m25s, day2_teardown 2m24s, plan_approval 3m41s, greenfield 3m51s, strict 55s",
-      "last_run_note": "Last run at commit `8b5104288b` on 2026-09-17T21:06:43Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 27m21s.",
+      "runtime_total": "24m59.4s",
+      "runtime_cells": "cold_deploy 2m4s, migrate 49s, test_plan 30s, test_apply 50s, drift_reconverge 1m39s, day2_rename 1m39s, day2_remove 3m36s, day2_count 5m25s, day2_crash 4m46s, plan_approval 3m40s",
+      "last_run_note": "Last run at commit `9fc6a6ddda` on 2026-09-18T01:39:06Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 24m59.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "stale_note": "**3 stage verdicts below were carried forward from an earlier run** and show as `stale`, not as the verdict they carry: `day2_teardown` (pass), `greenfield` (pass), `strict` (pass). A run that aborts early leaves the stages it never reached reading whatever the last run to reach them said (#1069); the cell is kept because it is still the best thing known about that stage, and marked because it is not evidence about the run recorded below.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m58s",
+          "duration": "2m4s",
           "detail": "50 objects (cert-manager v1.21.2's 47-object bundle over 11 kinds plus 3 custom resources over 3 custom kinds) from plain terraform against kind v1.36.1, a real terraform.tfstate with 50 instances, zero tofu-estate labels read back with kubectl, and the Certificate Ready=True from the self-signed ClusterIssuer; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 47 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring a CRD and an object of that CRD cannot be planned at all against an empty cluster - depends_on does not help and re-running fails identically forever (#1173, measured: 'no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"'). On top of that both cert-manager webhooks are failurePolicy: Fail, so the validating webhook has to be SERVING before a custom resource can be admitted - including through the server-side dry run kubernetes_manifest does at plan time. The whole installation therefore goes up first, with -target, on every side; the three custom resources are what the main apply creates. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 before creating anything - \"no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"\" - so the pre-apply is load-bearing and not decoration. BREAK_PREAPPLY=1 requires that one-pass plan to succeed and correctly fails"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "51s",
+          "duration": "49s",
           "detail": "50 of 50 stamped, 0 skipped; every object carries tofu-estate=reference-k8s-cert-manager, counted back with kubectl across all 14 kinds including the three custom ones (ClusterIssuer, Issuer, Certificate) whose CRDs the pre-apply installed. The eligibility line was: 50 of 50 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)."
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "30s",
           "detail": "the plan with no state file is empty; all 50 objects bind by namespace and name, and eight identities spanning every shape the root has - a cluster-scoped Namespace and two CRDs, a cluster-scoped custom kind (ClusterIssuer), two namespaced custom kinds (Issuer, Certificate), a Deployment and a ValidatingWebhookConfiguration - were confirmed present by value with kubectl"
         },
         {
@@ -3944,34 +3945,36 @@
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "FAIL",
+          "duration": "4m46s",
+          "detail": "the replan after the recovery failed"
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "pass",
-          "duration": "2m24s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `8b5104288b` on 2026-09-17T21:06:43Z, not by the run recorded below, which never reached this stage.",
           "detail": "apply -destroy removed exactly the 48 remaining objects in one apply - no second pass needed on the way down, although the way up took two - the namespace is gone, all six cert-manager CRDs are gone, and no object of any of the estate's 14 kinds carries tofu-estate=reference-k8s-cert-manager (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 48 its state held"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "3m41s",
+          "duration": "3m40s",
           "detail": "plan -out wrote one update to a namespaced custom kind (the Certificate gains a second dnsName); the world then moved out of band (the cainjector Deployment's replicas moved to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads one dnsName); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and both dnsNames read back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "pass",
-          "duration": "3m51s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `8b5104288b` on 2026-09-17T21:06:43Z, not by the run recorded below, which never reached this stage.",
           "detail": "50 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s-cert-manager (kubectl, 14 kinds), and the Certificate Ready=True from the self-signed ClusterIssuer exactly as stock's cold deploy left it; the record store held 1 file(s); replanned empty with and without the cache. Greenfield needs the SAME declared pre-apply the cold deploy did, read from live/gauntlet/estates.json rather than repeated here - the cluster is empty again, so the CRD plan-time constraint is back and it is a property of the configuration, not of who is applying it. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
-          "verdict": "pass",
-          "duration": "55s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `8b5104288b` on 2026-09-17T21:06:43Z, not by the run recorded below, which never reached this stage.",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
