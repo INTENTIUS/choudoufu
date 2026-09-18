@@ -534,7 +534,7 @@ cleanup() {
     # shellcheck disable=SC2086  # names are docker container names, never globs
     docker rm -f $ns_children >/dev/null 2>&1 || true
   fi
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
   docker network rm "$NET" >/dev/null 2>&1 || true
   docker rmi -f "$TOOLBOX_IMAGE" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -959,7 +959,7 @@ log "  deltas applied identically to both copies; only the live block differs ($
 # ── 2. floci, real EKS mode (needs the Docker socket for k3s) ──────────────
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE), real EKS mode ==="
 [ -S /var/run/docker.sock ] || fail "no /var/run/docker.sock to mount - floci's EKS real mode needs it to spawn k3s"
-docker run -d --rm --network "$NET" -p "${FLOCI_PORT}:4566" \
+docker run -d --network "$NET" -p "${FLOCI_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
@@ -2493,14 +2493,14 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
-docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
+docker run -d --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
   --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
+docker run -d --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \

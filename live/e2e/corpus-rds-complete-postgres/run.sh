@@ -450,7 +450,7 @@ RECORDED=1
 APPROVE_SKIPPED=$((SKIPPED - RECORDED))
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -544,7 +544,7 @@ grep -q 'DELTA 3' "$PLAIN_EST/main.tf" || fail "DELTA 3 did not match manage_mas
 log "  DELTA 3  manage_master_user_password_rotation disabled    (EMULATOR GAP, lex00/floci#52)"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -613,7 +613,7 @@ floci_launch_retry() {
   local name="$1" portvar="$2" tries=0 port out
   while :; do
     port=$((20000 + RANDOM % 20000))
-    out="$(docker run -d --rm -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    out="$(docker run -d -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
     tries=$((tries + 1))
     grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
     [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }
@@ -751,7 +751,7 @@ log "  primary DB instance (engine, engine version, instance class, allocated st
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing (same DELTA reduction cold_deploy itself needs - two emulator gaps, floci-io/floci#51 and lex00/floci#52), primary DB instance and security group markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (DB engine/version/class/storage/port, security-group rule count)"
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 
 
 

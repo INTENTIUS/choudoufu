@@ -602,7 +602,7 @@ RECORDED_WANT=1
 APPROVE_SKIPPED_WANT=$((SKIPPED_WANT - RECORDED_WANT))
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$COUNT_ORACLE_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -744,7 +744,7 @@ gauntlet_begin_stage cold_deploy
 log "=== 1. cold deploy: plain terraform, $INSTANCES real resources ==="
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -856,7 +856,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixe
 # the reproduce and the full refusal list.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GH=""
 for _ in $(seq 1 45); do
@@ -891,7 +891,7 @@ if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
   gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-alb-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
   gauntlet_end_stage
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
 fi
 if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
@@ -921,7 +921,7 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
   gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $INSTANCES objects were created and the ALB's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
   gauntlet_end_stage
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
 fi
 if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
@@ -949,7 +949,7 @@ gauntlet_stage greenfield pass "$INSTANCES resources from nothing, matching stoc
 fi
 fi
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
 
 # ── day2_rename ORACLE: stock, on a copy of cold_deploy's own state ────────
 # Positioned right here, between cold_deploy and migrate, for the same
@@ -2311,10 +2311,10 @@ EOF
     gauntlet_begin_stage day2_count
 
     log "=== G-ORACLE 0. a stock-only floci on :$FLOCI_GREEN_PORT (PART GREENFIELD released it) ==="
-    docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
     CO_STARTED=""
     for _ in 1 2 3 4 5; do
-      if docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null 2>&1; then
+      if docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null 2>&1; then
         CO_STARTED=1; break
       fi
       sleep 3
@@ -2417,7 +2417,7 @@ EOF
     [ "$CO_SG0_AFTER_UP" = "$CO_SG0" ] || fail "stock's count_test[0] changed id across the scale-up ($CO_SG0 -> $CO_SG0_AFTER_UP)"
     CO_SHAPE="destroy the higher index only ($CO_SG1, then absent), create it back under a new id ($CO_SG1_NEW), count_test[0]=$CO_SG0 unchanged throughout"
     log "  stock: $CO_SHAPE"
-    docker rm -f "$COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "$COUNT_ORACLE_NAME"
 
     log "=== G0. choudoufu: add aws_security_group.count_test, count = 2 ==="
     G_BASE="$WORK/main.tf.precount"

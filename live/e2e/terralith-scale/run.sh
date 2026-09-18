@@ -170,7 +170,7 @@ COUNT_TOP=$((COUNT_FULL - 1))
 COUNT_TOP_FMT="$(printf '%04d' "$COUNT_TOP")"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$GREEN_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -586,9 +586,9 @@ log "  expect ${EXPECTED} resources at scale=${SCALE}, of which ${TAGGABLE} are 
 
 # ── 2. two emulators ─────────────────────────────────────────────────────
 log "=== 2. floci: COLD on :$FLOCI_PORT, GREEN on :$GREEN_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
-docker run -d --rm -p "${GREEN_PORT}:4566" --name "$GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${GREEN_PORT}:4566" --name "$GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $GREEN_NAME failed"
 wait_healthy "$ENDPOINT" || fail "the COLD floci did not come up healthy (ec2) at $ENDPOINT"
 wait_healthy "$GREEN_ENDPOINT" || fail "the GREEN floci did not come up healthy (ec2) at $GREEN_ENDPOINT"

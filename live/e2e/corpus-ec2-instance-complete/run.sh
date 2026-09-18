@@ -288,7 +288,7 @@ ESTATE="ec2-instance-crossing"
 REGION="eu-west-1"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -405,7 +405,7 @@ grep -q 's3_use_path_style' "$EST/main.tf" || fail "the emulator connection delt
 log "  DELTA  emulator connection flags added to the provider block; no backend, no version pin, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -551,7 +551,7 @@ gauntlet_stage cold_deploy pass "35 resources added across 13 types (aws_instanc
 # has not run yet) - no third container needed.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GH=""
 for _ in $(seq 1 45); do
@@ -590,7 +590,7 @@ if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
   gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-ec2-instance-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
   gauntlet_end_stage
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
 fi
 if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
@@ -631,7 +631,7 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
   gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. 35 objects were created and the instance's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
   gauntlet_end_stage
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
 fi
 if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
@@ -657,7 +657,7 @@ gauntlet_stage greenfield pass "35 resources from nothing, matching stock's own 
 fi
 fi
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)

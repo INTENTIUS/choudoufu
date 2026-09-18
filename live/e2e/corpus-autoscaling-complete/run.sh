@@ -212,7 +212,7 @@ REGION="eu-west-1"
 TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME"
   if [ -z "${GAUNTLET_KEEP_WORK:-}" ]; then
     rm -rf "$WORK"
   else
@@ -301,7 +301,7 @@ log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: ch
 
 # ── 1. floci ────────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -1770,7 +1770,7 @@ gauntlet_end_stage
 # live/GAUNTLET.md's own test_plan stage already uses for identity strings.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GH=""
 for _ in $(seq 1 45); do
@@ -1813,7 +1813,7 @@ if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
   gauntlet_stage greenfield fail "the greenfield apply failed - see live/gauntlet/logs/corpus-autoscaling-complete.log for the full diagnostic; cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked earlier/later in the same run)"
   gauntlet_end_stage
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
 fi
 if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
@@ -1870,7 +1870,7 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
   fi
   gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap.$EMULATOR_NOTE"
   gauntlet_end_stage
-  docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
 fi
 if [ -z "${SKIP_GREENFIELD_REST:-}" ]; then
@@ -1972,7 +1972,7 @@ log "  $GREEN_TAGGED objects carry tofu-estate=$GREEN_ESTATE - read via the AWS 
 gauntlet_stage greenfield pass "$GREEN_N resources from nothing, matching stock's own cold-deploy count ($STOCK_N); the sqs queue's markers verified via the AWS CLI; $GREEN_RECORD_FILES records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; $GREEN_TAGGED objects carry the estate tag"
 fi
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
 fi
 
 gauntlet_end_stage

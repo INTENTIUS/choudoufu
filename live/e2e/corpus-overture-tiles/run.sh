@@ -338,7 +338,7 @@ ESTATE_NAME="overture-tiles-crossing"
 BUCKET_NAME="${ESTATE_NAME}-tiles"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME"
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -505,7 +505,7 @@ log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added, 
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -575,7 +575,7 @@ floci_launch_retry() {
   local name="$1" portvar="$2" tries=0 port out
   while :; do
     port=$((20000 + RANDOM % 20000))
-    out="$(docker run -d --rm -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    out="$(docker run -d -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
     tries=$((tries + 1))
     grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
     [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }
@@ -698,7 +698,7 @@ log "  Batch job queue state, CloudFront distribution comment and bucket count a
 gauntlet_stage greenfield pass "26 resources from nothing, bucket and batch job queue markers verified via the AWS CLI, $GREEN_RECORD_FILES records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (batch job queue state, CloudFront distribution comment, bucket count)"
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 
 
 # ══════════════════════════════════════════════════════════════════════════

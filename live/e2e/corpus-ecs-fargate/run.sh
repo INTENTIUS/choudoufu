@@ -602,8 +602,8 @@ COUNT_ORACLE_SG_PREFIX="ex-fargate-count-oracle"
 COUNT_ORACLE_DIR="$WORK/plain-oracle-count"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" \
-    "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" \
+    "$FLOCI_COUNT_ORACLE_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -830,7 +830,7 @@ log "  DELTA 1  emulator flags on the provider block             (onboarding)"
 log "           skip_requesting_account_id = false (#371)"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -945,9 +945,9 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
 # endpoints, never through tofu state, never through choudoufu's own report.
 gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   GH=""
@@ -1092,7 +1092,7 @@ log "  object-by-object match: cluster status/capacity-providers, service status
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing, cluster marker verified via the AWS CLI, $GREEN_RECORD_FILES of $INSTANCES records in the local record store (#364 A2; both aws_ecs_task_definition instances are now included, #671 having closed the numeric-wire-identity-component gap in internal/live/identity/located.go's LocatedIdentityPlanFor that used to exclude them), replan empty, stock oracle in its own namespace matches structurally on cluster/service/standalone-task-definition/CloudMap-namespace/ALB/VPC"
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6)
@@ -2527,7 +2527,7 @@ EOF
   gauntlet_begin_stage day2_count
 
   log "=== H-ORACLE. stock: the same 2-instance count block, scaled to 1 and back, in its own account ==="
-  docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
     || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
   COUNT_ORACLE_HEALTH=""
   for _ in $(seq 1 45); do
@@ -2595,7 +2595,7 @@ EOF
   CO_SG0_AFTER_UP="$(awsco ec2 describe-security-groups --group-ids "$CO_SG0" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
   [ "$CO_SG0_AFTER_UP" = "$CO_SG0" ] || fail "stock's count_test[0] changed id across the scale-up ($CO_SG0 -> $CO_SG0_AFTER_UP)"
   log "  stock: $CO_UP_PLAN_LINE - count_test[1] back under a NEW GroupId ($CO_SG1_NEW, was $CO_SG1); count_test[0]=$CO_SG0 unchanged throughout"
-  docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_COUNT_ORACLE_NAME"
 
   log "=== H0. choudoufu: add aws_security_group.count_test, count = 2 ==="
   cp "$ADOPTED_EST/main.tf" "$WORK/main.tf.precount"

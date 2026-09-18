@@ -1065,3 +1065,95 @@ gauntlet_stage_from_exit() {
 gauntlet_print_evidence() {
   printf '%s\n' "$1"
 }
+
+# gauntlet_floci_teardown <container>...
+#
+# Remove this run's floci containers, and - for any of them that is already
+# gone or already stopped when teardown reaches it - say so first, with the
+# evidence a human needs to tell "my emulator died" from "my assertion was
+# wrong". Issue #1299.
+#
+# The line this replaces was, in 61 scripts,
+#
+#   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+#
+# and it was paired with `docker run -d --rm`. `--rm` bought nothing on the
+# normal path, because the EXIT trap above already removed the container; what
+# it bought was that a container which DIED MID-RUN was erased by dockerd the
+# instant it exited - before the script's own fail(), before the trap, before
+# any human. No exit code, no OOMKilled flag, no logs, no row in `docker ps
+# -a`. A run whose emulator died and a run that finished cleanly then look
+# identical afterwards, which is why #1141's "docker ps showed no container
+# left running" had no discriminating power: that is what you see either way.
+#
+# So the runs dropped `--rm` and teardown moved here. Three consequences worth
+# stating, because all three are the point rather than side effects:
+#
+#   The happy path stays silent. A container still running when teardown
+#   reaches it is exactly what is expected, and prints nothing - so this adds
+#   no noise to 61 logs. A container that is NOT running printed nothing
+#   before and is loud now, which is the whole signal.
+#
+#   It must run before the removal, in the same function, or there is nothing
+#   left to inspect. That is why this is one helper and not two, and
+#   live/flocipostmortem_test.go asserts the ordering.
+#
+#   Dropping `--rm` does NOT widen the container leak, which is the cost
+#   #1299 asked to be weighed. Measured 2026-09-18 on bash 3.2/macOS: the
+#   EXIT trap fires on SIGTERM, SIGINT and SIGHUP and removes the containers,
+#   and on SIGKILL it cannot fire - but `--rm` never helped there either,
+#   because it removes a container when the CONTAINER exits, not when the
+#   script does, so a SIGKILLed run leaked a RUNNING container before this
+#   change exactly as it does after. The only new residue is a STOPPED
+#   container from a run that both lost its emulator and was SIGKILLed, and
+#   that container is the evidence this change exists to keep. To clear any
+#   that accumulate:
+#
+#     docker ps -aq --filter name=choudoufu- --filter status=exited | xargs docker rm
+#
+# Everything it prints goes to stdout with a FLOCI-POSTMORTEM prefix - never
+# the "GAUNTLET " prefix, which is the runner's own parsed grammar (a
+# malformed line there is an error, per tools/gauntlet/protocol.go) - so it
+# lands in live/gauntlet/logs/<estate>.log interleaved in the order the
+# script wrote it (#1141) and greps out in one line.
+#
+# Silent and harmless where docker is absent or the name was never used: a
+# script that failed before starting its containers still runs its trap.
+#
+# Every step is written so that it cannot itself become the failure. Most of
+# its callers run under `set -euo pipefail`, and this runs from an EXIT trap,
+# where a nonzero status is not merely noise: an EXIT trap's last command
+# supplies the process's exit status unless the trap restores it explicitly,
+# so a teardown that failed on `docker logs` for a container nobody cares
+# about could turn a passing estate red - the diagnostic causing the failure
+# it was added to explain. Hence `|| true` on the pipeline, `|| return 0` on
+# the final removal, and `if/then` rather than `&& continue`.
+gauntlet_floci_teardown() {
+  local c info status exitcode oom started finished
+  command -v docker >/dev/null 2>&1 || return 0
+  for c in "$@"; do
+    if [ -z "$c" ]; then continue; fi
+    # No such container: say nothing. Now that nothing is started with
+    # `--rm`, a container that ever existed is still listed at teardown even
+    # if it died, so "absent" means "never started" - the ordinary path for a
+    # script that failed on a missing tool or an unfetched corpus module
+    # before it got as far as `docker run`. An earlier draft printed a line
+    # here and corpus-leynos-monitoring's missing-corpus exit immediately
+    # produced three of them: noise on the commonest failure there is, for a
+    # case the guard against reintroducing `--rm` already covers.
+    info="$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.StartedAt}} {{.State.FinishedAt}}' "$c" 2>/dev/null)" || continue
+    status="$(printf '%s' "$info" | awk '{print $1}')"
+    if [ "$status" = "running" ]; then continue; fi
+    exitcode="$(printf '%s' "$info" | awk '{print $2}')"
+    oom="$(printf '%s' "$info" | awk '{print $3}')"
+    started="$(printf '%s' "$info" | awk '{print $4}')"
+    finished="$(printf '%s' "$info" | awk '{print $5}')"
+    printf 'FLOCI-POSTMORTEM %s: DIED BEFORE TEARDOWN - status=%s exit_code=%s oom_killed=%s started=%s finished=%s\n' \
+      "$c" "$status" "$exitcode" "$oom" "$started" "$finished"
+    printf 'FLOCI-POSTMORTEM %s: last 50 log lines follow\n' "$c"
+    { docker logs --tail 50 "$c" 2>&1 | sed "s/^/FLOCI-POSTMORTEM $c LOG /"; } || true
+    printf 'FLOCI-POSTMORTEM %s: end of logs\n' "$c"
+  done
+  docker rm -f "$@" >/dev/null 2>&1 || return 0
+  return 0
+}

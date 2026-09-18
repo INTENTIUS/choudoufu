@@ -173,7 +173,7 @@ ESTATE="ec2-reference"
 REGION="us-east-1"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_ADOPT_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_ADOPT_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -782,7 +782,7 @@ EOF
 # ══════════════════════════════════════════════════════════════════════════
 
 log "=== A0. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 wait_healthy "$ENDPOINT" || fail "floci did not come up healthy (ec2) at $ENDPOINT"
 log "  healthy"
@@ -873,7 +873,7 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 
 log "=== B0. a second floci on :$FLOCI_ADOPT_PORT, standing in for infra nobody marked ==="
-docker run -d --rm -p "${FLOCI_ADOPT_PORT}:4566" --name "$FLOCI_ADOPT_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_ADOPT_PORT}:4566" --name "$FLOCI_ADOPT_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_ADOPT_NAME failed"
 wait_healthy "$ADOPT_ENDPOINT" || fail "the adoption floci did not come up healthy at $ADOPT_ENDPOINT"
 log "  healthy"
