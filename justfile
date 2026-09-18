@@ -484,6 +484,16 @@ gauntlet-run +names:
 gauntlet-render:
     env -u PWD go run ./tools/gauntlet render
 
+# Install the merge driver .gitattributes names for the rendered files
+# (issue #1308). Per-clone configuration: every worktree of this repository
+# shares one config, but a fresh clone and CI have neither, and a merge
+# GitHub performs on its own servers never runs it. Without it git falls
+# back to the ordinary line merge, which is where the conflicts come from.
+merge-drivers:
+    git config merge.gauntlet-rendered.name "keep ours; rendered files are regenerated, never merged (#1308)"
+    git config merge.gauntlet-rendered.driver "env -u PWD go run ./tools/gauntlet merge-rendered %P %A"
+    @echo "installed. Re-render after any merge that touched them: just gauntlet-render"
+
 # Add an estate: writes the manifest entry and a script stub, then renders.
 # Example: just gauntlet-add corpus-vpc-minimal https://github.com/x/y v1.2.3 terraform-popular "x/y examples/minimal (tag v1.2.3)"
 gauntlet-add name url ref lane source:

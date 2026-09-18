@@ -17,6 +17,7 @@
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale; always prints which rows predate their own estate script (#1264, reported, never fatal)
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
+//	go run ./tools/gauntlet merge-rendered <path> <ours-file> # git merge driver for the rendered files: keep ours whole, re-render after (#1308)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
 //	go run ./tools/gauntlet scale-import-slice [-estate name] <slice_out.json> # merge a slicing-bench SLICE_OUT report's plan_calls (the CLI cold/warm plan pair) and audit_calls (the CollectUnclaimed sweep) into live/gauntlet-scale.json (#1053)
 //	go run ./tools/gauntlet scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] # patch an existing ScaleRecord's stage wall-durations from a source scale-backfill cannot read, or name a record's own arithmetic as a known inconsistency (#1051/#1053/#1069)
@@ -65,6 +66,8 @@ func main() {
 		fatalIf(cmdSnapshot(root, os.Args[2]))
 	case "notes":
 		fatalIf(cmdNotes(root, os.Args[2:]))
+	case "merge-rendered":
+		fatalIf(cmdMergeRendered(os.Args[2:], os.Stdout))
 	case "merge-artifact":
 		fatalIf(cmdMergeArtifact(root, os.Args[2:]))
 	case "scale-backfill":
@@ -99,7 +102,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -1027,7 +1030,7 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 		}
 		got, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil || !bytes.Equal(want, got) {
-			if rel == SiteBoardPath && boardsDifferOnlyInScriptStaleness(want, got) {
+			if rel == SiteBoardPath && boardsDifferOnlyInScriptStaleness(want, got) && committedBoardSelfConsistent(got) == nil {
 				scriptOnly = append(scriptOnly, rel)
 				continue
 			}
@@ -1035,6 +1038,21 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 		}
 	}
 	return stale, scriptOnly, nil
+}
+
+// committedBoardSelfConsistent is BoardSelfConsistent over raw bytes: the
+// gate on the advisory bucket above. A board that lags the tree is still
+// one coherent answer and stays advisory; a board whose banner and badges
+// came from different sides of a merge is not, and drops through to stale
+// so a re-render is required (#1308). Bytes that do not parse as a board
+// are a difference in their own right, which the caller already treats as
+// stale, so this says nothing about them.
+func committedBoardSelfConsistent(b []byte) error {
+	var bd Board
+	if err := json.Unmarshal(b, &bd); err != nil {
+		return nil
+	}
+	return BoardSelfConsistent(bd)
 }
 
 // boardsDifferOnlyInScriptStaleness reports whether two rendered boards are
