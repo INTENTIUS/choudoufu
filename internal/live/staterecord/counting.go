@@ -86,6 +86,9 @@ func NewCountingStore(inner Store, log io.Writer) *CountingStore {
 	return &CountingStore{inner: inner, log: log}
 }
 
+// Unwrap returns the wrapped store, for [AsBucketContractChecker].
+func (c *CountingStore) Unwrap() Store { return c.inner }
+
 func (c *CountingStore) note(method, key string) {
 	via, site := callSite()
 	t := Trip{Method: method, Key: key, Via: via, Site: site}

@@ -101,6 +101,24 @@ type BucketContractChecker interface {
 	CheckBucketContract(ctx context.Context, namespaces []string) ([]BucketFinding, error)
 }
 
+// AsBucketContractChecker finds the bucket-backed store under s, looking
+// through this package's own wrappers ([RunCache], [CountingStore]). False
+// means there is nothing to assert - a local store, an SSM store - which is
+// a different answer from a bucket that failed.
+func AsBucketContractChecker(s Store) (BucketContractChecker, bool) {
+	for s != nil {
+		if c, ok := s.(BucketContractChecker); ok {
+			return c, true
+		}
+		u, ok := s.(interface{ Unwrap() Store })
+		if !ok {
+			return nil, false
+		}
+		s = u.Unwrap()
+	}
+	return nil, false
+}
+
 // CheckBucketContract implements [BucketContractChecker]. namespaces are
 // store-relative, like every key this store is handed; [S3Config.KeyPrefix]
 // is joined ahead of each.
