@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -53,7 +54,38 @@ func (r *statelessRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
 			fmt.Sprintf("Before applying, the record store bucket %q is checked for the settings its records depend on, and that check could not be made: %s. Nothing has been applied.", r.recordStoreCfg.Bucket, err),
 		))
 	}
-	return diags.Append(bucketContractDiagnostics(r.recordStoreCfg.Bucket, findings))
+	refused, waivedFailing := staterecord.SplitWaived(findings, r.recordStoreCfg.AllowInsecure)
+	for _, f := range waivedFailing {
+		// The every-run warning (bucketWaiverWarnings) is made from the
+		// configuration alone and cannot know whether the waiver is hiding
+		// anything. This run just read the bucket, so it can.
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+			fmt.Sprintf("The waived %s assertion would have refused this apply", f.Setting),
+			fmt.Sprintf("Bucket %q: %s. The apply proceeds because allow_insecure names %q.", r.recordStoreCfg.Bucket, f.Found, f.Setting),
+		))
+	}
+	return diags.Append(bucketContractDiagnostics(r.recordStoreCfg.Bucket, refused))
+}
+
+// bucketWaiverWarnings is one warning per waived assertion, made from the
+// configuration alone so that it costs no request and lands on a plan as
+// well as an apply. GitHub issue #1340: a waiver is loud on EVERY run, not
+// only the one it was first set on. A waiver that goes quiet after the first
+// apply is indistinguishable from a bucket that passes, and a flag nobody is
+// reminded of is a flag nobody revisits.
+func bucketWaiverWarnings(rs *configs.LiveRecordStore) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if rs == nil {
+		return diags
+	}
+	for _, name := range rs.AllowInsecure {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+			fmt.Sprintf("The record store bucket's %s assertion is waived", name),
+			fmt.Sprintf("record_store \"s3\" names %q in allow_insecure for bucket %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
+				name, rs.Bucket, staterecord.BucketWaiverCost(staterecord.BucketSetting(name))),
+		))
+	}
+	return diags
 }
 
 // bucketContractDiagnostics turns failed findings into one error diagnostic

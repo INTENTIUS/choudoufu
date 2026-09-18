@@ -318,8 +318,14 @@ func assertBucketOnFirstContact(ctx context.Context, store staterecord.Store, rs
 	var refusal error
 	if err != nil {
 		refusal = err
-	} else if msg := BucketContractRefusalText(rs.Bucket, findings); msg != "" {
-		refusal = errors.New(msg)
+	} else {
+		// #1340: a waiver reaches only the settings it names. The warning a
+		// waived run owes is internal/command's, which sees every run and
+		// not just the first.
+		refused, _ := staterecord.SplitWaived(findings, rs.AllowInsecure)
+		if msg := BucketContractRefusalText(rs.Bucket, refused); msg != "" {
+			refusal = errors.New(msg)
+		}
 	}
 	if refusal == nil {
 		return nil

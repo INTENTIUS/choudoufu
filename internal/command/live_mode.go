@@ -746,6 +746,7 @@ type statelessRunner struct {
 	// bucket and namespaces this run opened. Nil / "" with no record_store.
 	recordStoreCfg *configs.LiveRecordStore
 	recordEstate   string
+	waiverWarned   bool
 
 	// envelopeVersions is GitHub issue #364's merge of what used to be
 	// three separate fields (locatedVersions, residueVersions,
@@ -961,6 +962,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.rawStore = store
 		r.recordStoreCfg = recordStoreCfg
 		r.recordEstate = estate
+		// #1340: loud on every run. Here and not in BeforeApply, because a
+		// plan never reaches BeforeApply and a waiver that only an apply
+		// mentions is quiet on most of the runs an operator sees.
+		if !r.waiverWarned {
+			r.waiverWarned = true
+			diags = diags.Append(bucketWaiverWarnings(recordStoreCfg))
+		}
 		recordKeyPrefix := projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
 		// GitHub issue #364: one store now, for the record-backed
 		// (kind=object), record-located (issue #270), residue (issue #275)

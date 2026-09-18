@@ -367,3 +367,50 @@ func BucketContractRefusal(bucket string, f BucketFinding) (summary, detail stri
 	detail = fmt.Sprintf("Bucket %q: %s.\n\n%s\n\n%s", bucket, f.Found, why, fix)
 	return summary, detail
 }
+
+// BucketWaiverCost says what an estate gives up by waiving setting, as a
+// clause that completes "is waived, so ...". GitHub issue #1340: the warning
+// names the setting and its cost in the same sentence, never a generic
+// "running with reduced checks", because a cost the reader has to look up is
+// a cost they have already decided not to read.
+func BucketWaiverCost(setting BucketSetting) string {
+	switch setting {
+	case BucketVersioning:
+		return "an overwritten or deleted record cannot be brought back, and a record can be the only copy of what it says"
+	case BucketLifecycle:
+		return "nothing is known to expire noncurrent versions: the bucket may keep every version of every record forever, and nobody has chosen how long a record destroyed by mistake stays recoverable"
+	case BucketPublicAccessBlock:
+		return "nothing is known to stop a bucket policy or an ACL from publishing the records, which hold secret material"
+	}
+	return "that assertion is not made"
+}
+
+// SplitWaived sorts the findings that did not pass into the ones the run
+// must refuse on and the ones waived names, leaving passing findings out of
+// both. A waiver reaches exactly the settings it names: waiving one leaves a
+// failure of either of the others in refused.
+//
+// An unreadable setting is waived by the same name as a wrong one. From the
+// caller's side they are one refusal - the run cannot rely on the setting -
+// and an operator whose role cannot read the bucket's configuration has no
+// other way to proceed.
+func SplitWaived(findings []BucketFinding, waived []string) (refused, waivedFailing []BucketFinding) {
+	for _, f := range findings {
+		if f.OK {
+			continue
+		}
+		isWaived := false
+		for _, name := range waived {
+			if BucketSetting(name) == f.Setting {
+				isWaived = true
+				break
+			}
+		}
+		if isWaived {
+			waivedFailing = append(waivedFailing, f)
+		} else {
+			refused = append(refused, f)
+		}
+	}
+	return refused, waivedFailing
+}
