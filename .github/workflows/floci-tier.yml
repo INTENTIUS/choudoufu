@@ -12,6 +12,12 @@
 # every gated test in the tier failed at 0.00s on "terraform is required
 # by this test but is not on PATH" and not one of them executed a line of
 # its body. The tier presented as a tier and measured nothing.
+#
+# Nothing told anyone, for seventeen nights. That half is issue #1316: the
+# steps below write annotations and a job summary, which is still only the
+# run page. No workflow here notifies a human, and the repository's one
+# read of Actions state (scripts/pickup.sh) reads whether the GAUNTLET
+# workflow is enabled, which a nightly that runs and fails always is.
 name: floci-tier
 
 on:
