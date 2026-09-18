@@ -115,7 +115,17 @@ func statelessOwnershipWith(estate string, disco *discovery.Result, pol *policy.
 // roster exceeded the policy's threshold, in which case rec is still
 // returned (with rec.ThresholdExceeded set) so the caller can render the
 // roster in the same report that explains the refusal.
-func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Policy, provs *statelessProviders, discoProvider addrs.AbsProviderConfig) (rec *discovery.ReconcileResult, extra []identity.Resolution, verified map[string]bool, diags tfdiags.Diagnostics) {
+//
+// scope is this run's -target / -exclude filtering, from
+// [statelessTargetScope] and nil for every untargeted run - GitHub issue
+// #1257, filed by #1203's audit. Both things this function produces are
+// narrowed by it, through the one predicate, and the coupling is the
+// point: [discovery.ReconcileResult.Proposable] is the set that becomes
+// destroy proposals AND the set the threshold guard counts, so a run can
+// neither be refused for a population it will not touch nor destroy a
+// population no threshold checked. What is NOT narrowed is the roster
+// itself, which the policy report still renders in full.
+func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Policy, provs *statelessProviders, discoProvider addrs.AbsProviderConfig, scope identity.Scope) (rec *discovery.ReconcileResult, extra []identity.Resolution, verified map[string]bool, diags tfdiags.Diagnostics) {
 	if pol == nil || pol.UndeclaredUntagged != policy.Delete {
 		return nil, nil, nil, diags
 	}
@@ -140,25 +150,48 @@ func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Po
 		Provider: provider,
 		Region:   provs.region(discoProvider),
 		Policy:   pol,
+		Scope:    scope,
 	})
 	diags = diags.Append(recDiags)
 	if recDiags.HasErrors() {
 		return rec, nil, nil, diags
 	}
+	// The count is Proposable's, not the roster's, for the reason
+	// [discovery.ReconcileResult.ThresholdExceeded] records: the threshold
+	// bounds how many live objects THIS RUN will destroy. On a narrowed run
+	// that is a smaller number than the account holds, and on an untargeted
+	// one the two sets are the same, so nothing about today's behavior
+	// moves.
 	if rec.ThresholdExceeded {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Scoped account reconciliation roster exceeds its threshold",
 			fmt.Sprintf(
 				"undeclared_untagged = \"delete\" found %d resource(s) to delete, over the threshold of %d. Review the roster this run printed, and raise policy.threshold deliberately once it has been reviewed - this guard exists so a first scoped delete is never wider than the operator expected.",
-				len(rec.Roster), rec.Threshold),
+				len(rec.Proposable()), rec.Threshold),
 		))
 		return rec, nil, nil, diags
 	}
 
-	extra = make([]identity.Resolution, 0, len(rec.Roster))
-	verified = make(map[string]bool, len(rec.Roster))
-	for _, c := range rec.Roster {
+	extra, verified = reconcileResolutions(rec)
+	return rec, extra, verified, diags
+}
+
+// reconcileResolutions turns the candidates one scoped reconciliation pass
+// will actually act on into the synthetic resolutions and verified
+// addresses the caller merges in before the projection is built.
+//
+// It reads [discovery.ReconcileResult.Proposable] rather than the roster,
+// which is GitHub issue #1257's other half and the half that must not be
+// separated from the threshold guard above: a candidate this run's
+// -target / -exclude withheld is shown in the report and destroyed by
+// nothing. Split out from [statelessPolicyReconcile] so it can be tested
+// without a configured provider - see TestReconcileResolutionsHonourTheTargetScope.
+func reconcileResolutions(rec *discovery.ReconcileResult) ([]identity.Resolution, map[string]bool) {
+	proposable := rec.Proposable()
+	extra := make([]identity.Resolution, 0, len(proposable))
+	verified := make(map[string]bool, len(proposable))
+	for _, c := range proposable {
 		extra = append(extra, identity.Resolution{
 			Addr:       c.Addr,
 			Class:      identity.ClassConcrete,
@@ -168,7 +201,7 @@ func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Po
 		})
 		verified[c.Addr.String()] = true
 	}
-	return rec, extra, verified, diags
+	return extra, verified
 }
 
 // statelessPolicyTagKey reads a policy's TagKey, nil-safely: a run with no
@@ -242,6 +275,7 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 				TypeName:    c.TypeName,
 				LiveID:      c.ImportID,
 				DisplayName: c.DisplayName,
+				Withheld:    c.Withheld,
 			})
 		}
 		for _, g := range rec.Gaps {

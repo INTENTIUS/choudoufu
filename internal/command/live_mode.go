@@ -1147,7 +1147,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// orphan handling, with no synthetic configuration needed. A threshold
 	// refusal stops the run here, after the report below has a chance to
 	// show the roster that tripped it.
-	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, r.policy, provs, discoProvider)
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, r.policy, provs, discoProvider, scope)
 	diags = diags.Append(reconcileDiags)
 	if len(reconcileExtra) > 0 {
 		merged = append(merged, reconcileExtra...)

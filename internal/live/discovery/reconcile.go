@@ -54,6 +54,19 @@ type ReconcileRequest struct {
 	// quadrant with no scope block, and this function refuses defensively
 	// too rather than trust that a caller always ran lint first.
 	Policy *policy.Policy
+
+	// Scope is this run's -target / -exclude filtering, the same
+	// [identity.Scope] [Request.Scope] takes, and nil for every untargeted
+	// run. GitHub issue #1257.
+	//
+	// It does not narrow the LISTING: the roster is still assembled in
+	// full, because it is the report an operator asked for by setting
+	// undeclared_untagged = "delete", and narrowing a run is not a request
+	// to stop hearing what is in the account. What it narrows is the set
+	// of candidates this run will propose destroying, which
+	// [ReconcileResult.Proposable] names and which
+	// [ReconcileResult.ThresholdExceeded] is computed over.
+	Scope identity.Scope
 }
 
 // ReconcileCandidate is one live resource the scoped reconciliation pass
@@ -71,6 +84,15 @@ type ReconcileCandidate struct {
 	// configuration and no tofu-address marker to read one from. See
 	// [syntheticReconcileAddr].
 	Addr addrs.AbsResourceInstance
+
+	// Withheld is why this candidate stays on the roster but is not
+	// proposed for destruction by this run - today, only
+	// [ReconcileRequest.Scope] leaving it out of the plan graph. Empty for
+	// a candidate this run would destroy.
+	//
+	// The same field, with the same meaning, [Orphan.Withheld] carries for
+	// the sweep's own removal leg.
+	Withheld string
 }
 
 // String renders a candidate on one line.
@@ -101,12 +123,44 @@ type ReconcileResult struct {
 	// [policy.Policy.EffectiveThreshold].
 	Threshold int
 
-	// ThresholdExceeded is true when len(Roster) > Threshold: issue #67's
-	// first-run protection. The roster is still populated when this is
-	// true, so a caller can show it in the same refusal that names the
+	// ThresholdExceeded is true when len(Proposable()) > Threshold: issue
+	// #67's first-run protection. The roster is still populated when this
+	// is true, so a caller can show it in the same refusal that names the
 	// threshold - "review the roster, raise the threshold deliberately" -
 	// rather than a blind count.
+	//
+	// It counts Proposable rather than Roster because of what the
+	// threshold protects: it is a bound on how many live objects ONE RUN
+	// will destroy, not on how many untagged strangers the account holds.
+	// Counting the whole roster over a narrowed run compares a population
+	// against a limit that was never about it, and gets the answer wrong
+	// in both directions - refusing a run that would destroy nothing, and,
+	// if the scope ever kept a candidate, passing a run whose own share is
+	// over the limit while some other run's share pads the count. GitHub
+	// issue #1257.
 	ThresholdExceeded bool
+}
+
+// Proposable is every candidate this run will actually propose destroying:
+// the roster minus whatever [ReconcileRequest.Scope] withheld.
+//
+// It is the one place the coupling lives. The caller merges exactly this
+// set into the resolution list as destroy proposals, and
+// [ReconcileResult.ThresholdExceeded] is computed over exactly this set, so
+// the guard and the population it guards cannot come apart - which is the
+// way narrowing a threshold turns into a hole rather than a fix.
+func (r *ReconcileResult) Proposable() []ReconcileCandidate {
+	if r == nil {
+		return nil
+	}
+	out := make([]ReconcileCandidate, 0, len(r.Roster))
+	for _, c := range r.Roster {
+		if c.Withheld != "" {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // Reconcile runs one scoped account-reconciliation pass: every admitted,
@@ -170,7 +224,34 @@ func Reconcile(ctx context.Context, req ReconcileRequest) (*ReconcileResult, tfd
 	})
 	sort.Slice(res.Gaps, func(i, j int) bool { return res.Gaps[i].TypeName < res.Gaps[j].TypeName })
 
-	res.ThresholdExceeded = len(res.Roster) > res.Threshold
+	// GitHub issue #1257, and the ruling #1176 made for the sweep's removal
+	// leg applied to this one: the pass RUNS and scopes where it ACTS.
+	//
+	// What it acts on is the destroy proposal, so that is what is withheld,
+	// and the threshold below is computed over what survives. The roster
+	// itself is untouched - an operator who narrowed a run has not asked to
+	// stop being told what the account holds, and that report is the only
+	// reason this pass listed anything.
+	//
+	// The bound, stated because it is the same one classifyOrphans records:
+	// [statelessTargetScope] builds the scope from the configuration's plan
+	// graph, and a candidate is by definition a resource no configuration
+	// declares, so in practice this withholds every candidate whenever
+	// -target or -exclude is in play. That is the conservative direction -
+	// a destroy this fork does not propose and stock would, recoverable by
+	// running the same command without the flag, against a destroy the
+	// operator told the run to leave alone, which is recoverable by
+	// nothing.
+	for i := range res.Roster {
+		if req.inScope(res.Roster[i].Addr) {
+			continue
+		}
+		res.Roster[i].Withheld = fmt.Sprintf(
+			"this run's -target/-exclude leaves %s out of the plan graph, so nothing outside it is destroyed here; run without the flag to have this deletion proposed",
+			res.Roster[i].Addr.ContainingResource().Config())
+	}
+
+	res.ThresholdExceeded = len(res.Proposable()) > res.Threshold
 	return res, diags
 }
 

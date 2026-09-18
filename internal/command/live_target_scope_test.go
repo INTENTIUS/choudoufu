@@ -93,6 +93,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"statelessUnmarkedApplyGaps":   {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
 	"lint.CheckWith":               {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
 	"lint.CheckResidueAttributes":  {scopeAware, "lint.Context.Scope, same struct; #1256"},
+	"statelessPolicyReconcile":     {scopeAware, "discovery.ReconcileRequest.Scope; #1257. The roster is still listed and reported in full; what narrows is discovery.ReconcileResult.Proposable, which is both the set merged in as destroy proposals and the set the threshold guard counts"},
 
 	// ---- narrowed before they run ----------------------------------
 	"statelessKubernetesDryRun":        {planDerived, "iterates plan.Changes.Resources, which targeting already pruned"},
@@ -111,7 +112,6 @@ var liveTargetScopeClassification = map[string]struct {
 
 	// ---- filed gaps ------------------------------------------------
 	"statelessProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs and projection.PlanInstances run unscoped; provider work, not a refusal. #1258"},
-	"statelessPolicyReconcile":   {unscopedKnownGap, "the account roster and its threshold error are computed over a narrowed run. #1257"},
 
 	// ---- not a pass ------------------------------------------------
 	"lint.Diagnostics":                    {notAPass, "renders issues"},

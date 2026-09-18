@@ -380,6 +380,13 @@ type StatelessReconcileCandidate struct {
 	TypeName    string
 	LiveID      string
 	DisplayName string
+
+	// Withheld is why this candidate is on the roster and still will not
+	// be destroyed by this run - today, only this run's -target / -exclude
+	// leaving it out of the plan graph (GitHub issue #1257). Empty for a
+	// candidate this run would destroy, which is every candidate on an
+	// untargeted run.
+	Withheld string
 }
 
 // StatelessReconcileGap is one scope-selected type the reconciliation pass
@@ -1504,7 +1511,21 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 	}
 
 	if rep.Reconcile.Ran {
-		n := len(rep.Reconcile.Roster)
+		// The headline counts what this run will actually destroy, not what
+		// the pass found: a candidate this run's -target / -exclude withheld
+		// is still listed below, with its reason, but "will be destroyed" is
+		// a claim about the plan and must not include it (GitHub issue
+		// #1257). Identical on every untargeted run, where nothing is
+		// withheld.
+		n := 0
+		withheld := 0
+		for _, c := range rep.Reconcile.Roster {
+			if c.Withheld == "" {
+				n++
+			} else {
+				withheld++
+			}
+		}
 		if rep.Reconcile.ThresholdExceeded {
 			colored("\n[reset][bold]Policy delete REFUSED: %d candidate %s exceeds the threshold of %d[reset]\n\n",
 				n, noun(n, "resource", "resources"), rep.Reconcile.Threshold)
@@ -1517,6 +1538,15 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 		out("\n")
 		for _, c := range rep.Reconcile.Roster {
 			colored("  [bold]%s %s[reset]%s\n", c.TypeName, liveIDOrNone(c.LiveID), displaySuffix(c.DisplayName, c.LiveID))
+			if c.Withheld != "" {
+				wrapped("not destroyed here: "+c.Withheld, 6)
+			}
+		}
+		if withheld > 0 {
+			out("\n")
+			wrapped(fmt.Sprintf("Withheld: %d of the %d %s above %s left alone by this run's -target/-exclude. The roster is still shown in full - narrowing a run does not narrow what the account holds.",
+				withheld, len(rep.Reconcile.Roster), noun(len(rep.Reconcile.Roster), "candidate", "candidates"),
+				noun(withheld, "is", "are")), 0)
 		}
 		if len(rep.Reconcile.Gaps) > 0 {
 			out("\n")
