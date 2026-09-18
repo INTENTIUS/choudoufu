@@ -559,11 +559,25 @@ func cmdLiveCert(root string, args []string) error {
 	if res != nil {
 		scaleRec = scaleRec.WithRefusal(res.Refusal)
 	}
-	plan := planLiveCertScaleRow(estate, writes.ScaleRecord, scaleRec)
+	// Which home a scale-less refusal has depends on whether the estate is
+	// run at a size at all, and only the estate can say (#1233). Asked
+	// only when it matters: every other run records the same way it did
+	// before this existed, and a live-cert estate the manifest does not
+	// carry keeps working right up until one of its runs refuses without
+	// naming a rung, at which point it has to be declared one way or the
+	// other rather than guessed.
+	laddered := false
+	if scaleRec.IsRefusal() && scaleRec.Scale == 0 {
+		var ladderErr error
+		if laddered, ladderErr = EstateHasScaleLadder(m, estate); ladderErr != nil {
+			return fmt.Errorf("live-cert %s: this run REFUSED and its refusal names no scale, so where it is recorded depends on whether the estate has a scale ladder - and nothing says: %w", estate, ladderErr)
+		}
+	}
+	plan := planLiveCertScaleRow(estate, writes.ScaleRecord, scaleRec, laddered)
 	scaleErr, scaleNote := plan.Err, plan.Note
 	if plan.Write {
 		var written ScaleRecord
-		written, scaleErr = saveLiveCertScaleRecord(root, scaleRec)
+		written, scaleErr = saveLiveCertRecord(root, plan, scaleRec)
 		if scaleErr == nil {
 			scaleNote = describeScaleWrite(estate, written)
 		}
@@ -611,14 +625,25 @@ func cmdLiveCert(root string, args []string) error {
 // cannot be reached through cmdLiveCert without a whole checkout.
 type scaleRowPlan struct {
 	Write bool
-	Note  string
-	Err   error
+	// EstateLevel picks which home Write means. False is the ladder,
+	// live/gauntlet-scale.json's `records`, keyed by (estate, target,
+	// scale). True is the estate-level refusal shelf, its `refusals`,
+	// keyed by (estate, target) - only ever a refusal, and only ever for
+	// an estate that declares no ladder (#1233).
+	EstateLevel bool
+	Note        string
+	Err         error
 }
 
 // planLiveCertScaleRow decides between #1149's rule (a scale row that does
 // not get written fails the run) and its one legitimate exception (a
 // certification that was never a scale measurement).
-func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord) scaleRowPlan {
+//
+// laddered is the estate's own declaration (Estate.ScaleLadder, read
+// through EstateHasScaleLadder), never an inference from what this run
+// happened to say - see that field's doc comment. It is what tells a
+// refusal that forgot its rung from a refusal that has no rung to name.
+func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord, laddered bool) scaleRowPlan {
 	switch {
 	case !writesScaleRecord:
 		// Not reachable from cmdLiveCert, which returns early when a run
@@ -626,20 +651,32 @@ func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord
 		// change to PlanLiveCertWrites cannot silently start writing a
 		// scale row for a run it decided records nothing.
 		return scaleRowPlan{Note: fmt.Sprintf("live-cert %s: this run records no scale row\n", estate)}
+	case rec.IsRefusal() && rec.Scale == 0 && !laddered:
+		// The estate declares no ladder, so this refusal has no rung to
+		// name and never could have - it is an estate-level refusal, and
+		// it goes on the shelf beside the ladder rather than on it
+		// (#1233). The run's only record still gets written, which is what
+		// #1231 requires; live_cert still holds only certifications, which
+		// is what #1151 requires.
+		return scaleRowPlan{Write: true, EstateLevel: true}
 	case rec.IsRefusal() && rec.Scale == 0:
-		// A refusal with no scale has nowhere to go, and it is the only
-		// evidence this run produced - PlanLiveCertWrites keeps a refusal
-		// out of live_cert by design (#1151), so there is no second half to
-		// fall back on. A row keyed by scale needs a scale; inventing one,
-		// or writing it at scale 0, would put it on a rung nobody ran.
+		// The estate DOES declare a ladder, so this refusal declined a rung
+		// and did not say which. It is the only evidence this run produced
+		// - PlanLiveCertWrites keeps a refusal out of live_cert by design
+		// (#1151), so there is no second half to fall back on. A row keyed
+		// by scale needs a scale; inventing one, or writing it at scale 0,
+		// would put it on a rung nobody ran, and the estate-level shelf
+		// above is not a home for it either: this estate's refusals are
+		// about sizes, and shelving one would hide exactly which size was
+		// declined.
 		//
-		// This is a FAILURE, and the case below it is not, and the line
-		// between them is what #1149's rule turns on: below is a
+		// This is a FAILURE, and the two cases around it are not, and the
+		// line between them is what #1149's rule turns on: below is a
 		// certification that was never a scale measurement and has nothing
 		// to add, which is an omission with nothing lost. This is a run
-		// whose entire result is about to vanish into a log. The usual
-		// cause is a gauntlet_refused call that left out its scale.
-		return scaleRowPlan{Err: fmt.Errorf("the refusal names no scale - its `GAUNTLET refused=1` line carried no scale=, so there is no rung on the ladder to record it on. Pass the scale (`gauntlet_refused <scale> ...`); an estate with no ladder at all cannot record a refusal today, which is a gap to file rather than a run to let pass quietly")}
+		// whose entire result is about to vanish into a log. The cause is a
+		// gauntlet_refused call that left out its scale.
+		return scaleRowPlan{Err: fmt.Errorf("the refusal names no scale - its `GAUNTLET refused=1` line carried no scale=, so there is no rung on the ladder to record it on, and %q declares a scale ladder (`scale_ladder` in %s) so its refusals are about a size. Pass the scale this run was going to attempt (`gauntlet_refused <scale> ...`): the rung it declined is the whole point of the record", estate, ManifestPath)}
 	case rec.Scale == 0 && rec.Resources == nil:
 		return scaleRowPlan{Note: fmt.Sprintf("live-cert %s: no scale/resources recognized in this run's own detail text - %s left unchanged, which is expected for a certification that is not a scale measurement\n", estate, ScaleRecordsPath)}
 	default:
@@ -655,17 +692,60 @@ func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord
 // site/content/docs/what-you-pay.md quotes by path.
 func describeScaleWrite(estate string, rec ScaleRecord) string {
 	var b strings.Builder
-	if rec.IsRefusal() {
+	switch {
+	case rec.IsRefusal() && rec.Scale == 0:
+		// Never "at scale=0": this estate has no ladder, and printing a
+		// rung number for a record that is deliberately not on a rung is
+		// the misreading the separate shelf exists to prevent (#1233).
+		fmt.Fprintf(&b, "recorded an ESTATE-LEVEL REFUSAL for %s target=%s (%s, `refusals`): %s\n", estate, rec.Target, ScaleRecordsPath, rec.Refusal.Reason)
+		fmt.Fprintf(&b, "  this estate declares no scale ladder, so the refusal is recorded beside the ladder rather than on a rung; %s keeps its last certification, because a refusal is the absence of one (#1151)\n", ArtifactPath)
+	case rec.IsRefusal():
 		fmt.Fprintf(&b, "recorded a REFUSAL for %s at scale=%d (%s): %s\n", estate, rec.Scale, ScaleRecordsPath, rec.Refusal.Reason)
-	} else {
+	default:
 		fmt.Fprintf(&b, "recorded scale measurement for %s at scale=%d (%s)\n", estate, rec.Scale, ScaleRecordsPath)
 	}
 	if n := len(rec.Supersedes); n > 0 {
 		prev := rec.Supersedes[n-1]
-		fmt.Fprintf(&b, "  it superseded the row measured at %s on %s (outcome %s); the chain is %d row(s) deep and is in the record's own supersedes field\n",
+		// "recorded at", not "measured at": the row this one replaced may
+		// itself have been a refusal, which measured nothing - always so on
+		// the estate-level shelf, where refusals are all there is.
+		fmt.Fprintf(&b, "  it superseded the row recorded at %s on %s (outcome %s); the chain is %d row(s) deep and is in the record's own supersedes field\n",
 			short(prev.Commit), prev.Date, outcomeOrLegacy(ScaleRecord{Outcome: prev.Outcome}), n)
 	}
 	return b.String()
+}
+
+// saveLiveCertRecord writes the record where the plan says it goes: the
+// ladder, or the estate-level refusal shelf beside it (#1233). One function
+// so the decision and the write cannot drift apart - a plan that says
+// "estate level" and a writer that puts the row on the ladder anyway would
+// file a refusal at scale 0, which reads as the smallest rung.
+func saveLiveCertRecord(root string, plan scaleRowPlan, rec ScaleRecord) (ScaleRecord, error) {
+	if plan.EstateLevel {
+		return saveLiveCertEstateRefusal(root, rec)
+	}
+	return saveLiveCertScaleRecord(root, rec)
+}
+
+// saveLiveCertEstateRefusal is saveLiveCertScaleRecord for the shelf: same
+// validation, same "every failure is returned" discipline (#1149/#1231),
+// SupersedeEstateRefusal instead of SupersedeScaleRecord.
+func saveLiveCertEstateRefusal(root string, rec ScaleRecord) (ScaleRecord, error) {
+	if err := ValidateScaleRecord(rec); err != nil {
+		return ScaleRecord{}, fmt.Errorf("built an invalid estate-level refusal record: %w", err)
+	}
+	sa, err := LoadScaleArtifact(root)
+	if err != nil {
+		return ScaleRecord{}, err
+	}
+	written, err := sa.SupersedeEstateRefusal(rec)
+	if err != nil {
+		return ScaleRecord{}, err
+	}
+	if err := SaveScaleArtifact(root, sa); err != nil {
+		return ScaleRecord{}, err
+	}
+	return written, nil
 }
 
 // saveLiveCertScaleRecord validates rec and writes it into

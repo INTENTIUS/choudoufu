@@ -461,11 +461,19 @@ func TestARefusalSurvivesTheRoundTripToDisk(t *testing.T) {
 // the run's entire result vanishes into a log. So: failure. The usual cause
 // is a gauntlet_refused call that left out its scale, which is a bug in the
 // script and should read as one.
+//
+// #1233 narrowed WHICH estates that applies to, without loosening it for
+// this one: a refusal names no rung either because the script forgot to
+// pass one or because the estate has no rungs, and only the estate's own
+// `scale_ladder` declaration tells those apart. terralith-scale declares
+// one, so the argument above is unchanged for it and this test still pins
+// it. The estate that declares none records its refusal on a shelf of its
+// own instead of failing - noladder_test.go.
 func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T) {
 	refusedNoScale := refusal136()
 	refusedNoScale.Scale = 0
 
-	plan := planLiveCertScaleRow("terralith-scale", true, refusedNoScale)
+	plan := planLiveCertScaleRow("terralith-scale", true, refusedNoScale, true)
 	if plan.Err == nil {
 		t.Fatalf("a refusal with no scale was treated as an omission (write=%v note=%q) - under #1149's rule a record that does not get written fails the run, and this record is the only one the run produced", plan.Write, plan.Note)
 	}
@@ -479,7 +487,7 @@ func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T
 	// The one legitimate omission is still an omission: a certification that
 	// was never a scale measurement writes no row and does not fail.
 	notAScaleRun := ScaleRecord{Schema: ScaleRecordSchema, Estate: "reference-ec2-vpc", Target: "aws", Commit: "abc123", Source: "a test"}
-	plan = planLiveCertScaleRow("reference-ec2-vpc", true, notAScaleRun)
+	plan = planLiveCertScaleRow("reference-ec2-vpc", true, notAScaleRun, false)
 	if plan.Err != nil || plan.Write {
 		t.Errorf("a certification that is not a scale measurement must be a quiet omission, got write=%v err=%v", plan.Write, plan.Err)
 	}
@@ -488,7 +496,7 @@ func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T
 	}
 
 	// And an ordinary measured run is written.
-	plan = planLiveCertScaleRow("terralith-scale", true, scale50())
+	plan = planLiveCertScaleRow("terralith-scale", true, scale50(), true)
 	if !plan.Write || plan.Err != nil {
 		t.Errorf("a measured scale row was not written: write=%v err=%v note=%q", plan.Write, plan.Err, plan.Note)
 	}

@@ -205,7 +205,7 @@ func PlanLiveCertWrites(target string, res *ProtocolResult) LiveCertWrites {
 	switch {
 	case res != nil && res.Refusal != nil:
 		// A refusal has somewhere to go: a rung of its own.
-		w.Why = fmt.Sprintf("the run REFUSED this rung, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s, which is keyed by scale and can hold it beside the rung below.", ArtifactPath, ScaleRecordsPath)
+		w.Why = fmt.Sprintf("the run REFUSED, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s: on its own rung when the run named a scale, which holds it beside the rung below, and on that file's estate-level `refusals` shelf when the estate declares no scale ladder at all (#1233).", ArtifactPath, ScaleRecordsPath)
 	default:
 		// A run that spoke nothing measured nothing, at any scale.
 		w.ScaleRecord = false
