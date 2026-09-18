@@ -1133,15 +1133,15 @@ gauntlet_floci_teardown() {
   command -v docker >/dev/null 2>&1 || return 0
   for c in "$@"; do
     if [ -z "$c" ]; then continue; fi
-    info="$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.StartedAt}} {{.State.FinishedAt}}' "$c" 2>/dev/null)" || {
-      # No such container. Either it never started - the ordinary case for a
-      # script that failed early, and not worth a word - or it started and
-      # has since been removed by something other than this teardown, which
-      # is worth exactly one line, because it is the state `--rm` used to
-      # manufacture on every death.
-      printf 'FLOCI-POSTMORTEM %s: no such container at teardown - it was never started, or something removed it before this trap ran\n' "$c"
-      continue
-    }
+    # No such container: say nothing. Now that nothing is started with
+    # `--rm`, a container that ever existed is still listed at teardown even
+    # if it died, so "absent" means "never started" - the ordinary path for a
+    # script that failed on a missing tool or an unfetched corpus module
+    # before it got as far as `docker run`. An earlier draft printed a line
+    # here and corpus-leynos-monitoring's missing-corpus exit immediately
+    # produced three of them: noise on the commonest failure there is, for a
+    # case the guard against reintroducing `--rm` already covers.
+    info="$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.StartedAt}} {{.State.FinishedAt}}' "$c" 2>/dev/null)" || continue
     status="$(printf '%s' "$info" | awk '{print $1}')"
     if [ "$status" = "running" ]; then continue; fi
     exitcode="$(printf '%s' "$info" | awk '{print $2}')"
