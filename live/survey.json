@@ -483,7 +483,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so Cloud Control listing AWS::IAM::InstanceProfile with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but the tag-filtered list serves it only from us-east-1, and a survey row answers for no particular caller region (issues #1134, #1144), so Cloud Control listing AWS::IAM::InstanceProfile with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_policy",
@@ -499,7 +499,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "identity requires server-assigned arn; taggable, but the tag-filtered list serves it only from us-east-1, and a survey row answers for no particular caller region (issues #1134, #1144), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_role",
@@ -519,7 +519,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but the tag-filtered list does not serve it in any region (issue #692; #1133; #1144), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_role_policy",

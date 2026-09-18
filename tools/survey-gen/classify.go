@@ -477,17 +477,26 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	}
 
 	// tagListRecoverable is the taggable signal narrowed by whether the
-	// sweep's tagging leg actually reaches this type's service at all
-	// (internal/live/discovery.TaggingAPIUnservedType, issue #692). A type
-	// can be taggable and still have no tag-filtered list route: today
-	// that is every aws_iam_ type, because GetResources never indexes IAM
-	// roles and - per issue #1134's real-AWS measurement - indexes IAM
-	// policies and instance profiles only in us-east-1, a per-region fact
-	// this coarse, per-service predicate cannot express (issue #1144).
-	// Reading Taggable alone here, as before #1133, told the survey a
-	// route exists that the shipped sweep deliberately does not take -
-	// the same class of defect issue #881 found in the sweep itself.
-	tagListRecoverable := row.Signals.Taggable && !discovery.TaggingAPIUnservedType(typeName)
+	// sweep's tagging leg actually reaches this type
+	// (internal/live/discovery.TaggingAPIUnservedTypeInRegion, issues #692
+	// and #1144). A type can be taggable and still have no tag-filtered
+	// list route: today that is every aws_iam_ type, because GetResources
+	// never indexes IAM roles anywhere and indexes IAM policies and
+	// instance profiles only in us-east-1 (#1134, measured against a real
+	// account). Reading Taggable alone here, as before #1133, told the
+	// survey a route exists that the shipped sweep deliberately does not
+	// take - the same class of defect issue #881 found in the sweep
+	// itself.
+	//
+	// The empty region is the survey's own honest answer and not a
+	// placeholder. This artifact describes a type, not a run: it has no
+	// caller region, so it cannot claim a route that exists only from one.
+	// Before #1144 the predicate took no region and the survey could not
+	// have said otherwise; now it takes one and the survey says which one
+	// it has, which is none. What the survey CAN now say - and does, in
+	// taggingAPIUnservedNote below - is WHY the route is out of reach,
+	// per type rather than per service.
+	tagListRecoverable := row.Signals.Taggable && !discovery.TaggingAPIUnservedTypeInRegion("", typeName)
 
 	switch cfnType, scoping, listable := enumerate(typeName); {
 	case tagListRecoverable:
@@ -505,7 +514,7 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	// what they said before #1133 for every type this predicate does not
 	// touch.
 	case row.Signals.Taggable:
-		const unservedNote = "taggable, but its service is one the tag-filtered list does not serve (taggingAPIUnservedServices, issue #692; #1133; #1144 for the per-type, per-region truth), so "
+		unservedNote := taggingAPIUnservedNote(typeName)
 		switch {
 		case hasList:
 			row.Path = pathEnumerableUnbindable
@@ -763,4 +772,35 @@ func (s Survey) marshal() ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// taggingAPIUnservedNote is the clause a taggable type earns when the
+// sweep's tagging leg cannot reach it from a region this artifact does not
+// have. It is issue #1144's half of #1133's evidence line.
+//
+// #1133 stopped the survey claiming a tag-filtered-list route for every
+// aws_iam_ type, which was right, and replaced it with one sentence saying
+// the type's SERVICE is unserved, which was wrong for two of them:
+// GetResources returns 500 aws_iam_policy and 500 aws_iam_instance_profile
+// in us-east-1 (#1134). The route is not absent, it is regional, and a
+// reader told "its service does not serve it" would go looking for a defect
+// that is not there. So the clause is derived per type from the coverage
+// the sweep itself routes on, and the two cases read differently on
+// purpose.
+func taggingAPIUnservedNote(typeName string) string {
+	regions, indexed := discovery.TaggingAPIIndexRegions(typeName)
+	switch {
+	case !indexed:
+		return "taggable, but the tag-filtered list does not serve it in any region (issue #692; #1133; #1144), so "
+	case len(regions) > 0:
+		return "taggable, but the tag-filtered list serves it only from " + strings.Join(regions, " or ") +
+			", and a survey row answers for no particular caller region (issues #1134, #1144), so "
+	default:
+		// Unreachable from this switch's own caller: a type indexed in
+		// every region is one tagListRecoverable already answered true
+		// for, so it never lands in this branch. Stated rather than
+		// panicked, because an evidence string that quietly went empty
+		// would be the worse failure.
+		return "taggable, but the tag-filtered list route is not one the sweep takes for it (issues #1133, #1144), so "
+	}
 }

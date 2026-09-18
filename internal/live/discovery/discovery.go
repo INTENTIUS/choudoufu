@@ -896,7 +896,7 @@ func sweepTypes(req Request, decl *declared) []string {
 	// declared types in unserved services, a handful, not the admission
 	// table.
 	for t := range decl.types {
-		if cloudObservable(t) && taggingAPIUnservedType(t) {
+		if cloudObservable(t) && taggingAPIRestrictedType(t) {
 			out = append(out, t)
 		}
 	}
@@ -2252,7 +2252,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// Counted rather than reported here: whether it MATTERS
 				// depends on sawReadableTags, which is not known until the
 				// listing is over.
-				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
+				if (sweep || collectUnclaimed) && taggable && taggingAPIListDropsTags(typeName) {
 					blindPending = true
 				}
 			case joinUnavailable:
@@ -2270,7 +2270,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// [sweepMarkerReadGap]'s "Why both arms are gated on a
 				// service list" for the actual argument, which is about
 				// what this run has evidence for.
-				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
+				if (sweep || collectUnclaimed) && taggable && taggingAPIListDropsTags(typeName) {
 					absentPending = true
 				}
 			}

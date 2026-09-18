@@ -64,7 +64,7 @@ func doubleSightingFixture(t *testing.T, liveName, markerAddr string) (Request, 
 	const cfnType = "AWS::IAM::InstanceProfile"
 
 	// The premise, stated rather than assumed.
-	if !taggingAPIUnservedType(instanceProfileType) {
+	if !taggingAPIUnservedTypeInRegion("", instanceProfileType) {
 		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this fixture no longer puts a declared type back into the sweep universe", instanceProfileType)
 	}
 

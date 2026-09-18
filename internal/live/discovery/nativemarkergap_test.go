@@ -52,7 +52,7 @@ func TestNativeSweepSaysSoWhenNoLegCanReadAListedObjectsMarker(t *testing.T) {
 	)
 
 	// The premises, stated rather than assumed.
-	if !taggingAPIUnservedType(unservedType) {
+	if !taggingAPIUnservedTypeInRegion("", unservedType) {
 		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this fixture no longer exercises the join that cannot answer", unservedType)
 	}
 
@@ -219,7 +219,7 @@ func TestNativeSweepDoesNotCryMarkerUnreadableWhenTheListCallCarriesTags(t *test
 func TestNativeSweepStaysQuietOverAnOrdinaryUntaggedType(t *testing.T) {
 	const ordinaryType = "aws_s3_bucket"
 
-	if taggingAPIUnservedType(ordinaryType) {
+	if taggingAPIUnservedTypeInRegion("", ordinaryType) {
 		t.Fatalf("%s has joined taggingAPIUnservedServices, so it is no longer the off-the-list control this test needs", ordinaryType)
 	}
 
