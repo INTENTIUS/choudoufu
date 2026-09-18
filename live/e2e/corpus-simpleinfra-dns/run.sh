@@ -260,7 +260,6 @@ BREAK_RECORD_NAME='2017.rustconf.com.'
 # it from registry.opentofu.org, so the two lock files name different
 # providers and neither will satisfy the other. -plugin-dir sidesteps both -
 # measured at 0.35s (terraform) and 0.48s (choudoufu) against a warm mirror.
-MIRROR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
 
 cleanup() {
   gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
@@ -275,6 +274,12 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The mirror directory, taken from the library so the shared cache path has one
+# spelling (#1300). gauntlet_plugin_cache_dir deliberately does NOT export
+# TF_PLUGIN_CACHE_DIR: this script consumes the directory read-only via
+# -plugin-dir, and exporting it would re-admit the writer it is avoiding.
+MIRROR="$(gauntlet_plugin_cache_dir)"
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -474,8 +479,8 @@ record_count() {
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain terraform apply, the estate as rust-lang wrote it) ==="
-( cd "$PLAIN" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 
 COLD_OUT="$(cd "$PLAIN" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "stage 1 (cold deploy) failed"; }
@@ -589,8 +594,8 @@ ENDPOINT="$MAIN_ENDPOINT"
 log "=== PART GREENFIELD: 4. stock oracle - the identical config applied fresh in its own namespace ==="
 GREEN_ORACLE="$WORK/green-oracle"
 copy_estate "$GREEN_ORACLE" ""
-( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_APPLY_RC=$?
 [ "$ORACLE_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
 grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$ORACLE_APPLY_OUT" \
@@ -665,8 +670,8 @@ log "=== D-ORACLE. stock: the same two module renames, through moved blocks, on 
 ORACLE="$WORK/oracle"
 copy_estate "$ORACLE" ""
 cp "$PLAIN/terraform.tfstate" "$ORACLE/terraform.tfstate"
-( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_rename stock oracle's init failed"; }
+( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_rename stock oracle's init failed"; }
 BASELINE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; BASELINE_PLAN_RC=$?
 [ "$BASELINE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle's baseline (no-rename) plan exited $BASELINE_PLAN_RC"; }
 grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$BASELINE_PLAN_OUT" \
@@ -698,8 +703,8 @@ moved {
   to   = module.rustaceans_org_final.aws_route53_record.cname["www"]
 }
 EOF
-( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -746,8 +751,8 @@ cp "$PLAIN/terraform.tfstate" "$REMOVE_ORACLE/terraform.tfstate"
 perl -0pi -e 's/\nmodule "cratesio_com" \{.*?\n\}\n//s' "$REMOVE_ORACLE/cratesio.com.tf"
 grep -q 'module "cratesio_com"' "$REMOVE_ORACLE/cratesio.com.tf" \
   && fail "removing module.cratesio_com's block from the remove-oracle copy did not match - the corpus pin has moved"
-( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_remove stock oracle's init failed"; }
+( cd "$REMOVE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_remove stock oracle's init failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.cratesio_com\.aws_route53_zone\.zone will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -779,8 +784,8 @@ sed -i.bak 's/domain  = "areweasyncyet\.rs"/domain  = "areweasyncyet-replaced.rs
 rm -f "$REPLACE_ORACLE/areweasyncyet.rs.tf.bak"
 grep -q 'domain  = "areweasyncyet-replaced.rs"' "$REPLACE_ORACLE/areweasyncyet.rs.tf" \
   || fail "changing module.areweasyncyet_rs's domain argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+( cd "$REPLACE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.areweasyncyet_rs\.aws_route53_zone\.zone must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -858,8 +863,8 @@ log "=== G-ORACLE: stock, dropping then restoring \"2024\" from module.rustconf_
 PLAIN_COUNT_ORACLE="$WORK/plain-count-oracle"
 cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE"
 drop_count_record "$PLAIN_COUNT_ORACLE"
-( cd "$PLAIN_COUNT_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_COUNT_ORACLE" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+( cd "$PLAIN_COUNT_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
 ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
 [ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
 grep -qF "  # $COUNT_ADDR will be destroyed" <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
@@ -872,8 +877,8 @@ log "  stock (plan-only): exactly one destroy proposed ($COUNT_ADDR), every sibl
 
 PLAIN_COUNT_ORACLE_UP="$WORK/plain-count-oracle-up"
 cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE_UP"
-( cd "$PLAIN_COUNT_ORACLE_UP" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_COUNT_ORACLE_UP" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+( cd "$PLAIN_COUNT_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_COUNT_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
 STATE_RM_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP" && terraform state rm "$COUNT_ADDR" 2>&1)"; STATE_RM_RC=$?
 [ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
 ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?

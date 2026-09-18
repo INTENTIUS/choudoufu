@@ -221,29 +221,6 @@ ROLE_NAME="giantswarm-${INSTALLATION}-crossplane"
 POLICY_ARN="arn:aws:iam::000000000000:policy/giantswarm-${INSTALLATION}-crossplane"
 EXTRA_POLICY_NAME="extra-tagging"
 
-# This script runs TWO `tofu init`s (the plain cold-deploy copy and the
-# estate copy), each of which would otherwise re-download the ~500MB AWS provider
-# into its own scratch directory. Point them all at OpenTofu's own conventional
-# shared plugin cache so only the first one can ever pay for a download; an
-# operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
-#
-# #339: the shared cache records no checksums, so an init in a directory with
-# no .terraform.lock.hcl re-downloads the whole package purely to compute
-# them, even when the cache already holds that exact version - measured at
-# 320s per init on this estate, twice over. TF_PLUGIN_CACHE_MAY_BREAK_
-# DEPENDENCY_LOCK_FILE is OpenTofu's own CLI-config accommodation for exactly
-# this (internal/command/cliconfig/cliconfig.go's PluginCacheMayBreakDependency
-# LockFile, plumbed to the installer's allowSkippingInstallWithoutHashes):
-# with a package already in the global cache, init trusts it instead of
-# re-fetching and re-verifying it, and records only the local platform's
-# checksum. That is the accepted trade-off for this harness - every directory
-# here is a throwaway mktemp copy, never committed, never run on a second
-# platform - and it fixes every init in this script generically, not just
-# the second one, unlike a per-directory lock-file copy (see #339 for that
-# earlier, narrower fix and why this replaces it).
-export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
-export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
   gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
@@ -258,6 +235,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

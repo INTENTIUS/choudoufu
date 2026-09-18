@@ -1202,9 +1202,23 @@ gauntlet_floci_teardown() {
 # in the same directory), so an estate script and a `go test ./internal/live/...`
 # sharing a machine exclude each other too.
 gauntlet_plugin_cache() {
-  export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+  local dir
+  dir="$(gauntlet_plugin_cache_dir)"
+  export TF_PLUGIN_CACHE_DIR="$dir"
   export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
   mkdir -p "$TF_PLUGIN_CACHE_DIR"
+}
+
+# gauntlet_plugin_cache_dir prints the conventional directory without
+# exporting anything, for the one script that wants the location but not the
+# behaviour: corpus-simpleinfra-dns consumes the same directory as a
+# -plugin-dir filesystem MIRROR, which is read-only to the installer, and
+# exporting TF_PLUGIN_CACHE_DIR there would re-admit the writer it is
+# deliberately avoiding. It still takes the lock around its inits, because a
+# reader of a directory another process is unpacking into is exposed to the
+# same torn file.
+gauntlet_plugin_cache_dir() {
+  printf '%s\n' "${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
 }
 
 # _GAUNTLET_CACHE_LOCK_STALE_S and _GAUNTLET_CACHE_LOCK_DEADLINE_S mirror
@@ -1226,12 +1240,13 @@ _GAUNTLET_CACHE_LOCK_DEADLINE_S=900
 # writes nothing at all (measured: a warm init leaves every byte and inode in
 # the cache unchanged).
 gauntlet_locked_init() {
-  local lock rc waited=0
-  if [ -z "${TF_PLUGIN_CACHE_DIR:-}" ]; then
-    "$@"
-    return $?
-  fi
-  lock="$TF_PLUGIN_CACHE_DIR/.choudoufu-init.lock"
+  local dir lock rc waited=0
+  # The lock lives beside the SHARED cache, not beside whatever this script
+  # exported, so a script that only reads the directory (corpus-simpleinfra-dns
+  # via -plugin-dir) excludes the writers too.
+  dir="$(gauntlet_plugin_cache_dir)"
+  mkdir -p "$dir" 2>/dev/null || { "$@"; return $?; }
+  lock="$dir/.choudoufu-init.lock"
   while :; do
     # noclobber makes this redirect O_CREAT|O_EXCL, which is atomic across
     # processes on every filesystem these scripts run on. A subshell keeps

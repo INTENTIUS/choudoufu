@@ -94,6 +94,11 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$ROOT/live/e2e/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 ESTATE="reference-k8s-cert-manager"
 NS="cert-manager"
 # The estate's kinds, for the label count. The last four only exist once
@@ -107,7 +112,6 @@ WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
 KCA="$WORK/a.kubeconfig"; KCB="$WORK/b.kubeconfig"
 CLUSTER_A="chdf-refcm-a-$$"; CLUSTER_B="chdf-refcm-b-$$"
-export TF_PLUGIN_CACHE_DIR="$WORK/plugin-cache"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
 export TF_IN_AUTOMATION=1
 log() { printf '%s\n' "$*"; }
 

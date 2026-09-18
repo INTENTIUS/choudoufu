@@ -341,6 +341,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -438,28 +443,8 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real reduced example + delta) ==="
-# The shared plugin cache, the same way corpus-lambda-simple's and
-# corpus-alb-complete's crossings use it. Without it every run re-downloads
-# hashicorp/aws (several hundred megabytes) from the registry twice - once for
-# terraform, once for choudoufu's own registry.opentofu.org copy - which on a
-# machine running more than one crossing at a time takes longer than the rest
-# of this script put together and makes the estate look hung. Measured on the
-# first real run of this script: 21 minutes into `terraform init` only 48MB of
-# the provider had arrived, and the init then died on a transient DNS failure
-# before ever reaching `terraform apply`. It changes nothing about what is
-# measured; an operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
-#
-# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE closes the gap a warm
-# cache alone does not - without it, init in a directory with no
-# .terraform.lock.hcl re-downloads the whole provider purely to compute
-# checksums, even when the cache already holds that exact version. Real
-# terraform and choudoufu both honor it (see live/e2e/README.md, "The shared
-# plugin cache" for the measured numbers).
-export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
-export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
-( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$EST" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "the cold apply failed"; }
 grep -qE 'Apply complete! Resources: 6 added' <<< "$COLD_OUT" \
@@ -612,8 +597,8 @@ log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh i
 cp -R "$WORK/sqs" "$WORK/sqs-greenfield-oracle"
 rm -rf "$WORK/sqs-greenfield-oracle/examples/complete/.terraform"
 ORACLE_EST="$WORK/sqs-greenfield-oracle/examples/complete"
-( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(cd "$ORACLE_EST" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
 grep -qE 'Apply complete! Resources: 6 added' <<< "$ORACLE_APPLY_OUT" \
@@ -744,8 +729,8 @@ log "=== G-ORACLE: stock terraform, a 2-instance count block scaled to 1 and bac
 COUNT_ORACLE="$WORK/plain-oracle-count"
 mkdir -p "$COUNT_ORACLE"
 { count_oracle_provider; count_test_block 2; } > "$COUNT_ORACLE/main.tf"
-( cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+( cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
 CO_ADD_OUT="$(cd "$COUNT_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$CO_ADD_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
 grep -qE 'Resources: 2 added, 0 changed, 0 destroyed' <<< "$CO_ADD_OUT" \
@@ -848,8 +833,8 @@ moved {
   to   = module.unencrypted_sqs_renamed
 }
 EOF
-( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -884,8 +869,8 @@ grep -q 'module "unencrypted_sqs"' "$REMOVE_ORACLE_EST/main.tf" \
 perl -0777 -pi -e 's/\n# Unencrypted\n.*?\n# Disabled/\n# Disabled/s' "$REMOVE_ORACLE_EST/outputs.tf"
 grep -q 'module.unencrypted_sqs' "$REMOVE_ORACLE_EST/outputs.tf" \
   && fail "removing module.unencrypted_sqs's outputs from the remove-oracle copy did not match - the corpus pin has moved"
-( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.unencrypted_sqs\.aws_sqs_queue\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -917,8 +902,8 @@ sed -i.bak 's/name = "\${local\.name}-default"/name = "${local.name}-default-v2"
 rm -f "$REPLACE_ORACLE_EST/main.tf.bak"
 grep -q 'default-v2' "$REPLACE_ORACLE_EST/main.tf" \
   || fail "changing module.default_sqs's name argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$REPLACE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.default_sqs\.aws_sqs_queue\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
