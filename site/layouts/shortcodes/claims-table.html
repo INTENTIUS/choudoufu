@@ -27,7 +27,7 @@
 {{- if $onlyProvider }}{{ with index $row.providers $onlyProvider }}{{ if eq .status "open" }}{{ $show = false }}{{ end }}{{ end }}{{ end -}}
 {{- if $show }}
 {{- $p := site.GetPage (printf "/docs/claims/%s" $row.slug) }}
-<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ $row.title }}</a>{{ else }}{{ $row.title }}{{ end }}</td><td><code>{{ $row.command }}</code>{{ if $row.needs_go }} <span class="needs-go">needs Go</span>{{ end }}</td><td>{{ $row.minutes }}</td>
+<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ $row.title }}</a>{{ else }}{{ $row.title }}{{ end }}</td><td><code>{{ $row.command }}</code>{{ if $row.needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if $row.real_aws }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}</td><td>{{ $row.minutes }}</td>
 {{- range $d.provider_order }}
 {{- $pv := index $row.providers . }}
 <td class="status status-{{ replace $pv.status "/" "-" }}"{{ with $pv.note }} title="{{ . }}"{{ end }}>{{ $pv.status }}</td>

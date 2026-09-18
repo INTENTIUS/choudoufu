@@ -521,6 +521,21 @@ showing its own checks would have caught it.
   refuses a release binary) and passes only when both applies are caught
   reporting success (#1338). Needs python3.
 
+- **cas-holds-under-every-sse-flavour** - *Claim 33: compare-and-swap
+  holds under every SSE flavour.* **Real AWS, maintainer-run, not in
+  CI**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
+  emulator does not reproduce the ETag semantics it measures. It creates
+  a bucket per flavour (SSE-S3, SSE-KMS with the AWS-managed key, SSE-KMS
+  with a customer managed key, DSSE-KMS) and one KMS key, or reuses
+  `SMOKE_KMS_KEY_ARN`, and removes what it made. Each flavour is first
+  checked for what it is, including that its ETag is or is not the
+  payload's MD5; then the record store's conformance suite runs against
+  it, then an estate's whole lifecycle with every count checked. The
+  BREAK control rebuilds choudoufu so the store checks each ETag against
+  an MD5, and passes only when that binary works under SSE-S3 and fails
+  on that check under all three KMS flavours (#1344). Needs Go and
+  python3.
+
 ## Knobs
 
 | Variable | Effect |
