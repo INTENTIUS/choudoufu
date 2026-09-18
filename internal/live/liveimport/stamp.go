@@ -332,6 +332,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// rep.IdentitiesRecorded, which counts kind=identity records
 		// only.
 		res.outcome = recordOne(ctx, r.recordStore, entry.Addr, rec)
+		res.diags = res.diags.Append(unwrittenCarrierDiag(r.recordStore, entry.Addr, rec.typeName))
 		return res
 	}
 	if loc, ok := r.located[entry.Addr.String()]; ok {
@@ -341,6 +342,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// written. Residue is still recorded exactly as it is for an
 		// ordinary eligible instance - see [located]'s doc comment.
 		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc)
+		res.diags = res.diags.Append(unwrittenCarrierDiag(r.recordStore, entry.Addr, loc.typeName))
 		if res.outcome.Outcome == OutcomeRecorded || res.outcome.Outcome == OutcomeAlreadyRecorded {
 			res.identities++
 		}
@@ -412,6 +414,46 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		}
 	}
 	return res
+}
+
+// unwrittenCarrierDiag is GitHub issue #1287's loud half: an error, and not
+// a report row, when the record store could not be written for an instance
+// whose ONLY carrier is that record.
+//
+// [recordOne] and [locateOne] both report OutcomeFailed for two situations
+// that could not be further apart, which is why this asks the store what
+// happened rather than reading the outcome:
+//
+//   - The store refused to overwrite a record it already holds. Nothing was
+//     written, but the instance HAS a carrier, and the next plan binds to it.
+//     A row in the report is the right weight for that.
+//   - The store could not be written at all - an outage, a denied action, a
+//     throttle, a full disk, a key the backend will not take. Nothing was
+//     written and there is no carrier, so the next plan proposes CREATING a
+//     live resource that already exists. The migration did not migrate this
+//     instance, and a run that exits 0 tells the operator otherwise.
+//
+// Only the second is an error. [projection.RecordStore.WriteFailedFor] is
+// the ledger that separates them; it is populated by the store's own write
+// path, so no caller has to classify an error string.
+//
+// Deliberately NOT extended to [seedIdentityFor]'s failures on a STAMPED
+// instance: that instance's marker was written and carries its ownership, so
+// the identity record is an accelerator whose absence degrades gracefully -
+// which is exactly what HANDOFF.md's safety rule means by dropping a rung
+// rather than refusing the estate. Its warning stays a warning.
+func unwrittenCarrierDiag(store *projection.RecordStore, addr addrs.AbsResourceInstance, typeName string) tfdiags.Diagnostics {
+	err := store.WriteFailedFor(addr)
+	if err == nil {
+		return nil
+	}
+	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, projection.SummaryRecordStoreWriteFailed, fmt.Sprintf(
+		"The record store could not be written for %s: %s.\n\nA %s has no ownership marker - the record IS how this "+
+			"estate says it owns the live object - so nothing now claims it, and the next plan will propose CREATING "+
+			"it alongside the one that already exists. This migration is incomplete; fix what stopped the write and "+
+			"run it again. Re-running is safe: an instance whose record did land reports ALREADY_RECORDED and is not "+
+			"written twice.",
+		addr, err, typeName)))
 }
 
 // seedIdentityFor derives and writes one instance's kind=identity record

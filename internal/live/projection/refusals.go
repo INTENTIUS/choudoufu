@@ -94,6 +94,10 @@ var refusals = []Refusal{
 		What:    "Writing a record for an effect back to the record store failed.",
 	},
 	{
+		Summary: SummaryRecordStoreWriteFailed,
+		What:    "GitHub issue #1287: a migration could not write the record for an instance whose only ownership carrier is that record, so nothing claims the live object and the next plan would propose creating a second copy of it. The migration is incomplete and has to be run again.",
+	},
+	{
 		Summary: "Cannot read a parent's identity from the projection",
 		What:    "A resource whose identity is derived from its parent's could not read that parent, because the parent is not in this projection.",
 	},
