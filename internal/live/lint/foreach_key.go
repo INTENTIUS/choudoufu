@@ -16,15 +16,18 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
 // The for_each key rule.
 //
 // A for_each instance key does not stay in the configuration: it becomes part
-// of the resource's address, the address becomes the tofu-address marker on
-// the live resource, and the marker is the only record of ownership a
-// stateless run has. Before issue #210, live/MARKERS.md bounded what a key
+// of the resource's address, and for a resource that carries tags the address
+// becomes the tofu-address marker on the live resource - see
+// [markers.OwnershipClause], which is the sentence this rule's own diagnostic
+// ships, and issue #1242 for why the rule fires for a resource that carries no
+// tag at all. Before issue #210, live/MARKERS.md bounded what a key
 // may contain from two directions at once:
 //
 //   - AWS-legal in a tag value. MARKERS.md's list: letters and numbers
@@ -180,16 +183,14 @@ func reportBadForEachKeys(keys []string, where, addr string, subject hcl.Range, 
 			Detail: fmt.Sprintf(
 				"the for_each key %q contains %s, which cannot survive the trip through a "+
 					"tofu-address marker. An instance key becomes part of the address of every "+
-					"resource at or beneath %s, the address becomes the marker on the live "+
-					"resource, and that marker is the only record of ownership a live-markers "+
-					"run has (live/MARKERS.md). A key may contain any printable character except "+
+					"resource at or beneath %s. %s A key may contain any printable character except "+
 					"%s (live/MARKERS.md, \"for_each key escaping\") - each of those six collides "+
 					"with a different, unrelated escaping rule rather than with the AWS tag-value "+
 					"charset itself, which this fork's own escaping (issue #210) can now carry "+
 					"almost anything else into. This is caught here rather than at apply on "+
 					"purpose: a key like this applies cleanly and wedges every run after it, with "+
 					"no way back that does not go outside OpenTofu. Rename the key",
-				key, DescribeForEachKeyRune(bad), addr, quotedRuneList(markerkey.Excluded),
+				key, DescribeForEachKeyRune(bad), addr, markers.OwnershipClause, quotedRuneList(markerkey.Excluded),
 			),
 			Subject: subject,
 		})
