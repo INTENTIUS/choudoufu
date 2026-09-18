@@ -737,6 +737,29 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 32,
+      "slug": "two-writers-one-record",
+      "title": "Two writers, one record: the loser is named, nothing is clobbered, and nothing is held",
+      "scenario": "live/smoke/scenarios/two-writers-one-record.sh",
+      "command": "just smoke two-writers-one-record",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. Claim 2 is where contention at a platform's own API is measured."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }

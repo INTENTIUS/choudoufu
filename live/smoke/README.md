@@ -507,6 +507,20 @@ showing its own checks would have caught it.
   plan is caught proposing to create a resource that exists (#1336).
   Needs python3.
 
+- **two-writers-one-record** - *Claim 32: two writers, one record: the
+  loser is named, nothing is clobbered, and nothing is held.* Two
+  checkouts of one estate contend for one record. The smoke proxy
+  (`live/smoke/s3proxy.py`) holds both writers' conditional PUTs until
+  both have arrived and releases them in a chosen order, alternating
+  between rounds, so the race is a race every time. Exactly one apply
+  lands per round; the other gets a record store write conflict naming
+  the expected and the found version; no state lock appears in either
+  output; the loser re-plans and converges; a writer killed with SIGKILL
+  mid-write leaves nothing to unlock. The BREAK control rebuilds
+  choudoufu with no If-Match on the write (go build -overlay, needs Go,
+  refuses a release binary) and passes only when both applies are caught
+  reporting success (#1338). Needs python3.
+
 ## Knobs
 
 | Variable | Effect |
