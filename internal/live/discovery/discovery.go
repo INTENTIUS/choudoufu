@@ -4159,7 +4159,13 @@ func collisionOrphanProblem(req Request, res *Result, idx []int) Problem {
 func sweepGapDiag(res *Result, g SweepGap) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	res.SweepGaps = append(res.SweepGaps, g)
-	if g.Reason == SweepGapNotListable || g.Reason == SweepGapNotTaggable {
+	// [SweepGapTagIndexCoverageUnconfirmed] joined this list with issue
+	// #1322 and widened it by nothing: it is a split of
+	// [SweepGapNotTaggable]'s own branch in [noRegistryRowOrUntaggable],
+	// filed for exactly the types that reason was filed for before, so the
+	// set of types this function silences is unchanged and only what the
+	// recorded gap says about them moved.
+	if g.Reason == SweepGapNotListable || g.Reason == SweepGapNotTaggable || g.Reason == SweepGapTagIndexCoverageUnconfirmed {
 		return diags
 	}
 	return diags.Append(tfdiags.Sourceless(

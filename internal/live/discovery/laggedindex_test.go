@@ -79,8 +79,9 @@ const (
 	// ordinaryType has the identical registry/schema disagreement and NO
 	// recorded index-coverage row, so the index holds it the ordinary way
 	// in every region. An empty answer for it is the same evidence the
-	// whole tagging leg rests on, and this fixture pins that it is left
-	// exactly as it was.
+	// whole tagging leg rests on, and this fixture pins that it stays
+	// suppressed, recorded and uncovered - #1322 changed only the sentence
+	// such a gap carries.
 	ordinaryType    = "aws_instance"
 	ordinaryCFNType = "AWS::EC2::Instance"
 
@@ -208,15 +209,38 @@ func TestSweepSpeaksWhenAServedTagIndexHeldNothingForATaggableType(t *testing.T)
 			untaggableType, renderDiags(diags))
 	}
 
-	// The scoping, pinned deliberately rather than left to be discovered:
-	// the same registry/schema disagreement on a type whose index coverage
-	// is ORDINARY is left exactly as it was. Its empty answer is the
-	// evidence the whole tagging leg rests on, and making it loud would put
-	// a warning an operator can do nothing about on every plan.
-	if got := gaps[ordinaryType]; got != SweepGapNotTaggable {
-		t.Errorf("the sweep gap for %s is %q, want %q - the narrow scoping #1318's fix ships with. Widening it to "+
-			"every schema-taggable type is a deliberate decision with its own cost; it is not something to do by "+
-			"accident.", ordinaryType, got, SweepGapNotTaggable)
+	// The scoping, pinned deliberately rather than left to be discovered.
+	// #1318 left the same registry/schema disagreement on an
+	// ORDINARY-coverage type on the quiet arm, and that half is unchanged:
+	// its empty answer is the evidence the whole tagging leg rests on, and
+	// making it loud would put a warning an operator can do nothing about
+	// on every plan in every region.
+	//
+	// Issue #1322 moved what that quiet gap SAYS, and only that. It used to
+	// be [SweepGapNotTaggable] - the sentence "so it can carry no ownership
+	// marker", about a type the provider gives a tags argument and this
+	// fork stamps a marker onto, on the strength of a live/registry.json
+	// flag that is CloudFormation's claim about its own update-tags API.
+	// #1322 ruled that claim is not an answer to that question and cannot
+	// be made into one where it is generated, so the reader stopped asking
+	// it: [noRegistryRowOrUntaggable] reads [typeTaggable] for the sentence
+	// instead.
+	//
+	// Nothing else about this type moved, and the three assertions below
+	// are what says so rather than this comment: still suppressed, still a
+	// recorded gap, still not covered.
+	if got := gaps[ordinaryType]; got != SweepGapTagIndexCoverageUnconfirmed {
+		t.Errorf("the sweep gap for %s is %q, want %q.\n"+
+			"%q here would be the pre-#1322 sentence back - a type that plainly carries this estate's marker told "+
+			"it can carry none. A LOUD reason here would be the other error: widening #1318's per-run diagnostic "+
+			"to every schema-taggable type is a deliberate decision with its own cost, and it is not this one.",
+			ordinaryType, got, SweepGapTagIndexCoverageUnconfirmed, SweepGapNotTaggable)
+	}
+	if spokenAbout(diags, ordinaryType) {
+		t.Errorf("a diagnostic was raised about %s: %s\n"+
+			"#1322 corrected a suppressed gap's wording. If correcting it also made it loud, the cost #1318 "+
+			"measured for two types in one region is now paid for every schema-taggable type in every region.",
+			ordinaryType, renderDiags(diags))
 	}
 
 	// None of the three may be recorded as covered: the arm continues
@@ -325,16 +349,23 @@ func spokenAbout(diags tfdiags.Diagnostics, typeName string) bool {
 // population is generated. Three facts hold today and the fix's narrowness
 // is only defensible while they do:
 //
-//  1. Six admitted types reach that arm with a taggable provider schema.
-//  2. Three of them (the IAM three) have a measured index-coverage row, so
-//     they are the ones #1318's third verdict reaches; the other three have
-//     ordinary coverage and keep the suppressed [SweepGapNotTaggable].
+//  1. FIVE admitted types reach that arm with a taggable provider schema.
+//     (#1318 and #1322 both say six in prose; the lists below have always
+//     been 2 + 3, and recomputing them is what settled it. aws_iam_role is
+//     the third type with a measured index-coverage row, but AWS::IAM::Role
+//     is registry-TAGGABLE, so it never reaches this arm at all - "the IAM
+//     three" was counting a coverage row, not an arm occupant.)
+//  2. Two of them have a measured index-coverage row, so they are the ones
+//     #1318's third verdict reaches; the other three have ordinary coverage
+//     and keep a suppressed gap.
 //  3. NOT ONE admitted type reaches that arm with an UNtaggable provider
-//     schema. So the arm's shipped wording - "records X as untaggable, so it
-//     can carry no ownership marker" - is false about every admitted type
-//     that can reach it today, and the three left on it are a wording debt
-//     that live/registry.json's generator has to pay (#1318's candidate 1),
-//     not a case the arm gets right.
+//     schema. So the arm's pre-#1322 wording - "records X as untaggable, so
+//     it can carry no ownership marker" - was false about every admitted
+//     type that could reach it. Issue #1322 settled where that is repaired:
+//     not in live/registry.json's generator, whose only input is the
+//     CloudFormation bundle and whose flag is a correct answer to
+//     CloudFormation's question, but in the reader - the three now carry
+//     [SweepGapTagIndexCoverageUnconfirmed], still suppressed.
 //
 // A regenerated artifact that moves any of these three means the scoping has
 // to be re-derived, which is why this fails with the recomputed lists rather
@@ -409,9 +440,11 @@ func TestRegistryUntaggableArmPopulation(t *testing.T) {
 	}
 	if strings.Join(quietTaggable, " ") != strings.Join(wantQuietTaggable, " ") {
 		t.Errorf("the types left on the suppressed arm with a TAGGABLE provider schema are %v, want %v.\n"+
-			"Each of them is told \"this type can carry no ownership marker\" about a type that plainly can. They "+
-			"are left alone because their index coverage is ordinary, so an empty answer for them is the evidence "+
-			"the whole tagging leg rests on; the repair is live/registry.json's generator.", quietTaggable, wantQuietTaggable)
+			"They stay suppressed because their index coverage is ordinary, so an empty answer for them is the "+
+			"evidence the whole tagging leg rests on. Since #1322 what they are TOLD is "+
+			"SweepGapTagIndexCoverageUnconfirmed rather than a claim that they can carry no marker; "+
+			"TestNoSweepGapClaimsUntaggableAgainstTheProviderSchema is the guard on that half.",
+			quietTaggable, wantQuietTaggable)
 	}
 	if len(quietUntaggable) != 0 {
 		t.Errorf("admitted types reach the registry-untaggable arm with an untaggable provider schema: %v.\n"+

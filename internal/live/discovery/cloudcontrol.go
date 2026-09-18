@@ -96,7 +96,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 	// not regress.
 	if taggable, known := req.Roster.TaggableKnown(cfnType); sweep && !taggable && !typeTaggable(schemas, typeName) {
 		res.Scans = append(res.Scans, scan)
-		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
+		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known, typeTaggable(schemas, typeName))))
 	}
 
 	// GitHub issue #605's Cloud Control half: during a sweep this listing has

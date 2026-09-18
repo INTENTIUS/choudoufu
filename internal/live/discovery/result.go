@@ -636,16 +636,36 @@ func (o OwnedResource) String() string {
 
 // SweepGapReason is why one resource type could not be swept for this
 // estate's undeclared resources.
-// noRegistryRowOrUntaggable builds the gap for a type the sweep skips
-// because the roster reports it untaggable, choosing between the two facts a
-// bare false collapses (issue #168).
+// noRegistryRowOrUntaggable builds the gap for a type the sweep skips on the
+// strength of live/registry.json's tagging.taggable being false, choosing
+// between the three distinct facts that one false has been made to carry.
 //
 // known=false means live/registry.json has no row for the CFN type at all,
 // so it recorded nothing and the old message - "live/registry.json records X
 // as untaggable" - would have been claiming otherwise. That case is a skew
 // between two artifacts rather than a property of the resource, and it says
-// which commands fix it.
-func noRegistryRowOrUntaggable(typeName, cfnType string, known bool) SweepGap {
+// which commands fix it (issue #168).
+//
+// schemaTaggable is issue #1322's input, and it is what decides between the
+// other two. live/registry.json's flag is CloudFormation's claim about
+// whether ITS OWN update-tags API writes this type's tags; it is NOT a
+// statement about whether a live object of the type can carry an ownership
+// marker, and for every admitted type that reaches this function through
+// [sweepViaTagging] today the two answers disagree. schemaTaggable is
+// [typeTaggable] - [markers.Taggable] over the provider's own resource
+// schema, the same answer live/survey-full.json's signals.taggable column
+// records and the same one internal/live/stamp acts on when it writes the
+// marker. It is the authority that actually writes the tag, so it is the
+// authority on whether one is there to find.
+//
+// The registry flag keeps deciding WHETHER a gap is filed - that is the
+// caller's condition and #1144's reverted attempt is why it stays - but it no
+// longer decides what the gap SAYS. A false "this type can carry no
+// ownership marker" does not become harmless by being suppressed: it travels
+// into [Result.SweepGaps], into internal/live/foreign's report and into
+// views.StatelessSweepGap, where it is the recorded reason a destroy was not
+// proposed for an object that is in fact marked.
+func noRegistryRowOrUntaggable(typeName, cfnType string, known, schemaTaggable bool) SweepGap {
 	if !known {
 		return SweepGap{
 			TypeName: typeName,
@@ -656,11 +676,22 @@ func noRegistryRowOrUntaggable(typeName, cfnType string, known bool) SweepGap {
 				typeName, cfnType),
 		}
 	}
+	if schemaTaggable {
+		return SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapTagIndexCoverageUnconfirmed,
+			Detail: fmt.Sprintf(
+				"live/registry.json records %s (Cloud Control type %s) as untaggable, but that flag is CloudFormation's claim about whether its own update-tags API writes this type's tags - not a fact about the live object. "+
+					"The provider gives %s a tags argument and choudoufu writes this estate's ownership marker onto it, so the estate-wide tag sweep did search for it and the Resource Groups Tagging API returned none of this estate's. "+
+					"Nothing in this run establishes whether that index covers %s, so the run claims no coverage for it: if a block of it was deleted, no destroy is proposed for the live resource. Re-run the plan, or remove it by hand.",
+				typeName, cfnType, typeName, typeName),
+		}
+	}
 	return SweepGap{
 		TypeName: typeName,
 		Reason:   SweepGapNotTaggable,
 		Detail: fmt.Sprintf(
-			"live/registry.json records %s (Cloud Control type %s) as untaggable, so it can carry no ownership marker and the sweep has nothing to search on.",
+			"A %s carries no tags argument in the provider's own schema, so it can carry no ownership marker and the sweep has nothing to search on (live/registry.json's row for Cloud Control type %s agrees).",
 			typeName, cfnType),
 	}
 }
@@ -682,9 +713,59 @@ const (
 
 	// SweepGapNotTaggable is an admitted type whose objects carry no tags,
 	// so it can hold no ownership marker and the sweep has nothing to search
-	// on. Its identity comes out of configuration, which means deleting its
-	// resource block deletes the only record of which resource it was.
+	// on. Its identity comes out of configuration instead - re-derived from
+	// the declaration on every run for most such types, which is why an
+	// untaggable type is overwhelmingly a derivable one rather than a
+	// record-backed one - so deleting its resource block deletes the only
+	// thing that said which live object it was.
+	//
+	// Since issue #1322 every producer of this reason reads the PROVIDER's
+	// own resource schema for it ([markerCapable], [typeTaggable], content
+	// match's own no-tags-argument finding). None reads
+	// live/registry.json's tagging.taggable, which is CloudFormation's
+	// claim about its own update-tags API and answers a different question:
+	// four of the five admitted types that reach
+	// [noRegistryRowOrUntaggable] through [sweepViaTagging] carry an
+	// explicit CloudFormation taggable:false while the provider gives them
+	// a tags argument and this fork stamps a marker onto them. Those get
+	// [SweepGapTagIndexCoverageUnconfirmed] instead, and
+	// TestNoSweepGapClaimsUntaggableAgainstTheProviderSchema is the guard.
 	SweepGapNotTaggable SweepGapReason = "TYPE_NOT_TAGGABLE"
+
+	// SweepGapTagIndexCoverageUnconfirmed is issue #1322's verdict, and it
+	// is what [SweepGapNotTaggable] used to say about a type that plainly
+	// can carry a marker.
+	//
+	// It is filed where three things hold at once: live/registry.json
+	// records the type's CFN type as untaggable, the provider's own
+	// resource schema gives the type a tags argument, and the estate-wide
+	// GetResources answer held none of the type. The first of those is
+	// CloudFormation's claim about whether ITS update-tags API writes the
+	// tags - AWS::EC2::LaunchTemplate and the two AWS::EC2::SecurityGroup*
+	// rule types say taggable:false because their CloudFormation schemas
+	// carry no Tags property, which is true of CloudFormation and says
+	// nothing about the live object, which internal/live/stamp marks
+	// perfectly well.
+	//
+	// So the honest verdict is neither "this type cannot be marked"
+	// ([SweepGapNotTaggable], false here) nor "the estate owns none of it"
+	// (a covered scan with Listed:0, which over-claims - see
+	// [noRegistryRowOrUntaggable] and #1144's reverted attempt). It is
+	// "nothing in this run establishes whether the tag index covers this
+	// type", and the gap stays recorded and uncovered on that basis.
+	//
+	// Suppressed by [sweepGapDiag], deliberately and with exactly the
+	// population [SweepGapNotTaggable] was suppressed with before it: this
+	// reason is a split of that one's branch, so no type became quiet that
+	// was not quiet already. The types where an empty index answer IS worth
+	// a per-run diagnostic are the ones whose index coverage this
+	// repository has MEASURED as region-restricted, and #1320 already
+	// routes those to the loud [SweepGapTagIndexHeldNothing] one arm
+	// earlier. For an ordinary type an empty index answer is the evidence
+	// the entire tagging leg rests on; raising it here would put a warning
+	// on every plan in every region that an operator can do nothing about,
+	// and bury the measured case.
+	SweepGapTagIndexCoverageUnconfirmed SweepGapReason = "TAG_INDEX_COVERAGE_UNCONFIRMED"
 
 	// SweepGapNoRegistryRow is an admitted type whose CFN type
 	// live/mapping.json names and live/registry.json has no row for. It is
@@ -852,9 +933,12 @@ const (
 	// owns none of this type" looks like for every one of the hundreds of
 	// types in the universe - and raising it to a per-run diagnostic there
 	// would bury the case where the index is known not to behave
-	// ordinarily. Those types keep [SweepGapNotTaggable] and its
-	// suppression, unchanged; the wording is still wrong about them and the
-	// fix for that is live/registry.json's generator, not this arm.
+	// ordinarily. Those types keep their suppression, unchanged. Their
+	// WORDING was wrong about them, and issue #1322 settled where that is
+	// repaired: at the reader rather than in live/registry.json's
+	// generator, whose only input is the CloudFormation bundle and whose
+	// flag is a correct answer to CloudFormation's own question. They now
+	// carry [SweepGapTagIndexCoverageUnconfirmed], still silent.
 	//
 	// Distinct from [SweepGapTagIndexUnavailable], where the index could
 	// not be ASKED - no Tagging client, or the one GetResources call
