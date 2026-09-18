@@ -1,0 +1,17 @@
+{
+  "note": [
+    "Written by examples/cross-estate-dependency/generate.ts on every run. DO NOT EDIT; run `npm run generate`.",
+    "It records the generator inputs the checked-in workflows were produced from, so a machine with no",
+    "node can still tell a regenerated tree from a stale one - which commit order alone cannot, when an",
+    "input change moves no output byte. live/cross_estate_dependency_test.go re-hashes these and compares."
+  ],
+  "inputs": {
+    "chant.config.ts": "1ee50708987b437b4acf375b789ef7ab694371fd180d523de063350c42a4d268",
+    "generate.ts": "3c2e67a9a1014f8a4003ad12f7eeccbeaa345199fece33a646de48075c086e49",
+    "package-lock.json": "972833332f1318319f3dde38a38f76f94d7aa39d085abb817171d2a22de168d3",
+    "package.json": "783ca716c80a9991a24bec1663a8131472fd221c8cdc6261a2ad70828594f457",
+    "src/estates-apply.op.ts": "7ea8870dd00dfffb9300704a3cb7b0ed153da3a77beed6eb8adc93f1065b8076",
+    "src/estates-plan.op.ts": "1b66ed3a61330981a100a54ca79f97b5e7b6e38a48442cd363b97c4b10aa34de",
+    "src/forge.ts": "af97709b5da99493d52e64d859b4322eff5ba4837da1aee903fbc1290767de51"
+  }
+}
