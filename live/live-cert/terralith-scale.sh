@@ -304,9 +304,41 @@ ssm_prefix_count() {
 # a leaked record store that never existed. Counting server-side removes the
 # string-parsing step that created the failure.
 s3_prefix_count() {
-  aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1/" \
-    --query 'length(Contents || `[]`)' --output text 2>/dev/null || echo 0
+  local raw rc n
+  # stderr is captured rather than discarded: a listing that fails for a real
+  # reason (no such bucket, expired credential, denied) must say so, because
+  # every way this function can go wrong looks like "the store is empty" to
+  # both callers - the values check reads that as "declared and never
+  # written" and fails a healthy run, the teardown reads it as "nothing to
+  # delete" and leaks the store. One broken count did both in a single pass.
+  raw="$(aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1/" \
+    --query 'length(Contents || `[]`)' --output text 2>&1)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '  FATAL: listing s3://%s/%s/ failed (exit %s): %s\n' "$RECORD_STORE_BUCKET" "$1" "$rc" "$raw" >&2
+    echo 0
+    return 1
+  fi
+  # ssm_prefix_count above already carries this warning, from 2026-09-01, and
+  # this function was written with `length()` anyway - same construct, same
+  # two consequences, one estate later.
+  #
+  # The CLI auto-paginates and applies --query to EACH PAGE, so this is one
+  # count per page - "1000 1000 ... 478" for a store of 9478 - and the bare
+  # result is a multi-line string, not a number. `[ "$n" -gt 0 ]` on it fails
+  # with "integer expression expected", a NON-ZERO status, so both callers
+  # again took their benign branch. Summing is what makes the pages a total.
+  n="$(printf '%s\n' "$raw" | awk '{ s += $1 } END { print s + 0 }')"
+  case "$n" in
+    ""|*[!0-9]*)
+      printf '  FATAL: s3_prefix_count("%s") produced a non-integer: [%s] from [%s]\n' "$1" "$n" "$raw" >&2
+      echo 0
+      return 1
+      ;;
+  esac
+  echo "$n"
 }
+
 
 # record_store_count counts whichever backend this run declared, so the
 # values check and the teardown below ask one question instead of branching
