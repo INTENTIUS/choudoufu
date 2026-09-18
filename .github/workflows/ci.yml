@@ -221,3 +221,75 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm test
+
+  # live/live-cert/selftest-kill.sh, issue #1267.
+  #
+  # #440's stage-1 proof obligation: launch live/live-cert/reference-ec2-vpc.sh
+  # against the pinned emulator, wait for stock terraform's own "Creation
+  # complete" line so the kill lands while an apply is genuinely in flight,
+  # send the harness a real SIGTERM, and check that its trap still ran the
+  # teardown. That guards the teardown of the PAID path, where a defect costs
+  # money and wall clock rather than a red cell - and until #1267 nothing in
+  # this repository ran it.
+  #
+  # What it proves is narrower than its own PASS line claims: the
+  # "independent verification" listing at the end of that script is
+  # unreachable on any passing run, because the harness removes the emulator
+  # container as teardown's last step. That is issue #1279, found while
+  # wiring this job. The trap firing, the exit code, the teardown banner and
+  # the container's removal are real and are what this job guards.
+  #
+  # Here rather than in floci-tier.yml, which is the other workflow with
+  # docker: that nightly has failed on every run from 2026-09-12 to
+  # 2026-09-17, every gated test failing at 0.00s on "terraform is required by
+  # this test but is not on PATH", because it never installs the binary.
+  # Adding a guard to an already-red job reproduces the exact problem #1267 is
+  # about. live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the
+  # guard on this job.
+  #
+  # A separate job rather than a step in `fast`, the same call as the two
+  # jobs above: it is the only thing in this workflow that pulls a container
+  # image, so a registry outage names itself here instead of reddening the Go
+  # tier. Measured 2026-09-17 on a laptop with the image cached and the binary
+  # prebuilt: 19s end to end.
+  livecert-selftest-kill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Pinned from live/oracle-versions.json, the same read the fast job
+      # makes for the same reason (issue #544): the harness's trusted
+      # teardown shells out to a literal `terraform destroy`, and an
+      # unpinned oracle is what #498 cost.
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
+      # TOFU_BIN, so reference-ec2-vpc.sh skips its own `go build`. The
+      # driver synchronizes its kill against the apply's own progress, not
+      # against wall clock, so a cold build would not break it - but it
+      # would put a multi-minute build inside this job's bound for no
+      # reason.
+      - name: Build the binary the harness runs
+        run: go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
+      - name: selftest-kill against the pinned emulator
+        env:
+          TOFU_BIN: ${{ runner.temp }}/choudoufu
+        run: |
+          set -o pipefail
+          timeout 1200 bash live/live-cert/selftest-kill.sh 2>&1 | tee "$RUNNER_TEMP/kill.log"
+          # A zero exit is not the evidence wanted here, the same call the
+          # validate-generated-terralith job makes: require the script's own
+          # verdict line by name, so a future early `exit 0` before the
+          # assertions cannot read as a pass.
+          grep -q -- '=== selftest-kill: PASS' "$RUNNER_TEMP/kill.log" || {
+            echo "selftest-kill.sh did not reach its own PASS verdict line in this job."
+            echo "Read the log above: the script prints one line per property it confirmed and a FAIL line per one it did not."
+            exit 1
+          }
