@@ -382,29 +382,59 @@ gauntlet_kind_count() {
 # /dev/null: the issue's second half, and the same reason #1158 exists.
 gauntlet_k8s_wait_all() {
   local cfg="$1" ns="$2" kind="$3" cond="$4" timeout="$5" where="$6"
-  local names out rc start elapsed n
+  local names out rc start elapsed n timedout
 
-  names="$(kubectl --kubeconfig "$cfg" get "$kind" -n "$ns" -o name 2>&1)" || {
-    printf 'gauntlet_k8s_wait_all: could not list %s in namespace %s on %s (so whether they reached %s was never asked): %s\n' \
-      "$kind" "$ns" "$where" "$cond" "$names" >&2
+  # stdout only, never 2>&1: `names` is counted, so a deprecation notice or
+  # any other stderr chatter folded into it would be counted as an object
+  # and send an empty set down the wait leg - the very confusion this
+  # function exists to remove. The error path re-runs the same get with
+  # stderr merged, purely to quote what kubectl said.
+  names="$(kubectl --kubeconfig "$cfg" get "$kind" -n "$ns" -o name 2>/dev/null)" || {
+    printf 'gauntlet_k8s_wait_all: could not list %s in namespace %s on %s, so whether they reached %s was never asked: %s\n' \
+      "$kind" "$ns" "$where" "$cond" "$(kubectl --kubeconfig "$cfg" get "$kind" -n "$ns" -o name 2>&1)" >&2
     return 1
   }
   n="$(printf '%s' "$names" | grep -c . || true)"
   if [ "$n" -eq 0 ]; then
-    printf 'gauntlet_k8s_wait_all: no %s objects exist in namespace %s on %s, so nothing was waited for - `kubectl wait --all` matches an empty set and gives up at once, it does not wait for objects to appear. This is a setup failure (wrong namespace, the install never ran, the objects are named differently), NOT a %ss timeout.\n' \
+    # A namespace that does not exist answers this list with an empty set
+    # and exit 0 (measured: `kubectl get deployment -n no-such-ns -o name`
+    # is rc=0, no output, nothing on stderr), so it reaches here looking
+    # exactly like a namespace that exists and is empty. They are different
+    # setup bugs, so they get different sentences.
+    if ! kubectl --kubeconfig "$cfg" get namespace "$ns" >/dev/null 2>&1; then
+      printf 'gauntlet_k8s_wait_all: namespace %s does not exist on %s, so no %s could be waited for and nothing was - NOT a %ss timeout.\n' \
+        "$ns" "$where" "$kind" "$timeout" >&2
+      kubectl --kubeconfig "$cfg" get namespaces >&2 2>&1 || true
+      return 1
+    fi
+    printf 'gauntlet_k8s_wait_all: no %s objects exist in namespace %s on %s, so nothing was waited for - `kubectl wait --all` matches an empty set and gives up at once, it does not wait for objects to appear. This is a setup failure (the install never ran, or the objects are named differently), NOT a %ss timeout.\n' \
       "$kind" "$ns" "$where" "$timeout" >&2
     kubectl --kubeconfig "$cfg" get all -n "$ns" >&2 2>&1 || true
     return 1
   fi
 
   start="$(date +%s)"
-  out="$(kubectl --kubeconfig "$cfg" wait --for="condition=$cond" --timeout="${timeout}s" "$kind" --all -n "$ns" 2>&1)"; rc=$?
+  # `out=$(...) || rc=$?`, not `out=$(...); rc=$?`: eight crossing scripts
+  # run under `set -euo pipefail`, where a failing command substitution in a
+  # bare assignment exits the script before the next line can read $? - and
+  # the failing case is the one this whole function is about.
+  rc=0
+  out="$(kubectl --kubeconfig "$cfg" wait --for="condition=$cond" --timeout="${timeout}s" "$kind" --all -n "$ns" 2>&1)" || rc=$?
   elapsed=$(( $(date +%s) - start ))
   if [ "$rc" -eq 0 ]; then
     printf '  ready after %ss: all %s %s in namespace %s on %s reached %s\n' "$elapsed" "$n" "$kind" "$ns" "$where" "$cond"
     return 0
   fi
-  if [ "$elapsed" -ge "$timeout" ]; then
+  # Was that the bound expiring, or kubectl failing for some other reason?
+  # Two independent signals, because getting this wrong is the whole defect:
+  # kubectl's own phrase for the bound expiring, and the elapsed time. The
+  # elapsed comparison carries one second of slack - both ends are whole
+  # seconds from `date +%s`, so a wait that really ran the full 300s can
+  # floor to 299 and would otherwise be announced as "not a timeout".
+  timedout=0
+  case "$out" in *"timed out waiting for the condition"*) timedout=1 ;; esac
+  if [ "$elapsed" -ge "$(( timeout > 1 ? timeout - 1 : 0 ))" ]; then timedout=1; fi
+  if [ "$timedout" -eq 1 ]; then
     printf 'gauntlet_k8s_wait_all: TIMEOUT - the %s %s in namespace %s on %s did not all reach %s within %ss (waited %ss). Waiting on: %s\nkubectl said: %s\n' \
       "$n" "$kind" "$ns" "$where" "$cond" "$timeout" "$elapsed" "$(printf '%s' "$names" | tr '\n' ' ')" "$out" >&2
   else
