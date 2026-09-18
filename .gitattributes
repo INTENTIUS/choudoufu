@@ -2,3 +2,13 @@ internal/**/*.tf text eol=lf
 internal/**/*.tofu text eol=lf
 internal/**/*.json text eol=lf
 internal/**/*.tmpl text eol=lf
+
+# Issue #1294. `git grep` skips a file it thinks is binary, printing
+# "Binary file X matches" - a match with no line, which a sweep piping to
+# `wc -l` counts as one instead of N. Plain grep skips it in total silence.
+# live/e2e/corpus-mastino-dns/run.sh carried four NUL bytes in 159,562 and
+# cost three sweeps (#1157, #1214, #1291) before anyone noticed. The bytes
+# are gone and live/grepblind_test.go now fails any swept shell script that
+# acquires one, but this makes `git grep` read a shell script in full even
+# in the window before that guard runs.
+*.sh text eol=lf diff
