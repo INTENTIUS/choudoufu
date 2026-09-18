@@ -47,13 +47,25 @@ jobs:
       # terraform_wrapper: false because the wrapper this action installs
       # by default is a shell script around the real binary, and these
       # tests read the binary's exit code and its stderr.
-      - name: Read the pinned stock oracle version (issue #544)
+      - name: Read the pinned stock oracle versions (issue #544)
         id: oracle
-        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+          echo "tofu=$(jq -r .tofu_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
+      # tofu is the SECOND binary this workflow never installed, found by the
+      # new guard in live/floci_tier_gate_test.go rather than by another red
+      # night: internal/live/statefulcost/statefulcost_live_test.go:85 calls
+      # flocitest.RequireBinary for it. Installing terraform alone would have
+      # turned seventeen blind nights into an eighteenth for that one test.
+      # Same pin, same file, tofu_wrapper: false for the same reason.
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: ${{ steps.oracle.outputs.tofu }}
+          tofu_wrapper: false
 
       # Issue #1280's second half. A setup failure is not a measurement,
       # and it should not have to be told apart from one by reading forty
@@ -62,14 +74,16 @@ jobs:
       # "Preflight" or to "Run the floci tier" on the run page itself,
       # before anyone opens a log.
       #
-      # The list is the Makefile's own infoTestFloci block: docker, the AWS
-      # CLI (which reads the emulated cloud back independently of tofu),
-      # terraform, and go.
+      # The list is every binary the gated roster calls RequireBinary for,
+      # which live/floci_tier_gate_test.go derives from the tests themselves
+      # and checks this workflow against: docker, the AWS CLI (which reads
+      # the emulated cloud back independently of tofu), terraform, tofu and
+      # go.
       - name: Preflight - the binaries the tier drives (issue #1280)
         run: |
           set -u
           missing=""
-          for bin in docker aws terraform go; do
+          for bin in docker aws terraform tofu go; do
             if command -v "$bin" > /dev/null 2>&1; then
               printf '%s: %s\n' "$bin" "$(command -v "$bin")"
             else
@@ -88,6 +102,7 @@ jobs:
             exit 1
           fi
           terraform version
+          tofu version
           aws --version
           docker --version
 
