@@ -1,0 +1,182 @@
+# The record store bucket: `just up`, `just verify`, `just down`.
+# `just` lists everything. GitHub issue #1341.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+region := env_var_or_default("AWS_REGION", "us-east-2")
+
+default:
+    @just --list
+
+# Install the chant project's dependencies.
+install:
+    npm install
+
+# The bucket name. Globally unique, so it is derived from the account rather
+# than guessed - the same account that will hold the estate. Any name works;
+# pass one to any recipe below and nothing assumes the derived shape.
+_bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    acct=$(aws sts get-caller-identity --query Account --output text)
+    echo "choudoufu-records-${acct}-{{region}}"
+
+# The choudoufu binary `verify` asks. CHOUDOUFU_BIN, then PATH, then built
+# from this checkout - the same order the smoke stack resolves it in.
+_choudoufu:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${CHOUDOUFU_BIN:-}" ]; then echo "$CHOUDOUFU_BIN"; exit 0; fi
+    if command -v choudoufu >/dev/null 2>&1; then command -v choudoufu; exit 0; fi
+    root="$(cd ../.. && pwd)"
+    command -v go >/dev/null 2>&1 || { echo "no choudoufu on PATH, CHOUDOUFU_BIN unset, and no Go to build one from $root" >&2; exit 1; }
+    mkdir -p .bin
+    ( cd "$root" && go build -o "$OLDPWD/.bin/choudoufu" ./cmd/choudoufu ) >&2
+    echo "$PWD/.bin/choudoufu"
+
+# The retention window to build with. An explicit RECORD_NONCURRENT_DAYS wins.
+# Otherwise, if the bucket already exists, whatever it has NOW - so running
+# `up` again never resets a window somebody has since changed. Otherwise 30.
+_days bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${RECORD_NONCURRENT_DAYS:-}" ]; then echo "$RECORD_NONCURRENT_DAYS"; exit 0; fi
+    live=$(aws s3api get-bucket-lifecycle-configuration --bucket "{{bucket}}" \
+      --query 'Rules[?NoncurrentVersionExpiration.NoncurrentDays != `null`] | [0].NoncurrentVersionExpiration.NoncurrentDays' \
+      --output text 2>/dev/null || true)
+    case "$live" in ''|None|null) echo 30 ;; *) echo "$live" ;; esac
+
+# Build the CloudFormation template from the lexicon declaration.
+_build bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    days=$(just _days "{{bucket}}")
+    RECORD_BUCKET="{{bucket}}" RECORD_NONCURRENT_DAYS="$days" npx chant build src --lexicon aws -o templates/template.json >/dev/null
+    echo "$days"
+
+# What standing it up would do: the template, built from the declaration.
+plan bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    just _build "$b" >/dev/null
+    cat templates/template.json
+
+# Create or update the bucket, and print RECORD_STORE_BUCKET. Safe to run twice.
+up bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    days=$(just _build "$b")
+    aws cloudformation deploy \
+      --template-file templates/template.json \
+      --stack-name "$b" \
+      --region "{{region}}" \
+      --no-fail-on-empty-changeset
+    echo
+    echo "RECORD_STORE_BUCKET=$b"
+    echo "noncurrent versions expire after ${days} day(s): that is how long a record destroyed by mistake stays recoverable."
+
+# Is this bucket correct? Asks the choudoufu binary; nothing here re-checks.
+verify bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    bin=$(just _choudoufu)
+    fail=0
+
+    # The three asserted settings. This is choudoufu's own answer, and it
+    # reports the BUCKET: an allow_insecure waiver in some estate's
+    # configuration changes whether that estate's runs proceed, never this.
+    "$bin" live-bucket -bucket="$b" -region="{{region}}" || fail=1
+
+    # The customer managed key, when this bucket was stood up with one. These
+    # test the POLICY, which is not one of the three assertions and which
+    # choudoufu has no opinion on, so they are not a second copy of anything.
+    #
+    # They are a set rather than a check each. An earlier version ran only
+    # the first, against a policy that denied on StringNotEquals alone. It
+    # passed, and the policy was broken in the way that matters: it denied the
+    # header-less PutObject the record store actually issues. A check that
+    # only proves a Deny fires cannot tell a correct policy from one that
+    # refuses everything.
+    if [ -n "${RECORD_KMS_KEY_ARN:-}" ]; then
+      say() { printf '  %-42s %s\n' "$1" "$2"; }
+      tmp=$(mktemp)
+      if aws s3api put-object --bucket "$b" --key "_verify/aes256" --body "$tmp" \
+           --server-side-encryption AES256 >/dev/null 2>&1; then
+        say "explicit AES256 PUT refused" "FAIL - it was accepted"; fail=1
+      else
+        say "explicit AES256 PUT refused" "ok"
+      fi
+      if aws s3api put-object --bucket "$b" --key "_verify/default" --body "$tmp" >/dev/null 2>&1; then
+        say "header-less PUT accepted" "ok"
+      else
+        say "header-less PUT accepted" "FAIL - the record store cannot write"; fail=1
+      fi
+      gotkey=$(aws s3api head-object --bucket "$b" --key "_verify/default" --query 'SSEKMSKeyId' --output text 2>/dev/null || echo NONE)
+      if [ "$gotkey" = "$RECORD_KMS_KEY_ARN" ]; then
+        say "header-less PUT landed under your key" "ok"
+      else
+        say "header-less PUT landed under your key" "FAIL (key=$gotkey)"; fail=1
+      fi
+      rm -f "$tmp"
+    fi
+    exit "$fail"
+
+# A broken Op should fail here rather than the first time somebody reaches
+# for the approval gate.
+
+# Prove the Ops resolve and lint.
+ops bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant list src
+    RECORD_BUCKET="$b" npx chant lint src
+
+# Governed path: plan through the Op. Read-only, touches no account.
+chant-plan bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant run bucket-plan
+
+# Governed path: apply through the Op, stopping at its approval gate.
+chant-apply bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant run bucket-apply
+
+# Tear down what `up` created and nothing else; refuses while ANY version of a record is present.
+down bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    # Every version, not just current objects. A deleted record is a delete
+    # marker over a noncurrent version that is still recoverable, and the
+    # bucket is the only place it can be recovered from.
+    held=$(aws s3api list-object-versions --bucket "$b" --prefix "tofu-" \
+      --query '[length(Versions || `[]`), length(DeleteMarkers || `[]`)]' --output text)
+    versions=$(cut -f1 <<< "$held"); markers=$(cut -f2 <<< "$held")
+    if [ "$versions" -gt 0 ] || [ "$markers" -gt 0 ]; then
+      echo "REFUSING to tear down $b." >&2
+      echo "It holds $versions record version(s) and $markers delete marker(s) under tofu-*." >&2
+      echo "For a record-backed resource the record is the ONLY copy of the estate's identity for it:" >&2
+      echo "it carries no marker and cannot be imported under a live block. Destroying this bucket" >&2
+      echo "destroys those identities, and the recovery copies of any already deleted." >&2
+      echo "Destroy the estates first (their records go with them and expire), or empty the" >&2
+      echo "tofu-* prefixes yourself, deliberately, and run this again." >&2
+      exit 1
+    fi
+    # `verify` may have left its own probe objects. Nothing else is touched:
+    # if you put anything else here, CloudFormation refuses a non-empty bucket
+    # and says so, which is the right outcome.
+    probes=$(aws s3api list-object-versions --bucket "$b" --prefix "_verify/" \
+      --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json)
+    if [ "$(jq '.Objects | length' <<< "$probes")" -gt 0 ]; then
+      aws s3api delete-objects --bucket "$b" --delete "$probes" >/dev/null
+    fi
+    aws cloudformation delete-stack --stack-name "$b" --region "{{region}}"
+    aws cloudformation wait stack-delete-complete --stack-name "$b" --region "{{region}}"
+    echo "gone: $b"

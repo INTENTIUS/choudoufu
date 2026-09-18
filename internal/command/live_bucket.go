@@ -103,6 +103,28 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	report := buildLiveBucketReport(bucket, findings, rs)
+
+	if args.JSON {
+		out, jsonErr := json.MarshalIndent(report, "", "  ")
+		if jsonErr != nil {
+			c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot render the report", jsonErr.Error())))
+			return 1
+		}
+		views.NewLiveBucket(c.View).Output(string(out))
+	} else {
+		views.NewLiveBucket(c.View).Output(renderLiveBucketReport(report))
+	}
+	if !report.Correct {
+		return 1
+	}
+	return 0
+}
+
+// buildLiveBucketReport is the whole of this command's judgement, kept apart
+// from the AWS call so it can be held to the one rule that matters: Correct
+// comes from the findings alone. rs is nil with -bucket.
+func buildLiveBucketReport(bucket string, findings []staterecord.BucketFinding, rs *configs.LiveRecordStore) liveBucketReport {
 	report := liveBucketReport{Bucket: bucket, Correct: true, Settings: []liveBucketSettingLine{}, Waived: []liveBucketWaiverLine{}}
 	failing := map[staterecord.BucketSetting]bool{}
 	for _, f := range findings {
@@ -124,21 +146,7 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 			report.Waived = append(report.Waived, liveBucketWaiverLine{Setting: name, Hiding: failing[staterecord.BucketSetting(name)]})
 		}
 	}
-
-	if args.JSON {
-		out, jsonErr := json.MarshalIndent(report, "", "  ")
-		if jsonErr != nil {
-			c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot render the report", jsonErr.Error())))
-			return 1
-		}
-		views.NewLiveBucket(c.View).Output(string(out))
-	} else {
-		views.NewLiveBucket(c.View).Output(renderLiveBucketReport(report))
-	}
-	if !report.Correct {
-		return 1
-	}
-	return 0
+	return report
 }
 
 func renderLiveBucketReport(r liveBucketReport) string {
