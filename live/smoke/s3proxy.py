@@ -17,7 +17,8 @@ fail     "<substring> <count>"
 hold     "<substring>"
          A PUT whose path contains <substring> is HELD: not forwarded, not
          answered. Each held PUT is logged to <work-dir>/held as
-         "<seq> <marker>", where <seq> counts arrivals from 1 and <marker> is
+         "<seq> <marker>", where <seq> counts arrivals from 1 since the
+         scenario last deleted <work-dir>/held, and <marker> is
          the first of <work-dir>/markers' whitespace-separated words found in
          the request body ("-" when none is), so a scenario can tell which of
          two racing writers arrived first.
@@ -38,7 +39,6 @@ import time
 
 upstream_port, work = int(sys.argv[1]), sys.argv[2]
 lock = threading.Lock()
-held_seq = 0
 turn = threading.Condition()
 released = set()
 
@@ -78,13 +78,19 @@ def hold(path, body):
     for "not held", because 1 == True in Python and the first held PUT would
     then read as "not held" to the caller and never be marked released.
     """
-    global held_seq
     sub = read("hold")
     if not sub or sub not in path:
         return 0
     with lock:
-        held_seq += 1
-        seq = held_seq
+        # The arrival number is this PUT's line in <work-dir>/held, which the
+        # scenario deletes between rounds, so every round counts from 1. A
+        # counter kept here instead ran on across rounds: round two's PUTs
+        # were 3 and 4, the scenario released "2 1", and both writers waited
+        # for a turn that was never coming.
+        seq = len(read("held").splitlines()) + 1
+        if seq == 1:
+            with turn:
+                released.clear()
         marker = next((m for m in read("markers").split() if m.encode() in body), "-")
         open(os.path.join(work, "held"), "a").write("%d %s\n" % (seq, marker))
     while True:
