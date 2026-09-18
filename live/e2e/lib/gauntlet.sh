@@ -446,6 +446,7 @@ gauntlet_k8s_wait_all() {
 }
 
 # gauntlet_record_count <dir>: counts a record store's on-disk record files
+# gauntlet_record_count <dir>: counts a record store's on-disk FILES
 # under <dir> the way every crossing script already counted them by hand -
 # "-type f", skipping the write-lock and in-progress-write files a
 # staterecord.Store leaves beside its records - PLUS one more exclusion:
@@ -459,8 +460,49 @@ gauntlet_k8s_wait_all() {
 # sentinelKeyName and update the literal here. Before this exclusion
 # existed, a store touched during a run counted one file too many
 # (issue #861).
+#
+# It counts FILES, which is not the same question as "how many records"
+# and is only the same answer when nothing else shares the path. Guided
+# discovery's hint owns "tofu-hints/<estate>" in the same store, beside
+# the records and deliberately disjoint from them (internal/configs/
+# live.go:1382 refuses a key_prefix that would collide with it), so a
+# store a guided run has touched holds one file this counts and no reader
+# would call a record. Measured 2026-09-18 on a three-manifest root: three
+# records, one .store-sentinel and one tofu-hints/<estate>/guided, of
+# which this prints 4. Use it for a DELTA, where the constants cancel;
+# use gauntlet_record_envelope_count below for an absolute (issue #1288).
 gauntlet_record_count() {
   find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# gauntlet_record_envelope_count <dir>: how many RECORDS are under <dir> -
+# files whose content is a record envelope, identified the way
+# gauntlet_record_file already identifies one, by the envelope's own
+# `address` field rather than by its position or its name. Anything else
+# sharing the store - the provisioning sentinel, guided discovery's hint,
+# a lock, a half-written temporary - is not an envelope and is not counted.
+#
+# This is the one to compare against an instance count. Issue #1288: the
+# reference-k8s-cert-manager greenfield control asserted its store held one
+# record per instance and read one too many, because the estate's own
+# guided hint was sitting in the same directory.
+gauntlet_record_envelope_count() {
+  python3 - "$1" <<'PY'
+import json, os, sys
+n = 0
+for dirpath, _, names in os.walk(sys.argv[1]):
+    for name in names:
+        if name.endswith('.lock') or '.tmp-' in name or name == '.store-sentinel':
+            continue
+        try:
+            with open(os.path.join(dirpath, name)) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get('address'):
+            n += 1
+print(n)
+PY
 }
 
 # gauntlet_record_file <dir> <address>: the path of the one record file
@@ -504,6 +546,32 @@ with open(sys.argv[1]) as fh:
     d = json.load(fh)
 for k in sorted((d.get('residue') or {}).get('attributes') or {}):
     print(k)
+PY
+}
+
+# gauntlet_record_manifest_keys <file> <labels|annotations>: the metadata
+# map keys a kubernetes_manifest's record says its own applied manifest
+# DECLARED, space-separated and sorted, read off the envelope's
+# residue.manifest_metadata_keys member (issue #1211). The status is 1 and
+# nothing is printed when the envelope has no entry for that map at all -
+# a record written before #1211, or by a type that is not manifest-shaped.
+#
+# The distinction the status draws is the whole point of this helper, and
+# a caller must not collapse it: "declared no annotations" is an entry
+# holding an EMPTY list, which prints nothing with status 0, while "this
+# record does not know what was declared" is an absent entry, status 1.
+# #1211's removal set is (recorded declared keys) \ (currently declared
+# keys), so the first proposes removing whatever the object still carries
+# from a previous apply and the second proposes removing nothing.
+gauntlet_record_manifest_keys() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+sets = (d.get('residue') or {}).get('manifest_metadata_keys') or {}
+if sys.argv[2] not in sets:
+    sys.exit(1)
+print(' '.join(sorted(sets[sys.argv[2]] or [])))
 PY
 }
 
