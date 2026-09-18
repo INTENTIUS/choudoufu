@@ -16,6 +16,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/aws/smithy-go/middleware"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/retry"
@@ -248,6 +249,7 @@ func recordStoreKeyPrefix(rs *configs.LiveRecordStore, estate string) string {
 // that makes a run's evidence readable.
 func loadAWSConfig(ctx context.Context, region string, rt *configs.LiveRetry) (aws.Config, error) {
 	opts := retry.Build(rt).Options()
+	opts = append(opts, awsconfig.WithAPIOptions([]func(*middleware.Stack) error{recordStoreRequestLog}))
 	if region != "" {
 		opts = append(opts, awsconfig.WithRegion(region))
 	}
