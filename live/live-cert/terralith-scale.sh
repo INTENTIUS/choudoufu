@@ -1645,6 +1645,7 @@ index_wait() {
   if [ "$target" -le 0 ]; then
     INDEX_LAG_S=0
     INDEX_CONVERGED=na
+    INDEX_NOTE="tag index wait skipped: nothing this estate stamped is reachable from the index in ${REGION}"
     log "index wait SKIPPED: nothing this estate stamped is reachable from the tag index in ${REGION}, so there is no target to converge on. Not waiting is the honest answer - a 0-of-0 'converged' would be a false pass, and the bound would be pure dead time"
     return 0
   fi
@@ -1657,12 +1658,15 @@ index_wait() {
     if [ "${idx_n:-0}" -ge "$target" ]; then
       INDEX_LAG_S=$elapsed
       INDEX_CONVERGED=yes
+      INDEX_NOTE="tag index converged on ${idx_n} of a reachable ${target}, itself $((VERIFIED - target)) short of the ${VERIFIED} stamped (see the wait's own breakdown)"
       log "index converged after ${INDEX_LAG_S}s: ${idx_n} of a reachable ${target}. This is NOT ${VERIFIED} of ${VERIFIED}: $((VERIFIED - target)) stamped object(s) are outside what the tag index can hold from ${REGION} and were never part of the target - see the breakdown above before reading this as 'every object is in the index'"
       return 0
     fi
     if [ "$elapsed" -ge "$LIVECERT_INDEX_WAIT_S" ]; then
       INDEX_LAG_S=$elapsed
       INDEX_CONVERGED=no
+      INDEX_NOTE="tag index did NOT converge: ${idx_n:-0} of a reachable ${target} after ${LIVECERT_INDEX_WAIT_S}s"
+
       # This is the second half of #1143. The old code printed "still at N
       # of M ... proceeding" and returned 0, and the run went on to pass
       # test_plan - so a bound that tripped on an IMPOSSIBLE target was
@@ -1693,6 +1697,11 @@ INDEX_TARGET_N=0
 # read to tools/gauntlet/scalerecord.go exactly like the old run that could
 # not distinguish converged from timed-out at all.
 INDEX_CONVERGED=skipped
+# One clause of plain prose for the same thing, folded into test_plan's own
+# detail sentence beside the tokens. A token is for the parser; a reader
+# scanning a row should not have to know that index_converged=no is the
+# interesting one.
+INDEX_NOTE="tag index wait skipped (target=$TARGET)"
 if [ "$TARGET" = "aws" ]; then
   index_wait
 else
@@ -1882,7 +1891,7 @@ if [ -n "$TP_FAIL" ]; then
   PLAN_CALLS_TOKENS=""
   [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
   [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
-  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
+  fail "${TP_FAIL} ${INDEX_NOTE}; index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="
@@ -1902,7 +1911,7 @@ log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI di
 PLAN_CALLS_TOKENS=""
 [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
 [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); ${INDEX_NOTE}; index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and

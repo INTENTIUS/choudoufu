@@ -306,9 +306,13 @@ FAKEEOF
     printf 'INDEX_LAG_S=0\n'
     printf 'INDEX_TARGET_N=0\n'
     printf 'INDEX_CONVERGED=skipped\n'
+    printf 'INDEX_NOTE=unset\n'
     printf '%s\n' "$INDEX_WAIT_SRC"
     printf '%s\n' 'index_wait'
     printf '%s\n' 'printf "RESULT rc=%s converged=%s target=%s lag=%s\n" "$?" "$INDEX_CONVERGED" "$INDEX_TARGET_N" "$INDEX_LAG_S"'
+    # INDEX_NOTE is the prose clause test_plan's detail carries beside the
+    # tokens, on its own line because it contains spaces.
+    printf '%s\n' 'printf "NOTE %s\n" "$INDEX_NOTE"'
   } > "$runner"
 
   # The fake aws goes first on PATH, set at invocation rather than baked into
@@ -356,6 +360,11 @@ else
 fi
 expect_result "$CASE_C_OUT" converged yes "case C" && log "  confirmed: index_converged=yes"
 expect_result "$CASE_C_OUT" target 104 "case C" && log "  confirmed: index_target=104 rides into the recorded row"
+if ! grep -qF 'NOTE tag index converged on 104 of a reachable 104, itself 1551 short of the 1655 stamped' <<< "$CASE_C_OUT"; then
+  fail_case "case C: INDEX_NOTE does not carry the converged clause test_plan's detail folds in - a reader scanning the row should not have to know that index_converged=no is the interesting token"
+else
+  log "  confirmed: the prose clause for test_plan's detail says what converged and how short of the stamped count it is"
+fi
 CASE_C_POLLS="$(grep -cE '^  index wait: t=' <<< "$CASE_C_OUT")"
 if [ "$CASE_C_POLLS" != "3" ]; then
   fail_case "case C: expected 3 poll lines (one per scripted count), got $CASE_C_POLLS"
@@ -397,6 +406,11 @@ expect_result "$CASE_E_OUT" rc 0 "case E" \
 expect_result "$CASE_E_OUT" converged no "case E" \
   && log "  confirmed: index_converged=no - a recorded row can no longer be read as a converged measurement"
 expect_result "$CASE_E_OUT" target 104 "case E" && log "  confirmed: index_target=104"
+if ! grep -qF 'NOTE tag index did NOT converge: 12 of a reachable 104 after 1s' <<< "$CASE_E_OUT"; then
+  fail_case "case E: INDEX_NOTE does not say the index failed to converge - this is the clause that stops a pass row reading as a clean one"
+else
+  log "  confirmed: the prose clause on the recorded row says NOT converge, in plain words"
+fi
 
 log ""
 log "=== case F: a zero target skips the wait and makes NO aws call at all ==="

@@ -581,11 +581,30 @@ the reason for. `live/live-cert/terralith-scale.sh` (`#1032`) now polls the
 same tag index `test_plan` itself reads, between `migrate` and `test_plan`,
 every 30 seconds up to a 1,800-second bound, and proceeds either way -
 converged or not - so `test_plan` always runs against a measured account
-state instead of an arbitrary one. The lag itself is recorded as its own
-number, `index_lag_s`, in `test_plan`'s own stage detail: how long the
-index took to reach `migrate`'s stamped count, or how far it still was from
-it when the bound gave up. A clear row at this scale needs both `#1046` and
-`#1049` landed and one more real-AWS run.
+state instead of an arbitrary one.
+
+What it polls *for* was wrong until
+[#1143](https://github.com/INTENTIUS/choudoufu/issues/1143). The wait asked
+for every object `migrate` stamped, and the tag index cannot hold most of
+them: `GetResources` returns nothing at all for `iam:role`, in any region,
+while the IAM API confirms the tags are there, and it holds a global
+service's objects - IAM policies, instance profiles, Route 53 zones - only
+in `us-east-1`, whatever region you are calling from
+([#1134](https://github.com/INTENTIUS/choudoufu/issues/1134),
+[#1144](https://github.com/INTENTIUS/choudoufu/issues/1144)). At scale 50
+that is 1,655 asked for against 104 reachable from `us-east-2`. Three
+real-AWS runs each burned the full bound and each plateaued at exactly the
+reachable ceiling - 104 and 1,105 at scale 50, 260 at scale 128 - and the
+plateau was read as an index settling slowly. It was the ceiling.
+
+So the wait now derives its target from what the index can answer for in the
+region being queried, prints the types it is *not* waiting for and why, and
+records three numbers in `test_plan`'s own stage detail rather than one:
+`index_lag_s` (how long it waited), `index_target` (what it waited for) and
+`index_converged` (whether it got there). On a real-AWS run this is an hour
+of wall-clock that no longer gets spent on an unsatisfiable condition. A
+clear row at this scale needs both `#1046` and `#1049` landed and one more
+real-AWS run.
 
 ### The old state file stops being a safe fallback
 

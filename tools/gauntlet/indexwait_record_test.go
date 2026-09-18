@@ -107,3 +107,41 @@ func TestBuildScaleRecordCarriesIndexWaitVerdict(t *testing.T) {
 		t.Errorf("IndexTargetN = %v, want 104", rec.IndexTargetN)
 	}
 }
+
+// TestParseIndexWaitDetailAlongsideItsProse uses the WHOLE detail sentence
+// terralith-scale.sh writes, prose clause and all. The tokens sit beside a
+// human-readable "tag index did NOT converge: 12 of a reachable 104 after
+// 1800s" clause that itself contains digits and the word "after", so this
+// asserts the token patterns are anchored on their own keys and are not
+// reading numbers out of the sentence around them. Everything else on the
+// line - seconds, throttle, retry - must still come back unchanged.
+func TestParseIndexWaitDetailAlongsideItsProse(t *testing.T) {
+	const detail = "post-migrate plan is empty in 412s; zone/role tofu-address confirmed via the AWS CLI; " +
+		"debug log 88 bytes, 0 throttling-error line(s), 2 retry line(s); " +
+		"tag index did NOT converge: 12 of a reachable 104 after 1800s; " +
+		"index_lag_s=1800 index_converged=no index_target=104 seconds=412 throttle=0 retry=2"
+
+	converged, target := parseIndexWaitDetail(detail)
+	if converged == nil {
+		t.Fatal("converged = nil, want false")
+	} else if *converged {
+		t.Errorf("converged = %v, want false", *converged)
+	}
+	if target == nil || *target != 104 {
+		t.Errorf("target = %v, want 104 - not 12, and not 1800, both of which appear in the prose", target)
+	}
+
+	seconds, throttle, retry, indexLag := parseTestPlanDetail(detail)
+	if seconds == nil || *seconds != 412 {
+		t.Errorf("seconds = %v, want 412", seconds)
+	}
+	if throttle == nil || *throttle != 0 {
+		t.Errorf("throttle = %v, want 0", throttle)
+	}
+	if retry == nil || *retry != 2 {
+		t.Errorf("retry = %v, want 2", retry)
+	}
+	if indexLag == nil || *indexLag != 1800 {
+		t.Errorf("indexLag = %v, want 1800", indexLag)
+	}
+}
