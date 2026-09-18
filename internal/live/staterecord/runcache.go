@@ -252,7 +252,23 @@ func (c *RunCache) List(ctx context.Context, keyPrefix string) ([]string, error)
 		c.mu.Lock()
 		if c.loaded {
 			keys := make([]string, 0, len(c.entries))
-			for key := range c.entries {
+			for key, hit := range c.entries {
+				if !hit.exists {
+					// A negative entry: a key read individually and found
+					// absent, remembered so the second read of the same
+					// missing key is free. It is not a stored key, and
+					// [Store.List]'s contract is the stored ones.
+					//
+					// It can only be here for an in-namespace key because
+					// the per-key path ran BEFORE the snapshot loaded -
+					// once c.loaded is set, Get answers every in-namespace
+					// miss from the snapshot and stores nothing. So the
+					// sequence is a bulk read that failed, a miss read
+					// per-key, then [RunCache.ensureLoaded]'s retry on the
+					// next Get succeeding: one transient GetAll failure is
+					// the whole precondition. Issue #1301.
+					continue
+				}
 				if strings.HasPrefix(key, keyPrefix) {
 					keys = append(keys, key)
 				}

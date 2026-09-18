@@ -961,8 +961,16 @@ func (s *RecordStore) Prefix() string {
 }
 
 // List returns every key this store holds, exactly [staterecord.Store.List]
-// rooted at this store's own prefix. Used by
-// [builder.discoverOrphanedRecords] alone.
+// rooted at this store's own prefix.
+//
+// Four production call sites, not one: [builder.discoverOrphanedRecords]
+// here, discovery's recordOrphanReadSweep and estateScopedNativeSweep, and
+// live-mv's module-boundary record sweep. Three of them re-read every key
+// before acting on it, so an absent one is skipped; estateScopedNativeSweep
+// reads only the TYPE out of the key string and never re-reads at all.
+// GitHub issue #1301 was a [staterecord.RunCache] that could name a key
+// holding no record, and the earlier version of this comment - "used by
+// discoverOrphanedRecords alone" - is why it read as contained.
 func (s *RecordStore) List(ctx context.Context) ([]string, error) {
 	if s == nil {
 		return nil, nil
