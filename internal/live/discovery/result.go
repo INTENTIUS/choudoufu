@@ -825,6 +825,56 @@ const (
 	// about one declared address rather than guessing from an absence.
 	SweepGapTagIndexUnavailable SweepGapReason = "TAG_INDEX_UNAVAILABLE"
 
+	// SweepGapTagIndexHeldNothing is the third answer [sweepViaTagging]'s
+	// registry-untaggable arm needs (issue #1318), and it exists because a
+	// lagging index and an untaggable type look identical at that point:
+	// both are an empty candidate list for a type live/registry.json calls
+	// untaggable.
+	//
+	// They are not identical, and one input tells them apart. The
+	// provider's own resource schema either gives the type a tags argument
+	// or it does not ([typeTaggable]). Where it does not, nothing was ever
+	// there for the index to hold, [SweepGapNotTaggable] is true and
+	// [sweepGapDiag] is right to suppress it. Where it does - and
+	// live/registry.json says otherwise for AWS::IAM::Policy and
+	// AWS::IAM::InstanceProfile, whose CloudFormation schemas carry no Tags
+	// property while internal/live/stamp writes this estate's marker onto
+	// every object of both - the empty answer may be an index that has not
+	// caught up. Issue #1046 measured the Resource Groups Tagging API
+	// holding 104 of 1,655 stamped objects about 21 minutes after migrate
+	// had verified every one of them on a real account.
+	//
+	// Scoped to the types whose index coverage this repository has actually
+	// MEASURED as something other than the ordinary every-region one
+	// ([taggingAPIRestrictedType]), and only from a region that coverage
+	// says does serve them. For an ordinary type an empty index answer is
+	// the evidence the whole tagging leg rests on - it is what "the estate
+	// owns none of this type" looks like for every one of the hundreds of
+	// types in the universe - and raising it to a per-run diagnostic there
+	// would bury the case where the index is known not to behave
+	// ordinarily. Those types keep [SweepGapNotTaggable] and its
+	// suppression, unchanged; the wording is still wrong about them and the
+	// fix for that is live/registry.json's generator, not this arm.
+	//
+	// Distinct from [SweepGapTagIndexUnavailable], where the index could
+	// not be ASKED - no Tagging client, or the one GetResources call
+	// failed. Here the call succeeded and the answer simply held none of
+	// this type. Distinct from [SweepGapMarkerUnreadable], where a leg
+	// enumerated the objects and could not read a marker off them; here
+	// nothing was enumerated at all. Distinct from [SweepGapNotTaggable],
+	// which is the same silence for a type that could never have carried a
+	// marker - saying that about a type whose every live object carries one
+	// is the conflation this reason exists to end.
+	//
+	// Recorded rather than covered, deliberately. Adding [typeTaggable] to
+	// the arm's condition instead - so the type falls through to an
+	// ordinary scan with Listed:0 - was tried on #1144 and reverted: that
+	// claims the sweep established the estate owns none of the type and
+	// drops it out of [Result.SweepGaps] altogether. A recorded gap
+	// under-claims, a covered scan over-claims, and over-claiming is the
+	// one this project's safety rule forbids.
+	SweepGapTagIndexHeldNothing SweepGapReason = "TAG_INDEX_HELD_NOTHING"
+
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a
 	// parent-scoped ResourceModel (live/registry.json's
 	// handlers.list_required_input, internal/live/cloudcontrol's

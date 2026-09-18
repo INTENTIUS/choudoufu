@@ -368,24 +368,39 @@ func TestPerRegionTaggingRoutingAgainstFloci(t *testing.T) {
 			// was demanding a marker read out of thin air.
 			//
 			// The second demanded that the broken table say NOTHING. It
-			// does file something - SweepGapNotTaggable, on the strength
-			// of live/registry.json's stale taggable:false row - but
-			// [sweepGapDiag] suppresses that reason, so no diagnostic
-			// reaches the operator, and the text it would have carried is
-			// false about this object anyway: the profile plainly does
-			// carry a marker, which is how the us-east-1 arm read it. So
-			// the assertion is about the REASON, not about presence.
+			// files something, and what it files changed under issue
+			// #1318, which is worth recording because it makes this break
+			// LESS harmful than it was when this test was written.
+			//
+			// Until #1318 the broken table filed SweepGapNotTaggable, on
+			// the strength of live/registry.json's stale taggable:false
+			// row - a reason [sweepGapDiag] suppresses, so no diagnostic
+			// reached the operator at all, and the text it would have
+			// carried was false about this object anyway: the profile
+			// plainly does carry a marker, which is how the us-east-1 arm
+			// read it. #1318 gave [sweepViaTagging]'s registry-untaggable
+			// arm a third verdict for exactly that case, so the broken
+			// table now files SweepGapTagIndexHeldNothing and SPEAKS.
+			//
+			// So the region-blind break's harm is no longer "silent". It
+			// is the lost destroy alone, plus a reason that is true as far
+			// as it goes and still not the truth: the run says the index
+			// it was pointed at held none of this type, where the fact is
+			// that us-west-2's index holds none of this type EVER and the
+			// shipped table knows it. The assertion stays on the REASON,
+			// because what the run says is the thing that differs.
 			if broken.Recovered {
 				t.Errorf("the region-blind table still recovered %s from us-west-2, so it is not the break this arm "+
 					"means to run - re-derive what it is installing. region-blind: %s", typeName, broken)
 			}
-			if broken.GapReason != SweepGapNotTaggable {
+			if broken.GapReason != SweepGapTagIndexHeldNothing {
 				t.Errorf("the region-blind table filed %q for %s, want %q.\n"+
-					"The break's harm is precisely that the only thing it records is a reason sweepGapDiag "+
-					"suppresses, attributing a lost destroy to a type that cannot carry a marker - which this very "+
-					"run disproved in us-east-1. A different reason here means the run said something else and the "+
-					"comparison is measuring something else. region-blind: %s",
-					broken.GapReason, typeName, SweepGapNotTaggable, broken)
+					"A region-blind narrowing tells the sweep this type is indexed here, so an empty answer lands "+
+					"in the registry-untaggable arm and #1318's third verdict is what that arm now says about a "+
+					"type the provider schema calls taggable. %q here would mean the pre-#1318 suppression is "+
+					"back and the lost destroy is silent again; any other reason means the run said something "+
+					"else and the comparison is measuring something else. region-blind: %s",
+					broken.GapReason, typeName, SweepGapTagIndexHeldNothing, SweepGapNotTaggable, broken)
 			}
 			if !shipped.Recovered && shipped.GapReason != SweepGapMarkerUnreadable {
 				t.Errorf("in us-west-2 the shipped table neither recovered %s nor filed %q for it (it filed %q).\n"+
@@ -394,8 +409,9 @@ func TestPerRegionTaggingRoutingAgainstFloci(t *testing.T) {
 					typeName, SweepGapMarkerUnreadable, shipped.GapReason, shipped)
 			}
 			t.Logf("us-west-2 %s: shipped [%s] vs region-blind [%s] - the correct routing proposes the destroy or "+
-				"names why it cannot; the region-blind one loses the destroy and blames a suppressed "+
-				"untaggability that this run disproved in us-east-1", typeName, shipped, broken)
+				"names why it cannot; the region-blind one loses the destroy and can only report an index that "+
+				"held nothing, where the fact is that this region's index holds none of this type at all",
+				typeName, shipped, broken)
 		}
 	})
 }

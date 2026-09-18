@@ -622,6 +622,73 @@ func taggingAPIRestrictedType(typeName string) bool {
 	return ok
 }
 
+// tagIndexHeldNothingGap is issue #1318's third verdict, and the whole of it
+// is one question asked of the right source: can this type carry a tag?
+//
+// [sweepViaTagging]'s registry-untaggable arm reaches two situations that
+// look identical from where it stands - an empty candidate list for a type
+// live/registry.json calls untaggable - and are not the same fact at all:
+//
+//	the type has no tags argument     -> nothing was ever there to find
+//	the type has one and none came back -> something may well have been there
+//
+// live/registry.json cannot settle it, because its taggable flag is
+// CloudFormation's claim about whether ITS update-tags API writes the type's
+// tags; AWS::IAM::Policy and AWS::IAM::InstanceProfile are false there while
+// the provider gives both a tags argument and [internal/live/stamp] writes
+// this estate's marker onto every object of both. [typeTaggable] asks the
+// provider's own resource schema instead, which is the same source
+// live/survey-full.json's signals.taggable column and stamping itself use,
+// and it is the whole distinction.
+//
+// Two further terms, and both NARROW rather than widen:
+//
+//   - [taggingAPIRestrictedType]. Measured over the admitted table at
+//     provider 6.59.0, six types reach this arm at all with a taggable
+//     provider schema, and three of them (aws_launch_template and the two
+//     aws_vpc_security_group_*_rule types) have ordinary index coverage -
+//     the index holds them in every region. For those, an empty answer is
+//     the same evidence the entire tagging leg rests on; it is what "this
+//     estate owns none of this type" looks like for every one of the
+//     hundreds of types in the universe, and raising it to a per-run
+//     diagnostic would bury the case where the index is known NOT to behave
+//     ordinarily. They keep [SweepGapNotTaggable] and its suppression,
+//     unchanged by #1318 - their wording is still wrong about them, and the
+//     repair for that is live/registry.json's generator (#1318's candidate
+//     1), not this arm.
+//
+//   - the region term. A restricted type is only reported this way from a
+//     region its coverage row says DOES serve it. From any other region the
+//     loud [SweepGapNoEnumerationRoute] arm above has already taken the run
+//     and said something stronger; asking the question here again would
+//     depend on that arm's ordering rather than on its own terms.
+//
+// What is left is exactly #1318's case: a type that carries a marker, in a
+// region whose index holds that type, where the index answered and held none
+// of this estate's. Issue #1046 measured that answer being wrong on a real
+// account - 104 of 1,655 stamped objects, about 21 minutes after migrate had
+// verified every one of them.
+func tagIndexHeldNothingGap(schemas listclient.Schemas, region, typeName, cfnType string) (SweepGap, bool) {
+	if !typeTaggable(schemas, typeName) {
+		return SweepGap{}, false
+	}
+	cov, restricted := taggingAPICoverageFor(typeName)
+	if !restricted || taggingAPIUnservedTypeInRegion(region, typeName) {
+		return SweepGap{}, false
+	}
+	where := "this caller region"
+	if len(cov.Regions) > 0 {
+		where = strings.Join(cov.Regions, ", ")
+	}
+	return SweepGap{
+		TypeName: typeName,
+		Reason:   SweepGapTagIndexHeldNothing,
+		Detail: fmt.Sprintf(
+			"live/registry.json records %s (Cloud Control type %s) as untaggable, but that flag is CloudFormation's claim about its own update-tags API rather than a fact about the live object: the provider gives %s a tags argument and choudoufu writes this estate's ownership marker onto it. So the estate-wide tag sweep did search for it, and the Resource Groups Tagging API - whose index holds this type from %s alone - answered holding none of this estate's. An empty answer there is not evidence this estate owns no undeclared %s: this index has been measured lagging its own marker writes by around twenty minutes at volume on a real account, and this is the one type family whose index is also region-scoped. This run therefore claims no coverage for %s - if a block of it was deleted, no destroy is proposed for the live resource, and none will be until the index holds it. Re-run the plan, or remove it by hand.",
+			typeName, cfnType, typeName, where, typeName, typeName),
+	}, true
+}
+
 // taggingAPIListDropsTags reports whether this repository has MEASURED the
 // provider's own list route for typeName returning objects with their tags
 // stripped, so that an untagged listing is evidence the route is blind
@@ -1303,8 +1370,20 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 			// decline calling such objects foreign (#1153). A recorded,
 			// suppressed gap under-claims; "covered, nothing found"
 			// over-claims, and over-claiming is the one this project's
-			// safety rule forbids. The visible-diagnostic half is a real
-			// question and it is NOT this issue's - see #1318.
+			// safety rule forbids.
+			//
+			// Issue #1318 is that door, closed the other way: the case
+			// still matches and the type still stays out of
+			// [Result.SweepCovered], so nothing is over-claimed and no
+			// [Result.SweepGaps] entry is lost. What changes is WHICH gap
+			// is filed. [tagIndexHeldNothingGap] answers with a third
+			// verdict for the type this arm cannot honestly call
+			// untaggable, and only for it; every other type reaching here
+			// keeps exactly the gap it had.
+			if g, ok := tagIndexHeldNothingGap(schemas, req.Region, typeName, cfnType); ok {
+				diags = diags.Append(sweepGapDiag(res, g))
+				continue
+			}
 			_, known := req.Roster.TaggableKnown(cfnType)
 			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
 			continue
