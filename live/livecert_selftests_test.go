@@ -181,9 +181,13 @@ func TestLiveCertSelftestRosterIsComplete(t *testing.T) {
 				names = append(names, n)
 			}
 			sort.Strings(names)
+			runBy := s.where
+			if runBy == "" {
+				runBy = "TestLiveCertSelftestsPass in this file"
+			}
 			t.Errorf("liveCertSelftests names live/live-cert/%s, which does not exist. Present: %s.\n"+
 				"A renamed script leaves its wiring exec'ing a path that is gone, which fails as loudly as it should "+
-				"but says nothing useful; fix the roster entry (and whatever runs it: %s).", s.script, strings.Join(names, ", "), s.where)
+				"but says nothing useful; fix the roster entry, and whatever runs it: %s.", s.script, strings.Join(names, ", "), runBy)
 		}
 	}
 }
@@ -246,13 +250,32 @@ func TestEveryGoTierSelftestIsActuallyExecd(t *testing.T) {
 			continue
 		}
 		// The needle is built from the roster entry rather than written
-		// out, so a rename on either side breaks it, and it names the
-		// directory too so a bare mention of the basename in prose is
-		// not enough to satisfy it.
+		// out, so a rename on either side breaks it.
+		//
+		// It has to be an exec, on a line that is not a comment. Written
+		// as a plain strings.Contains over the file this test was GREEN
+		// after the exec was deleted, because indexwait_partition_test.go's
+		// doc comment names the script three times in prose - a guard
+		// passing over a condition it cannot observe, which is the class
+		// #1267 is clearing. Proven red afterwards by replacing that file's
+		// exec.Command with exec.Command("bash", "-c", "true").
 		needle := liveCertSelftestDir + "/" + st.script
-		if !strings.Contains(string(data), needle) {
-			t.Errorf("%s no longer mentions %q, so nothing in this package runs live/live-cert/%s.\n"+
-				"It proves: %s\nEither restore the wiring there or move the entry to runsHere.",
+		execd := false
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				continue
+			}
+			if strings.Contains(line, needle) && strings.Contains(line, "exec.Command") {
+				execd = true
+				break
+			}
+		}
+		if !execd {
+			t.Errorf("%s has no exec.Command line naming %q, so nothing in this package runs live/live-cert/%s.\n"+
+				"It proves: %s\n"+
+				"Prose mentioning the script does not count and is deliberately not accepted here. Either restore the "+
+				"wiring there, move the entry to runsHere, or - if the exec now builds the path some other way - widen "+
+				"this check rather than deleting it.",
 				st.where, needle, st.script, st.proves)
 		}
 	}
@@ -291,6 +314,19 @@ func TestCIRunsTheKillSelftest(t *testing.T) {
 			ciWorkflowRel, killSelftestJobName)
 	}
 
+	// Commands only. The job's steps carry comments that talk about the
+	// script, the binary and the bound in order to explain them, and a
+	// substring scan over the whole block would be satisfied by the
+	// explanation of a step that had been deleted.
+	var commands []string
+	for _, line := range strings.Split(job, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		commands = append(commands, line)
+	}
+	jobCommands := strings.Join(commands, "\n")
+
 	for _, want := range []struct {
 		substr string
 		why    string
@@ -301,8 +337,8 @@ func TestCIRunsTheKillSelftest(t *testing.T) {
 		{"=== selftest-kill: PASS", "a zero exit is not the evidence: the job must require the script's own verdict line, the same discipline the validate-generated-terralith job holds to"},
 		{"timeout ", "the script is bounded internally, but the job bounds it again so a hang in docker or the image pull reddens rather than stalls"},
 	} {
-		if !strings.Contains(job, want.substr) {
-			t.Errorf("the %s job in %s does not contain %q: %s", killSelftestJobName, ciWorkflowRel, want.substr, want.why)
+		if !strings.Contains(jobCommands, want.substr) {
+			t.Errorf("the %s job in %s does not run anything containing %q: %s", killSelftestJobName, ciWorkflowRel, want.substr, want.why)
 		}
 	}
 
@@ -348,7 +384,13 @@ func TestKillSelftestWaitIsBounded(t *testing.T) {
 		substr string
 		why    string
 	}{
-		{"WAIT_BOUND_S", "the bound has to exist"},
+		// The assignment, not the bare name: "WAIT_BOUND_S" is a
+		// substring of "SELFTEST_KILL_WAIT_BOUND_S", so the short form
+		// was satisfied by the doc comment that explains the variable
+		// even with the assignment deleted. A needle that matches its own
+		// explanation is the pgrep-matches-its-own-command-line bug
+		// wearing a test's clothes.
+		{`WAIT_BOUND_S="${SELFTEST_KILL_WAIT_BOUND_S:`, "the bound has to be assigned, not just described"},
 		{"kill -KILL \"$HARNESS_PID\"", "the watchdog is what enforces it; a poll cannot, see this test's doc comment"},
 		{"-eq 137", "the script must distinguish \"the trap hung and we killed it\" from \"the trap ran and exited non-130\", or a hang reports as the wrong defect"},
 	} {
