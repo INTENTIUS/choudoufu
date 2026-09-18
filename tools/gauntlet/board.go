@@ -38,10 +38,10 @@ type Board struct {
 	// Markdown.
 	RuntimeBanner string `json:"runtime_banner"`
 	// ScriptBanner is scriptStaleBanner's sentence: how many rows below
-	// were measured before their own estate directory last changed
-	// (#1264). Markdown. Empty when the board was built with no checkout
-	// to read, which says nothing rather than claiming everything is
-	// current.
+	// were measured before their own estate directory, or the shared
+	// protocol library they source, last changed (#1264, #1292).
+	// Markdown. Empty when the board was built with no checkout to read,
+	// which says nothing rather than claiming everything is current.
 	ScriptBanner string       `json:"script_banner,omitempty"`
 	StageCount   int          `json:"stage_count"`
 	Stages       []BoardStage `json:"stages"`
@@ -115,10 +115,12 @@ type BoardEstate struct {
 	// row carries none, which is every row whose last run reached every
 	// stage and every row written before per-stage provenance existed.
 	StaleNote string `json:"stale_note,omitempty"`
-	// ScriptStale is this row's whole-row staleness against its own estate
-	// directory (#1264): "changed", "unknown", or empty for a row whose
-	// script has not moved since the run below measured it. It is the
-	// index table's badge; ScriptNote is the sentence.
+	// ScriptStale is this row's whole-row staleness against the watched
+	// set - its own estate directory and live/e2e/lib/, the protocol
+	// library it sources (#1264, #1292): "changed", "unknown", or empty
+	// for a row where neither has moved since the run below measured it.
+	// It is the index table's badge; ScriptNote is the sentence, and the
+	// sentence says which of the two changed.
 	//
 	// A different fact from StaleNote above, which is about one RUN
 	// aborting before it reached a stage (#1069). This one is about the

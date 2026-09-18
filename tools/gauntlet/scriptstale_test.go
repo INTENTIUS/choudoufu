@@ -31,10 +31,10 @@ func rowWithRun(name, script, commit string) EstateResult {
 func TestScriptStalenessThreeStates(t *testing.T) {
 	const script = "live/e2e/reference-k8s-stateful/run.sh"
 	diffOf := func(paths ...string) pathDiff {
-		return func(_, _ string) ([]string, error) { return paths, nil }
+		return func(_ string, _ []string) ([]string, error) { return paths, nil }
 	}
 	failing := func(msg string) pathDiff {
-		return func(_, _ string) ([]string, error) { return nil, errors.New(msg) }
+		return func(_ string, _ []string) ([]string, error) { return nil, errors.New(msg) }
 	}
 	cases := []struct {
 		name      string
@@ -42,6 +42,7 @@ func TestScriptStalenessThreeStates(t *testing.T) {
 		diff      pathDiff
 		want      string
 		changed   []string
+		shared    []string
 		inert     []string
 		whyHas    string
 		wantNoDir bool
@@ -73,6 +74,22 @@ func TestScriptStalenessThreeStates(t *testing.T) {
 				"live/e2e/reference-k8s-cert-manager/run.sh",
 			},
 			inert: []string{"live/e2e/reference-k8s-cert-manager/README.md"},
+		},
+		{
+			// #1292: the shared protocol library is outside every estate's
+			// own directory, so before it was watched this row read
+			// `current` while the functions its every stage calls had
+			// moved under it.
+			name: "only the shared protocol library changed",
+			row:  rowWithRun("reference-k8s-stateful", script, "56e04ebca6"),
+			diff: diffOf(SharedLibDir + "/gauntlet.sh"),
+			want: ScriptChanged, shared: []string{SharedLibDir + "/gauntlet.sh"},
+		},
+		{
+			name: "both sides changed",
+			row:  rowWithRun("reference-k8s-stateful", script, "56e04ebca6"),
+			diff: diffOf(SharedLibDir+"/gauntlet.sh", script),
+			want: ScriptChanged, changed: []string{script}, shared: []string{SharedLibDir + "/gauntlet.sh"},
 		},
 		{
 			name:   "git cannot answer",
@@ -112,6 +129,9 @@ func TestScriptStalenessThreeStates(t *testing.T) {
 			if strings.Join(got.Changed, ",") != strings.Join(tc.changed, ",") {
 				t.Errorf("changed = %v, want %v", got.Changed, tc.changed)
 			}
+			if strings.Join(got.Shared, ",") != strings.Join(tc.shared, ",") {
+				t.Errorf("shared = %v, want %v - the two sides are kept apart so the note can say which one moved", got.Shared, tc.shared)
+			}
 			if strings.Join(got.Inert, ",") != strings.Join(tc.inert, ",") {
 				t.Errorf("inert = %v, want %v", got.Inert, tc.inert)
 			}
@@ -133,6 +153,10 @@ func TestScriptStalenessThreeStates(t *testing.T) {
 func TestScriptStalenessAgainstARealCheckout(t *testing.T) {
 	root := initTestRepo(t)
 	const script = "live/e2e/fixture-estate/run.sh"
+	// The shared protocol library is part of the watched set, so it has to
+	// exist BEFORE the commit the row records - otherwise every arm below
+	// would read as changed because the library was added afterwards.
+	commitTestFile(t, root, SharedLibDir+"/gauntlet.sh", "gauntlet_stage() { :; }\n", "the protocol library as measured")
 	first := commitTestFile(t, root, script, "#!/usr/bin/env bash\necho one\n", "the script as measured")
 	commitTestFile(t, root, "live/e2e/fixture-estate/README.md", "# fixture\n", "documentation only")
 	row := rowWithRun("fixture-estate", script, first)
@@ -208,6 +232,223 @@ func TestScriptStalenessAgainstARealCheckout(t *testing.T) {
 			t.Errorf("why = %q, want it to say the commit is not an ancestor of HEAD", got.Why)
 		}
 	})
+}
+
+// TestSharedProtocolLibraryChangeBadgesTheRowsThatSourceIt is #1292's first
+// arm, against a real repository rather than an injected diff: edit the
+// shared library and every row goes stale, with the note saying it was the
+// SHARED side that moved and not the estate's own files.
+//
+// Driven red before it was green: with watchedDirs returning only the
+// estate's own directory (the state of this file before #1292), both
+// sub-tests report ScriptCurrent - the exact failure the issue describes,
+// 31 rows reading current while the functions all their stages call have
+// changed underneath.
+func TestSharedProtocolLibraryChangeBadgesTheRowsThatSourceIt(t *testing.T) {
+	root := initTestRepo(t)
+	const lib = SharedLibDir + "/gauntlet.sh"
+	commitTestFile(t, root, lib, "gauntlet_record_count() { ls \"$1\" | wc -l; }\n", "the protocol library as measured")
+	const aScript = "live/e2e/estate-a/run.sh"
+	const bScript = "live/e2e/estate-b/run.sh"
+	at := commitTestFile(t, root, aScript, "#!/usr/bin/env bash\nsource ../lib/gauntlet.sh\n", "estate a")
+	bt := commitTestFile(t, root, bScript, "#!/usr/bin/env bash\nsource ../lib/gauntlet.sh\n", "estate b")
+	a := rowWithRun("estate-a", aScript, at)
+	b := rowWithRun("estate-b", bScript, bt)
+
+	t.Run("nothing has moved yet", func(t *testing.T) {
+		for _, r := range []EstateResult{a, b} {
+			if got := scriptStaleness(r, gitPathDiff(root)); got.State != ScriptCurrent {
+				t.Fatalf("%s: state = %q (why %q, changed %v, shared %v) before any edit, want %q; the arms below would prove nothing",
+					r.Name, got.State, got.Why, got.Changed, got.Shared, ScriptCurrent)
+			}
+		}
+	})
+
+	// #1291's own change, in miniature: gauntlet_record_count stops counting
+	// and starts refusing. Neither estate directory is touched.
+	commitTestFile(t, root, lib, "gauntlet_record_count() { echo 'refusing a record store root' >&2; return 1; }\n", "#1291: the guard every row calls")
+
+	t.Run("both rows go stale on the shared side", func(t *testing.T) {
+		for _, r := range []EstateResult{a, b} {
+			got := scriptStaleness(r, gitPathDiff(root))
+			if got.State != ScriptChanged {
+				t.Fatalf("%s: state = %q (why %q), want %q - the library every stage calls changed under this row", r.Name, got.State, got.Why, ScriptChanged)
+			}
+			if len(got.Shared) != 1 || got.Shared[0] != lib {
+				t.Errorf("%s: shared = %v, want [%s]", r.Name, got.Shared, lib)
+			}
+			if len(got.Changed) != 0 {
+				t.Errorf("%s: changed = %v, want empty - this estate's own files did not move, and saying they did sends the reader to the wrong file", r.Name, got.Changed)
+			}
+			note := scriptStaleNote(got, EstateDir(r))
+			if !strings.Contains(note, "shared protocol library") || !strings.Contains(note, lib) {
+				t.Errorf("%s: note = %q, want it to name the shared library as what moved", r.Name, note)
+			}
+			if strings.Contains(note, "own files have changed") {
+				t.Errorf("%s: note = %q, blames this estate's own files for a change that is not theirs", r.Name, note)
+			}
+		}
+	})
+
+	t.Run("the banner says how many are shared-only", func(t *testing.T) {
+		art := &Artifact{Schema: 1, Estates: []EstateResult{a, b}}
+		st := AllScriptStaleness(root, art)
+		banner := scriptStaleBanner(art, st)
+		if !strings.Contains(banner, "2 of 2 rows") {
+			t.Errorf("banner = %q, want the count", banner)
+		}
+		if !strings.Contains(banner, "For 2 of them nothing in their own directory moved") {
+			t.Errorf("banner = %q, want it to say the change was in the shared library, not in 2 estate directories", banner)
+		}
+	})
+
+	t.Run("an estate edit on top still reads as its own", func(t *testing.T) {
+		// Both sides moved: the note must say both rather than pick one,
+		// or a reader re-runs the estate and never looks at the library.
+		commitTestFile(t, root, aScript, "#!/usr/bin/env bash\nsource ../lib/gauntlet.sh\necho two\n", "estate a edits its own script")
+		got := scriptStaleness(a, gitPathDiff(root))
+		if len(got.Changed) != 1 || len(got.Shared) != 1 {
+			t.Fatalf("changed = %v, shared = %v, want one of each", got.Changed, got.Shared)
+		}
+		note := scriptStaleNote(got, EstateDir(a))
+		if !strings.Contains(note, "own files have changed") || !strings.Contains(note, "shared protocol library") {
+			t.Errorf("note = %q, want both sides named", note)
+		}
+	})
+}
+
+// TestTheWatchedSetStopsWhereItSays is #1292's second arm, and the one that
+// keeps the set honest. Widening staleness until it catches everything is a
+// real failure here: a badge lit on every merge is read by nobody, and that
+// is worse than the gap, because a gap is visible the first time someone
+// looks and noise never is.
+//
+// So this drives the four candidates the derivation turned up and
+// deliberately left out (SharedLibDir's doc comment says why for each), plus
+// the product half #1288 is about, and asserts the row does NOT badge.
+//
+// Driven red before it was green: adding "live" to watchedDirs - the obvious
+// over-wide version, which is how "it sources things out of live/" would be
+// implemented by someone not counting the cost - makes every sub-test here
+// fail, and makes every row in the real artifact badge on any commit under
+// live/.
+func TestTheWatchedSetStopsWhereItSays(t *testing.T) {
+	root := initTestRepo(t)
+	const script = "live/e2e/fixture-estate/run.sh"
+	commitTestFile(t, root, SharedLibDir+"/gauntlet.sh", "gauntlet_stage() { :; }\n", "the protocol library")
+	at := commitTestFile(t, root, script, "#!/usr/bin/env bash\nsource ../lib/gauntlet.sh\n", "the script as measured")
+	row := rowWithRun("fixture-estate", script, at)
+
+	if got := scriptStaleness(row, gitPathDiff(root)); got.State != ScriptCurrent {
+		t.Fatalf("state = %q (why %q) before any edit, want %q", got.State, got.Why, ScriptCurrent)
+	}
+
+	// Each of these is a real out-of-directory reference a crossing script
+	// makes, with the reason it is nonetheless outside the watched set.
+	outside := []struct{ path, content, why string }{
+		{
+			"live/floci-image", "ghcr.io/lex00/floci@sha256:deadbeef\n",
+			"the emulator pin has a stronger check already: the row records last_run.emulator and emulatorNote compares that VALUE against the pin now",
+		},
+		{
+			"live/oracle-versions.json", "{\"terraform_version\":\"9.9.9\"}\n",
+			"oracleNote compares the recorded terraform and tofu versions by value; the file's remaining content is a 40-line prose comment, and badging 31 rows for a comment edit is the noise this arm exists to refuse (aws_provider_version is #1253's recording gap, not a diffing one)",
+		},
+		{
+			"live/gauntlet/estates.json", "{\"estates\":[{\"name\":\"other\"}]}\n",
+			"one file holds all 31 estates' manifest data, so a path diff badges every row when one estate's pre_apply list moves; honest coverage needs a per-estate subtree comparison",
+		},
+		{
+			"internal/live/projection/projection.go", "package projection // changed\n",
+			"the product half (#1288): almost every commit touches internal/, so diffing it badges every row on every merge",
+		},
+		{
+			"live/e2e/other-estate/run.sh", "#!/usr/bin/env bash\necho other\n",
+			"another estate's script is not this row's evidence",
+		},
+		{
+			"live/GAUNTLET.md", "# changed\n",
+			"rendered prose is not read by any run",
+		},
+	}
+	for _, o := range outside {
+		t.Run(o.path, func(t *testing.T) {
+			commitTestFile(t, root, o.path, o.content, "change "+o.path)
+			got := scriptStaleness(row, gitPathDiff(root))
+			if got.State != ScriptCurrent {
+				t.Errorf("changing %s badged the row (state %q, changed %v, shared %v).\nIt is outside the watched set on purpose: %s.\nIf the set really should grow, change SharedLibDir's doc comment and this table together - never one of them alone.",
+					o.path, got.State, got.Changed, got.Shared, o.why)
+			}
+		})
+	}
+}
+
+// TestEveryRowSourcesTheSharedLibrary keeps watchedDirs' blanket honest.
+// The shared half is watched for every row rather than only for rows whose
+// script can be shown to source it, because over-watching costs a badge a
+// re-run clears while under-watching is the #1292 failure itself. That
+// choice is only free while every row really does source the library, and
+// this is what says so.
+//
+// Its red arm is a fixture estate that sources nothing: without it the scan
+// would report "clean" whether or not it can see anything.
+func TestEveryRowSourcesTheSharedLibrary(t *testing.T) {
+	root := testRoot(t)
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Estates) == 0 {
+		t.Fatal("no rows to check; the guard would pass vacuously")
+	}
+	var missing []string
+	for _, r := range a.Estates {
+		if EstateDir(r) == "" {
+			continue
+		}
+		if !sourcesSharedLib(root, r.Script) {
+			missing = append(missing, r.Script)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("these rows' scripts do not source `%s`, yet watchedDirs badges them when it changes:\n  %s\n"+
+			"Either convert them to the protocol, or make the shared half of the watched set per-row (#1292).",
+			SharedLibDir, strings.Join(missing, "\n  "))
+	}
+
+	fixture := t.TempDir()
+	dir := filepath.Join(fixture, "live", "e2e", "sources-nothing")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "run.sh"), []byte("#!/usr/bin/env bash\necho standalone\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if sourcesSharedLib(fixture, "live/e2e/sources-nothing/run.sh") {
+		t.Error("a script that sources nothing was reported as sourcing the shared library; a detector that only ever says yes proves nothing above")
+	}
+}
+
+// sourcesSharedLib reports whether the crossing script at the repo-relative
+// path names the shared protocol library, outside a full-line comment. Not
+// a path resolution - the scripts reach the library through
+// `$(dirname "${BASH_SOURCE[0]}")/..` as often as through `$ROOT` - a
+// reference test, which is all the guard above needs.
+func sourcesSharedLib(root, script string) bool {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(script)))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "#") {
+			continue
+		}
+		if strings.Contains(line, "lib/gauntlet.sh") || strings.Contains(line, SharedLibDir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // TestBoardRendersScriptStaleness: the board carries the fact, in the words
@@ -319,13 +560,17 @@ func TestEstateScriptsReadNoMarkdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var dirs []string
+	// The shared protocol library is in the watched set too (#1292), so the
+	// inert rule has to hold there as well: a markdown file under
+	// live/e2e/lib/ that gauntlet.sh actually read would be treated as
+	// unreadable by every row at once.
+	dirs := []string{SharedLibDir}
 	for _, r := range a.Estates {
 		if d := EstateDir(r); d != "" {
 			dirs = append(dirs, d)
 		}
 	}
-	if len(dirs) == 0 {
+	if len(dirs) < 2 {
 		t.Fatal("no estate directories to scan; the guard would pass vacuously")
 	}
 	hits, err := estateMarkdownReads(root, dirs)
