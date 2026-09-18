@@ -3943,63 +3943,63 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "day2_count": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "day2_crash": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "day2_remove": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "day2_rename": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "day2_teardown": {
           "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
           "date": "2026-09-17T21:06:43Z"
         },
         "drift_reconverge": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "greenfield": {
           "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
           "date": "2026-09-17T21:06:43Z"
         },
         "migrate": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "plan_approval": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "strict": {
           "commit": "8b5104288b89b3e9f6b023873504607da57d1a82",
           "date": "2026-09-17T21:06:43Z"
         },
         "test_apply": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         },
         "test_plan": {
-          "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-          "date": "2026-09-18T01:39:06Z"
+          "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+          "date": "2026-09-18T02:28:43Z"
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9fc6a6dddaba03496c880e49024f92ed7379825b",
-        "date": "2026-09-18T01:39:06Z",
+        "commit": "90f0f1e629c2b3d8b58fcc93d0edbfb8f5f8b5e4",
+        "date": "2026-09-18T02:28:43Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -4009,7 +4009,7 @@
         "detail": {
           "cold_deploy": "50 objects (cert-manager v1.21.2's 47-object bundle over 11 kinds plus 3 custom resources over 3 custom kinds) from plain terraform against kind v1.36.1, a real terraform.tfstate with 50 instances, zero tofu-estate labels read back with kubectl, and the Certificate Ready=True from the self-signed ClusterIssuer; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 47 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring a CRD and an object of that CRD cannot be planned at all against an empty cluster - depends_on does not help and re-running fails identically forever (#1173, measured: 'no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"'). On top of that both cert-manager webhooks are failurePolicy: Fail, so the validating webhook has to be SERVING before a custom resource can be admitted - including through the server-side dry run kubernetes_manifest does at plan time. The whole installation therefore goes up first, with -target, on every side; the three custom resources are what the main apply creates. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 before creating anything - \"no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"\" - so the pre-apply is load-bearing and not decoration. BREAK_PREAPPLY=1 requires that one-pass plan to succeed and correctly fails",
           "day2_count": "scaling a COUNTED CUSTOM KIND (kubernetes_manifest.issuer_shard, a cert-manager.io/v1 Issuer whose object name is shard-${count.index} inside the manifest object) from 2 to 1 destroyed exactly shard-1, planned at kubernetes_manifest.orphan_issuer_cert-manager_shard-1 (shard-0 untouched, both read with kubectl); back to 2 created exactly one object under the same name; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
-          "day2_crash": "the replan after the recovery failed",
+          "day2_crash": "50 labelled objects after the recovery, want 52",
           "day2_remove": "two blocks removed, one destroy each. Deleting the namespaced custom kind (Issuer) proposed exactly one destroy at the sweep's synthetic orphan address kubernetes_manifest.orphan_issuer_cert-manager_selfsigned (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address. Deleting the Certificate then proposed exactly ONE destroy too, and crucially NOT the Secret its controller created: example-com-tls carries controller.cert-manager.io/fao and no tofu-estate label, and it is still on the cluster afterwards ({\"controller.cert-manager.io/fao\":\"true\"}), which is the controller-copy exclusion this estate exists to check. Stock's plans for both removals on the oracle cluster are also exactly one destroy each; the next plan is empty and 48 objects remain labelled",
           "day2_rename": "moved block over a cluster-scoped custom kind: kubernetes_manifest.clusterissuer_selfsigned -> .clusterissuer_review with zero churn (no add, no change, no destroy), the live ClusterIssuer untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066)",
           "day2_teardown": "apply -destroy removed exactly the 48 remaining objects in one apply - no second pass needed on the way down, although the way up took two - the namespace is gone, all six cert-manager CRDs are gone, and no object of any of the estate's 14 kinds carries tofu-estate=reference-k8s-cert-manager (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 48 its state held",
@@ -4021,18 +4021,18 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed) over a root of 50 kubernetes_manifest instances; objects carrying tofu-estate=reference-k8s-cert-manager unchanged at 50 across the estate's 14 kinds, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 50 objects bind by namespace and name, and eight identities spanning every shape the root has - a cluster-scoped Namespace and two CRDs, a cluster-scoped custom kind (ClusterIssuer), two namespaced custom kinds (Issuer, Certificate), a Deployment and a ValidatingWebhookConfiguration - were confirmed present by value with kubectl"
         },
-        "duration_s": 1499.4,
+        "duration_s": 1503.8,
         "stage_seconds": {
-          "cold_deploy": 124,
-          "day2_count": 325,
-          "day2_crash": 286,
-          "day2_remove": 216,
-          "day2_rename": 99,
+          "cold_deploy": 126,
+          "day2_count": 324,
+          "day2_crash": 290,
+          "day2_remove": 217,
+          "day2_rename": 98,
           "drift_reconverge": 99,
-          "migrate": 49,
+          "migrate": 48,
           "plan_approval": 220,
           "test_apply": 50,
-          "test_plan": 30
+          "test_plan": 31
         }
       }
     },
