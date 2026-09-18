@@ -53,6 +53,48 @@ func RecordKeyPrefix(estate string) string {
 // block's still-persisted record could never be found again.
 var recordKeyEncoding = base64.RawURLEncoding
 
+// recordKeyLegacySegmentMax and recordKeyChunkLen bound how long a single
+// "/"-delimited segment of a record key may be, and exist because
+// [recordKeyEncoding] EXPANDS an address by 4/3 while a filesystem bounds
+// one path component at NAME_MAX. GitHub issue #1283.
+//
+// Measured against a real [staterecord.LocalStore] on APFS: a leaf of 255
+// bytes is the longest [staterecord.LocalStore.PutIfAbsent] can create, so
+// the longest raw address a single-segment key could ever hold was 191
+// bytes - against a lint ceiling (markers.MaxAddressLen) of 1024, a 5.4x
+// window of addresses that pass lint and cannot be written. A record is
+// the only carrier a record-rung instance's ownership has, so a write that
+// fails there is a live object nothing owns and the next plan proposes
+// creating a second one.
+//
+//   - recordKeyLegacySegmentMax is 255 because that is exactly the leaf
+//     length the pre-chunking key shape could reach. Chunking starts
+//     STRICTLY ABOVE it so that every key already in a store keeps the
+//     bytes it was written under: a key this function starts spelling
+//     differently is a record the next plan can no longer find, which is
+//     the very failure being fixed.
+//   - recordKeyChunkLen is 230, not 255, because [staterecord.LocalStore]
+//     writes two sidecars named after the leaf - "<leaf>.lock" and
+//     os.CreateTemp's "<leaf>.tmp-<up to 10 digits>" - and both must
+//     themselves fit in NAME_MAX. Measured: with a 255-byte leaf
+//     PutIfAbsent succeeds but PutIfVersion fails, and the guaranteed
+//     ceiling for the update path is a 240-byte leaf. 230 leaves headroom
+//     rather than sitting on the measured edge.
+//
+// Chunking moves the local store's own ceiling from NAME_MAX to PATH_MAX
+// (1024 on macOS, measured 1016 writable here), which lands it in the same
+// band as the two remote backends rather than 4x below them: an S3 object
+// key is bounded at 1024 bytes and an SSM parameter name at 1011 INCLUDING
+// the ~45-50 character ARN prefix that precedes it, with a hierarchy depth
+// limit of fifteen levels that six chunks of 230 plus this package's three
+// fixed segments stay well inside. None of the three reaches
+// markers.MaxAddressLen; see GitHub issue #1283 for the residual gap,
+// which is a ceiling ruling rather than an encoding problem.
+const (
+	recordKeyLegacySegmentMax = 255
+	recordKeyChunkLen         = 230
+)
+
 // RecordKey is the store key for one record-backed resource instance,
 // rooted at prefix (ordinarily [RecordKeyPrefix]'s output, or a
 // record_store block's key_prefix override).
@@ -64,28 +106,68 @@ var recordKeyEncoding = base64.RawURLEncoding
 // name is kept as a readable path segment ahead of the encoded address
 // (type names are always "[a-z0-9_]+", already safe everywhere) purely
 // for a human skimming a store's key listing - [RecordAddr] does not
-// trust it and reads the address out of the encoded segment alone.
+// trust it and reads the address out of the encoded segment(s) alone.
+//
+// An encoding longer than [recordKeyLegacySegmentMax] is split across
+// further "/"-delimited segments (see chunkEncodedAddress), which a store
+// that mirrors key hierarchy in directories writes as nested directories.
+// [RecordAddr] rejoins them, so the key stays reversible - orphan
+// discovery has no other way back to the address.
 func RecordKey(prefix string, addr addrs.AbsResourceInstance) string {
-	return prefix + "/" + addr.Resource.Resource.Type + "/" + recordKeyEncoding.EncodeToString([]byte(addr.String()))
+	encoded := recordKeyEncoding.EncodeToString([]byte(addr.String()))
+	return prefix + "/" + addr.Resource.Resource.Type + "/" + chunkEncodedAddress(encoded)
+}
+
+// chunkEncodedAddress splits encoded into "/"-joined runs of at most
+// [recordKeyChunkLen] bytes, and returns it untouched when it is short
+// enough to have been a valid single-segment key before chunking existed.
+// The output never ends in "/" and never contains an empty segment, so
+// [RecordAddr]'s rejoin is exact for every input including one whose
+// length is a multiple of the chunk length.
+func chunkEncodedAddress(encoded string) string {
+	if len(encoded) <= recordKeyLegacySegmentMax {
+		return encoded
+	}
+	var b strings.Builder
+	b.Grow(len(encoded) + len(encoded)/recordKeyChunkLen + 1)
+	for len(encoded) > recordKeyChunkLen {
+		b.WriteString(encoded[:recordKeyChunkLen])
+		b.WriteByte('/')
+		encoded = encoded[recordKeyChunkLen:]
+	}
+	b.WriteString(encoded)
+	return b.String()
 }
 
 // RecordAddr reverses [RecordKey]: given a key this package produced
 // (typically from [staterecord.Store.List]) and the prefix it was built
 // under, recovers the resource instance address. The second return is
-// false for a key that does not start with prefix or whose last segment
-// does not decode to a valid address - which any key this package did not
-// itself write is free to be, since a store's namespace is not guaranteed
-// to hold only this package's keys forever.
+// false for a key that does not start with prefix or whose segments past
+// the type do not decode to a valid address - which any key this package
+// did not itself write is free to be, since a store's namespace is not
+// guaranteed to hold only this package's keys forever.
+//
+// Everything after the type segment is rejoined before decoding, because
+// [RecordKey] splits a long encoding across several segments (GitHub issue
+// #1283). For a key whose encoding fit in one segment - every key written
+// before chunking existed - that rejoin is the identity, so this reads an
+// old key and a new one by the same rule.
 func RecordAddr(prefix, key string) (addrs.AbsResourceInstance, bool) {
 	rest := strings.TrimPrefix(key, prefix+"/")
 	if rest == key {
 		return addrs.AbsResourceInstance{}, false
 	}
-	i := strings.LastIndex(rest, "/")
+	// The FIRST "/" ends the type segment; the rest is the encoding,
+	// chunked or not. Taking the last "/" instead would read only the
+	// final chunk of a chunked key, and a truncated base64 run decodes to
+	// bytes that are not an address - so orphan discovery would silently
+	// skip exactly the long-addressed records this chunking exists to
+	// make storable.
+	i := strings.Index(rest, "/")
 	if i < 0 {
 		return addrs.AbsResourceInstance{}, false
 	}
-	encoded := rest[i+1:]
+	encoded := strings.ReplaceAll(rest[i+1:], "/", "")
 	raw, err := recordKeyEncoding.DecodeString(encoded)
 	if err != nil {
 		return addrs.AbsResourceInstance{}, false

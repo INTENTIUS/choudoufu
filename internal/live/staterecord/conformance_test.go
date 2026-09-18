@@ -64,6 +64,57 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 	})
 
+	t.Run("ChunkedKeysRoundTripOnEveryBackend", func(t *testing.T) {
+		// GitHub issue #1283. projection.RecordKey base64url-encodes an
+		// address, which expands it 4/3, and a filesystem bounds ONE path
+		// component at NAME_MAX - so a long address is now spread across
+		// several segments rather than crammed into one. This is that
+		// shape, at the full 230-byte chunk length the encoder uses, run
+		// against every backend rather than only the local one: SSM
+		// bounds a parameter hierarchy at fifteen levels and S3 bounds a
+		// whole object key, so a key shape that only the filesystem was
+		// asked about is a key shape two of the three stores were never
+		// tested with.
+		//
+		// The update path is exercised on purpose. The local store names
+		// two sidecars after the leaf ("<leaf>.lock" and os.CreateTemp's
+		// "<leaf>.tmp-<digits>"), and both have to fit in NAME_MAX too -
+		// measured, a 255-byte leaf can be CREATED and cannot be
+		// UPDATED, which is why the chunk length is 230 and not 255.
+		s := newStore(t)
+		ctx := context.Background()
+		key := "records/est-a/aws_vpc/" + strings.Repeat("A", 230) + "/" + strings.Repeat("B", 230) + "/" + strings.Repeat("C", 40)
+
+		version, err := s.PutIfAbsent(ctx, key, []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent on a chunked key: %v", err)
+		}
+		next, err := s.PutIfVersion(ctx, key, []byte("v2"), version)
+		if err != nil {
+			t.Fatalf("PutIfVersion on a chunked key: %v", err)
+		}
+		payload, gotVersion, exists, err := s.Get(ctx, key)
+		if err != nil || !exists {
+			t.Fatalf("Get on a chunked key: exists=%v err=%v", exists, err)
+		}
+		if string(payload) != "v2" || gotVersion != next {
+			t.Errorf("Get = %q at version %q, want %q at %q", payload, gotVersion, "v2", next)
+		}
+		got, err := s.List(ctx, "records/est-a/")
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if !reflect.DeepEqual(got, []string{key}) {
+			t.Errorf("List returned %d keys, want exactly the chunked key back", len(got))
+		}
+		if err := s.Delete(ctx, key, next); err != nil {
+			t.Fatalf("Delete on a chunked key: %v", err)
+		}
+		if _, _, exists, err := s.Get(ctx, key); err != nil || exists {
+			t.Errorf("after Delete: exists=%v err=%v, want absent and no error", exists, err)
+		}
+	})
+
 	t.Run("GetOnMissingKeyIsNotAnError", func(t *testing.T) {
 		s := newStore(t)
 		payload, version, exists, err := s.Get(context.Background(), "missing")
