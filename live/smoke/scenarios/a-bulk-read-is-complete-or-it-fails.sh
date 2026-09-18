@@ -29,71 +29,12 @@ resource "terraform_data" "effect" {
 }
 TFEOF
 
-# The proxy. It forwards every request to the emulator untouched, except that
-# while \$SMOKE_WORK/fail holds "<substring> <count>", a GetObject whose path
-# contains the substring is answered with a 500 (count times; -1 is forever).
-# That is the only way to fail one GET out of a fan-out from outside the
-# binary: the emulator has no fault injection, and nothing in the cloud can be
-# corrupted into a 500.
-cat > "$SMOKE_WORK/proxy.py" <<'PYEOF'
-import http.client, http.server, os, socketserver, sys, threading
-upstream_port, work = int(sys.argv[1]), sys.argv[2]
-lock = threading.Lock()
-
-def should_fail(path, query):
-    if "list-type=2" in query:
-        return False
-    with lock:
-        try:
-            sub, count = open(os.path.join(work, "fail")).read().split()
-        except (OSError, ValueError):
-            return False
-        count = int(count)
-        if sub not in path or count == 0:
-            return False
-        if count > 0:
-            open(os.path.join(work, "fail"), "w").write("%s %d" % (sub, count - 1))
-        return True
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-    def log_message(self, *a): pass
-    def relay(self):
-        path, _, query = self.path.partition("?")
-        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
-        if self.command == "GET" and should_fail(path, query):
-            payload = b'<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code><Message>injected by the smoke proxy</Message></Error>'
-            self.send_response(500); self.send_header("Content-Length", str(len(payload))); self.end_headers(); self.wfile.write(payload)
-            status = 500
-        else:
-            host = self.headers.get("Host", "localhost").rsplit(":", 1)[0]
-            headers = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "connection")}
-            headers["Host"] = "%s:%d" % (host, upstream_port)
-            conn = http.client.HTTPConnection("localhost", upstream_port, timeout=30)
-            conn.request(self.command, self.path, body=body, headers=headers)
-            resp = conn.getresponse(); data = resp.read(); status = resp.status
-            self.send_response(status)
-            for k, v in resp.getheaders():
-                if k.lower() not in ("transfer-encoding", "connection", "content-length"):
-                    self.send_header(k, v)
-            self.send_header("Content-Length", str(len(data))); self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(data)
-            conn.close()
-        with lock:
-            open(os.path.join(work, "proxy.log"), "a").write("%s %s %d\n" % (self.command, self.path, status))
-    do_GET = do_PUT = do_DELETE = do_HEAD = do_POST = relay
-
-class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
-    daemon_threads = True
-    # choudoufu cancels the sibling GETs the moment one fails, which is the
-    # fan-out doing its job, and each of those is a client hanging up on this
-    # proxy mid-response. That is not a proxy fault and must not read as one.
-    def handle_error(self, request, client_address): pass
-srv = Server(("127.0.0.1", 0), Handler)
-open(os.path.join(work, "proxy.port"), "w").write(str(srv.server_address[1]))
-srv.serve_forever()
-PYEOF
+# The proxy (live/smoke/s3proxy.py). It forwards every request to the emulator
+# untouched, except that while $SMOKE_WORK/fail holds "<substring> <count>", a
+# GetObject whose path contains the substring is answered with a 500. That is
+# the only way to fail one GET out of a fan-out from outside the binary: the
+# emulator has no fault injection, and nothing in the cloud can be corrupted
+# into a 500.
 
 step "the claim"
 explain \
@@ -157,7 +98,7 @@ echo "$N records; the one this scenario will fail: $VICTIM" | evidence
 proof "every resource has a record, and one of them is singled out."
 
 step "2. the proxy, and a control plan through it with nothing failing"
-python3 "$SMOKE_WORK/proxy.py" "$FLOCI_PORT" "$SMOKE_WORK" 2>"$SMOKE_WORKROOT/logs/bulkread-proxy.err" &
+python3 "$SMOKE_DIR/s3proxy.py" "$FLOCI_PORT" "$SMOKE_WORK" 2>"$SMOKE_WORKROOT/logs/bulkread-proxy.err" &
 PROXY_PID=$!
 trap 'kill $PROXY_PID 2>/dev/null || true; cleanup' EXIT
 for _ in $(seq 1 50); do [ -s "$SMOKE_WORK/proxy.port" ] && break; sleep 0.1; done
