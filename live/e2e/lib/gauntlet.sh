@@ -396,6 +396,32 @@ for k in sorted((d.get('residue') or {}).get('attributes') or {}):
 PY
 }
 
+# gauntlet_record_manifest_keys <file> <labels|annotations>: the metadata
+# map keys a kubernetes_manifest's record says its own applied manifest
+# DECLARED, space-separated and sorted, read off the envelope's
+# residue.manifest_metadata_keys member (issue #1211). The status is 1 and
+# nothing is printed when the envelope has no entry for that map at all -
+# a record written before #1211, or by a type that is not manifest-shaped.
+#
+# The distinction the status draws is the whole point of this helper, and
+# a caller must not collapse it: "declared no annotations" is an entry
+# holding an EMPTY list, which prints nothing with status 0, while "this
+# record does not know what was declared" is an absent entry, status 1.
+# #1211's removal set is (recorded declared keys) \ (currently declared
+# keys), so the first proposes removing whatever the object still carries
+# from a previous apply and the second proposes removing nothing.
+gauntlet_record_manifest_keys() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+sets = (d.get('residue') or {}).get('manifest_metadata_keys') or {}
+if sys.argv[2] not in sets:
+    sys.exit(1)
+print(' '.join(sorted(sets[sys.argv[2]] or [])))
+PY
+}
+
 # gauntlet_tagged_count <aws-invocation...>: runs the given AWS CLI
 # invocation (e.g. `awsl resourcegroupstaggingapi get-resources
 # --tag-filters "Key=tofu-estate,Values=$ESTATE"` - any prefix that ends in
