@@ -225,7 +225,23 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 	}
 	out, err := s.client.PutObject(ctx, input)
 	if err != nil {
-		if code, ok := httpStatus(err); ok && code == http.StatusPreconditionFailed {
+		code, ok := httpStatus(err)
+		if ok && code == http.StatusPreconditionFailed {
+			return "", s.conflictError(ctx, key, expectedVersion)
+		}
+		// An update whose record is GONE. Real S3 answers a PutObject that
+		// carries If-Match for a key that does not exist with 404 NoSuchKey,
+		// not with 412 - measured on GitHub issue #1344, where the
+		// conformance suite first ran against real S3 and this case failed
+		// under every flavour. It is the same conflict from the caller's
+		// side: the version it read is not the version the store holds,
+		// because the store holds none. Reported as one, with the actual
+		// version re-read rather than assumed empty, since another writer may
+		// have created the key again in between.
+		//
+		// Only for an update. A create (If-None-Match) that meets a 404 is a
+		// missing bucket, and must stay the error it is.
+		if ok && code == http.StatusNotFound && expectedVersion != "" {
 			return "", s.conflictError(ctx, key, expectedVersion)
 		}
 		return "", fmt.Errorf("staterecord: s3: writing %q: %w", key, err)
