@@ -23,6 +23,25 @@
 #      more work landed, nobody re-ran the gate - is rejected too. Deleting
 #      first does not catch that case; this does.
 #
+# `wait` (#1307) closes the third: the gap between deciding to wait and the
+# run getting far enough to delete anything. CLAUDE.md used to document
+#   while [ ! -f ci.rc ]; do sleep 15; done; echo "ci.rc=$(cat ci.rc)"
+# on the strength of point 1 above. Point 1 holds only once `run` has
+# started. Launch that loop alongside `run` rather than after it - which is
+# the only reason to launch it at all - and in the window before `run`'s
+# `rm -f` the loop matches the PREVIOUS run's ci.rc and returns a stale
+# green on its first iteration. Gate files are routinely left in a worktree
+# on purpose (every worker is told to leave them for the orchestrator), so
+# the file is usually there. Hit for real while landing #1141 (PR #1298),
+# and caught only because `check` was run afterwards and said NO GATE.
+#
+# Deleting the files earlier, or telling the waiter to `rm -f ci.rc` first,
+# only narrows that window: the race is between two processes and existence
+# still cannot say whose file it read. `wait` keys on identity instead - the
+# same discrimination `check` already makes - and returns only for a gate
+# that names the current HEAD *and* is not the one that was already sitting
+# there when the wait began.
+#
 # Usage:
 #   scripts/ci-gate.sh run [-- CMD...]
 #       Delete any existing ci.rc/ci.out/ci.meta, run CMD (default: `just
@@ -38,6 +57,14 @@
 #       else - no gate, an incomplete one, a stale one, or a fresh red one.
 #       Never infers a pass from a command's exit code; always reads the
 #       files' content, per HANDOFF's rule.
+#   scripts/ci-gate.sh wait [--timeout SECONDS] [--interval SECONDS]
+#       Block until a gate written by a run that started no earlier than
+#       this wait is complete for the current HEAD, then print `check`'s
+#       verdict and exit with `check`'s code. Meant to be run alongside a
+#       `run` that is already going (or about to), in ONE foreground call -
+#       nothing wakes a subagent that ends its turn. Defaults: timeout
+#       7200s (longer than any `just ci`), interval 15s. A timeout is a
+#       refusal, exit 1, and says what it was still waiting for.
 set -uo pipefail
 
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -69,9 +96,18 @@ cmd_run() {
   # `check` already treats as "no completed run" rather than a pass.
   rm -f ci.rc ci.out ci.meta ci.meta.tmp
 
-  local sha start end rc
+  local sha start end rc id
   sha="$(git rev-parse HEAD)"
   start="$(date -u +%FT%TZ)"
+  # A per-run identity, so that two runs at the SAME sha are still
+  # distinguishable from each other. `check` does not read it - a gate's
+  # freshness is about the commit, not about which run produced it - but
+  # `wait` does: without it, re-gating an unchanged HEAD (a flake, a
+  # re-measure) leaves the previous run's ci.meta byte-identical to the one
+  # the wait is waiting for, and the sha test alone cannot tell them apart.
+  # Seconds + pid + $RANDOM rather than a uuid tool this repo cannot assume
+  # is installed.
+  id="$(date -u +%s)-$$-${RANDOM}"
 
   { "${cmd[@]}"; } >ci.out 2>&1
   rc=$?
@@ -80,6 +116,7 @@ cmd_run() {
   end="$(date -u +%FT%TZ)"
   {
     printf 'sha=%s\n' "$sha"
+    printf 'run=%s\n' "$id"
     printf 'start=%s\n' "$start"
     printf 'end=%s\n' "$end"
   } >ci.meta.tmp
@@ -121,6 +158,94 @@ cmd_check() {
   return 0
 }
 
+# cmd_wait: block until this worktree holds a COMPLETE gate, for the current
+# HEAD, that was not already sitting there when the wait began - then hand
+# the verdict to cmd_check and exit with its code.
+#
+# The three conditions are each load-bearing, and dropping any one of them
+# reproduces a false green somebody has actually recorded:
+#
+#   ci.rc exists           - the old recipe's whole test, and #1307: on its
+#                            own it matches a leftover file from last week.
+#   ci.meta names HEAD     - #519's discrimination. Rules out a genuinely
+#                            complete gate for a commit already moved past.
+#   ci.meta is not the one
+#   that was here at entry - what sha alone cannot do. Re-run the gate at an
+#                            UNCHANGED HEAD and the leftover names the right
+#                            sha; only its identity says it is the old run.
+#
+# Deliberately NOT here: any attempt to find the running gate's process.
+# `pgrep -f "just ci"` matches the pgrep itself and loops forever, and that
+# has already cost a session (CLAUDE.md records it). The files carry enough
+# identity on their own.
+cmd_wait() {
+  local timeout=7200 interval=15
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --timeout)
+      timeout="${2:-}"
+      shift 2 || return 2
+      ;;
+    --interval)
+      interval="${2:-}"
+      shift 2 || return 2
+      ;;
+    *)
+      echo "ci-gate wait: unknown argument $1" >&2
+      return 2
+      ;;
+    esac
+  done
+  case "$timeout" in '' | *[!0-9]*)
+    echo "ci-gate wait: --timeout wants whole seconds, got '$timeout'" >&2
+    return 2
+    ;;
+  esac
+  case "$interval" in '' | *[!0-9]* | 0)
+    echo "ci-gate wait: --interval wants a positive whole number of seconds, got '$interval'" >&2
+    return 2
+    ;;
+  esac
+
+  # The gate that is already here, if any. Read ONCE, before waiting: this
+  # is the file #1307's stale green came from, and it is disqualified for
+  # the rest of this wait no matter how many times it is re-read.
+  local entry_meta="" entry_desc="none"
+  if [ -f ci.meta ]; then
+    entry_meta="$(cat ci.meta)"
+    entry_desc="$(tr '\n' ' ' <ci.meta)"
+  fi
+  local entry_rc="absent"
+  [ -f ci.rc ] && entry_rc="$(tr -d '[:space:]' <ci.rc)"
+
+  echo "ci-gate wait: waiting for a gate at $(git rev-parse HEAD) newer than the one already here (ci.rc=$entry_rc, ci.meta=$entry_desc)" >&2
+
+  local waited=0 head_sha meta_sha now_meta
+  while :; do
+    head_sha="$(git rev-parse HEAD)"
+    if [ -f ci.rc ] && [ -f ci.meta ]; then
+      now_meta="$(cat ci.meta)"
+      meta_sha="$(sed -n 's/^sha=//p' ci.meta)"
+      if [ "$meta_sha" = "$head_sha" ] && [ "$now_meta" != "$entry_meta" ]; then
+        cmd_check
+        return $?
+      fi
+    fi
+    if [ "$timeout" -gt 0 ] && [ "$waited" -ge "$timeout" ]; then
+      echo "TIMED OUT: no gate for $head_sha appeared within ${timeout}s that differs from the one present when the wait started (ci.rc=$entry_rc, ci.meta=$entry_desc). Either no run was started, or it is still going, or it ran at a different commit - this is NOT a pass. Check with: scripts/ci-gate.sh check"
+      return 1
+    fi
+    sleep "$interval"
+    waited=$((waited + interval))
+    # A heartbeat roughly every four intervals, so a long wait in a
+    # foreground call is visibly alive rather than indistinguishable from a
+    # wedged one.
+    if [ $((waited % (interval * 4))) -eq 0 ]; then
+      echo "ci-gate wait: ${waited}s elapsed, still no fresh gate for $head_sha" >&2
+    fi
+  done
+}
+
 case "${1:-}" in
 run)
   shift
@@ -129,8 +254,12 @@ run)
 check)
   cmd_check
   ;;
+wait)
+  shift
+  cmd_wait "$@"
+  ;;
 *)
-  echo "usage: $(basename "$0") run [-- CMD...] | check" >&2
+  echo "usage: $(basename "$0") run [-- CMD...] | check | wait [--timeout SECONDS] [--interval SECONDS]" >&2
   exit 2
   ;;
 esac
