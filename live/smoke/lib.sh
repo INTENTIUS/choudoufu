@@ -158,7 +158,14 @@ k8s_wait_condition() {
   local deadline conds
   deadline=$(( $(date +%s) + status_secs ))
   while :; do
-    conds="$(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{.status.conditions}' 2>/dev/null || true)"
+    # The probe is the condition TYPES, not the conditions list: jsonpath
+    # prints the JSON null as the four-character string "null", so a
+    # non-empty `{.status.conditions}` is exactly the shape being waited
+    # out. `{.status.conditions[*].type}` is empty for null, for absent and
+    # for an empty list, and non-empty only when there is a condition to
+    # read - the distinction this whole function exists to make. (That was
+    # the first draft's bug, caught by driving it against a nulled status.)
+    conds="$(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{.status.conditions[*].type}' 2>/dev/null || true)"
     if [ -n "$conds" ]; then break; fi
     if [ "$(date +%s)" -ge "$deadline" ]; then
       fail "$scenario" "$target still has no .status.conditions after ${status_secs}s - nothing has written a status for it, so whether it is $condition was never answered"
@@ -166,7 +173,7 @@ k8s_wait_condition() {
     sleep 1
   done
   kubectl --kubeconfig "$KUBECONFIG" wait --for="condition=$condition" "$target" --timeout="${condition_secs}s" >/dev/null 2>&1 \
-    || fail "$scenario" "$target has conditions but none of them reached $condition within ${condition_secs}s: $(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{.status.conditions}' 2>&1)"
+    || fail "$scenario" "$target carries conditions [$conds] but none of them reached $condition within ${condition_secs}s: $(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}' 2>&1)"
 }
 
 # oracle_up prepares the stock leg: the shared plugin volume is created
