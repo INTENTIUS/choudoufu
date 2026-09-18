@@ -275,11 +275,33 @@ two creates **wrote the record for the object it had created** (record files
 Removing that one record from the same position turned the recovery plan
 into `Plan: 1 to add, 1 to change`, proposing `+
 wait_for_service_account_token = true` against the object the crash left
-behind. `day2_crash` does not see this because its crash pair is a
-`kubernetes_config_map(_v1)`, which is the one type in the lane's surface
-with neither a ratified row nor a config-only argument - which is why the
-stage's own evidence line reads 12 -> 12 on the two `_v1` estates and 9 ->
-10 on reference-k8s.
+behind.
+
+`day2_crash` now measures exactly that, on all three estates whose roots
+hold typed resources (#1235). Its crash pair used to start with a
+`kubernetes_config_map(_v1)` - the one type in the lane's surface with
+neither a ratified row nor a config-only argument - so the stage's own
+evidence line could only ever report a count that did not move: 12 -> 12
+on the two `_v1` estates, 25 -> 25 on corpus-quickpizza, and 9 -> 10 on
+reference-k8s, whose ratified ConfigMap records an identity member that
+the enumeration above shows is inert. The pair's first object is now a
+`kubernetes_secret(_v1)`, the interrupted apply's record is read back by
+address and its residue asserted by name, and the stage takes the file out
+of the store and replans from the identical position: `Plan: 1 to add`
+becomes `Plan: 1 to add, 1 to change`, and putting the file back restores
+the remainder. The fourth estate, `reference-k8s-cert-manager`, asserts
+the other half by value - no record exists for its
+`kubernetes_manifest.crash_first` at all and the count does not move,
+because a `kubernetes_manifest` declaring no `field_manager` records
+nothing - so recovery there is the label alone.
+
+The lost-store reading is taken per estate too, in `greenfield`, where six
+AWS estates already take it: `Plan: 0 to add, 1 to change, 0 to destroy`
+on reference-k8s (`wait_for_load_balancer`), 6 changes on
+reference-k8s-stateful, 18 on corpus-quickpizza, and `No changes.` on
+reference-k8s-cert-manager, whose root is `kubernetes_manifest` throughout
+and records nothing. Nothing is created and nothing is swept in any of
+them, and one apply reconverges.
 
 A record is not a rescue for an object whose label was stripped, on either
 substrate. With a valid identity record naming `NAMESPACE/NAME`, stripping

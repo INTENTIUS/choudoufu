@@ -73,16 +73,13 @@ v1.15.8, darwin/arm64. Two clusters, both created and deleted by the run.
 the runner, not by the script.
 
 `day2_crash` used to be `n/a` here for the same reason, and is not any
-more (#1110): the stage now reads on kind, as an apply of several objects
+more (#1110): the stage reads on kind, as an apply of several objects
 killed between one object's create and the next, with the next plan
-required to propose exactly the remainder. This script does not run it, so
-the cell reads `not_run` - the same thing every other cell on this row
-reads until the estate's first measured run lands - and the stage's
-tier-1 gating (#999) keeps that neutral for `clear`. Whoever wires it here
-has one substrate detail the other three lane estates do not: every object
-in this root is a `kubernetes_manifest`, so the crash pair has to be two
-manifest objects and the marker they are rebound by sits inside
-`manifest.metadata.labels`, where no schema types it.
+required to propose exactly the remainder. This script did not run it
+until #1237, so the cell read `not_run` while the row read clear - the
+stage's tier-1 gating (#999) keeps an unmeasured cell neutral, which is
+exactly why it was worth filing rather than leaving. Section 10 runs it
+now; see "Thirteen of thirteen" below.
 
 It lands red on two stages, with an issue naming each, under the phase's
 rule that a lane which is a gap list beats a lane which is clear on estates
@@ -120,6 +117,62 @@ main at this branch's base; this run measured it but is not its evidence.
 `plan_approval` passed at ratification too - it records #1177's answer
 rather than requiring stock parity - and it still recorded that answer
 here, because #1177's fix landed on main after the binary above was built.
+
+
+## Thirteen of thirteen, with day2_crash wired (#1237)
+
+`go run ./tools/gauntlet run reference-k8s-cert-manager`, 2026-09-17, with
+`TOFU_BIN` a binary built from this branch. Same substrate as above: kind
+`v1.36.1`, `hashicorp/kubernetes` 3.2.1, stock Terraform v1.15.8,
+darwin/arm64, two clusters created and deleted by the run. Exit 0.
+
+| stage | verdict | s |
+|---|---|---|
+| cold_deploy | pass | 129 |
+| migrate | pass | 48 |
+| test_plan | pass | 31 |
+| test_apply | pass | 50 |
+| drift_reconverge | pass | 98 |
+| plan_approval | pass | 221 |
+| day2_rename | pass | 98 |
+| day2_remove | pass | 217 |
+| day2_count | pass | 325 |
+| **day2_crash** | **pass** | **291** |
+| day2_teardown | pass | 88 |
+| greenfield | pass | 261 |
+| strict | pass | 56 |
+
+`day2_crash` interrupts an apply creating two `cert-manager.io/v1` Issuers
+with the engine's own SIGTERM the instant the first create commits, under
+`-parallelism=1`. Every write in that graph, the plan-time server-side dry
+run included, goes through the two `failurePolicy: Fail` webhooks this
+estate installs. The recovery plan is exactly the remainder and proposes
+nothing at all for the object the crash created, which it binds by the
+label plus namespace and name - the same binding path #1178 broke for a
+counted manifest, reached from a half-finished apply rather than a replan.
+
+The record store contributes nothing here and the stage asserts that by
+value rather than printing a count: no record file exists for
+`kubernetes_manifest.crash_first` and the file count does not move
+(1 -> 1), because a `kubernetes_manifest` declaring no `field_manager`
+records nothing (#1188). `greenfield` takes the matching reading - delete
+the whole record store and the cache, and the plan is still `No changes.`
+
+## What day2_crash found
+
+- **#1262** - a `kubernetes_manifest` whose `manifest` argument contains a
+  reference to another resource never binds to its own object: the next
+  plan proposes CREATING it again and the server-side dry run is refused
+  with `already exists`. Isolated on one cluster, one root, one variable:
+  a plain Issuer replans clean, the same Issuer with a literal annotation
+  replans clean, the same Issuer whose annotation reads another manifest's
+  name does not. The plan says the object came back "without a
+  `manifest.metadata.labels` map" while kubectl shows it carrying
+  `tofu-estate`, so the configured seed for the read drops the manifest
+  and the marker inside it - #1178's mechanism one case further out, with
+  no crash needed to produce it. The crash pair takes its graph edge from
+  `depends_on` instead, so this stage measures crash recovery; #1262 is
+  where the reference case is recorded.
 
 ## What it found
 

@@ -26,7 +26,10 @@
 #   - a controller-created object that outlives its owner: the
 #     Certificate's Secret `example-com-tls` carries
 #     `controller.cert-manager.io/fao` and no estate label, which is the
-#     controller-copy exclusion the sweep has to get right.
+#     controller-copy exclusion the sweep has to get right;
+#   - day2_crash's interrupt landing between the creates of two custom
+#     resources, so the recovery binds a half-applied `kubernetes_manifest`
+#     by its label through those same webhooks (#1237).
 #
 # ── the two applies, and why they are not a trick ────────────────────────
 #
@@ -76,6 +79,14 @@
 #   BREAK_COUNT    assert the wrong shard was destroyed on the scale-down.
 #   BREAK_APPROVAL apply the saved plan after the world moved and expect
 #                  success.
+#   BREAK_CRASH    assert, after the same real interrupt, that nothing is
+#                  proposed; must fail, because a recovered run proposes
+#                  the remainder.
+#   BREAK_CRASH_UNBOUND
+#                  strip the tofu-estate label off the custom resource the
+#                  interrupted apply did create before replanning - the
+#                  unrecovered run the stage exists to catch. The real
+#                  check must then fail to hold.
 #   BREAK_STRICT   turn secrets back to "store" and require the refusal to
 #                  vanish.
 set -uo pipefail
@@ -135,6 +146,20 @@ else
   ( cd "$ROOT" && env -u PWD go build -o "$TOFU" ./cmd/choudoufu ) || fail "go build ./cmd/choudoufu failed"
   log "  built $TOFU"
 fi
+
+# day2_crash needs a build with e2eTestingFeatures set, the same ldflags
+# gate TOFU_E2E_APPLY_RESOURCE_PANIC sits behind, so that the engine's own
+# TOFU_E2E_APPLY_RESOURCE_INTERRUPT hook (internal/command/
+# apply_e2etesting_crash.go) is reachable at all. Built from THIS tree's
+# source whatever $TOFU came from, since the point is to interrupt this
+# tree's engine, and unconditionally, since the real check and both Break
+# controls need it. Identical to $TOFU everywhere else: the hook is a no-op
+# unless the variable names an address the run actually applies.
+mkdir -p "$WORK/bin"
+TOFU_CRASH="$WORK/bin/choudoufu-e2e"
+( cd "$ROOT" && env -u PWD go build -ldflags="-X 'main.e2eTestingFeatures=yes'" -o "$TOFU_CRASH" ./cmd/choudoufu ) \
+  || fail "go build -ldflags e2eTestingFeatures ./cmd/choudoufu failed"
+log "  built $TOFU_CRASH (e2eTestingFeatures=yes, for day2_crash's interrupt)"
 
 # ── the shape ────────────────────────────────────────────────────────────
 # The committed root is what runs: every working copy is a plain cp of
@@ -215,6 +240,73 @@ out = re.sub(r'\nresource "kubernetes_manifest" "issuer_shard" \{.*?\n\}\n', '\n
 assert 'issuer_shard' not in out, "the counted Issuer block was not removed"
 open(p, 'w').write(out)
 PY
+}
+
+# crash_block <first|second>: day2_crash's two extra custom resources,
+# appended to a root that already holds the 50 the estate is. They are
+# Issuers - namespaced custom kinds behind the same two failurePolicy: Fail
+# webhooks every other custom resource in this root goes through, including
+# the server-side dry run kubernetes_manifest does at PLAN time - and
+# crash_second depends_on crash_first, so the two are a real edge in the
+# graph rather than two independent nodes the walker may reach in either
+# order. That is what makes the interrupt deterministic by construction
+# (#490's discipline, after an external tail/grep/kill race produced a
+# retry lottery on the AWS crash stage): nothing can create crash-second
+# until crash-first has committed, so this script interrupts once and
+# reports what it saw instead of retrying.
+#
+# The lane's other three estates spell that edge as a data reference -
+# crash_second's own data reads crash_first's name. This one cannot, and
+# the reason is #1262, found writing this section: a kubernetes_manifest
+# whose `manifest` argument contains a reference to another resource never
+# binds to its own object again. The configured seed for the read is built
+# with an evaluator that cannot resolve the reference, so the manifest -
+# and the estate label inside it - is dropped, the object reads back
+# "without a manifest.metadata.labels map", and the next plan proposes
+# CREATING an object that already exists. It is #1178's mechanism one case
+# further out, and no crash is needed to produce it. depends_on is the
+# same graph edge with that second variable taken out, so this stage
+# measures crash recovery and #1262 is measured where it belongs.
+crash_block() {
+  if [ "$1" = "first" ]; then
+    cat <<EOF
+
+resource "kubernetes_manifest" "crash_first" {
+  manifest = {
+    "apiVersion" = "cert-manager.io/v1"
+    "kind"       = "Issuer"
+    "metadata" = {
+      "name"      = "crash-first"
+      "namespace" = "$NS"
+    }
+    "spec" = {
+      "selfSigned" = {}
+    }
+  }
+
+  depends_on = [kubernetes_manifest.namespace_cert_manager]
+}
+EOF
+  else
+    cat <<EOF
+
+resource "kubernetes_manifest" "crash_second" {
+  manifest = {
+    "apiVersion" = "cert-manager.io/v1"
+    "kind"       = "Issuer"
+    "metadata" = {
+      "name"      = "crash-second"
+      "namespace" = "$NS"
+    }
+    "spec" = {
+      "selfSigned" = {}
+    }
+  }
+
+  depends_on = [kubernetes_manifest.crash_first]
+}
+EOF
+  fi
 }
 
 # review_annotation <dir>: a metadata-side edit. plan_approval makes it
@@ -726,9 +818,163 @@ else
   fi
 fi
 
-# ── 10. day2_teardown: destroy the adopted estate ────────────────────────
+# ── 10. day2_crash: an apply of several objects, killed after the first ──
+#
+# #1237: this estate's numbered sections used to jump from day2_count
+# straight to day2_teardown, so the row read clear with day2_crash
+# measuring nothing and no way to see that from the board. The substrate
+# was never the reason - the lane's other three estates all implement the
+# stage on kind.
+#
+# The stage's window on AWS - after a create_before_destroy create, before
+# the paired destroy - cannot exist here: a name is unique in its
+# namespace, so nothing is created before the object it replaces is gone
+# (day2_replace's n/a). The Kubernetes window with the same question in it
+# is an apply that creates several objects. Kill it after one object exists
+# and before the next does, and the next plan has to propose exactly the
+# remainder, with the object already created bound by its label and its
+# namespace and name rather than created a second time (which the API
+# server refuses) or swept away as an orphan.
+#
+# What this estate drives here that the other three do not: both objects
+# are kubernetes_manifest of a CUSTOM kind, so the interrupt lands in the
+# middle of a graph whose every write - the plan-time server-side dry run
+# included - goes through two failurePolicy: Fail webhooks, and the
+# recovery is the binding path #1178 broke for a counted
+# kubernetes_manifest, exercised from a half-finished apply instead of a
+# replan.
+#
+# The record store contributes nothing here, and that is a reading rather
+# than an omission: #1188 measured that a kubernetes_manifest declaring no
+# field_manager gets no record file at all, so every one of this root's
+# instances is bound by the label plus namespace and name alone. The stage
+# asserts that by value below - no record for the address, and the file
+# count unmoved - instead of printing a count and leaving a reader to
+# guess, which is #1235. BREAK_CRASH_UNBOUND is what proves the label is
+# doing the work.
+gauntlet_begin_stage day2_crash
+log "=== 10. day2_crash: SIGTERM between the create of one custom resource and the create of the next ==="
+
+# The oracle first, so the comparison exists before choudoufu is asked
+# anything: stock at crash-first only, then stock's plan for crash-second.
+crash_block first >> "$ORACLE/custom-resources.tf" || fail "could not append crash-first to the oracle root"
+O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's crash-first plan failed on B"; }
+grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's crash-first plan on B is not exactly one add"; }
+( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's crash-first apply failed on B"
+crash_block second >> "$ORACLE/custom-resources.tf" || fail "could not append crash-second to the oracle root"
+O_REMAINDER="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_REMAINDER" | tail -10; fail "stock's remainder plan failed on B"; }
+grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_REMAINDER" \
+  || { printf '%s\n' "$O_REMAINDER" | tail -10; fail "stock's remainder plan on B is not exactly one add - the oracle for this stage is not what it should be"; }
+grep -q 'kubernetes_manifest.crash_second' <<< "$O_REMAINDER" || fail "stock's remainder plan on B does not name crash_second"
+( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remainder apply failed on B"
+log "  oracle: stock at crash-first alone plans exactly one add (crash_second) for the remainder, and applies it"
+
+# The label count this stage has to move by exactly two. It is read here
+# rather than derived from TOTAL_N: day2_remove took two blocks out of the
+# root for good, so the estate is 48 objects by the time this stage runs,
+# not the 50 the committed root declares.
+C_BEFORE="$(count_a)"
+crash_block first  >> "$ADOPTED/custom-resources.tf" || fail "could not append crash-first to the adopted root"
+crash_block second >> "$ADOPTED/custom-resources.tf" || fail "could not append crash-second to the adopted root"
+X_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$X_PLAN" | tail -30; fail "the pre-crash plan failed"; }
+grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$X_PLAN" \
+  || { printf '%s\n' "$X_PLAN" | tail -30; fail "the pre-crash plan is not exactly two adds - there is no two-object apply to interrupt"; }
+X_RECORDS_BEFORE="$(gauntlet_record_count "$ADOPTED/.tofu-records")"
+
+# The interrupt is delivered by the engine itself, so this runs in the
+# plain foreground: no background process, no output tailing, no poll loop.
+# A non-zero exit is the NORMAL outcome - the process was killed.
+X_OUT="$(cd "$ADOPTED" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" \
+  TOFU_E2E_APPLY_RESOURCE_INTERRUPT="kubernetes_manifest.crash_first" \
+  "$TOFU_CRASH" apply -input=false -auto-approve -no-color -parallelism=1 2>&1)"; X_RC=$?
+printf '%s\n' "$X_OUT" > "$WORK/day2_crash.log"
+log "  interrupted apply exited $X_RC (a genuine crash is not expected to exit 0)"
+[ "$X_RC" -ne 0 ] || { printf '%s\n' "$X_OUT" | tail -20; fail "the interrupted apply exited 0 - the engine's self-signal never landed, so nothing was interrupted and this stage would measure a clean apply"; }
+exists_a issuer crash-first || { printf '%s\n' "$X_OUT" | tail -20; fail "crash-first does not exist after the interrupted apply - the kill landed before the create committed, so there is no crash window to recover from"; }
+exists_a issuer crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash-second exists after the interrupted apply - the kill landed after both creates, so there is no remainder to propose"; }
+# The selector alone, never a selector next to a resource name: kubectl
+# refuses that combination outright, which would read as an unlabelled
+# object.
+kca get issuer -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qE '(^|/)crash-first$' \
+  || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there (labels: $(kca get issuer crash-first -n "$NS" --show-labels --no-headers 2>&1 | tr -s ' ' | cut -d' ' -f4))"
+X_RECORDS_AFTER="$(gauntlet_record_count "$ADOPTED/.tofu-records")"
+
+# The record reading, asserted by value rather than printed as a count
+# (#1235). On this estate the answer is that there is nothing to read: a
+# kubernetes_manifest declaring no field_manager records nothing (#1188),
+# so the recovery below rests on the label alone and BREAK_CRASH_UNBOUND
+# is what proves that.
+X_REC="$(gauntlet_record_file "$ADOPTED/.tofu-records" "kubernetes_manifest.crash_first")"
+[ -z "$X_REC" ] || fail "kubernetes_manifest.crash_first has a record file at $X_REC; #1188 measured that a kubernetes_manifest declaring no field_manager records nothing, and this stage's reading is written against that - if it records something now, read what it holds instead of asserting it does not exist"
+[ "$X_RECORDS_AFTER" = "$X_RECORDS_BEFORE" ] || fail "record files went $X_RECORDS_BEFORE -> $X_RECORDS_AFTER across the interrupted apply; every instance in this root is a kubernetes_manifest with no field_manager, which records nothing, so the count cannot move"
+log "  crash-first exists and is labelled; crash-second does not exist; record files $X_RECORDS_BEFORE -> $X_RECORDS_AFTER, and no record exists for kubernetes_manifest.crash_first at all"
+
+if [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
+  # The unrecovered run this stage exists to catch: the object is there,
+  # but nothing marks it as the estate's, which is what a crash between
+  # the create and the marker write would leave.
+  kca label issuer crash-first -n "$NS" tofu-estate- >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not strip the label off crash-first"
+  log "  BREAK_CRASH_UNBOUND=1: stripped tofu-estate off crash-first with kubectl"
+fi
+
+R_PLAN="$(tofu_a plan -input=false -no-color 2>&1)"; R_RC=$?
+R_LINE="$(grep -E '^Plan:|^No changes' <<< "$R_PLAN" | head -1 | sed 's/\.$//')"
+# What the real check asserts, as one predicate, so the Break controls can
+# require the SAME predicate to fail rather than approximating it.
+recovered() {
+  [ "$R_RC" -eq 0 ] || return 1
+  grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$R_PLAN" || return 1
+  grep -qE '^[[:space:]]*# kubernetes_manifest\.crash_second will be created' <<< "$R_PLAN" || return 1
+  # Nothing may be proposed for the object the crash did create - not a
+  # second create, not a sweep of it as an orphan.
+  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|crash-first' && return 1
+  return 0
+}
+
+if [ "${BREAK_CRASH:-}" = "1" ]; then
+  log "=== 10b (BREAK_CRASH=1). assert nothing is proposed after the interrupt - this must fail ==="
+  [ "$R_RC" -eq 0 ] || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK_CRASH=1: the plan after the interrupt exited $R_RC"; }
+  grep -qF "No changes." <<< "$R_PLAN" \
+    && { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK_CRASH=1: the plan after a real interrupted two-object apply came back empty, so this stage's own check is not load-bearing"; }
+  log "  BREAK_CRASH=1: caught - the plan proposes work ($R_LINE), so 'nothing is proposed' correctly fails to hold"
+  gauntlet_stage day2_crash pass "BREAK_CRASH=1 control: after the same real interrupt the plan proposes work ($R_LINE), so the stage's own Break line - interrupt and then assert nothing is proposed - correctly fails to hold; the real check is skipped"
+  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH: the recovery apply failed afterwards"
+elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
+  log "=== 10b (BREAK_CRASH_UNBOUND=1). the same check against an unbound object - this must fail ==="
+  if recovered; then
+    printf '%s\n' "$R_PLAN" | grep -E '^Plan:|will be'
+    fail "BREAK_CRASH_UNBOUND=1: the recovery check still holds with crash-first carrying no tofu-estate label - it is not measuring whether the crashed-out object was bound at all, and on this estate the label is the ONLY thing binding it (a kubernetes_manifest records nothing)"
+  fi
+  log "  BREAK_CRASH_UNBOUND=1: caught - with the label stripped the recovery check fails ($R_LINE)"
+  gauntlet_stage day2_crash pass "BREAK_CRASH_UNBOUND=1 control: with the tofu-estate label stripped off the custom resource the interrupted apply created - the unrecovered run this stage exists to catch - the recovery check correctly fails to hold ($R_LINE); the real check is skipped"
+  kca delete issuer crash-first -n "$NS" >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not delete the unlabelled crash-first afterwards"
+  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
+else
+  if ! recovered; then
+    printf '%s\n' "$R_PLAN" | grep -E '^Plan:|^No changes|will be' | head -20
+    gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of kubernetes_manifest.crash_first and the create of kubernetes_manifest.crash_second - both Issuers, a namespaced custom kind behind two failurePolicy: Fail webhooks - is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). crash-first exists on the cluster carrying tofu-estate=$ESTATE and crash-second does not, both read with kubectl; stock, walked into the same position on the oracle cluster, plans exactly one add (crash_second). No record exists for either address and the record file count did not move ($X_RECORDS_BEFORE -> $X_RECORDS_AFTER): a kubernetes_manifest with no field_manager records nothing (#1188), so the label is the only thing that could have bound it"
+  else
+    R_APPLY="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"; R_APPLY_RC=$?
+    [ "$R_APPLY_RC" -eq 0 ] || { printf '%s\n' "$R_APPLY" | tail -20; fail "the recovery apply exited $R_APPLY_RC"; }
+    grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$R_APPLY" \
+      || { printf '%s\n' "$R_APPLY" | tail -5; fail "the recovery apply did not add exactly the one remaining object"; }
+    exists_a issuer crash-second || fail "crash-second does not exist after the recovery apply"
+    exists_a issuer crash-first || fail "crash-first is gone after the recovery apply - the recovery replaced the object the crash created instead of binding it"
+    R_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)"; R_REPLAN_RC=$?
+    [ "$R_REPLAN_RC" -eq 0 ] || { printf '%s\n' "$R_REPLAN" | tail -30
+      R_ERR="$(grep -E '^Error' <<< "$R_REPLAN" | head -1)"
+      fail "the replan after the recovery exited $R_REPLAN_RC: ${R_ERR:-no Error: line; the last 30 lines of the plan are above this verdict in the log}"; }
+    grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -30; fail "the replan after the recovery is not empty"; }
+    C_AFTER="$(count_a)"
+    [ "$C_AFTER" = "$((C_BEFORE + 2))" ] || fail "$C_AFTER labelled objects after the recovery, want $((C_BEFORE + 2)) - the estate carried $C_BEFORE before the crash pair was added and the pair is two objects"
+    gauntlet_stage day2_crash pass "an apply creating two CUSTOM RESOURCES was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_manifest.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second depends_on crash_first, so the walker cannot have reached it - kubectl confirms the Issuer crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. Both are cert-manager.io/v1 Issuers, so every write in this graph - the plan-time server-side dry run included - goes through the two failurePolicy: Fail webhooks this estate installs, and the recovery is the counted-manifest binding path #1178 broke, reached from a half-finished apply rather than a replan. The next plan proposed exactly the remainder ($R_LINE, kubernetes_manifest.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the webhook and the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, the plan after it is empty and $C_AFTER objects carry the estate's label, the $C_BEFORE the estate carried before the pair plus exactly the pair. The record store contributed nothing and is asserted to: no record file exists for kubernetes_manifest.crash_first and the count did not move ($X_RECORDS_BEFORE -> $X_RECORDS_AFTER), because a kubernetes_manifest declaring no field_manager records nothing (#1188, #1235), so the label is the whole of the binding here. The pair's graph edge is a depends_on rather than the data reference the lane's other three estates use, because #1262 - found writing this section - is that a kubernetes_manifest whose manifest argument references another resource never binds to its own object again, which is a defect of its own and not this stage's subject. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
+  fi
+fi
+gauntlet_end_stage
+
+# ── 11. day2_teardown: destroy the adopted estate ────────────────────────
 gauntlet_begin_stage day2_teardown
-log "=== 10. day2_teardown: apply -destroy on the adopted estate, and stock's own destroy on B ==="
+log "=== 11. day2_teardown: apply -destroy on the adopted estate, and stock's own destroy on B ==="
 T_EXPECT="$(count_a)"
 T_OUT="$(tofu_a apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -20; fail "apply -destroy failed"; }
 grep -qF "Resources: 0 added, 0 changed, $T_EXPECT destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "apply -destroy did not remove exactly the $T_EXPECT remaining objects"; }
@@ -742,9 +988,9 @@ O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { p
 grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"
 gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply - no second pass needed on the way down, although the way up took two - the namespace is gone, all six cert-manager CRDs are gone, and no object of any of the estate's 14 kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the $O_EXPECT its state held"
 
-# ── 11. greenfield: the same shape, fresh, with a live block ─────────────
+# ── 12. greenfield: the same shape, fresh, with a live block ─────────────
 gauntlet_begin_stage greenfield
-log "=== 11. greenfield: choudoufu applies the shape fresh on the now-empty cluster A ==="
+log "=== 12. greenfield: choudoufu applies the shape fresh on the now-empty cluster A ==="
 write_root "$GREEN" live || fail "could not write the greenfield root"
 ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield init failed"
 green() { ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@" ); }
@@ -832,6 +1078,29 @@ grep -q "No changes." <<< "$G_PLAN" || { printf '%s\n' "$G_PLAN" | tail -20; fai
 rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"
 G_PLAN2="$(green plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache failed"
 grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -20; fail "the greenfield replan without the cache is not empty"; }
+
+# ── the lost-store control (#1235) ───────────────────────────────────────
+#
+# Six AWS estates delete the local record store here and require the next
+# plan to come back empty (reference-ec2-vpc/run.sh's A4); no Kubernetes
+# estate took the reading at all. On this one the answer is the AWS answer
+# for a different reason: every instance in this root is a
+# kubernetes_manifest declaring no field_manager, which records nothing at
+# all (#1188), so there is no residue for a lost store to cost and the
+# label plus namespace and name carries the whole binding. The other three
+# Kubernetes estates, whose roots hold typed resources, pay one converging
+# apply here instead.
+rm -rf "$GREEN/.tofu-records" "$GREEN/.terraform/choudoufu-cache.tfstate"
+L_PLAN="$(green plan -input=false -no-color 2>&1)"; L_RC=$?
+L_LINE="$(grep -E '^Plan:|^No changes' <<< "$L_PLAN" | head -1 | sed 's/\.$//')"
+[ "$L_RC" -eq 0 ] || { printf '%s\n' "$L_PLAN" | tail -20; fail "the plan with no record store at all exited $L_RC"; }
+L_GONE="$(grep -cE '^[[:space:]]*# .* will be (created|destroyed|replaced)' <<< "$L_PLAN")"
+[ "$L_GONE" = "0" ] || { printf '%s\n' "$L_PLAN" | grep -E 'will be' | head -20
+  fail "with the whole record store deleted the plan proposes $L_GONE create/destroy/replace(s) ($L_LINE) - the objects are not being found by their label and their namespace and name alone, so a lost store costs objects and not just an apply"; }
+L_CHANGES="$(grep -cE '^[[:space:]]*# .* will be updated in-place' <<< "$L_PLAN")"
+[ "$L_CHANGES" = "0" ] || { printf '%s\n' "$L_PLAN" | grep -E 'will be' | head -20
+  fail "with the record store deleted the plan proposes $L_CHANGES in-place update(s); nothing in this root records anything (#1188), so there is no residue a lost store could have taken with it - read what changed rather than trusting this assertion"; }
+log "  lost store: $L_LINE, every object still bound and nothing to reconverge"
 G_WANT="$TOTAL_N"; [ "${BREAK:-}" = "1" ] && G_WANT=$((TOTAL_N + 1))
 if [ "${BREAK:-}" = "1" ]; then
   if [ "$G_LABELLED" = "$G_WANT" ]; then
@@ -843,12 +1112,12 @@ else
   [ "$G_LABELLED" = "$TOTAL_N" ] || fail "$G_LABELLED object(s) carry tofu-estate=$ESTATE after the greenfield apply, want $TOTAL_N"
   G_CERT="$(kca get certificate example-com -n "$NS" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)"
   [ "$G_CERT" = "True" ] || fail "the greenfield Certificate is not Ready (status: ${G_CERT:-none}); stock's cold deploy produced a Ready one, so this is not the same estate"
-  gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=$ESTATE (kubectl, 14 kinds), and the Certificate Ready=True from the self-signed ClusterIssuer exactly as stock's cold deploy left it; the record store held $G_RECORDS file(s); replanned empty with and without the cache. Greenfield needs the SAME declared pre-apply the cold deploy did, read from live/gauntlet/estates.json rather than repeated here - the cluster is empty again, so the CRD plan-time constraint is back and it is a property of the configuration, not of who is applying it. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
+  gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=$ESTATE (kubectl, 14 kinds), and the Certificate Ready=True from the self-signed ClusterIssuer exactly as stock's cold deploy left it; the record store held $G_RECORDS file(s); replanned empty with and without the cache, and empty again with the whole record store deleted ($L_LINE) - the reading six AWS estates take here and no Kubernetes estate took (#1235): nothing created, nothing destroyed, nothing swept as an orphan and nothing to reconverge, because every instance in this root is a kubernetes_manifest declaring no field_manager and records nothing (#1188), so the label plus namespace and name is the whole binding. Greenfield needs the SAME declared pre-apply the cold deploy did, read from live/gauntlet/estates.json rather than repeated here - the cluster is empty again, so the CRD plan-time constraint is back and it is a property of the configuration, not of who is applying it. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
 fi
 ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"
 fi
 
-# ── 12. strict: every toggle on, one refusal ─────────────────────────────
+# ── 13. strict: every toggle on, one refusal ─────────────────────────────
 gauntlet_begin_stage strict
 STRICT="$WORK/strict"
 mkdir -p "$STRICT"
@@ -882,7 +1151,7 @@ resource "random_password" "db" {
 }
 EOF
 }
-log "=== 12. strict: every strict toggle on ==="
+log "=== 13. strict: every strict toggle on ==="
 strict_block "refuse" > "$STRICT/main.tf"
 ( cd "$STRICT" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init for the strict-stage scratch estate failed"
 STRICT_ON="$(cd "$STRICT" && "$TOFU" plan -input=false -no-color 2>&1)"; STRICT_ON_RC=$?
