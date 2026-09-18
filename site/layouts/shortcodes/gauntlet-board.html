@@ -5,6 +5,7 @@
   only thing that decides how a measurement looks.
 
     {{< gauntlet-board "banner" >}}      the board-wide emulator/date sentence
+    {{< gauntlet-board "script-staleness" >}} how many rows predate their own estate script's last change (#1264)
     {{< gauntlet-board "stages" >}}      the stage table
     {{< gauntlet-board "estates" >}}     every estate's verdict row
     {{< gauntlet-board "runtime" >}}     the run-time banner and table
@@ -22,6 +23,10 @@
 <p class="gauntlet-missing">No gauntlet board data yet; run <code>go run ./tools/gauntlet render</code>.</p>
 {{- else if eq $section "banner" -}}
 {{ $b.banner | markdownify }}
+{{- else if eq $section "script-staleness" -}}
+{{- with $b.script_banner -}}
+{{ . | markdownify }}
+{{- end -}}
 {{- else if eq $section "stage-count" -}}
 {{- $b.stage_count -}}
 {{- else if eq $section "lanes" -}}
@@ -46,7 +51,7 @@
 <tbody>
 {{- range $b.estates }}
 {{- $p := site.GetPage (printf "/docs/progress/%s" .name) }}
-<tr><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ else }}{{ .name }}{{ end }}</td><td>{{ .set }}</td><td>{{ .lane }}</td><td>{{ if .clear }}yes{{ else }}no{{ end }}</td><td class="cells">{{ range .cells }}<span class="cell cell-{{ replace . " " "-" | lower }}">{{ . }}</span> {{ end }}</td></tr>
+<tr><td>{{ with $p }}<a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ else }}{{ .name }}{{ end }}</td><td>{{ .set }}</td><td>{{ .lane }}</td><td>{{ if .clear }}yes{{ else }}no{{ end }}{{ with .script_stale }} <span class="cell cell-{{ . }}" title="the estate's own files have moved since this row was measured (#1264)">script {{ . }}</span>{{ end }}</td><td class="cells">{{ range .cells }}<span class="cell cell-{{ replace . " " "-" | lower }}">{{ . }}</span> {{ end }}</td></tr>
 {{- end }}
 </tbody>
 </table>

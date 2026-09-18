@@ -33,6 +33,13 @@
   {{- with $e.stale_note -}}
     {{- $md = $md | append "" . -}}
   {{- end -}}
+  {{- /* Whole-row staleness (#1264): the estate's own files changed after
+         the run below measured them, or nobody can tell whether they did.
+         It sits beside the carried-verdict note above because both answer
+         "is what follows evidence about the tree as it is now". */ -}}
+  {{- with $e.script_note -}}
+    {{- $md = $md | append "" . -}}
+  {{- end -}}
   {{- $md = $md | append "" "| Stage | Verdict | Duration | Detail |" "|---|---|---|---|" -}}
   {{- range $e.stage_rows -}}
     {{- /* A carried verdict's provenance sentence leads its detail cell, so
