@@ -108,10 +108,10 @@ var liveTargetScopeClassification = map[string]struct {
 	"collectDeposedRecords":           {wholeConfigByDesign, "record reads for crash-window recovery; errors are swallowed, nothing is refused"},
 
 	// ---- filed gaps ------------------------------------------------
-	"lint.CheckWith":              {unscopedKnownGap, "lint.Context has no Scope field at all; per-resource rules refuse an untargeted block. #1203"},
-	"lint.CheckResidueAttributes": {unscopedKnownGap, "same, warning severity. #1203"},
-	"statelessProviderDataReads":  {unscopedKnownGap, "dataread.AnalyzeProviderConfigs and projection.PlanInstances run unscoped; provider work, not a refusal. #1203"},
-	"statelessPolicyReconcile":    {unscopedKnownGap, "the account roster and its threshold error are computed over a narrowed run. #1203"},
+	"lint.CheckWith":              {unscopedKnownGap, "lint.Context has no Scope field at all; per-resource rules refuse an untargeted block. #1256"},
+	"lint.CheckResidueAttributes": {unscopedKnownGap, "same, warning severity; #1256 covers both"},
+	"statelessProviderDataReads":  {unscopedKnownGap, "dataread.AnalyzeProviderConfigs and projection.PlanInstances run unscoped; provider work, not a refusal. #1258"},
+	"statelessPolicyReconcile":    {unscopedKnownGap, "the account roster and its threshold error are computed over a narrowed run. #1257"},
 
 	// ---- not a pass ------------------------------------------------
 	"lint.Diagnostics":                    {notAPass, "renders issues"},
