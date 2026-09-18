@@ -15,10 +15,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 )
 
 // credentials is what the sweep clients built for one provider
@@ -217,4 +219,52 @@ func serviceEndpoint(serviceVar, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// newServiceTagsReader builds the per-service tag-read leg's reader: the
+// fourth route to an ownership marker, for a live object an enumeration
+// route reaches and no tag route can read a marker off. See
+// internal/live/servicetags's package comment for what the other three are
+// and why they come back empty for IAM.
+//
+// GitHub issue #1131 built it inline in [statelessDiscover]. GitHub issue
+// #1274 is what that cost: live-mv needed the identical reader and did not
+// have one, so it refused to rename an aws_iam_policy whose marker
+// live-plan could read perfectly well through iam:ListPolicyTags. The
+// construction is here, once, rather than in each command - the endpoint
+// resolution alone is a rule about two environment variables that no second
+// copy would have got right for long.
+//
+// ep is the all-services endpoint override the run already settled
+// ([cloudControlTarget]); fromBlock is whatever the provider configuration's
+// own credentials resolved to, and nil is allowed - see
+// [sweepServiceCredentials] for what a nil becomes and why it cannot stay
+// nil.
+//
+// Nothing here calls anything. The client resolves its credentials lazily,
+// and the leg's own gate (internal/live/discovery/servicetagread.go) is what
+// decides whether a call is ever made, so a run that builds this and never
+// needs it pays for the struct and nothing else.
+func newServiceTagsReader(region, ep string, fromBlock aws.CredentialsProvider) servicetags.Reader {
+	return servicetags.NewIAM(iam.NewFromConfig(
+		aws.Config{
+			Region: region,
+			// Same principal as the Cloud Control and Tagging clients
+			// (#957), and the same fallback: a provider block naming no
+			// credentials defers to aws-sdk-go-v2's default chain,
+			// resolved lazily so a run whose leg never fires pays nothing
+			// for it.
+			Credentials: sweepServiceCredentials(fromBlock, region),
+		},
+		func(o *iam.Options) {
+			// Built by hand rather than through LoadDefaultConfig, so the
+			// SDK's own AWS_ENDPOINT_URL_IAM / AWS_ENDPOINT_URL resolution
+			// does not happen for us and is done here instead. The
+			// service-specific variable wins, exactly as the SDK orders
+			// them.
+			if iamEP := serviceEndpoint("AWS_ENDPOINT_URL_IAM", ep); iamEP != "" {
+				o.BaseEndpoint = aws.String(iamEP)
+			}
+		},
+	))
 }

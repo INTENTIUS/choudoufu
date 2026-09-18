@@ -16,11 +16,5 @@
     "stage": "day2_count",
     "reason": "At SCALE=128 (9,477 resources) this stage's STOCK ORACLE fails, not choudoufu: after stock's own scale-down apply reports exactly six destroys, all of them index [1], an `iam list-roles` query still finds the destroyed count_team[1] role. The oracle fixture uses its own `${PREFIX}o-` names, so this is not a collision with the greenfield estate that shares the account. Unverified hypothesis: floci's list-roles pagination over the ~4,200 roles greenfield leaves in GREEN at this scale. The same stage passes at scale 1 and passed at scales 10 and 50 on 2026-09-09/10, where the account holds far fewer roles.",
     "issue": "#1077"
-  },
-  {
-    "estate": "corpus-iam-policy",
-    "stage": "day2_rename",
-    "reason": "day2_rename's live-mv half (PART D2) refuses with \"The provider listed 2 aws_iam_policy, 0 of which carry estate\" while both policies do carry it - PART D1, on the same run, reads one of them back through the AWS CLI. internal/live/mv's sweep falls back to resourcegroupstaggingapi GetResources when iam:ListPolicies returns its usual tagless result, and GetResources stopped indexing iam:policy at the 2026-09-11 repin (it answered on 9ec3fa64, the emulator the last green measurement used). discovery stopped depending on that route in #1125 - servicetags reads iam:ListPolicyTags directly, and live_plan.go wires it - but mv.Request carries only the tagging client, which is why the moved-block half of this same stage passes and the live-mv half does not. The committed pass is carry-forward from 2026-09-10 against 9ec3fa64; no run since reached PART D2, because greenfield aborted the script at PART 6 until #1271.",
-    "issue": "#1274"
   }
 ]

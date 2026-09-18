@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
@@ -42,7 +40,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
-	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -1731,27 +1728,12 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 			// building the client here is unconditional within this block:
 			// nothing is called until an object's marker has already gone
 			// unread by every other route.
-			req.ServiceTags = servicetags.NewIAM(iam.NewFromConfig(
-				aws.Config{
-					Region: sweepCfg.Region,
-					// Same principal as the Cloud Control and Tagging
-					// clients (#957), and the same fallback: a provider
-					// block naming no credentials defers to
-					// aws-sdk-go-v2's default chain, resolved lazily so a
-					// run whose leg never fires pays nothing for it.
-					Credentials: sweepServiceCredentials(sweepCreds, sweepCfg.Region),
-				},
-				func(o *iam.Options) {
-					// Built by hand rather than through LoadDefaultConfig,
-					// so the SDK's own AWS_ENDPOINT_URL_IAM /
-					// AWS_ENDPOINT_URL resolution does not happen for us
-					// and is done here instead. The service-specific
-					// variable wins, exactly as the SDK orders them.
-					if iamEP := serviceEndpoint("AWS_ENDPOINT_URL_IAM", ep); iamEP != "" {
-						o.BaseEndpoint = aws.String(iamEP)
-					}
-				},
-			))
+			//
+			// Through [newServiceTagsReader], which internal/command/
+			// live_mv.go also calls: #1274 was live-mv missing this exact
+			// leg, and a second construction of it there would have been
+			// the same defect waiting on the next command.
+			req.ServiceTags = newServiceTagsReader(sweepCfg.Region, ep, sweepCreds)
 		}
 	}
 
