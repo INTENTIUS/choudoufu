@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@intentius/chant": "0.63.0",
+    "@intentius/chant-lexicon-aws": "0.63.0",
     "@intentius/chant-lexicon-forgejo": "0.63.0",
     "@intentius/chant-lexicon-github": "0.63.0",
     "@intentius/chant-lexicon-gitlab": "0.63.0",

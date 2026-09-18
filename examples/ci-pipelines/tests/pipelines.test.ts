@@ -52,7 +52,7 @@ type Forge = keyof typeof FORGE_DIR;
 const GITLAB_FILE = join(exampleDir, "gitlab", "ops.gitlab-ci.yml");
 
 /** The five Ops, which are also the five job names. */
-const OPS = ["live-adopt", "live-apply", "live-check", "live-discover", "live-plan"] as const;
+const OPS = ["backend-prepare", "live-adopt", "live-apply", "live-check", "live-discover", "live-plan"] as const;
 
 interface Step {
   id?: string;
@@ -488,7 +488,7 @@ describe("trigger parity: github, forgejo and gitlab fire on the table specs() b
 });
 
 describe("gitlab: one job per Op, in the one file the generator emits", () => {
-  it("is exactly the five Ops, plus stages: and variables:", () => {
+  it("is exactly the six Ops, plus stages: and variables:", () => {
     const doc = gitlabDoc();
     const jobs = Object.keys(doc).filter((key) => !["stages", "variables"].includes(key));
     assert.deepEqual(jobs.sort(), [...OPS].sort());

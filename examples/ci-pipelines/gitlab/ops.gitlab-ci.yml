@@ -14,6 +14,7 @@
 #   live-check: merge_request_event onto main, finding-mode report
 #   live-plan: merge_request_event onto main, finding-mode comment — needs a GITLAB_TOKEN CI/CD variable (masked, scope: api)
 #   live-adopt: push to staging, finding-mode report — a gated apply stays green, its pending gate in the log and in chant-gate-live-adopt.md
+#   backend-prepare: push to bootstrap, finding-mode report — a gated apply stays green, its pending gate in the log and in chant-gate-backend-prepare.md
 #   live-apply: push to main, finding-mode report — a gated apply stays green, its pending gate in the log and in chant-gate-live-apply.md
 #     deploys to environment "production" — protect it under Settings > CI/CD > Protected environments to require an approval before the job runs
 #   live-discover: cron "0 6 * * *", CHANT_SCHEDULED_OP="live-discover", finding-mode issue — needs a GITLAB_TOKEN CI/CD variable (masked, scope: api)
@@ -71,6 +72,28 @@ live-adopt:
     when: always
     paths:
       - chant-gate-live-adopt.md
+    expire_in: '30 days'
+
+backend-prepare:
+  stage: ops
+  image: node:22
+  resource_group: backend-prepare
+  id_tokens:
+    CHANT_ID_TOKEN:
+      aud: '$CI_SERVER_URL'
+  variables:
+    CHANT_GATE_SUMMARY: chant-gate-backend-prepare.md
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "bootstrap"'
+  script:
+    - echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_ROLE_ARN="$CHOUDOUFU_BACKEND_ROLE_ARN" && export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"
+    - npm ci --no-audit --no-fund
+    - curl -fsSL -o /tmp/choudoufu_v0.17.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.17.0/choudoufu_v0.17.0_linux_amd64.tar.gz && echo "f12d2975474b103be6f0f29a3dae6e81bbc876e70b5b95b49cc444ffbacb1fa5  /tmp/choudoufu_v0.17.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.17.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - npx chant run backend-prepare --gated-exit 0
+  artifacts:
+    when: always
+    paths:
+      - chant-gate-backend-prepare.md
     expire_in: '30 days'
 
 live-apply:

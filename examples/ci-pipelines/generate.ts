@@ -216,6 +216,23 @@ export function specs(): ScheduledOpSpec[] {
           : {}),
     },
     {
+      // Rare and deliberate, so it triggers on a push to `bootstrap` rather
+      // than to main: this Op gates unconditionally, and a gate on every
+      // push to main is a gate people learn to click through.
+      //
+      // It needs a role that can create a bucket and a KMS key, which is a
+      // strictly larger permission than anything else here holds - hence its
+      // own role ARN rather than reusing the apply role.
+      name: "backend-prepare",
+      trigger: { kind: "push", branches: ["bootstrap"] },
+      findingMode: "report",
+      ...(oidcForge
+        ? { setup: assumeRole("CHOUDOUFU_BACKEND_ROLE_ARN"), permissions: OIDC }
+        : forgejo
+          ? { variables: forgejoKeyPair("BACKEND") }
+          : {}),
+    },
+    {
       name: "live-apply",
       trigger: { kind: "push", branches: ["main"] },
       findingMode: "report",
