@@ -137,7 +137,7 @@ func TestNoClassicImporterStubCarriesSeededIDAlongsideComponents(t *testing.T) {
 	identityValues := recordFirstStubValues(rec)
 
 	target := providers.ImportTarget{ID: importID}
-	obj, _, status, diags := importAndRead(t.Context(), p, certificateValidationSchema(), "aws_acm_certificate_validation", target, importID, identityValues, nil, nil)
+	obj, _, status, diags := importAndRead(t.Context(), p, certificateValidationSchema(), "aws_acm_certificate_validation", target, importID, identityValues, nil, nil, nil)
 
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %v", diags)

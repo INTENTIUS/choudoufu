@@ -131,7 +131,7 @@ func k8sLiveManifest(t *testing.T, stampedEstate string, liveLabels map[string]s
 		"field_manager":   cty.ListValEmpty(cty.Object(map[string]cty.Type{"name": cty.String})),
 		"wait":            cty.ListValEmpty(cty.Object(map[string]cty.Type{"rollout": cty.Bool})),
 	})
-	return mirrorManifestComputedFields(v, manifestTypeSchema().Block)
+	return mirrorManifestComputedFields(v, manifestTypeSchema().Block, nil)
 }
 
 func k8sConfigMapAddr(t *testing.T) addrs.AbsResourceInstance {

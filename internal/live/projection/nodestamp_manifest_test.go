@@ -440,7 +440,7 @@ func TestMirrorManifestComputedFieldsFollowsTheLiveObject(t *testing.T) {
 				map[string]cty.Value{"labels": priorObjectMap(prior)},
 				map[string]cty.Value{"labels": liveStringMap(tc.live)},
 			)
-			got := mirrorManifestComputedFields(in, block)
+			got := mirrorManifestComputedFields(in, block, nil)
 			labels := priorMapOf(t, got, "labels")
 			if len(labels) != len(tc.want) {
 				t.Fatalf("labels = %v, want %v", labels, tc.want)
@@ -478,7 +478,7 @@ func TestMirrorManifestComputedFieldsMirrorsAnnotations(t *testing.T) {
 			"annotations": liveStringMap(map[string]string{"reviewed": "no", "kubectl.kubernetes.io/last-applied-configuration": "{}"}),
 		},
 	)
-	got := mirrorManifestComputedFields(in, block)
+	got := mirrorManifestComputedFields(in, block, nil)
 	ann := priorMapOf(t, got, "annotations")
 	if len(ann) != 1 || ann["reviewed"] != "no" {
 		t.Fatalf("annotations = %v, want the live object's own %q and nothing it added", ann, "no")
@@ -499,7 +499,7 @@ func TestMirrorManifestComputedFieldsLeavesTheRestAlone(t *testing.T) {
 		map[string]cty.Value{"labels": priorObjectMap(map[string]string{"app": "cron"})},
 		map[string]cty.Value{"labels": liveStringMap(map[string]string{"app": "cron", "added": "yes"})},
 	)
-	if got := mirrorManifestComputedFields(agreeing, block); !got.RawEquals(agreeing) {
+	if got := mirrorManifestComputedFields(agreeing, block, nil); !got.RawEquals(agreeing) {
 		t.Errorf("a prior that already matched the live object was rewritten: %#v", got)
 	}
 
@@ -509,7 +509,7 @@ func TestMirrorManifestComputedFieldsLeavesTheRestAlone(t *testing.T) {
 		nil,
 		map[string]cty.Value{"labels": liveStringMap(map[string]string{"added": "yes"})},
 	)
-	if got := mirrorManifestComputedFields(undeclared, block); !got.RawEquals(undeclared) {
+	if got := mirrorManifestComputedFields(undeclared, block, nil); !got.RawEquals(undeclared) {
 		t.Errorf("an undeclared labels map was invented: %#v", got)
 	}
 
@@ -517,12 +517,12 @@ func TestMirrorManifestComputedFieldsLeavesTheRestAlone(t *testing.T) {
 		map[string]cty.Value{"labels": priorObjectMap(map[string]string{markers.TagEstate: "smoke-crd"}).Mark("sensitive")},
 		map[string]cty.Value{"labels": liveStringMap(nil)},
 	)
-	if got := mirrorManifestComputedFields(marked, block); !got.RawEquals(marked) {
+	if got := mirrorManifestComputedFields(marked, block, nil); !got.RawEquals(marked) {
 		t.Errorf("a marked labels value was rewritten: %#v", got)
 	}
 
 	cm := configMapTestConfig(cty.NullVal(cty.Map(cty.String)))
-	if got := mirrorManifestComputedFields(cm, configMapTypeSchema().Block); !got.RawEquals(cm) {
+	if got := mirrorManifestComputedFields(cm, configMapTypeSchema().Block, nil); !got.RawEquals(cm) {
 		t.Errorf("a metadata-block type was rewritten")
 	}
 }
@@ -543,7 +543,7 @@ func TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible(t *testing.T) {
 		map[string]cty.Value{"labels": liveStringMap(map[string]string{"tier": "one", markers.TagEstate: "smoke-crd"})},
 	)
 	configured := in.GetAttr("manifest").GetAttr("metadata").GetAttr("labels")
-	if got := mirrorManifestComputedFields(in, block).GetAttr("manifest").GetAttr("metadata").GetAttr("labels"); got.RawEquals(configured) {
+	if got := mirrorManifestComputedFields(in, block, nil).GetAttr("manifest").GetAttr("metadata").GetAttr("labels"); got.RawEquals(configured) {
 		t.Fatalf("the prior manifest still equals the configuration at metadata.labels (%#v); the provider's computed_fields rule can never see the edit", got)
 	}
 }
