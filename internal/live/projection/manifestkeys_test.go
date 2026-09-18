@@ -284,3 +284,42 @@ func TestOwnedManifestKeysRefusesAnUnnameableObject(t *testing.T) {
 		t.Errorf("keys = %v, diags = %v, want one warning and no keys", keys, diags)
 	}
 }
+
+// TestMirrorManifestComputedFieldsPlansTheLastKeyOfAMap: deleting the last
+// annotation from a configuration deletes the `annotations` map with it, so
+// the prior manifest has no such attribute to widen. The owned keys the
+// object still carries go into a map of their own, or the removal is
+// invisible - which is how the smoke's own step 6 first failed, on the
+// commonest shape of all: one annotation, then none.
+func TestMirrorManifestComputedFieldsPlansTheLastKeyOfAMap(t *testing.T) {
+	block := manifestTypeSchema().Block
+	in := manifestReadValue(
+		// No "annotations" attribute at all: the configuration has none.
+		map[string]cty.Value{"labels": priorObjectMap(map[string]string{markers.TagEstate: "smoke-crd"})},
+		map[string]cty.Value{
+			"labels": liveStringMap(map[string]string{markers.TagEstate: "smoke-crd"}),
+			"annotations": liveStringMap(map[string]string{
+				"reviewed": "yes",
+				"kubectl.kubernetes.io/last-applied-configuration": "{}",
+			}),
+		},
+	)
+	if _, has := in.GetAttr("manifest").GetAttr("metadata").Type().AttributeTypes()["annotations"]; has {
+		t.Fatal("the fixture declares annotations, so this test measures the wrong thing")
+	}
+
+	// Nothing owned there: the attribute stays absent, because absent on
+	// both sides is agreement and there is nothing to remove.
+	if got := mirrorManifestComputedFields(in, block, ownedSet([]string{markers.TagEstate}, nil)); !got.RawEquals(in) {
+		t.Error("a map the configuration never had and we own nothing in was invented")
+	}
+
+	got := mirrorManifestComputedFields(in, block, ownedSet([]string{markers.TagEstate}, []string{"reviewed"}))
+	ann := priorMapOf(t, got, "annotations")
+	if len(ann) != 1 || ann["reviewed"] != "yes" {
+		t.Fatalf("annotations = %v, want only the owned key at its live value", ann)
+	}
+	if _, has := ann["kubectl.kubernetes.io/last-applied-configuration"]; has {
+		t.Error("a foreign manager's annotation entered a prior map built from nothing")
+	}
+}

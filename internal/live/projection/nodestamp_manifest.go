@@ -327,12 +327,31 @@ func mirrorManifestComputedFields(v cty.Value, block *configschema.Block, owned 
 	metaAttrs := meta.AsValueMap()
 	changed := false
 	for _, field := range markers.ManifestComputedMetadataAttrs {
-		cur, has := metaAttrs[field]
-		if !has {
-			continue
-		}
 		live, ok := liveMetadataMap(liveMeta, field)
 		if !ok {
+			continue
+		}
+		cur, has := metaAttrs[field]
+		if !has {
+			// GitHub issue #1211's last-key case. Deleting the final
+			// annotation from a configuration deletes the whole
+			// `annotations` map with it, so there is no prior map to
+			// widen - and skipping the field here is how the smoke's
+			// step 6 first failed. The owned keys the object still
+			// carries are put in a map of their own, which the
+			// configuration then differs from (it has no such
+			// attribute at all) exactly as it differs from a widened
+			// one.
+			//
+			// metadata.labels never reaches this branch on a stamped
+			// estate, because the marker is always in it; annotations
+			// reach it whenever the last one is removed.
+			added, ok := ownedOnlyMetadataMap(owned[field], live)
+			if !ok {
+				continue
+			}
+			metaAttrs[field] = added
+			changed = true
 			continue
 		}
 		mirrored, ok := mirrorMetadataMap(cur, live, owned[field])
@@ -399,6 +418,35 @@ func liveMetadataMap(meta cty.Value, field string) (map[string]string, bool) {
 		out[k.AsString()] = val.AsString()
 	}
 	return out, true
+}
+
+// ownedOnlyMetadataMap builds a prior metadata map for a field the prior
+// manifest has no attribute for at all: the live value of every key our
+// field manager owns, and nothing else.
+//
+// This is the shape a configuration takes when its LAST annotation is
+// deleted - the `annotations` map goes with the key - and without it a
+// removal that empties a map is invisible, which is GitHub issue #1211 for
+// exactly the configurations most likely to hit it.
+//
+// An object rather than a map, because the configuration side of this
+// comparison is an object constructor and there is no prior container type
+// to preserve here. false when our manager owns nothing the object still
+// carries, which leaves the attribute absent, which is correct: absent on
+// both sides is agreement, and there is nothing to remove.
+func ownedOnlyMetadataMap(owned map[string]bool, live map[string]string) (cty.Value, bool) {
+	elems := map[string]cty.Value{}
+	for key := range owned {
+		got, ok := live[key]
+		if !ok {
+			continue
+		}
+		elems[key] = cty.StringVal(got)
+	}
+	if len(elems) == 0 {
+		return cty.NilVal, false
+	}
+	return cty.ObjectVal(elems), true
 }
 
 // mirrorMetadataMap rebuilds one of the prior manifest's metadata maps with
