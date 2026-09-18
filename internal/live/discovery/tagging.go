@@ -644,18 +644,20 @@ func taggingAPIRestrictedType(typeName string) bool {
 // Two further terms, and both NARROW rather than widen:
 //
 //   - [taggingAPIRestrictedType]. Measured over the admitted table at
-//     provider 6.59.0, six types reach this arm at all with a taggable
-//     provider schema, and three of them (aws_launch_template and the two
-//     aws_vpc_security_group_*_rule types) have ordinary index coverage -
-//     the index holds them in every region. For those, an empty answer is
+//     provider 6.59.0, FIVE types reach this arm at all with a taggable
+//     provider schema (TestRegistryUntaggableArmPopulation recomputes them;
+//     #1318 and #1322 both said six in prose, counting aws_iam_role, which
+//     has a coverage row but is registry-taggable and so never reaches this
+//     arm). Three of the five - aws_launch_template and the two
+//     aws_vpc_security_group_*_rule types - have ordinary index coverage,
+//     the index holding them in every region. For those, an empty answer is
 //     the same evidence the entire tagging leg rests on; it is what "this
 //     estate owns none of this type" looks like for every one of the
 //     hundreds of types in the universe, and raising it to a per-run
 //     diagnostic would bury the case where the index is known NOT to behave
-//     ordinarily. They keep [SweepGapNotTaggable] and its suppression,
-//     unchanged by #1318 - their wording is still wrong about them, and the
-//     repair for that is live/registry.json's generator (#1318's candidate
-//     1), not this arm.
+//     ordinarily. They keep their suppression, unchanged by #1318 and by
+//     #1322, which corrected only what their gap SAYS - see
+//     [SweepGapTagIndexCoverageUnconfirmed].
 //
 //   - the region term. A restricted type is only reported this way from a
 //     region its coverage row says DOES serve it. From any other region the
@@ -1385,7 +1387,7 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 				continue
 			}
 			_, known := req.Roster.TaggableKnown(cfnType)
-			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
+			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known, typeTaggable(schemas, typeName))))
 			continue
 		}
 
