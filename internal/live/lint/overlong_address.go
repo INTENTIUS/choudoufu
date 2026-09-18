@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
@@ -70,9 +71,18 @@ import (
 // say such a block never reached here at all, because RuleChildModule
 // refused it outright, and that stopped being true when issue #195 admitted
 // a statically-evaluable module count with no count.index leak.
-func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst addrs.ModuleInstance, issues *[]Issue) {
+func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst addrs.ModuleInstance, scope identity.Scope, issues *[]Issue) {
 	path := modInst.Module()
 	for _, resource := range mod.ManagedResources {
+		// GitHub issue #1256. The budget this rule measures is a marker's,
+		// and a block -target / -exclude removed from the plan graph is
+		// never stamped on this run. The scope is asked of the static
+		// module path rather than of modInst, whose keys are this rule's
+		// own worst-case reading and not addresses targeting knows: see
+		// [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
+			continue
+		}
 		switch {
 		case resource.ForEach != nil:
 			keys, ok := staticeval.ForEachKeys(ctx, mod, resource.ForEach)

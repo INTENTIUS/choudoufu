@@ -563,7 +563,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// Warning-severity issues (GitHub issue #210: [lint.RuleStateBackend] is
 	// the first) are rendered but do not stop the run - only an error-
 	// severity issue does, via [lint.HasErrors] rather than a bare len check.
-	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+	// GitHub issue #1256's half of the scope: the per-resource rules narrow
+	// to the blocks the plan graph still holds, and every whole-
+	// configuration rule ignores it. See [lint.Context].
+	lctx := lint.Context{Schemas: resourceSchemas, Scope: scope}
+	if issues := lint.CheckWith(ctx, config, lctx); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
 		if lint.HasErrors(issues) {
 			diags = diags.Append(provs.close(ctx))
@@ -573,7 +577,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
 	// than gating on it. See [lint.CheckResidueAttributes].
-	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+	diags = diags.Append(lint.CheckResidueAttributes(config, lctx))
 
 	// GitHub issue #179's data-read phase, between the subset check and
 	// resolution: when an identity, a count or a for_each needs a data

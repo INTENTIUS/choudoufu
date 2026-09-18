@@ -63,6 +63,63 @@ type Context struct {
 	// lint knows, which is what [CheckContext] always passes and what
 	// every caller running before a provider has started passes.
 	Schemas map[string]providers.Schema
+
+	// Scope is which resource blocks this run's -target / -exclude
+	// filtering leaves in the plan graph, as
+	// internal/command's statelessTargetScope computes it from the graph
+	// itself (GitHub issue #352). Nil is the default and means every block
+	// is in scope, which is what every untargeted run passes and what
+	// every offline caller - [CheckContext], internal/live/check's
+	// Analyze, tools/refusal-probe - passes.
+	//
+	// GitHub issue #1256. Before it, this struct had one field and the
+	// target set did not reach this package at all, so a per-resource rule
+	// refused a run over a block the operator had deliberately left out -
+	// #1176's shape at the earliest stage on the live path. A block stock
+	// OpenTofu removed from the plan graph is never evaluated and never
+	// applied, so a rule that exists to say something about the live object
+	// that block would create has nothing to say about this run.
+	//
+	// It narrows the per-resource rules only, and each rule's own raising
+	// site records the ruling: see [scopeExcludes] for the list and
+	// [checkMovedBlocks], [checkStrictMarkers] and
+	// [checkUndeclaredProviderAlias] for three that stay whole-configuration
+	// on purpose. Narrowing a run must not disable a check protecting
+	// something the run does touch, so a scope that KEEPS a block still
+	// refuses that block.
+	Scope identity.Scope
+}
+
+// scopeExcludes reports whether this run's -target / -exclude filtering has
+// removed one resource block of the module at path from the plan graph.
+//
+// It is the per-resource rules' half of [Context.Scope]: the rules that
+// route through it are [RuleProvisioner], [RuleLogicalResource],
+// [RuleUnadmittedType], [RuleMarkerlessType], [RuleCountIndex],
+// [RuleIgnoreChanges], [RuleGenerateName], [RuleForEachKey],
+// [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue] and
+// [RuleReceiptSecret], plus [CheckResidueAttributes]' warning. Every other
+// rule is about the configuration, a module call or the live block itself,
+// and none of those is an [addrs.ConfigResource] for a scope to answer
+// about.
+//
+// A nil scope - every untargeted run, and every offline caller - excludes
+// nothing, so this whole mechanism costs one nil check on the path that
+// existed before it.
+//
+// Two things make the narrowing safe rather than a hole, and both are
+// properties of passes further down rather than of this one. Identity
+// resolution already rolls back an out-of-scope block's own diagnostics
+// ([identity.Scope], walkOutOfScope), so lint refusing what resolution
+// forgives was the two passes disagreeing about the same block; and the
+// estate sweep already withholds a removal whose orphan address is out of
+// scope (internal/live/discovery, GitHub issue #1176), so a block this pass
+// now admits cannot reach the destructive direction through the sweep.
+func scopeExcludes(scope identity.Scope, path addrs.Module, res addrs.Resource) bool {
+	if scope == nil {
+		return false
+	}
+	return !scope(addrs.ConfigResource{Module: path, Resource: res})
 }
 
 // CheckWith is [CheckContext] told the provider schemas the caller already
@@ -118,7 +175,7 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 
 	var issues []Issue
 	checkStrictMarkers(cfg, lctx.Schemas, &issues)
-	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, secrets, markersRecord, nil, &issues)
+	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, lctx.Scope, signal, recordStoreConfigured, secrets, markersRecord, nil, &issues)
 	sortIssues(issues)
 	return issues
 }
@@ -214,7 +271,13 @@ func markerRepairHonoursIgnoreChanges(cfg *configs.Config) *strict.Selection {
 // whole call chain once triggered, not of any single link in it. See
 // [checkModuleProviderBlocks] (GitHub issue #201), the only rule that reads
 // this argument.
-func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, noProviderConfigRange *hcl.Range, issues *[]Issue) {
+// scope is GitHub issue #1256's target set, threaded unchanged through every
+// recursive call for schemas' and signal's reason: it is a property of the
+// whole run. It is keyed by [addrs.ConfigResource], whose module component is
+// the STATIC module path (cfg.Path, the same `path` every check below already
+// carries) rather than the worst-case module INSTANCE modInst - targeting's
+// own granularity is the block, not the instance. See [scopeExcludes].
+func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, scope identity.Scope, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, noProviderConfigRange *hcl.Range, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -232,12 +295,12 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkLivePolicy(mod, path, issues)
 	checkLiveStrict(mod, path, issues)
 	checkLiveRetry(mod, path, issues)
-	checkManagedResources(ctx, cfg, path, schemas, signal, recordStoreConfigured, secrets, markersRecord, issues)
-	checkForEachKeys(ctx, cfg, path, issues)
-	checkOverlongAddresses(ctx, mod, modInst, issues)
-	checkReceiptLeafRule(mod, path, issues)
-	checkReceiptValueRule(mod, path, issues)
-	checkReceiptSecretRule(mod, path, issues)
+	checkManagedResources(ctx, cfg, path, schemas, scope, signal, recordStoreConfigured, secrets, markersRecord, issues)
+	checkForEachKeys(ctx, cfg, path, scope, issues)
+	checkOverlongAddresses(ctx, mod, modInst, scope, issues)
+	checkReceiptLeafRule(mod, path, scope, issues)
+	checkReceiptValueRule(mod, path, scope, issues)
+	checkReceiptSecretRule(mod, path, scope, issues)
 
 	names := make([]string, 0, len(cfg.Children))
 	for name := range cfg.Children {
@@ -251,7 +314,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 			childNoProviderConfigRange = r
 		}
 		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, name))
-		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, secrets, markersRecord, childNoProviderConfigRange, issues)
+		checkConfig(ctx, cfg.Children[name], childInst, schemas, scope, signal, recordStoreConfigured, secrets, markersRecord, childNoProviderConfigRange, issues)
 	}
 }
 
@@ -404,6 +467,24 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 // address while the new address reads as absent - one cloud object, a
 // proposed destroy and a proposed create. Sharing the predicate is what makes
 // that impossible rather than merely unlikely.
+//
+// # Why this rule takes no [Context.Scope]
+//
+// GitHub issue #1256's one named exception among the rules that mention an
+// address. internal/live/discovery's declaredInstances relies on this
+// refusal in its own words - "internal/live/lint refuses exactly the
+// statements it leaves out, so a block that passes lint is a block whose old
+// address is indexed here" - so narrowing it would let an unhonourable moved
+// statement reach a run whose pending-move index then does not carry the old
+// address, and the sweep reads the moved resource as an orphan.
+//
+// It also has no scope to be narrowed BY. A moved statement's endpoints are
+// [addrs.MoveEndpoint]s, which may name a module instance or an instance key
+// rather than a resource block, while [identity.Scope]'s unit is the
+// [addrs.ConfigResource]; and the OLD address by construction names nothing
+// the configuration still declares, so the plan graph
+// [statelessTargetScope] reads has no vertex for it and would answer false
+// for every targeted run.
 func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	for _, stmt := range moved.StatementsIn(mod, path) {
 		reason, ok := moved.Honourable(cfg, stmt)
@@ -428,10 +509,31 @@ func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Modul
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(ctx context.Context, cfg *configs.Config, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, issues *[]Issue) {
+func checkManagedResources(ctx context.Context, cfg *configs.Config, path addrs.Module, schemas map[string]providers.Schema, scope identity.Scope, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, issues *[]Issue) {
 	mod := cfg.Module
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
+
+		// GitHub issue #1256, and the same argument one paragraph down
+		// makes for a block with no instances, made for a block this run
+		// has no instances OF: -target / -exclude removed it from the plan
+		// graph, so stock never evaluates its body and this run never
+		// creates or manages the object every rule below is about. Every
+		// one of the seven verdicts this loop reaches - a provisioner's
+		// tainted bit, a logical type's admission, a markerless type's
+		// missing marker, an unadmitted type, count.index injectivity,
+		// ignore_changes over the marker keys, a server-minted Kubernetes
+		// name - is a statement about an apply that will not happen here.
+		//
+		// The skip is silent, for [check.NodeStampUnmarkedApply]'s reason
+		// (#1203): an estate that narrows every run by declaration would
+		// otherwise carry a permanent warning it can neither act on nor
+		// switch off. What it deliberately does not do is stop the check -
+		// a scope that KEEPS a block still refuses that block. See
+		// [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
+			continue
+		}
 
 		// A block this configuration's own count/for_each provably never
 		// instantiates has no live instance for anything below to be

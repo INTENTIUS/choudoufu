@@ -91,6 +91,8 @@ var liveTargetScopeClassification = map[string]struct {
 	"statelessDiscover":            {scopeAware, "discovery.Request.Scope; #1176"},
 	"projection.BuildWith":         {scopeAware, "projection.Options.Scope; #1176"},
 	"statelessUnmarkedApplyGaps":   {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
+	"lint.CheckWith":               {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
+	"lint.CheckResidueAttributes":  {scopeAware, "lint.Context.Scope, same struct; #1256"},
 
 	// ---- narrowed before they run ----------------------------------
 	"statelessKubernetesDryRun":        {planDerived, "iterates plan.Changes.Resources, which targeting already pruned"},
@@ -108,10 +110,8 @@ var liveTargetScopeClassification = map[string]struct {
 	"collectDeposedRecords":           {wholeConfigByDesign, "record reads for crash-window recovery; errors are swallowed, nothing is refused"},
 
 	// ---- filed gaps ------------------------------------------------
-	"lint.CheckWith":              {unscopedKnownGap, "lint.Context has no Scope field at all; per-resource rules refuse an untargeted block. #1256"},
-	"lint.CheckResidueAttributes": {unscopedKnownGap, "same, warning severity; #1256 covers both"},
-	"statelessProviderDataReads":  {unscopedKnownGap, "dataread.AnalyzeProviderConfigs and projection.PlanInstances run unscoped; provider work, not a refusal. #1258"},
-	"statelessPolicyReconcile":    {unscopedKnownGap, "the account roster and its threshold error are computed over a narrowed run. #1257"},
+	"statelessProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs and projection.PlanInstances run unscoped; provider work, not a refusal. #1258"},
+	"statelessPolicyReconcile":   {unscopedKnownGap, "the account roster and its threshold error are computed over a narrowed run. #1257"},
 
 	// ---- not a pass ------------------------------------------------
 	"lint.Diagnostics":                    {notAPass, "renders issues"},

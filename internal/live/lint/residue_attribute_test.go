@@ -77,7 +77,7 @@ func residueDiags(t *testing.T, src string) tfdiags.Diagnostics {
 	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
 		t.Fatalf("writing the fixture: %s", err)
 	}
-	return CheckResidueAttributes(loadConfigDir(t, dir), residueTestSchemas())
+	return CheckResidueAttributes(loadConfigDir(t, dir), Context{Schemas: residueTestSchemas()})
 }
 
 func TestResidueAttributesWarnsOnWriteOnly(t *testing.T) {
@@ -261,10 +261,10 @@ resource "aws_s3_object" "doc" {
 }
 
 func TestResidueAttributesNilConfigAndNoSchemas(t *testing.T) {
-	if diags := CheckResidueAttributes(nil, residueTestSchemas()); len(diags) != 0 {
+	if diags := CheckResidueAttributes(nil, Context{Schemas: residueTestSchemas()}); len(diags) != 0 {
 		t.Errorf("expected no warnings for a nil config, got %d", len(diags))
 	}
-	if diags := CheckResidueAttributes(loadConfigDir(t, "testdata/clean"), nil); len(diags) != 0 {
+	if diags := CheckResidueAttributes(loadConfigDir(t, "testdata/clean"), Context{}); len(diags) != 0 {
 		t.Errorf("expected no warnings with no schemas to consult, got %d", len(diags))
 	}
 }

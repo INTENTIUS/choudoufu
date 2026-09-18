@@ -13,6 +13,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // hashFunctions is the set of function names Guard 2 recognizes as "visibly
@@ -53,7 +54,7 @@ var hashFunctions = map[string]bool{
 // package, it reads one expression at a time and never traces value flow
 // through locals; a type argument built from a variable rather than a
 // literal is likewise not judged.
-func checkReceiptValueRule(mod *configs.Module, path addrs.Module, issues *[]Issue) {
+func checkReceiptValueRule(mod *configs.Module, path addrs.Module, scope identity.Scope, issues *[]Issue) {
 	receipts := receiptResources(mod)
 	if len(receipts) == 0 {
 		return
@@ -62,6 +63,13 @@ func checkReceiptValueRule(mod *configs.Module, path addrs.Module, issues *[]Iss
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 		if !receipts[addr] {
+			continue
+		}
+		// GitHub issue #1256. This rule judges the receipt BLOCK's own
+		// declaration, and a block -target / -exclude removed from the plan
+		// graph is not written on this run, so the value it would carry is
+		// not this run's to refuse. See [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
 			continue
 		}
 		body, ok := resource.Config.(*hclsyntax.Body)

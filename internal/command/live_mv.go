@@ -235,7 +235,10 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
 	// than gating on it. See [lint.CheckResidueAttributes].
-	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+	// No Scope: live-mv has no -target / -exclude flag, so GitHub issue
+	// #1256's narrowing has nothing to narrow by here and every block is in
+	// scope, exactly as it was before that field existed.
+	diags = diags.Append(lint.CheckResidueAttributes(config, lint.Context{Schemas: resourceSchemas}))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
