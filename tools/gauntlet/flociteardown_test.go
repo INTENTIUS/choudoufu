@@ -31,6 +31,14 @@ import (
 // literal output of the --format string, or the empty string to make inspect
 // fail the way it does for a container that does not exist.
 func fakeDocker(t *testing.T, state string) (path, calls string) {
+	return fakeDockerRm(t, state, 0)
+}
+
+// fakeDockerRm is fakeDocker with a chosen exit code for `docker rm`, so the
+// "teardown must never become the failure" property can actually be armed.
+// With a stub that always succeeds it cannot: the guards pass whether or not
+// the helper swallows errors, which is a check that cannot fail.
+func fakeDockerRm(t *testing.T, state string, rmExit int) (path, calls string) {
 	t.Helper()
 	dir := t.TempDir()
 	calls = filepath.Join(dir, "calls.log")
@@ -49,13 +57,14 @@ case "$1" in
     printf 'emulator line one\nemulator line two\n'
     ;;
   rm)
+    exit %d
     ;;
   *)
     echo "fake docker: unexpected call: $*" >&2
     exit 97
     ;;
 esac
-`, calls, state)
+`, calls, state, rmExit)
 	p := filepath.Join(dir, "docker")
 	if err := os.WriteFile(p, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -179,6 +188,30 @@ func TestFlociTeardownSurvivesADockerThatIsNotThere(t *testing.T) {
 	}
 	if strings.TrimSpace(out) != "" {
 		t.Errorf("teardown printed something with no docker present: %q", out)
+	}
+}
+
+// TestFlociTeardownNeverBecomesTheFailure: the daemon can go away mid-run,
+// and a container can be removed by something else between the inspect and
+// the rm. Either makes `docker rm` exit nonzero, inside an EXIT trap, inside
+// a script running under `set -e` - where the trap's last command supplies
+// the process's exit status. A diagnostic that turned a passing estate red
+// would be this issue's own defect one level up.
+func TestFlociTeardownNeverBecomesTheFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		state string
+	}{
+		{"container still running", "running 0 false 2026-09-18T00:00:00Z 0001-01-01T00:00:00Z"},
+		{"container died", "exited 137 false 2026-09-18T13:48:19Z 2026-09-18T13:48:33Z"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path, _ := fakeDockerRm(t, tc.state, 1)
+			out, rc := callTeardown(t, path, "choudoufu-x-1")
+			if rc != 0 {
+				t.Errorf("a failing `docker rm` turned a passing script red through the EXIT trap:\n%s", out)
+			}
+		})
 	}
 }
 
