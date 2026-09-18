@@ -143,36 +143,34 @@ type trackedEmulatorGap struct {
 // expiry: the day the emulator is fixed, this test goes red and names the
 // tracker, instead of the entry rotting.
 //
-// aws_iam_instance_profile and aws_iam_policy are issue #881's, added with
-// their capability recipes. They are NOT aws_iam_role, whose entry in
-// alwaysNativeSweepTypes is correct: issue #1134 measured a live AWS
-// account and found GetResources returns nothing for iam:role in any
-// region - structural, and faithfully emulated - while it returns 500 each
-// for iam:policy and iam:instance-profile in us-east-1, IAM being global
-// and indexing there. floci serves none of the three. For these two that is
-// the emulator diverging from AWS, which is lex00/floci#205, tracked as
-// #1152.
-var taggingSweepEmulatorDefects = map[string]trackedEmulatorGap{
-	"aws_iam_instance_profile": {
-		Tracker: "#1152 (lex00/floci#205)",
-		Why: "internal/live/discovery.partitionSweepTypes sends it native because arnJoinReaches answers false: " +
-			"taggingAPIUnservedType is true for the aws_iam_ prefix (issue #692) and nativeSweepReaches is true " +
-			"(the provider serves no list resource for the type, but Cloud Control lists AWS::IAM::InstanceProfile - " +
-			"live/registry.json's handlers.list, and the emulator agrees, per this manifest's own cloudcontrol-list " +
-			"row for the type). So sweepViaTagging never sees it and the unimplemented row costs the production path " +
-			"nothing. Issue #881 is the destroy this type still does not get, and the reason is SweepGapMarkerUnreadable " +
-			"on the native leg, not this row",
-	},
-	"aws_iam_policy": {
-		Tracker: "#1152 (lex00/floci#205)",
-		Why: "same arnJoinReaches=false routing as aws_iam_instance_profile, reached the other way: the provider DOES " +
-			"serve a native list route for this type (iam:ListPolicies - see internal/live/discovery/directread.go's " +
-			"own doc comment, issue #1046), so nativeSweepReaches is true on its first term and partitionSweepTypes " +
-			"sends it native. Unlike the instance profile nothing is broken for it today; it is here because the two " +
-			"share one fidelity gap and recording only the type that happens to fail a stage invites the next reader " +
-			"to assume the other was measured and found fine",
-	},
-}
+// EMPTY since 2026-09-18, and the emptying is the mechanism working rather
+// than the mechanism becoming unnecessary.
+//
+// Its two entries were aws_iam_instance_profile and aws_iam_policy, tracked
+// as #1152 (lex00/floci#205). Both said the same thing: real AWS returns 500
+// of each through GetResources in us-east-1 (#1134) and the emulator
+// returned an empty ResourceTagMappingList for every IAM type, so those two
+// rows were floci diverging from AWS rather than matching it. lex00/floci
+// fixed that, live/floci-image moved to sha256:74ffd40e..., the capability
+// manifest's rows for both turned implemented, and case 6 below went red
+// naming the tracker - which is exactly what the entries were written to do
+// and the reason they could not live in alwaysNativeSweepTypes, where a
+// fixed emulator would have left them reading as routing facts they never
+// were.
+//
+// aws_iam_role did NOT move and must not: its entry belongs in
+// alwaysNativeSweepTypes above, GetResources returns nothing for iam:role in
+// any region on real AWS (#1134), and the pinned emulator is faithful to
+// that - re-probed directly on this digest, us-east-1 returns the instance
+// profile and the policy and not the role.
+//
+// What the retirement unblocked, so the next reader does not have to
+// reconstruct it: #1144 keyed the unserved set by type and region, and
+// internal/live/discovery's TestPerRegionTaggingRoutingAgainstFloci now
+// drives a correct narrowing and two broken ones against this emulator and
+// records that they produce different results. That comparison is what
+// #1152 said was impossible, and it was right until this pin.
+var taggingSweepEmulatorDefects = map[string]trackedEmulatorGap{}
 
 // liveDir is the repository's live/ directory, relative to this package.
 const liveDir = "../../live"

@@ -351,12 +351,30 @@ VERIFIED=$((33 * SCALE + 5))    # taggable (VERIFIED/DRIFTED-eligible) resources
 # global types. The wait exists to let the index settle before test_plan
 # READS it, and what test_plan reads is (a) 4a2's own identity check, the
 # same single-region livecert_rgta_count, and (b) choudoufu's own sweep,
-# which is region-pinned and routes every aws_iam_ type away from the
-# tagging leg entirely (taggingAPIUnservedServices, #692). Unioning us-east-1
-# into the target would make the run wait on objects nothing downstream of
-# the wait consults. Whether the PRODUCT's sweep should become region-aware
-# for global services is #1144's decision, not this harness's; when it lands,
-# index_partition follows it and this comment is the place to say so.
+# which is region-pinned. Unioning us-east-1 into the target would make the
+# run wait on objects nothing downstream of the wait consults.
+#
+# #1144 HAS NOW LANDED, and this is the comment that said it would be the
+# place to record what it decided. Two things, and neither moves this
+# function:
+#
+#   The product's sweep became region-aware, and it did so by KNOWING where
+#   the index holds a type rather than by querying a second region for it.
+#   internal/live/discovery's taggingAPITypeCoverage records that
+#   GetResources holds aws_iam_policy and aws_iam_instance_profile in
+#   us-east-1 only, and arnJoinReaches routes accordingly: in us-east-1
+#   those two types now ride the estate-wide GetResources call, and outside
+#   it they still go to the per-type leg. No cross-region call was added, on
+#   either side.
+#
+#   So the sentence this comment used to carry - "routes every aws_iam_ type
+#   away from the tagging leg entirely" - is now FALSE for a us-east-1 run,
+#   and that makes the wait MORE load-bearing there, not less: test_plan's
+#   sweep reads the index for two of the three IAM types. index_partition
+#   already counts the global bucket toward the target only when REGION is
+#   us-east-1, which is exactly the condition under which the product now
+#   reads it, so the split needs no change. aws_iam_role stays in the
+#   unindexed bucket and stays routed away, in every region, on both sides.
 index_partition() {
   local region="$1"
   local regional=$(( 2 * SCALE + 4 ))
@@ -1705,16 +1723,34 @@ INDEX_NOTE="tag index wait skipped (target=$TARGET)"
 if [ "$TARGET" = "aws" ]; then
   index_wait
 else
-  # Not "the index lag is not under test here" alone - that sentence is true
-  # but it hides a second reason that is the more interesting one. The
-  # pinned emulator serves an EMPTY ResourceTagMappingList for every IAM
-  # type (lex00/floci#205, tracked as #1152), so it can hold neither the
-  # 20*SCALE+1 global half of index_partition's split nor the 11*SCALE roles
-  # real AWS also withholds. A floci run of this wait would therefore be
-  # measuring floci's divergence from AWS, not index lag, and would time out
-  # for a reason that tells us nothing about the product. live/
-  # indexwait_partition_test.go goes red the day that stops being true.
-  log "=== 3c. index wait: target=$TARGET - skipping. The tag index's own lag is a real-AWS property, and the pinned emulator additionally serves no IAM through GetResources (#1152/lex00/floci#205), so index_partition's global half is unserved here and a wait could only measure the emulator's divergence ==="
+  # The skip stands, on a narrower reason than it used to carry. #1152
+  # (lex00/floci#205) is FIXED: the pinned emulator serves aws_iam_policy and
+  # aws_iam_instance_profile through GetResources in us-east-1 and nothing
+  # for aws_iam_role, which is what real AWS does, so index_partition's
+  # global half is no longer unserved here. That sentence has been removed
+  # rather than reworded, because a reason that has stopped being true is
+  # worse than no reason at all.
+  #
+  # Two reasons survive it, and neither is about IAM:
+  #
+  #   The emulator's index is written synchronously. A probe tagged an object
+  #   and the very next GetResources returned it, with no settling. Index lag
+  #   is what this wait exists to absorb (#1046, #1049) and it is a real-AWS
+  #   property; a floci run of it would wait zero seconds and report a
+  #   convergence that measured nothing.
+  #
+  #   The target is not derivable from evidence here anyway. index_partition
+  #   builds it from nine types across its regional and global buckets, and
+  #   seven of the nine have no tagging-sweep row at the pinned digest at
+  #   all - silence in live/floci-capabilities.json is "not yet probed", not
+  #   a clean bill of health.
+  #
+  # live/indexwait_partition_test.go holds both halves of that: it goes red
+  # if the emulator starts serving aws_iam_role (which would make the
+  # unindexed bucket wrong here while staying right on AWS), and red again
+  # once all nine target-bearing types are probed and implemented, at which
+  # point this skip is worth re-deciding.
+  log "=== 3c. index wait: target=$TARGET - skipping. The tag index's own lag is a real-AWS property and the emulator's index is written synchronously, so a wait here would measure nothing; and seven of the nine types index_partition derives its target from have no tagging-sweep row at the pinned digest, so there is no evidence-backed target to poll to (see live/indexwait_partition_test.go) ==="
 fi
 
 # ══════════════════════════════════════════════════════════════════════
