@@ -20,6 +20,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 )
@@ -1413,7 +1414,9 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 	if err != nil {
 		return "", fmt.Errorf("encoding the record for %s: %w", addr, err)
 	}
-	newVersion, putErr := s.store.PutIfVersion(ctx, key, payload, expectedVersion)
+	// #1337: the record's object carries the address marker of the instance
+	// it records, from the same functions that stamp the instance itself.
+	newVersion, putErr := s.store.PutIfVersion(staterecord.WithObjectTags(ctx, markers.AddressObjectTags(addr)), key, payload, expectedVersion)
 	if putErr != nil {
 		// Issue #1287: the write did not land, so nothing later in this run
 		// may read this key's absence as "no such resource".
@@ -1488,7 +1491,10 @@ func (s *RecordStore) MoveRecord(ctx context.Context, from, to addrs.AbsResource
 		return false, fmt.Errorf("encoding the record moved from %s to %s: %w", from, to, err)
 	}
 	toKey := RecordKey(s.prefix, to)
-	if _, err := s.store.PutIfVersion(ctx, toKey, payload, ""); err != nil {
+	// #1337: tagged with the address it is moving TO. The copy is a new
+	// object, and a tag naming where it came from would be wrong from its
+	// first byte.
+	if _, err := s.store.PutIfVersion(staterecord.WithObjectTags(ctx, markers.AddressObjectTags(to)), toKey, payload, ""); err != nil {
 		s.noteWriteFailure(toKey, err)
 		return false, fmt.Errorf("writing the record moved from %s to %s: %w (nothing was deleted at %s)", from, to, err, from)
 	}

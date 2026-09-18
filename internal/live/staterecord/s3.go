@@ -63,6 +63,8 @@ type S3Store struct {
 	keyPrefix string
 
 	getAllParallelism int
+
+	baseTags map[string]string
 }
 
 // S3Config configures an [S3Store].
@@ -87,6 +89,13 @@ type S3Config struct {
 	// in flight at once. Zero or negative takes
 	// [DefaultS3GetAllParallelism]; 1 is a sequential read.
 	GetAllParallelism int
+
+	// BaseTags go on every object this store writes. The record store sets
+	// tofu-estate here, because every object in an estate's namespaces -
+	// its records, its sentinel, its hint, its outputs - is the estate's,
+	// whether or not it records a resource. See [WithObjectTags] for the
+	// per-write half. GitHub issue #1337.
+	BaseTags map[string]string
 }
 
 // NewS3Store builds an [S3Store] from cfg.
@@ -103,6 +112,7 @@ func NewS3Store(cfg S3Config) (*S3Store, error) {
 		keyPrefix: cfg.KeyPrefix,
 
 		getAllParallelism: cfg.GetAllParallelism,
+		baseTags:          cfg.BaseTags,
 	}, nil
 }
 
@@ -203,6 +213,15 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 		input.IfNoneMatch = aws.String("*")
 	} else {
 		input.IfMatch = aws.String(expectedVersion)
+	}
+	// Tags ride the PutObject itself, so tagging costs no request and there
+	// is no window in which the object exists untagged: a tag-conditioned
+	// IAM policy reading a just-written object never sees it bare. A
+	// PutObject REPLACES the object's tag set, so every write carries the
+	// full set, and an object an older build wrote without tags is tagged by
+	// the next write to it.
+	if tagging := encodeObjectTagging(s.baseTags, ObjectTags(ctx)); tagging != "" {
+		input.Tagging = aws.String(tagging)
 	}
 	out, err := s.client.PutObject(ctx, input)
 	if err != nil {
