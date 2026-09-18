@@ -1,8 +1,17 @@
 # The against-a-real-service tier (issue #691): every flocitest.Gate'd
 # test, run nightly against the pinned emulator, failing red rather than
 # tee'ing into || true. live/floci_tier_gate_test.go asserts this file
-# exists and that the Makefile recipe it runs covers the whole gated
-# roster, so neither half can silently rot.
+# exists, that the Makefile recipe it runs covers the whole gated roster,
+# and that this file installs the binaries that roster's tests require -
+# so none of the three can silently rot.
+#
+# That third assertion is issue #1280. For seventeen consecutive nights
+# (2026-09-02 to 2026-09-18, every run the API still retained) this job
+# checked out, set up Go, and ran `make test-floci` with no terraform on
+# PATH. Twenty-eight test files call flocitest.RequireBinary for it, so
+# every gated test in the tier failed at 0.00s on "terraform is required
+# by this test but is not on PATH" and not one of them executed a line of
+# its body. The tier presented as a tier and measured nothing.
 name: floci-tier
 
 on:
@@ -28,5 +37,100 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # Pinned from live/oracle-versions.json, the same read ci.yml's fast
+      # and livecert-selftest-kill jobs make for the same reason (issue
+      # #544, root cause of #498): the tier shells out to a literal
+      # `terraform`, and an unpinned oracle is a second, independent source
+      # of nightly divergence. A nightly on a different terraform than CI
+      # would be worse than the nightly that never ran.
+      #
+      # terraform_wrapper: false because the wrapper this action installs
+      # by default is a shell script around the real binary, and these
+      # tests read the binary's exit code and its stderr.
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
+
+      # Issue #1280's second half. A setup failure is not a measurement,
+      # and it should not have to be told apart from one by reading forty
+      # 0.00s FAIL lines. This step fails first, by name, when a tool the
+      # tier drives is missing - so "floci-tier is red" resolves to
+      # "Preflight" or to "Run the floci tier" on the run page itself,
+      # before anyone opens a log.
+      #
+      # The list is the Makefile's own infoTestFloci block: docker, the AWS
+      # CLI (which reads the emulated cloud back independently of tofu),
+      # terraform, and go.
+      - name: Preflight - the binaries the tier drives (issue #1280)
+        run: |
+          set -u
+          missing=""
+          for bin in docker aws terraform go; do
+            if command -v "$bin" > /dev/null 2>&1; then
+              printf '%s: %s\n' "$bin" "$(command -v "$bin")"
+            else
+              missing="$missing $bin"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=floci-tier setup failure::not a measurement:$missing missing from PATH"
+            {
+              echo "## floci-tier did not run"
+              echo
+              echo "Missing from PATH:\`$missing\`. Every flocitest.Gate'd test would"
+              echo "have failed at 0.00s on a RequireBinary line. **No measurement was"
+              echo "taken** - this run says nothing about the tier's subject."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          terraform version
+          aws --version
+          docker --version
+
       - name: Run the floci tier
-        run: make test-floci
+        run: |
+          set -o pipefail
+          make test-floci 2>&1 | tee "$RUNNER_TEMP/floci-tier.log"
+
+      # The preflight above catches the tools the tier is known to drive.
+      # This catches the shape generically, for a tool nobody listed: if
+      # ANY test died on RequireBinary, the run is a setup failure however
+      # green the rest looked, and the summary says so rather than leaving
+      # a reader to infer it from a 0.00s duration.
+      - name: Classify the failure (issue #1280)
+        if: failure()
+        run: |
+          set -u
+          log="$RUNNER_TEMP/floci-tier.log"
+          if [ ! -f "$log" ]; then
+            echo 'The tier produced no log; the failure is before `make test-floci` ever ran.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if grep -q 'is required by this test but is not on PATH' "$log"; then
+            {
+              echo "## Setup failure, not a measurement"
+              echo
+              echo "At least one test died on \`flocitest.RequireBinary\` before running"
+              echo "its body. Those tests measured nothing; do not read this run as a"
+              echo "verdict on the tier's subject. Missing tools, by name:"
+              echo
+              echo '```'
+              grep -o '[a-z0-9_-]* is required by this test but is not on PATH' "$log" | sort -u
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## The tier ran and found something"
+              echo
+              echo "No test died on a missing binary, so these failures are the tier's"
+              echo "own subject. Failing packages:"
+              echo
+              echo '```'
+              grep -E '^FAIL[[:space:]]' "$log" | sort -u
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
