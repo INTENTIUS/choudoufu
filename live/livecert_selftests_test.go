@@ -128,7 +128,7 @@ var liveCertSelftests = []liveCertSelftest{
 		proves: "#440 stage 1 - a real SIGTERM mid-apply still runs the harness's trap, tears the estate down and removes the emulator",
 		runner: runsInCIJob,
 		where:  killSelftestJobName,
-		measured: "19s against the pinned emulator with TOFU_BIN prebuilt, 7s of it setup; the first cold GitHub runner spent over 30s on " +
+		measured: "17.8s against the pinned emulator with TOFU_BIN prebuilt - 8s setup, 6s to the first resource; the first cold GitHub runner spent over 30s on " +
 			"setup alone. It is the one selftest that needs docker, terraform and the AWS CLI, so it cannot run in this package. Its three " +
 			"waits are bounded: setup by SELFTEST_KILL_SETUP_BOUND_S (600s), the apply by SELFTEST_KILL_APPLY_BOUND_S (180s), " +
 			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (240s, watchdog-enforced). " +

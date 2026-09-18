@@ -169,7 +169,10 @@ log "  harness pid=$HARNESS_PID, log=$LOG"
 #          legitimately spends minutes here and none of it is under test.
 #   apply: that file exists -> "Creation complete" appears in it. THIS is
 #          the property - stock terraform actually creating something
-#          against the emulator - measured at about a second locally.
+#          against the emulator. Measured at 6s on a warm laptop (8s setup
+#          + 6s apply = the 17.8s whole run), which is worth noticing: the
+#          old single 30s bound had only ~16s of margin even at its best,
+#          and a cold runner spent all 30 on setup alone.
 SETUP_BOUND_S="${SELFTEST_KILL_SETUP_BOUND_S:-600}"
 APPLY_BOUND_S="${SELFTEST_KILL_APPLY_BOUND_S:-180}"
 HARNESS_WORK="$WORK/harness-work"
