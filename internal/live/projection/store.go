@@ -227,14 +227,7 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
 		}
-		store, err := staterecord.NewS3Store(staterecord.S3Config{
-			Client: s3.NewFromConfig(awsCfg),
-			Bucket: rs.Bucket,
-			// Empty on purpose: see backendKeyPrefix.
-			KeyPrefix: backendKeyPrefix,
-
-			GetAllParallelism: o.bulkReadParallelism,
-		})
+		store, err := staterecord.NewS3Store(s3StoreConfig(awsCfg, rs, o))
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
 		}
@@ -291,6 +284,20 @@ func loadAWSConfig(ctx context.Context, region string, rt *configs.LiveRetry) (a
 		opts = append(opts, awsconfig.WithRegion(region))
 	}
 	return awsconfig.LoadDefaultConfig(ctx, opts...)
+}
+
+// s3StoreConfig is the "s3" backend's configuration, apart from
+// newRecordStore so that what an option sets can be checked without the
+// network the rest of that function needs.
+func s3StoreConfig(awsCfg aws.Config, rs *configs.LiveRecordStore, o recordStoreOptions) staterecord.S3Config {
+	return staterecord.S3Config{
+		Client: s3.NewFromConfig(awsCfg),
+		Bucket: rs.Bucket,
+		// Empty on purpose: see backendKeyPrefix.
+		KeyPrefix: backendKeyPrefix,
+
+		GetAllParallelism: o.bulkReadParallelism,
+	}
 }
 
 // BucketNamespaces is every key namespace one estate writes under in its
