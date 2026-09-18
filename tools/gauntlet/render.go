@@ -47,7 +47,12 @@ const (
 // scale-num shortcode can quote a measured plan-call split without anyone
 // typing it (#1055). Read by the caller from the real checkout, never from
 // root, for the same reason tt is.
-func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []byte) ([]string, error) {
+//
+// st is per-row script staleness (#1264), read from the real checkout by
+// the caller for that same reason - it is a git comparison, and root here
+// may be a scratch directory with no history. A nil map renders no
+// staleness at all rather than a board asserting every row is current.
+func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []byte, st map[string]ScriptStaleness) ([]string, error) {
 	var written []string
 	write := func(rel string, body string) error {
 		p := filepath.Join(root, rel)
@@ -85,7 +90,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 	}
 	// The board: every display value the site's progress pages need, as
 	// data. The pages themselves live in site/ and are never written here.
-	bb, err := buildBoard(m, a).Canonical()
+	bb, err := buildBoard(m, a, st).Canonical()
 	if err != nil {
 		return nil, err
 	}

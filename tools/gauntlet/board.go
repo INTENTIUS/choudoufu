@@ -36,9 +36,15 @@ type Board struct {
 	Banner string `json:"banner"`
 	// RuntimeBanner is runtimeBanner's sentence about recorded durations.
 	// Markdown.
-	RuntimeBanner string       `json:"runtime_banner"`
-	StageCount    int          `json:"stage_count"`
-	Stages        []BoardStage `json:"stages"`
+	RuntimeBanner string `json:"runtime_banner"`
+	// ScriptBanner is scriptStaleBanner's sentence: how many rows below
+	// were measured before their own estate directory last changed
+	// (#1264). Markdown. Empty when the board was built with no checkout
+	// to read, which says nothing rather than claiming everything is
+	// current.
+	ScriptBanner string       `json:"script_banner,omitempty"`
+	StageCount   int          `json:"stage_count"`
+	Stages       []BoardStage `json:"stages"`
 	// Estates is every row, core set first, then by name - the order the
 	// index table has always used.
 	Estates      []BoardEstate   `json:"estates"`
@@ -109,6 +115,17 @@ type BoardEstate struct {
 	// row carries none, which is every row whose last run reached every
 	// stage and every row written before per-stage provenance existed.
 	StaleNote string `json:"stale_note,omitempty"`
+	// ScriptStale is this row's whole-row staleness against its own estate
+	// directory (#1264): "changed", "unknown", or empty for a row whose
+	// script has not moved since the run below measured it. It is the
+	// index table's badge; ScriptNote is the sentence.
+	//
+	// A different fact from StaleNote above, which is about one RUN
+	// aborting before it reached a stage (#1069). This one is about the
+	// SCRIPT changing after the run finished.
+	ScriptStale string `json:"script_stale,omitempty"`
+	// ScriptNote is scriptStaleNote's sentence. Markdown.
+	ScriptNote string `json:"script_note,omitempty"`
 	// StageRows is the estate page's own table, one row per stage in the
 	// registry (planned and non-headline stages included, labelled).
 	StageRows []BoardStageRow `json:"stage_rows"`
@@ -143,12 +160,20 @@ type BoardLiveCert struct {
 // artifact and the manifest. Every sentence in it is computed fresh from
 // a.Estates on every call, never carried over, so it cannot go stale
 // independently of the rows it summarizes (the #414 rule).
-func buildBoard(m *Manifest, a *Artifact) Board {
+//
+// st is per-row script staleness (#1264), read from the checkout by the
+// caller for the same reason Render takes tt and scale rather than
+// re-deriving them: this function is handed data and stays pure, and a
+// caller rendering into a temp directory still reports the real checkout's
+// answer. A nil map is "no checkout was read", and every field it feeds
+// stays empty rather than claiming every row is current.
+func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness) Board {
 	b := Board{
 		Schema:        1,
 		Emulator:      a.Emulator,
 		Banner:        boardBanner(a),
 		RuntimeBanner: runtimeBanner(a),
+		ScriptBanner:  scriptStaleBanner(a, st),
 		StageCount:    len(a.Stages),
 		Lanes:         append([]string(nil), KnownLanes...),
 		ExampleEntry:  exampleEntryJSON(m),
@@ -175,7 +200,7 @@ func buildBoard(m *Manifest, a *Artifact) Board {
 		return rows[i].Name < rows[j].Name
 	})
 	for _, r := range rows {
-		b.Estates = append(b.Estates, boardEstate(r, a))
+		b.Estates = append(b.Estates, boardEstate(r, a, st[r.Name]))
 	}
 	certs := append([]LiveCertResult(nil), a.LiveCert...)
 	sort.SliceStable(certs, func(i, j int) bool { return certs[i].Estate < certs[j].Estate })
@@ -188,8 +213,9 @@ func buildBoard(m *Manifest, a *Artifact) Board {
 	return b
 }
 
-// boardEstate is one estate's display row and page fields.
-func boardEstate(r EstateResult, a *Artifact) BoardEstate {
+// boardEstate is one estate's display row and page fields. s is this row's
+// script staleness (#1264); its zero value renders nothing.
+func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness) BoardEstate {
 	e := BoardEstate{
 		Name: r.Name, Set: r.Set, Lane: r.Lane, Substrate: r.Substrate, Clear: r.Clear,
 		Source: r.Source, URL: r.URL, Pin: r.Pin, Reason: r.Reason,
@@ -198,6 +224,10 @@ func boardEstate(r EstateResult, a *Artifact) BoardEstate {
 		RuntimeTotal: runtimeTotalCell(r),
 		RuntimeCells: runtimeStageCells(r, a),
 		StaleNote:    staleStagesNote(r),
+		ScriptNote:   scriptStaleNote(s, EstateDir(r)),
+	}
+	if s.State == ScriptChanged || s.State == ScriptUnknown {
+		e.ScriptStale = s.State
 	}
 	for _, s := range a.Stages {
 		carried := r.StageCarried(s.ID)

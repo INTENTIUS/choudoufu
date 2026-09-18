@@ -65,7 +65,11 @@ func renderedScratchCheckout(t *testing.T) (string, []string) {
 	if scale == nil {
 		t.Fatalf("%s is empty in this checkout, so there is nothing to publish and nothing to compare", ScaleRecordsPath)
 	}
-	written, err := Render(tmp, m, a, tt, scale)
+	// Script staleness is read from tmp, not from root: tmp is what
+	// StaleFiles(tmp) below will read it from, and a scratch copy that is
+	// not a git checkout at all answers "unknown" for every row - the same
+	// answer both sides get, so this fixture stays comparable (#1264).
+	written, err := Render(tmp, m, a, tt, scale, AllScriptStaleness(tmp, a))
 	if err != nil {
 		t.Fatal(err)
 	}
