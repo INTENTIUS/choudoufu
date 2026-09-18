@@ -495,6 +495,18 @@ showing its own checks would have caught it.
   -overlay, needs Go, refuses a release binary) and passes only when run
   two is caught proceeding in silence (#1340).
 
+- **a-bulk-read-is-complete-or-it-fails** - *Claim 31: a record read
+  that fails mid-fanout fails the read; a short map never reaches a
+  plan.* Twelve record-backed resources, then a small proxy in front of
+  S3 that can answer one record's GET with a 500, which nothing else can
+  do from outside the binary. A control plan through the unarmed proxy
+  is empty; one GET failed once leaves the plan true; the same GET
+  failed every time makes the run refuse and name the record. The BREAK
+  control rebuilds choudoufu so a failed GET drops its key (go build
+  -overlay, needs Go, refuses a release binary) and passes only when the
+  plan is caught proposing to create a resource that exists (#1336).
+  Needs python3.
+
 ## Knobs
 
 | Variable | Effect |
