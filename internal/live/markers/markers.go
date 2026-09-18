@@ -66,6 +66,46 @@ const MaxContinuations = 4
 // continuation tags existed, just at a wider ceiling.
 const MaxAddressLen = MaxTagValue * MaxContinuations
 
+// OwnershipClause is the one sentence pair every shipped diagnostic uses
+// when it has to tell a user what a resource address is FOR. Four
+// diagnostics need it - RuleOverlongAddress, RuleForEachKey on a resource
+// and on a module call, and identity resolution's own for_each key refusal -
+// and until issue #1242 they said it two different ways, one of which was
+// false.
+//
+// It lives here, in the leaf package both internal/live/lint and
+// internal/live/identity already import, so that the sentence exists once.
+// A phrase guard was considered and rejected (see #1242): "the marker is the
+// only record of ownership" is TRUE of a tagged resource, so a repo-wide
+// sweep for it would eventually report a correct sentence. One constant
+// makes drift impossible instead of reporting it.
+//
+// # Why both halves are needed
+//
+// The first half is #1241's correction: "only" was false. A live run also
+// carries a disposable state cache, which is never consulted for ownership,
+// and a record store, which answers for types with nowhere to hang a tag.
+//
+// The second half is #1242's, and it is a measured fact about the checks
+// rather than a hedge. None of the four consults taggability: lint's
+// checkForEachKeys and checkOverlongAddresses walk mod.ManagedResources
+// with no type filter, and identity's checkedForEachKeys runs inside
+// expansionFor, which produces the instance addresses resolveInstance is
+// later called with - so the key is refused before the instance is
+// classified at all. Measured at ea9f8f5194: all three rules fire for
+// aws_acmpca_certificate, which resolves ClassRecordLocated (no marker is
+// ever written for it), and for aws_iam_group_policy_attachment, which
+// resolves CONCRETE from its own arguments and carries no tag either. For
+// both of those the first half's condition is not met, and a user reading
+// only the first half would be entitled to ask why their resource was
+// refused. The second half answers that.
+const OwnershipClause = "For a resource that carries tags the address becomes the tofu-address marker on the live resource, " +
+	"and that marker is where a live run reads ownership from: the disposable state cache is never consulted for it, " +
+	"and the record store answers only for types with nowhere to hang a tag (live/MARKERS.md). " +
+	"The rule applies to every resource all the same: the address is checked where it is declared, without consulting " +
+	"the resource's rung, so an address is legal, or illegal, for a tagged resource and for one whose identity lives " +
+	"in the record store alike."
+
 // ContinuationTag names the n-th continuation tag key, for n in
 // [2, MaxContinuations]. n=1 is TagAddress itself, which has no
 // continuation form; a caller that wants "the key holding chunk i" for any
