@@ -206,63 +206,21 @@ func (s *S3Store) GetAll(ctx context.Context, keyPrefix string) (map[string]Reco
 		workers = len(keys)
 	}
 
-	fanCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	// found[i] is keys[i]'s record, nil when it 404ed. Indexed, so no two
 	// workers ever write the same memory and nothing here needs a lock.
 	found := make([]*Record, len(keys))
-	var (
-		failOnce sync.Once
-		failure  error
-		wg       sync.WaitGroup
-	)
-	jobs := make(chan int)
-	for w := 0; w < workers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := range jobs {
-				rec, exists, getErr := s.getForBulk(fanCtx, keyPrefix, keys[i])
-				if getErr != nil {
-					// Only the first failure is kept. The cancel below makes
-					// every other in-flight GET fail with "context canceled",
-					// and reporting one of those would hide the key that
-					// actually broke.
-					failOnce.Do(func() {
-						failure = getErr
-						cancel()
-					})
-					continue
-				}
-				if exists {
-					found[i] = &rec
-				}
-			}
-		}()
-	}
-
-	handed := 0
-feed:
-	for i := range keys {
-		select {
-		case jobs <- i:
-			handed++
-		case <-fanCtx.Done():
-			break feed
+	err = boundedFanOut(ctx, len(keys), workers, func(ctx context.Context, i int) error {
+		rec, exists, getErr := s.getForBulk(ctx, keys[i])
+		if getErr != nil {
+			return getErr
 		}
-	}
-	close(jobs)
-	wg.Wait()
-
-	if failure != nil {
-		return nil, failure
-	}
-	if handed != len(keys) {
-		// The feed stopped early and no GET reported why: the caller's
-		// context ended between two sends. Without this the function would
-		// fall through and return a map holding only the keys it got to.
-		return nil, fmt.Errorf("staterecord: s3: reading everything under %q: stopped after %d of %d keys: %w", keyPrefix, handed, len(keys), context.Cause(fanCtx))
+		if exists {
+			found[i] = &rec
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("staterecord: s3: reading everything under %q: %w", keyPrefix, err)
 	}
 
 	out := make(map[string]Record, len(keys))
@@ -274,10 +232,70 @@ feed:
 	return out, nil
 }
 
+// boundedFanOut runs do(ctx, i) for every i in [0, n), at most workers at a
+// time, and returns nil only if EVERY one of them ran and none failed.
+//
+// It is apart from [S3Store.GetAll] so the one property that is awkward to
+// reach through a real client can be tested directly: a context that ends
+// with no call in flight. Every in-flight call would report the cancellation
+// itself, so the only evidence of that window is that the feed stopped short,
+// and a caller that built its result from "no error" would build it from the
+// keys the feed got to.
+//
+//   - The first failure wins and cancels the rest. Later failures are the
+//     cancellation's own echoes and would hide the call that actually broke.
+//   - An early stop with no failure is still an error.
+func boundedFanOut(ctx context.Context, n, workers int, do func(ctx context.Context, i int) error) error {
+	fanCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		failOnce sync.Once
+		failure  error
+		wg       sync.WaitGroup
+	)
+	jobs := make(chan int)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				if err := do(fanCtx, i); err != nil {
+					failOnce.Do(func() {
+						failure = err
+						cancel()
+					})
+				}
+			}
+		}()
+	}
+
+	handed := 0
+feed:
+	for i := 0; i < n; i++ {
+		select {
+		case jobs <- i:
+			handed++
+		case <-fanCtx.Done():
+			break feed
+		}
+	}
+	close(jobs)
+	wg.Wait()
+
+	if failure != nil {
+		return failure
+	}
+	if handed != n {
+		return fmt.Errorf("stopped after %d of %d: %w", handed, n, context.Cause(fanCtx))
+	}
+	return nil
+}
+
 // getForBulk is one key's GetObject for [S3Store.GetAll]. exists is false,
 // with no error, only for a 404: the key was deleted between the LIST and
 // this GET. Every other failure is an error that names the key.
-func (s *S3Store) getForBulk(ctx context.Context, keyPrefix, key string) (rec Record, exists bool, err error) {
+func (s *S3Store) getForBulk(ctx context.Context, key string) (rec Record, exists bool, err error) {
 	res, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s.objectKey(key)),
@@ -286,12 +304,12 @@ func (s *S3Store) getForBulk(ctx context.Context, keyPrefix, key string) (rec Re
 		if code, ok := httpStatus(err); ok && code == http.StatusNotFound {
 			return Record{}, false, nil
 		}
-		return Record{}, false, fmt.Errorf("staterecord: s3: reading everything under %q: getting %q: %w", keyPrefix, key, err)
+		return Record{}, false, fmt.Errorf("getting %q: %w", key, err)
 	}
 	payload, readErr := io.ReadAll(res.Body)
 	_ = res.Body.Close()
 	if readErr != nil {
-		return Record{}, false, fmt.Errorf("staterecord: s3: reading everything under %q: reading %q: %w", keyPrefix, key, readErr)
+		return Record{}, false, fmt.Errorf("reading %q: %w", key, readErr)
 	}
 	return Record{Payload: payload, Version: aws.ToString(res.ETag)}, true, nil
 }

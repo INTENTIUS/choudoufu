@@ -243,3 +243,60 @@ func TestS3GetAllDefaultsToEight(t *testing.T) {
 		t.Errorf("an unset bound peaked at %d GETs in flight, want between 2 and %d", peak, DefaultS3GetAllParallelism)
 	}
 }
+
+// TestBoundedFanOutNeverReportsSuccessForWorkItDidNotDo isolates the window a
+// real client cannot reach on purpose: the context ends while no call is in
+// flight, so nothing reports a failure. Every call here SUCCEEDS, including
+// the one that cancels, so the only evidence that the fan-out stopped short
+// is that it did. The rule is "nil means all n ran": either an error comes
+// back, or every index was visited.
+//
+// n is large because the feed's select picks at random between a ready
+// worker and a done context, so after the cancel it may hand out a few more
+// before it notices. It will not hand out twenty thousand.
+func TestBoundedFanOutNeverReportsSuccessForWorkItDidNotDo(t *testing.T) {
+	const n = 20000
+	for _, workers := range getAllParallelisms {
+		t.Run(fmt.Sprintf("parallelism=%d", workers), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var ran atomic.Int64
+			err := boundedFanOut(ctx, n, workers, func(_ context.Context, i int) error {
+				ran.Add(1)
+				if i == 2 {
+					cancel()
+				}
+				return nil
+			})
+			if err == nil && ran.Load() != n {
+				t.Fatalf("boundedFanOut returned nil having run %d of %d: a caller building its result from this has a short result that reads as complete", ran.Load(), n)
+			}
+			if err == nil {
+				t.Fatalf("all %d ran despite the cancel, so this run never reached the window it is here for; raise n", n)
+			}
+		})
+	}
+}
+
+// TestBoundedFanOutRunsEverythingOnce is the control for the test above.
+func TestBoundedFanOutRunsEverythingOnce(t *testing.T) {
+	for _, workers := range append([]int{0}, getAllParallelisms...) {
+		const n = 500
+		seen := make([]atomic.Int32, n)
+		nn := n
+		if workers == 0 {
+			nn = 0
+		}
+		if err := boundedFanOut(context.Background(), nn, workers, func(_ context.Context, i int) error {
+			seen[i].Add(1)
+			return nil
+		}); err != nil {
+			t.Fatalf("workers=%d: %v", workers, err)
+		}
+		for i := 0; i < nn; i++ {
+			if got := seen[i].Load(); got != 1 {
+				t.Fatalf("workers=%d: index %d ran %d times, want exactly once", workers, i, got)
+			}
+		}
+	}
+}
