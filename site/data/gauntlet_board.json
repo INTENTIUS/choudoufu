@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 6 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T00:07:36Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h29m5.6s, but not from one sweep: 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h17m21.2s across 24 estate(s) at commit `3bca740259`; 24m39.8s across 3 estate(s) at commit `56e04ebca6`; 27m21s across 1 estate(s) at commit `8b5104288b`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 6 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T00:43:51Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h29m48.9s, but not from one sweep: 7m0.5s across 1 estate(s) at commit `002c29c496`; 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h17m21.2s across 24 estate(s) at commit `3bca740259`; 18m22.6s across 2 estate(s) at commit `56e04ebca6`; 27m21s across 1 estate(s) at commit `8b5104288b`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3745,16 +3745,16 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "6m17.2s",
-      "runtime_cells": "cold_deploy 1m9s, migrate 4s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 31s, day2_count 52s, day2_crash 53s, day2_teardown 23s, plan_approval 31s, greenfield 33s, strict 18s",
-      "last_run_note": "Last run at commit `56e04ebca6` on 2026-09-16T09:32:23Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 6m17.2s.",
+      "runtime_total": "7m0.5s",
+      "runtime_cells": "cold_deploy 1m1s, migrate 4s, test_plan 10s, test_apply 10s, drift_reconverge 21s, day2_rename 21s, day2_remove 31s, day2_count 52s, day2_crash 1m14s, day2_teardown 23s, plan_approval 31s, greenfield 1m3s, strict 19s",
+      "last_run_note": "Last run at commit `002c29c496` on 2026-09-18T00:43:51Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 7m0.5s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m9s",
+          "duration": "1m1s",
           "detail": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.36.1, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
@@ -3775,8 +3775,8 @@
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "11s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the estate's five kinds, counted with kubectl"
+          "duration": "10s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the six kinds the count covers, counted with kubectl"
         },
         {
           "id": "drift_reconverge",
@@ -3816,15 +3816,15 @@
           "id": "day2_crash",
           "title": "Crash mid-apply",
           "verdict": "pass",
-          "duration": "53s",
-          "detail": "an apply creating two objects was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=reference-k8s and crash-second does not. The create-before-destroy window this stage interrupts on the emulator does not exist here (see day2_replace), and neither does a move's: a cross-estate live-mv makes one governed write, the label patch itself, and re-keys no record. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both objects read back with kubectl, the plan after it is empty and 8 objects carry the estate's label. Record files went 9 -\u003e 10 across the crashed apply. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
+          "duration": "1m14s",
+          "detail": "an apply creating two objects was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=reference-k8s and crash-second does not. The create-before-destroy window this stage interrupts on the emulator does not exist here (see day2_replace), and neither does a move's: a cross-estate live-mv makes one governed write, the label patch itself, and re-keys no record. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both objects read back with kubectl, the plan after it is empty and 8 objects carry the estate's label. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files 9 -\u003e 10) for kubernetes_secret.crash_first carrying residue wait_for_service_account_token, and taking that one file out of the store and replanning from the identical position turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The crash pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) has neither a ratified identity row nor a config-only argument, records nothing, and made this line a count that could not move (#1188). BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
           "duration": "23s",
-          "detail": "apply -destroy removed exactly the 8 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 8 its state held"
+          "detail": "apply -destroy removed exactly the 8 remaining objects in one apply, the namespace is gone and no object of any of the six kinds the count covers carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 8 its state held"
         },
         {
           "id": "plan_approval",
@@ -3837,14 +3837,14 @@
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "33s",
-          "detail": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, five kinds); the record store held 8 file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails"
+          "duration": "1m3s",
+          "detail": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, six kinds); the record store held 8 file(s); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed Plan: 0 to add, 1 to change, 0 to destroy: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and 1 in-place update(s) putting back the residue the store held (wait_for_load_balancer); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "18s",
+          "duration": "19s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]

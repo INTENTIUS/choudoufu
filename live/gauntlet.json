@@ -3819,63 +3819,63 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "day2_count": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "day2_crash": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "day2_remove": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "day2_rename": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "day2_teardown": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "drift_reconverge": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "greenfield": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "migrate": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "plan_approval": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "strict": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "test_apply": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         },
         "test_plan": {
-          "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-          "date": "2026-09-16T09:32:23Z"
+          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+          "date": "2026-09-18T00:43:51Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "56e04ebca6148c4191610df40906f23f0ef20519",
-        "date": "2026-09-16T09:32:23Z",
+        "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
+        "date": "2026-09-18T00:43:51Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -3885,32 +3885,32 @@
         "detail": {
           "cold_deploy": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.36.1, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle",
           "day2_count": "scaling kubernetes_config_map.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map.orphan_refk8s_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
-          "day2_crash": "an apply creating two objects was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=reference-k8s and crash-second does not. The create-before-destroy window this stage interrupts on the emulator does not exist here (see day2_replace), and neither does a move's: a cross-estate live-mv makes one governed write, the label patch itself, and re-keys no record. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both objects read back with kubectl, the plan after it is empty and 8 objects carry the estate's label. Record files went 9 -> 10 across the crashed apply. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails",
+          "day2_crash": "an apply creating two objects was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=reference-k8s and crash-second does not. The create-before-destroy window this stage interrupts on the emulator does not exist here (see day2_replace), and neither does a move's: a cross-estate live-mv makes one governed write, the label patch itself, and re-keys no record. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both objects read back with kubectl, the plan after it is empty and 8 objects carry the estate's label. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files 9 -> 10) for kubernetes_secret.crash_first carrying residue wait_for_service_account_token, and taking that one file out of the store and replanning from the identical position turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The crash pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) has neither a ratified identity row nor a config-only argument, records nothing, and made this line a count that could not move (#1188). BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails",
           "day2_remove": "deleting kubernetes_service_account.team's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_service_account_v1.orphan_refk8s_app (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address, and filed under the versioned type since no block declares the kind any more - applied cleanly, the object gone from the cluster (kubectl get serviceaccount: NotFound) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployment's ReplicaSet and Pod, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed",
           "day2_rename": "moved block: kubernetes_service_account.app -> .team with zero churn (no add, no change, no destroy), the live object untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A bare block rename without a moved block is zero churn here too, since the block name is not part of the object's identity; BREAK=1 renames the object's own metadata.name instead, which plans a replace, and the zero-churn assertion correctly fails",
-          "day2_teardown": "apply -destroy removed exactly the 8 remaining objects in one apply, the namespace is gone and no object of any of the estate's five kinds carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 8 its state held",
+          "day2_teardown": "apply -destroy removed exactly the 8 remaining objects in one apply, the namespace is gone and no object of any of the six kinds the count covers carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 8 its state held",
           "drift_reconverge": "one ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the value reads back as configured. BREAK=1 tampers a second object and the single-object assertion correctly fails",
-          "greenfield": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, five kinds); the record store held 8 file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails",
+          "greenfield": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, six kinds); the record store held 8 file(s); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed Plan: 0 to add, 1 to change, 0 to destroy: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and 1 in-place update(s) putting back the residue the store held (wait_for_load_balancer); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails",
           "migrate": "7 of 7 stamped, 0 skipped; every object carries tofu-estate=reference-k8s, read back with kubectl",
           "plan_approval": "plan -out wrote one update (app-config gains reviewed=yes); the world then moved out of band (a stray label on shard-0, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl reads no reviewed key); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails",
           "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
-          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the estate's five kinds, counted with kubectl",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the six kinds the count covers, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 7 identities (NAMESPACE/NAME) confirmed present with kubectl"
         },
-        "duration_s": 377.2,
+        "duration_s": 420.5,
         "stage_seconds": {
-          "cold_deploy": 69,
+          "cold_deploy": 61,
           "day2_count": 52,
-          "day2_crash": 53,
+          "day2_crash": 74,
           "day2_remove": 31,
           "day2_rename": 21,
           "day2_teardown": 23,
           "drift_reconverge": 21,
-          "greenfield": 33,
+          "greenfield": 63,
           "migrate": 4,
           "plan_approval": 31,
-          "strict": 18,
-          "test_apply": 11,
+          "strict": 19,
+          "test_apply": 10,
           "test_plan": 10
         }
       }
