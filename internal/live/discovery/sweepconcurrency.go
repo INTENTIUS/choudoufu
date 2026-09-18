@@ -178,6 +178,19 @@ const (
 	fetchCloudControl
 )
 
+// String names a transport for the two drift reports, which are read by an
+// operator in a log line rather than by a switch.
+func (k sweepFetchKind) String() string {
+	switch k {
+	case fetchNative:
+		return "a native provider list call"
+	case fetchCloudControl:
+		return "a Cloud Control ListResources"
+	default:
+		return "no list call at all"
+	}
+}
+
 // sweepFetch is one swept type's list call: the decision to make it, the
 // configuration it is made with, and - once done is closed - what came back.
 //
@@ -274,6 +287,29 @@ type sweepPrefetch struct {
 	// can assert that, and so a real run degrades into an extra list call
 	// rather than into a wrong one.
 	mismatched int
+
+	// unplanned is the OTHER direction, and until issue #1328 nothing
+	// watched it: the types whose list call the sequential body made and
+	// the mirror never planned.
+	//
+	// [sweepPrefetch.finish] reports a planned call the body never asked
+	// for, which is the direction that costs an extra round trip and so
+	// the one issue #605's acceptance was written around. A call the body
+	// makes that the plan did not predict costs nothing wrong - the answer
+	// is the body's own, fetched the way it always was - but it is the
+	// same drift, and it silently gives up the concurrency this file
+	// exists for. #1328 was exactly that: the mirror's Cloud Control gate
+	// still read live/registry.json's taggable flag alone after #881 gave
+	// the body a provider-schema term beside it, so every type the two
+	// disagree about lost its prefetch and nothing said so.
+	//
+	// Recorded from [sweepPrefetch.takeNative] and
+	// [sweepPrefetch.takeCloudControl]: the consumer asked this prefetch
+	// for a listing of a type it PLANNED, and the plan's answer was a
+	// different transport - [fetchNone] for "no call at all", or the other
+	// one of the two. A type the plan never saw (nil entry, which is every
+	// type when no prefetch is running) is not drift and is not recorded.
+	unplanned []string
 }
 
 // sweepParallelism is how many list calls this request wants in flight.
@@ -412,9 +448,25 @@ func planSweepFetch(req Request, schemas listclient.Schemas, decl *declared, typ
 		if !ccOK {
 			return e
 		}
-		// scanTypeCloudControl's own first gate: an untaggable CFN type is a
-		// SweepGap with no call behind it.
-		if taggable, _ := req.Roster.TaggableKnown(cfnType); !taggable {
+		// scanTypeCloudControl's own first gate: a CFN type BOTH
+		// live/registry.json and the provider's own resource schema call
+		// untaggable is a SweepGap with no call behind it.
+		//
+		// Both terms, and issue #1328 is what the registry term alone cost.
+		// #881 gave the body the [typeTaggable] half - AWS::IAM::InstanceProfile
+		// is tagging.taggable false while the provider gives
+		// aws_iam_instance_profile a tags argument and internal/live/stamp
+		// writes the estate marker onto it - and this mirror kept reading the
+		// registry flag alone. For every type the two disagree about, the
+		// mirror planned nothing and the body then issued the ListResources
+		// itself: the right answer, made sequentially, with the concurrency
+		// #605 exists for silently given up. [sweepPrefetch.recordUnplanned]
+		// is the direction that now reports it.
+		//
+		// [typeTaggable] reads [listclient.Schemas.ResourceSchema] rather
+		// than [listclient.Schemas.Get], so it answers for a type with no
+		// list route - which is the branch this gate sits in.
+		if taggable, _ := req.Roster.TaggableKnown(cfnType); !taggable && !typeTaggable(schemas, typeName) {
 			return e
 		}
 		e.kind = fetchCloudControl
@@ -549,7 +601,11 @@ func (pf *sweepPrefetch) wait(typeName string) *sweepFetch {
 // would show.
 func (pf *sweepPrefetch) takeNative(typeName string, config cty.Value) ([]listclient.Result, tfdiags.Diagnostics, bool) {
 	e := pf.wait(typeName)
-	if e == nil || e.kind != fetchNative {
+	if e == nil {
+		return nil, nil, false
+	}
+	if e.kind != fetchNative {
+		pf.recordUnplanned(typeName, e.kind, fetchNative)
 		return nil, nil, false
 	}
 	if !e.config.RawEquals(config) {
@@ -565,7 +621,11 @@ func (pf *sweepPrefetch) takeNative(typeName string, config cty.Value) ([]listcl
 // takeCloudControl is takeNative's Cloud Control counterpart.
 func (pf *sweepPrefetch) takeCloudControl(typeName, cfnType string) ([]cloudcontrol.ResourceDescription, error, bool) {
 	e := pf.wait(typeName)
-	if e == nil || e.kind != fetchCloudControl {
+	if e == nil {
+		return nil, nil, false
+	}
+	if e.kind != fetchCloudControl {
+		pf.recordUnplanned(typeName, e.kind, fetchCloudControl)
 		return nil, nil, false
 	}
 	if e.cfnType != cfnType {
@@ -588,6 +648,31 @@ func (pf *sweepPrefetch) mismatches() int {
 	pf.mu.Lock()
 	defer pf.mu.Unlock()
 	return pf.mismatched
+}
+
+// recordUnplanned notes that the body asked this prefetch for a transport
+// the plan did not predict for typeName, and logs it at the same volume
+// [sweepPrefetch.finish] logs the opposite direction.
+//
+// It is called from the consumer's own goroutine, which is the sequential
+// scan loop, so the lock is for the reader in [sweepPrefetch.unplannedCalls]
+// rather than for contention here.
+func (pf *sweepPrefetch) recordUnplanned(typeName string, planned, asked sweepFetchKind) {
+	pf.mu.Lock()
+	pf.unplanned = append(pf.unplanned, typeName)
+	pf.mu.Unlock()
+	log.Printf("[WARN] stateless/discovery: the sweep planned %s for %s and the scan then asked for %s, so the call was made sequentially and the prefetch bought nothing", planned, typeName, asked)
+}
+
+// unplannedCalls is the types whose list call the scan made and the mirror
+// never planned. Always empty; see [sweepPrefetch.unplanned].
+func (pf *sweepPrefetch) unplannedCalls() []string {
+	if pf == nil {
+		return nil
+	}
+	pf.mu.Lock()
+	defer pf.mu.Unlock()
+	return append([]string(nil), pf.unplanned...)
 }
 
 // finish drains anything the consuming loop did not take, waits for every

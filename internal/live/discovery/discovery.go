@@ -698,6 +698,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
 			}
 			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
+			res.sweepPrefetchUnplanned = append(res.sweepPrefetchUnplanned, req.sweepFetch.unplannedCalls()...)
 			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
 			req.sweepFetch = nil
 		} else {
@@ -723,6 +724,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
 			}
 			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
+			res.sweepPrefetchUnplanned = append(res.sweepPrefetchUnplanned, req.sweepFetch.unplannedCalls()...)
 			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
 			req.sweepFetch = nil
 		}

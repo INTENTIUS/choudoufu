@@ -1383,6 +1383,18 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 			// untaggable, and only for it; every other type reaching here
 			// keeps exactly the gap it had.
 			if g, ok := tagIndexHeldNothingGap(schemas, req.Region, typeName, cfnType); ok {
+				// Issue #1321: before settling for the gap, take the
+				// enumeration this run has and did not use. The index
+				// served this type and held none of this estate's, which
+				// the identical run in any other region answers by routing
+				// the type to the native leg instead - see
+				// tagindexfallback.go for the cost bound and for why a
+				// failed fallback still leaves #1318's gap standing.
+				fbDiags, answered := sweepTagIndexFallback(ctx, req, schemas, decl, typeName, res)
+				diags = diags.Append(fbDiags)
+				if answered {
+					continue
+				}
 				diags = diags.Append(sweepGapDiag(res, g))
 				continue
 			}
