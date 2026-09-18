@@ -422,11 +422,16 @@ webhook_admits() { kubectl --kubeconfig "$1" apply --dry-run=server -f "$WORK/pr
 # cert_manager_ready <kubeconfig> <label>: bounded, loud. Both waits fail
 # the stage rather than falling through into the admission error a webhook
 # that exists but is not yet serving produces (#1173).
+#
+# The Deployment leg goes through gauntlet_k8s_wait_all rather than a bare
+# `kubectl wait --all` because the two failures it can hit are different
+# problems (#1285): no Deployments in $NS at all means the install never
+# happened, and saying "did not become Available within 300s" about a
+# command that returned in 0.05s costs the next reader the debugging time
+# this estate exists to save.
 cert_manager_ready() {
   local cfg="$1" label="$2"
-  kubectl --kubeconfig "$cfg" wait --for=condition=Available --timeout=300s deployment --all -n "$NS" >/dev/null 2>&1 \
-    || { printf 'cert_manager_ready: the cert-manager Deployments on %s did not become Available within 300s\n' "$label" >&2
-         kubectl --kubeconfig "$cfg" get pods -n "$NS" >&2; return 1; }
+  gauntlet_k8s_wait_all "$cfg" "$NS" deployment Available 300 "$label" || return 1
   gauntlet_wait_until 180 "the cert-manager validating webhook on $label to admit an Issuer (failurePolicy: Fail)" -- webhook_admits "$cfg"
 }
 
