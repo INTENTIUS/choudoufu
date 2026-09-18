@@ -747,9 +747,108 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	}
 	res, err := ParseProtocol(&captured)
 	if err != nil {
+		reportFailedRun(root, e.Name, logPath, opts.Stdout)
 		return nil, exit, elapsed, fmt.Errorf("estate %q: %w", e.Name, err)
 	}
+	if exit != 0 || hasFailingStage(res) {
+		reportFailedRun(root, e.Name, logPath, opts.Stdout)
+	}
 	return res, exit, elapsed, nil
+}
+
+// hasFailingStage reports whether the run recorded any fail verdict. A run
+// can exit 0 and still carry one (a script that records a verdict without
+// calling its own fail()), and it can exit non-zero with none at all (the
+// script died before it reached a stage), so the caller checks both.
+func hasFailingStage(res *ProtocolResult) bool {
+	if res == nil {
+		return false
+	}
+	for _, verdict := range res.Stages {
+		if verdict == "fail" {
+			return true
+		}
+	}
+	return false
+}
+
+// failTailLines is how much of a failed run's log the runner prints on its
+// own stdout. Every crossing script's fail() path prints the underlying
+// tool's diagnostic (`| tail -30` or `| tail -40`) immediately before the
+// FAIL line, so this has to be wider than the widest of those to carry the
+// diagnostic and not just the one-line verdict that names it.
+const failTailLines = 45
+
+// reportFailedRun preserves a failing run's log and prints its tail on the
+// runner's own stdout.
+//
+// Issue #1141. Both of that issue's sightings became unresolvable the same
+// way, and neither was a missing check - the evidence existed and was
+// discarded. `live/gauntlet/logs/<estate>.log` is ONE file per estate,
+// truncated by os.Create on the next run of that estate, and the whole
+// directory is gitignored and lives inside a throwaway worktree. So the 30
+// lines of provider diagnostic a script prints just above its FAIL line
+// survive exactly until the next run of the same estate, or until the
+// worktree is deleted, whichever comes first. What reached the issue was
+// the one-line fail() message and nothing else, for one of the two
+// sightings; for the other, not even that.
+//
+// Two things change here, and the second matters more than the first:
+//
+//   - the log is copied to a timestamped sibling, which the next run of the
+//     same estate no longer truncates. Still gitignored - a run's log is not
+//     an artifact and does not belong in the tree - but no longer destroyed
+//     by the ordinary act of running the estate again.
+//
+//   - the tail is printed on the RUNNER's stdout. That is the half that was
+//     actually missing: a worker reports what the runner printed, because
+//     that is what is in front of them. #1140's author pasted the runner's
+//     stdout into the pull request faithfully and the diagnostic was not in
+//     it, so the issue was born without the evidence that would have settled
+//     it. Note that cmd.Stderr goes only to the log file - FAIL lines are
+//     printed to stderr - so before this the runner's own stdout could not
+//     even name the failure, only the summary verdict.
+//
+// Best effort throughout: a run that has already failed must not be turned
+// into a runner error by a failure to read its own log.
+func reportFailedRun(root, estate, logPath string, stdout io.Writer) {
+	if stdout == nil {
+		return
+	}
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		fmt.Fprintf(stdout, "%s: FAILING RUN - could not read %s to preserve it: %v\n", estate, logPath, err)
+		return
+	}
+	kept := filepath.Join(root, LogDir, fmt.Sprintf("%s.%s.fail.log", estate, time.Now().UTC().Format("20060102T150405Z")))
+	if err := os.WriteFile(kept, data, 0o644); err != nil {
+		fmt.Fprintf(stdout, "%s: FAILING RUN - could not preserve %s: %v\n", estate, logPath, err)
+	} else {
+		fmt.Fprintf(stdout, "%s: FAILING RUN - log preserved at %s (the next run of this estate truncates %s)\n", estate, kept, logPath)
+	}
+	fmt.Fprintf(stdout, "%s: last %d lines of that log:\n%s\n", estate, failTailLines, failTail(string(data), failTailLines))
+}
+
+// failTail returns the n lines ending at the LAST "FAIL:" line, or the last
+// n lines when the log has none. Ending at the FAIL line rather than at the
+// end of the file is what puts the diagnostic in the excerpt: a script
+// prints the tool's output first and its own FAIL line after it, and
+// whatever the EXIT trap prints while tearing containers down comes later
+// still and explains nothing.
+func failTail(log string, n int) string {
+	lines := strings.Split(strings.TrimRight(log, "\n"), "\n")
+	end := len(lines)
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.HasPrefix(lines[i], "FAIL:") {
+			end = i + 1
+			break
+		}
+	}
+	start := end - n
+	if start < 0 {
+		start = 0
+	}
+	return strings.Join(lines[start:end], "\n")
 }
 
 // roundSeconds rounds to one decimal place: enough resolution to see a
