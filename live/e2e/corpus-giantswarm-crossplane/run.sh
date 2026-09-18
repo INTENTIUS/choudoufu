@@ -650,8 +650,8 @@ gauntlet_end_stage
 gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 
-# #339's fix: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE, exported near
-# the top of this script alongside TF_PLUGIN_CACHE_DIR, replaces the
+# #339's fix: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE, exported by
+# gauntlet_plugin_cache alongside TF_PLUGIN_CACHE_DIR (#1300), replaces the
 # lock-file-copy this stage used to do by hand (see #339's history for the
 # per-directory hack it retires). That copy only fixed THIS directory pair,
 # in THIS script - the env var fixes the same defect for every init in every

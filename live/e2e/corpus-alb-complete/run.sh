@@ -877,7 +877,7 @@ grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the green
 log "  DELTA  live block (record_store, evidence for #364 A2; strict.no_source_create=create for #388's default-flip greenfield ambiguity) added on top of the same reduction/onboarding deltas \$PLAIN/\$ADOPTED use"
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
-( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" TF_PLUGIN_CACHE_DIR="$TF_PLUGIN_CACHE_DIR" TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1 "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 if [ $? -ne 0 ]; then
