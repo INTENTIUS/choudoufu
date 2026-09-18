@@ -423,16 +423,29 @@ and does not count toward `clear`. A stage with no entry is unknown
 provenance, not stale: rows recorded before the field existed keep
 the cells and the clear flag they had.
 
-A whole row goes stale a second way (#1264): the estate's crossing
-script changes after the run that measured the row, so every verdict
-in it describes a script that is no longer in the tree. That is not
+A whole row goes stale a second way (#1264): the crossing script it
+was measured against changes afterwards, so every verdict in it
+describes a script that is no longer in the tree. That is not
 recorded in the artifact - it is computed on demand by diffing the
-row's `last_run.commit` against the working tree for the estate's own
-directory, which needs nothing the row does not already carry. Three
-answers: `current`, `changed`, and `unknown` for a row whose commit
-this checkout cannot place in HEAD's history (a shallow clone, or a
-run recorded on a branch that never landed). A change touching only
-markdown under the directory is not a change; nothing else is
+row's `last_run.commit` against the working tree, which needs nothing
+the row does not already carry. Two directories are compared, not
+one (#1292): the estate's own, and `live/e2e/lib`, the protocol
+library every crossing script sources. The library is the half that
+belongs to no estate, so watching only the first badged nothing at
+all when `gauntlet_record_count` changed under all 31 rows. The
+rendered sentence says which of the two moved, because they send a
+reader to different places. Deliberately NOT compared, each for a
+stated reason: `live/floci-image` and `live/oracle-versions.json`,
+whose values the row already records and `check` already compares by
+value; `live/gauntlet/estates.json`, one file holding every estate's
+manifest data, where a diff would badge all 31 rows for one estate's
+edit; and `internal/`, the product half (#1288), which almost every
+commit touches. A badge lit on every merge is read by nobody, which
+is worse than the gap it would close. Three answers: `current`,
+`changed`, and `unknown` for a row whose commit this checkout cannot
+place in HEAD's history (a shallow clone, or a run recorded on a
+branch that never landed). A change touching only markdown under
+either directory is not a change; nothing else is
 exempt. `go run ./tools/gauntlet check` prints the live answer and
 the board carries a snapshot of it, refreshed by every render. It
 never fails a build: re-running an estate can take half an hour, so
