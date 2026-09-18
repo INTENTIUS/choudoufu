@@ -340,15 +340,55 @@ func TestPerRegionTaggingRoutingAgainstFloci(t *testing.T) {
 		}
 	})
 
-	t.Run("region-blind-narrowing-loses-the-destroy", func(t *testing.T) {
+	t.Run("region-blind-narrowing-changes-what-the-run-says", func(t *testing.T) {
+		// Renamed under issue #1321, because what it cost changed. Until
+		// #1321 a region-blind narrowing LOST the destroy for
+		// aws_iam_instance_profile in us-west-2: the type was routed to an
+		// index that holds no IAM there, the answer was empty, and that was
+		// the end of the run for it. #1321 gives that arm a second route -
+		// a served-but-empty index falls back to the native per-type leg -
+		// and the native leg's list carries this type's tags at the
+		// resolved provider version, so the object is found and the destroy
+		// proposed. The wrong table now costs a wasted round trip rather
+		// than the object.
+		//
+		// That is the fallback working, not the break failing to break, and
+		// the arm is re-pinned to measure what is left rather than to keep
+		// a sentence that stopped being true. Two properties survive, and
+		// they are the ones worth having:
+		//
+		//   - No type may lose a destroy the correct table proposes. That
+		//     holds for every type, always, and it is strictly stronger
+		//     than "the two outcomes differ".
+		//   - At least one type must still tell the two tables apart, or
+		//     the region half of #1144 is unmeasured here and this arm
+		//     proves nothing. aws_iam_policy is that type today:
+		//     iam:ListPolicies strips tags, so the native fallback lists it
+		//     and still cannot read a marker, and the two tables differ in
+		//     the reason they give.
+		differed := 0
 		for _, typeName := range perRegionTypes {
 			shipped, broken := shippedWest[typeName], regionBlind[typeName]
-			if shipped == broken {
-				t.Fatalf("for %s the shipped table and a region-blind narrowing produced the IDENTICAL result in "+
-					"us-west-2 (%s).\n"+
-					"The region half of #1144 is then unproven: nothing here distinguishes a routing that knows "+
-					"IAM indexes only in us-east-1 from one that thinks it indexes everywhere.", typeName, shipped)
+
+			// The safety property. A wrong routing table may cost a round
+			// trip and may cost the accuracy of what the run SAYS; it may
+			// never cost a destroy the correct table proposes.
+			if shipped.Recovered && !broken.Recovered {
+				t.Errorf("in us-west-2 the shipped table recovered %s and a region-blind narrowing did not.\n"+
+					"shipped-west: %s\nregion-blind: %s\n"+
+					"Since #1321 a served-but-empty index falls back to the native per-type leg, so a wrong "+
+					"region half costs a wasted round trip rather than the object. A lost destroy here means "+
+					"that fallback is not firing.", typeName, shipped, broken)
+				continue
 			}
+
+			if shipped == broken {
+				t.Logf("us-west-2 %s: the shipped table and a region-blind narrowing agree (%s) - #1321's "+
+					"fallback absorbs the wrong routing for this type, at the cost of the tagging-leg round "+
+					"trip the region-blind table spends first", typeName, shipped)
+				continue
+			}
+			differed++
 			// The property, and it is the fork's safety rule rather than
 			// an outcome count: a run either proposes the destroy, or
 			// tells the operator it could not establish one. Both are
@@ -409,9 +449,17 @@ func TestPerRegionTaggingRoutingAgainstFloci(t *testing.T) {
 					typeName, SweepGapMarkerUnreadable, shipped.GapReason, shipped)
 			}
 			t.Logf("us-west-2 %s: shipped [%s] vs region-blind [%s] - the correct routing proposes the destroy or "+
-				"names why it cannot; the region-blind one loses the destroy and can only report an index that "+
-				"held nothing, where the fact is that this region's index holds none of this type at all",
+				"names why it cannot; the region-blind one can only report an index that held nothing, where the "+
+				"fact is that this region's index holds none of this type at all",
 				typeName, shipped, broken)
+		}
+		if differed == 0 {
+			t.Fatalf("no type told the shipped table and a region-blind narrowing apart in us-west-2 (%v).\n"+
+				"The region half of #1144 is then unmeasured here: nothing distinguishes a routing that knows "+
+				"IAM indexes only in us-east-1 from one that thinks it indexes everywhere. Since #1321 that can "+
+				"happen legitimately for a type whose native leg reads the marker, so this fails only when EVERY "+
+				"type has gone that way - check that iam:ListPolicies still strips tags on this emulator before "+
+				"believing the region table is now free.", regionBlind)
 		}
 	})
 }
