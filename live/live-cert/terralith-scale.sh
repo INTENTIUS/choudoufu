@@ -369,18 +369,30 @@ index_partition() {
   printf '%s %s %s %s\n' "$target" "$regional" "$global" "$unindexed"
 }
 
-# The partition must be TOTAL: every stamped object lands in exactly one of
-# the three buckets. If it does not, either terralith-gen's composition moved
-# under the VERIFIED formula or the formula moved under the split, and either
-# way the target index_wait polls to is no longer derived from anything. Read
-# at config time, before a single billable object exists, because the whole
+# index_partition_is_total returns 0 when the split covers every stamped
+# object exactly once, and non-zero with a diagnosis on stdout when it does
+# not. The partition MUST be total: if it is not, either terralith-gen's
+# composition moved under the VERIFIED formula or the formula moved under the
+# split, and either way the target index_wait polls to has stopped being
+# derived from anything. A kept-separate function rather than an inline `if`
+# so selftest-index-wait.sh can extract it verbatim and prove it red.
+index_partition_is_total() {
+  local _target regional global unindexed sum
+  IFS=' ' read -r _target regional global unindexed <<< "$(index_partition "$1")"
+  sum=$(( regional + global + unindexed ))
+  if [ "$sum" -ne "$VERIFIED" ]; then
+    printf 'index_partition at scale=%s splits VERIFIED into %s regional + %s global + %s unindexed = %s, but VERIFIED is %s - the split and the formula have drifted apart, so index_wait has no derivable target (issue #1143)\n' \
+      "$SCALE" "$regional" "$global" "$unindexed" "$sum" "$VERIFIED"
+    return 1
+  fi
+  return 0
+}
+
+# Checked at CONFIG time, before a single billable object exists: the whole
 # point of #1143 is not to discover a bad target after cold_deploy has
 # already spent the money.
-IFS=' ' read -r _ INDEX_REGIONAL INDEX_GLOBAL INDEX_UNINDEXED <<< "$(index_partition "$REGION")"
-if [ $((INDEX_REGIONAL + INDEX_GLOBAL + INDEX_UNINDEXED)) -ne "$VERIFIED" ]; then
-  echo "index_partition at scale=$SCALE splits VERIFIED into ${INDEX_REGIONAL} regional + ${INDEX_GLOBAL} global + ${INDEX_UNINDEXED} unindexed = $((INDEX_REGIONAL + INDEX_GLOBAL + INDEX_UNINDEXED)), but VERIFIED is ${VERIFIED} - the split and the formula have drifted apart, so index_wait has no derivable target (issue #1143)" >&2
-  exit 2
-fi
+INDEX_PARTITION_DIAG="$(index_partition_is_total "$REGION")" \
+  || { echo "$INDEX_PARTITION_DIAG" >&2; exit 2; }
 
 log() { printf '%s\n' "$*"; }
 
