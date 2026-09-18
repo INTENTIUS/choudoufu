@@ -325,13 +325,36 @@ type objectFields struct {
 
 // residueFields is [recordEnvelope.Residue]: today's residuePayload's
 // Attributes map, unchanged - the values this estate last sent for
-// arguments the provider's Read never gives back (issue #275).
+// arguments the provider's Read never gives back (issue #275) - plus
+// GitHub issue #1211's ManifestMetadataKeys.
 type residueFields struct {
-	Attributes map[string]residueAttrValue `json:"attributes"`
+	Attributes map[string]residueAttrValue `json:"attributes,omitempty"`
+
+	// ManifestMetadataKeys is which metadata.labels and
+	// metadata.annotations keys a kubernetes_manifest instance's
+	// configuration DECLARED at the apply that wrote this record, keyed
+	// by the metadata map's own attribute name as
+	// [markers.ManifestComputedMetadataAttrs] spells it, each list
+	// sorted. GitHub issue #1211.
+	//
+	// It belongs in Residue and nowhere else, because it is the same
+	// question this member already exists to answer: "what did we send".
+	// The difference from Attributes is only that the answer is a key
+	// SET rather than a value - a label's value is on the object and
+	// needs no record, but the fact that the configuration once named
+	// the key is not recoverable from anything the cluster holds. See
+	// [manifestDeclaredKeys] for why it cannot come from
+	// metadata.managedFields.
+	//
+	// Absent for every record written before this field existed and for
+	// every non-manifest type, which reads as "this run does not know
+	// what was last declared" and proposes removing nothing - the
+	// pre-#1211 behaviour, quiet rather than churning.
+	ManifestMetadataKeys map[string][]string `json:"manifest_metadata_keys,omitempty"`
 }
 
 func (r *residueFields) empty() bool {
-	return r == nil || len(r.Attributes) == 0
+	return r == nil || (len(r.Attributes) == 0 && len(r.ManifestMetadataKeys) == 0)
 }
 
 // provisionedFields is [recordEnvelope.Provisioned]: today's
@@ -990,6 +1013,36 @@ func (s *RecordStore) GetTombstones(ctx context.Context, addr addrs.AbsResourceI
 		return nil, version, true, nil
 	}
 	return out, version, true, nil
+}
+
+// GetManifestDeclaredKeys reads addr's
+// [residueFields.ManifestMetadataKeys] - GitHub issue #1211's record of
+// which metadata map keys the configuration declared at the apply that
+// wrote this record.
+//
+// found is false for a key that does not exist, for an envelope with no
+// residue at all, and for a residue written before this member existed.
+// All three mean the same thing to the caller and must: this run does not
+// know what was last declared, so it proposes removing nothing. Only a
+// store error is an error; see [builder.manifestDeclaredKeysFor], which
+// is the one caller and swallows even that, for [builder.fillResidueFor]'s
+// reason - this run's own [SummaryResidueUnreadable] already says it.
+func (s *RecordStore) GetManifestDeclaredKeys(ctx context.Context, addr addrs.AbsResourceInstance) (keys map[string][]string, found bool, err error) {
+	if s == nil {
+		return nil, false, nil
+	}
+	env, _, exists, err := s.getEnvelope(ctx, addr, false)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exists || env.Residue == nil || len(env.Residue.ManifestMetadataKeys) == 0 {
+		return nil, false, nil
+	}
+	out := make(map[string][]string, len(env.Residue.ManifestMetadataKeys))
+	for field, list := range env.Residue.ManifestMetadataKeys {
+		out[field] = append([]string(nil), list...)
+	}
+	return out, true, nil
 }
 
 // getResidue reads addr's Residue member - GitHub issue #275's argument

@@ -262,6 +262,10 @@ var refusals = []Refusal{
 		What:    "A migration (liveimport's Approve) read the identity of an untaggable, unlistable resource but could not write it into the estate's record store: a write conflict with a different identity already there, or a store failure. The instance stays findable only by hand until this is resolved; nothing in the live system changed.",
 	},
 	{
+		Summary: SummaryManifestRemovalUndetectable,
+		What:    "A label or an annotation this estate's own record says a kubernetes_manifest block declared is gone from the configuration and still on the live object, but this run will not propose removing it (GitHub issue #1211). Either the safety rail could not be consulted - no cluster client was supplied, the cluster would not answer, the block's field_manager name is not statically resolvable, or the live object carries no metadata.managedFields - or it answered that another field manager owns the key now, in which case server-side apply would decline the removal anyway. Everything the configuration does declare is still compared against the live object.",
+	},
+	{
 		Summary: SummaryProvisionedUnreadable,
 		What:    "An estate's provisioner record - the one bit saying a create-time provisioner failed on a live object (GitHub issue #353) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. Reading on would report a half-provisioned object as healthy and never run the provisioner again.",
 	},

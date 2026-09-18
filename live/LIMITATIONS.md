@@ -2541,6 +2541,7 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-provider-change | error | `internal/live/lint` | "strict-provider-change" |
 | - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
+| - | - | projection | A removed label or annotation cannot be removed | error | `internal/live/projection` | "A removed label or annotation cannot be removed" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a deposed object | error | `internal/live/projection` | "Cannot encode a deposed object" |
@@ -2602,7 +2603,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**234 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**235 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3800,6 +3801,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### A removed label or annotation cannot be removed
+
+**What.** A label or an annotation this estate's own record says a kubernetes_manifest block declared is gone from the configuration and still on the live object, but this run will not propose removing it (GitHub issue #1211). Either the safety rail could not be consulted - no cluster client was supplied, the cluster would not answer, the block's field_manager name is not statically resolvable, or the live object carries no metadata.managedFields - or it answered that another field manager owns the key now, in which case server-side apply would decline the removal anyway. Everything the configuration does declare is still compared against the live object.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Argument values could not be recorded
 
 **What.** An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.
@@ -4440,21 +4449,36 @@ takes the live value and says `No changes.` - that direction is deliberate
 what lets a saved plan's staleness check see an out-of-band `kubectl
 label`), and "config edited" and "live drifted" are not distinguishable
 without a last-applied value, so making the first visible necessarily makes
-the second visible. A key REMOVED from the configuration is the other
-direction: it is absent from the prior for the same reason it is absent from
-the configuration, the two agree, the provider keeps the live value, and the
-label stays on the object where stock would remove it (#1211; the source
-that could settle it is the live object's own `metadata.managedFields`,
-which the provider strips out of the `object` it hands back). A key the
-configuration does not declare is untouched in every case, which is the half
-of `computed_fields` that matters most: `kubernetes.io/metadata.name`,
+the second visible. A key REMOVED from the
+configuration is the other direction, and #1211 closed it: it is absent
+from the prior for the same reason it is absent from the configuration, so
+nothing on the object or in the configuration can say it was ever
+declared. The estate's own residue record says it - the label and
+annotation keys each apply declared, beside the `wait_for_*` arguments
+that member already held - and the removal set is `(recorded) \
+(currently declared)`, intersected with the live object's
+`metadata.managedFields` as a safety rail. The rail is not the source, and
+that is measured rather than chosen: `computed_fields` makes the apply
+resend every key the object already had, so server-side apply records this
+estate as the writer of keys nobody declared, and one apply later
+`managedFields` claims `kubernetes.io/metadata.name` with no co-owner to
+filter on. A removal rule sourced there proposes deleting a label the API
+server writes straight back. Degradation is toward silence rather than
+churn: no record proposes removing nothing (the pre-#1211 answer), and a
+stale record still says what was last declared, which is the wanted
+semantic. A candidate the rail cannot confirm earns a warning naming the
+key, not silence. A key the configuration does not declare is untouched in
+every case, which is the half of `computed_fields` that matters most:
+`kubernetes.io/metadata.name`,
 `kubectl.kubernetes.io/last-applied-configuration`, `cert-manager.io/*` and
 `meta.helm.sh/*` are the server's and stay the server's.
 (`internal/live/projection/nodestamp_manifest.go`,
-`mirrorManifestComputedFields`; pinned by
-`TestMirrorManifestComputedFieldsFollowsTheLiveObject` and
-`TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible`, and end to end
-by the `k8s-a-label-is-a-change` smoke scenario.)
+`mirrorManifestComputedFields`, and `manifestkeys.go`; pinned by
+`TestMirrorManifestComputedFieldsFollowsTheLiveObject`,
+`TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible`,
+`TestMirrorManifestComputedFieldsLeavesForeignKeysAlone` and
+`TestWriteBackRecordsTheDeclaredManifestKeys`, and end to end by the
+`k8s-a-label-is-a-change` smoke scenario.)
 
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_accessanalyzer_archive_rule`,

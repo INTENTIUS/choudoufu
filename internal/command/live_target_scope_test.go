@@ -101,6 +101,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"projection.ApplyRootOutputValues": {planDerived, "evaluates outputs against projResult.State, itself scoped by BuildWith"},
 	"projection.WriteBack":             {planDerived, "reads the final state of an apply that already honoured -target"},
 	"untag.Release":                    {planDerived, "releases the tags PriorState captured from a scoped projection"},
+	"statelessManifestOwnedKeys":       {planDerived, "#1211's safety rail. Builds a per-instance hook the projection calls only for an instance it is already reading - projection.BuildWith narrowed that set by scope - and the hook never looks beyond the one address it is handed"},
 
 	// ---- whole-configuration on purpose ----------------------------
 	"statelessEstateFor":              {wholeConfigByDesign, "the estate name is a property of the configuration, not of one resource"},
