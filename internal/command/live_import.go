@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -203,7 +204,11 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	var recordStore *projection.RecordStore
 	var rootOutputStore *projection.RootOutputStore
 	if recordStoreCfg != nil {
-		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, args.Estate, ".")
+		var store staterecord.Store
+		storeOpts, storeErr := recordStoreOpenOptions()
+		if storeErr == nil {
+			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, args.Estate, ".", storeOpts...)
+		}
 		if storeErr != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
 				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,

@@ -54,8 +54,12 @@ const defaultRecordDirName = ".tofu-records"
 // record per resource, so a large one reaches Parameter Store's throughput
 // ceiling on its own, and the SDK's default of three attempts is not enough
 // to cross it (#1196, #1148).
-func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string) (staterecord.Store, error) {
-	store, err := newRecordStore(ctx, rs, rt, estate, moduleDir)
+func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string, opts ...RecordStoreOption) (staterecord.Store, error) {
+	var o recordStoreOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	store, err := newRecordStore(ctx, rs, rt, estate, moduleDir, o)
 	if err != nil || store == nil {
 		return store, err
 	}
@@ -160,7 +164,25 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 // configuration set, once. Issue #916.
 const backendKeyPrefix = ""
 
-func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string) (staterecord.Store, error) {
+// RecordStoreOption adjusts how [NewRecordStore] builds its store. Options
+// are for operational levers, which internal/command reads from the
+// environment; what a team checks in stays in the record_store block.
+type RecordStoreOption func(*recordStoreOptions)
+
+type recordStoreOptions struct {
+	bulkReadParallelism int
+}
+
+// WithBulkReadParallelism bounds how many reads a backend that fans its bulk
+// read out has in flight at once - today the "s3" backend's GetAll (GitHub
+// issue #1336). Zero or negative leaves the backend's own default,
+// [staterecord.DefaultS3GetAllParallelism]. The local and SSM backends read
+// their namespaces another way and ignore it.
+func WithBulkReadParallelism(n int) RecordStoreOption {
+	return func(o *recordStoreOptions) { o.bulkReadParallelism = n }
+}
+
+func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string, o recordStoreOptions) (staterecord.Store, error) {
 	if rs == nil {
 		return nil, nil
 	}
@@ -210,6 +232,8 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 			Bucket: rs.Bucket,
 			// Empty on purpose: see backendKeyPrefix.
 			KeyPrefix: backendKeyPrefix,
+
+			GetAllParallelism: o.bulkReadParallelism,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)

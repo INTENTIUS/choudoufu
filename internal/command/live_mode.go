@@ -951,7 +951,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		retryCfg = config.Module.Live.Retry
 	}
 	if recordStoreCfg != nil {
-		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, ".")
+		var store staterecord.Store
+		storeOpts, storeErr := recordStoreOpenOptions()
+		if storeErr == nil {
+			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, ".", storeOpts...)
+		}
 		if storeErr != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
 				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,

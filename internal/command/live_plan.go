@@ -661,7 +661,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// exactly as it always has.
 	var hintStore staterecord.Store
 	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".")
+		var store staterecord.Store
+		storeOpts, storeErr := recordStoreOpenOptions()
+		if storeErr == nil {
+			store, storeErr = projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".", storeOpts...)
+		}
 		if storeErr != nil {
 			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
 		} else {
