@@ -334,7 +334,7 @@ gauntlet_kind_count() {
   printf '%s\n' "$n"
 }
 
-# gauntlet_record_count <dir>: counts a record store's on-disk record files
+# gauntlet_record_count <dir>: counts a record store's on-disk FILES
 # under <dir> the way every crossing script already counted them by hand -
 # "-type f", skipping the write-lock and in-progress-write files a
 # staterecord.Store leaves beside its records - PLUS one more exclusion:
@@ -348,8 +348,49 @@ gauntlet_kind_count() {
 # sentinelKeyName and update the literal here. Before this exclusion
 # existed, a store touched during a run counted one file too many
 # (issue #861).
+#
+# It counts FILES, which is not the same question as "how many records"
+# and is only the same answer when nothing else shares the path. Guided
+# discovery's hint owns "tofu-hints/<estate>" in the same store, beside
+# the records and deliberately disjoint from them (internal/configs/
+# live.go:1382 refuses a key_prefix that would collide with it), so a
+# store a guided run has touched holds one file this counts and no reader
+# would call a record. Measured 2026-09-18 on a three-manifest root: three
+# records, one .store-sentinel and one tofu-hints/<estate>/guided, of
+# which this prints 4. Use it for a DELTA, where the constants cancel;
+# use gauntlet_record_envelope_count below for an absolute (issue #1288).
 gauntlet_record_count() {
   find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# gauntlet_record_envelope_count <dir>: how many RECORDS are under <dir> -
+# files whose content is a record envelope, identified the way
+# gauntlet_record_file already identifies one, by the envelope's own
+# `address` field rather than by its position or its name. Anything else
+# sharing the store - the provisioning sentinel, guided discovery's hint,
+# a lock, a half-written temporary - is not an envelope and is not counted.
+#
+# This is the one to compare against an instance count. Issue #1288: the
+# reference-k8s-cert-manager greenfield control asserted its store held one
+# record per instance and read one too many, because the estate's own
+# guided hint was sitting in the same directory.
+gauntlet_record_envelope_count() {
+  python3 - "$1" <<'PY'
+import json, os, sys
+n = 0
+for dirpath, _, names in os.walk(sys.argv[1]):
+    for name in names:
+        if name.endswith('.lock') or '.tmp-' in name or name == '.store-sentinel':
+            continue
+        try:
+            with open(os.path.join(dirpath, name)) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get('address'):
+            n += 1
+print(n)
+PY
 }
 
 # gauntlet_record_file <dir> <address>: the path of the one record file
