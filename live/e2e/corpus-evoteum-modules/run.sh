@@ -269,20 +269,6 @@ SUBNET_MARKERS=(
   'module.networking.aws_subnet.public:10@d0@d103@d0/24'
 )
 
-# This script runs two `tofu init`s (plain and estate), each of which would
-# otherwise re-download the ~500MB AWS provider into its own scratch
-# directory. Point both at OpenTofu's own conventional shared plugin cache so
-# only the first one can ever pay for a download; an operator who already
-# exports TF_PLUGIN_CACHE_DIR keeps theirs.
-#
-# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE closes the gap a warm
-# cache alone does not - without it, init in a directory with no
-# .terraform.lock.hcl re-downloads the whole provider purely to compute
-# checksums, even when the cache already holds that exact version (see
-# live/e2e/README.md, "The shared plugin cache" for the measured numbers).
-export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
-export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
   gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
@@ -297,6 +283,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

@@ -76,6 +76,11 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT/live/e2e/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 ESTATE="corpus-quickpizza"
 NS="quickpizza"
 KINDS="namespaces configmaps secrets serviceaccounts services deployments statefulsets clusterrolebindings"
@@ -84,7 +89,6 @@ WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
 KCA="$WORK/a.kubeconfig"; KCB="$WORK/b.kubeconfig"
 CLUSTER_A="chdf-qp-a-$$"; CLUSTER_B="chdf-qp-b-$$"
-export TF_PLUGIN_CACHE_DIR="$WORK/plugin-cache"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
 export TF_IN_AUTOMATION=1
 log() { printf '%s\n' "$*"; }
 
@@ -234,7 +238,7 @@ export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 log "  cluster A: $(kca version 2>/dev/null | grep -i server | head -1); cluster B: $CLUSTER_B"
 write_root "$STOCK" stock
 write_root "$ORACLE" stock
-( cd "$STOCK/terraform" && terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+( cd "$STOCK/terraform" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
 COLD_OUT="$(cd "$STOCK/terraform" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock cold deploy failed on A"; }
 grep -qF "Apply complete! Resources: 26 added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock cold deploy did not add exactly 26 objects on A"; }
 STOCK_N="$(cd "$STOCK/terraform" && terraform state list | wc -l | tr -d ' ')"

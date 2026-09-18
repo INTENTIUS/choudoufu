@@ -614,6 +614,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -776,21 +781,9 @@ log "  $AMI_PARAM seeded; $DOMAIN hosted zone created"
 curl -fsSL -o "$PLAIN_EST/$PKG_FILE" "$PKG_URL" || fail "could not prefetch the Lambda deployment zip fixture"
 log "  DELTA 3  Lambda deployment zip prefetched to $PKG_FILE       (module-example quirk, not floci/choudoufu)"
 
-log "=== 1c. terraform init + apply ==="
-# #339: the shared cache records no checksums, so init in a directory with no
-# .terraform.lock.hcl re-downloads the whole provider purely to compute them,
-# even when the cache already holds that exact version. TF_PLUGIN_CACHE_MAY_
-# BREAK_DEPENDENCY_LOCK_FILE is real terraform's and OpenTofu's own CLI-config
-# accommodation for this - both binaries below honor it, so it fixes it for
-# each init independently, not just when a lock file happens to already
-# exist. Every directory here is a throwaway mktemp copy, never committed,
-# never run on a second platform, so the trade-off (only this platform's
-# checksum gets recorded) costs nothing.
-export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
-export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
-( cd "$PLAIN_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "plain terraform init failed"; }
+log "=== 1c. gauntlet_locked_init terraform init + apply ==="
+( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "plain gauntlet_locked_init terraform init failed"; }
 PLAIN_APPLY_OUT="$(cd "$PLAIN_EST" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$PLAIN_APPLY_OUT" | tail -60
   fail "the plain terraform apply failed"; }
@@ -884,7 +877,7 @@ grep -q "estate = \"$GREEN_ESTATE\"" "$GREEN_EST/versions.tf" || fail "the green
 log "  DELTA  live block (record_store, evidence for #364 A2; strict.no_source_create=create for #388's default-flip greenfield ambiguity) added on top of the same reduction/onboarding deltas \$PLAIN/\$ADOPTED use"
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
-( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" TF_PLUGIN_CACHE_DIR="$TF_PLUGIN_CACHE_DIR" TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1 "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 if [ $? -ne 0 ]; then
@@ -991,8 +984,8 @@ moved {
   to   = aws_instance.other_renamed
 }
 EOF
-( cd "$ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 if grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT"; then
@@ -1048,8 +1041,8 @@ perl -0777 -pi -e 's/resource "aws_instance" "other" \{.*?\n\}\n\n/\n/s' "$REMOV
 grep -q 'resource "aws_instance" "other" {' "$REMOVE_ORACLE_EST/main.tf" && fail "removing aws_instance.other's block from the day2_remove oracle copy did not match - the corpus example has moved"
 perl -0777 -pi -e 's/additional_target_group_attachments = \{\n    ex-instance-other = \{\n.*?\n    \}\n  \}/additional_target_group_attachments = {}/s' "$REMOVE_ORACLE_EST/main.tf"
 grep -q 'ex-instance-other' "$REMOVE_ORACLE_EST/main.tf" && fail "removing the ex-instance-other target-group-attachment entry from the oracle copy did not match - the corpus example has moved"
-( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # aws_instance\.other will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -1087,8 +1080,8 @@ REPLACE_ORACLE_EST="$REPLACE_ORACLE/alb/examples/complete-alb"
 perl -0pi -e 's/resource "aws_instance" "this" \{\n  ami           = data\.aws_ssm_parameter\.al2\.value\n/resource "aws_instance" "this" {\n  ami           = "ami-0abcdef1234567891"\n/' "$REPLACE_ORACLE_EST/main.tf"
 [ "$(grep -c 'ami-0abcdef1234567891' "$REPLACE_ORACLE_EST/main.tf")" = "1" ] \
   || fail "changing aws_instance.this's ami argument in the replace-oracle copy did not match exactly once - the corpus pin has moved"
-( cd "$REPLACE_ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # aws_instance\.this must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -2362,8 +2355,8 @@ EOF
 
     log "=== G-ORACLE 1. stock: stand the same 2-instance count block up for real ==="
     count_oracle_config 2 > "$COUNT_ORACLE_DIR/main.tf"
-    ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_count stock oracle's terraform init failed"; }
+    ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
     CO_UP_APPLY="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; CO_UP_RC=$?
     [ "$CO_UP_RC" -eq 0 ] || { printf '%s\n' "$CO_UP_APPLY" | tail -30; fail "the day2_count stock oracle's baseline apply exited $CO_UP_RC"; }
     grep -qE 'Resources: 3 added, 0 changed, 0 destroyed' <<< "$CO_UP_APPLY" \

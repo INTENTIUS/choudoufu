@@ -366,14 +366,6 @@ TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike
          -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
          -target=module.monitoring.aws_cloudwatch_dashboard.site)
 
-# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE closes the gap a warm
-# cache alone does not - without it, init in a directory with no
-# .terraform.lock.hcl re-downloads the whole provider purely to compute
-# checksums, even when the cache already holds that exact version (see
-# live/e2e/README.md, "The shared plugin cache" for the measured numbers).
-export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
-export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
   gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
@@ -388,6 +380,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

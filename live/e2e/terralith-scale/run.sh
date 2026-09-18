@@ -131,6 +131,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$ROOT/live/e2e/lib/gauntlet.sh"
 
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
+
 WORK="$(mktemp -d)"
 SCALE="${SCALE:-1}"
 FLOCI_PORT="${FLOCI_PORT:-4745}"
@@ -575,8 +580,6 @@ else
   log "  built $TOFU"
 fi
 
-export TF_PLUGIN_CACHE_DIR="$WORK/plugin-cache"
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 # ── 1. generate ──────────────────────────────────────────────────────────
 log "=== 1. terralith-gen -scale $SCALE -prefix $PREFIX ==="
@@ -602,8 +605,8 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
 log "=== A1. cold_deploy: stock terraform applies the unmodified estate into COLD ==="
 render_config "$COLD"
-( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || { ( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -20 ); fail "stock terraform init failed in COLD"; }
+( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) \
+  || { ( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "stock gauntlet_locked_init terraform init failed in COLD"; }
 COLD_APPLY="$(cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$COLD_APPLY" | grep -E '^Error|^│' | head -30
   fail "stock terraform apply failed in COLD"; }
@@ -631,8 +634,8 @@ log "  confirmed unmarked: ${PREFIX}-team-0000-role carries no tofu-address tag"
 # greenfield's own Proves text needs ("from an empty account").
 log "=== A2. cold_deploy: the same stock apply into GREEN, then a stock destroy back to an enumerated-empty account (#564's own proof) ==="
 render_config "$STOCKGREEN"
-( cd "$STOCKGREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "stock terraform init failed in GREEN"
+( cd "$STOCKGREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "stock gauntlet_locked_init terraform init failed in GREEN"
 GREEN_APPLY="$(cd "$STOCKGREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY" | grep -E '^Error|^│' | head -30
   fail "stock terraform apply failed in GREEN"; }
@@ -1126,8 +1129,8 @@ log "=== G1. day2_count stock oracle: apply the same six-block count fixture at 
 OCOUNT="$WORK/oracle-count"
 mkdir -p "$OCOUNT"
 write_count_oracle "$OCOUNT" 2
-( cd "$OCOUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "the day2_count oracle's terraform init failed"
+( cd "$OCOUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "the day2_count oracle's gauntlet_locked_init terraform init failed"
 OC_APPLY="$(cd "$OCOUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$OC_APPLY" | tail -30; fail "the day2_count oracle's baseline apply failed"; }
 grep -qE 'Apply complete! Resources: 12 added' <<< "$OC_APPLY" \
