@@ -95,10 +95,19 @@ format is not a contract.
 version the writer read. A losing writer gets a named failure rather than a
 blocking wait or a silent overwrite.
 
-**Losing a record is churn, not a lost estate.** The effect re-runs or its
-value regenerates, and anything reading it plans as a change. It cannot cost
-you a resource, because identity arguments must be statically evaluable, so a
-record-backed value can never name one.
+**Losing a record cannot produce a wrong marker.** An identity-bearing
+argument is evaluated over `var`, `local`, `path`, `terraform` and `tofu`
+alone, so a record's value is never folded into a marker. Where an identity
+cannot be rendered the instance is omitted with a named reason and the plan
+proposes a create; nothing is bound to the wrong object.
+
+**It can still cost you more than churn.** A record-backed value may be a
+*component* of another resource's identity - `name =
+"svc-${random_pet.suffix.id}"` is the ordinary shape - and losing that record
+regenerates the pet, so everything named after it is proposed for create under
+a name no live object has. [Recover an
+estate]({{< relref "/docs/use/recover-an-estate" >}}) has what this looks like
+in a plan and what to do about it.
 
 ### What the store may contain, and who can read it
 
@@ -230,23 +239,49 @@ Receipts are for external effects. Keep them apart.
 
 ## Choosing a record store backend
 
+**`s3` is how an estate is meant to be run**, and the argument is consistency
+rather than capacity. An S3 record write is a real compare-and-swap the server
+enforces, through `If-Match` and `If-None-Match` on the object's ETag, which is
+what makes "a losing writer gets a named failure" true for every write rather
+than only for the first one.
+
+You create and configure the bucket. choudoufu only reads and writes keys in
+it. It has to exist before the first plan, not the first apply, and it cannot
+be a bucket the same estate declares. Its default encryption and its bucket
+policy are the ones that apply, since the write sets neither. Keep versioning
+on: it is what turns a deleted record store from an incident into an undo, and
+[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) explains what
+the alternative costs.
+
 `local` for a single operator or a demo, where a directory beside the module is
 fine and nothing else needs to read it. Gitignore `.tofu-records/`.
 
-`ssm` when more than one machine runs the estate. No infrastructure to set up,
-since Parameter Store already exists in the account. Scope `ssm:GetParameter`
-on the prefix the way you would scope read access to a state file. Check the
-size of the estate against
-[how many records a backend can hold](#how-many-records-a-backend-can-hold)
-first: the standard tier stops at 10,000 records for the whole account and
-region, and that is not adjustable.
+**`ssm` is on its way out as a record store.** It still works and is still
+documented here, and [#1244](https://github.com/INTENTIUS/choudoufu/issues/1244)
+carries the decision and the migration question for estates already on it. The
+reason is worth stating plainly, because it is not the one people expect.
 
-`s3` to keep records in a bucket you already operate, with your own versioning
-and lifecycle rules. You create and configure the bucket. choudoufu only reads
-and writes keys in it. It has to exist before the first plan, not the first
-apply, and it cannot be a bucket the same estate declares. Its default
-encryption and its bucket policy are the ones that apply, since the write sets
-neither.
+Parameter Store's 10,000-parameter standard quota is **account-wide and shared
+with everything else in the account** - your application configuration, your
+pipelines, anything else that writes a parameter - and it is listed
+`Adjustable: False`. So the failure is not "a large estate runs out". An
+account already near the limit cannot host even a small estate, on day one.
+
+And choudoufu cannot see that coming. The capacity check compares the estate's
+record count against the full quota, as though the whole budget belonged to
+this tool. A 500-record estate going into an account that already holds 9,800
+parameters clears the refusal, clears the warning band, and then fails partway
+through with a half-written store against live resources. Reading the real
+remaining budget would cost a full `DescribeParameters` sweep on every plan and
+be stale the moment it returned. A store whose capacity belongs to the customer
+and cannot be measured is the wrong place for the record of what an estate owns.
+
+Keeping *secrets* in Parameter Store is a different question from keeping
+*records* there, and retiring the second does not retire the first. §3 of
+[#1244](https://github.com/INTENTIUS/choudoufu/issues/1244) proposes records in
+S3 with `sensitive_attributes` and `private` alone written to SSM as
+`SecureString` under a KMS key, the S3 record carrying a reference rather than
+the value. That is a proposal. Nothing implements it today.
 
 The `ssm` store writes `Type: String` parameters and does not choose a KMS key.
 That default is deliberate and the reasoning is written down, along with what

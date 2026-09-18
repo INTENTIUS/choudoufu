@@ -46,3 +46,7 @@ The steps as they print:
 The `BREAK=1` run withholds the markers. The estate must refuse to bind
 an unmarked resource, so the re-run builds a second vpc - stock's crash
 behavior, demonstrated as the exact boundary of the claim.
+
+This scenario is the demonstration. [Recover an
+estate]({{< relref "/docs/use/recover-an-estate" >}}) is the procedure it
+implies, with the inventory of what a re-run does not bring back.

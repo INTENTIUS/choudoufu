@@ -194,7 +194,9 @@ text as a typo'd bucket name, with nothing naming the cycle. If you see that
 error and the bucket is one your own configuration declares, this is why.
 
 Create the bucket outside the estate, the way a stock bootstrap configuration
-would, or use `ssm`, which has no such cycle.
+would. `ssm` has no such cycle, and it used to be the advice here; it is not
+any more, for a reason that has nothing to do with the bootstrap - see
+[choosing a record store backend]({{< relref "/docs/use/storage#choosing-a-record-store-backend" >}}).
 
 ### The store holds secrets by default
 

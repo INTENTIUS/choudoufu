@@ -41,10 +41,15 @@ envelope for this fork's own code. Its format is not a contract.
 version the writer read. A losing writer gets a named failure rather than a
 blocking wait or a silent overwrite.
 
-**Losing one is churn, not a lost estate.** The effect re-runs or its value
-regenerates, and anything reading it plans as a change. It cannot cost you a
-resource, because identity arguments must be statically evaluable, so a
-record-backed value can never name one.
+**Losing one cannot produce a wrong marker.** An identity-bearing argument is
+evaluated over `var`, `local`, `path`, `terraform` and `tofu` alone, so a
+record's value is never folded into a marker. What it can cost is more than
+churn: a record-backed value may be a *component* of another resource's
+identity - `name = "svc-${random_pet.suffix.id}"` is the ordinary shape - and
+losing that record regenerates the pet, so everything named after it is
+proposed for create under a name no live object has. [Recover an
+estate]({{< relref "/docs/use/recover-an-estate" >}}) has the mechanism and
+the procedure.
 
 **The record store may hold any value the state file would have held,
 including secrets, unless you set `strict { secrets = "refuse" }`.** The

@@ -91,3 +91,8 @@ The steps as they print:
 4. `teardown` - the group and its policy destroyed (or, under
    `BREAK=1`, cleaned up by hand, since the proposed duplicate was never
    applied).
+
+The `BREAK=1` arm is the starting condition of a real incident rather than
+its conclusion. [Recover an
+estate]({{< relref "/docs/use/recover-an-estate" >}}) has what to do from
+there, which types are in this class, and where the procedure stops.
