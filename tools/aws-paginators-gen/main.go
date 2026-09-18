@@ -93,6 +93,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	snap.Digest = snap.ContentDigest()
 	want, err := snap.Marshal()
 	if err != nil {
 		fail(err)
@@ -104,7 +105,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		if diff := describeDrift(got, want); diff != "" {
+		if diff := describeDrift(got, snap); diff != "" {
 			fmt.Fprintf(os.Stderr, "%s is stale against botocore %s:\n%s\nrun: go run ./tools/aws-paginators-gen\n", residue.PaginatingOperationsPath, version, diff)
 			os.Exit(1)
 		}
@@ -218,17 +219,17 @@ func scan(dataDir, version string) (*residue.PaginatingOperations, error) {
 }
 
 // describeDrift compares the committed bytes with the freshly generated
-// ones and reports what moved, ignoring only the _generated stamp (a date,
-// which changes on every run and means nothing). An empty string means
-// they agree.
-func describeDrift(got, want []byte) string {
-	var g, w residue.PaginatingOperations
+// snapshot and reports what moved, ignoring only the _generated stamp (a
+// date, which changes on every run and means nothing). An empty string
+// means they agree - byte for byte, not merely in content: the committed
+// file has exactly one canonical rendering, and a reformatted copy has to
+// fail here as well as in the offline test.
+func describeDrift(got []byte, fresh *residue.PaginatingOperations) string {
+	var g residue.PaginatingOperations
 	if err := json.Unmarshal(got, &g); err != nil {
 		return fmt.Sprintf("  committed file does not parse: %v", err)
 	}
-	if err := json.Unmarshal(want, &w); err != nil {
-		return fmt.Sprintf("  generated snapshot does not parse: %v", err)
-	}
+	w := *fresh
 	var lines []string
 	if g.BotocoreVersion != w.BotocoreVersion {
 		lines = append(lines, fmt.Sprintf("  botocore_version: committed %s, installed %s", g.BotocoreVersion, w.BotocoreVersion))
@@ -252,22 +253,18 @@ func describeDrift(got, want []byte) string {
 		}
 	}
 	// A pure formatting difference with no content difference still has to
-	// fail: the committed file has exactly one canonical rendering.
-	if len(lines) == 0 && !bytes.Equal(stripGenerated(got), stripGenerated(want)) {
-		lines = append(lines, "  content agrees but the committed file is not in canonical form (two-space indent, sorted keys, trailing newline)")
+	// fail, so the last comparison is over bytes, with the fresh snapshot
+	// re-rendered under the COMMITTED file's own _generated stamp so the
+	// date cannot be the thing that differs.
+	stamped := *fresh
+	stamped.Generated = g.Generated
+	if canonical, err := stamped.Marshal(); err != nil {
+		lines = append(lines, fmt.Sprintf("  could not render the fresh snapshot: %v", err))
+	} else if !bytes.Equal(got, canonical) && len(lines) == 0 {
+		lines = append(lines, "  content agrees but the committed file is not in canonical form (two-space indent, sorted keys, one trailing newline) - regenerate rather than hand-editing")
 	}
 	sort.Strings(lines)
 	return strings.Join(lines, "\n")
-}
-
-func stripGenerated(b []byte) []byte {
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
-		return b
-	}
-	delete(m, "_generated")
-	out, _ := json.MarshalIndent(m, "", "  ")
-	return out
 }
 
 func diffSets(a, b []string) []string {

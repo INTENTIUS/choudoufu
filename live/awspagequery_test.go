@@ -63,6 +63,15 @@ func TestPaginatingOperationsSnapshotIsCanonical(t *testing.T) {
 		t.Errorf("live/%s is not in canonical form (two-space indent, sorted keys, sorted and deduplicated operation lists, one trailing newline) - it was edited by hand. Regenerate it: go run ./tools/aws-paginators-gen", snapshotRel)
 	}
 
+	// The digest is what catches the edit the canonical comparison cannot:
+	// deleting one operation leaves a perfectly canonical file that
+	// silently narrows the guard by one call. Found by running that edit,
+	// not by reasoning about it - the canonical check passed and only
+	// `-check` against botocore noticed.
+	if got, want := snap.Digest, snap.ContentDigest(); got != want {
+		t.Errorf("live/%s's content_sha256 is %q but its services map hashes to %q - the file was edited without regenerating. Run: go run ./tools/aws-paginators-gen", snapshotRel, got, want)
+	}
+
 	if snap.BotocoreVersion == "" {
 		t.Errorf("live/%s records no botocore_version - a reader cannot tell how old it is", snapshotRel)
 	}

@@ -7,6 +7,8 @@ package residue
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -73,9 +75,43 @@ type PaginatingOperations struct {
 	PaginatorFiles int `json:"paginator_files"`
 	ServiceDirs    int `json:"service_dirs"`
 
+	// Digest is sha256 over the canonical rendering of Services alone.
+	//
+	// It exists because the canonical-form comparison alone does not catch
+	// the edit that actually matters. Deleting one operation from the file
+	// by hand leaves a file that is still perfectly canonical - Marshal
+	// re-renders whatever it parsed - and silently narrows the guard by one
+	// call. This was found by running that edit, not by reasoning about it:
+	// the offline test passed and only `-check` against botocore noticed.
+	//
+	// A digest stored beside the data it covers is not proof against
+	// someone determined; it converts a one-line deletion from silent into
+	// loud, and the cheap way to make it pass again is to run the
+	// generator, which is the outcome wanted.
+	Digest string `json:"content_sha256"`
+
 	// Services maps a botocore service directory name to its paginating
 	// operation names.
 	Services map[string][]string `json:"services"`
+}
+
+// ContentDigest is sha256 over the services map rendered canonically, and
+// over nothing else: not the generation date, not the botocore version, not
+// the file counts. Only the data the guard actually reads.
+func (p *PaginatingOperations) ContentDigest() string {
+	svcs := make([]string, 0, len(p.Services))
+	for svc := range p.Services {
+		svcs = append(svcs, svc)
+	}
+	sort.Strings(svcs)
+	h := sha256.New()
+	for _, svc := range svcs {
+		fmt.Fprintf(h, "%s\n", svc)
+		for _, op := range dedupeSorted(p.Services[svc]) {
+			fmt.Fprintf(h, "\t%s\n", op)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // cliServiceRenames are the AWS CLI command names that do NOT equal the
@@ -123,6 +159,7 @@ func (p *PaginatingOperations) Marshal() ([]byte, error) {
 		BotocoreVersion: p.BotocoreVersion,
 		PaginatorFiles:  p.PaginatorFiles,
 		ServiceDirs:     p.ServiceDirs,
+		Digest:          p.Digest,
 		Services:        make(map[string][]string, len(p.Services)),
 	}
 	for svc, ops := range p.Services {

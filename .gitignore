@@ -82,6 +82,7 @@ site/public/
 # an ~80MB tools/estate-gen build got committed by accident and had to be
 # stripped back out of a merge).
 /admission-pipeline
+/aws-paginators-gen
 /ci-gate
 /cloudcontrol-probe
 /corpus-fetch
