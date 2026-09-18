@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -112,7 +114,18 @@ func TestSweepSpeaksWhenAServedTagIndexHeldNothingForATaggableType(t *testing.T)
 
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
+	// A resource schema with a tags argument and NO list resource, which is
+	// what this fixture's prose has always claimed and what issue #1321 made
+	// load-bearing. [fakeCloud.listable] alone gives a type both, and while
+	// [arnJoinReaches] routes this one to the tagging leg either way, #1321's
+	// fallback now asks [nativeSweepReaches] whether the run has another
+	// route to the type before settling for the gap - and with a native list
+	// resource it has one, enumerates the object, and answers. That is
+	// #1321's intended outcome, not this test's: assertNativeRouteless below
+	// is the premise made checkable so the two fixtures cannot be confused
+	// again.
 	cloud.listable(laggedType)
+	cloud.unlistable(laggedType)
 	cloud.listable(ordinaryType)
 	cloud.listableUntagged(untaggableType)
 
@@ -136,6 +149,7 @@ func TestSweepSpeaksWhenAServedTagIndexHeldNothingForATaggableType(t *testing.T)
 		t.Fatalf("%s has acquired a taggingAPITypeCoverage row, so it is no longer the ordinary-coverage control "+
 			"this fixture needs", ordinaryType)
 	}
+	assertNativeRouteless(t, cloud, laggedType)
 
 	// The index answers, and holds none of this estate's policies. An empty
 	// ResourceTagMappingList IS the lag's shape on the wire - the call
@@ -277,6 +291,12 @@ func TestSweepTagIndexVerdictTurnsOnTheProviderSchemaAlone(t *testing.T) {
 		} else {
 			cloud.listableUntagged(laggedType)
 		}
+		// No list resource, for the reason the sibling fixture above gives
+		// at length: with one, #1321's fallback enumerates the type and the
+		// verdict under test is never filed. The resource schema - and so
+		// [typeTaggable], the single input this test flips - is unaffected.
+		cloud.unlistable(laggedType)
+		assertNativeRouteless(t, cloud, laggedType)
 
 		srv := &taggingServer{}
 		server := srv.start(t)
@@ -307,6 +327,30 @@ func TestSweepTagIndexVerdictTurnsOnTheProviderSchemaAlone(t *testing.T) {
 	if withTags == withoutTags {
 		t.Fatalf("both runs filed %q, so the provider schema is not what decides this verdict and the fix is "+
 			"keyed on something else", withTags)
+	}
+}
+
+// assertNativeRouteless pins the premise both fixtures above rest on: this
+// run has NO enumeration of typeName other than the tag index.
+//
+// It is stated as an assertion rather than as a comment because issue #1321
+// turned it from an incidental property of the fixture into the thing that
+// decides which code path runs. A fixture that quietly acquires a native
+// list resource, a content-match binding or a Cloud Control source stops
+// testing the served-but-empty index and starts testing the fallback, and
+// the failure it produces looks like a regression in the gap rather than a
+// fixture that moved.
+func assertNativeRouteless(t *testing.T, cloud *fakeCloud, typeName string) {
+	t.Helper()
+	req := Request{Estate: estateName, Provider: cloud}
+	schemas, diags := listclient.ListSchemas(context.Background(), cloud)
+	if diags.HasErrors() {
+		t.Fatalf("loading the fake provider's list schemas: %s", diags.Err())
+	}
+	if nativeSweepReaches(req, schemas, typeName) {
+		t.Fatalf("this run has a native enumeration route for %s, so #1321's fallback takes it and the "+
+			"served-but-empty index verdict under test is never reached. The fixture, not the code, is what "+
+			"changed: give the type a resource schema and no list resource.", typeName)
 	}
 }
 
