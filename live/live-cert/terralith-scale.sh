@@ -294,10 +294,18 @@ ssm_prefix_count() {
 # which matters here specifically, because the whole reason this backend is
 # used at scale is that SSM's 10,000-parameter cap is a hard, non-adjustable
 # ceiling and an estate this size is over it.
+#
+# The `|| []` is load-bearing and is not defensive padding. When a prefix
+# holds nothing, list-objects-v2 omits Contents entirely rather than returning
+# an empty list, so `Contents[].Key --output text` prints the literal string
+# "None" - which the obvious `| grep -c .` then counts as ONE object. This
+# function could not return 0, and did not: the scale-128 teardown reported
+# "remaining after delete: 1" against a prefix that was empty, which reads as
+# a leaked record store that never existed. Counting server-side removes the
+# string-parsing step that created the failure.
 s3_prefix_count() {
   aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1/" \
-    --query 'Contents[].Key' --output text 2>/dev/null \
-    | tr '\t' '\n' | grep -c . || true
+    --query 'length(Contents || `[]`)' --output text 2>/dev/null || echo 0
 }
 
 # record_store_count counts whichever backend this run declared, so the
@@ -419,7 +427,10 @@ EOF
         rs_left="$(s3_prefix_count "$RECORD_STORE_KEY_PREFIX")"
         log "  record store (s3 s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX/): $rs_left object(s) to delete"
         if [ "${rs_left:-0}" -gt 0 ]; then
-          aws s3 rm "s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX/" --recursive --only-show-errors 2>/dev/null || true
+          # stderr is NOT discarded here: the previous arm sent it to
+          # /dev/null, so a delete that failed looked identical to one that
+          # worked and the only signal left was the count below.
+          aws s3 rm "s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX/" --recursive --only-show-errors || true
           log "    remaining after delete: $(s3_prefix_count "$RECORD_STORE_KEY_PREFIX")"
         fi
         ;;
@@ -1532,6 +1543,10 @@ if [ "$TARGET" = "aws" ]; then
       s3)  rec_where="s3 at s3://$RECORD_STORE_BUCKET/$RECORD_STORE_KEY_PREFIX"; rec_unit="object(s) in the bucket" ;;
     esac
     log "  values (record_store $rec_where): $rec_n $rec_unit"
+    # This is the assertion s3_prefix_count's "None" bug disarmed. While the
+    # count returned 1 for an empty prefix, the -gt 0 below was true for every
+    # s3 run whether or not a single record had been written - a check that
+    # could not fail, which is the one kind this harness refuses to carry.
     [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"$RECORD_STORE_BACKEND\" but $rec_where holds nothing - the store was declared and never written"
     # A read-side check was tried here and REMOVED as vacuous rather than
     # kept looking rigorous: it grepped the plan log for "ssm", which matches
