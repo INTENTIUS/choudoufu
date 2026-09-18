@@ -1,5 +1,5 @@
 # k8s-a-label-is-a-change
-# CLAIM 27 - An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, stock's own answer for the same edit alongside it, an annotation added and then changed does the same, and a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing. ~4 min.
+# CLAIM 27 - An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, stock's own answer for the same edit alongside it, an annotation added and then changed does the same, a label or an annotation DELETED from the configuration is removed from the object and the estate then settles, and a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing. ~6 min.
 #
 # GitHub issue #1177, and the one place a stateless run pays for having no
 # last-applied value.
@@ -39,14 +39,36 @@
 # half of computed_fields that has to survive the fix, and step 5 is where
 # it is measured rather than assumed.
 #
-# The one difference from stock this leaves, step 6: a DECLARED label
+# Step 6 is the last thing a state file was doing for this type, and
+# GitHub issue #1211: a key DELETED from the configuration. It is not the
+# same question as an edited one and it cannot be answered from the
+# object - "this configuration used to declare this key" is a fact about
+# the estate's history, and the object holds no copy of it. What stock
+# reads out of its last-applied manifest, a stateless run has to record:
+# the estate's residue record carries the label and annotation keys each
+# apply declared, and the removal set is (recorded) minus (currently
+# declared). metadata.managedFields was tried as the source first and
+# refuted on this cluster - the provider resends every key it read back
+# on apply, so server-side apply records THIS estate as the writer of
+# keys nobody declared, and one apply later it claims
+# kubernetes.io/metadata.name. It survives as a safety rail, never as the
+# source.
+#
+# The second half of step 6 is what makes it evidence rather than
+# scenery, and it is the half that caught the refuted design: the estate
+# has to SETTLE. The removal apply leaves one metadata map unchanged,
+# which is when the provider resends it wholesale and the laundering
+# happens, so the replans after it run against exactly the world that
+# broke the other route.
+#
+# The one difference from stock this leaves, step 7: a DECLARED label
 # changed out of band now plans, where stock's computed_fields swallows it.
 # "The configuration was edited" and "the live object drifted" are the same
 # observation without a last-applied value to tell them apart, so making
-# the first visible necessarily makes the second visible. Step 6 runs the
+# the first visible necessarily makes the second visible. Step 7 runs the
 # same kubectl command against both runners and prints both answers, so the
-# difference stays measured rather than worked around. A key REMOVED from
-# the configuration is the remaining gap (#1211).
+# difference stays measured rather than worked around. It is deliberately
+# last: it leaves the object drifted on purpose.
 #
 # BREAK=1 runs the identical kubectl command against a key the
 # configuration does NOT declare - same object, same --overwrite, one key
@@ -158,7 +180,7 @@ proof "the object exists with the configuration's tier=one and the estate's own 
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - the identical kubectl command against an UNDECLARED key must NOT plan"
   explain \
-    "You asked for proof the assertions can fail. Steps 3 and 6 below" \
+    "You asked for proof the assertions can fail. Steps 3 and 7 below" \
     "require a plan whenever the live object's value for a DECLARED key" \
     "differs from the configuration. If a plan appeared for a key the" \
     "configuration never mentions as well, none of that would be" \
@@ -335,7 +357,105 @@ grep -q 'No changes.' <<< "$PLAN5" \
 kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels}{"  "}{.metadata.annotations}' | evidence
 proof "the server's own kubernetes.io/metadata.name, a hand-written label and a hand-written annotation are all still there and the plan is empty. The mirror reaches the keys the configuration declares and no others."
 
-step "6. the one difference from stock, measured on both runners"
+step "6. a label DELETED from the configuration is removed - and the estate then settles"
+explain \
+  "The last thing a state file was doing for this type. \"Removed from" \
+  "the configuration\" is not visible in the configuration - the key is" \
+  "gone from it - and it is not visible on the object either, which" \
+  "holds the label and no memory of who asked for it. The estate's own" \
+  "record carries the keys each apply declared, and the removal set is" \
+  "(recorded) minus (currently declared)." \
+  "" \
+  "The shape matters. Only the LABELS map is edited here; the" \
+  "annotations map is left exactly as it was, which is when the" \
+  "provider's computed_fields rule resends it wholesale and the API" \
+  "server records this estate as the writer of the annotation kubectl" \
+  "wrote in step 5. A removal rule sourced from managedFields passes the" \
+  "plan-and-apply half of this step and then churns for ever on the" \
+  "replans below. That is why both halves are here."
+cmd "add a second declared label squad=blue && choudoufu apply -auto-approve"
+# A second declared label, so the removal below takes one of two rather
+# than emptying the map - the map-emptying shape is the annotation half,
+# further down.
+sed_i "$SMOKE_WORK/live/main.tf" 's/"tier" = "two"/"tier" = "two"\n        "squad" = "blue"/'
+( cd "$SMOKE_WORK/live" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "$SCEN" "could not add the second declared label"
+LABELS6="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels}')"
+echo "$LABELS6" | evidence
+grep -q '"squad":"blue"' <<< "$LABELS6" \
+  || fail "$SCEN" "the second declared label is not on the object, so there is nothing to remove: $LABELS6"
+grep -q '"owner":"payments-team"' <<< "$LABELS6" \
+  || fail "$SCEN" "step 5's undeclared label is gone, so this step cannot show a removal sparing it: $LABELS6"
+
+cmd "delete squad from the configuration && choudoufu plan"
+sed_i "$SMOKE_WORK/live/main.tf" '/"squad" = "blue"/d'
+PLAN6="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the plan after deleting the label failed: $(tail -20 <<< "$PLAN6")"
+{ grep -E 'squad|^Plan:|^No changes' <<< "$PLAN6" | head -3 || true; } | evidence
+grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy\.' <<< "$PLAN6" \
+  || fail "$SCEN" "deleting a label from the configuration did not plan - this is #1211: $(grep -E '^Plan:|No changes' <<< "$PLAN6" | head -2)"
+grep -qE '^ +- squad +=.*"blue"' <<< "$PLAN6" \
+  || fail "$SCEN" "the plan changes something, but it is not the deleted label: $(grep -E 'will be|squad' <<< "$PLAN6" | head -5)"
+
+cmd "choudoufu apply -auto-approve   # then read the object back"
+APPLY6="$(cd "$SMOKE_WORK/live" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the apply after deleting the label failed: $(tail -20 <<< "$APPLY6")"
+{ grep -E 'Apply complete!' <<< "$APPLY6" || true; } | evidence
+AFTER6="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels}')"
+echo "$AFTER6" | evidence
+grep -q '"squad"' <<< "$AFTER6" \
+  && fail "$SCEN" "the apply reported success and the deleted label is still on the object: $AFTER6"
+grep -q '"owner":"payments-team"' <<< "$AFTER6" \
+  || fail "$SCEN" "the removal took a key another field manager wrote with it: $AFTER6"
+grep -q '"tier":"two"' <<< "$AFTER6" \
+  || fail "$SCEN" "the removal took a still-declared label with it: $AFTER6"
+
+cmd "choudoufu plan   # twice - the estate has to SETTLE, not just move"
+PLAN6B="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the first replan failed: $(tail -20 <<< "$PLAN6B")"
+PLAN6C="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the second replan failed: $(tail -20 <<< "$PLAN6C")"
+{
+  echo "replan 1:   $(grep -E '^No changes|^Plan:' <<< "$PLAN6B" | head -1)"
+  echo "replan 2:   $(grep -E '^No changes|^Plan:' <<< "$PLAN6C" | head -1)"
+} | evidence
+grep -q 'No changes.' <<< "$PLAN6B" \
+  || fail "$SCEN" "the replan after the removal is not empty, so the removal rule churns: $(grep -E '^Plan:|will be|metadata.name|scraped|owner' <<< "$PLAN6B" | head -5)"
+grep -q 'No changes.' <<< "$PLAN6C" \
+  || fail "$SCEN" "the SECOND replan is not empty: a removal rule sourced from the object's own managedFields fails exactly here, one apply later than the first: $(grep -E '^Plan:|will be|metadata.name' <<< "$PLAN6C" | head -5)"
+NSLABELS6="$(kc get namespace "$NS" -o jsonpath='{.metadata.labels}')"
+echo "$NSLABELS6" | evidence
+grep -q '"kubernetes.io/metadata.name"' <<< "$NSLABELS6" \
+  || fail "$SCEN" "the API server's own namespace label is gone, so the two empty replans above were measured against the wrong world"
+
+cmd "delete the LAST annotation - the map goes with it - && choudoufu plan"
+explain \
+  "One annotation, then none, is the commonest shape there is, and it" \
+  "is a different code path: deleting the last key deletes the" \
+  "annotations map from the configuration too, so there is no prior map" \
+  "left to carry the removed key."
+live_config two
+PLAN6D="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the plan after deleting the last annotation failed: $(tail -20 <<< "$PLAN6D")"
+{ grep -E 'reviewed|^Plan:|^No changes' <<< "$PLAN6D" | head -3 || true; } | evidence
+grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy\.' <<< "$PLAN6D" \
+  || fail "$SCEN" "deleting the only annotation did not plan: $(grep -E '^Plan:|No changes' <<< "$PLAN6D" | head -2)"
+( cd "$SMOKE_WORK/live" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "$SCEN" "the apply after deleting the last annotation failed"
+ANN6="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.annotations}')"
+echo "${ANN6:-<nothing>}" | evidence
+grep -q '"reviewed"' <<< "$ANN6" \
+  && fail "$SCEN" "the declared annotation is still on the object after the apply: $ANN6"
+grep -q '"scraped":"true"' <<< "$ANN6" \
+  || fail "$SCEN" "the removal took the annotation kubectl wrote with it: ${ANN6:-<nothing>}"
+PLAN6E="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the replan after the annotation removal failed: $(tail -20 <<< "$PLAN6E")"
+{ grep -E '^No changes|^Plan:' <<< "$PLAN6E" | head -1 || true; } | evidence
+grep -q 'No changes.' <<< "$PLAN6E" \
+  || fail "$SCEN" "the replan after emptying the annotations map is not empty: $(grep -E '^Plan:|will be' <<< "$PLAN6E" | head -3)"
+proof "a label and an annotation deleted from the configuration are each proposed for removal and written, the keys kubectl wrote and the API server's own are left exactly where they were, and the plan is empty afterwards - twice, against the world in which the provider has already resent the untouched map and the server has recorded this estate as its writer."
+
+step "7. the one difference from stock, measured on both runners"
 explain \
   "\"The configuration was edited\" and \"the live object drifted\" are" \
   "the same observation - configuration differs from live - unless you" \
@@ -351,20 +471,20 @@ kc label configmap app-config -n "$NS" --overwrite tier=zzz >/dev/null \
   || fail "$SCEN" "could not move the declared label out of band"
 kc label configmap stock-config -n "$STOCK_NS" --overwrite tier=zzz >/dev/null \
   || fail "$SCEN" "could not move stock's declared label out of band"
-STOCK_PLAN6="$(cd "$SMOKE_WORK/stock" && terraform plan -input=false -no-color 2>&1)" \
-  || fail "$SCEN" "stock's plan after the out-of-band change failed: $(tail -10 <<< "$STOCK_PLAN6")"
-PLAN6="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
-  || fail "$SCEN" "the plan after the out-of-band change failed: $(tail -20 <<< "$PLAN6")"
+STOCK_PLAN7="$(cd "$SMOKE_WORK/stock" && terraform plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "stock's plan after the out-of-band change failed: $(tail -10 <<< "$STOCK_PLAN7")"
+PLAN7="$(cd "$SMOKE_WORK/live" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "$SCEN" "the plan after the out-of-band change failed: $(tail -20 <<< "$PLAN7")"
 {
-  echo "stock:      $(grep -E '^No changes|^Plan:' <<< "$STOCK_PLAN6" | head -1)"
-  echo "choudoufu:  $(grep -E '^No changes|^Plan:' <<< "$PLAN6" | head -1)"
+  echo "stock:      $(grep -E '^No changes|^Plan:' <<< "$STOCK_PLAN7" | head -1)"
+  echo "choudoufu:  $(grep -E '^No changes|^Plan:' <<< "$PLAN7" | head -1)"
 } | evidence
-grep -q 'No changes.' <<< "$STOCK_PLAN6" \
-  || fail "$SCEN" "stock proposed something for the out-of-band change, so the difference this step records is not the difference it says it is: $(grep -E '^Plan:|No changes' <<< "$STOCK_PLAN6" | head -2)"
-grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy\.' <<< "$PLAN6" \
-  || fail "$SCEN" "choudoufu did not propose restoring the declared label: $(grep -E '^Plan:|No changes' <<< "$PLAN6" | head -2)"
-grep -qE 'tier +=.*"zzz".*->.*"two"' <<< "$PLAN6" \
-  || fail "$SCEN" "choudoufu plans something, but not the label restore: $(grep -E 'will be|tier' <<< "$PLAN6" | head -5)"
+grep -q 'No changes.' <<< "$STOCK_PLAN7" \
+  || fail "$SCEN" "stock proposed something for the out-of-band change, so the difference this step records is not the difference it says it is: $(grep -E '^Plan:|No changes' <<< "$STOCK_PLAN7" | head -2)"
+grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy\.' <<< "$PLAN7" \
+  || fail "$SCEN" "choudoufu did not propose restoring the declared label: $(grep -E '^Plan:|No changes' <<< "$PLAN7" | head -2)"
+grep -qE 'tier +=.*"zzz".*->.*"two"' <<< "$PLAN7" \
+  || fail "$SCEN" "choudoufu plans something, but not the label restore: $(grep -E 'will be|tier' <<< "$PLAN7" | head -5)"
 proof "stock says \"No changes.\" and choudoufu proposes restoring the declared label. That difference is the price of having no last-applied value and it is recorded in live/LIMITATIONS.md, not hidden: a saved plan's staleness check can see an out-of-band kubectl label here, and stock's cannot."
 
 ( cd "$SMOKE_WORK/live" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
@@ -374,9 +494,12 @@ kc delete namespace "$STOCK_NS" --wait=false >/dev/null 2>&1 || true
 echo "  What you watched: a label edited in the configuration proposed as one"
 echo "  in-place update and written to the object, the same answer stock gave"
 echo "  for the same edit with a state file behind it; an annotation added and"
-echo "  changed doing the same; and the API server's own label, a controller's"
+echo "  changed doing the same; a label and an annotation DELETED from the"
+echo "  configuration proposed for removal, written, and then quiet on two"
+echo "  successive replans; and the API server's own label, a controller's"
 echo "  label and a controller's annotation left alone by every plan. The"
 echo "  prior this fork rebuilds on each run carries the server's value for"
-echo "  the keys the configuration names, and nothing else - which is what a"
-echo "  state file's last-applied manifest says, except for a declared key"
-echo "  someone moved by hand."
+echo "  the keys the configuration names plus the keys its own record says"
+echo "  it used to name, and nothing else - which is what a state file's"
+echo "  last-applied manifest says, except for a declared key someone moved"
+echo "  by hand."
