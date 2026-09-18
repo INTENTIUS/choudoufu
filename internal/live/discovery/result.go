@@ -278,23 +278,39 @@ type Result struct {
 	Verdicts
 	Report
 
-	// sweepPrefetchWasted and sweepPrefetchMismatched are GitHub issue #605's
-	// own self-check, and both are always zero.
+	// sweepPrefetchWasted, sweepPrefetchUnplanned and
+	// sweepPrefetchMismatched are GitHub issue #605's own self-check, and
+	// all three are always zero.
 	//
 	// The sweep's list calls are issued concurrently, ahead of the loop that
 	// consumes them, by a planner that mirrors the sweep=true branches
 	// through [scanType]'s and [scanTypeCloudControl]'s heads. A mirror can
-	// drift, and the two ways it can drift are the two fields here: a call
-	// planned that the scan never asks for (wasted - the sweep spent a list
-	// call the sequential loop would not have spent, breaking issue #605's
-	// "call counts must be identical" acceptance), and an answer fetched with
-	// a list configuration the scan then disagreed with (mismatched - refused
-	// and re-listed rather than used, because a listing of the wrong scope is
-	// the one divergence a call count cannot see).
+	// drift, and these are the three ways it can:
+	//
+	//   - wasted: a call planned that the scan never asks for. The sweep
+	//     spent a list call the sequential loop would not have spent, which
+	//     is issue #605's "call counts must be identical" acceptance.
+	//   - unplanned: a call the scan makes that the plan did not predict.
+	//     The ANSWER is right - the body calls for itself exactly as it did
+	//     before #605 - but the call is sequential, so the concurrency this
+	//     whole mechanism exists for is silently given up for that type.
+	//     Issue #1328: the mirror's Cloud Control gate still read the
+	//     registry's taggable flag alone after #881 gave the body a
+	//     provider-schema term beside it.
+	//   - mismatched: an answer fetched with a list configuration the scan
+	//     then disagreed with, refused and re-listed rather than used,
+	//     because a listing of the wrong scope is the one divergence a call
+	//     count cannot see.
+	//
+	// The first two are opposite directions of one property and both are
+	// needed: a guard that watches only "the scan asked for nothing extra"
+	// passes on a mirror that plans nothing at all. #1328 survived exactly
+	// that way for as long as it did.
 	//
 	// Unexported: this is evidence for the package's own tests, not a fact
 	// about the estate. See TestSweepPrefetchPlansExactlyTheCallsTheScanMakes.
 	sweepPrefetchWasted     []string
+	sweepPrefetchUnplanned  []string
 	sweepPrefetchMismatched int
 }
 
