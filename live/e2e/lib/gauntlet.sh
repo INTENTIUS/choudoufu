@@ -1157,3 +1157,121 @@ gauntlet_floci_teardown() {
   docker rm -f "$@" >/dev/null 2>&1 || return 0
   return 0
 }
+
+# ── the shared provider plugin cache (#1300) ────────────────────────────────
+#
+# gauntlet_plugin_cache is the ONLY place a crossing script chooses a
+# TF_PLUGIN_CACHE_DIR. tools/gauntlet's TestEveryScriptTakesItsPluginCacheFromTheLibrary
+# fails on a script that sets the variable itself, so the policy below is the
+# policy everywhere and can be changed in one edit.
+#
+# WHY SHARED, not a per-run copy. The AWS provider is several hundred
+# megabytes and a crossing inits five to eight throwaway estate copies per
+# run. corpus-sqs-basic's first real run spent 21 minutes in `terraform init`
+# to receive 48MB before a transient DNS failure killed it. #339 measured 320s
+# per redundant init; live/e2e/README.md re-measured a full five-stage run at
+# 104.84s without the paired export below and 55.87s with it. The cache on the
+# machine this was written on holds 18GB, so "give every run its own copy" is
+# not a real option either.
+#
+# TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE is the other half (#339): the
+# cache records no checksums, so without it an init in a directory with no
+# .terraform.lock.hcl re-downloads a provider it already has, purely to hash
+# it. Both real terraform and choudoufu honor it.
+#
+# WHY A LOCK. HashiCorp documents the cache as "not guaranteed to be
+# concurrency safe... the provider installer's behavior in environments with
+# multiple `terraform init` calls is undefined". Measured here, that warning
+# applies to exactly one of the two binaries these scripts run:
+#
+#   * choudoufu/tofu already serialize themselves. internal/providercache's
+#     Dir.InstallPackage takes a per-(provider,version,platform) flock on
+#     <version>/<platform>.lock before it unpacks anything, so two tofu inits
+#     sharing a cache cannot interleave. A cold `tofu init` leaves that
+#     .lock file behind; a cold `terraform init` leaves none.
+#   * real terraform (v1.15.8, checked) takes no such lock, and unpacks
+#     STRAIGHT INTO the final cache path - polling the cache during a cold
+#     init shows the provider binary appear at its final name while it is
+#     still being written, with no temp directory and no atomic rename. A
+#     second init that finds that path can link a half-written binary.
+#
+# So gauntlet_locked_init wraps real-terraform inits only, and tofu/choudoufu
+# inits are left alone because the installer in this tree already does it.
+#
+# The lockfile is the one internal/live/flocitest uses (O_EXCL, the same name
+# in the same directory), so an estate script and a `go test ./internal/live/...`
+# sharing a machine exclude each other too.
+gauntlet_plugin_cache() {
+  local dir
+  dir="$(gauntlet_plugin_cache_dir)"
+  export TF_PLUGIN_CACHE_DIR="$dir"
+  export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
+  mkdir -p "$TF_PLUGIN_CACHE_DIR"
+}
+
+# gauntlet_plugin_cache_dir prints the conventional directory without
+# exporting anything, for the one script that wants the location but not the
+# behaviour: corpus-simpleinfra-dns consumes the same directory as a
+# -plugin-dir filesystem MIRROR, which is read-only to the installer, and
+# exporting TF_PLUGIN_CACHE_DIR there would re-admit the writer it is
+# deliberately avoiding. It still takes the lock around its inits, because a
+# reader of a directory another process is unpacking into is exposed to the
+# same torn file.
+gauntlet_plugin_cache_dir() {
+  printf '%s\n' "${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+}
+
+# _GAUNTLET_CACHE_LOCK_STALE_S and _GAUNTLET_CACHE_LOCK_DEADLINE_S mirror
+# internal/live/flocitest's lockStaleAfter and its 15-minute deadline: a cold
+# init of one provider release is minutes at the worst, so ten minutes of
+# silence is a crashed holder, and a waiter that has queued for fifteen is
+# looking at a lockfile nobody owns.
+_GAUNTLET_CACHE_LOCK_STALE_S=600
+_GAUNTLET_CACHE_LOCK_DEADLINE_S=900
+
+# gauntlet_locked_init runs its argument command while holding the shared
+# plugin cache's cross-process lock. Use it for every real-`terraform` init in
+# a script that calls gauntlet_plugin_cache; see the block above for why
+# tofu/choudoufu inits do not need it.
+#
+# Serializing costs little: a warm init with the paired export measured 0.59s
+# (terraform) and 1-2s (choudoufu). Cold, serializing is the point - the first
+# caller populates the cache and everyone behind it gets a warm read, which
+# writes nothing at all (measured: a warm init leaves every byte and inode in
+# the cache unchanged).
+gauntlet_locked_init() {
+  local dir lock rc waited=0
+  # The lock lives beside the SHARED cache, not beside whatever this script
+  # exported, so a script that only reads the directory (corpus-simpleinfra-dns
+  # via -plugin-dir) excludes the writers too.
+  dir="$(gauntlet_plugin_cache_dir)"
+  mkdir -p "$dir" 2>/dev/null || { "$@"; return $?; }
+  lock="$dir/.choudoufu-init.lock"
+  while :; do
+    # noclobber makes this redirect O_CREAT|O_EXCL, which is atomic across
+    # processes on every filesystem these scripts run on. A subshell keeps
+    # the option from leaking into the caller.
+    if ( set -o noclobber; printf '%s\n' "$$" > "$lock" ) 2>/dev/null; then
+      break
+    fi
+    if [ -f "$lock" ]; then
+      local age
+      age=$(( $(date +%s) - $(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || date +%s) ))
+      if [ "$age" -gt "$_GAUNTLET_CACHE_LOCK_STALE_S" ]; then
+        printf 'gauntlet_locked_init: breaking a stale plugin cache lock at %s (held %ss)\n' "$lock" "$age" >&2
+        rm -f "$lock"
+        continue
+      fi
+    fi
+    if [ "$waited" -ge "$_GAUNTLET_CACHE_LOCK_DEADLINE_S" ]; then
+      printf 'gauntlet_locked_init: the plugin cache lock at %s has been held for %ss; remove it if its owner is gone\n' "$lock" "$waited" >&2
+      return 1
+    fi
+    sleep 1
+    waited=$(( waited + 1 ))
+  done
+  "$@"
+  rc=$?
+  rm -f "$lock"
+  return $rc
+}
