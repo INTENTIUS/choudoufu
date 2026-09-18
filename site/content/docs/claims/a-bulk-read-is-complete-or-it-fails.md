@@ -29,8 +29,10 @@ the plan must be caught proposing to create a resource that exists.
 
 As the run prints them:
 
-1. `12 record-backed resources` - applied straight to the emulator, one
-   record each, and one record singled out.
+1. The first step applies twelve record-backed resources straight to the
+   emulator, one record each, and singles one record out. Twelve is the
+   fixture's size, chosen to be more than the eight GETs that run at
+   once.
 2. `the proxy, and a control plan through it` - a small proxy sits in
    front of S3 because nothing else can fail one GET out of a fan-out:
    the emulator has no fault injection and nothing in the cloud can be
