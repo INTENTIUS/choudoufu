@@ -220,6 +220,25 @@ type ScaleRecord struct {
 	// - terralith-scale.sh's own index_wait skips it outright) and for any
 	// real-AWS row recorded before that instrumentation existed.
 	IndexLagS *int `json:"index_lag_s,omitempty"`
+	// IndexConverged is whether that wait actually reached its target, from
+	// test_plan's own index_converged= token (issue #1143). IndexLagS alone
+	// cannot say: an hour of waiting reads identically whether the index
+	// caught up at the last poll or the bound tripped. Worse, every
+	// real-AWS run recorded before #1143 tripped the bound BY CONSTRUCTION,
+	// because index_wait polled for every object migrate stamped and a
+	// majority of those are types resourcegroupstaggingapi does not index -
+	// so an old row's index_lag_s is the bound, not a measurement of
+	// anything. Absent for those rows and for any target=floci row (the
+	// wait is skipped there); present and false is a real, reachable target
+	// that was not reached, which is the index lag #1046 is about.
+	IndexConverged *bool `json:"index_converged,omitempty"`
+	// IndexTargetN is the object count that wait actually polled to, from
+	// test_plan's own index_target= token (issue #1143) - what the tag
+	// index can hold of this estate from the run's own region, which is
+	// well below Resources.Taggable and is meant to be. Recorded beside the
+	// verdict so a reader can tell 104 of 104 from 104 of 1655 without the
+	// log.
+	IndexTargetN *int `json:"index_target,omitempty"`
 	// PlanCalls is what an ORDINARY PLAN costs, cold and warm, with the
 	// stock oracle's count beside choudoufu's cold plan when the same run
 	// measured both. This is the number issue #1051 asks for. It is NOT
@@ -677,6 +696,12 @@ var (
 	tokenRetry     = tokenRe("retry")
 	tokenObjects   = tokenRe("objects")
 	tokenIndexLag  = tokenRe("index_lag_s")
+	// tokenIndexConverged/tokenIndexTarget (issue #1143): the two tokens
+	// that keep index_lag_s honest - whether the wait met its target, and
+	// what target that was. Both ride on test_plan's own detail, written by
+	// live/live-cert/terralith-scale.sh's index_wait.
+	tokenIndexConverged = tokenRe("index_converged")
+	tokenIndexTarget    = tokenRe("index_target")
 	// tokenPlanCallsChoudoufu/tokenPlanCallsStock (issue #1053, this file's
 	// real-AWS half of #1051/INTENTIUS/chant-bench#33): terralith-scale.sh's
 	// analyze_api_calls, real-AWS only, computes an exact provider-mediated
@@ -731,6 +756,7 @@ func mustAtof(s string) float64 {
 
 func intPtr(n int) *int           { return &n }
 func floatPtr(f float64) *float64 { return &f }
+func boolPtr(b bool) *bool        { return &b }
 
 // parseColdDeployDetail extracts resources/scale/seconds/throttle/retry from
 // a cold_deploy stage's detail text - token-first, then the real-AWS prose
@@ -868,6 +894,34 @@ func parseTestPlanDetail(detail string) (seconds *float64, throttle, retry, inde
 	return seconds, throttle, retry, indexLag
 }
 
+// parseIndexWaitDetail extracts index_wait's own verdict and target from a
+// test_plan stage's detail (issue #1143). Kept separate from
+// parseTestPlanDetail rather than folded into its return list, because
+// these two are about a step that ran BEFORE the plan and has its own
+// reasons to be absent.
+//
+// index_converged= carries one of four words, and only two of them are a
+// measurement: "yes" and "no". "na" (the wait found no reachable target at
+// all) and "skipped" (not a real-AWS run) both mean the wait never ran, so
+// they read as absent - the same way an old row with no token at all does.
+// Anything else is left absent too: a word this function does not recognize
+// is a shell-side change that has not reached here yet, and guessing at it
+// would put a verdict in the record that nothing wrote.
+func parseIndexWaitDetail(detail string) (converged *bool, target *int) {
+	if m := tokenIndexConverged.FindStringSubmatch(detail); m != nil {
+		switch m[1] {
+		case "yes":
+			converged = boolPtr(true)
+		case "no":
+			converged = boolPtr(false)
+		}
+	}
+	if m := tokenIndexTarget.FindStringSubmatch(detail); m != nil {
+		target = intPtr(mustAtoi(m[1]))
+	}
+	return converged, target
+}
+
 // parseTestApplyDetail extracts the tofu-cert-run-tagged object count from a
 // test_apply stage's detail - kept on the ScaleStage's own Detail text only
 // (there is no dedicated field for it: see ScaleResources's own doc comment
@@ -974,6 +1028,9 @@ func BuildScaleRecordFromLiveCert(r LiveCertResult, source string) ScaleRecord {
 			st.OperationSeconds, st.Throttle, st.Retry = opSeconds, throttle, retry
 			if indexLag != nil {
 				rec.IndexLagS = indexLag
+			}
+			if converged, target := parseIndexWaitDetail(detail); converged != nil || target != nil {
+				rec.IndexConverged, rec.IndexTargetN = converged, target
 			}
 			if pc := parsePlanCallsDetail(detail); pc != nil {
 				rec.PlanCalls = pc

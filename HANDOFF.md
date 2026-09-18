@@ -373,9 +373,14 @@ needing more than six hours cannot be dispatched and has to be driven by
 hand.
 
 A dispatch also takes `index_wait_s` (LIVECERT_INDEX_WAIT_S, default 1800).
-Raise it at scale - that bound was measured against 1,655 stamped resources
-and a 10k run writes six times as many, which is what #1046 and #1049 were
-about.
+Raise it at scale - a 10k run writes six times the tag writes a scale-50 run
+does, which is what #1046 and #1049 were about. Note that every bound spent
+before #1143 was spent on an unreachable target: the wait asked for all
+33*SCALE+5 stamped objects, and the tag index holds nothing for `iam:role`
+in any region and holds a global service's objects only in us-east-1. It
+now polls to what the index can answer for from the run's own region, names
+what it is excluding, and records `index_converged`/`index_target` beside
+`index_lag_s` so a timed-out wait cannot be read as a converged one.
 
 `LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` are local
 only, and deliberately not workflow inputs: each names a work dir by path,
