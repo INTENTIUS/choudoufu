@@ -886,6 +886,118 @@ func TestNoScriptCopiesTheSentinelBlindFind(t *testing.T) {
 	}
 }
 
+// recordCountCallPattern matches a call to live/e2e/lib/gauntlet.sh's
+// gauntlet_record_count with a double-quoted argument, capturing the
+// argument. It deliberately does not match gauntlet_record_envelope_count,
+// which is a different function and is correct at any depth.
+var recordCountCallPattern = regexp.MustCompile(`gauntlet_record_count\s+"([^"]*)"`)
+
+// recordNamespaceSegment is the path segment a record store's records live
+// under - internal/live/projection's recordNamespaceRoot, which a shell
+// script cannot import. Its three siblings under the same store root
+// ("tofu-hints", "tofu-outputs", "tofu-receipts") are not records, and
+// internal/configs' validateRecordStoreKeyPrefix keeps all four disjoint.
+const recordNamespaceSegment = "tofu-records"
+
+// namesRecordNamespace classifies one gauntlet_record_count argument.
+//
+// ok is true when the path names the records namespace or something under
+// it, which is the only place a FILE count is a RECORD count. classifiable
+// is false when every segment is a shell variable, so the spelling says
+// nothing either way - recordCountVariableArgs below is where those are
+// accounted for by hand.
+func namesRecordNamespace(arg string) (ok, classifiable bool) {
+	for _, seg := range strings.Split(arg, "/") {
+		switch {
+		case seg == "":
+			continue
+		case strings.HasPrefix(seg, "$"):
+			continue
+		case seg == recordNamespaceSegment:
+			return true, true
+		default:
+			classifiable = true
+		}
+	}
+	return false, classifiable
+}
+
+// recordCountVariableArgs are the call sites whose argument is built
+// entirely out of shell variables, each with the assignment that settles
+// what it names. A site that cannot be classified from its spelling is
+// accounted for HERE or the test below fails: an unexplained unknown is
+// not the same as a pass, and a stale entry (a site that moved or went
+// away) fails too rather than sitting here vouching for nothing.
+var recordCountVariableArgs = map[string]string{
+	`live/e2e/terralith-scale/run.sh:$d`:             "record_type_counts's loop variable over \"$base\"/*, called with GF_REC_BASE - a per-type directory inside the records namespace",
+	`live/e2e/terralith-scale/run.sh:$GF_REC_BASE`:   "assigned \"$GREENDIR/.tofu-records/tofu-records/$ESTATE\" at run.sh:959 - the estate's own directory inside the records namespace",
+	`live/e2e/corpus-mastino-dns/run.sh:$RECORD_DIR`: "assigned \"$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record\" at run.sh:1048 - one type's directory inside the records namespace (four call sites share it)",
+}
+
+// TestNoScriptCountsARecordStoreRoot: issue #1291. gauntlet_record_count
+// counts FILES, and a record store's root holds three namespaces beside
+// the records - guided discovery's hint (#109), root output values (#349)
+// and receipts - so a file count taken there counts things no reader would
+// call a record. That is what #1288 hit as "51 records for 50 instances".
+//
+// The helper itself refuses a store root at run time, by looking at what
+// is on disk, which catches a path built from variables as well as a
+// literal one. This is the same rule read statically: it needs no estate
+// run, so a mis-pointed call in a script nobody has exercised for a month
+// still fails in CI the day it lands.
+//
+// Proven red on purpose: pointing any one of the twelve converted call
+// sites back at "$ADOPTED/.tofu-records" makes this fail and name it.
+func TestNoScriptCountsARecordStoreRoot(t *testing.T) {
+	root := testRoot(t)
+	scripts, err := filepath.Glob(filepath.Join(root, "live", "e2e", "*", "run.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scripts) == 0 {
+		t.Fatal("no live/e2e/*/run.sh scripts found - glob is broken")
+	}
+	var violations []string
+	seen := map[string]bool{}
+	for _, s := range scripts {
+		b, err := os.ReadFile(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rel, err := filepath.Rel(root, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rel = filepath.ToSlash(rel)
+		for i, line := range strings.Split(string(b), "\n") {
+			for _, m := range recordCountCallPattern.FindAllStringSubmatch(line, -1) {
+				arg := m[1]
+				ok, classifiable := namesRecordNamespace(arg)
+				switch {
+				case ok:
+				case !classifiable:
+					key := rel + ":" + arg
+					seen[key] = true
+					if _, vouched := recordCountVariableArgs[key]; !vouched {
+						violations = append(violations, fmt.Sprintf("%s:%d: gauntlet_record_count %q names no literal directory, so what it counts cannot be told from the script; add it to recordCountVariableArgs with the assignment that settles it, or call gauntlet_record_envelope_count", rel, i+1, arg))
+					}
+				default:
+					violations = append(violations, fmt.Sprintf("%s:%d: gauntlet_record_count %q is not inside the %q namespace; a file count there also counts guided discovery's hint and every root output (issues #1291, #1288). Point it at the records namespace, or use gauntlet_record_envelope_count", rel, i+1, arg, recordNamespaceSegment))
+				}
+			}
+		}
+	}
+	for key, why := range recordCountVariableArgs {
+		if !seen[key] {
+			violations = append(violations, fmt.Sprintf("recordCountVariableArgs has a stale entry %q (%s): no call site spells that argument any more, so this entry vouches for nothing - delete it", key, why))
+		}
+	}
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Errorf("gauntlet_record_count call(s) that do not name the records namespace (issue #1291):\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 // TestScriptStubSpeaksProtocol: the stub `add` writes parses as a script that
 // reports every stage not_run.
 func TestScriptStubSpeaksProtocol(t *testing.T) {
