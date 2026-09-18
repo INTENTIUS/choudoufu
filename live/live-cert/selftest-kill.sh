@@ -23,11 +23,25 @@ set -uo pipefail
 #
 # Usage: bash live/live-cert/selftest-kill.sh
 # Needs docker, the AWS CLI, and terraform on PATH - same as the harness.
+#   SELFTEST_KILL_WAIT_BOUND_S=<seconds> bounds the wait for the harness to
+#   finish its trap after the SIGTERM (default 240).
+#
+# Run automatically by ci.yml's livecert-selftest-kill job (issue #1267);
+# live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the guard
+# that keeps that job from going away.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$(mktemp -d)"
 RUN_ID="selftest-kill-$(date +%s)-$$"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
+# Everything this driver waits on is bounded, because a hang in the
+# harness's own trap is one of the defects it exists to catch and an
+# unbounded wait turns that defect into a stuck job rather than a red one
+# (issue #1267, hazard 2 - the same lesson #1143's first red arm paid for).
+# The sync loop below is bounded at 30s by its own iteration count; this is
+# the bound on the trap itself, which has a real destroy and an independent
+# listing to get through, so it is generous rather than tight.
+WAIT_BOUND_S="${SELFTEST_KILL_WAIT_BOUND_S:-240}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 REGION="us-east-1"
 LOG="$WORK/harness.log"
@@ -52,6 +66,7 @@ cleanup() {
   # This driver's own belt-and-suspenders: if the assertions below somehow
   # leave the harness process or its container alive, clean up rather than
   # leaving a second thing depending on a trap firing correctly.
+  [ -n "${WATCHDOG_PID:-}" ] && kill -TERM "$WATCHDOG_PID" 2>/dev/null
   [ -n "${HARNESS_PID:-}" ] && kill -0 "$HARNESS_PID" 2>/dev/null && kill -TERM "$HARNESS_PID" 2>/dev/null
   docker rm -f "choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID:-nonexistent}" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -106,10 +121,26 @@ if [ "$pass" = "1" ]; then
   sleep 1
   log "=== selftest-kill: sending SIGTERM to the harness itself (pid $HARNESS_PID) - simulating an operator interrupt, not an internal self-signal ==="
   kill -TERM "$HARNESS_PID"
+  # A watchdog, not a kill -0 poll: once the harness exits it is a zombie
+  # until this shell waits on it, and `kill -0` on a zombie SUCCEEDS from
+  # its own parent, so a polling loop would never see it die and the bound
+  # would be the thing that hangs. SIGKILL from a background sleeper is
+  # unambiguous, and the 137 it produces is what distinguishes "the trap
+  # hung" from "the trap ran and exited non-130" below.
+  ( sleep "$WAIT_BOUND_S"; kill -KILL "$HARNESS_PID" 2>/dev/null ) &
+  WATCHDOG_PID=$!
   wait "$HARNESS_PID"
   HARNESS_RC=$?
+  kill -TERM "$WATCHDOG_PID" 2>/dev/null
+  wait "$WATCHDOG_PID" 2>/dev/null
+  WATCHDOG_PID=""
   log "  harness exited $HARNESS_RC"
-  [ "$HARNESS_RC" -eq 130 ] || { log "FAIL: expected exit 130 (on_signal's own exit after handling TERM), got $HARNESS_RC"; pass=0; }
+  if [ "$HARNESS_RC" -eq 137 ]; then
+    log "FAIL: the harness was still running ${WAIT_BOUND_S}s after the SIGTERM and had to be SIGKILLed - its trap (on_signal -> teardown) hung rather than tearing down. Nothing below this line means anything: the teardown never finished."
+    pass=0
+  else
+    [ "$HARNESS_RC" -eq 130 ] || { log "FAIL: expected exit 130 (on_signal's own exit after handling TERM), got $HARNESS_RC"; pass=0; }
+  fi
 fi
 
 log "=== selftest-kill: reading the harness's own report ==="
