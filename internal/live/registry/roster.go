@@ -47,6 +47,10 @@ type registryEntry struct {
 	TypeName          string   `json:"type_name"`
 	PrimaryIdentifier []string `json:"primary_identifier,omitempty"`
 	Tagging           struct {
+		// Declared is whether the CloudFormation schema carried a
+		// "tagging" key at all (issue #1327). False makes Taggable
+		// below registry-gen's default rather than an upstream answer.
+		Declared bool `json:"declared"`
 		Taggable bool `json:"taggable"`
 	} `json:"tagging"`
 	Handlers struct {
@@ -128,6 +132,13 @@ type Roster struct {
 	// taggable is cfn_type -> live/registry.json's tagging.taggable.
 	taggable map[string]bool
 
+	// taggingDeclared is cfn_type -> live/registry.json's
+	// tagging.declared: whether the row's tagging block came from the
+	// CloudFormation schema or is registry-gen's default for a schema that
+	// said nothing (issue #1327). 216 of the artifact's 1,683 rows are the
+	// latter.
+	taggingDeclared map[string]bool
+
 	// arity is cfn_type -> len(primary_identifier), the number of "|"-joined
 	// segments a Cloud Control identifier for the type carries.
 	arity map[string]int
@@ -194,6 +205,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		listable:          make(map[string]bool, len(reg.Types)),
 		listRequiredInput: make(map[string][]string, len(reg.Types)),
 		taggable:          make(map[string]bool, len(reg.Types)),
+		taggingDeclared:   make(map[string]bool, len(reg.Types)),
 		arity:             make(map[string]int, len(reg.Types)),
 		primaryIdentifier: make(map[string][]string, len(reg.Types)),
 	}
@@ -226,6 +238,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 			r.listRequiredInput[e.TypeName] = append([]string(nil), e.Handlers.ListRequiredInput...)
 		}
 		r.taggable[e.TypeName] = e.Tagging.Taggable
+		r.taggingDeclared[e.TypeName] = e.Tagging.Declared
 		r.arity[e.TypeName] = len(e.PrimaryIdentifier)
 		if len(e.PrimaryIdentifier) > 0 {
 			r.primaryIdentifier[e.TypeName] = append([]string(nil), e.PrimaryIdentifier...)
@@ -327,6 +340,38 @@ func (r *Roster) TaggableKnown(cfnType string) (taggable, known bool) {
 	}
 	taggable, known = r.taggable[cfnType]
 	return taggable, known
+}
+
+// TaggingDeclared reports whether the CloudFormation schema behind
+// cfnType's registry row said anything about tagging at all, and whether
+// live/registry.json has a row for the type in the first place (the same
+// known split [Roster.TaggableKnown] carries, for the same reason).
+//
+// It is the question [Roster.Taggable] cannot answer and issue #1327's
+// whole subject. registry-gen writes a tagging block for every row; a
+// schema with no "tagging" key gets that block's zero value, so
+// tagging.taggable reads false for it exactly as it does for a schema that
+// denied tagging outright. 216 of the artifact's 1,683 rows are silence
+// recorded as denial.
+//
+// The distinction is not cosmetic. Over the pinned bundle, 89 of those 216
+// silent schemas declare a Tags property of their own against 3 of the 432
+// explicit denials, so the two populations disagree with the schema's own
+// properties at completely different rates - reading one as the other is
+// wrong about roughly two fifths of the silent set.
+//
+// What a caller should do with declared=false: not turn tagging.taggable
+// into a sentence that attributes a claim to CloudFormation. Whether the
+// object can carry a marker is a different question with a different
+// authority - the provider's own resource schema, which
+// internal/live/markers.Taggable reads and internal/live/stamp writes
+// through.
+func (r *Roster) TaggingDeclared(cfnType string) (declared, known bool) {
+	if r == nil {
+		return false, false
+	}
+	declared, known = r.taggingDeclared[cfnType]
+	return declared, known
 }
 
 // IdentifierArity is the number of "|"-joined segments a Cloud Control

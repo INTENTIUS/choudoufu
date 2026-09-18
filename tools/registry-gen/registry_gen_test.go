@@ -49,11 +49,19 @@ var referenceCounts = RegistryCounts{
 	WithPrimaryIdentifier:  1683,
 	PrimaryIdentifierArity: PrimaryIdentifierArity{Single: 1386, Double: 239, ThreeOrMore: 58},
 	Taggable:               1035,
-	ListFree:               1121,
-	ListWithRequiredInput:  322,
-	NoListHandler:          240,
-	NoHandlersAtAll:        161,
-	WithRead:               1516,
+
+	// Issue #1327. 216 of the 1,683 pinned schemas carry no "tagging" key
+	// at all, so their tagging block in the artifact is registry-gen's
+	// default and not CloudFormation's answer. Taggable above counts 1,035;
+	// the complement is 648, of which 432 are explicit "taggable": false
+	// and these 216 are silence. Only the pin bump may move it.
+	TaggingUndeclared: 216,
+
+	ListFree:              1121,
+	ListWithRequiredInput: 322,
+	NoListHandler:         240,
+	NoHandlersAtAll:       161,
+	WithRead:              1516,
 
 	// Issue #151 added these three. relationshipRef coverage is thin in the
 	// pinned bundle (26 types, 85 annotations) and grows as AWS populates

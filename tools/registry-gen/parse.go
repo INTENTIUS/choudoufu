@@ -69,10 +69,34 @@ type cfnHandlerSchema struct {
 	Required []string `json:"required"`
 }
 
-// Tagging is an entry's tagging facet, always present (defaulting to
-// untaggable) so its absence in a schema is distinguishable in the artifact
-// from an explicit "not taggable".
+// Tagging is an entry's tagging facet, emitted for every entry whether or
+// not the schema said anything about tagging. Declared is what makes the
+// two cases tellable apart, and until issue #1327 it did not exist: the
+// struct is always written, so a schema with no "tagging" key at all
+// marshalled byte-identically to one stating "tagging": {"taggable": false}
+// outright. This doc comment claimed the opposite of what the code did,
+// which is how that survived.
+//
+// The two populations are not interchangeable. Over the pinned bundle's
+// 1,683 schemas: 216 are silent, 432 state taggable:false and 1,035 state
+// taggable:true. 89 of the 216 silent ones declare a Tags property of their
+// own, against 3 of the 432 explicit denials - so reading silence as denial
+// contradicts the schema's own properties two fifths of the time, where
+// reading an explicit denial that way almost never does. AWS::IAM::Policy,
+// AWS::AppMesh::Mesh and AWS::AppStream::Fleet are in the silent set.
 type Tagging struct {
+	// Declared reports whether the CloudFormation schema carried a
+	// "tagging" key at all. When it is false the three fields below are
+	// THIS GENERATOR's default, not an answer CloudFormation gave, and a
+	// consumer that turns one of them into a sentence attributing a claim
+	// to CloudFormation ("the registry records X as untaggable") is
+	// reporting an inference as a measurement. It is the per-row
+	// counterpart of the artifact-wide distinction
+	// [registry.Roster.TaggableKnown] draws (issue #168): that one asks
+	// whether the artifact has a row for the type, this one asks whether
+	// the row's tagging block came from upstream.
+	Declared bool `json:"declared"`
+
 	Taggable     bool `json:"taggable"`
 	TagOnCreate  bool `json:"tag_on_create"`
 	TagUpdatable bool `json:"tag_updatable"`
@@ -197,6 +221,7 @@ func parseType(raw []byte) (Entry, error) {
 	}
 	if schema.Tagging != nil {
 		e.Tagging = Tagging{
+			Declared:     true,
 			Taggable:     schema.Tagging.Taggable,
 			TagOnCreate:  schema.Tagging.TagOnCreate,
 			TagUpdatable: schema.Tagging.TagUpdatable,
