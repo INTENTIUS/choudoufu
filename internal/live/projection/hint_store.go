@@ -50,7 +50,15 @@ const hintFormatVersion = "tofu-live-hint-v1"
 // at. Exported for the same reason [RecordKeyPrefix] is: internal/command
 // and the namespace-safety tests both need to name the one definition.
 func HintKey(estate string) string {
-	return hintNamespaceRoot + "/" + estate + "/guided"
+	return HintKeyPrefix(estate) + "guided"
+}
+
+// HintKeyPrefix is the key namespace one estate's hint lives under, ending in
+// "/" for [RecordKeyPrefix]'s reason (GitHub issue #1335). It holds one key
+// today; it is its own function so the bucket backend's IAM template (#1342)
+// scopes s3:prefix to the same string the code writes under.
+func HintKeyPrefix(estate string) string {
+	return hintNamespaceRoot + "/" + estate + "/"
 }
 
 // hintRecord is the hint's wire shape: the whole of what survives issue

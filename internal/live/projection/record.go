@@ -40,8 +40,26 @@ const recordNamespaceRoot = "tofu-records"
 // overrides it. Exported so internal/command's store construction and this
 // package's own namespace-safety tests can both start from the one
 // definition.
+//
+// It ends in "/", and that is load-bearing: see
+// [staterecord.NamespacePrefix] and GitHub issue #1335. Estate names prefix
+// one another freely ("prod", "prod-eu" - markers.ValidEstateName allows
+// both), and this string is handed to List and GetAll as it stands.
 func RecordKeyPrefix(estate string) string {
-	return recordNamespaceRoot + "/" + estate
+	return recordNamespaceRoot + "/" + estate + "/"
+}
+
+// keyUnder joins rest onto a key namespace, whether or not prefix already
+// carries its trailing delimiter - [RecordKeyPrefix]'s output does, an
+// operator's key_prefix override may not. An empty prefix keeps yielding the
+// absolute key it always did, which every store refuses loudly (issue #688):
+// a record with no namespace at all is not something to start accepting as a
+// side effect of #1335.
+func keyUnder(prefix, rest string) string {
+	if prefix == "" {
+		return "/" + rest
+	}
+	return staterecord.NamespacePrefix(prefix) + rest
 }
 
 // recordKeyEncoding is the alphabet RecordKey encodes an address string
@@ -117,7 +135,7 @@ const (
 // discovery has no other way back to the address.
 func RecordKey(prefix string, addr addrs.AbsResourceInstance) string {
 	encoded := recordKeyEncoding.EncodeToString([]byte(addr.String()))
-	return prefix + "/" + addr.Resource.Resource.Type + "/" + chunkEncodedAddress(encoded)
+	return keyUnder(prefix, addr.Resource.Resource.Type+"/"+chunkEncodedAddress(encoded))
 }
 
 // chunkEncodedAddress splits encoded into "/"-joined runs of at most
@@ -155,7 +173,11 @@ func chunkEncodedAddress(encoded string) string {
 // before chunking existed - that rejoin is the identity, so this reads an
 // old key and a new one by the same rule.
 func RecordAddr(prefix, key string) (addrs.AbsResourceInstance, bool) {
-	rest := strings.TrimPrefix(key, prefix+"/")
+	// The delimiter is checked here independently of how the keys were
+	// listed. Measured on #1335: with the listing over-broad, this was the
+	// one thing standing between a neighbour estate's key and a destroy
+	// proposal, and it stays a second guard now that the listing is fixed.
+	rest := strings.TrimPrefix(key, keyUnder(prefix, ""))
 	if rest == key {
 		return addrs.AbsResourceInstance{}, false
 	}
@@ -948,7 +970,11 @@ func NewRecordEnvelopeStore(store staterecord.Store, prefix string) *RecordStore
 	if store == nil {
 		return nil
 	}
-	return &RecordStore{store: store, prefix: prefix}
+	// Normalized once, here, so [RecordStore.List] can hand s.prefix to the
+	// backend as it stands: a caller-built prefix with no trailing delimiter
+	// (an operator's key_prefix, a test's literal) lists a sibling namespace
+	// too. GitHub issue #1335.
+	return &RecordStore{store: store, prefix: staterecord.NamespacePrefix(prefix)}
 }
 
 // Prefix returns the key namespace this store was built with, "" for a nil

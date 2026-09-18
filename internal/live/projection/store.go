@@ -96,7 +96,7 @@ func SentinelKey(prefix string) string {
 	if prefix == "" {
 		return sentinelKeyName
 	}
-	return prefix + "/" + sentinelKeyName
+	return keyUnder(prefix, sentinelKeyName)
 }
 
 // provisionStoreSentinel is issue #693's handshake: write a sentinel record
@@ -117,10 +117,7 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 		// Already provisioned by an earlier run or a racing one - the
 		// conflict is the success case here.
 	}
-	listPrefix := ""
-	if prefix != "" {
-		listPrefix = prefix + "/"
-	}
+	listPrefix := staterecord.NamespacePrefix(prefix)
 	keys, err := store.List(ctx, listPrefix)
 	if err != nil {
 		return fmt.Errorf("record_store: reading the sentinel back through List: %w", err)
@@ -231,7 +228,12 @@ func RecordStoreKeyPrefix(rs *configs.LiveRecordStore, estate string) string {
 
 func recordStoreKeyPrefix(rs *configs.LiveRecordStore, estate string) string {
 	if rs != nil && rs.KeyPrefixSet {
-		return rs.KeyPrefix
+		// An operator's key_prefix gets the same trailing delimiter the
+		// default has, so "team/prod" cannot list "team/prod-eu". This is
+		// how #1335's hazard is made unreachable for an override, rather
+		// than refused in internal/configs: both spellings, with and without
+		// the slash, mean the same namespace and neither is a mistake.
+		return staterecord.NamespacePrefix(rs.KeyPrefix)
 	}
 	return RecordKeyPrefix(estate)
 }

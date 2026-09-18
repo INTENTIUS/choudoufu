@@ -62,6 +62,28 @@ type Store interface {
 	List(ctx context.Context, keyPrefix string) ([]string, error)
 }
 
+// NamespacePrefix returns prefix with exactly one trailing "/", and "" for "".
+//
+// [Store.List] and [BulkReader.GetAll] match an ordinary string prefix, and so
+// does S3's ListObjectsV2. A namespace handed to either without its trailing
+// delimiter therefore matches every sibling whose name merely starts the same
+// way: "tofu-records/prod" lists "tofu-records/prod-eu/..." too. GitHub issue
+// #1335 measured that for two estates sharing one store, which the bucket
+// backend (#1332) makes the recommended arrangement. Under that backend's IAM
+// model the listing is defended by the s3:prefix condition ALONE - an object
+// tag cannot condition a LIST, which touches no object - so the delimiter is
+// what the isolation rests on, not tidiness.
+//
+// Every layer that turns a namespace into a List or GetAll prefix goes through
+// this one function, so the delimiter cannot be present in the key builder and
+// missing from the listing, or the other way round.
+func NamespacePrefix(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	return strings.TrimRight(prefix, "/") + "/"
+}
+
 // VersionConflictError reports that a conditional operation's expected
 // version did not match what the store actually holds for Key. It names
 // both versions so a caller can decide how to react — reread and retry,

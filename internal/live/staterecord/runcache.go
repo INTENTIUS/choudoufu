@@ -106,7 +106,7 @@ func NewRunCache(inner Store, prefix string) Store {
 	}
 	return &RunCache{
 		inner:   inner,
-		prefix:  prefix,
+		prefix:  NamespacePrefix(prefix),
 		entries: map[string]cacheEntry{},
 		lists:   map[string][]string{},
 	}
@@ -154,7 +154,9 @@ func (c *RunCache) noteWrite() {
 
 // covers reports whether key is inside the namespace a bulk load snapshots.
 func (c *RunCache) covers(key string) bool {
-	return c.prefix != "" && (key == c.prefix || strings.HasPrefix(key, c.prefix+"/"))
+	// c.prefix carries its own trailing delimiter ([NamespacePrefix]), so
+	// this cannot match a sibling namespace whose name starts the same way.
+	return c.prefix != "" && strings.HasPrefix(key, c.prefix)
 }
 
 // ensureLoaded performs the one bulk read, if the wrapped store can do one
