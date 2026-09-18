@@ -731,8 +731,7 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	for _, kv := range extraEnv {
 		cmd.Env = setEnv(cmd.Env, kv)
 	}
-	cmd.Stdout = io.MultiWriter(&captured, logf)
-	cmd.Stderr = logf
+	attachCombinedOutput(cmd, &captured, logf)
 	fmt.Fprintf(opts.Stdout, "%s: running %s on %s (log: %s)\n", e.Name, e.ScriptPath(), flociPortEnvEntry(extraEnv), filepath.Join(LogDir, e.Name+".log"))
 	start := time.Now()
 	runErr := cmd.Run()
@@ -754,6 +753,37 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 		reportFailedRun(root, e.Name, logPath, opts.Stdout)
 	}
 	return res, exit, elapsed, nil
+}
+
+// attachCombinedOutput wires both of the child's streams to one writer, and
+// deliberately to the SAME interface value for each.
+//
+// That sameness is load-bearing, not tidiness. os/exec's childStderr checks
+// interfaceEqual(c.Stderr, c.Stdout) and, when they match, hands the child
+// the SAME file descriptor for 1 and 2 rather than opening a second pipe
+// with a second copying goroutine. One descriptor is what makes the log
+// preserve the script's own write order, the way a terminal does.
+//
+// Issue #1141. Before this, stdout went through io.MultiWriter and stderr
+// straight to the log file - two writers, so two pipes, so two goroutines
+// appending to one file in whatever order they were scheduled. The
+// interleaving is nondeterministic and it is worst exactly where it
+// matters: at the end of a failing run, where the last of the tool's
+// diagnostic (stdout) and the script's FAIL line (stderr) are both in
+// flight. Caught by this repo's own #1141 guard, which passed on a laptop
+// and failed on a CI runner; in the failing runs the FAIL line landed
+// immediately after the log's FIRST line, ahead of twelve lines the script
+// had already written, so the lines a reader saw above the failure were
+// from before the work began.
+//
+// The parse stream gains stderr as a side effect, which is an improvement
+// rather than a cost: ParseProtocol ignores every line without the
+// "GAUNTLET " prefix, and a protocol line that reached stderr used to be
+// dropped in silence.
+func attachCombinedOutput(cmd *exec.Cmd, captured io.Writer, logf io.Writer) {
+	combined := io.MultiWriter(captured, logf)
+	cmd.Stdout = combined
+	cmd.Stderr = combined
 }
 
 // hasFailingStage reports whether the run recorded any fail verdict. A run
@@ -805,9 +835,16 @@ const failTailLines = 45
 //     that is what is in front of them. #1140's author pasted the runner's
 //     stdout into the pull request faithfully and the diagnostic was not in
 //     it, so the issue was born without the evidence that would have settled
-//     it. Note that cmd.Stderr goes only to the log file - FAIL lines are
-//     printed to stderr - so before this the runner's own stdout could not
-//     even name the failure, only the summary verdict.
+//     it. Neither stream of the child's output reaches the runner's stdout
+//     on its own - it goes to the log file and to the parse buffer - so
+//     before this the runner's own stdout could not name the failure at
+//     all, only the summary verdict.
+//
+// The excerpt is only worth reading because attachCombinedOutput puts the
+// child's two streams on one descriptor: ending the window at the FAIL line
+// assumes the lines above it in the file really are the lines written above
+// it, which was not true while stdout and stderr raced into the log through
+// separate goroutines.
 //
 // Best effort throughout: a run that has already failed must not be turned
 // into a runner error by a failure to read its own log.

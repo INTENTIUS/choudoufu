@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -1244,6 +1245,52 @@ func TestFailTailEndsAtTheFailLine(t *testing.T) {
 	plain := failTail("a\nb\nc\nd\n", 2)
 	if plain != "c\nd" {
 		t.Errorf("failTail without a FAIL line returned %q, want the last 2 lines", plain)
+	}
+}
+
+// TestRunnerGivesTheChildOneDescriptorForBothStreams is #1141's second
+// guard, and the invariant that made the first one pass on a laptop and
+// fail on a CI runner.
+//
+// The runner used to give the child two pipes - io.MultiWriter for stdout,
+// the log file for stderr - so two copying goroutines appended to one file
+// in whatever order they were scheduled, and the log was not the order the
+// script wrote in. os/exec collapses the two into one descriptor only when
+// Stdout and Stderr are interface-equal (childStderr ->
+// interfaceEqual(c.Stderr, c.Stdout)), so that equality IS the property,
+// and asserting it is not white-box pedantry - it is the thing the standard
+// library branches on.
+//
+// It is asserted structurally rather than by observing an interleaving
+// because the defect is a race. An empirical fixture - a large stdout
+// backlog, a stderr line, another stdout line - was written first and
+// discarded: it passed ten times out of ten against the BROKEN runner, so
+// it was a check that could not fail. The behavioural coverage lives in
+// TestRunEstatesPreservesAndPrintsAFailingRunsLog, which did fail, on CI
+// and locally at -count=60.
+func TestRunnerGivesTheChildOneDescriptorForBothStreams(t *testing.T) {
+	cmd := exec.Command("true")
+	var captured, logf bytes.Buffer
+	attachCombinedOutput(cmd, &captured, &logf)
+
+	if cmd.Stdout == nil || cmd.Stderr == nil {
+		t.Fatalf("attachCombinedOutput left a stream unset: stdout=%v stderr=%v", cmd.Stdout, cmd.Stderr)
+	}
+	if cmd.Stdout != cmd.Stderr {
+		t.Fatalf("the child's stdout and stderr are different writers, so os/exec gives it two pipes and two copying goroutines; their appends to the one log file then interleave in scheduling order, and the lines a reader sees above a FAIL line are not the lines that preceded it (#1141)")
+	}
+
+	// Both streams must still reach both destinations - a single writer
+	// that dropped the parse buffer would satisfy the equality above and
+	// lose every verdict.
+	if _, err := cmd.Stdout.Write([]byte("hello\n")); err != nil {
+		t.Fatal(err)
+	}
+	if captured.String() != "hello\n" {
+		t.Errorf("the parse buffer got %q, want the written line", captured.String())
+	}
+	if logf.String() != "hello\n" {
+		t.Errorf("the log got %q, want the written line", logf.String())
 	}
 }
 
