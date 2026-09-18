@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // SiteBoardPath is the site's copy of everything the progress pages show
@@ -311,4 +312,121 @@ func (b Board) Canonical() ([]byte, error) {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+// BoardSelfConsistent reports whether a board's board-wide script-staleness
+// sentence agrees with the rows underneath it: the sentence is rebuilt from
+// the rows' own badges and notes and compared with the one the board
+// carries.
+//
+// Why this needs its own check, when StaleFilesReport already compares the
+// whole committed board against a fresh render: those three fields are the
+// one part of the board that comparison deliberately does NOT hold anyone
+// to. #1264's ruling is that script staleness is a comparison against git,
+// so a committed board goes behind the tree under commits nothing
+// re-rendered, and failing on that would turn every estate-script pull
+// request into an estate-run pull request. So
+// boardsDifferOnlyInScriptStaleness strips the banner and the per-row
+// badges before comparing, and anything that moves only those fields is
+// reported and never blocked.
+//
+// That excuse is right for a board that LAGS and wrong for one that is
+// INCOHERENT, and a line-based merge produces the second. The board is a
+// 15,000-line JSON file where the banner is one line near the top and the
+// badges it counts are spread over the rows below; git merges the two
+// regions independently. Replaying the merges in this repository's history
+// through `git merge-file` (issue #1308), three of the conflict hunks
+// across five merges were exactly this shape - one hunk holding the banner,
+// two more holding badges on named estates - and resolving them from
+// different sides produces a board whose headline says 25 rows while 28
+// rows below it carry the badge. That board matches no artifact and no
+// checkout, and without this check the render comparison waves it through
+// as advisory.
+//
+// The check never reads git and never looks at the artifact, so a lagging
+// board and a board rendered in a checkout with no history both pass:
+// staying silent about currency is the whole of #1264's ruling, and all
+// this adds is that whatever the board does say has to be one answer
+// rather than two.
+func BoardSelfConsistent(b Board) error {
+	t, err := boardScriptStaleTally(b)
+	if err != nil {
+		return err
+	}
+	if want := t.banner(); want != b.ScriptBanner {
+		return fmt.Errorf("the board's script_banner does not describe the rows below it (#1308: a line-based merge of two rendered boards takes the banner from one side and the badges from the other).\n  carries: %s\n  rows say: %s", b.ScriptBanner, want)
+	}
+	return nil
+}
+
+// boardScriptStaleTally recovers, from a board's rows alone, the tally its
+// script_banner was built from. It is scriptStaleBanner's inverse, and it
+// reads only fields the board itself carries.
+//
+// The one fact not stored as data is whether a stale row moved only on the
+// shared-library side, which the banner counts separately (#1292). It is
+// recovered from the row's own note, which staleSubject wrote from the same
+// two constants this reads back, so the sentence and its inverse move
+// together or not at all.
+func boardScriptStaleTally(b Board) (scriptStaleTally, error) {
+	var t scriptStaleTally
+	rowsSpeak := false
+	for _, e := range b.Estates {
+		if e.ScriptStale != "" || strings.HasPrefix(e.ScriptNote, scriptStaleNoteOpener) {
+			rowsSpeak = true
+		}
+	}
+	if b.ScriptBanner == "" {
+		// No checkout was read, so no row may claim otherwise.
+		if rowsSpeak {
+			var named []string
+			for _, e := range b.Estates {
+				if e.ScriptStale != "" {
+					named = append(named, e.Name)
+				}
+			}
+			return t, fmt.Errorf("the board makes no script-staleness claim (script_banner is empty) but %d row(s) below carry one: %s (#1308)", len(named), strings.Join(named, ", "))
+		}
+		return t, nil
+	}
+	t.total = len(b.Estates)
+	for _, e := range b.Estates {
+		switch e.ScriptStale {
+		case "":
+			if strings.HasPrefix(e.ScriptNote, scriptStaleNoteOpener) {
+				return t, fmt.Errorf("estate %q carries a **Stale** script note but no script_stale badge (#1308)", e.Name)
+			}
+		case ScriptChanged:
+			shared, err := staleNoteIsSharedOnly(e)
+			if err != nil {
+				return t, err
+			}
+			t.changed = append(t.changed, e.Name)
+			if shared {
+				t.sharedOnly++
+			}
+		case ScriptUnknown:
+			t.unknown = append(t.unknown, e.Name)
+		default:
+			return t, fmt.Errorf("estate %q carries script_stale=%q, which is neither %q nor %q (#1308)", e.Name, e.ScriptStale, ScriptChanged, ScriptUnknown)
+		}
+	}
+	return t, nil
+}
+
+// staleNoteIsSharedOnly reads back which side moved for a row badged
+// "changed": true when nothing in the estate's own directory did, which is
+// the count the banner's #1292 clause reports.
+func staleNoteIsSharedOnly(e BoardEstate) (bool, error) {
+	subject, ok := strings.CutPrefix(e.ScriptNote, scriptStaleNoteOpener)
+	if !ok {
+		return false, fmt.Errorf("estate %q is badged script_stale=%q but its script_note does not say since when: %q (#1308)", e.Name, ScriptChanged, e.ScriptNote)
+	}
+	switch {
+	case strings.HasPrefix(subject, staleSubjectShared):
+		return true, nil
+	case strings.HasPrefix(subject, staleSubjectOwn):
+		return false, nil
+	}
+	return false, fmt.Errorf("estate %q is badged script_stale=%q but its script_note names neither its own files nor %s: %q (#1308)", e.Name, ScriptChanged, SharedLibDir, e.ScriptNote)
 }

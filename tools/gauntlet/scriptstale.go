@@ -435,7 +435,7 @@ func formatScriptStaleness(a *Artifact, st map[string]ScriptStaleness) string {
 func scriptStaleNote(s ScriptStaleness, dir string) string {
 	switch s.State {
 	case ScriptChanged:
-		return fmt.Sprintf("**Stale**: since the run recorded above, %s. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).", staleSubject(s))
+		return fmt.Sprintf("%s%s. Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).", scriptStaleNoteOpener, staleSubject(s))
 	case ScriptUnknown:
 		return fmt.Sprintf("**Unverified**: whether `%s` or `%s` has changed since the run recorded above cannot be told from this checkout - %s. The verdicts above may describe an earlier version of the script (#1264, #1292).", dir, SharedLibDir, s.Why)
 	default:
@@ -446,14 +446,27 @@ func scriptStaleNote(s ScriptStaleness, dir string) string {
 	}
 }
 
+// The two openings staleSubject can produce, and the opening
+// scriptStaleNote wraps them in. They are constants rather than literals
+// inside the format strings because a reader of a rendered board has to be
+// able to tell the two apart again: boardScriptStaleTally recovers "did
+// only the shared library move?" from a row's note, and that recovery is
+// how #1308's self-consistency check learns what the banner should say.
+// Sharing the constants means the sentence and its inverse cannot drift.
+const (
+	staleSubjectOwn       = "this estate's own files have changed"
+	staleSubjectShared    = "the shared protocol library `" + SharedLibDir + "` that this script sources has changed"
+	scriptStaleNoteOpener = "**Stale**: since the run recorded above, "
+)
+
 // staleSubject says WHICH side moved, because the two send a reader to
 // different places: an edit to this estate's own script is this estate's
 // business, while a change to the shared protocol library moved under every
 // row at once and the question is whether it moved this one's answer
 // (#1292). A row where both moved says both rather than picking one.
 func staleSubject(s ScriptStaleness) string {
-	own := fmt.Sprintf("this estate's own files have changed (%s)", changedClause(s.Changed))
-	shared := fmt.Sprintf("the shared protocol library `%s` that this script sources has changed (%s)", SharedLibDir, changedClause(s.Shared))
+	own := fmt.Sprintf("%s (%s)", staleSubjectOwn, changedClause(s.Changed))
+	shared := fmt.Sprintf("%s (%s)", staleSubjectShared, changedClause(s.Shared))
 	switch {
 	case len(s.Shared) == 0:
 		return own
@@ -499,24 +512,48 @@ func scriptStaleBanner(a *Artifact, st map[string]ScriptStaleness) string {
 	if len(st) == 0 {
 		return ""
 	}
-	var changed, unknown []string
-	total, sharedOnly := 0, 0
+	var t scriptStaleTally
 	for _, r := range a.Estates {
 		s, ok := st[r.Name]
 		if !ok {
 			continue
 		}
-		total++
+		t.total++
 		switch s.State {
 		case ScriptChanged:
-			changed = append(changed, r.Name)
+			t.changed = append(t.changed, r.Name)
 			if len(s.Changed) == 0 {
-				sharedOnly++
+				t.sharedOnly++
 			}
 		case ScriptUnknown:
-			unknown = append(unknown, r.Name)
+			t.unknown = append(t.unknown, r.Name)
 		}
 	}
+	return t.banner()
+}
+
+// scriptStaleTally is everything scriptStaleBanner's sentence is made of:
+// how many rows were compared at all, which of them were measured before
+// their own directory or the shared library moved, how many of those moved
+// only on the shared side, and which could not be compared.
+//
+// It is split out from scriptStaleBanner so the same sentence can be built
+// a second time from a BOARD's own rows (boardScriptStaleTally) and
+// compared with the banner the board carries. A board is the only place
+// these two facts are stored apart from each other, and a line-based merge
+// of two boards can take the banner from one side and the row badges from
+// the other - #1308's hazard, and the reason the sentence has to be
+// reproducible from the rows rather than merely plausible beside them.
+type scriptStaleTally struct {
+	total      int
+	changed    []string
+	unknown    []string
+	sharedOnly int
+}
+
+func (t scriptStaleTally) banner() string {
+	changed, unknown := t.changed, t.unknown
+	total, sharedOnly := t.total, t.sharedOnly
 	if total == 0 {
 		return ""
 	}

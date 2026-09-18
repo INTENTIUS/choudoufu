@@ -12,3 +12,22 @@ internal/**/*.tmpl text eol=lf
 # acquires one, but this makes `git grep` read a shell script in full even
 # in the window before that guard runs.
 *.sh text eol=lf diff
+
+# Issue #1308. Four files here are written only by `go run ./tools/gauntlet
+# render` from live/gauntlet.json. Two branches that each moved a verdict
+# produce two different renders of the same derived bytes, and git's
+# line-based merge either conflicts - six resolutions on 2026-09-18 across
+# five branches, all resolved identically - or, worse, succeeds hunk by
+# hunk and hands back a board assembled from both sides that no render ever
+# produced. The driver keeps our side whole instead; the re-render that
+# follows is what settles the content, and TestRenderedDocsAreCurrent fails
+# until it happens.
+#
+# Merge drivers are per-clone configuration: `just merge-drivers` installs
+# this one, and without it git falls back to the ordinary line merge. It
+# does nothing for a merge GitHub performs on its own servers. The guard
+# that holds everywhere is in the test suite, not here.
+live/GAUNTLET.md merge=gauntlet-rendered
+site/data/gauntlet.json merge=gauntlet-rendered
+site/data/gauntlet_board.json merge=gauntlet-rendered
+site/data/gauntlet_scale.json merge=gauntlet-rendered

@@ -215,6 +215,10 @@ a regression; the estate usually got better and the script did not.
    other types it reached.
 4. `go run ./tools/gauntlet render`; commit the script, the artifact and the
    site's board data (`site/data/gauntlet_board.json`) together. `just ci` must be green.
+   Run `just merge-drivers` once per clone: the rendered files conflict on
+   every merge that moved a verdict, and resolving them hunk by hunk is how
+   you get a board whose headline contradicts its own rows (#1308). The
+   driver keeps your side whole; the re-render settles it.
 5. When a planned stage is implemented for enough estates to be honest, flip
    its status to active in `tools/gauntlet/stages.go`. The bars drop; that is
    the point. **A headline flip is half a unit.** A PR that flips a stage's
