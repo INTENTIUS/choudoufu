@@ -218,6 +218,15 @@ func scriptStaleness(r EstateResult, diff pathDiff) ScriptStaleness {
 // a change, a merge commit is not counted twice, and the answer does not
 // depend on how the branch that made the change was shaped.
 //
+// Against the working tree, a run made on a dirty tree reads as changed
+// straight away: the row records `git rev-parse HEAD` as its commit, and
+// that commit does not contain the edited script the run actually
+// exercised. That is not a false positive - the row's own provenance is
+// what is wrong, the same class TestEveryLastRunCommitIsAnAncestorOfHEAD
+// (#511) already refuses in its other direction, and both reach the answer
+// through the same isAncestor primitive. Commit the script change, then run
+// the estate; that is also the only order in which last_run.commit is true.
+//
 // Untracked files are invisible to git diff, so a brand new .tf file that
 // has never been `git add`ed does not register until it is staged. That
 // direction is safe here in the sense that it is not silently wrong for
