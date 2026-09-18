@@ -219,6 +219,13 @@ fi
 
 # ── C-F: index_wait itself ──────────────────────────────────────────────
 
+# Every case passes a SMALL wait_s, even the ones that are meant to converge
+# on their first few polls. A case that stops converging must fail in seconds
+# with an assertion, not spin against the real 1800s bound: this self-test is
+# run from Go (live/indexwait_partition_test.go) and a broken index_wait
+# would otherwise hang the package rather than fail it. Found the hard way
+# while proving the red arm of exactly that guard.
+#
 # run_case builds a fresh fake `aws` that returns the given sequence of
 # resourcegroupstaggingapi get-resources counts (one per poll, comma
 # separated - e.g. "104,104,900,1655"), runs index_wait() in a minimal
@@ -325,7 +332,7 @@ expect_result() {
 log ""
 log "=== case C: converges on the REACHABLE target in us-east-2 at scale 50 (0, 50, 104 -> 104, not 1655) ==="
 log "    this is the case that could not happen before #1143: the real run sat at exactly 104 for its full bound"
-CASE_C_OUT="$(run_case caseC "0,50,104" 50 us-east-2 1800 1)"
+CASE_C_OUT="$(run_case caseC "0,50,104" 50 us-east-2 5 1)"
 printf '%s\n' "$CASE_C_OUT" | sed 's/^/  /'
 if ! grep -qE '^index converged after [0-9]+s: 104 of a reachable 104\.' <<< "$CASE_C_OUT"; then
   fail_case "case C: no 'index converged after <s>s: 104 of a reachable 104' line"
@@ -356,7 +363,7 @@ fi
 
 log ""
 log "=== case D: us-east-1 counts the global half - target 1105, not 104 ==="
-CASE_D_OUT="$(run_case caseD "104,1001,1105" 50 us-east-1 1800 1)"
+CASE_D_OUT="$(run_case caseD "104,1001,1105" 50 us-east-1 5 1)"
 printf '%s\n' "$CASE_D_OUT" | sed 's/^/  /'
 if ! grep -qE '^index converged after [0-9]+s: 1105 of a reachable 1105\.' <<< "$CASE_D_OUT"; then
   fail_case "case D: no 'converged ... 1105 of a reachable 1105' line - a us-east-1 run must count the global objects the index does hold there"
@@ -374,10 +381,10 @@ fi
 expect_result "$CASE_D_OUT" target 1105 "case D" && log "  confirmed: index_target=1105"
 
 log ""
-log "=== case E: a genuine lag - reachable target 104, index stuck at 12, bound trips at 2s ==="
-CASE_E_OUT="$(run_case caseE "12,12,12,12,12,12" 50 us-east-2 2 1)"
+log "=== case E: a genuine lag - reachable target 104, index stuck at 12, bound trips at 1s ==="
+CASE_E_OUT="$(run_case caseE "12,12,12,12,12,12" 50 us-east-2 1 1)"
 printf '%s\n' "$CASE_E_OUT" | sed 's/^/  /'
-if ! grep -qE '^index NOT CONVERGED: 12 of a reachable 104 after 2s\.' <<< "$CASE_E_OUT"; then
+if ! grep -qE '^index NOT CONVERGED: 12 of a reachable 104 after 1s\.' <<< "$CASE_E_OUT"; then
   fail_case "case E: no 'index NOT CONVERGED' line - the old wording ('still at N of M, proceeding') read as progress, which is the half of #1143 that made it survivable"
 else
   log "  confirmed: the timeout path says NOT CONVERGED, in those words"
@@ -398,7 +405,7 @@ log "    what is under test is index_wait's handling of a target it cannot reach
 # The fake aws is given an EMPTY scripted sequence, so any call at all exits
 # 2 with a diagnosis - the case fails loudly if the wait polls.
 CASE_F_OVERRIDE='index_partition() { printf "0 0 %s %s\n" "$(( 20 * SCALE + 1 ))" "$(( 13 * SCALE + 4 ))"; }'
-CASE_F_OUT="$(run_case caseF "" 50 us-east-2 1800 1 "$CASE_F_OVERRIDE")"
+CASE_F_OUT="$(run_case caseF "" 50 us-east-2 5 1 "$CASE_F_OVERRIDE")"
 printf '%s\n' "$CASE_F_OUT" | sed 's/^/  /'
 if ! grep -qF 'index wait SKIPPED' <<< "$CASE_F_OUT"; then
   fail_case "case F: a zero target did not skip - with 'idx_n >= target' and target 0, the first poll 'converges' on 0 of 0, which is a false pass"
