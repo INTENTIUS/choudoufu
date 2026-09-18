@@ -452,6 +452,165 @@ gauntlet_first_match() {
   "$@" --output json | jq -r "[ $selector ] | .[0] // empty"
 }
 
+# ── counting an estate's objects where GetResources cannot see them (#1271) ──
+#
+# gauntlet_estate_objects <estate> <aws-invocation-prefix...>
+#
+# Collects every object in the account that carries tofu-estate=<estate>,
+# reading BOTH the Resource Groups Tagging API and IAM's own per-resource
+# tag APIs, and deduplicating by ARN. <aws-invocation-prefix> is whatever
+# reaches the target - a script's own `awsl` function, or a literal
+# `aws --endpoint-url ... --region ...` - and this helper appends the
+# subcommands itself, because it makes several different calls.
+#
+# WHY THIS EXISTS (issue #1271). `resourcegroupstaggingapi get-resources`
+# does not index IAM on the pinned emulator, and real AWS does not index
+# several IAM types there either (#1134). Probed against
+# ghcr.io/lex00/floci@sha256:0bbeb430 on 2026-09-17, one container: a
+# customer-managed policy, a role and an instance profile, each created
+# with `tofu-estate=probe-estate`, all three read that tag back through
+# `iam:ListPolicyTags` / `ListRoleTags` / `ListInstanceProfileTags`, and
+# GetResources filtered to the same tag returned ONE object - an S3 bucket
+# tagged identically in the same container. The four IAM objects were
+# absent.
+#
+# So `gauntlet_tagged_count ... get-resources --tag-filters
+# Key=tofu-estate,Values=$ESTATE` reads 0 for an IAM-only estate no matter
+# what is marked, and the three assertions corpus-iam-policy hung off it
+# were a failure (`expected 2, got 0`) and two checks that could not fail
+# (`0 unmarked, good`, `0 objects before, 0 after`). A count that returns
+# the same number for every possible state of the world is not a
+# measurement. This helper is the instrument that can answer.
+#
+# CORRECT UNDER BOTH PINS, deliberately. lex00/floci#206 will make
+# GetResources serve `iam:policy` and `iam:instance-profile` in us-east-1
+# (#1152). The union is deduplicated by ARN, so an object both routes
+# return is counted ONCE: the total this helper reports does not move when
+# that image is pinned. GAUNTLET_ESTATE_BOTH_N below is how a reader tells
+# which world the run happened in - it is 0 on the current pin and rises
+# when GetResources starts answering. An assertion written against
+# GAUNTLET_ESTATE_N therefore means the same thing before and after the
+# repin; one written against GAUNTLET_ESTATE_RGTA_N does not, and should
+# not be written.
+#
+# WHAT THE NATIVE LEG COVERS, exactly: customer-managed IAM policies
+# (`--scope Local`), IAM roles, and IAM instance profiles. NOT IAM users,
+# groups, OIDC/SAML providers or server certificates - an estate holding
+# any of those needs a fourth leg added here, and will otherwise be
+# undercounted the same way this issue describes. AWS-managed policies are
+# excluded on purpose: floci serves 1568 of them and none can carry an
+# ownership marker.
+#
+# SETS GLOBALS, does not print. Call it as a statement, never in a command
+# substitution - `$(...)` runs it in a subshell and the split counts are
+# lost, which is the mistake gauntlet_ec2_tagged_count's own comment in
+# live/e2e/corpus-ec2-instance-complete/run.sh already records:
+#
+#   GAUNTLET_ESTATE_ARNS     one ARN per line, sorted, deduplicated
+#   GAUNTLET_ESTATE_N        how many distinct ARNs that is - the count
+#   GAUNTLET_ESTATE_RGTA_N   how many GetResources returned
+#   GAUNTLET_ESTATE_IAM_N    how many IAM's own tag APIs returned
+#   GAUNTLET_ESTATE_BOTH_N   how many BOTH routes returned (0 before #1152)
+#
+# RETURNS NON-ZERO, loudly, if any call fails, and leaves the globals
+# untouched. The idiom this replaces ended in `2>/dev/null || echo 0`,
+# which turned an unreachable endpoint into "0 objects, nothing is marked,
+# good" - a second way the same assertions could not fail. Callers write
+# `gauntlet_estate_objects "$ESTATE" awsl || fail "..."`.
+gauntlet_estate_objects() {
+  local estate="$1"; shift
+  [ -n "$estate" ] || { printf 'gauntlet_estate_objects: no estate name given\n' >&2; return 2; }
+  [ "$#" -gt 0 ] || { printf 'gauntlet_estate_objects: no AWS CLI invocation prefix given\n' >&2; return 2; }
+
+  local rgta iam both all
+  rgta="$(_gauntlet_rgta_estate_arns "$estate" "$@")" || return 1
+  iam="$(_gauntlet_iam_estate_arns "$estate" "$@")" || return 1
+
+  # Both lists are already sorted and unique, so a duplicate across the two
+  # is exactly an ARN both routes returned.
+  # awk 'NF' rather than `grep -v '^$'` to drop the blanks: grep exits 1 when
+  # it prints nothing, and under `set -o pipefail` that made an estate with
+  # ZERO objects come back as a refusal instead of a zero - found by running
+  # the empty case against a live container, not by reading the code. Zero is
+  # the answer cold_deploy's "nothing is marked yet" assertion needs most.
+  both="$(printf '%s\n%s\n' "$rgta" "$iam" | awk 'NF' | sort | uniq -d)"
+  all="$(printf '%s\n%s\n' "$rgta" "$iam" | awk 'NF' | sort -u)"
+
+  GAUNTLET_ESTATE_ARNS="$all"
+  GAUNTLET_ESTATE_RGTA_N="$(_gauntlet_count_lines "$rgta")"
+  GAUNTLET_ESTATE_IAM_N="$(_gauntlet_count_lines "$iam")"
+  GAUNTLET_ESTATE_BOTH_N="$(_gauntlet_count_lines "$both")"
+  GAUNTLET_ESTATE_N="$(_gauntlet_count_lines "$all")"
+}
+
+# _gauntlet_count_lines <text>: how many non-blank lines it holds.
+_gauntlet_count_lines() {
+  printf '%s\n' "$1" | awk 'NF' | wc -l | tr -d ' '
+}
+
+# _gauntlet_rgta_estate_arns <estate> <aws-prefix...>: the ARNs the Resource
+# Groups Tagging API returns for this estate, sorted and unique. No --query,
+# for gauntlet_tagged_count's reason (#1042): the CLI applies --query per
+# page, so filtering has to happen after the pages are merged.
+_gauntlet_rgta_estate_arns() {
+  local estate="$1"; shift
+  local out
+  out="$("$@" resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$estate" --output json)" \
+    || { printf 'gauntlet_estate_objects: `resourcegroupstaggingapi get-resources` failed against this target\n' >&2; return 1; }
+  jq -r '.ResourceTagMappingList[].ResourceARN' <<< "$out" | sort -u
+}
+
+# _gauntlet_iam_estate_arns <estate> <aws-prefix...>: the ARNs of the IAM
+# objects carrying tofu-estate=<estate>, read through IAM's own tag APIs -
+# the route #1125 wired into the sweep, and the only one that answers for
+# these types on the current pin.
+_gauntlet_iam_estate_arns() {
+  local estate="$1"; shift
+  local out found="" name arn
+
+  out="$("$@" iam list-policies --scope Local --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-policies --scope Local` failed against this target\n' >&2; return 1; }
+  # A process substitution, not a pipe: a pipe would run the loop in a
+  # subshell and `found` would come back empty.
+  while IFS= read -r arn; do
+    [ -n "$arn" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-policy-tags --policy-arn "$arn" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.Policies[].Arn' <<< "$out")
+
+  out="$("$@" iam list-roles --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-roles` failed against this target\n' >&2; return 1; }
+  while IFS=$'\t' read -r name arn; do
+    [ -n "$name" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-role-tags --role-name "$name" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.Roles[] | .RoleName + "\t" + .Arn' <<< "$out")
+
+  out="$("$@" iam list-instance-profiles --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-instance-profiles` failed against this target\n' >&2; return 1; }
+  while IFS=$'\t' read -r name arn; do
+    [ -n "$name" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-instance-profile-tags --instance-profile-name "$name" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.InstanceProfiles[] | .InstanceProfileName + "\t" + .Arn' <<< "$out")
+
+  printf '%s' "$found" | awk 'NF' | sort -u
+}
+
+# _gauntlet_iam_tag_hit <estate> <full aws tag-listing invocation...>: true
+# when that object carries tofu-estate=<estate>. An object whose tags cannot
+# be read at all is NOT a hit and is not an error either - it is an object
+# this estate does not own, and IAM answers NoSuchEntity for plenty of them.
+_gauntlet_iam_tag_hit() {
+  local estate="$1"; shift
+  local tags
+  tags="$("$@" --output json 2>/dev/null)" || return 1
+  [ -n "$tags" ] || return 1
+  [ "$(jq -r --arg e "$estate" \
+    '[.Tags[]? | select(.Key == "tofu-estate" and .Value == $e)] | length' <<< "$tags")" != "0" ]
+}
+
 # ── the cold-deploy pre-apply (#1173) ────────────────────────────────────
 #
 # Some configurations cannot be planned in one pass. A root that declares a
