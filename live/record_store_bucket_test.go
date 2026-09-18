@@ -68,7 +68,12 @@ func TestRecordStoreBucketVerifyAsksTheBinary(t *testing.T) {
 	if !strings.Contains(down, "list-object-versions") || !strings.Contains(down, `--prefix "tofu-"`) {
 		t.Error("`just down` does not count object versions under tofu-* before tearing the bucket down")
 	}
-	if !strings.Contains(down, "DeleteMarkers") {
-		t.Error("`just down` does not count delete markers: a bucket holding only deleted records would read as empty")
+	// The COUNT expressions, not the bare words: `down` also names Versions
+	// and DeleteMarkers where it cleans up verify's probe objects, so
+	// matching the words alone passed with the delete-marker count removed.
+	for _, counted := range []string{"length(Versions", "length(DeleteMarkers"} {
+		if !strings.Contains(down, counted) {
+			t.Errorf("`just down`'s refusal does not count %s...): a bucket holding only deleted records would read as empty", counted)
+		}
 	}
 }
