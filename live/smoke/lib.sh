@@ -126,6 +126,56 @@ cluster_down() {
   CLUSTER_NAME=""
 }
 
+# k8s_wait_condition waits for a condition on one object in the two steps a
+# freshly created object actually needs (#1278).
+#
+# `kubectl wait --for=condition=X` does NOT wait for the status subresource
+# to be populated. It reads .status.conditions, and apiextensions v1 tags
+# that field `json:"conditions"` with no omitempty, so a CRD the API server
+# has created but whose conditions no controller has written yet is served
+# as `"status": {"acceptedNames": ..., "conditions": null, ...}`. kubectl's
+# accessor reads that null and errors out - `.status.conditions accessor
+# error: <nil> is of the type <nil>, expected []interface{}` - in well under
+# a second, instead of retrying. --timeout never comes into play. The CRD
+# create response carries exactly that shape, so every `kubectl wait` fired
+# at a just-applied CRD is racing the controller that fills conditions in.
+#
+# So: poll until .status.conditions is there to read, bounded by a
+# wall-clock deadline, and only then hand the object to kubectl wait. The
+# two ways this gives up are different problems and say so - no conditions
+# at all means the server never got round to the object, while conditions
+# that never carry the one asked for is the object itself - and only the
+# second is ever a scenario's business.
+#
+#   k8s_wait_condition <scenario> <kind/name> <condition> [status-secs] [condition-secs]
+#
+# Both legs are bounded on purpose: a wait that can hang here turns one slow
+# CI job into a stuck one, which is how #1143's first red arm burned 1800s
+# and what #1267 found selftest-kill.sh doing.
+k8s_wait_condition() {
+  local scenario="$1" target="$2" condition="$3"
+  local status_secs="${4:-60}" condition_secs="${5:-60}"
+  local deadline conds
+  deadline=$(( $(date +%s) + status_secs ))
+  while :; do
+    # The probe is the condition TYPES, not the conditions list: jsonpath
+    # prints the JSON null as the four-character string "null", so a
+    # non-empty `{.status.conditions}` is exactly the shape being waited
+    # out. `{.status.conditions[*].type}` is empty for null, for absent and
+    # for an empty list, and non-empty only when there is a condition to
+    # read - the distinction this whole function exists to make. (That was
+    # the first draft's bug, caught by driving it against a nulled status.)
+    conds="$(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{.status.conditions[*].type}' 2>/dev/null || true)"
+    if [ -n "$conds" ]; then break; fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      fail "$scenario" "$target still has no .status.conditions after ${status_secs}s - nothing has written a status for it, so whether it is $condition was never answered"
+    fi
+    sleep 1
+  done
+  kubectl --kubeconfig "$KUBECONFIG" wait --for="condition=$condition" "$target" --timeout="${condition_secs}s" >/dev/null 2>&1 \
+    || fail "$scenario" "$target carries conditions [$conds] but none of them reached $condition within ${condition_secs}s: $(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}' 2>&1)"
+}
+
 # oracle_up prepares the stock leg: the shared plugin volume is created
 # root-owned by docker, and the oracle runs as the invoking user so the
 # files it writes into the mounted workdir stay deletable - so the volume

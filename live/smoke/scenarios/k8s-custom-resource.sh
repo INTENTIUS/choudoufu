@@ -247,7 +247,12 @@ explain \
   "is this tool's; it is the CronTab from the Kubernetes documentation."
 cmd "kubectl apply -f crd.yaml"
 kc apply -f "$SMOKE_WORK/crd.yaml" >/dev/null || fail "k8s-custom-resource" "could not install the CRD"
-kc wait --for=condition=Established crd/crontabs.stable.example.com --timeout=60s >/dev/null || fail "k8s-custom-resource" "the CRD never became Established"
+# Not a bare `kubectl wait --for=condition=Established`: the CRD the server
+# has just accepted is served with `"conditions": null` until a controller
+# fills it in, and kubectl's accessor errors on that instead of retrying
+# (#1278). k8s_wait_condition waits for the conditions to exist first, and
+# tells the two failures apart.
+k8s_wait_condition "k8s-custom-resource" crd/crontabs.stable.example.com Established
 kc get crd crontabs.stable.example.com -o jsonpath='{.metadata.name}{" "}{.spec.scope}{"\n"}' | evidence
 proof "crontabs.stable.example.com is served and namespaced. The estate below declares one CronTab through kubernetes_manifest."
 
