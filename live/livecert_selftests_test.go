@@ -128,9 +128,10 @@ var liveCertSelftests = []liveCertSelftest{
 		proves: "#440 stage 1 - a real SIGTERM mid-apply still runs the harness's trap, tears the estate down and removes the emulator",
 		runner: runsInCIJob,
 		where:  killSelftestJobName,
-		measured: "19s against the pinned emulator with TOFU_BIN prebuilt. It is the one selftest that needs docker, terraform and the AWS CLI, " +
-			"so it cannot run in this package. Its two waits are bounded: the apply-progress sync loop at 30s by its own iteration count, " +
-			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (default 240s, watchdog-enforced, added by #1267). " +
+		measured: "19s against the pinned emulator with TOFU_BIN prebuilt, 7s of it setup; the first cold GitHub runner spent over 30s on " +
+			"setup alone. It is the one selftest that needs docker, terraform and the AWS CLI, so it cannot run in this package. Its three " +
+			"waits are bounded: setup by SELFTEST_KILL_SETUP_BOUND_S (600s), the apply by SELFTEST_KILL_APPLY_BOUND_S (180s), " +
+			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (240s, watchdog-enforced). " +
 			"What it proves is narrower than its own PASS line says: #1279 - its \"independent verification\" listing is unreachable on any " +
 			"passing run, because the harness removes the emulator container before the driver gets there.",
 	},
@@ -367,6 +368,60 @@ func TestCIRunsTheKillSelftest(t *testing.T) {
 	}
 }
 
+// TestKillSelftestPrintsWhatItRedirected is the guard on the defect that
+// made the first CI run of this job unactionable.
+//
+// cold_deploy's init and apply are redirected into files inside the
+// harness's work dir, the apply is additionally backgrounded, and the
+// driver's own cleanup deletes that dir on the way out. So the whole
+// evidence in the job log was two banner lines and "FAIL - see above" with
+// nothing above: the output existed, was never printed, and was then
+// removed. A selftest whose failure message points at output it did not
+// print cannot be acted on the first time it goes red, which is the only
+// time it matters.
+//
+// Red-armed by deleting the dump_harness_artifacts call on the early-exit
+// path; the remaining needles are the call sites and the tail that reads
+// the files, so removing either fails this.
+func TestKillSelftestPrintsWhatItRedirected(t *testing.T) {
+	path := filepath.Join(liveCertSelftestDir, "selftest-kill.sh")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	src := string(data)
+
+	// Bare CALL lines only. Counting occurrences of the name was the first
+	// attempt and it stayed green after a call was deleted, because the name
+	// also appears in the function's definition and in the comment above it:
+	// four occurrences, three left after the deletion, threshold never
+	// crossed. A line whose entire content is the name is unambiguously a
+	// call, and cannot be satisfied by the prose describing one.
+	calls := 0
+	for _, line := range strings.Split(src, "\n") {
+		if strings.TrimSpace(line) == "dump_harness_artifacts" {
+			calls++
+		}
+	}
+	if calls < 2 {
+		t.Errorf("live/live-cert/selftest-kill.sh calls dump_harness_artifacts %d time(s); both failure paths need it.\n"+
+			"Those are the early exit, when synchronization never reached a mid-apply moment and no SIGTERM was sent, "+
+			"and the late one after the teardown assertions. The harness's redirected output is deleted by this "+
+			"driver's own cleanup and is usually the only place a failure's reason exists at all.", calls)
+	}
+	for _, want := range []struct {
+		substr string
+		why    string
+	}{
+		{"cold_deploy_apply.out", "the backgrounded apply's output is the file the first CI failure needed and did not get"},
+		{`tail -40 "$f"`, "the dump has to actually read the files, not just list the directory"},
+	} {
+		if !strings.Contains(src, want.substr) {
+			t.Errorf("live/live-cert/selftest-kill.sh no longer contains %q: %s", want.substr, want.why)
+		}
+	}
+}
+
 // TestKillSelftestWaitIsBounded is #1267 hazard 2 held against the one
 // selftest that drives a real process.
 //
@@ -378,10 +433,16 @@ func TestCIRunsTheKillSelftest(t *testing.T) {
 // SELFTEST_KILL_WAIT_BOUND_S=10 against a teardown() with a `sleep 3000`
 // in it: harness exited 137, verdict FAIL, 28s wall.
 //
-// A `kill -0` poll is NOT an acceptable replacement and that is what this
-// test is really pinning: an exited child is a zombie until its parent
-// waits on it, and `kill -0` on a zombie succeeds from that parent, so the
-// poll would never observe the exit and the bound itself would hang.
+// An earlier version of this comment justified the watchdog by claiming a
+// `kill -0` poll could not work, because an exited child stays a zombie
+// until its parent waits on it and `kill -0` on a zombie succeeds from that
+// parent. That claim is FALSE for a bash background job and the control
+// that was supposed to confirm it disproved it instead: bash reaps its own
+// background children and keeps the status for `wait`, so `kill -0` fails
+// once the child is gone (measured on bash 3.2.57). The watchdog is still
+// the right mechanism - it bounds the `wait` itself rather than racing it,
+// needs no loop, and yields an unambiguous 137 - but it is not the only one
+// that could work, and this test pins the mechanism, not that story.
 func TestKillSelftestWaitIsBounded(t *testing.T) {
 	path := filepath.Join(liveCertSelftestDir, "selftest-kill.sh")
 	data, err := os.ReadFile(path)
@@ -401,8 +462,16 @@ func TestKillSelftestWaitIsBounded(t *testing.T) {
 		// explanation is the pgrep-matches-its-own-command-line bug
 		// wearing a test's clothes.
 		{`WAIT_BOUND_S="${SELFTEST_KILL_WAIT_BOUND_S:`, "the bound has to be assigned, not just described"},
-		{"kill -KILL \"$HARNESS_PID\"", "the watchdog is what enforces it; a poll cannot, see this test's doc comment"},
+		{"kill -KILL \"$HARNESS_PID\"", "the watchdog is what enforces the bound on the wait itself"},
 		{"-eq 137", "the script must distinguish \"the trap hung and we killed it\" from \"the trap ran and exited non-130\", or a hang reports as the wrong defect"},
+		// The two synchronization bounds, added after the first CI run
+		// (2026-09-18) burned a single 30s bound on a cold runner's image
+		// pull and provider download and then reported it as a stalled
+		// apply. Separate bounds so that neither interval hides in the
+		// other's slack; pinned by assignment for the same reason as the
+		// wait bound above.
+		{`SETUP_BOUND_S="${SELFTEST_KILL_SETUP_BOUND_S:`, "setup - image pull, health, AMI, init - must be bounded separately from the apply, and generously: none of it is what this selftest is about"},
+		{`APPLY_BOUND_S="${SELFTEST_KILL_APPLY_BOUND_S:`, "the apply's own bound is the one that means something; folding it back into the setup bound is how a slow runner reads as a stalled apply"},
 	} {
 		if !strings.Contains(src, want.substr) {
 			t.Errorf("live/live-cert/selftest-kill.sh no longer contains %q: %s.\n"+
