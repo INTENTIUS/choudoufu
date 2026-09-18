@@ -31,6 +31,19 @@ same bar beside the Kubernetes claims.
 
 {{< gauntlet-board "banner" >}}
 
+{{< gauntlet-board "script-staleness" >}}
+
+A row is measured by running its crossing script, so it is evidence about
+the script as it stood that day. When the script changes afterwards and
+nobody re-runs the estate, the row keeps its old verdicts while the table
+reads as if they described the script in the tree
+([#1264](https://github.com/INTENTIUS/choudoufu/issues/1264)). The sentence
+above counts the rows in that state and each affected estate's own page
+says which of its files moved; `go run ./tools/gauntlet check` recomputes
+the same answer from the checkout, and is the copy that cannot lag. It is
+deliberately not a build failure: re-running an estate can take half an
+hour, so the drift is shown and left for a maintainer to schedule.
+
 The behaviors-proven line above counts how many of the
 {{< gauntlet-board "stage-count" >}} stages below have a FAST tier-1 fixture
 (`live/behaviors.json`) - a small, purpose-built script that runs in minutes

@@ -47,7 +47,12 @@ const (
 // scale-num shortcode can quote a measured plan-call split without anyone
 // typing it (#1055). Read by the caller from the real checkout, never from
 // root, for the same reason tt is.
-func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []byte) ([]string, error) {
+//
+// st is per-row script staleness (#1264), read from the real checkout by
+// the caller for that same reason - it is a git comparison, and root here
+// may be a scratch directory with no history. A nil map renders no
+// staleness at all rather than a board asserting every row is current.
+func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []byte, st map[string]ScriptStaleness) ([]string, error) {
 	var written []string
 	write := func(rel string, body string) error {
 		p := filepath.Join(root, rel)
@@ -85,7 +90,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 	}
 	// The board: every display value the site's progress pages need, as
 	// data. The pages themselves live in site/ and are never written here.
-	bb, err := buildBoard(m, a).Canonical()
+	bb, err := buildBoard(m, a, st).Canonical()
 	if err != nil {
 		return nil, err
 	}
@@ -405,7 +410,23 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("`last_run` renders as `stale` rather than as the verdict it carries,")
 	w("and does not count toward `clear`. A stage with no entry is unknown")
 	w("provenance, not stale: rows recorded before the field existed keep")
-	w("the cells and the clear flag they had. `go run")
+	w("the cells and the clear flag they had.")
+	w("")
+	w("A whole row goes stale a second way (#1264): the estate's crossing")
+	w("script changes after the run that measured the row, so every verdict")
+	w("in it describes a script that is no longer in the tree. That is not")
+	w("recorded in the artifact - it is computed on demand by diffing the")
+	w("row's `last_run.commit` against the working tree for the estate's own")
+	w("directory, which needs nothing the row does not already carry. Three")
+	w("answers: `current`, `changed`, and `unknown` for a row whose commit")
+	w("this checkout cannot place in HEAD's history (a shallow clone, or a")
+	w("run recorded on a branch that never landed). A change touching only")
+	w("markdown under the directory is not a change; nothing else is")
+	w("exempt. `go run ./tools/gauntlet check` prints the live answer and")
+	w("the board carries a snapshot of it, refreshed by every render. It")
+	w("never fails a build: re-running an estate can take half an hour, so")
+	w("a script change makes the drift visible rather than making the pull")
+	w("request that caused it wait on a run. `go run")
 	w("./tools/gauntlet snapshot <version>` copies it to")
 	w("`live/history/<version>.json` at release; `go run")
 	w("./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just")

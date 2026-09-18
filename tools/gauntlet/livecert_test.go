@@ -237,7 +237,7 @@ func TestBoardLiveCertIsSeparate(t *testing.T) {
 	}
 	without := &Artifact{}
 	without.Rebuild(m, nil, "sha256:test", OracleVersions{})
-	withoutBoard := buildBoard(m, without)
+	withoutBoard := buildBoard(m, without, nil)
 	if len(withoutBoard.LiveCert) != 0 {
 		t.Fatal("buildBoard must carry no live-cert rows when a.LiveCert is empty")
 	}
@@ -248,7 +248,7 @@ func TestBoardLiveCertIsSeparate(t *testing.T) {
 		Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictPass, "test_apply": VerdictPass},
 	}}}
 	with.Rebuild(m, nil, "sha256:test", OracleVersions{})
-	withBoard := buildBoard(m, with)
+	withBoard := buildBoard(m, with, nil)
 
 	if len(withBoard.LiveCert) != 1 || withBoard.LiveCert[0].Estate != "reference-ec2-vpc" || withBoard.LiveCert[0].Region != "us-east-1" {
 		t.Fatalf("live-cert row not carried as expected: %+v", withBoard.LiveCert)

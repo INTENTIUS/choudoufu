@@ -420,7 +420,23 @@ those are: a verdict whose `stage_runs` entry is not this row's own
 `last_run` renders as `stale` rather than as the verdict it carries,
 and does not count toward `clear`. A stage with no entry is unknown
 provenance, not stale: rows recorded before the field existed keep
-the cells and the clear flag they had. `go run
+the cells and the clear flag they had.
+
+A whole row goes stale a second way (#1264): the estate's crossing
+script changes after the run that measured the row, so every verdict
+in it describes a script that is no longer in the tree. That is not
+recorded in the artifact - it is computed on demand by diffing the
+row's `last_run.commit` against the working tree for the estate's own
+directory, which needs nothing the row does not already carry. Three
+answers: `current`, `changed`, and `unknown` for a row whose commit
+this checkout cannot place in HEAD's history (a shallow clone, or a
+run recorded on a branch that never landed). A change touching only
+markdown under the directory is not a change; nothing else is
+exempt. `go run ./tools/gauntlet check` prints the live answer and
+the board carries a snapshot of it, refreshed by every render. It
+never fails a build: re-running an estate can take half an hour, so
+a script change makes the drift visible rather than making the pull
+request that caused it wait on a run. `go run
 ./tools/gauntlet snapshot <version>` copies it to
 `live/history/<version>.json` at release; `go run
 ./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just

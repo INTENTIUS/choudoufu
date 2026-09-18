@@ -174,7 +174,7 @@ func cmdBackfillStageProvenance(root string, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	written, err := Render(root, m, a, tt, scale)
+	written, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a))
 	if err != nil {
 		return err
 	}

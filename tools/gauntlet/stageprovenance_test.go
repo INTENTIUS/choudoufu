@@ -175,7 +175,7 @@ func TestCarriedVerdictRendersStaleNotPass(t *testing.T) {
 			LastRun: &LastRun{Commit: "runcommit", Date: "2026-09-14T00:00:00Z", Emulator: "img"},
 		}},
 	}
-	board := buildBoard(m, a)
+	board := buildBoard(m, a, nil)
 	if len(board.Estates) != 1 {
 		t.Fatalf("board has %d estates, want 1", len(board.Estates))
 	}
@@ -507,7 +507,7 @@ func TestCommittedRowsAgreeWithTheirOwnProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	board := buildBoard(m, a)
+	board := buildBoard(m, a, nil)
 	marks := map[string][]string{}
 	notes := map[string]string{}
 	for _, e := range board.Estates {
@@ -667,7 +667,7 @@ func TestCommittedTallyAgreesWithTheBoard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	board := buildBoard(m, a)
+	board := buildBoard(m, a, nil)
 	// Stage cells by estate name, as the board renders them.
 	cells := map[string]map[string]string{}
 	for _, e := range board.Estates {

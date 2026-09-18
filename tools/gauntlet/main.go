@@ -15,7 +15,7 @@
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
-//	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale
+//	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale; always prints which rows predate their own estate script (#1264, reported, never fatal)
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
 //	go run ./tools/gauntlet scale-import-slice [-estate name] <slice_out.json> # merge a slicing-bench SLICE_OUT report's plan_calls (the CLI cold/warm plan pair) and audit_calls (the CollectUnclaimed sweep) into live/gauntlet-scale.json (#1053)
@@ -78,8 +78,15 @@ func main() {
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
-		stale, err := StaleFiles(root)
+		fatalIf(printScriptStaleness(root, os.Stdout))
+		stale, scriptOnly, err := StaleFilesReport(root)
 		fatalIf(err)
+		if len(scriptOnly) > 0 {
+			// Not a failure, by #1264's ruling: the committed board's
+			// script-staleness snapshot is refreshed by whatever renders
+			// next, and the lines printed above are the live answer.
+			fmt.Printf("\nthe committed board's script-staleness snapshot is behind this checkout (%s); `go run ./tools/gauntlet render` refreshes it\n", strings.Join(scriptOnly, ", "))
+		}
 		if len(stale) > 0 {
 			fmt.Fprintf(os.Stderr, "stale rendered files (run `go run ./tools/gauntlet render`):\n  %s\n", strings.Join(stale, "\n  "))
 			os.Exit(1)
@@ -270,7 +277,7 @@ func cmdRender(root string) error {
 	if err != nil {
 		return err
 	}
-	written, err := Render(root, m, a, tt, scale)
+	written, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a))
 	if err != nil {
 		return err
 	}
@@ -345,7 +352,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return err
 	}
 	core, all := a.Sets["core"], a.Sets["all"]
@@ -425,7 +432,7 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return err
 	}
 	selected := len(fs.Args())
@@ -585,7 +592,7 @@ func cmdLiveCert(root string, args []string) error {
 	if err != nil {
 		return errors.Join(scaleErr, err)
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return errors.Join(scaleErr, err)
 	}
 	if scaleErr != nil {
@@ -727,7 +734,7 @@ func cmdMergeArtifact(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, merged, tt, scale); err != nil {
+	if _, err := Render(root, m, merged, tt, scale, AllScriptStaleness(root, merged)); err != nil {
 		return err
 	}
 	core, all := merged.Sets["core"], merged.Sets["all"]
@@ -844,7 +851,7 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return err
 	}
 	fmt.Printf("imported %d legacy verdict sets\n", imported)
@@ -869,20 +876,42 @@ func cmdSnapshot(root, version string) error {
 	return nil
 }
 
-// StaleFiles renders into a temp dir and returns the rendered files whose
-// committed copy differs. The test and `check` share it.
+// StaleFiles is StaleFilesReport's blocking half: the rendered files whose
+// committed copy differs in something a measurement can be read out of.
+// The test and `check` share it.
 func StaleFiles(root string) ([]string, error) {
+	stale, _, err := StaleFilesReport(root)
+	return stale, err
+}
+
+// StaleFilesReport renders into a temp dir and compares every rendered file
+// against its committed copy, in two buckets.
+//
+// stale is the blocking one: a committed rendered file that no longer
+// matches what the generator produces, which is what
+// TestRenderedDocsAreCurrent and `gauntlet check` fail on.
+//
+// scriptOnly is the board when the ONLY thing that moved is per-row script
+// staleness (#1264). That fact is a comparison against git, so it changes
+// under a commit that nothing re-rendered, and it answers "unknown" in a
+// checkout without history - hold the committed board to it and every
+// estate-script PR becomes a re-render PR and every shallow checkout fails
+// the guard. #1264's ruling is render it, do not fail on it, so it is
+// reported and never returned as stale. The board on the site is therefore
+// a snapshot refreshed by whatever renders next; `gauntlet check` computes
+// the live answer every time and is the surface that cannot lag.
+func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	m, err := LoadManifest(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	a, err := LoadArtifact(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bi, err := LoadBehaviorIndex(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
@@ -890,36 +919,73 @@ func StaleFiles(root string) ([]string, error) {
 	// tt is read from the real checkout root, never from tmp below: tmp is
 	// a write-only scratch directory with no live/estate-types.json of its
 	// own, the same reason m, a and bi are all loaded from root rather than
-	// re-derived inside Render.
+	// re-derived inside Render. Script staleness (#1264) is read from root
+	// for the same reason, and for one more: tmp has no git history to read.
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer os.RemoveAll(tmp)
 	// Estate pages are pruned by reading the target dir; mirror the committed
 	// one so pruning logic runs the same way.
 	scale, err := loadScaleRecordsBytes(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	written, err := Render(tmp, m, a, tt, scale)
+	written, err := Render(tmp, m, a, tt, scale, AllScriptStaleness(root, a))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var stale []string
 	for _, rel := range written {
 		want, err := os.ReadFile(filepath.Join(tmp, rel))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		got, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil || !bytes.Equal(want, got) {
+			if rel == SiteBoardPath && boardsDifferOnlyInScriptStaleness(want, got) {
+				scriptOnly = append(scriptOnly, rel)
+				continue
+			}
 			stale = append(stale, rel)
 		}
 	}
-	return stale, nil
+	return stale, scriptOnly, nil
+}
+
+// boardsDifferOnlyInScriptStaleness reports whether two rendered boards are
+// the same board apart from #1264's per-row script staleness. Both sides
+// are parsed and re-canonicalized with those fields cleared, so this
+// answers about VALUES and never about formatting: a board that fails to
+// parse, or that differs anywhere else as well, is a real difference.
+func boardsDifferOnlyInScriptStaleness(want, got []byte) bool {
+	strip := func(b []byte) ([]byte, bool) {
+		var bd Board
+		if err := json.Unmarshal(b, &bd); err != nil {
+			return nil, false
+		}
+		bd.ScriptBanner = ""
+		for i := range bd.Estates {
+			bd.Estates[i].ScriptStale = ""
+			bd.Estates[i].ScriptNote = ""
+		}
+		c, err := bd.Canonical()
+		if err != nil {
+			return nil, false
+		}
+		return c, true
+	}
+	a, ok := strip(want)
+	if !ok {
+		return false
+	}
+	b, ok := strip(got)
+	if !ok {
+		return false
+	}
+	return bytes.Equal(a, b)
 }
