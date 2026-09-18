@@ -404,6 +404,24 @@ type LiveRecordStore struct {
 	TierSet   bool
 	TierRange hcl.Range
 
+	// AllowInsecure is the "s3" backend's waiver for the bucket contract
+	// (GitHub issue #1340): the names, out of RecordStoreInsecureSettings, of
+	// the assertions this estate proceeds without. It is for a bucket an
+	// operator has reason to run differently, and for a role that cannot
+	// read the bucket's configuration to check it - the same refusal from
+	// the caller's side, so the same answer.
+	//
+	// A list and not a boolean, on purpose. A single flag set once in CI and
+	// never revisited is a gate that protects nothing, which this
+	// repository learned the expensive way (#1102). A list waives only what
+	// it names, so waiving one assertion leaves the other two asserting,
+	// and the configuration itself records which risk was accepted. The
+	// other half of keeping it honest is not here: every run that proceeds
+	// under a waiver says so, every time - see internal/command.
+	AllowInsecure      []string
+	AllowInsecureSet   bool
+	AllowInsecureRange hcl.Range
+
 	// DeclRange is the "record_store" block's own header, or - for the
 	// implied store - the live block's own header, since that is the
 	// nearest thing the author wrote.
@@ -624,8 +642,16 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "key_prefix"},
 		{Name: "region"},
 		{Name: "tier"},
+		{Name: "allow_insecure"},
 	},
 }
+
+// RecordStoreInsecureSettings is every name the "s3" backend's
+// "allow_insecure" argument accepts: the three settings the bucket contract
+// asserts (GitHub issue #1339). internal/live/projection pins this list to
+// [internal/live/staterecord.BucketSettings] by test, so a fourth assertion
+// cannot be added there without being waivable here, or the other way round.
+var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_access_block"}
 
 // RecordStoreTiers is every spelling the "ssm" backend's "tier" argument
 // accepts, in the order a diagnostic lists them. GitHub issue #1146.
@@ -1192,6 +1218,56 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 			}
 		}
 	}
+	if attr, exists := content.Attributes["allow_insecure"]; exists {
+		rs.AllowInsecureRange = attr.Range
+		vals, valDiags := decodeLiteralStringList(attr, "allow_insecure")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			ok := true
+			seen := map[string]bool{}
+			for _, name := range vals {
+				switch {
+				case !slices.Contains(RecordStoreInsecureSettings, name):
+					// Refused, never ignored: a typo that silently waived
+					// nothing would still READ as a waiver to whoever reviews
+					// the configuration, and a name this build does not know
+					// may be an assertion a newer build makes.
+					ok = false
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Invalid record_store allow_insecure",
+						Detail: fmt.Sprintf(
+							"The \"allow_insecure\" argument names %q, which is not a bucket setting this store asserts. Valid names are %s. Each one waives exactly one assertion and leaves the others in force.",
+							name, strings.Join(quoteEach(RecordStoreInsecureSettings), ", "),
+						),
+						Subject: attr.Expr.Range().Ptr(),
+					})
+				case seen[name]:
+					ok = false
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Invalid record_store allow_insecure",
+						Detail:   fmt.Sprintf("The \"allow_insecure\" argument names %q more than once.", name),
+						Subject:  attr.Expr.Range().Ptr(),
+					})
+				}
+				seen[name] = true
+			}
+			if ok {
+				rs.AllowInsecure = vals
+				rs.AllowInsecureSet = true
+			}
+		}
+	}
+	if rs.Type != "s3" && (rs.AllowInsecureSet || !rs.AllowInsecureRange.Empty()) {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"allow_insecure\" argument waives assertions about an S3 bucket's settings and has no meaning for record_store %q, which is not in a bucket. Remove it.", rs.Type),
+			Subject:  rs.AllowInsecureRange.Ptr(),
+		})
+	}
+
 	if rs.Type != "ssm" && rs.TierSet {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
