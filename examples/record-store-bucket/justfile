@@ -2,67 +2,55 @@
 # for you. `just` lists everything.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-tf := env_var_or_default("TOFU_BIN", "tofu")
 region := env_var_or_default("AWS_REGION", "us-east-2")
 
 default:
     @just --list
 
-# Install the chant project's dependencies (needed for ops/chant-*).
+# Install the chant project's dependencies.
 install:
     npm install
 
-# This example carries two paths on purpose (README, "Two paths"), and the
-# risk of that is a chant project nothing ever runs. `list` resolves both Ops
-# through the real lexicon; `lint` runs the terraform lexicon's own rules over
-# them. A broken Op fails here rather than the first time somebody reaches for
-# the governed path.
-
-# Prove the Ops are real rather than decorative.
-ops:
-    npx chant list src
-    npx chant lint src
-
-# Governed path: plan through the Op. Read-only.
-chant-plan:
-    npx chant run bucket-plan
-
-# gate: "always" is deliberate - a bucket-policy change destroys nothing and
-# can still lock every run out of its own records.
-
-# Governed path: apply through the Op, stopping at its approval gate.
-chant-apply:
-    npx chant run bucket-apply
-
 # The bucket name. Globally unique, so it is derived from the account rather
-# than guessed — the same account that will hold the estate.
+# than guessed - the same account that will hold the estate. Any name works;
+# pass one to any recipe below and nothing assumes the derived shape.
 _bucket:
     #!/usr/bin/env bash
     set -euo pipefail
     acct=$(aws sts get-caller-identity --query Account --output text)
     echo "choudoufu-records-${acct}-{{region}}"
 
-# What standing it up would do. Reads only; needs no approval.
+# Build the CloudFormation template from the lexicon declaration.
+_build bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RECORD_BUCKET="{{bucket}}" npx chant build src --lexicon aws -o templates/template.json
+    echo "templates/template.json"
+
+# What standing it up would do: the template, built from the declaration.
 plan bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
     b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
-    cd terraform
-    {{tf}} init -input=false >/dev/null
-    {{tf}} plan -input=false -var "bucket=$b" -var "region={{region}}"
+    just _build "$b" >/dev/null
+    cat templates/template.json
 
 # Create or update the bucket, and print RECORD_STORE_BUCKET.
 up bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
     b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
-    cd terraform
-    {{tf}} init -input=false >/dev/null
-    {{tf}} apply -input=false -auto-approve -var "bucket=$b" -var "region={{region}}"
+    just _build "$b" >/dev/null
+    aws cloudformation deploy \
+      --template-file templates/template.json \
+      --stack-name "$b" \
+      --region "{{region}}" \
+      --capabilities CAPABILITY_NAMED_IAM \
+      --no-fail-on-empty-changeset
     echo
     echo "RECORD_STORE_BUCKET=$b"
 
-# Prove the hardening is real, against the live bucket. Two checks write.
+# Prove the hardening is real, against the live bucket. Three checks write.
 verify bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -75,6 +63,10 @@ verify bucket="":
       --output text 2>/dev/null || echo NONE)
     [ "$enc" = "aws:kms" ] && say "default encryption" "ok ($enc)" || { say "default encryption" "FAIL ($enc)"; fail=1; }
 
+    kms=$(aws s3api get-bucket-encryption --bucket "$b" \
+      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID' \
+      --output text 2>/dev/null || echo "")
+
     ver=$(aws s3api get-bucket-versioning --bucket "$b" --query Status --output text 2>/dev/null || echo NONE)
     [ "$ver" = "Enabled" ] && say "versioning" "ok" || { say "versioning" "FAIL ($ver)"; fail=1; }
 
@@ -86,34 +78,81 @@ verify bucket="":
       --query 'Rules[0].NoncurrentVersionExpiration.NoncurrentDays' --output text 2>/dev/null || echo NONE)
     [ "$lc" != "NONE" ] && say "noncurrent versions expire" "ok (${lc}d)" || { say "noncurrent versions expire" "FAIL"; fail=1; }
 
-    # The one that matters, and the only one that tests the POLICY rather
-    # than the default: an unencrypted PUT must be refused.
+    # The three writes below are the only checks that test the POLICY rather
+    # than the configuration, and they are a set rather than a check each.
+    #
+    # An earlier version of this file ran only the first of them, against a
+    # policy that denied on StringNotEquals alone. It passed. The policy was
+    # nevertheless broken in the way that matters - it denied the header-less
+    # PutObject that S3Store actually issues - and the live run failed opening
+    # the store. A check that only proves a Deny fires cannot tell a correct
+    # policy from one that refuses everything.
     tmp=$(mktemp)
-    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/unencrypted" \
+
+    # 1. A client that asks for the WRONG ALGORITHM must be refused.
+    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/aes256" \
+         --body "$tmp" --server-side-encryption AES256 >/dev/null 2>&1; then
+      say "explicit AES256 PUT refused" "FAIL - it was accepted"
+      aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/aes256" >/dev/null 2>&1 || true
+      fail=1
+    else
+      say "explicit AES256 PUT refused" "ok"
+    fi
+
+    # 2. The call S3Store actually makes - no encryption header at all - must
+    #    be ACCEPTED. This is the one that was failing in production while
+    #    every other check was green.
+    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/default" \
          --body "$tmp" >/dev/null 2>&1; then
-      say "unencrypted PUT refused" "FAIL - it was accepted"
-      aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/unencrypted" >/dev/null 2>&1 || true
-      fail=1
+      say "header-less PUT accepted" "ok"
     else
-      say "unencrypted PUT refused" "ok"
-    fi
-    # ...and an encrypted one must still succeed, or the policy is refusing
-    # everything and the check above proves nothing.
-    kms=$(aws s3api get-bucket-encryption --bucket "$b" \
-      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID' \
-      --output text 2>/dev/null || echo "")
-    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/encrypted" \
-         --body "$tmp" --server-side-encryption aws:kms \
-         --ssekms-key-id "$kms" >/dev/null 2>&1; then
-      say "encrypted PUT accepted" "ok"
-      aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/encrypted" >/dev/null 2>&1 || true
-    else
-      say "encrypted PUT accepted" "FAIL - the policy refuses everything"
+      say "header-less PUT accepted" "FAIL - the record store cannot write"
       fail=1
     fi
+
+    # 3. ...and having been accepted, it must have landed encrypted under the
+    #    CMK anyway. Without this, check 2 would pass on a bucket with no
+    #    encryption at all.
+    got=$(aws s3api head-object --bucket "$b" --key "choudoufu/_verify/default" \
+      --query 'ServerSideEncryption' --output text 2>/dev/null || echo NONE)
+    gotkey=$(aws s3api head-object --bucket "$b" --key "choudoufu/_verify/default" \
+      --query 'SSEKMSKeyId' --output text 2>/dev/null || echo NONE)
+    if [ "$got" = "aws:kms" ] && [ -n "$gotkey" ] && [ "$gotkey" != "NONE" ]; then
+      say "header-less PUT landed SSE-KMS" "ok ($got)"
+    else
+      say "header-less PUT landed SSE-KMS" "FAIL ($got, key=$gotkey)"
+      fail=1
+    fi
+    aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/default" >/dev/null 2>&1 || true
+
     rm -f "$tmp"
     echo
     [ "$fail" = "0" ] && echo "bucket $b: hardened" || { echo "bucket $b: NOT hardened"; exit 1; }
+
+# A broken Op should fail here rather than the first time somebody reaches
+# for the approval gate.
+
+# Prove the Ops resolve and lint.
+ops bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant list src
+    RECORD_BUCKET="$b" npx chant lint src
+
+# Governed path: plan through the Op. Read-only, touches no account.
+chant-plan bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant run bucket-plan
+
+# Governed path: apply through the Op, stopping at its approval gate.
+chant-apply bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant run bucket-apply
 
 # Tear it down. Refuses while records are present.
 down bucket="":
@@ -129,5 +168,8 @@ down bucket="":
       echo "Empty it deliberately first, or pass a different bucket."
       exit 1
     fi
-    cd terraform
-    {{tf}} destroy -input=false -auto-approve -var "bucket=$b" -var "region={{region}}"
+    aws s3api delete-objects --bucket "$b" --delete "$(aws s3api list-object-versions \
+      --bucket "$b" --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' \
+      --output json 2>/dev/null)" >/dev/null 2>&1 || true
+    aws cloudformation delete-stack --stack-name "$b" --region "{{region}}"
+    aws cloudformation wait stack-delete-complete --stack-name "$b" --region "{{region}}"

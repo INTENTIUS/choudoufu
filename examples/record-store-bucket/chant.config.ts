@@ -1,25 +1,21 @@
 import type { ChantConfig } from "@intentius/chant/config";
-import "@intentius/chant-lexicon-terraform";
+import "@intentius/chant-lexicon-aws";
 
 /**
- * One project, one root, two Ops.
+ * One lexicon, one declaration, two Ops.
  *
- * This root is deliberately STOCK. It runs `tofu`, not `choudoufu`, and it
- * declares no estate — because it builds the bucket a live estate's record
- * store writes into, and a store cannot hold the records of the thing that
- * creates it. Bootstrapping infrastructure is the one place a state file is
- * the right answer, and this is that place.
+ * There is no terraform root here and that is the point. This is a bootstrap
+ * step: it builds the bucket a live estate's record store writes into, so it
+ * cannot itself keep records in that store. An earlier version of this example
+ * answered that with a stock OpenTofu root and a state file on disk - which
+ * meant you needed a state file to create the bucket that exists so you would
+ * not need state files.
  *
- * `delete: "gated"` because destroying this bucket destroys an estate's
- * identity for every resource it records. The Op's approval gate is the point
- * of the setting, not ceremony.
+ * Declaring the bucket in the AWS lexicon removes the circle rather than
+ * living with it. `chant build` emits CloudFormation, CloudFormation holds the
+ * stack's own identity, and nothing on the path needs tofu installed or a
+ * `terraform.tfstate` to hold.
  */
 export default {
-  lexicons: ["terraform"],
-  terraform: {
-    binary: "tofu",
-    roots: {
-      bucket: { dir: "./terraform", delete: "gated" },
-    },
-  },
+  lexicons: ["aws"],
 } satisfies ChantConfig;
