@@ -483,6 +483,18 @@ showing its own checks would have caught it.
   its prefix. The BREAK control runs an arm with nothing corrupted and
   requires the refusal check to find nothing (#1339).
 
+- **a-waiver-names-what-it-waives** - *Claim 30: a bucket waiver waives
+  only the assertion it names, and says so on every run.* A bucket with
+  no versioning and `allow_insecure = ["versioning"]`: the apply
+  proceeds, warns with what the waiver costs, and says the bucket really
+  does fail the waived assertion. A plan and a second apply of the
+  unchanged estate each warn again. The lifecycle and the public-access
+  block, broken in turn, are each still refused by name. A misspelt name
+  is refused at configuration load. The BREAK control rebuilds choudoufu
+  so the warning appears on an estate's first run only (go build
+  -overlay, needs Go, refuses a release binary) and passes only when run
+  two is caught proceeding in silence (#1340).
+
 ## Knobs
 
 | Variable | Effect |
