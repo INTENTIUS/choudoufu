@@ -19,6 +19,7 @@ surface are here too.
 | [What you set up by hand]({{< relref "setup" >}}) | What must exist before the first run, versus what the tool creates |
 | [Migrate an existing estate]({{< relref "migrate" >}}) | How resources you already manage bind to their markers |
 | [Day-2 operations]({{< relref "day2" >}}) | Renaming, removing, recording effects and working with other people, indexed |
+| [Recover an estate]({{< relref "recover-an-estate" >}}) | What to do, in order, when the cache or the record store is gone - and what does not come back |
 | [Start a new estate]({{< relref "start" >}}) | The `live` block, from a first apply |
 | [Questions]({{< relref "faq" >}}) | Short answers to the questions that come up first |
 | [How to write markers inside a for_each'd module]({{< relref "keyed-modules" >}}) | Threading `each.key` through a wrapped module by hand |
