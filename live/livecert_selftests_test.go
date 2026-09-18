@@ -130,7 +130,9 @@ var liveCertSelftests = []liveCertSelftest{
 		where:  killSelftestJobName,
 		measured: "19s against the pinned emulator with TOFU_BIN prebuilt. It is the one selftest that needs docker, terraform and the AWS CLI, " +
 			"so it cannot run in this package. Its two waits are bounded: the apply-progress sync loop at 30s by its own iteration count, " +
-			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (default 240s, watchdog-enforced, added by #1267).",
+			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (default 240s, watchdog-enforced, added by #1267). " +
+			"What it proves is narrower than its own PASS line says: #1279 - its \"independent verification\" listing is unreachable on any " +
+			"passing run, because the harness removes the emulator container before the driver gets there.",
 	},
 }
 
@@ -298,8 +300,16 @@ const killSelftestJobName = "livecert-selftest-kill"
 // every gated test failing at 0.00s with "terraform is required by this
 // test but is not on PATH" because that workflow never installs it. A new
 // guard added to an already-red job is a guard whose failure nobody would
-// see - #1267's own complaint, satisfied a different way. (That tier's own
-// breakage is reported separately; it is not this test's business.)
+// see - #1267's own complaint, satisfied a different way. That tier's own
+// breakage is #1280; it is not this test's business.
+//
+// What the job proves is narrower than selftest-kill.sh's PASS line claims.
+// Its emptiness half - the "independent verification" that lists the
+// endpoint itself - is unreachable on any passing run, because the harness
+// removes the emulator container as teardown's last step and the driver
+// then has nothing to list. That is #1279, found while wiring this. The
+// trap, the exit code, the teardown banner and the container's removal are
+// real, and they are what this job guards until #1279 lands.
 func TestCIRunsTheKillSelftest(t *testing.T) {
 	data, err := os.ReadFile(ciWorkflowRel)
 	if err != nil {

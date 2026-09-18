@@ -26,6 +26,16 @@ set -uo pipefail
 #   SELFTEST_KILL_WAIT_BOUND_S=<seconds> bounds the wait for the harness to
 #   finish its trap after the SIGTERM (default 240).
 #
+# KNOWN LIMIT (issue #1279): the "independent verification" section at the
+# end of this script is unreachable on a passing run. The harness removes
+# the floci container as teardown's last step, so the endpoint is already
+# gone when this driver goes to list it, and the listing is skipped with a
+# line that reads like a confirmation. Measured: with the harness's destroy
+# AND sweep neutered, the harness itself printed "STILL NOT EMPTY after
+# destroy and sweep" and this script still exited 0 with its PASS verdict.
+# Until that is fixed, read this script's PASS as "the trap fired, teardown
+# ran, the container is gone", not as "the account is empty".
+#
 # Run automatically by ci.yml's livecert-selftest-kill job (issue #1267);
 # live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the guard
 # that keeps that job from going away.

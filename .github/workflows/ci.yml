@@ -232,6 +232,13 @@ jobs:
   # money and wall clock rather than a red cell - and until #1267 nothing in
   # this repository ran it.
   #
+  # What it proves is narrower than its own PASS line claims: the
+  # "independent verification" listing at the end of that script is
+  # unreachable on any passing run, because the harness removes the emulator
+  # container as teardown's last step. That is issue #1279, found while
+  # wiring this job. The trap firing, the exit code, the teardown banner and
+  # the container's removal are real and are what this job guards.
+  #
   # Here rather than in floci-tier.yml, which is the other workflow with
   # docker: that nightly has failed on every run from 2026-09-12 to
   # 2026-09-17, every gated test failing at 0.00s on "terraform is required by
