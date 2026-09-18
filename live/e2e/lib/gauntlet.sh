@@ -233,6 +233,54 @@ gauntlet_pin_aws_provider() {
     || { printf 'gauntlet_pin_aws_provider: %s does not carry the pinned hashicorp/aws version %s after rewrite - the corpus module shape may have moved\n' "$target" "$pin" >&2; return 1; }
 }
 
+# gauntlet_aws_required_provider [indent]: prints the hashicorp/aws entry of
+# a required_providers block, pinned to the same
+# live/oracle-versions.json aws_provider_version gauntlet_pin_aws_provider
+# rewrites a copied module to (issue #1216).
+#
+#     aws = {
+#       source  = "hashicorp/aws"
+#       version = "= <the pin>"
+#     }
+#
+# gauntlet_pin_aws_provider REWRITES a file somebody else wrote - the right
+# shape for a corpus module copied out of .corpus, whose own constraint
+# arrives as a bare lower bound. A reference estate has no such file: it
+# hand-authors its own root from a heredoc, so there is nothing to rewrite
+# and the requirement is text the script itself chooses. Before this
+# function that text was the release spelled out by hand, which is how
+# reference-ec2-vpc came to measure at 6.58.0 - nineteen copies of one
+# version string, written the day the script was - for the five weeks the
+# pin moved 6.59.0 and then 6.63.0 underneath it, while every corpus-copying
+# estate on the board moved with it.
+#
+# Read it ONCE into a variable at the top of the script and interpolate that
+# variable into each heredoc, rather than calling it per heredoc:
+#
+#     AWS_REQUIRED_PROVIDER="$(gauntlet_aws_required_provider)" \
+#       || fail "could not read the hashicorp/aws pin"
+#
+# A call whose output is dropped into a heredoc directly cannot be checked -
+# an unreadable pin would emit nothing, the terraform block would carry no
+# aws requirement at all, and init would quietly resolve the provider from
+# the registry, which is the float the pin exists to stop. Assigning it once
+# puts the whole script behind one `|| fail`.
+#
+# indent is the leading whitespace of the entry's own first line (default
+# four spaces, the depth of an entry inside `terraform { required_providers
+# { ... } }`); the inner lines are indented two further.
+#
+# live/pins_drift_test.go's TestGauntletPinCallersCarryNoVersionLiteral
+# (widened by #1216) checks that no registered crossing script declaring
+# hashicorp/aws spells an exact provider version out itself, which is what
+# makes this the only way a hand-authored root gets one.
+gauntlet_aws_required_provider() {
+  local indent="${1:-    }" pin
+  pin="$(gauntlet_aws_pin_version)"
+  [ -n "$pin" ] || { printf 'gauntlet_aws_required_provider: could not read aws_provider_version from %s/live/oracle-versions.json\n' "$ROOT" >&2; return 1; }
+  printf '%saws = {\n%s  source  = "hashicorp/aws"\n%s  version = "= %s"\n%s}\n' "$indent" "$indent" "$indent" "$pin" "$indent"
+}
+
 # gauntlet_kind_up <name> <kubeconfig>: the kind substrate (#1067). A
 # kubernetes-lane crossing script runs against a kind cluster instead of a
 # floci emulator: a real API server, so what the script asserts is what any

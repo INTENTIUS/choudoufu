@@ -8,16 +8,23 @@
 # record_store deleted entirely. ADOPTION: the identical shapes applied
 # first with plain stock terraform (real state, zero markers, confirmed via
 # the AWS CLI), then migrated with "choudoufu live-import -approve" and
-# replanned empty. Not from a corpus - hand-written, no version pins beyond
-# the ordinary #269 gap every other estate needs. Needs Docker and the AWS
-# CLI; runs on two ports (4712, 4713) so it can run beside `just demo`.
+# replanned empty. Not from a corpus - hand-written, so its own
+# hashicorp/aws requirement comes from gauntlet_aws_required_provider and is
+# the pin in live/oracle-versions.json, the same release every
+# corpus-copying estate is measured against (#1216). Needs Docker and the
+# AWS CLI; runs on two ports (4712, 4713) so it can run beside `just demo`.
 set -uo pipefail
 
 # The reference project: the plainest AWS "getting started" shape anyone
 # would write on day one - a VPC, a subnet, an internet gateway, a security
-# group, and an EC2 instance. Nothing exotic, nothing from a corpus, no
-# version pins beyond the ones every other estate needs for #269's release
-# gap. Written after a live, adversarial session question ("can you even
+# group, and an EC2 instance. Nothing exotic, nothing from a corpus, and
+# one provider version - the pin every other estate on the board is
+# measured against, read from live/oracle-versions.json through
+# gauntlet_aws_required_provider rather than written out here (#1216; this
+# comment used to say "no version pins beyond the ones every other estate
+# needs" while the script carried nineteen literals of its own, which is
+# how it came to be measured at a release five weeks behind the board).
+# Written after a live, adversarial session question ("can you even
 # build an EC2 instance in a VPC") that no existing script answered
 # directly: live/e2e/estate/ (the flagship demo fixture) has a VPC, subnet,
 # security group and internet gateway, but no bare aws_instance - it uses
@@ -185,6 +192,23 @@ fail() {
   exit 1
 }
 gauntlet_begin
+
+# Every root this script writes is hand-authored from a heredoc - there is
+# no corpus module here to rewrite, so gauntlet_pin_aws_provider has nothing
+# to act on and this estate needs the other half of the same pin:
+# gauntlet_aws_required_provider prints the hashicorp/aws requirement
+# already carrying live/oracle-versions.json's aws_provider_version, the
+# same release every corpus-copying estate on the board is measured against
+# (issue #1216). Read once, here, so that an unreadable pin stops the run at
+# one line instead of writing nineteen roots with no aws requirement at all;
+# every heredoc below interpolates $AWS_REQUIRED_PROVIDER and none of them
+# spells a version.
+AWS_REQUIRED_PROVIDER="$(gauntlet_aws_required_provider)" \
+  || { printf 'FAIL: could not read the hashicorp/aws pin from live/oracle-versions.json\n' >&2; exit 1; }
+case "$AWS_REQUIRED_PROVIDER" in
+  *'source  = "hashicorp/aws"'*'version = "= '*) : ;;
+  *) printf 'FAIL: gauntlet_aws_required_provider produced no exact hashicorp/aws requirement:\n%s\n' "$AWS_REQUIRED_PROVIDER" >&2; exit 1 ;;
+esac
 
 # ── 0. tools ─────────────────────────────────────────────────────────────
 log "=== 0. tools ==="
@@ -768,10 +792,7 @@ mkdir -p "$GREEN"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -862,10 +883,7 @@ mkdir -p "$PLAIN"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -981,10 +999,7 @@ cp -r "$PLAIN" "$PLAIN_ORACLE"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -1033,10 +1048,7 @@ cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -1074,10 +1086,7 @@ mkdir -p "$PLAIN_ORACLE_COUNT"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -1106,10 +1115,7 @@ log "  stock: 2 instances created, count_test[0]=$ORACLE_SG0_ID count_test[1]=$O
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -1144,10 +1150,7 @@ log "  stock: exactly one destroy (count_test[1]=$ORACLE_SG1_ID), count_test[0]=
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -1209,10 +1212,7 @@ cp -r "$PLAIN" "$PLAIN_ORACLE_REPLACE"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
 }
 
@@ -1237,10 +1237,7 @@ mkdir -p "$ADOPTED"
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -1592,10 +1589,7 @@ log "=== F1. choudoufu: change the ForceNew ami argument, forcing a replace at t
   cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -1697,10 +1691,7 @@ if [ "${BREAK:-}" = "1" ]; then
     cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -1728,10 +1719,7 @@ else
     cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -1786,10 +1774,7 @@ EOF
     cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -1890,10 +1875,7 @@ EOF
       cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -1985,10 +1967,7 @@ EOF
       cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -2039,10 +2018,7 @@ EOF
       cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -2098,10 +2074,7 @@ EOF
         cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -2288,10 +2261,7 @@ EOF
         cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
@@ -2353,10 +2323,7 @@ EOF
           cat <<EOF
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
+$AWS_REQUIRED_PROVIDER
   }
   live {
     estate = "$ESTATE"
