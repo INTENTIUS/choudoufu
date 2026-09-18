@@ -1,0 +1,175 @@
+# The record-store bucket, stood up with the hardening S3Store does not do
+# for you. `just` lists everything.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+region := env_var_or_default("AWS_REGION", "us-east-2")
+
+default:
+    @just --list
+
+# Install the chant project's dependencies.
+install:
+    npm install
+
+# The bucket name. Globally unique, so it is derived from the account rather
+# than guessed - the same account that will hold the estate. Any name works;
+# pass one to any recipe below and nothing assumes the derived shape.
+_bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    acct=$(aws sts get-caller-identity --query Account --output text)
+    echo "choudoufu-records-${acct}-{{region}}"
+
+# Build the CloudFormation template from the lexicon declaration.
+_build bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RECORD_BUCKET="{{bucket}}" npx chant build src --lexicon aws -o templates/template.json
+    echo "templates/template.json"
+
+# What standing it up would do: the template, built from the declaration.
+plan bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    just _build "$b" >/dev/null
+    cat templates/template.json
+
+# Create or update the bucket, and print RECORD_STORE_BUCKET.
+up bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    just _build "$b" >/dev/null
+    aws cloudformation deploy \
+      --template-file templates/template.json \
+      --stack-name "$b" \
+      --region "{{region}}" \
+      --capabilities CAPABILITY_NAMED_IAM \
+      --no-fail-on-empty-changeset
+    echo
+    echo "RECORD_STORE_BUCKET=$b"
+
+# Prove the hardening is real, against the live bucket. Three checks write.
+verify bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    fail=0
+    say() { printf '  %-42s %s\n' "$1" "$2"; }
+
+    enc=$(aws s3api get-bucket-encryption --bucket "$b" \
+      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' \
+      --output text 2>/dev/null || echo NONE)
+    [ "$enc" = "aws:kms" ] && say "default encryption" "ok ($enc)" || { say "default encryption" "FAIL ($enc)"; fail=1; }
+
+    kms=$(aws s3api get-bucket-encryption --bucket "$b" \
+      --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID' \
+      --output text 2>/dev/null || echo "")
+
+    ver=$(aws s3api get-bucket-versioning --bucket "$b" --query Status --output text 2>/dev/null || echo NONE)
+    [ "$ver" = "Enabled" ] && say "versioning" "ok" || { say "versioning" "FAIL ($ver)"; fail=1; }
+
+    pab=$(aws s3api get-public-access-block --bucket "$b" \
+      --query 'PublicAccessBlockConfiguration.BlockPublicPolicy' --output text 2>/dev/null || echo NONE)
+    [ "$pab" = "True" ] && say "public access blocked" "ok" || { say "public access blocked" "FAIL ($pab)"; fail=1; }
+
+    lc=$(aws s3api get-bucket-lifecycle-configuration --bucket "$b" \
+      --query 'Rules[0].NoncurrentVersionExpiration.NoncurrentDays' --output text 2>/dev/null || echo NONE)
+    [ "$lc" != "NONE" ] && say "noncurrent versions expire" "ok (${lc}d)" || { say "noncurrent versions expire" "FAIL"; fail=1; }
+
+    # The three writes below are the only checks that test the POLICY rather
+    # than the configuration, and they are a set rather than a check each.
+    #
+    # An earlier version of this file ran only the first of them, against a
+    # policy that denied on StringNotEquals alone. It passed. The policy was
+    # nevertheless broken in the way that matters - it denied the header-less
+    # PutObject that S3Store actually issues - and the live run failed opening
+    # the store. A check that only proves a Deny fires cannot tell a correct
+    # policy from one that refuses everything.
+    tmp=$(mktemp)
+
+    # 1. A client that asks for the WRONG ALGORITHM must be refused.
+    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/aes256" \
+         --body "$tmp" --server-side-encryption AES256 >/dev/null 2>&1; then
+      say "explicit AES256 PUT refused" "FAIL - it was accepted"
+      aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/aes256" >/dev/null 2>&1 || true
+      fail=1
+    else
+      say "explicit AES256 PUT refused" "ok"
+    fi
+
+    # 2. The call S3Store actually makes - no encryption header at all - must
+    #    be ACCEPTED. This is the one that was failing in production while
+    #    every other check was green.
+    if aws s3api put-object --bucket "$b" --key "choudoufu/_verify/default" \
+         --body "$tmp" >/dev/null 2>&1; then
+      say "header-less PUT accepted" "ok"
+    else
+      say "header-less PUT accepted" "FAIL - the record store cannot write"
+      fail=1
+    fi
+
+    # 3. ...and having been accepted, it must have landed encrypted under the
+    #    CMK anyway. Without this, check 2 would pass on a bucket with no
+    #    encryption at all.
+    got=$(aws s3api head-object --bucket "$b" --key "choudoufu/_verify/default" \
+      --query 'ServerSideEncryption' --output text 2>/dev/null || echo NONE)
+    gotkey=$(aws s3api head-object --bucket "$b" --key "choudoufu/_verify/default" \
+      --query 'SSEKMSKeyId' --output text 2>/dev/null || echo NONE)
+    if [ "$got" = "aws:kms" ] && [ -n "$gotkey" ] && [ "$gotkey" != "NONE" ]; then
+      say "header-less PUT landed SSE-KMS" "ok ($got)"
+    else
+      say "header-less PUT landed SSE-KMS" "FAIL ($got, key=$gotkey)"
+      fail=1
+    fi
+    aws s3api delete-object --bucket "$b" --key "choudoufu/_verify/default" >/dev/null 2>&1 || true
+
+    rm -f "$tmp"
+    echo
+    [ "$fail" = "0" ] && echo "bucket $b: hardened" || { echo "bucket $b: NOT hardened"; exit 1; }
+
+# A broken Op should fail here rather than the first time somebody reaches
+# for the approval gate.
+
+# Prove the Ops resolve and lint.
+ops bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant list src
+    RECORD_BUCKET="$b" npx chant lint src
+
+# Governed path: plan through the Op. Read-only, touches no account.
+chant-plan bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant run bucket-plan
+
+# Governed path: apply through the Op, stopping at its approval gate.
+chant-apply bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    RECORD_BUCKET="$b" npx chant run bucket-apply
+
+# Tear it down. Refuses while records are present.
+down bucket="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    n=$(aws s3api list-objects-v2 --bucket "$b" --prefix choudoufu/ \
+        --query 'length(Contents)' --output text 2>/dev/null || echo 0)
+    [ "$n" = "None" ] && n=0
+    if [ "$n" -gt 0 ]; then
+      echo "refusing: $b holds $n record object(s) under choudoufu/."
+      echo "Destroying this bucket destroys an estate's identity for every resource it records."
+      echo "Empty it deliberately first, or pass a different bucket."
+      exit 1
+    fi
+    aws s3api delete-objects --bucket "$b" --delete "$(aws s3api list-object-versions \
+      --bucket "$b" --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' \
+      --output json 2>/dev/null)" >/dev/null 2>&1 || true
+    aws cloudformation delete-stack --stack-name "$b" --region "{{region}}"
+    aws cloudformation wait stack-delete-complete --stack-name "$b" --region "{{region}}"
