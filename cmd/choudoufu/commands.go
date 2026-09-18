@@ -321,6 +321,16 @@ func initCommands(
 			}, nil
 		},
 
+		// GitHub issue #1341: the bucket's true state, whatever the
+		// configuration waives. It is what the runnable bucket project's
+		// `just verify` calls, so the project and the tool share one
+		// definition of a correct bucket.
+		"live-bucket": func() (cli.Command, error) {
+			return &command.LiveBucketCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
