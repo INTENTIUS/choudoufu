@@ -50,10 +50,16 @@ The steps, in the order they print:
    itself, plus a hand-written label and a hand-written annotation
    standing in for every controller that writes one. The plan is empty and
    all three are still on the objects.
-6. `the one difference from stock` - an out-of-band `kubectl label
+6. `a label DELETED from the configuration is removed` - a declared label
+   deleted, proposed for removal, applied, and the hand-written keys from
+   step 5 left where they are. Then the half that matters more: two
+   successive replans, both empty. The same for the last annotation,
+   whose map goes with it.
+7. `the one difference from stock` - an out-of-band `kubectl label
    --overwrite` of a key the configuration *declares*. Stock says
    `No changes.`; choudoufu proposes restoring it. Both answers are
-   printed side by side.
+   printed side by side. It runs last because it leaves the object
+   drifted on purpose.
 
 ## Why it was broken, and it was not the diff
 
@@ -90,20 +96,46 @@ deleting `kubernetes.io/metadata.name`,
 where that is measured rather than assumed, and the `BREAK=1` control is
 the same measurement made to fail.
 
-## The difference from stock, and the gap
+## A key removed from the configuration
 
-Step 6's difference is forced, not chosen. "The configuration was edited"
+Step 6 is the last thing the state file was doing for this type, and it is
+a different question from an edited key. "This configuration used to
+declare `squad`" is not in the configuration - the key is gone from it -
+and it is not on the object either, which holds the label and no memory of
+who asked for it. Stock reads it out of its last-applied manifest. A
+stateless run has to record it, so
+[#1211](https://github.com/INTENTIUS/choudoufu/issues/1211) writes the
+label and annotation keys each apply declared into the estate's own
+residue record - the same record that already carries this type's
+`wait_for_*` arguments - and the removal set is
+`(recorded) \ (currently declared)`.
+
+The obvious alternative was tried first and refuted on a real cluster. The
+object's own `metadata.managedFields` names, per field manager, every
+field that manager last wrote, which sounds like the same set and is not:
+`computed_fields` makes the apply resend every key the object already had,
+foreign ones included, so server-side apply records *this estate* as the
+writer of keys nobody declared. One apply later it owns
+`kubernetes.io/metadata.name`, with no co-owner to filter on, and a
+removal rule built on that set proposes deleting a label the API server
+writes back every time. `managedFields` answers "who wrote this field"
+exactly; the question is "did this configuration declare it". It survives
+as a safety rail - a recorded key is not removed if another manager owns
+it now - and never as the source.
+
+Degradation is toward the quiet answer, never toward churn. No record -
+a fresh clone, an estate migrated before the member existed - proposes
+removing nothing, which is the behaviour before this change. A stale
+record still says what the estate last declared, which is the wanted
+semantic, and a record naming a key the object no longer carries proposes
+nothing either.
+
+## The difference from stock
+
+Step 7's difference is forced, not chosen. "The configuration was edited"
 and "the live object drifted" are the same observation - configuration
 differs from live - unless you have a last-applied value to tell them
 apart. A state file has one; a stateless run does not. So making step 3
-visible necessarily makes step 6 visible. It is the direction #1177 asks
+visible necessarily makes step 7 visible. It is the direction #1177 asks
 for: an out-of-band `kubectl label` on a declared key is exactly the mover
 a saved plan's staleness check has to be able to see, and stock's cannot.
-
-One case is still open. A key *removed* from the configuration is not
-proposed for removal, because nothing in a stateless run remembers it was
-ever applied.
-[#1211](https://github.com/INTENTIUS/choudoufu/issues/1211) carries it,
-with the source that could settle it: the live object's own
-`metadata.managedFields`, which names the keys this fork's field manager
-last wrote.

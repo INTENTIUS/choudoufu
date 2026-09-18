@@ -708,6 +708,15 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				setIdentity                            *identityPayload
 				setResidue                             *residueFields
 				setProv                                *provisionedFields
+
+				// GitHub issue #1211: which metadata.labels and
+				// metadata.annotations keys this apply's manifest
+				// actually declared. Kept beside setResidue rather than
+				// inside it because the two are decided independently -
+				// an instance can have this and no residue attributes at
+				// all, and a kubernetes_manifest with no `timeouts` and
+				// no `field_manager` block is exactly that shape.
+				setManifestKeys map[string][]string
 			)
 
 			schemaPtr, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)
@@ -833,6 +842,24 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					clearResidue = true
 				} else {
 					touched = true
+					// GitHub issue #1211, before the classifier: what
+					// this apply's own `manifest` argument declared at
+					// metadata.labels and metadata.annotations. Read off
+					// the applied object, which for a Required,
+					// non-Computed attribute is the value that was
+					// sent - the stamped configuration, tofu-estate
+					// included.
+					//
+					// Recorded on EVERY apply of a manifest-shaped
+					// instance, including one where nothing about the
+					// metadata moved, because the record is only useful
+					// if it is what the LAST apply declared. Recording
+					// it only when something changed would leave the
+					// first apply's set standing for ever and propose
+					// removing a key a later apply had already removed.
+					if keys, ok := manifestDeclaredKeys(obj.Value); ok {
+						setManifestKeys = keys
+					}
 					candidates := residueCandidates(schema, obj.Value, secrets)
 					pathCandidates := residueLeafPathCandidates(schema, obj.Value, secrets)
 					if len(candidates)+len(pathCandidates) > 0 && req.Providers == nil {
@@ -996,6 +1023,28 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					env.Residue = setResidue
 				case clearResidue:
 					env.Residue = nil
+				}
+				// GitHub issue #1211, after the residue switch because
+				// it writes into whatever that left behind. The two
+				// members of Residue are decided independently: a
+				// classifier that found no residue attribute this pass
+				// must not erase the declared key sets, and a manifest
+				// instance with no residue attributes at all still needs
+				// its key sets written into an envelope the switch above
+				// never allocated.
+				//
+				// A manifest-shaped instance whose keys this pass could
+				// not read (a marked manifest, a manifest that is not an
+				// object) leaves whatever is recorded alone, the same
+				// leave-alone stance the identity arm above takes: the
+				// previous apply's answer is still the best one anybody
+				// has, and clearing it would trade a stale record - which
+				// cannot churn - for no record at all.
+				if len(setManifestKeys) > 0 && !clearResidue {
+					if env.Residue == nil {
+						env.Residue = &residueFields{}
+					}
+					env.Residue.ManifestMetadataKeys = setManifestKeys
 				}
 				switch {
 				case setProv != nil:

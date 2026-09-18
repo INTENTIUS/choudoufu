@@ -301,6 +301,30 @@ type Options struct {
 	// the account is asked for, which is ReadParallelism - and this follows
 	// it.
 	ReadBuffer int
+
+	// ManifestOwnedKeys answers, for one live kubernetes_manifest object,
+	// which metadata.labels and metadata.annotations keys this estate's
+	// own field manager wrote, read from the object's own
+	// metadata.managedFields - GitHub issue #1211's SAFETY RAIL.
+	//
+	// It is never the source of a removal: that is the estate's record
+	// ([residueFields.ManifestMetadataKeys]), for the measured reason
+	// manifestkeys.go's own doc comment gives. This hook only ever
+	// declines a candidate the record already named, so a run without it
+	// is narrower and never wider.
+	//
+	// Supplied by every command that builds a prior state to plan or
+	// apply against (internal/command's live_mode.go and live_plan.go,
+	// through the marker sweep's own cluster clients). Nil is legitimate
+	// for a caller that builds a projection for some other purpose -
+	// internal/live/mv rewrites one marker and plans nothing - and for
+	// every caller that predates this field.
+	//
+	// It is consulted only when a removal candidate exists, so a
+	// converged estate pays no round trip; a candidate that cannot be
+	// confirmed earns [SummaryManifestRemovalUndetectable] rather than
+	// being dropped in silence. See [manifestRemovalKeys].
+	ManifestOwnedKeys ManifestOwnedKeysFunc
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -2193,6 +2217,14 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		attrsSeed:      attrsSeed,
 		attrsSeedMarks: attrsSeedMarks,
 		timeouts:       configuredTimeouts(ctx, seedEval, modPath, rc, schema),
+		// GitHub issue #1211: the record of what this instance's
+		// configuration last declared at metadata.labels and
+		// metadata.annotations, plus the safety rail's hook and the two
+		// addresses its request needs - settled here because this is
+		// where the address and the record store exist and the read has
+		// neither. Nil for every type that is not manifest-shaped, which
+		// is every read that is not a Kubernetes one.
+		manifestKeys: newManifestKeyLookup(schema, addr, providerAddr, b.opts.ManifestOwnedKeys, b.manifestDeclaredKeysFor(ctx, addr, schema)),
 	}
 }
 
@@ -2548,7 +2580,12 @@ func (b *builder) materializeDeposed(ctx context.Context, db DeposedBinding) {
 	}
 
 	w := wanted{addr: addr, importID: db.ImportID, values: db.Components}
-	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil)
+	// No manifest owned-keys lookup (GitHub issue #1211): a deposed
+	// object is on its way to being destroyed whole, so which of its
+	// labels the configuration still declares changes nothing anyone will
+	// act on, and asking the cluster would buy a round trip and a
+	// possible warning for an analysis with no consumer.
+	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil, nil)
 	switch status {
 	case statusAbsent:
 		log.Printf("[TRACE] projection: %s's recorded deposed object %s (%s) no longer exists live; not folded into the projection", addr, db.DeposedKey, traceImportID(typeName, db.ImportID, cty.NilVal))
@@ -3642,7 +3679,7 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -3714,7 +3751,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
-				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, diags)
+				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)
 			}
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
@@ -3764,7 +3801,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		return nil, cty.NilVal, statusAbsent, diags
 	}
 
-	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, diags)
+	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)
 }
 
 // readImported is [importAndRead]'s shared tail: ReadResource against obj,
@@ -3774,7 +3811,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 // path can reach the exact same attribute-seeding, sensitivity-marking and
 // conformance-checking rules an ordinarily-imported instance already gets,
 // with no second copy to drift from the first.
-func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	// GitHub issue #287 item 8 (tags), #395 and #376 (every other
 	// non-Computed attribute - see [configuredAttrsSeed]'s doc comment).
 	// ImportResourceState commonly leaves a non-Computed argument null or
@@ -3872,7 +3909,16 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	// configuration against itself, and neither a stripped marker nor an
 	// edited label ever plans. See mirrorManifestComputedFields's own doc
 	// comment.
-	newVal = mirrorManifestComputedFields(newVal, schema.Block)
+	//
+	// GitHub issue #1211 adds the other half of the mirrored key set: the
+	// keys this estate's own RECORD says it last declared and the
+	// configuration no longer does, which is what remembers a label the
+	// operator deleted. [manifestRemovalKeys] returns nil for a type that
+	// is not manifest-shaped, nil for an instance with no record, and nil
+	// with a warning whenever it found a candidate it will not act on.
+	removed, removedDiags := manifestRemovalKeys(ctx, newVal, manifestKeys)
+	diags = diags.Append(removedDiags)
+	newVal = mirrorManifestComputedFields(newVal, schema.Block, removed)
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.

@@ -161,6 +161,13 @@ type readPrep struct {
 	// read produced, because the private blob is the carrier a destroy
 	// reads its deadline from. See [configuredTimeouts].
 	timeouts map[string]int64
+
+	// manifestKeys is GitHub issue #1211's binding of
+	// [Options.ManifestOwnedKeys] for this instance, or nil when the type
+	// is not manifest-shaped. It is settled here rather than at the read
+	// because the read has neither the instance address nor the provider
+	// configuration in hand. See [manifestKeyLookup].
+	manifestKeys *manifestKeyLookup
 }
 
 // readTerminal is one of [builder.prepareRead]'s four refusals, carried as
@@ -426,6 +433,7 @@ func runReadFetch(ctx context.Context, e *readFetch) {
 	e.obj, e.importStub, e.status, e.diags = importAndRead(
 		ctx, p.entry.provider, p.schema, e.want.addr.Resource.Resource.Type,
 		p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
+		p.manifestKeys,
 	)
 }
 
