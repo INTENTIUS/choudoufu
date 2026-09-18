@@ -251,6 +251,9 @@ not_implemented() {
 # JSON=1 run still emits its (empty-steps) JSON object on a SKIP exit, not
 # only on PASS/FAIL. Guarded on $WORK so it is safe to fire before WORK is
 # assigned below.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/gauntlet.sh"
+
 on_exit() {
   # Capture the real exit status BEFORE running anything else in this trap,
   # and restore it via an explicit `exit` at the end: an EXIT trap's own
@@ -259,7 +262,7 @@ on_exit() {
   # itself exit nonzero, and clobber a real PASS, whenever --json is off.
   local rc=$?
   if [ -n "${WORK:-}" ]; then
-    docker rm -f "${FLOCI_NAME:-}" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "${FLOCI_NAME:-}"
     rm -rf "$WORK"
   fi
   if [ "$JSON_MODE" -eq 1 ]; then
@@ -712,7 +715,7 @@ echo "  LIVE_E2E_EXACTNESS: $LIVE_E2E_EXACTNESS"
 # `:latest` so a later push to the fork's main cannot silently change what
 # this harness runs against; FLOCI_IMAGE overrides it (see the header).
 echo "=== 1. Floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "floci" "docker run for $FLOCI_NAME failed"
 # Captured before grep, not "curl | grep -q": grep -q exits (and closes its
 # stdin) the instant it finds a match, same early-exit-consumer shape as the

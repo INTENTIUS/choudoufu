@@ -161,7 +161,7 @@ EOF
   fi
 
   if [ "$TARGET" = "floci" ]; then
-    docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "$FLOCI_NAME"
   fi
   rm -rf "$WORK"
 }
@@ -223,7 +223,7 @@ fi
 # ── 0b. the endpoint ────────────────────────────────────────────────────
 if [ "$TARGET" = "floci" ]; then
   log "=== 0b. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-  docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
     || fail "docker run for $FLOCI_NAME failed"
   healthy=0
   for _ in $(seq 1 45); do

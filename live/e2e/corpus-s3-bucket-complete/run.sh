@@ -275,7 +275,7 @@ REGION="eu-west-1" # matches the example's own locals.region, unmodified
 ESTATE_NAME="s3-bucket-complete"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME"
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -415,7 +415,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "http://127.0.0.1:${FLOCI_PORT}/_localstack/health" 2>/dev/null)" || true
@@ -518,7 +518,7 @@ floci_launch_retry() {
   local name="$1" portvar="$2" tries=0 port out
   while :; do
     port=$((20000 + RANDOM % 20000))
-    out="$(docker run -d --rm -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    out="$(docker run -d -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
     tries=$((tries + 1))
     grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
     [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }
@@ -820,7 +820,7 @@ log "  stock: exactly one create (count_test[1], same deterministic bucket name,
 ORACLE_COUNT_SHAPE="destroy the higher index only (0 add, 0 change, 1 destroy), recreate it under the same deterministic bucket name but a new CreationDate ($OC_CT1_CREATED -> $OC_CT1_NEW), index 0's CreationDate ($OC_CT0_CREATED) unchanged at both steps"
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 
 # day2_remove's stock oracle (live/GAUNTLET.md #7), computed here, before
 # migrate/rename/drift ever write a single live tag: a throwaway copy of

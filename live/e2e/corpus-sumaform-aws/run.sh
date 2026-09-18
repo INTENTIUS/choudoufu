@@ -511,7 +511,7 @@ else
 fi
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" "$FLOCI_COUNT_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" "$FLOCI_COUNT_NAME"
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -792,7 +792,7 @@ EOF
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -1024,9 +1024,9 @@ gauntlet_stage cold_deploy pass "11 managed resource instances, genuinely cold, 
 gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for ep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   H=""
@@ -1187,9 +1187,9 @@ OINST="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-i
 log "  vpc cidr, security-group rule counts, and the instance's ami+type match between the greenfield estate and the stock oracle in its own namespace"
 gauntlet_stage greenfield pass "11 resources from nothing (7 tag-stamped, 2 recorded via markers = record, 2 untaggable/derived - route_table_association and volume_attachment), replan empty, stock oracle in its own namespace matches on vpc cidr, security-group rule counts and the instance's ami+type"
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 ) || log "  PART GREENFIELD did not clear (see the FAIL line and the greenfield stage=fail line above) - continuing to stage 2 onward, which does not depend on it"
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 gauntlet_end_stage
 
 gauntlet_begin_stage day2_rename
@@ -2135,7 +2135,7 @@ gauntlet_stage day2_replace pass "choudoufu: changing module.server's image inpu
 
 gauntlet_begin_stage day2_count
 log "=== G-ORACLE. stock: the same two-instance count block, stood up for real in its own idle account ==="
-docker run -d --rm -p "${FLOCI_COUNT_PORT}:4566" --name "$FLOCI_COUNT_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_COUNT_PORT}:4566" --name "$FLOCI_COUNT_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_COUNT_NAME (the day2_count stock oracle's own account) failed"
 for _ in $(seq 1 45); do
   COUNT_HEALTH="$(curl -fs "${COUNT_ORACLE_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -2208,7 +2208,7 @@ CO_SG1_NEW="$(awsc ec2 describe-security-groups --filters "Name=tag:Name,Values=
 CO_SG0_AFTER_UP="$(awsc ec2 describe-security-groups --group-ids "$CO_SG0" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
 [ "$CO_SG0_AFTER_UP" = "$CO_SG0" ] || fail "stock's count_test[0] changed id across the scale-up ($CO_SG0 -> $CO_SG0_AFTER_UP)"
 log "  stock: exactly one create (count_test[1] back under a NEW id $CO_SG1_NEW, was $CO_SG1), count_test[0]=$CO_SG0 unchanged throughout"
-docker rm -f "$FLOCI_COUNT_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_COUNT_NAME"
 
 log "=== G0. choudoufu: add aws_security_group.count_test, count = 2 (its own file, count_test.tf) ==="
 count_test_block 2 "aws_vpc.crossing.id" > "$ESTATE/count_test.tf"

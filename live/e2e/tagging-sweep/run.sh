@@ -117,8 +117,11 @@ KEEPER_ROLE="tagging-sweep-e2e-keeper"
 # the point.
 TAGGING_LOG="aws_iam_role \"$DEMO_ROLE\" came back from the list call with no ownership marker; joined one from the estate's tag index"
 
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -147,7 +150,7 @@ fi
 
 # ── 1. floci ────────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   # Captured, then matched: `curl | grep -q` lets grep close the pipe the

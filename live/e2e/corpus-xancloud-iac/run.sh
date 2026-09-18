@@ -290,7 +290,7 @@ NAME_PREFIX="${PROJECT}-${ENVIRONMENT}"
 VPC_NAME="${NAME_PREFIX}-main-vpc"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME"
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -546,7 +546,7 @@ log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added t
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -629,7 +629,7 @@ gauntlet_stage cold_deploy pass "28 resources, genuinely cold, genuinely unmarke
 # start, no migration, no state file ever existing.
 gauntlet_begin_stage greenfield
 log "=== PART F: 0. a second floci, a genuinely empty namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GREEN_HEALTH=""
 for _ in $(seq 1 45); do
@@ -725,7 +725,7 @@ PLAIN_ALIAS="$(awsl iam list-account-aliases --query 'AccountAliases[0]' --outpu
 log "  matches stock's cold deploy: CIDR, $GREEN_SUBNET_N subnets, $GREEN_NAT_N NAT gateway, $GREEN_VPCE_N VPC endpoints, account alias $GREEN_ALIAS - read via the AWS CLI on both endpoints, tags normalised out"
 gauntlet_stage greenfield pass "28 resources from nothing (matching stage 1's stock cold-deploy count exactly), all markers verified via the AWS CLI, 28 records in the local record store (#364 A2), replan empty, object-by-object comparison against stock's still-pristine cold deploy on \$ENDPOINT matches on tagged-object count ($GREEN_TAGGED_N), VPC CIDR, subnet/NAT-gateway/VPC-endpoint counts and account alias"
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)

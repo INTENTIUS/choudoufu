@@ -149,8 +149,11 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 ESTATE="govuk-root-dns-crossing"
 REGION="eu-west-1"
 
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -222,7 +225,7 @@ log "           OWN tfe_outputs read both stay at 0 instances"
 
 # ── 2. floci ────────────────────────────────────────────────────────────────
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true

@@ -206,7 +206,7 @@ REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME"
   rm -rf "$WORK"
 }
 # 2026-08-21 fix: the header documents DEBUG_KEEP but the trap never
@@ -270,7 +270,7 @@ gauntlet_pin_aws_provider "$EX/versions.tf" || fail "gauntlet_pin_aws_provider f
 log "  DELTA  emulator flags added to the provider block; aws provider pinned via gauntlet_pin_aws_provider; no backend, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -536,7 +536,7 @@ EOF
 }
 
 log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and back, in a dedicated always-idle account ==="
-docker run -d --rm -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
 COUNT_ORACLE_HEALTH=""
 for _ in $(seq 1 45); do
@@ -606,7 +606,7 @@ ORACLE_CT0_ID_AFTER_UP="$(awso dynamodb describe-table --table-name dynamodb-cou
 [ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed TableId across the scale-up"
 log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from region+account+name - but a NEW TableId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
 
-docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_COUNT_ORACLE_NAME"
 gauntlet_end_stage
 
 gauntlet_begin_stage migrate
@@ -1508,9 +1508,9 @@ EOF
 # a path a from-nothing apply never takes.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm -p "${FLOCI_GREEN_ORACLE_PORT}:4566" --name "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_ORACLE_PORT}:4566" --name "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$GREEN_ORACLE_ENDPOINT"; do
   GH=""
@@ -1569,7 +1569,7 @@ if [ $? -ne 0 ]; then
     # order" item 3).
     gauntlet_stage greenfield fail "the greenfield apply refuses module.dynamodb_table.aws_dynamodb_resource_policy.this[0]'s resource_arn = aws_dynamodb_table.this[0].arn with \"Not an identity attribute\": the table's OWN identity (name) is itself a formula still waiting on random_pet.this (a record-backed sibling), so it is not yet ClassConcrete/ClassNeedsDiscovery/ClassRecordBacked when the resource policy tries to read its non-identity arn attribute, and internal/live/identity/resolve.go's deferrable check does not cover a parent whose own identity is still a pending formula. Stock proceeds fine (its dependency graph creates the table, then the policy, using the table's real post-apply arn) - choudoufu refuses where stock proceeds (row 1), a real engine gap tracked for #388's plan-node seam, not fixed in this script-only pass. cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked in the same run, see the earlier GAUNTLET stage= lines)"
     gauntlet_end_stage
-    docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME"
     SKIP_GREENFIELD_REST=1
   else
     fail "the greenfield apply failed"
@@ -1656,7 +1656,7 @@ else
 fi
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME"
 fi
 
 

@@ -322,7 +322,7 @@ REGION="eu-west-1"
 TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -394,7 +394,7 @@ log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: ch
 
 # ── 1. floci ────────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -445,9 +445,9 @@ gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 
 gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for ep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   H=""
@@ -598,9 +598,9 @@ OEP="$(aws --endpoint-url "$ORACLE_ENDPOINT" --region "$REGION" ec2 describe-vpc
 log "  vpc cidr, subnet count ($GSUBNETS), and the s3 endpoint's presence match between the greenfield estate and the stock oracle in its own namespace"
 gauntlet_stage greenfield pass "$INSTANCES resources from nothing ($TAGGABLE tag-stamped, $UNTAGGABLE untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count ($GSUBNETS) and the s3 endpoint's presence"
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 ) || log "  PART GREENFIELD did not clear (see the FAIL line and the greenfield stage=fail line above) - continuing to stage 2 onward, which does not depend on it"
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
 gauntlet_end_stage
 
 gauntlet_begin_stage day2_rename
@@ -1498,7 +1498,7 @@ log "=== G-ORACLE. day2_count stock oracle: the identical count block, stood up 
 # GREENFIELD removes both of its containers), but this takes its own port and
 # its own name so the stage does not depend on that section having run, let
 # alone having passed.
-docker run -d --rm -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
 COH=""
 for _ in $(seq 1 45); do
@@ -1602,7 +1602,7 @@ G_ORACLE_CGW1_NEW="$(awso ec2 describe-customer-gateways --filters "Name=tag:Nam
 G_ORACLE_CGW0_AFTER_UP="$(awso ec2 describe-customer-gateways --customer-gateway-ids "$G_ORACLE_CGW0" --query "CustomerGateways[0].CustomerGatewayId" --output text 2>/dev/null || true)"
 [ "$G_ORACLE_CGW0_AFTER_UP" = "$G_ORACLE_CGW0" ] || fail "stock's count_test[0] changed id across the scale-up ($G_ORACLE_CGW0 -> $G_ORACLE_CGW0_AFTER_UP)"
 log "  stock: exactly one create (count_test[1], new id $G_ORACLE_CGW1_NEW, was $G_ORACLE_CGW1), count_test[0]=$G_ORACLE_CGW0 unchanged throughout"
-docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_COUNT_ORACLE_NAME"
 
 log ""
 log "=== G0. choudoufu: add aws_customer_gateway.count_test, count = 2 ==="

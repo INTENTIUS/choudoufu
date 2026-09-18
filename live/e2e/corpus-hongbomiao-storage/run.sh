@@ -179,7 +179,7 @@ KMS_KEY_NAME="${ESTATE_NAME}-hm-kafka-kms-key"
 KMS_ALIAS_NAME="alias/${KMS_KEY_NAME}"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}"
   rm -rf "$WORK"
 }
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
@@ -333,7 +333,7 @@ log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added)"
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -519,7 +519,7 @@ FLOCI_GREEN_NAME="choudoufu-corpus-hongbomiao-storage-green-$$"
 GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 GREEN_ESTATE_NAME="hongbomiao-storage-greenfield"
 
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 for _ in $(seq 1 45); do
   GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -766,7 +766,7 @@ ORACLE_CT0_CREATED_AFTER_UP="$(awslg s3api list-buckets --query "Buckets[?Name==
 log "  stock: exactly one create (count_test[1], same bucket name - deterministic - but a NEW CreationDate $ORACLE_CT1_NEW_CREATED, was $ORACLE_CT1_CREATED), count_test[0]=$ORACLE_CT0_NAME unchanged throughout"
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
