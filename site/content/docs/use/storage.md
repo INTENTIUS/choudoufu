@@ -81,7 +81,7 @@ the backend.
 | Backend | Where it writes | Arguments |
 |---|---|---|
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
-| `ssm` | SSM Parameter Store, under a prefix derived from the estate name | `key_prefix`, `region` |
+| `ssm` | SSM Parameter Store, under a prefix derived from the estate name | `key_prefix`, `region`, `tier` |
 | `s3` | An S3 bucket you already own | `bucket` (required), `key_prefix`, `region` |
 
 Three things to know first, and then the one that decides where the store
@@ -126,6 +126,52 @@ sits and who already holds a key to that place.
 protection is a `.gitignore` line. `ssm` and `s3` put them in a live AWS
 account, under that account's access controls rather than yours, and the
 residue outlives the estate that wrote it, which is the next section.
+
+### How many records a backend can hold
+
+`local` and `s3` have no practical ceiling: a local store is bounded by the
+filesystem, and an S3 bucket has no object-count limit.
+
+`ssm` does, and it is a hard one. SSM Parameter Store allows **10,000 standard
+parameters per account per region** - Service Quotas `L-C3B871CB`, listed
+`Adjustable: False`, so a support request cannot raise it. One record is one
+parameter, and the ceiling counts every parameter in the account and region,
+including ones choudoufu never wrote. An estate of ten thousand resources does
+not fit, and no amount of retrying changes that.
+
+A plan checks this before it writes anything. An estate with more records than
+the tier allows is refused by name, with the count, the ceiling and the tier in
+the message. An estate above nine tenths of the ceiling gets a warning instead,
+because whether it fits depends on what else is already in the account, and the
+plan does not spend a full `DescribeParameters` sweep finding that out.
+
+The `tier` argument is how you raise it.
+
+```hcl
+record_store "ssm" {
+  tier = "intelligent_tiering"
+}
+```
+
+| `tier` | Records | Value size | Cost |
+|---|---|---|---|
+| unset (the default) | Whatever the account's own default-tier configuration allows, 10,000 unless it has been changed | 4KB | None |
+| `"standard"` | 10,000 | 4KB | None |
+| `"advanced"` | 100,000 | 8KB | Billed per parameter per month |
+| `"intelligent_tiering"` | 100,000 | 8KB where needed | Billed only for the parameters past 10,000 |
+
+Unset is not the same as `"standard"`. It sends no tier at all, so the
+account's own default-tier setting decides - which is what every run before
+this argument existed did. Setting `"standard"` pins the tier against an
+account default of advanced or intelligent tiering.
+
+Two things to know before choosing `"advanced"`: it bills every parameter,
+including the first one, and an advanced parameter cannot be reverted to a
+standard one, because the revert would truncate an 8KB value to 4KB.
+`"intelligent_tiering"` reaches the same ceiling and charges only for what
+crosses 10,000, which is usually the one you want.
+
+An estate too large for even the advanced tier has no SSM answer. Use `s3`.
 
 ### Nothing cleans the store up
 
@@ -189,7 +235,11 @@ fine and nothing else needs to read it. Gitignore `.tofu-records/`.
 
 `ssm` when more than one machine runs the estate. No infrastructure to set up,
 since Parameter Store already exists in the account. Scope `ssm:GetParameter`
-on the prefix the way you would scope read access to a state file.
+on the prefix the way you would scope read access to a state file. Check the
+size of the estate against
+[how many records a backend can hold](#how-many-records-a-backend-can-hold)
+first: the standard tier stops at 10,000 records for the whole account and
+region, and that is not adjustable.
 
 `s3` to keep records in a bucket you already operate, with your own versioning
 and lifecycle rules. You create and configure the bucket. choudoufu only reads

@@ -61,6 +61,40 @@ import (
 // even detected after the fact. Teams that need real delete CAS want
 // [S3Store].
 //
+// # Capacity: the ceiling this backend cannot be argued past
+//
+// Parameter Store bounds three separate things, and every one of them is
+// a hard product limit rather than a quota an account can ask to have
+// raised. Quoted from aws-sdk-go-v2/service/ssm@v1.62.0's own
+// PutParameterInput documentation, which is the authority this fork reads:
+//
+//   - HOW MANY. "You can create a maximum of 10,000 standard parameters
+//     for each Region in an Amazon Web Services account", against 100,000
+//     for advanced ones. That is Service Quotas' L-C3B871CB, listed
+//     Adjustable: False. One record is one parameter, so the standard
+//     tier's ceiling is 10,000 records per ACCOUNT per REGION — shared
+//     with every other estate, and with every parameter nothing in this
+//     fork wrote. See [SSMTier] for which tier this store writes in and
+//     [SSMTierCapacity] for the number each one allows.
+//   - HOW LONG A NAME. A parameter name is at most 1,011 characters
+//     INCLUDING the roughly 45-character
+//     "arn:aws:ssm:<region>:<account>:parameter" prefix AWS prepends, with
+//     a hierarchy of at most fifteen "/"-delimited levels (GitHub issue
+//     #1283 measured both against this same SDK version).
+//     internal/live/projection chunks its record keys to stay inside
+//     that; see its RecordKey.
+//   - HOW BIG A VALUE. 4KB for a standard parameter, 8KB for an advanced
+//     one. This store base64-encodes payload, which costs a further 4/3,
+//     so the usable payload is about 3KB and 6KB respectively.
+//
+// None of the three is enforced here, and the first one deliberately so.
+// A capacity check belongs where the count is known BEFORE anything is
+// written — internal/live/projection's CheckRecordCapacity, called at plan
+// time — because a check on the way past parameter 10,000 fires inside an
+// apply that has already written 9,999 records and half-created an estate.
+// What this file owns is the numbers: [SSMStandardParameterLimit] and its
+// neighbours.
+//
 // # Payload encoding
 //
 // Parameter Store values are UTF-8 strings, not bytes, so this store
@@ -83,6 +117,7 @@ import (
 type SSMStore struct {
 	client    *ssm.Client
 	keyPrefix string
+	tier      SSMTier
 }
 
 // SSMConfig configures an [SSMStore].
@@ -106,6 +141,18 @@ type SSMConfig struct {
 	// feeding that namespace here as well wrote every record one level
 	// deeper than the configuration named (issue #916).
 	KeyPrefix string
+
+	// Tier is the Parameter Store tier every parameter this store writes
+	// is created in, and the thing that decides whether the backend can
+	// hold 10,000 records or 100,000 of them.
+	//
+	// The zero value, [SSMTierUnset], sends no Tier at all and is the only
+	// default there can be: PutParameter with no Tier defers to the
+	// account's own default-tier configuration, so naming a tier here by
+	// default would silently override a choice made outside this tool, and
+	// naming "advanced" by default would silently start billing per
+	// parameter per month. See [SSMTier].
+	Tier SSMTier
 }
 
 // NewSSMStore builds an [SSMStore] from cfg.
@@ -113,11 +160,35 @@ func NewSSMStore(cfg SSMConfig) (*SSMStore, error) {
 	if cfg.Client == nil {
 		return nil, fmt.Errorf("staterecord: ssm: Client must not be nil")
 	}
+	if !cfg.Tier.Known() {
+		return nil, fmt.Errorf("staterecord: ssm: unknown parameter tier %q; valid tiers are %s", string(cfg.Tier), strings.Join(SSMTierNames(), ", "))
+	}
 	prefix := strings.TrimSuffix(cfg.KeyPrefix, "/")
 	if prefix != "" && !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
-	return &SSMStore{client: cfg.Client, keyPrefix: prefix}, nil
+	return &SSMStore{client: cfg.Client, keyPrefix: prefix, tier: cfg.Tier}, nil
+}
+
+// Tier is the [SSMTier] this store writes its parameters in, as
+// [SSMConfig.Tier] named it. Exported for the same reason
+// [SSMStore.ParameterName] is: the tier decides both how many records the
+// backend can hold and what the account is billed, and neither is visible
+// from a round trip through this package, which agrees with itself in
+// every tier.
+func (s *SSMStore) Tier() SSMTier {
+	return s.tier
+}
+
+// Capacity is how many parameters this store's region and account may hold
+// in total, at the tier it writes in — [SSMTierCapacity] of [SSMStore.Tier].
+//
+// It is an account-and-region ceiling, not this store's own budget: every
+// parameter in the same account and region counts against it, including
+// ones no estate here wrote. So it is an upper bound on what this store can
+// hold and never a promise that it can hold that many.
+func (s *SSMStore) Capacity() int {
+	return SSMTierCapacity(s.tier)
 }
 
 // parameterName joins s.keyPrefix and key into the parameter name sent to
@@ -177,6 +248,7 @@ func (s *SSMStore) PutIfAbsent(ctx context.Context, key string, payload []byte) 
 		Name:      aws.String(s.parameterName(key)),
 		Value:     aws.String(base64.StdEncoding.EncodeToString(payload)),
 		Type:      types.ParameterTypeString,
+		Tier:      s.tier.parameterTier(),
 		Overwrite: aws.Bool(false),
 	})
 	if err != nil {
@@ -235,6 +307,7 @@ func (s *SSMStore) PutIfVersion(ctx context.Context, key string, payload []byte,
 		Name:      aws.String(s.parameterName(key)),
 		Value:     aws.String(base64.StdEncoding.EncodeToString(payload)),
 		Type:      types.ParameterTypeString,
+		Tier:      s.tier.parameterTier(),
 		Overwrite: aws.Bool(true),
 	})
 	if err != nil {

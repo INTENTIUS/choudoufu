@@ -1031,6 +1031,25 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		return nil, diags
 	}
 
+	// GitHub issue #1146's record-store ceiling, checked at the first point
+	// where the estate's instance count is settled. It is later in this
+	// function than live-plan's copy, because here the store is opened
+	// before resolution runs - so the store's one provisioning sentinel is
+	// already written by now. Every RECORD is still ahead: the write-back
+	// that persists one per instance runs after the apply, and this returns
+	// before the plan is built. Refusing here is the difference between a
+	// run that changes nothing and an apply that writes ten thousand
+	// records, creates live resources, and then hits a wall no retry can
+	// move.
+	if config.Module != nil {
+		capDiags := statelessRecordCapacity(config.Module.Live, resolutions.All(), scope)
+		diags = diags.Append(capDiags)
+		if capDiags.HasErrors() {
+			diags = diags.Append(provs.close(ctx))
+			return nil, diags
+		}
+	}
+
 	// GitHub issue #313's provider-configuration dependency-order fixpoint,
 	// now that resolution has settled: a provider block whose own arguments
 	// read a data source - which may itself read a managed resource this

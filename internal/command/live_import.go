@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -169,6 +170,29 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		recordStoreCfg = config.Module.Live.RecordStore
 		retryCfg = config.Module.Live.Retry
 	}
+	// GitHub issue #1146's record-store ceiling. This is the migration
+	// path, so the count is not an estimate: one record per managed
+	// instance in the state file being migrated, and this runs before
+	// NewRecordStore below - which means before the store's provisioning
+	// sentinel, and so before this command writes anything at all.
+	//
+	// Deposed objects are excluded because they share their address's
+	// envelope rather than getting one of their own, the same rule
+	// projection's write-back loops follow.
+	if recordStoreCfg != nil {
+		migrating := 0
+		for _, entry := range stateFile.State.AllResourceInstanceObjectAddrs() {
+			if entry.DeposedKey == states.NotDeposed {
+				migrating++
+			}
+		}
+		capDiags := projection.CheckRecordCapacity(recordStoreCfg, migrating)
+		diags = diags.Append(capDiags)
+		if capDiags.HasErrors() {
+			return nil, closer, diags
+		}
+	}
+
 	// GitHub issue #364: one store now for GitHub issue #340's record-backed
 	// half (a record-backed resource's whole object lives directly under
 	// projection.RecordKey, and a migration is the only thing that can seed
