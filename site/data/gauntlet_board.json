@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
-  "banner": "Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 6 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T03:01:16Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h36m14.3s, but not from one sweep: 7m0.5s across 1 estate(s) at commit `002c29c496`; 31m53.3s across 1 estate(s) at commit `060c44e741`; 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h17m21.2s across 24 estate(s) at commit `3bca740259`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 20m15.7s across 2 estate(s) at commit `f9f9ad48be`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 24 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 6 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (current pin), 1 against `ghcr.io/lex00/floci@sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb` (last_run.date ranges from 2026-09-08T22:17:50Z to 2026-09-18T03:13:57Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h36m45.9s, but not from one sweep: 31m53.3s across 1 estate(s) at commit `060c44e741`; 5m7.7s across 1 estate(s) at commit `06cdbd3f9f`; 2h17m21.2s across 24 estate(s) at commit `3bca740259`; 27m47.8s across 3 estate(s) at commit `914b9236da`; 10m13.5s across 1 estate(s) at commit `933618dec4`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "stage_count": 14,
   "stages": [
     {
@@ -3616,17 +3616,17 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "9m21.1s",
-      "runtime_cells": "cold_deploy 2m18s, migrate 4s, test_plan 11s, test_apply 12s, drift_reconverge 22s, day2_rename 23s, day2_remove 32s, day2_count 1m6s, day2_crash 1m18s, day2_teardown 37s, plan_approval 32s, greenfield 1m21s, strict 24s",
-      "last_run_note": "Last run at commit `f9f9ad48be` on 2026-09-18T01:08:29Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 9m21.1s.",
+      "runtime_total": "9m39.6s",
+      "runtime_cells": "cold_deploy 2m39s, migrate 4s, test_plan 11s, test_apply 11s, drift_reconverge 23s, day2_rename 23s, day2_remove 32s, day2_count 1m7s, day2_crash 1m17s, day2_teardown 37s, plan_approval 32s, greenfield 1m18s, strict 25s",
+      "last_run_note": "Last run at commit `914b9236da` on 2026-09-18T03:13:57Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 9m39.6s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m18s",
-          "detail": "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind v1.36.1; a real terraform.tfstate with 26 instances, zero tofu-estate labels, 8 pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
+          "duration": "2m39s",
+          "detail": "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind v1.36.1; a real terraform.tfstate with 26 instances, zero tofu-estate labels, 9 pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
           "id": "migrate",
@@ -3646,14 +3646,14 @@
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "12s",
+          "duration": "11s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=corpus-quickpizza unchanged at 26 across eight kinds, counted with kubectl"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "22s",
+          "duration": "23s",
           "detail": "the alloy-config ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map_v1.alloy_config (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the config reads back as the file the root ships. BREAK=1 tampers postgres-init-script too and the single-object assertion correctly fails"
         },
         {
@@ -3674,7 +3674,7 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "1m6s",
+          "duration": "1m7s",
           "detail": "a two-instance count ConfigMap added beside the published root (the estate's own shape has no count block): scaling 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.orphan_quickpizza_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
@@ -3687,7 +3687,7 @@
           "id": "day2_crash",
           "title": "Crash mid-apply",
           "verdict": "pass",
-          "duration": "1m18s",
+          "duration": "1m17s",
           "detail": "a pair of ConfigMaps added beside the published root (the estate's own shape has no two objects with an edge between them to be caught halfway through): the apply creating both was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=corpus-quickpizza and crash-second does not. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, and the plan after it is empty. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files 25 -\u003e 26) for kubernetes_secret_v1.crash_first carrying residue wait_for_service_account_token, and taking that one file out of the store and replanning from the identical position turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) records nothing, which is the whole of the 25 -\u003e 25 #1188 measured here. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
         },
         {
@@ -3708,14 +3708,14 @@
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m21s",
+          "duration": "1m18s",
           "detail": "the published root applied fresh with a live block and no terraform.tfstate: 26 objects, every one labelled tofu-estate=corpus-quickpizza (kubectl, eight kinds); the record store held 24 file(s); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed Plan: 0 to add, 18 to change, 0 to destroy: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and 18 in-place update(s) putting back the residue the store held (wait_for_load_balancer wait_for_rollout wait_for_service_account_token); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap and Secret keys, every Service's ports and selector, every Deployment's replicas, containers and service account, the StatefulSet's containers and claim, the ClusterRoleBinding's role and subjects, the namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the StatefulSet from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "24s",
+          "duration": "25s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
@@ -3745,23 +3745,23 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "7m0.5s",
-      "runtime_cells": "cold_deploy 1m1s, migrate 4s, test_plan 10s, test_apply 10s, drift_reconverge 21s, day2_rename 21s, day2_remove 31s, day2_count 52s, day2_crash 1m14s, day2_teardown 23s, plan_approval 31s, greenfield 1m3s, strict 19s",
-      "last_run_note": "Last run at commit `002c29c496` on 2026-09-18T00:43:51Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 7m0.5s.",
+      "runtime_total": "7m9.9s",
+      "runtime_cells": "cold_deploy 1m11s, migrate 3s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 31s, day2_count 52s, day2_crash 1m14s, day2_teardown 23s, plan_approval 31s, greenfield 1m3s, strict 18s",
+      "last_run_note": "Last run at commit `914b9236da` on 2026-09-18T03:13:57Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 7m9.9s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m1s",
+          "duration": "1m11s",
           "detail": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.36.1, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "4s",
+          "duration": "3s",
           "detail": "7 of 7 stamped, 0 skipped; every object carries tofu-estate=reference-k8s, read back with kubectl"
         },
         {
@@ -3775,7 +3775,7 @@
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "11s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the six kinds the count covers, counted with kubectl"
         },
         {
@@ -3844,7 +3844,7 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "19s",
+          "duration": "18s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
@@ -4003,16 +4003,16 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "10m54.6s",
-      "runtime_cells": "cold_deploy 1m34s, migrate 3s, test_plan 10s, test_apply 11s, drift_reconverge 22s, day2_rename 21s, day2_remove 1m23s, day2_count 52s, day2_crash 1m14s, day2_teardown 1m56s, plan_approval 31s, greenfield 1m13s, strict 1m4s",
-      "last_run_note": "Last run at commit `f9f9ad48be` on 2026-09-18T00:58:11Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 10m54.6s.",
+      "runtime_total": "10m58.3s",
+      "runtime_cells": "cold_deploy 1m40s, migrate 3s, test_plan 11s, test_apply 11s, drift_reconverge 21s, day2_rename 21s, day2_remove 1m23s, day2_count 53s, day2_crash 1m14s, day2_teardown 1m56s, plan_approval 31s, greenfield 1m19s, strict 55s",
+      "last_run_note": "Last run at commit `914b9236da` on 2026-09-18T03:13:57Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. Total run time 10m58.3s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m34s",
+          "duration": "1m40s",
           "detail": "14 objects over eight kinds (namespace, ServiceAccount, Secret, 4 ConfigMaps, 2 headless Services and a ClusterIP one, 2 StatefulSets, a Deployment, a PodDisruptionBudget) from plain terraform against kind v1.36.1, a real terraform.tfstate with 14 instances, zero tofu-estate labels read back with kubectl. The two volume_claim_templates produced 3 PVCs nobody declared, all Bound on kind's own standard class (rancher.io/local-path, WaitForFirstConsumer, reclaim Delete) with no StorageClass in the root, and stock's state holds none of them; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
@@ -4026,7 +4026,7 @@
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "11s",
           "detail": "the plan with no state file is empty; all 14 identities (NAMESPACE/NAME) confirmed present with kubectl across eight kinds"
         },
         {
@@ -4040,7 +4040,7 @@
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "22s",
+          "duration": "21s",
           "detail": "one ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map_v1.api (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the value reads back as configured. Neither the shard ConfigMaps nor any of the three undeclared PVCs was proposed. BREAK=1 tampers a second object and the single-object assertion correctly fails"
         },
         {
@@ -4061,7 +4061,7 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "52s",
+          "duration": "53s",
           "detail": "scaling kubernetes_config_map_v1.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.orphan_refk8sst_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
@@ -4095,14 +4095,14 @@
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m13s",
+          "duration": "1m19s",
           "detail": "14 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s-stateful (kubectl, eight kinds) and none of the three PVCs; the record store held 11 file(s); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed Plan: 0 to add, 6 to change, 0 to destroy: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and 6 in-place update(s) putting back the residue the store held (wait_for_load_balancer wait_for_rollout wait_for_service_account_token); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory matches stock's cold deploy on the same cluster object by object, labels never compared - ConfigMap and Secret data, each Service's headless-ness, ports and selector, both StatefulSets' replicas, serviceName, containers and volume_claim_templates (claim-template labels included), the Deployment, the PodDisruptionBudget, and the three controller-created PVCs with their merged labels, absent ownerReferences and pvc-protection finalizer. BREAK=1 drops the redis StatefulSet from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "1m4s",
+          "duration": "55s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]

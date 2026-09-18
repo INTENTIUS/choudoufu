@@ -2680,63 +2680,63 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_count": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_crash": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_remove": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_rename": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_teardown": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "drift_reconverge": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "greenfield": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "migrate": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "plan_approval": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "strict": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "test_apply": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "test_plan": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T01:08:29Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-        "date": "2026-09-18T01:08:29Z",
+        "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+        "date": "2026-09-18T03:13:57Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -2744,7 +2744,7 @@
         },
         "exit_code": 0,
         "detail": {
-          "cold_deploy": "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind v1.36.1; a real terraform.tfstate with 26 instances, zero tofu-estate labels, 8 pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle",
+          "cold_deploy": "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind v1.36.1; a real terraform.tfstate with 26 instances, zero tofu-estate labels, 9 pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle",
           "day2_count": "a two-instance count ConfigMap added beside the published root (the estate's own shape has no count block): scaling 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.orphan_quickpizza_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
           "day2_crash": "a pair of ConfigMaps added beside the published root (the estate's own shape has no two objects with an edge between them to be caught halfway through): the apply creating both was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=corpus-quickpizza and crash-second does not. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, and the plan after it is empty. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files 25 -> 26) for kubernetes_secret_v1.crash_first carrying residue wait_for_service_account_token, and taking that one file out of the store and replanning from the identical position turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) records nothing, which is the whole of the 25 -> 25 #1188 measured here. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails",
           "day2_remove": "deleting kubernetes_cluster_role_binding_v1.alloy's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's orphan address kubernetes_cluster_role_binding_v1.orphan_alloy - a cluster-scoped object found by its label, which carries no address - applied cleanly, the object gone (kubectl get clusterrolebinding: NotFound), the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployments' ReplicaSets and Pods and the StatefulSet's Pod and PVC, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed",
@@ -2758,20 +2758,20 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=corpus-quickpizza unchanged at 26 across eight kinds, counted with kubectl",
           "test_plan": "the plan with no state file is empty; a representative set of identities (the namespace, two Deployments, the StatefulSet, a Service, a ConfigMap, a Secret, the ServiceAccount, the ClusterRoleBinding) confirmed present by NAMESPACE/NAME with kubectl"
         },
-        "duration_s": 561.1,
+        "duration_s": 579.6,
         "stage_seconds": {
-          "cold_deploy": 138,
-          "day2_count": 66,
-          "day2_crash": 78,
+          "cold_deploy": 159,
+          "day2_count": 67,
+          "day2_crash": 77,
           "day2_remove": 32,
           "day2_rename": 23,
           "day2_teardown": 37,
-          "drift_reconverge": 22,
-          "greenfield": 81,
+          "drift_reconverge": 23,
+          "greenfield": 78,
           "migrate": 4,
           "plan_approval": 32,
-          "strict": 24,
-          "test_apply": 12,
+          "strict": 25,
+          "test_apply": 11,
           "test_plan": 11
         }
       }
@@ -3819,63 +3819,63 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_count": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_crash": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_remove": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_rename": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_teardown": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "drift_reconverge": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "greenfield": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "migrate": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "plan_approval": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "strict": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "test_apply": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "test_plan": {
-          "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-          "date": "2026-09-18T00:43:51Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "002c29c4966d9cc7595490c6a0db27a1d192d9de",
-        "date": "2026-09-18T00:43:51Z",
+        "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+        "date": "2026-09-18T03:13:57Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -3897,9 +3897,9 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the six kinds the count covers, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 7 identities (NAMESPACE/NAME) confirmed present with kubectl"
         },
-        "duration_s": 420.5,
+        "duration_s": 429.9,
         "stage_seconds": {
-          "cold_deploy": 61,
+          "cold_deploy": 71,
           "day2_count": 52,
           "day2_crash": 74,
           "day2_remove": 31,
@@ -3907,10 +3907,10 @@
           "day2_teardown": 23,
           "drift_reconverge": 21,
           "greenfield": 63,
-          "migrate": 4,
+          "migrate": 3,
           "plan_approval": 31,
-          "strict": 19,
-          "test_apply": 10,
+          "strict": 18,
+          "test_apply": 11,
           "test_plan": 10
         }
       }
@@ -4061,63 +4061,63 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_count": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_crash": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_remove": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_rename": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "day2_teardown": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "drift_reconverge": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "greenfield": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "migrate": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "plan_approval": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "strict": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "test_apply": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         },
         "test_plan": {
-          "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-          "date": "2026-09-18T00:58:11Z"
+          "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+          "date": "2026-09-18T03:13:57Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f9f9ad48be58f363b0a5b8356e742c230e10a299",
-        "date": "2026-09-18T00:58:11Z",
+        "commit": "914b9236daefddc9c2492dd21fd93c040ac049c0",
+        "date": "2026-09-18T03:13:57Z",
         "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
         "oracle": {
           "terraform": "1.15.8",
@@ -4139,21 +4139,21 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s-stateful unchanged at 14 across the estate's eight kinds, and still zero of the three PVCs, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 14 identities (NAMESPACE/NAME) confirmed present with kubectl across eight kinds"
         },
-        "duration_s": 654.6,
+        "duration_s": 658.3,
         "stage_seconds": {
-          "cold_deploy": 94,
-          "day2_count": 52,
+          "cold_deploy": 100,
+          "day2_count": 53,
           "day2_crash": 74,
           "day2_remove": 83,
           "day2_rename": 21,
           "day2_teardown": 116,
-          "drift_reconverge": 22,
-          "greenfield": 73,
+          "drift_reconverge": 21,
+          "greenfield": 79,
           "migrate": 3,
           "plan_approval": 31,
-          "strict": 64,
+          "strict": 55,
           "test_apply": 11,
-          "test_plan": 10
+          "test_plan": 11
         }
       }
     },
