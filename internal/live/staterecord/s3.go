@@ -61,6 +61,8 @@ type S3Store struct {
 	client    *s3.Client
 	bucket    string
 	keyPrefix string
+
+	getAllParallelism int
 }
 
 // S3Config configures an [S3Store].
@@ -80,6 +82,11 @@ type S3Config struct {
 	// KeyPrefix's structure at all — it is an opaque string, the same as
 	// every key passed to the [Store] interface.
 	KeyPrefix string
+
+	// GetAllParallelism bounds how many GetObject calls [S3Store.GetAll] has
+	// in flight at once. Zero or negative takes
+	// [DefaultS3GetAllParallelism]; 1 is a sequential read.
+	GetAllParallelism int
 }
 
 // NewS3Store builds an [S3Store] from cfg.
@@ -94,6 +101,8 @@ func NewS3Store(cfg S3Config) (*S3Store, error) {
 		client:    cfg.Client,
 		bucket:    cfg.Bucket,
 		keyPrefix: cfg.KeyPrefix,
+
+		getAllParallelism: cfg.GetAllParallelism,
 	}, nil
 }
 
