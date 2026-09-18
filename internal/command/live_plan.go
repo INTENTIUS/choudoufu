@@ -755,7 +755,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// PriorState for why the roster merges in the same way a swept orphan
 	// does, and why a threshold refusal stops here after the report has a
 	// chance to show what tripped it.
-	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, pol, provs, discoProvider)
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, pol, provs, discoProvider, scope)
 	diags = diags.Append(reconcileDiags)
 	if len(reconcileExtra) > 0 {
 		merged = append(merged, reconcileExtra...)
