@@ -401,14 +401,27 @@ func TestGuardIsRedOnTheRestored1042Idiom(t *testing.T) {
 	t.Logf("red on live/%s: %s", rel, reintroduced)
 }
 
-// TestTheNULByteScriptIsInThePopulation: live/e2e/corpus-mastino-dns/run.sh
-// carries a legitimate embedded NUL byte, and grep reports nothing for it -
-// the blind spot that made PR #1157 count 23 scripts out of 24 (#1219).
-// This guard reads bytes for that reason, and the script carries call sites
-// in the class, so the hole would have been load-bearing rather than
-// theoretical. Asserted by value so that a future rewrite of the
-// enumeration in terms of grep fails here.
-func TestTheNULByteScriptIsInThePopulation(t *testing.T) {
+// TestTheEnumerationReadsBytesNotGrep, formerly
+// TestTheNULByteScriptIsInThePopulation (#1219).
+//
+// The original asserted that live/e2e/corpus-mastino-dns/run.sh still
+// carried its NUL byte, because that byte was the tree's live proof that
+// the enumeration could not be rewritten in terms of grep without losing a
+// script: grep reports nothing for a file it thinks is binary, which is how
+// PR #1157 counted 23 of 24. It also said what to do when the byte went
+// away - "retarget or retire this test".
+//
+// #1294 removed the byte (it was four characters of a pasted transcript in
+// a shell comment, load-bearing for nothing) and guards the whole
+// population against acquiring another, in live/grepblind_test.go. So the
+// proof is retargeted rather than retired: instead of depending on one real
+// script's accident, it plants a NUL script in a temporary liveDir and
+// checks CrossingScriptSources hands its bytes back. A rewrite in terms of
+// grep fails that arm on any machine, forever, whether or not a real script
+// happens to carry a control byte today.
+func TestTheEnumerationReadsBytesNotGrep(t *testing.T) {
+	// 1. The real population still holds the script #1157 lost, and it
+	//    still carries findings, so its membership means something.
 	const rel = "e2e/corpus-mastino-dns/run.sh"
 	sources, err := CrossingScriptSources(".")
 	if err != nil {
@@ -416,17 +429,42 @@ func TestTheNULByteScriptIsInThePopulation(t *testing.T) {
 	}
 	src, ok := sources[rel]
 	if !ok {
-		t.Fatalf("live/%s is not in the scanned population - the enumeration skipped the one file in this tree that grep cannot read", rel)
-	}
-	if !strings.ContainsRune(src, 0) {
-		t.Fatalf("live/%s no longer contains a NUL byte, so this proof no longer proves anything - check whether #1219's blind spot still has a live example, and retarget or retire this test", rel)
+		t.Fatalf("live/%s is not in the scanned population", rel)
 	}
 	snap := loadSnapshot(t)
 	f, _, _ := snap.PageQueryFindings(src)
 	if len(f) == 0 {
 		t.Errorf("live/%s carries no findings, so its presence in the population no longer demonstrates anything", rel)
 	}
-	t.Logf("live/%s: NUL byte present, %d finding(s) a grep-based sweep would have missed", rel, len(f))
+
+	// 2. The enumeration reads bytes. Planted, not asserted: a script whose
+	//    NUL sits BEFORE the interesting content, so a reader that gave up
+	//    at the byte would hand back a truncated string or nothing at all.
+	liveDir := t.TempDir()
+	const marker = "awsl ec2 describe-instances --query 'Reservations[0]'"
+	planted := "#!/usr/bin/env bash\n# key=a\x00type=A\x00zone=z\n" + marker + "\n"
+	dir := filepath.Join(liveDir, "e2e", "planted")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "run.sh"), []byte(planted), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := CrossingScriptSources(liveDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, ok := got["e2e/planted/run.sh"]
+	if !ok {
+		t.Fatalf("CrossingScriptSources dropped a script carrying a NUL byte - it is reading with something that classes files as binary, not with os.ReadFile")
+	}
+	if back != planted {
+		t.Fatalf("CrossingScriptSources returned %d bytes for a %d-byte script carrying a NUL - content past the byte was lost", len(back), len(planted))
+	}
+	if !strings.Contains(back, marker) {
+		t.Fatalf("the call site after the NUL byte did not survive the read")
+	}
+	t.Logf("live/%s: %d finding(s); a planted NUL script round-trips %d bytes intact", rel, len(f), len(back))
 }
 
 // TestAWrapperHidingTheCallIsCountedNotDropped: corpus-service-linked-roles

@@ -1854,7 +1854,17 @@ json.dump(d, open(p, 'w'))
   # post-destroy file for wp-prod-staging[9] is
   #   {"format_version":2,"address":"aws_route53_record.wp-prod-staging[9]",
   #    "kind":"identity","tombstone":{"name=staging12.datacite.org
-  #     type=A zone_id=<...>":{"identity":{"attrs":{"name":
+  #    \0type=A\0zone_id=<...>":{"identity":{"attrs":{"name":
+  # (The two \0 above are WRITTEN AS THE TWO-CHARACTER ESCAPE, not as
+  # the byte. The record key really is NUL-joined - identity/resolve.go
+  # builds it as type + "\x00" + ident + "\x00" + scope - but a raw NUL
+  # pasted into this transcript made the whole 159KB script read as
+  # BINARY to grep, which then skipped it in silence, at exit 0, in
+  # every sweep of live/e2e/*/run.sh: issues #1157, #1214, #1291, fixed
+  # in #1294. It also rendered the key as "...datacite.orgtype=A" on a
+  # terminal, hiding the very separator the comment exists to show.
+  # Quote control bytes as escapes here; live/grepblind_test.go fails
+  # any estate script that carries one.)
   #    "staging12.datacite.org","type":"A","zone_id":"<...>"}},
   #    "provider":"...","time":"2026-08-29T15:59:29Z"}}}
   # - no top-level "identity" key at all once tombstoned, only
@@ -1908,7 +1918,7 @@ json.dump(d, open(p, 'w'))
   # expected the file gone entirely and failed on a real, correctly
   # tombstoned file - the file's own content, read directly, is
   # {"format_version":2,"address":"aws_route53_record.wp-prod-staging[9]",
-  # "kind":"identity","tombstone":{"name=... type=A zone_id=...":
+  # "kind":"identity","tombstone":{"name=...\0type=A\0zone_id=...":
   # {"identity":{"attrs":{...}},"provider":"...","time":"..."}}} - no
   # top-level "identity" key at all once tombstoned).
   record_tombstoned() { jq -e 'has("tombstone") and (has("identity") | not)' "$1" >/dev/null 2>&1; }
