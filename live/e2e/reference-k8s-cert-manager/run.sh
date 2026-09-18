@@ -879,7 +879,7 @@ crash_block second >> "$ADOPTED/custom-resources.tf" || fail "could not append c
 X_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$X_PLAN" | tail -30; fail "the pre-crash plan failed"; }
 grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$X_PLAN" \
   || { printf '%s\n' "$X_PLAN" | tail -30; fail "the pre-crash plan is not exactly two adds - there is no two-object apply to interrupt"; }
-X_RECORDS_BEFORE="$(gauntlet_record_count "$ADOPTED/.tofu-records")"
+X_RECORDS_BEFORE="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"
 
 # The interrupt is delivered by the engine itself, so this runs in the
 # plain foreground: no background process, no output tailing, no poll loop.
@@ -897,7 +897,7 @@ exists_a issuer crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash
 # object.
 kca get issuer -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qE '(^|/)crash-first$' \
   || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there (labels: $(kca get issuer crash-first -n "$NS" --show-labels --no-headers 2>&1 | tr -s ' ' | cut -d' ' -f4))"
-X_RECORDS_AFTER="$(gauntlet_record_count "$ADOPTED/.tofu-records")"
+X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"
 
 # The record reading, asserted by value rather than printed as a count
 # (#1235). On this estate the answer is that there is nothing to read: a
@@ -1072,7 +1072,7 @@ G_OUT="$(green apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s
 grep -qF "Apply complete! Resources: $CUSTOM_N added, 0 changed, 0 destroyed" <<< "$G_OUT" || { printf '%s\n' "$G_OUT" | tail -5; fail "the greenfield main apply did not add exactly the $CUSTOM_N custom resources"; }
 [ ! -f "$GREEN/terraform.tfstate" ] || fail "a terraform.tfstate appeared after a live-block apply"
 G_LABELLED="$(count_a)"
-G_RECORDS="$(gauntlet_record_count "$GREEN/.tofu-records")"
+G_RECORDS="$(gauntlet_record_envelope_count "$GREEN/.tofu-records")"
 G_PLAN="$(green plan -input=false -no-color 2>&1)" || fail "the greenfield replan failed"
 grep -q "No changes." <<< "$G_PLAN" || { printf '%s\n' "$G_PLAN" | tail -20; fail "the greenfield replan is not empty"; }
 rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"

@@ -349,17 +349,50 @@ gauntlet_kind_count() {
 # existed, a store touched during a run counted one file too many
 # (issue #861).
 #
-# It counts FILES, which is not the same question as "how many records"
-# and is only the same answer when nothing else shares the path. Guided
-# discovery's hint owns "tofu-hints/<estate>" in the same store, beside
-# the records and deliberately disjoint from them (internal/configs/
-# live.go:1382 refuses a key_prefix that would collide with it), so a
-# store a guided run has touched holds one file this counts and no reader
-# would call a record. Measured 2026-09-18 on a three-manifest root: three
-# records, one .store-sentinel and one tofu-hints/<estate>/guided, of
-# which this prints 4. Use it for a DELTA, where the constants cancel;
-# use gauntlet_record_envelope_count below for an absolute (issue #1288).
+# It counts FILES, which is only the same question as "how many records"
+# when nothing else shares the path - and in a record STORE, three other
+# things do. A store's root holds four sibling namespaces, kept disjoint
+# by construction (internal/configs' validateRecordStoreKeyPrefix refuses
+# an override rooted at any of them):
+#
+#   <root>/tofu-records/<estate>/<type>/<key>   the records
+#   <root>/tofu-hints/<estate>/guided           guided discovery (#109)
+#   <root>/tofu-outputs/<estate>/<key>          root output values (#349)
+#   <root>/tofu-receipts/<estate>/<effect>      receipts
+#
+# So this counts records only when it is handed the RECORDS NAMESPACE -
+# "<root>/tofu-records" or something under it. Handed the store root it
+# counts the hint and every root output too: measured 2026-09-18 on a
+# fixture holding two records, a sentinel, a hint, a root output, a lock
+# and a temporary, it reads 4 for 2 records. That is what issue #1288 hit,
+# as reference-k8s-cert-manager's greenfield reading 51 for 50 instances,
+# and issue #1291 is the audit of every caller.
+#
+# The store-root argument is therefore REFUSED rather than documented
+# against (#1291): a helper that is only correct on some of its inputs,
+# with the condition written in a comment forty lines from the call, is a
+# trap with a caveat. The refusal is by what is on disk rather than by the
+# spelling of the path, so a caller that builds the directory out of shell
+# variables is caught too - and it fires on the store root even before a
+# hint exists there, so it is deterministic rather than depending on
+# whether guided discovery has run yet. tools/gauntlet's
+# TestNoScriptCountsARecordStoreRoot is the same rule read statically, in
+# CI, without running an estate.
+#
+# What survives here is the cheap question - how many files are under a
+# directory of records - which 24 of the 36 call sites issue #1291
+# enumerated are asking, and which needs no python per call. For "how many
+# RECORDS", at a store root or anywhere else, use
+# gauntlet_record_envelope_count below.
 gauntlet_record_count() {
+  local ns
+  ns="$(find "$1" -mindepth 1 -maxdepth 1 -type d \
+    \( -name 'tofu-records' -o -name 'tofu-hints' -o -name 'tofu-outputs' -o -name 'tofu-receipts' \) \
+    2>/dev/null | sed 's|.*/||' | sort | tr '\n' ' ' | sed 's/ $//')"
+  if [ -n "$ns" ]; then
+    printf 'gauntlet_record_count: %s is a record STORE ROOT - it holds the namespace directories [%s], and the records are the ones under tofu-records. Counting files here counts guided discovery hint and every root output as records (issue #1291, #1288). Point this at "<store>/tofu-records" for a file count, or use gauntlet_record_envelope_count for a count of records wherever they are.\n' "$1" "$ns" >&2
+    return 1
+  fi
   find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
 }
 
