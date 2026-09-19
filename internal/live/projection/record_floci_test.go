@@ -14,7 +14,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -27,38 +27,44 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// TestRecordBackedLifecycleAgainstSSM is live/e2e/record-store/run.sh's
+// TestRecordBackedLifecycleAgainstS3 is live/e2e/record-store/run.sh's
 // claim (hydrate, clean re-plan-equivalent, write-back, delete) proved
-// again with an [staterecord.SSMStore] talking to a real SSM Parameter
-// Store served by floci, instead of [staterecord.LocalStore] on disk. The
-// LOCAL variant is the behavioral e2e that exercises a real `choudoufu`
-// binary end to end (see live/e2e/record-store/); this is the narrower,
-// package-level proof that the same hydration/write-back machinery in this
-// package works unchanged against the other backend GitHub issue #73's
-// store abstraction supports - the same relationship
-// internal/live/staterecord/ssm_live_test.go's TestSSMStoreAgainstFloci has
-// to its own fake-server suite.
+// again with a [staterecord.S3Store] talking to an S3 served by floci,
+// instead of [staterecord.LocalStore] on disk. The LOCAL variant is the
+// behavioral e2e that exercises a real `choudoufu` binary end to end (see
+// live/e2e/record-store/); this is the narrower, package-level proof that
+// the same hydration/write-back machinery in this package works unchanged
+// against the other backend GitHub issue #73's store abstraction supports.
 //
-//	TF_FLOCI_TEST=1 go test ./internal/live/projection/ -run TestRecordBackedLifecycleAgainstSSM -v
-func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
-	flocitest.Gate(t, "projection/record-backed-ssm")
+// Until GitHub issue #1346 this ran against the Parameter Store backend.
+// That store was retired and the test moved to the one that replaced it, so
+// the package kept a lifecycle proof against a backend over the network.
+//
+//	TF_FLOCI_TEST=1 go test ./internal/live/projection/ -run TestRecordBackedLifecycleAgainstS3 -v
+func TestRecordBackedLifecycleAgainstS3(t *testing.T) {
+	flocitest.Gate(t, "projection/record-backed-s3")
 	flocitest.RequireBinary(t, "docker")
-	requireDockerDaemonForSSM(t)
+	requireDockerDaemon(t)
 
-	port := flocitest.StartFloci(t, "projection-record-ssm")
+	port := flocitest.StartFloci(t, "projection-record-s3")
 	endpoint := flocitest.Endpoint(port)
 
-	client := ssm.NewFromConfig(aws.Config{
+	client := s3.NewFromConfig(aws.Config{
 		Region:      "us-east-1",
 		Credentials: credentials.NewStaticCredentialsProvider("test", "test", ""),
-	}, func(o *ssm.Options) {
+	}, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(endpoint)
+		o.UsePathStyle = true
 	})
 
-	prefix := "/choudoufu-record-test/" + randomSegment(t)
-	store, err := staterecord.NewSSMStore(staterecord.SSMConfig{Client: client, KeyPrefix: prefix})
+	bucket := "choudoufu-record-test-" + randomSegment(t)
+	if _, err := client.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
+		t.Fatalf("CreateBucket: %v", err)
+	}
+	prefix := "choudoufu-record-test/" + randomSegment(t) + "/"
+	store, err := staterecord.NewS3Store(staterecord.S3Config{Client: client, Bucket: bucket})
 	if err != nil {
-		t.Fatalf("NewSSMStore: %v", err)
+		t.Fatalf("NewS3Store: %v", err)
 	}
 
 	ctx := context.Background()
@@ -76,10 +82,10 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 	assertOmitted(t, res, map[string]Reason{`null_resource.trigger`: ReasonAbsent})
 
 	// 2. Write-back, as if an apply had just created it: persists the
-	// first record via a real ssm:PutParameter with Overwrite: false.
+	// first record via a real s3:PutObject with If-None-Match.
 	schema := nullResourceSchema()
 	newVal := cty.ObjectVal(map[string]cty.Value{
-		"id":       cty.StringVal("ssm-created-id"),
+		"id":       cty.StringVal("s3-created-id"),
 		"triggers": cty.MapVal(map[string]cty.Value{"input": cty.StringVal("value")}),
 	})
 	finalState := states.NewState()
@@ -94,7 +100,7 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 		Store:         rs,
 		PriorVersions: nil, // nothing existed yet: create semantics (expectedVersion "")
 		FinalState:    finalState,
-		Schemas:       ssmTestSchemas(schema),
+		Schemas:       recordTestSchemas(schema),
 	})
 	assertNoErrors(t, wbDiags)
 
@@ -108,25 +114,25 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 	}
 	inst := res2.State.ResourceInstance(addr)
 	if inst == nil || inst.Current == nil {
-		t.Fatal("no current object hydrated from SSM")
+		t.Fatal("no current object hydrated from S3")
 	}
 	hydrated, err := inst.Current.Decode(schema.Block.ImpliedType())
 	if err != nil {
 		t.Fatalf("decoding: %s", err)
 	}
-	if got := hydrated.Value.GetAttr("id"); got.AsString() != "ssm-created-id" {
-		t.Errorf("id = %v, want ssm-created-id", got)
+	if got := hydrated.Value.GetAttr("id"); got.AsString() != "s3-created-id" {
+		t.Errorf("id = %v, want s3-created-id", got)
 	}
 
 	// 4. Delete: write-back for a run whose final state no longer has the
-	// address (a destroy) removes the SSM parameter, with the same version
+	// address (a destroy) removes the S3 object, with the same version
 	// check.
 	emptyState := states.NewState()
 	wbDiags = WriteBack(ctx, WriteBackRequest{
 		Store:         rs,
 		PriorVersions: res2.RecordVersions,
 		FinalState:    emptyState,
-		Schemas:       ssmTestSchemas(schema),
+		Schemas:       recordTestSchemas(schema),
 	})
 	assertNoErrors(t, wbDiags)
 
@@ -135,14 +141,14 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 		t.Fatalf("checking deletion: %s", err)
 	}
 	if exists {
-		t.Error("the SSM parameter still exists after write-back's delete")
+		t.Error("the S3 object still exists after write-back's delete")
 	}
 }
 
-// ssmTestSchemas builds the *tofu.Schemas WriteBack needs to decode
+// recordTestSchemas builds the *tofu.Schemas WriteBack needs to decode
 // null_resource's final-state object, keyed under nullProvider's own
 // provider FQN.
-func ssmTestSchemas(schema providers.Schema) *tofu.Schemas {
+func recordTestSchemas(schema providers.Schema) *tofu.Schemas {
 	return &tofu.Schemas{
 		Providers: map[addrs.Provider]providers.ProviderSchema{
 			nullProvider.Provider: {
@@ -153,7 +159,7 @@ func ssmTestSchemas(schema providers.Schema) *tofu.Schemas {
 	}
 }
 
-func requireDockerDaemonForSSM(t *testing.T) {
+func requireDockerDaemon(t *testing.T) {
 	t.Helper()
 	if out, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
 		t.Skipf("docker info failed, so the docker daemon is not usable here: %v\n%s", err, out)
