@@ -120,6 +120,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"identity.DowngradeForNodeResolution": {notAPass, "rewrites diagnostic severities"},
 	"identity.SelectionFor":               {notAPass, "reads the live block's markers selection"},
 	"identity.NoSourceCreateFor":          {notAPass, "reads the strict profile"},
+	"identity.SecretsFor":                 {notAPass, "reads the strict profile's secrets setting, to decide whether this run keeps a state cache at all (#1375). That is a fact about the run, not about any resource, so no target set narrows it"},
 	"projection.NewMarkerIndex":           {notAPass, "indexes resolutions already in hand"},
 	"projection.NewRecordStore":           {notAPass, "opens a store"},
 	"projection.NewRecordEnvelopeStore":   {notAPass, "wraps a store"},

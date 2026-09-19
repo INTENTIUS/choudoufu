@@ -44,19 +44,15 @@ The steps as they print:
 
 1. `two regions, one estate` - two aliased provider configurations,
    `aws.east` and `aws.west`, one region each. Both hold a log group
-   with the same name; each holds a VPC of its own; a single S3 bucket
-   is declared only under `aws.east`. The AWS CLI reads both regions
-   directly and shows two distinct region-qualified ARNs for one name,
-   both carrying the same estate marker and each its own address
-   marker, with one record store beside the module holding both. Then a
-   `-refresh=false` plan is empty, and the work is attributed per
-   provider configuration by the region each request was signed for -
-   SigV4's credential scope, read off the wire rather than from a
-   counter of ours. The same stream shows what each pass listed: the
-   mirrored type once per region, because a region-scoped list is the
-   only way to see both objects; the east-only bucket once across both
-   passes, because `aws.west` declares none of it and S3's list is
-   account-global.
+   with the same name, each holds a VPC of its own, and a single S3
+   bucket is declared only under `aws.east`. The AWS CLI reads both
+   regions directly and shows two distinct region-qualified ARNs for one
+   name, both carrying the same estate marker and each its own address
+   marker. Then a `-refresh=false` plan is empty, and the work is
+   attributed per provider configuration by the region each request was
+   signed for. The same stream shows the mirrored type listed once per
+   region and the east-only bucket listed once across both passes,
+   because S3's list is account-global.
 2. `a delete in one region is seen in that region` - `aws.west`'s log
    group is deleted with the AWS CLI. `aws.east`'s identical name is
    untouched. The next `-refresh=false` plan must name
@@ -64,20 +60,15 @@ The steps as they print:
    own instances must still be served from the cache. One ordinary
    apply puts the missing half back - one create in `us-west-2`,
    nothing in `us-east-1`.
-3. `an orphan in a region nothing declares any more` - the answer to
-   "does the sweep still look there", pinned rather than argued,
-   because it is the unflattering one. **The unit of the sweep is the
-   provider configuration, not the region.** Drop one block while
-   `aws.west` is still configured for something else and the sweep
-   still lists `us-west-2` and names the orphan there. Drop `aws.west`'s
-   last declaration and the provider configuration goes with it:
-   nothing points at that region any more, the sweep stops looking, and
-   the marked objects sit in `us-west-2` with no run proposing to
-   remove them. They are not lost - their markers still say whose they
-   are, and putting a provider configuration for that region back
-   brings them straight back into the sweep, which is what step 4 does
-   before it destroys them. But no plan will mention them while nothing
-   points at the region.
+3. `an orphan in a region nothing declares any more` - **the unit of the
+   sweep is the provider configuration.** Drop one block while `aws.west`
+   is still configured for something else and the sweep still lists
+   `us-west-2` and names the orphan there. Drop `aws.west`'s last
+   declaration and the provider configuration goes with it: the sweep
+   stops looking, and the marked objects sit in `us-west-2` with no plan
+   mentioning them. Their markers still say whose they are, and putting
+   a provider configuration for that region back brings them back into
+   the sweep, which is what step 4 does before it destroys them.
 4. `recovery is a re-run in both regions at once` - claim 5 with two
    provider configurations. The state cache and the whole record store
    are deleted and the same plan runs again. The change set must be
@@ -90,32 +81,21 @@ The steps as they print:
    files were gone.
 5. `a region change is a replace: refused by default, permitted by name` -
    one VPC's `provider` moves from `aws.west` to `aws.east`. That is a
-   replace, not a move: no cloud API relocates a VPC between regions, and
-   `live-mv` rewrites ownership tags rather than resources. Only half of
-   the replace is expressible, because a resource address carries exactly
-   one provider configuration in the plan graph - taken from its own block
-   - so the destroy of the object left behind in `us-west-2` cannot be
-   planned at that address at all. The step runs both of the two answers
-   the schema offers for the half that cannot be planned. **By default the
-   run refuses**: the plan names the live VPC, the region it is in, the
-   region its address now points at, and the four things an operator can do
-   about it, one of which is the toggle. Proceeding would leave two live
-   resources carrying this estate's marker for one address, which is what
-   live/MARKERS.md's ownership semantics forbid and what
-   `crossProviderOrphanCollisions` already refuses a plan over once both
-   objects exist. **With `strict { provider_change = "recreate" }` the plan
-   proceeds** - stock OpenTofu's own outcome - and the same finding comes
-   back as a warning naming the object, where it is, and the fact that no
-   plan will ever propose anything for it. The toggle buys the create, not
-   the silence, and in neither mode does anything claim marker discovery
-   will find the old object:
-   [issue #906](https://github.com/INTENTIUS/choudoufu/issues/906) and its
-   maintainer ruling of 2026-09-06.
+   replace. An address
+   carries exactly one provider configuration in the plan graph, so the
+   destroy of the object left behind in `us-west-2` cannot be planned.
+   **By default the run refuses**: the plan names the live VPC, the
+   region it is in, the region its address now points at, and the four
+   things an operator can do about it. **With
+   `strict { provider_change = "recreate" }` the plan proceeds**, and the
+   same finding comes back as a warning naming the object and the fact
+   that no plan will ever propose anything for it
+   ([issue #906](https://github.com/INTENTIUS/choudoufu/issues/906)).
 6. `teardown` - one destroy removes exactly what the two provider
    configurations hold between them.
 
 This scenario runs the region axis. The account axis is
-[claim 19](#claim-19-the-boundary-holds-across-accounts), a sibling
+[claim 19]({{< relref "/docs/claims/the-boundary-holds-across-accounts" >}}), a sibling
 scenario with the same estate and the same steps, differing by account
 instead of by region - the reasoning that the two are one mechanism (the
 provider configuration is the partition key in both cases, and nothing in

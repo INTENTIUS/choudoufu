@@ -26,22 +26,44 @@ and the one it is entering ([claim
 Handing a whole estate over is an RBAC change, the grant's binding moving
 to the receiving principal, and nothing on the objects changes.
 
-An `api_version` change is not a move either, and needs no `moved` block.
-The provider ships most kinds under two spellings, `kubernetes_config_map`
-and `kubernetes_config_map_v1`, `kubernetes_ingress` and
-`kubernetes_ingress_v1`, and the suffix names the API version the block is
-written against, not a different object: uniqueness on a cluster is group,
-kind, namespace and name, and the version is a representation. Both
-spellings render the same `NAMESPACE/NAME`, the sweep files both under the
-one kind, and the label carries no address to rewrite, so a block that
-changes spelling with the same metadata replans empty. Measured on kind:
-[claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})'s step 6 rewrites
-the ConfigMap block from the plain spelling to `_v1` with no `moved` block
-and the plan is `No changes.`; the destroy that follows still removes
-exactly four objects
+An `api_version` change needs no `moved` block either. The provider ships
+most kinds under two spellings, such as `kubernetes_config_map` and
+`kubernetes_config_map_v1`, and the suffix names the API version the block
+is written against. Both spellings render the same `NAMESPACE/NAME`, the
+sweep files both under the one kind, and the label carries no address to
+rewrite, so a block that changes spelling with the same metadata replans
+empty. [Claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})'s step 6
+measures this on kind: it rewrites the ConfigMap block from the plain
+spelling to `_v1` with no `moved` block and the plan is `No changes.`
 ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). On AWS the
 same edit with no `moved` block is a destroy and a create, because there
 the type is part of the address the marker carries.
+
+## Records
+
+Every managed object has a record, the same as on AWS
+([Records]({{< relref "/docs/model/values" >}})). For most objects it costs
+nothing to lose. Two kinds depend on it: a resource with no live object, such
+as a `random_password` feeding a Secret, and a `kubernetes_manifest`, whose
+record holds the label and annotation keys the configuration last declared.
+Without that record a label removed from the configuration is not planned
+for removal.
+
+A team keeps its records in the cluster, and no AWS account is involved:
+
+```hcl
+record_store "kubernetes" {
+  namespace = "my-estate-records"
+}
+```
+
+Each record is one Secret in that namespace, labelled `tofu-estate`, written
+conditionally on `resourceVersion` with no Lease. Give each estate its own
+namespace, because RBAC cannot condition on a label and the namespace is what
+keeps one estate out of another's records.
+[Where things are stored]({{< relref "/docs/use/storage#the-cluster" >}}) has
+the rest. A plan job needs `get` and `list` on those Secrets and nothing
+more.
 
 ## Two runs at once
 
@@ -52,19 +74,17 @@ objects claiming one address.
 
 ## Remove
 
-On AWS, an object carrying this estate's marker that no block declares is
-proposed for deletion under the default policy, because the marker is its
-own scope. The same default holds on Kubernetes since the sweep landed
-([claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})), and it
-is safe because two exclusions run before anything reaches a delete
-quadrant, either sufficient: an object with a non-empty
-`metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
-from its ReplicaSet, a PVC's from its StatefulSet), and an object whose
-every `metadata.managedFields` manager is the control plane (the legacy
-`Endpoints` the endpoints controller mirrors a Service's labels onto). Both
-were made by a controller, not declared. A controller copies template
+An object carrying this estate's marker that no block declares is
+proposed for deletion under the default policy, on Kubernetes as on AWS
+([claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})). Two
+exclusions run before anything reaches a delete quadrant, and either is
+sufficient. One is an object with a non-empty `metadata.ownerReferences`,
+such as a ReplicaSet's from its Deployment or a PVC's from its
+StatefulSet. The other is an object whose every `metadata.managedFields`
+manager is the control plane, such as the legacy `Endpoints` the endpoints
+controller mirrors a Service's labels onto. A controller copies template
 labels, so an estate label in a pod template lands on objects nobody
-declared; those are exactly what the exclusions keep out.
+declared, and the exclusions keep those out.
 
 Two hazards remain the operator's, as they are on AWS: a finalizer makes a
 delete return success while the object stays until the finalizer clears,

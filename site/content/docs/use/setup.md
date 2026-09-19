@@ -5,159 +5,109 @@ weight: 2
 
 # What you set up by hand
 
-An evaluation asks this early: before any of this works, what has to exist
-that choudoufu will not create?
-
-The short answer is credentials, a region, and, for any estate that is shared,
-a bucket. Everything else is a line of configuration, a tag
-write you run on purpose, or something the first run creates for you.
-
-Every row below was stood up from an empty directory against the pinned
-emulator rather than read off the source, and each failure mode is the text
-that actually printed. [How this was checked](#how-this-was-checked) says what
-that covers and, more usefully, what it does not.
-
-## The short answer
+Before any of this works, what has to exist that choudoufu will not create?
+Credentials, access policy, and, for any estate more than one person runs, a
+place for its records. Everything else is a line of configuration or
+something the first run creates.
 
 | Piece | What it is | Who creates it |
 |---|---|---|
-| Credentials and a region | The ordinary AWS SDK chain | You, before the first plan |
-| Provider configuration | A `provider "aws"` block, or nothing | Optional |
+| Credentials | The provider's ordinary chain: the AWS SDK's, or a kubeconfig | You, before the first plan |
+| Provider configuration | A `provider` block, or nothing | Optional |
 | Estate declaration | `estate.chdf.hcl`, or `live { estate = "..." }` | A config edit |
-| Record store, `local` | `.tofu-records` beside the module | The first apply |
-| Record store, `s3` | A bucket you already own, with three settings on it | **You, before the first plan** |
-| Markers on resources choudoufu creates | Two tags, stamped on create | The apply |
-| Markers on resources that already exist | Two tags | A tag write you run |
-| IAM policy | Provider permissions plus this fork's own | **You** |
+| Record store, `local` | `.tofu-records` beside the module | The first run |
+| Record store, `s3` | A bucket you already own, with three settings on it | You, before the first plan |
+| Record store, `kubernetes` | A namespace you already own | You, before the first plan |
+| Markers on resources choudoufu creates | Stamped on the create call | The apply |
+| Markers on resources that already exist | The same markers | A write you run on purpose |
+| Access policy | The provider's permissions plus the record store's | You |
 
-Two of those rows are genuinely out of band on every path: credentials and
-IAM. A third, the bucket, applies to any estate more than one person or one
-CI job runs, which is most of them.
+## Credentials and region
 
-## Before the first plan
+Nothing about a `live` block changes where credentials come from. On AWS
+that is the SDK chain: environment variables, then `~/.aws/config` and
+`~/.aws/credentials`, then instance metadata.
 
-### Credentials and region
+A configuration with no `provider "aws"` block still runs. `choudoufu init`
+resolves the provider from the resource type prefix, and the provider takes
+its region and credentials from the ambient environment. A plan under the live backend
+reads far more of an account than a stock plan does, so set `AWS_PROFILE`
+deliberately before the first plan.
 
-choudoufu configures the AWS provider the way any OpenTofu run does, through
-the SDK's own chain: environment variables, then `~/.aws/config` and
-`~/.aws/credentials`, then instance metadata. Nothing about a `live` block
-changes where credentials come from.
-
-One consequence is worth stating out loud, because it bit while this page was
-being written. A configuration with no `provider "aws"` block still runs:
-`choudoufu init` resolves `hashicorp/aws` from the resource type prefix, and
-the provider then takes its region and credentials from whatever the ambient
-environment supplies. A plan typed straight out of
-[Start a new estate]({{< relref "/docs/use/start" >}}) therefore goes wherever
-your default profile points, and a marker-mode plan reads far more of an
-account than a stock plan does (see
-[what the first plan reads](#what-the-first-plan-reads-on-an-account-that-is-not-empty)).
-Set `AWS_PROFILE` deliberately, or configure the provider at the account you
-mean, before the first plan rather than after.
-
-When something is missing, the failure arrives under a live-markers heading
-rather than a provider one, because discovery needs a configured provider
-before the plan graph is walked.
+When something is missing, the failure arrives under a marker-discovery heading,
+because discovery needs a configured provider before the plan graph is
+walked.
 
 | Missing | What prints |
 |---|---|
-| Region | `Error: Provider unavailable for marker discovery` … `cannot configure provider …: invalid AWS Region: .` |
-| Credentials | `Error: Provider unavailable for marker discovery` … `cannot configure provider …: No valid credential sources found` |
+| Region | `Error: Provider unavailable for marker discovery` ... `invalid AWS Region: .` |
+| Credentials | `Error: Provider unavailable for marker discovery` ... `No valid credential sources found` |
 
-### A pinned provider version
-
-Not required, but the first plan says something about it if you skip it.
-Admission evidence - which types are accepted, what their import IDs look
-like, how identity resolves - is measured against one provider version.
-Resolving a different one prints:
-
-```
-Warning: Provider version does not match the admission evidence version
-```
-
-The version it was measured against is the `provider_version` field in
-`live/survey.json`. Pinning `required_providers` to that version silences the
-warning; anything else is a caution rather than a refusal, and the plan
-continues.
+Pin `required_providers` to the `provider_version` in `live/survey.json` if
+you want the first plan quiet. Admission evidence is measured against that
+version, and any other prints `Warning: Provider version does not match the
+admission evidence version` and carries on.
 
 ## The estate declaration
 
-One file or one block turns marker mode on.
+One file or one block turns the live backend on.
 
 ```hcl
 # estate.chdf.hcl
 estate = "my-estate"
 ```
 
-Until this exists, the binary behaves as stock OpenTofu: no discovery pass, no
-markers stamped, no record directory created. That is verifiable rather than
-promised - a configuration with no declaration plans and applies through the
-ordinary state-file path and leaves nothing behind.
-
-Two refusals guard the edges, both at `init`, before any command runs.
+Until this exists the binary behaves as stock OpenTofu, with no discovery
+pass, no markers and no record directory. Two refusals guard the edges, both
+at `init`.
 
 | Mistake | What prints |
 |---|---|
-| A `backend` or `cloud` block alongside it | `Error: Both a backend and a live configuration are present`, at the offending block's own line |
+| A `backend` or `cloud` block alongside it | `Error: Both a backend and a live configuration are present`, at the offending block's line |
 | Both the sidecar and a `live` block | `Error: Both a live sidecar file and a live block are present`, naming both |
 
-[Start a new estate]({{< relref "/docs/use/start" >}}) covers the two forms and
-why the sidecar is the leading one.
+[Start a new estate]({{< relref "/docs/use/start" >}}) covers the two forms.
 
 ### Deleting the state file is not enforced
 
-[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) tells you to
-keep the state file until the migration is done, and makes deleting it an
-optional last step. Nothing checks that you did either one.
+A leftover `terraform.tfstate` is ignored. A plan run beside one proposes
+creating every resource the file names, because prior state now comes from
+markers and the markers are not on those resources yet.
 
-A leftover `terraform.tfstate` is ignored rather than refused. A plan run
-beside one proposes creating every resource the file names, exactly as if the
-file were not there. Prior state now comes from markers, and the markers are
-not on those resources yet. The file's presence is not the
-hazard. Believing it still counts for something is.
-
-That harmlessness is why the ordering is safe to get right: **`choudoufu
-live-import` reads that state file**, and it is the command's only input. If
-your estate uses `count` or `for_each`, that command is the path you want, and
-deleting the state file first throws its input away. Run `live-import` before
-the deletion.
+`choudoufu live-import` reads that state file, and it is the command's only
+input. Run it before deleting the file.
+[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) has the loop.
 
 ## The record store
 
-Every estate has one, and declaring no `record_store` gets you a local one.
+Every estate has one, and declaring no `record_store` gets you the local one.
 [Where things are stored]({{< relref "/docs/use/storage" >}}) covers what it
-holds and how it is laid out. This page answers only the setup question: what
-has to exist before the first plan.
+holds. This section is what must exist before the first plan.
 
-| Backend | What must exist first | Created by |
-|---|---|---|
-| `local` | Nothing | The first apply, as `.tofu-records` beside the module |
-| `s3` | The bucket, with versioning, a lifecycle rule that expires noncurrent versions, and public-access block | You |
+| Backend | What must exist first |
+|---|---|
+| `local` | Nothing. Gitignore `.tofu-records/`, or the `path` you chose, because records hold secrets |
+| `s3` | The bucket, with versioning, a lifecycle rule that expires noncurrent versions, and public-access block |
+| `kubernetes` | The namespace, and a role bound to Secrets in it |
 
-### This is stock's bootstrap, minus the lock table
+The store cannot be declared by the estate that uses it. The plan opens the
+store before it can propose creating it, so the run fails with the same
+`NoSuchBucket` text a typo gives. Create the bucket or the namespace outside
+the estate.
 
-Stock's S3 backend has a day one: create a bucket, turn on versioning, create
-a lock table, write IAM for both. Three of those four are here too. What is
-gone is the lock table, and with it the lock, because every write to the store
+The store holds secrets by default, readable by anyone who can read the
+store. [Secrets]({{< relref "/docs/use/secrets" >}}) has who that is and the
+ways out.
+
+### A bucket
+
+This is stock's S3 bootstrap without the lock table. Every write to the store
 is one conditional request that holds nothing
-([claim 4]({{< relref "/docs/claims/backend-sets-itself-up" >}})).
+([claim 4]({{< relref "/docs/claims/backend-sets-itself-up" >}})), so there
+is no lock to create and none to strand an apply.
 
-It is a swap and not a subtraction. This bucket also wants a lifecycle rule
-and a public-access block, which stock's list never mentioned. What changes is
-the kind of thing that can go wrong: a lock table is in the path of every
-apply and can strand one, and these two are set once and are in the path of
-none.
-
-An earlier version of this page recommended `record_store "ssm" {}` because
-Parameter Store is ambient and needs no bootstrap. That backend is retired,
-and the convenience went with it. Nothing about an estate is zero-setup except
-the local store.
-
-### Creating the bucket
-
-`examples/record-store-bucket` is a runnable project that makes a correct one
-with CloudFormation, so that nothing on the path needs a state file to create
-the bucket that exists so you would not need state files.
+`examples/record-store-bucket` makes a correct bucket with CloudFormation, so
+nothing on the path needs a state file.
 
 ```
 cd examples/record-store-bucket
@@ -166,197 +116,94 @@ just up                    # or: just up <bucket-name>
 just verify
 ```
 
-`just up` prints the bucket name to put in the `record_store` block, and how
-many days a record destroyed by mistake stays recoverable. `RECORD_NONCURRENT_DAYS`
-sets that window; thirty is the default, and running `up` again keeps whatever
-the bucket already has. `RECORD_KMS_KEY_ARN` puts the bucket under a customer
-managed key of yours
-([Encryption at rest]({{< relref "/docs/use/encryption" >}})). `just down`
-refuses while the bucket holds any version of a record.
+`just up` prints the bucket name for the `record_store` block and how many
+days a deleted record stays recoverable. `RECORD_NONCURRENT_DAYS` sets that
+window, and `RECORD_KMS_KEY_ARN` puts the bucket under a key of yours
+([Encryption at rest]({{< relref "/docs/use/encryption" >}})).
 
-`just verify` does not re-implement anything. It asks the choudoufu binary:
+`just verify` asks the binary, which is also how you check a bucket made any
+other way:
 
 ```
 choudoufu live-bucket -bucket <name>
 ```
 
-which is also how you check a bucket made any other way. The project is a
-convenience and what makes a bucket correct is stated independently of it, in
-[the three settings]({{< relref "/docs/use/bucket-contract" >}}). Terraform,
-the console or an organization's own bucket module all do.
+[The three settings]({{< relref "/docs/use/bucket-contract" >}}) states what
+makes a bucket correct, independent of the example. Then write the estate's
+role its policy: [IAM for the record store bucket]({{< relref "/docs/use/iam" >}}).
 
-Then write the estate's role its policy:
-[IAM for the record store bucket]({{< relref "/docs/use/iam" >}}).
-
-### What happens when the bucket is wrong or missing
-
-If the bucket is absent, the **plan** fails, not just the apply:
+A missing bucket fails the plan, before anything is written:
 
 ```
 Error: Cannot open the record store
 ... NoSuchBucket: The specified bucket does not exist
 ```
 
-If it exists and fails one of the three settings, an estate's first run
-against it is refused by name, whatever command that run is, and leaves
-nothing behind. After that the settings are checked before every apply and
-not on a plan.
+A bucket that fails one of the three settings refuses an estate's first run
+against it by name, whatever the command, and leaves nothing behind. After
+that the settings are checked before every apply.
 
-Failing before anything is written is the good outcome. Nothing partial
-happens first.
+### A namespace
 
-### The bucket cannot be declared by the estate that uses it
+Create one namespace per estate and bind the estate's role to `get`, `list`,
+`create`, `update` and `delete` on Secrets in it, and to nothing wider. The
+namespace is what keeps one estate's records from another, because RBAC
+cannot condition on a label. No AWS account is involved.
 
-Declaring the record store's own bucket inside the estate that uses it does
-not work, and stock's chicken-and-egg comes back in full: the plan aborts
-before it can propose creating the bucket, so the estate can never stand up
-its own store.
+```hcl
+record_store "kubernetes" {
+  namespace = "my-estate-records"
+}
+```
 
-The failure is loud but unexplained: the error is the same `NoSuchBucket`
-text as a typo'd bucket name, with nothing naming the cycle. If you see that
-error and the bucket is one your own configuration declares, this is why.
-Create the bucket outside the estate.
+The first run checks that the namespace exists and that the role can do those
+five things there, and refuses by name if not.
 
-### The store holds secrets by default
+## Markers
 
-The default is `strict { secrets = "store" }`, which keeps what a stock state
-file keeps, in clear, readable by anyone with `s3:GetObject` on the prefix.
-[Secrets]({{< relref "/docs/use/secrets" >}}) has who that is and the ways
-out.
-
-## Markers are a command, not configuration
-
-For a resource choudoufu creates, there is no step: the create stamps
-`tofu-estate` and `tofu-address` inline, as part of the same API call, and no
+A resource choudoufu creates is stamped on the create call itself, and no
 separate tagging permission comes into it.
 
-For a resource that already exists, adoption is a tag write you run on
-purpose. `choudoufu plan` prints an `Adoptable` section with the command
-already built, carrying the region and endpoint the plan itself used:
+Adopting a resource that already exists is a write you run on purpose.
+`choudoufu plan` prints an `Adoptable` section with the command already built:
 
 ```
 aws_vpc.solo <- aws_vpc vpc-12909d4c
     matched on: cidr_block=10.70.0.0/16
-    adopt with: aws ec2 create-tags --resources 'vpc-12909d4c' --tags …
+    adopt with: aws ec2 create-tags --resources 'vpc-12909d4c' --tags ...
 ```
 
-That covers what the plan can recognise. It does not cover a `count` or
-`for_each` instance, which content matching never offers, and it is not the
-path to reach for on an estate that still has its state file.
-[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) has the whole
-loop and the blind spot demonstrated, and it covers `choudoufu live-import`.
-That command takes its addresses from the state file and so pays nothing for
-expansion.
+Content matching never offers a `count` or `for_each` instance. For an estate
+that still has its state file, `choudoufu live-import` is the path, on AWS
+and on Kubernetes alike.
+[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) has it.
 
 ## Permissions
 
-The actions are catalogued in
-[Reference]({{< relref "/docs/use/reference#permissions-a-run-needs" >}}),
-per stage and per record store backend. Two things about them are easier to
-measure than to read.
+[Reference]({{< relref "/docs/use/reference#permissions-a-run-needs" >}})
+catalogues the actions per stage and per record store.
 
-**A plan changes no resource, and writes one object.** No create, update,
-delete or tag action on a cloud resource appears in a plan. The record store
-is the exception to "read-only": every run that opens a bucket store sends a
-conditional `PutObject` for the store's sentinel. The first run creates it,
-and every later one is answered `412` and writes nothing. So a plan against a
-bucket needs `s3:PutObject` on the estate's prefix, and a strictly read-only
-role can plan only an estate on the local store. The published policy is one
-policy for an estate's role and has no read-only rendering. This paragraph is
-read from the code: no claim runs a plan under a read-only role.
+A plan changes no resource, and a role that may only read can run one. That
+includes the record store: a plan role needs to list and read the estate's
+records and nothing more, and `render-policy.sh --read-only` renders that
+policy for a bucket.
 
-**A plan reads widely.** The estate-wide sweep is what finds resources whose
-configuration block was deleted, and its width comes from the admission
-table rather than from the size of your estate. That same two-resource plan
-issued one `tag:GetResources` and 435 `cloudformation:ListResources` calls.
-A read-only role scoped to the services your estate declares will not cover
-it, and the sweep degrades to warnings rather than failing when it cannot
-list a type.
+A plan reads widely. The estate-wide sweep finds resources whose block was
+deleted, and its width comes from the admission table and not from the size
+of your estate. A read-only role scoped to the services you declare will not
+cover it, and the sweep degrades to an `Incomplete sweep` warning per type it
+could not list, with a `Not swept for removal` section naming them. An empty
+removal list is a statement about the types that were swept and about nothing
+else. [What a plan costs]({{< relref "/docs/model/plan-cost#the-two-terms" >}})
+has the current count.
 
-For the marker write itself, a create needs no separate permission, since the
-tags ride the create call. Adopting an existing resource needs that service's
-own tagging action - `ec2:CreateTags` for the EC2 family, and the
+Adopting an existing resource needs that service's own tagging action,
+`ec2:CreateTags` for the EC2 family and the
 [per-service verb]({{< relref "/docs/use/reference#marker-stamping" >}}) for
-everything else.
+the rest.
 
-## What the first plan reads on an account that is not empty
-
-Worth setting expectations on, because the first plan is where an evaluation
-forms its impression.
-
-The estate-wide sweep walks every admitted type, not only the ones you
-declared. Against a fresh emulator account holding nothing but AWS-managed
-defaults, a two-resource estate's first plan scanned 761 types, with the
-output running to 1105 lines and 43 warnings, `Plan: 2 to add` sitting at
-line 601 with several hundred lines of sweep reporting after it - measured at
-commit `219f87fe3a` (2026-08-30, #548). **Stale**: the admission table has
-grown since. [What a plan
-costs]({{< relref "/docs/model/plan-cost#the-two-terms" >}}) holds the
-current, live-reproducible count instead of a captured sample - `go test
-./internal/live/discovery/ -run TestSweepUniversePartitionIsMostlyNative`
-prints `sweep universe=1027` today - and a fresh account's first plan takes
-that same full sweep (an empty record store is one of the cases [the
-narrowing]({{< relref "/docs/model/plan-cost#when-the-native-leg-is-narrowed-and-when-it-is-not" >}})
-does not apply to), so 1027 is closer to what you will see than 761 is. The
-exact line and warning counts were never re-measured and are not claimed
-current; only the shape - most of the output is sweep reporting, not your
-two resources - is.
-
-Most of that volume is the emulator's, not your account's: a type the sweep
-cannot list produces a warning, and the emulator does not implement many of
-the services it is asked about. A real account will not reproduce the count.
-It will reproduce the shape - an `Incomplete sweep` warning for each type the
-sweep could not read, and a `Not swept for removal` section listing them.
-
-Those warnings are part of the answer, not noise. An empty removal list is a
-statement about the types that were swept and about nothing else, which is
-what the section says. The plan is deliberate about not claiming more than it
-measured.
-
-If your account already holds resources this configuration should manage, read
-[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) before
+If your account already holds resources this configuration should manage,
+read [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) before
 applying anything. Nothing binds a live resource to your configuration until
-its markers are on it, so applying against unmarked resources creates a second
+its marker is on it, so applying against unmarked resources creates a second
 copy beside them.
-
-## How this was checked
-
-Every claim above came from standing estates up from empty directories against
-`ghcr.io/lex00/floci`, the emulator pinned in `live/floci-image`, with the AWS
-provider pinned to `live/survey.json`'s measured version. The account was a
-freshly started container each time, holding what an AWS account holds before
-anyone touches it: one default VPC with its three subnets, one default
-security group and one route table.
-
-What that does not cover, and where the real answer has to come from
-elsewhere:
-
-- **IAM enforcement** went untested. The emulator authorizes everything, so
-  what was measured is which calls each stage makes, not which denial an
-  under-scoped policy produces. The permission tables in
-  [Reference]({{< relref "/docs/use/reference#permissions-a-run-needs" >}}) are
-  the authority on the actions; nothing here tested a policy that refuses one.
-- **Scale** stayed small. These estates were two to five resources.
-  Migration cost is linear in resources stamped;
-  [Migrate an existing estate]({{< relref "/docs/use/migrate#moving-a-large-estate-in-one-go" >}})
-  carries the measured rate and its bounds.
-- **The bucket sections were measured separately, on real AWS.** The emulator
-  does not evaluate the IAM conditions the policy uses, and its CloudFormation
-  applies none of a bucket's properties, so the project, the policy and the
-  key arrangement were run against an account:
-  [claims 34 to 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}}).
-- **A real account** settles anything the emulator answers differently from
-  AWS.
-  [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
-  names the questions an emulator-backed run cannot answer at any scale.
-
-## Next
-
-- The [Start a new estate]({{< relref "/docs/use/start" >}}) page covers an
-  estate with nothing in it yet.
-- The [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) page
-  covers an account that already holds the resources.
-- The refusals can be found before anything stands up with
-  [How to check a configuration before migrating]({{< relref "/docs/use/check-a-config" >}}).
-- The per-backend trade-offs behind the record store choice are in
-  [Where things are stored]({{< relref "/docs/use/storage" >}}).

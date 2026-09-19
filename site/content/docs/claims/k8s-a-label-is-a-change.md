@@ -103,25 +103,21 @@ a different question from an edited key. "This configuration used to
 declare `squad`" is not in the configuration - the key is gone from it -
 and it is not on the object either, which holds the label and no memory of
 who asked for it. Stock reads it out of its last-applied manifest. A
-stateless run has to record it, so
+run with no state file has to record it, so
 [#1211](https://github.com/INTENTIUS/choudoufu/issues/1211) writes the
 label and annotation keys each apply declared into the estate's own
 residue record - the same record that already carries this type's
 `wait_for_*` arguments - and the removal set is
 `(recorded) \ (currently declared)`.
 
-The obvious alternative was tried first and refuted on a real cluster. The
-object's own `metadata.managedFields` names, per field manager, every
-field that manager last wrote, which sounds like the same set and is not:
-`computed_fields` makes the apply resend every key the object already had,
-foreign ones included, so server-side apply records *this estate* as the
-writer of keys nobody declared. One apply later it owns
-`kubernetes.io/metadata.name`, with no co-owner to filter on, and a
-removal rule built on that set proposes deleting a label the API server
-writes back every time. `managedFields` answers "who wrote this field"
-exactly; the question is "did this configuration declare it". It survives
-as a safety rail - a recorded key is not removed if another manager owns
-it now - and never as the source.
+The object's own `metadata.managedFields` was tried first as the source
+and refuted on a real cluster. `computed_fields` makes the apply resend
+every key the object already had, foreign ones included, so server-side
+apply records this estate as the writer of keys nobody declared. One
+apply later it owns `kubernetes.io/metadata.name`, and a removal rule
+built on that set proposes deleting a label the API server writes back
+every time. `managedFields` survives as a safety rail only: a recorded
+key is not removed if another manager owns it now.
 
 Degradation is toward the quiet answer, never toward churn. No record -
 a fresh clone, an estate migrated before the member existed - proposes
@@ -135,7 +131,7 @@ nothing either.
 Step 7's difference is forced, not chosen. "The configuration was edited"
 and "the live object drifted" are the same observation - configuration
 differs from live - unless you have a last-applied value to tell them
-apart. A state file has one; a stateless run does not. So making step 3
+apart. A state file has one, and a run without a state file does not. So making step 3
 visible necessarily makes step 7 visible. It is the direction #1177 asks
 for: an out-of-band `kubectl label` on a declared key is exactly the mover
 a saved plan's staleness check has to be able to see, and stock's cannot.

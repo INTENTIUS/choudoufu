@@ -7,20 +7,19 @@ claim: the-tag-is-the-boundary
 # Claim 13: The tag is the boundary
 
 In stock Terraform and OpenTofu, who owns a resource is a line in a state
-file. Changing that line is state surgery: no IAM policy can gate it,
-because the cloud never sees it, and nothing in the account records it.
-Under choudoufu ownership is a tag on the resource, and a tag write is an
-API call the cloud's own policy engine evaluates per resource. A role can
-be fenced to half an estate by a condition on the ownership tag, with the
-grant `live/MARKERS.md` publishes under "Granting an estate". That fence
-binds the credential, not the binary: the same condition governs a plain
-AWS CLI call with no choudoufu anywhere in the process, exactly as it
-governs choudoufu's own writes, and what it lets through is not hidden
-from the tool either - the next plan reads live tags, not a log of who
-wrote them. A carve, one half moving into an estate of its own, is then a
-governed write the platform can refuse. The scenario turns the emulator's
-IAM enforcement on for its run; the harness's own key stays privileged,
-and only the two roles the scenario creates and assumes are governed.
+file. No IAM policy can gate a change to that line, because the cloud
+never sees it. Under choudoufu ownership is a tag on the resource, and a
+tag write is an API call the cloud's own policy engine evaluates per
+resource. A role can be fenced to half an estate by a condition on the
+ownership tag, with the grant `live/MARKERS.md` publishes under "Granting
+an estate".
+
+That fence binds the credential: the same condition governs a plain AWS
+CLI call with no choudoufu anywhere in the process. A carve, one half
+moving into an estate of its own, is then a governed write the platform
+can refuse. The scenario turns the emulator's IAM enforcement on for its
+run. The harness's own key stays privileged, and only the two roles the
+scenario creates and assumes are governed.
 
 The boundary this claim proves is narrow, and it is worth stating exactly
 that way. The grant fences three actions by name -
