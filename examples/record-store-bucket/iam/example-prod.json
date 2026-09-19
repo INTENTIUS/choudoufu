@@ -1,0 +1,81 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListOwnNamespaces",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "tofu-records/prod/*",
+            "tofu-hints/prod/*",
+            "tofu-outputs/prod/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadAndDeleteByPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/tofu-records/prod/*",
+        "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/tofu-hints/prod/*",
+        "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/tofu-outputs/prod/*"
+      ]
+    },
+    {
+      "Sid": "WriteOnlyObjectsTaggedAsThisEstate",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:PutObjectTagging"
+      ],
+      "Resource": [
+        "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/tofu-records/prod/*",
+        "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/tofu-hints/prod/*",
+        "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/tofu-outputs/prod/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "s3:RequestObjectTag/tofu-estate": "prod"
+        }
+      }
+    },
+    {
+      "Sid": "DenyReadingAnotherEstatesObjects",
+      "Effect": "Deny",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:GetObjectTagging"
+      ],
+      "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/*",
+      "Condition": {
+        "StringNotEquals": {
+          "s3:ExistingObjectTag/tofu-estate": [
+            "prod"
+          ]
+        },
+        "Null": {
+          "s3:ExistingObjectTag/tofu-estate": "false"
+        }
+      }
+    },
+    {
+      "Sid": "ReadTheBucketsAssertedSettings",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketVersioning",
+        "s3:GetLifecycleConfiguration",
+        "s3:GetBucketPublicAccessBlock"
+      ],
+      "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2"
+    }
+  ]
+}
