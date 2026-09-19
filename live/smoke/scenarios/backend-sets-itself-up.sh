@@ -1,8 +1,21 @@
 # backend-sets-itself-up
-# CLAIM 4 - The live backend sets itself up automatically when configured: declaring it is the whole setup. ~1 min.
+# CLAIM 4 - The backend is a bucket with no lock table and no lock: nothing is held, so nothing gets stuck (REAL AWS, maintainer-run). ~6 min.
+#
+# The slug is older than the headline and stays, because the claim's URL is
+# what earlier evidence links to. GitHub issue #1349.
+#
+# Real AWS for now, and only because of step 3: it runs the shipped
+# `just up`, and the pinned emulator's CloudFormation reports CREATE_COMPLETE
+# while applying none of an S3 bucket's properties, so the bucket it makes is
+# refused by the bucket contract (claim 29). Nothing else here needs an
+# account. When the emulator applies those properties, step 0's refusal and
+# real_aws in claims.json are what change.
 
 SMOKE_WORK="$SMOKE_WORKROOT/autosetup"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"; export SMOKE_WORK
+PROJECT="$ROOT/examples/record-store-bucket"
+# shellcheck source=../bucket-iam.sh
+. "$SMOKE_DIR/bucket-iam.sh"
 cat > "$SMOKE_WORK/a/main.tf" <<'TFEOF'
 terraform {
   live {
@@ -14,22 +27,50 @@ resource "terraform_data" "effect" {
   input = "v1"
 }
 TFEOF
-sed 's/smoke-auto-local/smoke-auto-ssm/; s|estate = "smoke-auto-ssm"|estate = "smoke-auto-ssm"\n\n    record_store "ssm" {}|' \
-  "$SMOKE_WORK/a/main.tf" > "$SMOKE_WORK/b/main.tf"
 
 step "the claim"
 explain \
-  "The live backend sets itself up when configured. Compare stock's" \
-  "remote-backend day one: stand up a bucket with versioning and a lock" \
-  "table beside it, then wire IAM for both and keep it all in step" \
-  "forever. Only then does init run, with migration prompts to answer." \
-  "Here the backend is three pieces" \
-  "that live where AWS already is - identity as tags, values in a record" \
-  "store, effects as receipts - and DECLARING them is the entire setup." \
-  "Each store also proves itself before any plan trusts it: at first use" \
-  "it writes a sentinel and reads it back through the same List call" \
-  "plans use, so a store that cannot answer refuses loudly instead of" \
-  "impersonating an empty estate."
+  "Stock's remote-backend day one is: create a bucket, turn on" \
+  "versioning, create a lock table, write IAM for both. Three of those" \
+  "four are still here. A cloud record store is a bucket, it wants" \
+  "versioning, and it wants IAM. The one that is gone is the lock table," \
+  "and with it the lock: every write is a single conditional request" \
+  "that succeeds or fails atomically and leaves nothing behind. Nothing" \
+  "is held across a run, so a run that dies cannot strand the next one," \
+  "and there is no force-unlock to reach for at the worst moment." \
+  "" \
+  "This is a swap and not a subtraction. The bucket also wants a" \
+  "lifecycle rule and a public-access block, which stock's list never" \
+  "mentioned, so the list is no shorter. What changes is the kind of" \
+  "thing that can go wrong: a lock table is in the path of every apply" \
+  "and can strand one, and a lifecycle rule and a public-access block" \
+  "are set once and are in the path of none." \
+  "" \
+  "The part that does need no setup is the local store, which steps 1" \
+  "and 2 measure. And every store, local or bucket, proves itself before" \
+  "a plan trusts it: at first use it writes a sentinel and reads it back" \
+  "through the same List call plans use, so a store that cannot answer" \
+  "refuses loudly instead of impersonating an empty estate."
+
+step "0. real AWS"
+[ "${SMOKE_REAL_AWS:-0}" = "1" ] \
+  || fail "auto" "this scenario runs against real AWS: step 3 deploys a CloudFormation stack (one S3 bucket) in the account your credentials name, and removes it. It is maintainer-run and never starts by itself: set SMOKE_REAL_AWS=1 to run it."
+for bin in jq just node npm; do command -v "$bin" >/dev/null 2>&1 || fail "auto" "$bin is not installed; the runnable bucket project needs it"; done
+real_aws_begin auto
+BUCKET="chdf-smoke-auto-$SUFFIX"
+[ -d "$PROJECT/node_modules" ] || ( cd "$PROJECT" && npm ci >/dev/null 2>&1 ) || fail "auto" "npm ci failed in $PROJECT"
+STACK_UP=0
+auto_teardown() {
+  if [ "$STACK_UP" = "1" ]; then
+    # `just down` refuses a bucket that holds record versions (step 5 shows
+    # it). Emptying it is the deliberate act it asks for.
+    REAL_BUCKETS=("$BUCKET"); real_aws_teardown >/dev/null 2>&1; REAL_BUCKETS=()
+    aws cloudformation delete-stack --stack-name "$BUCKET" >/dev/null 2>&1
+    aws cloudformation wait stack-delete-complete --stack-name "$BUCKET" >/dev/null 2>&1 \
+      && echo "  removed stack and bucket $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
+  fi
+}
+trap 'auto_teardown; cleanup' EXIT
 
 step "1. no store declared - the local one appears unbidden"
 explain \
@@ -56,39 +97,75 @@ grep -E 'No changes\.' <<< "$P_A" | head -1 | evidence
 grep -q "No changes." <<< "$P_A" || fail "auto" "the record-backed resource did not survive the replan: $P_A"
 proof "the store is not scaffolding - the resource's identity round-tripped through it."
 
-step "3. a cloud store is one declaration, and it provisions itself"
+step "3. the cloud store is a bucket, stood up once with one command"
 explain \
-  "Copy B declares record_store \"ssm\" {} and nothing else - no" \
-  "parameter created ahead of time, no path chosen, no IAM beyond what" \
-  "the run already has. First use writes the sentinel INTO Parameter" \
-  "Store and reads it back through List; the AWS CLI can then show the" \
-  "parameter the store provisioned for itself."
-stack_up
-export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
-export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
-cmd "choudoufu apply -auto-approve   # record_store \"ssm\" {} is the whole setup"
+  "Not nothing: a bucket, with the three settings choudoufu asserts" \
+  "about it. The repository ships the project that makes one, and" \
+  "'just verify' asks the choudoufu binary whether the result is" \
+  "correct. What is NOT in this step is the other half of stock's day" \
+  "one: no lock table is created, and nothing in the configuration" \
+  "names one."
+cmd "just up $BUCKET   # examples/record-store-bucket"
+UP_OUT="$(cd "$PROJECT" && RECORD_NONCURRENT_DAYS=7 just up "$BUCKET" 2>&1)" || fail "auto" "just up failed: $UP_OUT"
+STACK_UP=1
+cmd "just verify $BUCKET"
+V_OUT="$(cd "$PROJECT" && CHOUDOUFU_BIN="$TOFU" just verify "$BUCKET" 2>&1)" || fail "auto" "just verify says the bucket it just made is not correct: $V_OUT"
+grep -E ' OK |: correct' <<< "$V_OUT" | evidence
+grep -q "bucket $BUCKET: correct" <<< "$V_OUT" || fail "auto" "verify did not report the bucket correct: $V_OUT"
+write_b() { # <sleep-seconds for the slow resource, or 0 for none>
+  cat > "$SMOKE_WORK/b/main.tf" <<TFEOF
+terraform {
+  live {
+    estate = "smoke-auto-bucket"
+
+    record_store "s3" {
+      bucket = "$BUCKET"
+      region = "$AWS_REGION"
+    }
+  }
+}
+
+resource "terraform_data" "effect" {
+  input = "v1"
+}
+TFEOF
+  [ "$1" = "0" ] || cat >> "$SMOKE_WORK/b/main.tf" <<TFEOF
+
+resource "terraform_data" "slow" {
+  input = "v1"
+
+  provisioner "local-exec" {
+    command = "echo \$\$ > '$SMOKE_WORK/slow.pid'; touch '$SMOKE_WORK/slow-started'; exec sleep $1"
+  }
+}
+TFEOF
+}
+write_b 0
+cmd "choudoufu apply -auto-approve   # record_store \"s3\" { bucket = ... } is all the configuration says"
 ( cd "$SMOKE_WORK/b" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "auto" "copy b init failed"
 B_OUT="$(cd "$SMOKE_WORK/b" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
-  || fail "auto" "the ssm-backed apply failed: $B_OUT"
-SENTINEL_PARAM="$(awsl ssm describe-parameters --query 'Parameters[].Name' --output text | tr '\t' '\n' | grep 'store-sentinel' | head -1)"
-[ -n "$SENTINEL_PARAM" ] || fail "auto" "no sentinel parameter exists in SSM - the declared store never provisioned itself"
-awsl ssm get-parameter --name "$SENTINEL_PARAM" --query 'Parameter.Value' --output text | head -c 90 | evidence
+  || fail "auto" "the bucket-backed apply failed: $B_OUT"
+grep -qE 'Resources: 1 added' <<< "$B_OUT" || fail "auto" "the bucket-backed apply: $B_OUT"
+SENTINEL="$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-auto-bucket/ --query 'Contents[].Key' --output text | tr '\t' '\n' | grep 'store-sentinel' | head -1)"
+[ -n "$SENTINEL" ] || fail "auto" "no sentinel object exists in the bucket - the declared store never proved itself"
+aws s3api get-object --bucket "$BUCKET" --key "$SENTINEL" /dev/stdout 2>/dev/null | head -c 90 | evidence
 echo | evidence
-proof "the store provisioned itself on first use, and the sentinel's own payload says what it is for - readable by any cloud tool, like everything else here."
+proof "one command made the bucket, the binary says it is correct, and on first use the store wrote its sentinel where any S3 tool can read it. A bucket, versioning and IAM, the same as stock. No lock table."
 
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - a store that cannot answer must refuse, never impersonate emptiness"
   explain \
-    "The corruption the sentinel exists for: the SSM store becomes" \
-    "unreachable (only SSM - the provider's endpoint stays healthy, via" \
-    "the SDK's service-specific override). Before the sentinel, a store" \
-    "whose List returned nothing read as an empty estate and the plan" \
-    "proposed re-creating live resources. Now the run must REFUSE, and" \
-    "the refusal must name the store - if it plans anything at all, the" \
-    "self-verification this claim rests on is scenery."
-  cmd "AWS_ENDPOINT_URL_SSM=http://localhost:9 choudoufu plan"
-  BOUT="$(cd "$SMOKE_WORK/b" && AWS_ENDPOINT_URL_SSM=http://localhost:9 AWS_MAX_ATTEMPTS=1 chdf plan -input=false -no-color 2>&1)" && \
+    "The corruption the sentinel exists for: the record store becomes" \
+    "unreachable (only S3, via the SDK's service-specific endpoint" \
+    "override). Before the sentinel, a store whose List returned nothing" \
+    "read as an empty estate and the plan proposed re-creating live" \
+    "resources. Now the run must REFUSE, and the refusal must name the" \
+    "store - if it plans anything at all, the self-verification this" \
+    "claim rests on is scenery."
+  cmd "AWS_ENDPOINT_URL_S3=http://localhost:9 choudoufu plan"
+  BOUT="$(cd "$SMOKE_WORK/b" && AWS_ENDPOINT_URL_S3=http://localhost:9 AWS_MAX_ATTEMPTS=1 chdf plan -input=false -no-color 2>&1)" && \
     fail "auto" "the plan SUCCEEDED against an unreachable record store: $BOUT"
+  grep -q "to add" <<< "$BOUT" && fail "auto" "the run proposed creating resources against a store it could not reach: $BOUT"
   grep -qiE "record.store|sentinel" <<< "$BOUT" \
     || fail "auto" "the run failed but nothing named the record store - an anonymous failure is not the loud refusal the claim promises: $BOUT"
   grep -iE "record.store|sentinel" <<< "$BOUT" | head -1 | evidence
@@ -96,15 +173,54 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
-step "4. teardown - both stores, no residue beyond their own directories"
+step "4. a run killed in the middle of an apply strands nothing"
+explain \
+  "The measurement the headline rests on. A second resource takes a" \
+  "while to create. The apply is killed with SIGKILL while it is in" \
+  "flight - no handler runs, nothing gets to clean up. Under stock a" \
+  "run that dies this way leaves its lock behind, and the next run" \
+  "stops at 'Error acquiring the state lock' until somebody decides" \
+  "force-unlock is safe. Here the very next run must just work."
+write_b 120
+rm -f "$SMOKE_WORK/slow-started"
+cmd "choudoufu apply -auto-approve &   # then: kill -9, mid-apply"
+( cd "$SMOKE_WORK/b" && exec "$TOFU" apply -auto-approve -input=false -no-color >"$SMOKE_WORK/killed.out" 2>&1 ) &
+APPLY_PID=$!
+for i in $(seq 1 90); do [ -f "$SMOKE_WORK/slow-started" ] && break; sleep 1; done
+[ -f "$SMOKE_WORK/slow-started" ] || { kill -9 "$APPLY_PID" 2>/dev/null; fail "auto" "the slow resource never started creating, so there was no apply in flight to kill: $(cat "$SMOKE_WORK/killed.out")"; }
+kill -0 "$APPLY_PID" 2>/dev/null || fail "auto" "the apply had already exited before it could be killed: $(cat "$SMOKE_WORK/killed.out")"
+kill -9 "$APPLY_PID"; wait "$APPLY_PID" 2>/dev/null && fail "auto" "the killed apply exited 0"
+# SIGKILL orphans the provisioner's own process. It is this scenario's to end.
+kill "$(cat "$SMOKE_WORK/slow.pid" 2>/dev/null)" 2>/dev/null || true
+grep -q "Apply complete" "$SMOKE_WORK/killed.out" && fail "auto" "the apply completed; it was not killed in flight"
+echo "killed with SIGKILL while terraform_data.slow was creating" | evidence
+write_b 1
+cmd "choudoufu apply -auto-approve   # the very next run, nothing done in between"
+N_OUT="$(cd "$SMOKE_WORK/b" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "auto" "the run after the killed one failed: $N_OUT"
+grep -qi "lock" <<< "$N_OUT" && fail "auto" "the run after the killed one mentions a lock: $N_OUT"
+grep -E 'Resources: ' <<< "$N_OUT" | head -1 | evidence
+grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$N_OUT" || fail "auto" "the run after the killed one did not simply finish the work: $N_OUT"
+KEYS="$(aws s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text | tr '\t' '\n')"
+echo "$KEYS" | evidence
+grep -i "lock" <<< "$KEYS" && fail "auto" "an object in the bucket is named like a lock"
+proof "the next run finished the work, first try. Every object in the bucket is listed above: a sentinel, a hint and the records. There is no lock object because there is no lock, and so nothing for a dead run to leave held."
+
+step "5. teardown - and this time there IS something to deprovision"
 cmd "choudoufu apply -destroy -auto-approve   # in both copies"
 ( cd "$SMOKE_WORK/a" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
   || fail "auto" "copy a teardown failed"
-( cd "$SMOKE_WORK/b" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "auto" "copy b teardown failed"
-proof "both estates gone. Nothing to deprovision, because nothing was ever provisioned by hand."
+D_OUT="$(cd "$SMOKE_WORK/b" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
+  || fail "auto" "copy b teardown failed: $D_OUT"
+grep -q "2 destroyed" <<< "$D_OUT" || fail "auto" "copy b's teardown did not destroy both instances: $D_OUT"
+cmd "just down $BUCKET"
+DN_OUT="$(cd "$PROJECT" && just down "$BUCKET" 2>&1)" && fail "auto" "just down removed a bucket that still held recoverable record versions: $DN_OUT"
+grep -q "REFUSING" <<< "$DN_OUT" || fail "auto" "just down failed, but not by refusing: $DN_OUT"
+grep -E 'REFUSING|It holds' <<< "$DN_OUT" | head -2 | evidence
+proof "both estates gone. The local store leaves a directory. The bucket is a thing somebody stood up and somebody has to take down, and it refuses to go while it still holds the recoverable versions of destroyed records. This scenario empties it on exit, deliberately."
 
 echo "  What you watched: a store nobody configured appear with its sentinel"
-echo "  already written, a cloud store provision itself from one declaration,"
-echo "  and the setup ceremony stock requires - buckets, lock tables, IAM"
-echo "  pairs, migration prompts - simply not exist."
+echo "  already written; a cloud store that is a bucket, stood up with one"
+echo "  command and checked by the binary; an apply killed outright and the"
+echo "  next run carrying on as if nothing had happened, because nothing was"
+echo "  held; and a teardown that admits there is a bucket to take down."
