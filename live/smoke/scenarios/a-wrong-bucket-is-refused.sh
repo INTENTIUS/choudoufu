@@ -1,5 +1,5 @@
 # a-wrong-bucket-is-refused
-# CLAIM 29 - A record store bucket without versioning, a lifecycle that expires noncurrent versions, or public-access block is refused by name before anything is applied. ~2 min.
+# CLAIM 29 - A record store bucket that cannot keep its records is refused by name before anything is applied. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/wrongbucket"
 BUCKET="smoke-asserted-records"
@@ -77,26 +77,6 @@ awsl s3api get-bucket-versioning --bucket "$BUCKET" --query Status --output text
 awsl s3api get-bucket-lifecycle-configuration --bucket "$BUCKET" --query 'Rules[0].NoncurrentVersionExpiration.NoncurrentDays' --output text | sed 's/^/noncurrent versions expire after (days): /' | evidence
 proof "with all three in place the apply is not interrupted: the assertion costs a correct bucket nothing."
 
-if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - an arm that corrupts nothing must not read as a refusal"
-  explain \
-    "The arms below each break one setting and require a refusal. If the" \
-    "check for 'refused by name' could pass on a run that was never" \
-    "refused, all four would be scenery. So this control runs the first" \
-    "arm WITHOUT suspending versioning and requires the check to notice" \
-    "that the apply simply went through."
-  write_estate "$SMOKE_WORK/est" smoke-asserted v-break
-  cmd "choudoufu apply -auto-approve   # versioning left Enabled"
-  BOUT="$(cd "$SMOKE_WORK/est" && chdf apply -auto-approve -input=false -no-color 2>&1)" || true
-  if grep -q "fails its versioning assertion" <<< "$BOUT"; then
-    fail "wrongbucket" "a correct bucket was refused: $BOUT"
-  fi
-  grep -qE 'Apply complete' <<< "$BOUT" || fail "wrongbucket" "the control apply neither refused nor completed: $BOUT"
-  grep -E 'Apply complete' <<< "$BOUT" | head -1 | evidence
-  proof "caught - with nothing corrupted there is no refusal line to find, so the arms' check cannot pass without one."
-  exit 0
-fi
-
 # one_arm <name> <setting> <corrupt-command...>
 ARM_N=0
 one_arm() {
@@ -114,6 +94,57 @@ one_arm() {
   [ "$before" = "$after" ] || fail "wrongbucket" "[$name] the refused apply still wrote to the record store: $before object version(s) before, $after after"
   make_correct || fail "wrongbucket" "[$name] could not restore the bucket"
 }
+
+if [ "${BREAK:-0}" = "1" ]; then
+  step "BREAK control - a binary that does not check the bucket must be caught by an arm"
+  explain \
+    "Until #1379 this control applied to a CORRECT bucket and required" \
+    "success. It corrupted nothing, so it could not fail: with" \
+    "CheckBucketContract returning no findings at all the arm still" \
+    "printed 'caught'. What an arm has to catch is a binary that does not" \
+    "check, so that is what this builds." \
+    "" \
+    "The corruption is in the binary: CheckBucketContract returns an empty" \
+    "set of findings, which is what a bucket with nothing wrong with it" \
+    "looks like. It is applied with go build -overlay, so the source tree" \
+    "is never touched, and it needs this checkout and Go. One arm then" \
+    "runs against a bucket that IS wrong, and this control passes only" \
+    "when the arm's own check fires."
+  [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
+    || fail "wrongbucket" "BREAK=1 rebuilds choudoufu from this checkout with the bucket contract disabled; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
+  command -v go >/dev/null 2>&1 || fail "wrongbucket" "BREAK=1 needs Go to build the broken binary"
+  SRC="$ROOT/internal/live/staterecord/bucketcontract.go"
+  mkdir -p "$SMOKE_WORK/break"
+  python3 - "$SRC" "$SMOKE_WORK/break/bucketcontract.go" <<'PYEOF'
+import sys
+src = open(sys.argv[1]).read()
+old = "\tfindings := make([]BucketFinding, 0, len(BucketSettings))\n"
+assert src.count(old) == 1, "the break patch no longer matches CheckBucketContract"
+open(sys.argv[2], "w").write(src.replace(old, old + "\tif true {\n\t\treturn findings, nil // BREAK: the bucket is never checked\n\t}\n"))
+PYEOF
+  [ -s "$SMOKE_WORK/break/bucketcontract.go" ] \
+    || fail "wrongbucket" "the break patch did not apply to $SRC, so this arm would pass by testing the real binary"
+  cmp -s "$SRC" "$SMOKE_WORK/break/bucketcontract.go" \
+    && fail "wrongbucket" "the break patch changed nothing in $SRC, so this arm would pass by testing the real binary"
+  printf '{"Replace":{"%s":"%s"}}\n' "$SRC" "$SMOKE_WORK/break/bucketcontract.go" > "$SMOKE_WORK/break/overlay.json"
+  cmd "go build -overlay overlay.json ./cmd/choudoufu   # CheckBucketContract reports nothing"
+  ( cd "$ROOT" && go build -overlay "$SMOKE_WORK/break/overlay.json" -o "$SMOKE_WORK/break/choudoufu" ./cmd/choudoufu ) \
+    || fail "wrongbucket" "the broken binary did not build"
+  # chdf runs $TOFU, so pointing it at the broken build is what puts the arm
+  # below in front of a binary that does not check.
+  TOFU="$SMOKE_WORK/break/choudoufu"
+  BREAK_ARM="the apply SUCCEEDED against a bucket that fails its versioning assertion"
+  cmd "aws s3api put-bucket-versioning --versioning-configuration Status=Suspended; choudoufu apply   # the first arm, run against the binary that does not check"
+  ARM_OUT="$( (one_arm "versioning suspended" versioning \
+    awsl s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Suspended) 2>&1 )" && ARM_RC=0 || ARM_RC=$?
+  [ "$ARM_RC" != "0" ] \
+    || fail "wrongbucket" "the arm PASSED against a binary whose bucket contract reports nothing, so its refusal check is scenery: $ARM_OUT"
+  grep -q "$BREAK_ARM" <<< "$ARM_OUT" \
+    || fail "wrongbucket" "the arm failed, but not by catching the unchecked apply (it never said '$BREAK_ARM'), so this control has not shown what stopped it: $ARM_OUT"
+  grep -oE "FAIL \[wrongbucket\]: .{0,120}" <<< "$ARM_OUT" | head -1 | evidence
+  proof "caught - with the bucket contract reporting nothing, the apply against a bucket whose versioning is Suspended went through, and the arm's own check is what stopped it. That check is what the five arms below rest on."
+  exit 0
+fi
 
 step "2. five ways to be wrong, each refused by name with nothing applied"
 explain \

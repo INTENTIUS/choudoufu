@@ -112,7 +112,9 @@
           "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/backend-sets-itself-up.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -655,7 +657,7 @@
       "scenario": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
       "command": "just smoke a-name-prefix-shares-no-keys",
       "minutes": 1,
-      "needs_go": false,
+      "needs_go": true,
       "theme": "operate",
       "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with the namespace delimiter dropped (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the wire shows the run fetching its neighbour's record",
       "providers": {
@@ -678,9 +680,9 @@
       "scenario": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
       "command": "just smoke a-wrong-bucket-is-refused",
       "minutes": 2,
-      "needs_go": false,
+      "needs_go": true,
       "theme": "operate",
-      "break_mode": "BREAK=1 runs the first refusal arm with nothing corrupted and passes only when the check for a refusal by name finds none; the scenario's own four arms are the corruptions, one per setting plus a lifecycle that exists and expires nothing",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with CheckBucketContract reporting no findings (go build -overlay, so it needs Go and cannot break a release binary), runs one arm against a bucket whose versioning is Suspended, and passes only when that arm's own check catches the apply going through; the scenario's own five arms are the corruptions, one per setting plus a lifecycle that expires nothing and one that expires records",
       "providers": {
         "aws": {
           "status": "proven",
@@ -701,7 +703,7 @@
       "scenario": "live/smoke/scenarios/a-waiver-names-what-it-waives.sh",
       "command": "just smoke a-waiver-names-what-it-waives",
       "minutes": 2,
-      "needs_go": false,
+      "needs_go": true,
       "theme": "operate",
       "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the waiver warning is emitted on an estate's first run only (go build -overlay, so it needs Go and cannot break a release binary) and passes only when run two is caught proceeding in silence",
       "providers": {
@@ -724,7 +726,7 @@
       "scenario": "live/smoke/scenarios/a-bulk-read-is-complete-or-it-fails.sh",
       "command": "just smoke a-bulk-read-is-complete-or-it-fails",
       "minutes": 2,
-      "needs_go": false,
+      "needs_go": true,
       "theme": "operate",
       "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the fan-out drops a failed GET's key (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the plan is caught proposing to create a resource that exists",
       "providers": {
@@ -747,7 +749,7 @@
       "scenario": "live/smoke/scenarios/two-writers-one-record.sh",
       "command": "just smoke two-writers-one-record",
       "minutes": 3,
-      "needs_go": false,
+      "needs_go": true,
       "theme": "operate",
       "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record",
       "providers": {
@@ -784,7 +786,9 @@
           "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -808,7 +812,9 @@
           "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -832,7 +838,9 @@
           "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/one-bucket-many-estates.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -842,7 +850,7 @@
       "scenario": "live/smoke/scenarios/objects-carry-the-estate-tag.sh",
       "command": "just smoke objects-carry-the-estate-tag",
       "minutes": 5,
-      "needs_go": false,
+      "needs_go": true,
       "real_aws": true,
       "theme": "operate",
       "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the S3 store sends no tags (go build -overlay, needs Go) and passes only when the published policy then denies its first write",
@@ -856,7 +864,9 @@
           "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/objects-carry-the-estate-tag.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -880,7 +890,35 @@
           "note": "The claim is about the record store bucket, its key and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/the-recommended-secure-configuration.lastrun.json"
+      ],
+      "substrate": "aws"
+    },
+    {
+      "id": 38,
+      "slug": "a-read-only-role-can-plan",
+      "title": "A role with the read-only policy plans an established estate and writes nothing, and a store with no sentinel is still refused by name",
+      "scenario": "live/smoke/scenarios/a-read-only-role-can-plan.sh",
+      "command": "just smoke a-read-only-role-can-plan",
+      "minutes": 6,
+      "needs_go": true,
+      "real_aws": true,
+      "theme": "operate",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so provisionStoreSentinel returns a denied sentinel write instead of carrying it past to its List (go build -overlay, needs Go), which is what every binary before #1416 did, and passes only when the read-only role then cannot plan at all",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "Real AWS and maintainer-run, not CI: the claim is about what one IAM policy permits and another refuses, and the pinned emulator evaluates neither the policy nor its conditions. Run with SMOKE_REAL_AWS=1; it creates a bucket and two IAM roles and removes them."
+        },
+        "kubernetes": {
+          "status": "restated",
+          "note": "A Kubernetes estate's plan job opens the record store with the process's own AWS credentials, never with the cluster identity, so the role it needs is the same read-only rendering this claim measures. TestNoRecordStoreBackendIsKubernetes pins that there is no cluster-backed record store to state a different claim about."
+        }
+      },
+      "evidence": [
+        "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json"
+      ],
       "substrate": "aws"
     }
   ]

@@ -78,6 +78,12 @@ PYEOF
 fi
 run() { ( cd "$SMOKE_WORK/est" && "$RUN_BIN" "$@" ); }
 flat() { tr '\n' ' ' | sed 's/│/ /g' | tr -s ' '; }
+# max_in_flight reads the proxy's high-water mark of concurrent record GETs.
+# The mark is reset by deleting the file, so a plan measured here can never
+# read a number an earlier plan left behind.
+RECORD_PREFIX="tofu-records/smoke-bulkread/terraform_data/"
+arm_counter() { echo "$RECORD_PREFIX" > "$SMOKE_WORK/count"; echo "$RECORD_PREFIX 0.2" > "$SMOKE_WORK/stall"; rm -f "$SMOKE_WORK/inflight-max"; }
+max_in_flight() { cat "$SMOKE_WORK/inflight-max" 2>/dev/null || echo 0; }
 
 step "1. $N record-backed resources, applied straight to the emulator"
 stack_up
@@ -97,7 +103,7 @@ VICTIM="$(sed -n '7p' <<< "$KEYS")"
 echo "$N records; the one this scenario will fail: $VICTIM" | evidence
 proof "every resource has a record, and one of them is singled out."
 
-step "2. the proxy, and a control plan through it with nothing failing"
+step "2. the proxy, a control plan through it with nothing failing, and how wide the fan-out is"
 python3 "$SMOKE_DIR/s3proxy.py" "$FLOCI_PORT" "$SMOKE_WORK" 2>"$SMOKE_WORKROOT/logs/bulkread-proxy.err" &
 PROXY_PID=$!
 trap 'kill $PROXY_PID 2>/dev/null || true; cleanup' EXIT
@@ -106,13 +112,38 @@ for _ in $(seq 1 50); do [ -s "$SMOKE_WORK/proxy.port" ] && break; sleep 0.1; do
 export AWS_ENDPOINT_URL="http://localhost:$(cat "$SMOKE_WORK/proxy.port")"
 # The state cache would answer the plan without asking the store at all.
 rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
-cmd "choudoufu plan   # through the proxy, nothing armed"
+arm_counter
+cmd "choudoufu plan   # through the proxy, nothing failing"
 C_OUT="$(run plan -input=false -no-color 2>&1)" || fail "bulkread" "the control plan through the proxy failed: $C_OUT"
 grep -q "No changes." <<< "$C_OUT" || fail "bulkread" "the control plan through the proxy was not empty, so the proxy itself changes the answer: $C_OUT"
 GETS="$(grep -c '^GET /tofu-records/smoke-bulkread/terraform_data/' "$SMOKE_WORK/proxy.log" || true)"
 [ "$GETS" -ge "$N" ] || fail "bulkread" "the proxy saw $GETS record GETs, fewer than the $N records: the plan is not reading records through it, and failing one would prove nothing"
-echo "record GETs seen by the proxy: $GETS, all 200" | evidence
-proof "the plan reads every record through the proxy and is empty. Whatever changes next is the failure's doing."
+# "Eight at a time" was in the claim's own words and nothing measured it
+# (#1379). The proxy counts record GETs in flight and keeps the high-water
+# mark; with each GET held for 200ms, requests that really are concurrent
+# overlap for long enough to be counted. 8 is
+# staterecord.DefaultS3GetAllParallelism.
+PARALLEL="$(max_in_flight)"
+[ "$PARALLEL" -gt 1 ] \
+  || fail "bulkread" "the proxy never saw more than $PARALLEL record GET in flight at once: this read is sequential, not a fan-out, and the claim's whole subject is what a fan-out does with a failure"
+[ "$PARALLEL" -le 8 ] \
+  || fail "bulkread" "the proxy saw $PARALLEL record GETs in flight at once, past the default bound of 8"
+echo "record GETs seen by the proxy: $GETS, all 200; most in flight at once: $PARALLEL (the default bound is 8)" | evidence
+# The other direction, so the counter is known to be counting and not just
+# printing a number that happens to be in range: the same plan with the
+# fan-out turned down to one worker must never exceed one in flight.
+rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
+arm_counter
+cmd "TOFU_LIVE_RECORD_READ_PARALLELISM=1 choudoufu plan   # the sequential read, for contrast"
+S_OUT="$(cd "$SMOKE_WORK/est" && TOFU_LIVE_RECORD_READ_PARALLELISM=1 "$RUN_BIN" plan -input=false -no-color 2>&1)" \
+  || fail "bulkread" "the sequential control plan failed: $S_OUT"
+grep -q "No changes." <<< "$S_OUT" || fail "bulkread" "the sequential control plan was not empty: $S_OUT"
+SEQUENTIAL="$(max_in_flight)"
+[ "$SEQUENTIAL" = "1" ] \
+  || fail "bulkread" "with TOFU_LIVE_RECORD_READ_PARALLELISM=1 the proxy saw $SEQUENTIAL record GETs in flight at once, want exactly 1; the counter is not measuring the fan-out"
+echo "the same plan with TOFU_LIVE_RECORD_READ_PARALLELISM=1: most in flight at once: $SEQUENTIAL" | evidence
+rm -f "$SMOKE_WORK/stall" "$SMOKE_WORK/count"
+proof "the plan reads every record through the proxy, $PARALLEL of them in flight at once against the default and exactly one with the fan-out turned off, and it is empty. Whatever changes next is the failure's doing."
 
 step "3. one GET fails once, mid-fanout"
 explain \
@@ -136,10 +167,19 @@ if grep -qE 'Plan: [1-9][0-9]* to add' <<< "$T_OUT"; then
   fail "bulkread" "a record read that failed for one key produced a plan that proposes creating that resource: $T_OUT"
 fi
 [ "${BREAK:-0}" = "1" ] && fail "bulkread" "the binary built to drop a failed key still produced a true plan, so the break did not take and this control proves nothing: $T_OUT"
-[ "$T_RC" = "0" ] || grep -q "$(basename "$VICTIM")" <<< "$(flat <<< "$T_OUT")" \
-  || fail "bulkread" "the plan failed without naming the record it could not read: $T_OUT"
+# Two outcomes are allowed here and both are named, because "no resource was
+# proposed for creation" is not the claim: the claim is that the plan is the
+# TRUE one. Until #1379 a run that exited 0 was accepted whatever it planned,
+# so a plan of twelve changes read exactly like an empty one.
+if [ "$T_RC" = "0" ]; then
+  grep -q "No changes." <<< "$T_OUT" \
+    || fail "bulkread" "the plan exited 0 and is not empty, although nothing in the world changed: a read that came back with something other than what is in the bucket is the failure this claim is about. $T_OUT"
+else
+  grep -q "$(basename "$VICTIM")" <<< "$(flat <<< "$T_OUT")" \
+    || fail "bulkread" "the plan failed without naming the record it could not read: $T_OUT"
+fi
 grep -E 'No changes\.|Error:' <<< "$T_OUT" | head -1 | evidence
-proof "no resource was proposed for creation. The read was not short."
+proof "the plan is the true one: empty if the run got its records, and a refusal naming the record if it did not. Nothing was proposed for creation either way."
 
 step "4. the same GET fails every time"
 explain \

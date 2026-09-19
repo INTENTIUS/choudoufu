@@ -184,9 +184,20 @@ and on Kubernetes alike.
 catalogues the actions per stage and per record store.
 
 A plan changes no resource, and a role that may only read can run one. That
-includes the record store: a plan role needs to list and read the estate's
-records and nothing more, and `render-policy.sh --read-only` renders that
-policy for a bucket.
+includes the record store: opening one sends a conditional write for the
+store's sentinel, and a run that is refused that write carries on when the
+sentinel is already there, so a role with `s3:GetObject` and `s3:ListBucket`
+and no `s3:PutObject` can plan an estate some earlier run recorded. A bucket
+that has never been opened is still refused by name, because a store with no
+sentinel and no way to write one reads exactly like an estate with no
+resources in it; run the estate once under a role that may write, and
+read-only plans work from then on. Render the policy for such a role with
+`render-policy.sh <estate> <bucket> --read-only`:
+[IAM for the record store bucket]({{< relref "/docs/use/iam#a-role-that-plans-and-never-applies" >}})
+says what it leaves out and why, and
+[claim 38]({{< relref "/docs/claims/a-read-only-role-can-plan" >}}) is the
+run on real AWS where such a role plans an established estate, writes
+nothing, and is refused by name against a store no run has provisioned.
 
 A plan reads widely. The estate-wide sweep finds resources whose block was
 deleted, and its width comes from the admission table and not from the size

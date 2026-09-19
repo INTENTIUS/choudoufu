@@ -148,7 +148,13 @@ for f in $FLAVOURS; do
   aws s3api put-bucket-versioning --bucket "$b" --versioning-configuration Status=Enabled
   aws s3api put-bucket-lifecycle-configuration --bucket "$b" --lifecycle-configuration '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":1}}]}' >/dev/null
   aws s3api put-public-access-block --bucket "$b" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-  PAIRS="${PAIRS:+$PAIRS,}$f=$b"
+  # The key goes with the flavours that were configured with one, so the test
+  # can compare what S3 reports against what was asked for rather than against
+  # an alias HeadObject never returns (#1379).
+  case "$f" in
+    sse-kms-cmk|dsse-kms) PAIRS="${PAIRS:+$PAIRS,}$f=$b=$KEY_ARN" ;;
+    *)                    PAIRS="${PAIRS:+$PAIRS,}$f=$b" ;;
+  esac
   echo "$f -> $b  ($(aws s3api get-bucket-encryption --bucket "$b" --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' --output text))" | evidence
 done
 proof "four buckets, four default-encryption flavours, read back from S3."

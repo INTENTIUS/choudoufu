@@ -1,0 +1,74 @@
+# The bucket backend's emulator smokes in CI (GitHub issue #1379). Every
+# claim of the bucket backend epic (#1332) that runs against the pinned
+# floci emulator - 28 a-name-prefix-shares-no-keys, 29
+# a-wrong-bucket-is-refused, 30 a-waiver-names-what-it-waives, 31
+# a-bulk-read-is-complete-or-it-fails, 32 two-writers-one-record - runs
+# here with its BREAK=1 control, one job per scenario.
+#
+# Nothing ran them before this. That is how claim 28 stayed red from #1351
+# to #1369, across several merges: the scenario was written against a bare
+# bucket, the bucket contract (claim 29) started refusing it, and no job
+# anywhere executed the file. The claims table said "proven" the whole
+# time, on the strength of one laptop run before the contract landed.
+#
+# The five real-AWS claims of the same epic (4, 33, 34, 35, 36, 37) are not
+# here and cannot be: they spend money in an account, and CLAUDE.md's rule
+# is that such a run is the maintainer's to start. live/bucket_ci_test.go
+# holds this file to the scenario directory, so an emulator claim added to
+# the epic lands with a matrix entry or lands red.
+name: bucket-smoke
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/bucket-smoke.yml"
+      - "live/smoke/**"
+      - "internal/live/staterecord/**"
+      - "internal/live/projection/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bucket-smoke.yml"
+      - "live/smoke/**"
+      - "internal/live/staterecord/**"
+      - "internal/live/projection/**"
+  schedule:
+    # Nightly, so a repin of the emulator image or of a dependency is caught
+    # against these claims on the day it happens rather than on the next
+    # pull request that happens to touch one of the paths above.
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bucket-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - a-name-prefix-shares-no-keys
+          - a-wrong-bucket-is-refused
+          - a-waiver-names-what-it-waives
+          - a-bulk-read-is-complete-or-it-fails
+          - two-writers-one-record
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Docker and the AWS CLI, which every scenario here needs
+        run: |
+          docker info > /dev/null
+          aws --version
+      - name: the scenario
+        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+      - name: the BREAK=1 control
+        env:
+          BREAK: "1"
+        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}

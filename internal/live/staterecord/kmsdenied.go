@@ -205,16 +205,25 @@ func (e *KMSKeyUnusableError) Remedy() string {
 	}
 }
 
-// s3OpError wraps a failed S3 call, naming a KMS refusal or a KMS key that
-// cannot be used when that is what it is. Every error an [S3Store] operation
-// returns from the wire goes through here, so the key is named whichever
-// request met it first.
-func s3OpError(doing, key string, err error) error {
+// s3OpError wraps a failed S3 call, naming a KMS refusal, a KMS key that
+// cannot be used, or a denial while the bucket's owner is pinned, when that
+// is what it is. Every error an [S3Store] operation returns from the wire
+// goes through here, so the cause is named whichever request met it first.
+//
+// The order is not arbitrary. A KMS refusal and an owner mismatch both arrive
+// as 403 AccessDenied, and the KMS one is recognised by text AWS only writes
+// for a KMS denial, so it is the more specific of the two and goes first.
+// expectedOwner is "" for a store that pins no owner, and
+// [asBucketOwnerMismatch] then produces nothing at all.
+func s3OpError(bucket, expectedOwner, doing, key string, err error) error {
 	if denied := asKMSDenied(err); denied != nil {
 		return fmt.Errorf("staterecord: s3: %s %q: %w", doing, key, denied)
 	}
 	if unusable := asKMSKeyUnusable(err); unusable != nil {
 		return fmt.Errorf("staterecord: s3: %s %q: %w", doing, key, unusable)
+	}
+	if foreign := asBucketOwnerMismatch(bucket, expectedOwner, err); foreign != nil {
+		return fmt.Errorf("staterecord: s3: %s %q: %w", doing, key, foreign)
 	}
 	return fmt.Errorf("staterecord: s3: %s %q: %w", doing, key, err)
 }

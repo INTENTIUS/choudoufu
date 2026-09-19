@@ -1,0 +1,13 @@
+{
+  "claim": "the-recommended-secure-configuration",
+  "provider": "aws",
+  "target": "real AWS",
+  "date": "2026-09-19",
+  "commit": "5ecd7892a2c236630a5d3820d4e9bac5d1900e21",
+  "command": "SMOKE_REAL_AWS=1 AWS_REGION=us-east-2 just smoke the-recommended-secure-configuration",
+  "verdict": "PASS: smoke scenario 'the-recommended-secure-configuration' - every claim held (smoke v1.0.0)",
+  "break_commit": "5ad067f82c3ec1d3655671e245a35b6226af404c",
+  "break_command": "SMOKE_REAL_AWS=1 AWS_REGION=us-east-2 BREAK=1 just smoke the-recommended-secure-configuration",
+  "break_verdict": "caught - refused by name, and the name is three things: the key, the KMS action, and the role that its policy no longer names. (The role's read and its write were both denied 4 times running before the apply.)",
+  "note": "#1379: recorded by hand from a maintainer-session run against real AWS (account ending 3429, us-east-2), one named claim at a time, torn down afterwards with no chdf-smoke bucket and no smoke- role left. No workflow runs the real-AWS claims, so this file is stale the moment the scenario, the renderer or the store changes underneath it, and nothing re-checks that automatically. The BREAK arm prints a 'caught' line and exits 0 without a PASS line, which is why both are quoted."
+}
