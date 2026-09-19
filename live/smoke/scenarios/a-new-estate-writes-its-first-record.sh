@@ -23,13 +23,17 @@ step "0. real AWS, and a control: a role that is allowed nothing is denied"
 command -v jq >/dev/null 2>&1 || fail "firstwrite" "jq is not installed; the policy renderer needs it"
 real_aws_begin firstwrite
 BUCKET="chdf-smoke-firstwrite-$SUFFIX"
+# One name per RUN. A fixed role name is adopted by the next run whatever
+# policy it is carrying, and two runs at once overwrite each other's (#1378).
+NOPOLICY_ROLE="$(role_name smoke-no-policy)" || fail "firstwrite" "could not name the control role"
+ESTATE_ROLE="$(role_name smoke-new-estate)" || fail "firstwrite" "could not name the estate's role"
 bucket_up "$BUCKET" || fail "firstwrite" "could not create the bucket"
 echo probe > "$SMOKE_WORK/probe"
 awsl s3api put-object --bucket "$BUCKET" --key control/probe --body "$SMOKE_WORK/probe" >/dev/null
-role_with_policy smoke-no-policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"sts:GetCallerIdentity","Resource":"*"}]}' "$BUCKET" \
+role_with_policy "$NOPOLICY_ROLE" '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"sts:GetCallerIdentity","Resource":"*"}]}' "$BUCKET" \
   || fail "firstwrite" "could not create the control role"
 cmd "aws s3api get-object ...   # as a role that is allowed nothing in S3"
-C_OUT="$(as_role smoke-no-policy awsl s3api get-object --bucket "$BUCKET" --key control/probe "$SMOKE_WORK/out" 2>&1)" \
+C_OUT="$(as_role "$NOPOLICY_ROLE" awsl s3api get-object --bucket "$BUCKET" --key control/probe "$SMOKE_WORK/out" 2>&1)" \
   && fail "firstwrite" "a role with no S3 permission read an object, so every 'allowed' below would mean nothing."
 denied "$C_OUT" || fail "firstwrite" "the control read failed for some reason other than a denial: $C_OUT"
 grep -oE 'AccessDenied[^"]*' <<< "$C_OUT" | head -1 | mask | evidence
@@ -49,14 +53,14 @@ if [ "${BREAK:-0}" = "1" ]; then
 fi
 
 step "1. a brand-new estate, an empty prefix, and the published policy"
-role_with_policy smoke-new-estate "$POLICY" "$BUCKET" || fail "firstwrite" "could not create the estate's role"
+role_with_policy "$ESTATE_ROLE" "$POLICY" "$BUCKET" || fail "firstwrite" "could not create the estate's role"
 jq -c '.Statement[] | select(.Sid == "WriteOnlyObjectsTaggedAsThisEstate") | {Action, Condition}' <<< "$POLICY" | evidence
 write_bucket_estate "$SMOKE_WORK/est" smoke-new "$BUCKET" v1
 ( cd "$SMOKE_WORK/est" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "firstwrite" "init failed"
 EMPTY="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-new/ --query 'length(Contents || `[]`)' --output text)"
 [ "$EMPTY" = "0" ] || fail "firstwrite" "the prefix is not empty ($EMPTY objects), so this is not a first write"
 cmd "choudoufu apply -auto-approve   # as the estate's role, into a prefix holding nothing"
-A_OUT="$(cd "$SMOKE_WORK/est" && as_role smoke-new-estate chdf apply -auto-approve -input=false -no-color 2>&1)" && A_RC=0 || A_RC=$?
+A_OUT="$(cd "$SMOKE_WORK/est" && as_role "$ESTATE_ROLE" chdf apply -auto-approve -input=false -no-color 2>&1)" && A_RC=0 || A_RC=$?
 
 if [ "${BREAK:-0}" = "1" ]; then
   [ "$A_RC" != "0" ] || fail "firstwrite" "the first write SUCCEEDED under a policy that conditions the create on the tags of an object that does not exist. Either the emulator is not evaluating s3:ExistingObjectTag the way AWS does, or this arm proves nothing: $A_OUT"
@@ -85,14 +89,14 @@ explain \
   "estate's life runs under the same role, counts checked."
 write_bucket_estate "$SMOKE_WORK/est" smoke-new "$BUCKET" v2
 cmd "choudoufu apply -auto-approve   # an update, under If-Match"
-U_OUT="$(cd "$SMOKE_WORK/est" && as_role smoke-new-estate chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "firstwrite" "the update failed under the published policy: $U_OUT"
+U_OUT="$(cd "$SMOKE_WORK/est" && as_role "$ESTATE_ROLE" chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "firstwrite" "the update failed under the published policy: $U_OUT"
 grep -q "Resources: 0 added, 2 changed, 0 destroyed" <<< "$U_OUT" || fail "firstwrite" "the update: $U_OUT"
 rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
 cmd "choudoufu plan   # from the records alone"
-P_OUT="$(cd "$SMOKE_WORK/est" && as_role smoke-new-estate chdf plan -input=false -no-color 2>&1)" || fail "firstwrite" "the replan failed: $P_OUT"
+P_OUT="$(cd "$SMOKE_WORK/est" && as_role "$ESTATE_ROLE" chdf plan -input=false -no-color 2>&1)" || fail "firstwrite" "the replan failed: $P_OUT"
 grep -q "No changes." <<< "$P_OUT" || fail "firstwrite" "the replan was not empty: $P_OUT"
 cmd "choudoufu apply -destroy -auto-approve   # deletes, under If-Match"
-D_OUT="$(cd "$SMOKE_WORK/est" && as_role smoke-new-estate chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "firstwrite" "the destroy failed under the published policy: $D_OUT"
+D_OUT="$(cd "$SMOKE_WORK/est" && as_role "$ESTATE_ROLE" chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "firstwrite" "the destroy failed under the published policy: $D_OUT"
 grep -q "Resources: 0 added, 0 changed, 2 destroyed" <<< "$D_OUT" || fail "firstwrite" "the destroy did not remove both instances: $D_OUT"
 LEFT="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-new/terraform_data/ --query 'length(Contents || `[]`)' --output text)"
 [ "$LEFT" = "0" ] || fail "firstwrite" "$LEFT record(s) left after the destroy"
