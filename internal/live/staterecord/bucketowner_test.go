@@ -245,15 +245,18 @@ func TestS3StoreSendsExpectedBucketOwnerOnEveryRequest(t *testing.T) {
 	if len(seen) == 0 {
 		t.Fatal("the fake received no requests at all, so this test proves nothing")
 	}
-	missing := map[string]int{}
+	// Per operation, and with the offending value, because the two GetObject
+	// call sites (Get and the bulk read) are the same operation on the wire
+	// and only the count tells them apart.
+	bad := map[string][]string{}
 	for _, s := range seen {
 		if s.owner != ownerTestAccount {
-			missing[s.op]++
+			bad[s.op] = append(bad[s.op], s.owner)
 		}
 	}
-	for op, n := range missing {
-		t.Errorf("%s sent %d request(s) with %s = %q, want %q: that request reaches a bucket of this name in any account",
-			op, n, expectedBucketOwnerHeader, seen[0].owner, ownerTestAccount)
+	for op, owners := range bad {
+		t.Errorf("%s sent %d request(s) carrying %s = %q, want %q on every one: a request without it reaches a bucket of this name in any account",
+			op, len(owners), expectedBucketOwnerHeader, owners, ownerTestAccount)
 	}
 
 	got := fake.seenOps()
