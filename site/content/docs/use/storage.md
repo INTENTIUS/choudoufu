@@ -223,12 +223,27 @@ record destroyed by mistake, and it is the only one a record-backed resource
 has. [The three settings]({{< relref "/docs/use/bucket-contract" >}}) covers
 choosing it.
 
-`choudoufu destroy` destroys the resources and deletes their records. It does
-not remove the sentinel or the hint, and it cannot remove noncurrent versions.
-The lifecycle rule takes care of the versions. The rest is a few small objects
-under the estate's prefixes, and removing them is yours to do.
+`choudoufu destroy` empties less than it sounds like it does. It destroys the
+resources and deletes their records, and what stays behind in the bucket is:
+
+- a tombstone envelope for each identity record, which is a current object
+- every `tofu-outputs/<estate>/` object, unchanged and current
+- the estate's sentinel and its hint
+- the noncurrent versions of everything above, and the delete markers over
+  what was deleted
+
+Only the last line expires. No lifecycle rule here removes a current object,
+deliberately: a rule that expired one would delete an identity for a resource
+that still exists, and choudoufu refuses a bucket configured that way. So
+after a destroy the estate's prefixes still hold objects, and emptying them is
+a deliberate step somebody takes with `aws s3 rm --recursive`.
+
+The rule the example ships also sets `ExpiredObjectDeleteMarker`, which clears
+a delete marker once the versions under it have expired. Without it the
+markers stay forever, and each one counts as a version.
 `examples/record-store-bucket`'s `just down` refuses to delete a bucket that
-still holds any version of a record.
+holds any object version outside its own `_verify/` probes, so it goes on
+refusing until those prefixes are emptied and the window has passed.
 
 ### Who can read it
 
