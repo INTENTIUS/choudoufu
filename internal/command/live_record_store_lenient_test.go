@@ -75,7 +75,16 @@ func TestLivePlanAndLiveMvStopOnARefusalAndGoOnLoudlyAfterAnOutage(t *testing.T)
 			t.Fatalf("warning summaries = %q, want exactly %q", got, SummaryRecordStoreNotRead)
 		}
 		detail := diags[0].Description().Detail
-		for _, want := range []string{"live-plan", "connection refused", "may appear here as something to create", "`plan` and `apply` do not go on"} {
+		// The manifest sentence is the one that matters most, and the one the
+		// first version of this warning left out: for a kubernetes_manifest a
+		// missing record does not show up as a create, it shows up as nothing.
+		// internal/live/projection's TestWithNoRecordAManifestLabelRemovalPlansNothing
+		// holds the behaviour this sentence describes.
+		for _, want := range []string{
+			"live-plan", "connection refused", "may appear here as something to create",
+			"kubernetes_manifest", "removed from the configuration", "will not be planned for removal", "can read \"No changes\"",
+			"`plan` and `apply` do not go on",
+		} {
 			if !strings.Contains(detail, want) {
 				t.Errorf("the warning does not say %q:\n%s", want, detail)
 			}

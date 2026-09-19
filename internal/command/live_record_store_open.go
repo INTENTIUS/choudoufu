@@ -79,7 +79,7 @@ func openRecordStoreAsOneMoreSource(ctx context.Context, open recordStoreOpener,
 			return nil, diags.Append(recordStoreOpenDiag(rs.Type, err))
 		}
 		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryRecordStoreNotRead, fmt.Sprintf(
-			"%s could not open the live block's record_store %q and went on without it: %s.\n\nNothing this run shows came from a record. A record-backed resource (one with no cloud object to carry a marker, such as terraform_data or random_pet) is known only by its record, so it may appear here as something to create when it already exists, and guided discovery had no hint to narrow its sweep. `plan` and `apply` do not go on without the store; they stop.",
+			"%s could not open the live block's record_store %q and went on without it: %s.\n\nNothing this run shows came from a record. A record-backed resource (one with no cloud object to carry a marker, such as terraform_data or random_pet) is known only by its record, so it may appear here as something to create when it already exists, and guided discovery had no hint to narrow its sweep.\n\nA kubernetes_manifest is affected the other way, and more quietly. Its record holds which labels and annotations this estate declared, which is the only way to tell a key the configuration dropped from one somebody added with kubectl. Without the record, a label or annotation removed from the configuration will not be planned for removal, so this output can read \"No changes\" for a manifest whose live object still carries it. Its field_manager block may also show as a change that is not one.\n\n`plan` and `apply` do not go on without the store; they stop.",
 			command, rs.Type, err,
 		)))
 	}
