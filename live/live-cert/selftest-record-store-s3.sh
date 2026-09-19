@@ -137,8 +137,17 @@ ENDPOINT="${LIVECERT_SELFTEST_ENDPOINT:-}"
 if [ -n "$ENDPOINT" ]; then
   log "=== selftest-record-store-s3: LIVECERT_SELFTEST_ENDPOINT=$ENDPOINT - using the REAL aws CLI against it, not the stub ==="
   command -v aws >/dev/null 2>&1 || { log "FAIL: aws is not on PATH"; exit 1; }
-  export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-test}"
-  export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-test}"
+  # test/test, forced, never "${AWS_ACCESS_KEY_ID:-test}" (#1380). The
+  # endpoint this mode names is an emulator - floci on a loopback port - and
+  # the :- form sent the caller's REAL key to it whenever one happened to be
+  # exported, which is both a credential leaving the machine for a process
+  # nobody audited and a run whose identity depends on the caller's shell.
+  # An emulator accepts anything; a real endpoint named here by mistake now
+  # gets a key that cannot authenticate, which fails loudly instead of
+  # acting.
+  export AWS_ACCESS_KEY_ID=test
+  export AWS_SECRET_ACCESS_KEY=test
+  unset AWS_SESSION_TOKEN AWS_SECURITY_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE
   export AWS_PAGER=""
   aws --endpoint-url "$ENDPOINT" --region "$REGION" s3api create-bucket --bucket "$BUCKET" >/dev/null 2>&1 || true
 else
@@ -650,20 +659,47 @@ grep -qF 'unknown record_store backend "ssm"' <<< "$C6D" || fail_note "the value
 # during variable setup, long before teardown() - a loud exit that still
 # leaves every object in the bucket.
 #
-# Like selftest-hold-resume.sh's own case 3, this runs the SHIPPED script
-# at its real repo path (it resolves ROOT from ${BASH_SOURCE[0]} to source
-# its libraries), so a different revision is checked by grep rather than
-# executed. It needs the stub `aws` on PATH and so does not run in
-# real-endpoint mode.
+# The dispatch is EXTRACTED between its marker comments and run on its own,
+# exactly as case 6c runs the backend selection, and for the reason 6c
+# gives: this case used to execute terralith-scale.sh with a marker reading
+# TARGET=aws, so a mutation of the dispatch's own `exit 0` would have
+# carried it into stage 0 and a paid cold deploy with three PATH stubs as
+# the only thing in the way (issue #1380). The span from part 1's marker to
+# part 2's still covers everything this case is about: the marker read that
+# carries RECORD_STORE_BUCKET, the selection whose `${RECORD_STORE_BUCKET:?}`
+# refusal is the defect, the derived S3_PREFIX/HINT_S3_PREFIX teardown
+# deletes by, and the dispatch that calls teardown().
+#
+# It needs the stub `aws` on PATH and so does not run in real-endpoint mode.
 ########################################################################
 log ""
 log "=== case 7: teardown-only dispatch on a held s3 estate ==="
+
+# Same extractor and same refusal as selftest-hold-resume.sh case 3, copied
+# rather than shared for the reason the function extractor above is copied.
+# The tail check is what makes it an extraction: sed's range prints to EOF
+# when the closing address never matches, and running THAT would be running
+# the whole harness under a TARGET=aws marker.
+DISPATCH_END='# <<< teardown-only dispatch part 2'
+extract_dispatch() {
+  local out
+  out="$(sed -n '/^# >>> teardown-only dispatch part 1$/,/^# <<< teardown-only dispatch part 2$/p' "$1")"
+  [ -n "$out" ] || return 1
+  [ "$(printf '%s\n' "$out" | tail -1)" = "$DISPATCH_END" ] || return 1
+  printf '%s\n' "$out"
+}
+DISPATCH_SRC="$(extract_dispatch "$SRC")" || DISPATCH_SRC=""
+
 if [ -n "$ENDPOINT" ]; then
-  log "  skipped in real-endpoint mode: this case drives the shipped script through a stub PATH"
+  log "  skipped in real-endpoint mode: this case drives the dispatch through a stub PATH"
 elif ! grep -qF 'RECORD_STORE_BUCKET=%s' "$SRC"; then
   fail_note "$SRC_ARG never writes RECORD_STORE_BUCKET into the cold-deploy marker, so \`terralith-scale.sh teardown <dir>\` on a held s3 estate exits at the RECORD_STORE_BUCKET:? refusal with every object still in the bucket - this is the RED result on a pre-#1145 revision"
-elif [ "$SRC_ARG" != "$ROOT/live/live-cert/terralith-scale.sh" ]; then
-  log "  source is not the shipped script; the grep above is the whole check for this revision"
+elif [ -z "$DISPATCH_SRC" ]; then
+  if [ "$SRC_ARG" = "$ROOT/live/live-cert/terralith-scale.sh" ]; then
+    fail_note "the shipped terralith-scale.sh has no complete '# >>> teardown-only dispatch part 1' ... '$DISPATCH_END' span to extract, so this case cannot run the dispatch without executing the harness, which #1380 forbids; restore the markers (they bracket comments only)"
+  else
+    log "  $SRC_ARG carries no marked dispatch span (a revision from before #1380); the grep above is the whole check for it, because running it would mean executing the harness"
+  fi
 else
   seed_store
   C7DIR="$WORK/held7"; mkdir -p "$C7DIR/cold"
@@ -693,13 +729,43 @@ echo "fake choudoufu: not used by teardown-only" >&2
 exit 1
 EOF
   chmod +x "$C7DIR/fakebin/terraform" "$C7DIR/fakebin/choudoufu"
+
+  # ROOT, LIB and the two `source` lines are the only things the span does
+  # not carry: the real script computes them from ${BASH_SOURCE[0]} at the
+  # top of the file, above part 1's marker. The last line is a tripwire,
+  # unreachable while the dispatch ends in `exit 0`; on the real script the
+  # statement after the dispatch is "0. tools", and after that a cold deploy.
+  R7="$C7DIR/dispatch.sh"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'set -uo pipefail'
+    printf 'ROOT=%q\n' "$ROOT"
+    printf 'LIB=%q\n' "$ROOT/live/live-cert/lib"
+    printf '%s\n' 'source "$ROOT/live/e2e/lib/gauntlet.sh"'
+    printf '%s\n' 'source "$LIB/live-cert.sh"'
+    printf '%s\n' "$DISPATCH_SRC"
+    printf '%s\n' 'printf "DISPATCH-FELL-THROUGH\n"'
+  } > "$R7"
+
+  # Credentials scrubbed as belt-and-braces (#1380). The safety argument is
+  # that the text above ends at the dispatch; this is because teardown()
+  # here runs `s3 rm --recursive` and `ssm delete-parameter`, which are
+  # destructive in whatever account an ambient chain would resolve to if the
+  # stub ahead of it on PATH were ever missed.
   C7_OUT="$(PATH="$C7DIR/fakebin:$PATH" \
-    TF_COLD_BIN="$C7DIR/fakebin/terraform" \
-    TOFU_BIN="$C7DIR/fakebin/choudoufu" \
-    LIVECERT_TEARDOWN_ONLY="$C7DIR" \
-    LIVECERT_KEEP_WORK=1 \
-    bash "$ROOT/live/live-cert/terralith-scale.sh" 2>&1)"; C7_RC=$?
+    env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE -u AWS_SESSION_TOKEN -u AWS_SECURITY_TOKEN \
+      AWS_ACCESS_KEY_ID=invalid AWS_SECRET_ACCESS_KEY=invalid \
+      AWS_EC2_METADATA_DISABLED=true \
+      AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+      AWS_ENDPOINT_URL=http://127.0.0.1:9 \
+      TF_COLD_BIN="$C7DIR/fakebin/terraform" \
+      TOFU_BIN="$C7DIR/fakebin/choudoufu" \
+      LIVECERT_TEARDOWN_ONLY="$C7DIR" \
+      LIVECERT_KEEP_WORK=1 \
+      bash "$R7" 2>&1)"; C7_RC=$?
   printf '%s\n' "$C7_OUT" | sed 's/^/    | /'
+  grep -qF 'DISPATCH-FELL-THROUGH' <<< "$C7_OUT" \
+    && fail_note "the teardown-only dispatch did not exit - on the real script the next statement is \"0. tools\", and after it a cold deploy with the marker's TARGET=aws"
   A7_REC="$(count_matching "choudoufu/livecert/$PREFIX/")"
   A7_HINT="$(count_matching "tofu-hints/$ESTATE/")"
   log "  after teardown-only: $A7_REC record object(s), $A7_HINT hint object(s)"
