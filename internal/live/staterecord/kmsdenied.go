@@ -65,6 +65,12 @@ var (
 	// the ARN, which made KeyARN a string no operator could paste anywhere.
 	kmsDeniedKey       = regexp.MustCompile(`on resource: "?(arn:[^\s"]+)`)
 	kmsDeniedPrincipal = regexp.MustCompile(`User: "?(arn:[^\s"]+)`)
+	// A key-state exception has no "on resource:" framing. KMS's own message
+	// is the ARN and a sentence about it ("arn:aws:kms:... is disabled"), so
+	// the key is taken from anywhere in the text - safe here because the code
+	// has already said this is KMS relaying, and a kms ARN in such a message
+	// is the key it is about.
+	kmsKeyARN = regexp.MustCompile(`arn:aws:kms:[^\s",]+`)
 )
 
 // asKMSDenied recognises a KMS refusal inside an S3 error. It returns nil for
@@ -163,8 +169,8 @@ func asKMSKeyUnusable(err error) *KMSKeyUnusableError {
 		return nil
 	}
 	out := &KMSKeyUnusableError{Code: apiErr.ErrorCode(), Err: err}
-	if m := kmsDeniedKey.FindStringSubmatch(apiErr.ErrorMessage()); m != nil {
-		out.KeyARN = strings.TrimRight(m[1], ".")
+	if m := kmsKeyARN.FindString(apiErr.ErrorMessage()); m != "" {
+		out.KeyARN = strings.TrimRight(m, ".")
 	}
 	return out
 }

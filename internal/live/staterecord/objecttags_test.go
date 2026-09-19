@@ -142,12 +142,41 @@ func TestObjectTagsInContext(t *testing.T) {
 	if got, want := ObjectTags(ctx), (map[string]string{"a": "1", "b": "2", "c": "2"}); !sameTags(got, want) {
 		t.Errorf("ObjectTags = %v, want %v", got, want)
 	}
-	// The per-write tags win over the store's base tags on a shared key, and
-	// the rendering is the same bytes for the same tags.
+	// A later set wins over an earlier one on a shared key, and the rendering
+	// is the same bytes for the same tags. Which set the store passes last is
+	// TestS3StoreBaseTagsWinOverTheContext's business, not this function's.
 	if got, want := encodeObjectTagging(map[string]string{"k": "base", "z": "9"}, map[string]string{"k": "per write"}), "k=per+write&z=9"; got != want {
 		t.Errorf("encodeObjectTagging = %q, want %q", got, want)
 	}
 	if got := encodeObjectTagging(nil, nil); got != "" {
 		t.Errorf("no tags rendered as %q, want nothing: an empty Tagging header is not the same as none", got)
+	}
+}
+
+// TestS3StoreBaseTagsWinOverTheContext pins which set the store puts last.
+// store.go's contract for the estate tag is that "the tag can never name a
+// different estate" than the one the store was opened for, and that is only
+// true if [S3Config.BaseTags] wins on every key it defines. Per-write tags
+// still carry every key BaseTags leaves alone, which is the address half.
+//
+// The mutation this catches: swapping the two arguments to
+// encodeObjectTagging in PutIfVersion, which lets a caller's context tag
+// rewrite the estate on the object and makes the IAM condition that reads
+// that tag admit on the caller's word.
+func TestS3StoreBaseTagsWinOverTheContext(t *testing.T) {
+	store, fake := taggedS3Store(t, map[string]string{"tofu-estate": "prod"})
+	ctx := WithObjectTags(context.Background(), map[string]string{
+		"tofu-estate":  "somewhere-else",
+		"tofu-address": "aws_thing.x",
+	})
+	if _, err := store.PutIfAbsent(ctx, "tofu-records/prod/aws_thing/abc", []byte("v1")); err != nil {
+		t.Fatal(err)
+	}
+	got := sentTags(t, fake, "tofu-records/prod/aws_thing/abc")
+	if got["tofu-estate"] != "prod" {
+		t.Errorf("the object went to S3 tagged tofu-estate=%q: a per-write tag overwrote the estate the store was opened for", got["tofu-estate"])
+	}
+	if got["tofu-address"] != "aws_thing.x" {
+		t.Errorf("tofu-address = %q, want the per-write value: BaseTags must only win on keys it defines", got["tofu-address"])
 	}
 }

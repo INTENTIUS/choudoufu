@@ -191,7 +191,7 @@ func missingKey(err error) bool {
 // needs to, because this is the one failure whose subject is the bucket
 // rather than the record.
 func (s *S3Store) notTheKey(err error) string {
-	return fmt.Sprintf("bucket %q answered %s, so this 404 is the bucket's absence and not the record's", s.bucket, apiErrorCode(err))
+	return fmt.Sprintf("bucket %q answered %s, so the 404 is the bucket's own and not a missing key", s.bucket, apiErrorCode(err))
 }
 
 // Get implements [Store].
@@ -381,6 +381,13 @@ func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) 
 			ContinuationToken: token,
 		})
 		if err != nil {
+			// A LIST has no "the key is absent" answer to be confused with,
+			// so a 404 here was always an error. It still names the bucket,
+			// so the operator reading it learns the same thing the other
+			// operations now say.
+			if status, ok := httpStatus(err); ok && status == http.StatusNotFound {
+				return nil, fmt.Errorf("staterecord: s3: listing %q: %s: %w", keyPrefix, s.notTheKey(err), err)
+			}
 			return nil, s3OpError("listing", keyPrefix, err)
 		}
 		for _, obj := range out.Contents {
