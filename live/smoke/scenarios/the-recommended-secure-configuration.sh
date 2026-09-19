@@ -179,7 +179,6 @@ fi
 
 [ "$A_RC" = "0" ] || fail "secureconfig" "the estate could not apply against the recommended stack: $A_OUT"
 grep -q "Resources: 2 added, 0 changed, 0 destroyed" <<< "$A_OUT" || fail "secureconfig" "create: $A_OUT"
-PRECIOUS_ID="$(cd "$SMOKE_WORK/est" && as_role "$ROLE" "$TOFU" show -no-color 2>/dev/null | awk '/effect\["precious"\]/{f=1} f&&/ id /{print $3; exit}' | tr -d '"')"
 RECORD="$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-secure/terraform_data/ --query 'Contents[].Key' --output json | jq -r '.[]' | while read -r k; do aws s3api get-object --bucket "$BUCKET" --key "$k" /dev/stdout 2>/dev/null | grep -q 'precious' && echo "$k" && break; done)"
 [ -n "$RECORD" ] || fail "secureconfig" "could not find precious's record in the bucket"
 SSE="$(aws s3api head-object --bucket "$BUCKET" --key "$RECORD" --query '[ServerSideEncryption,SSEKMSKeyId]' --output text)"
@@ -190,6 +189,7 @@ grep -q "Resources: 0 added, 2 changed, 0 destroyed" <<< "$U_OUT" || fail "secur
 rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
 P_OUT="$(as_estate plan plan -input=false -no-color 2>&1)" || fail "secureconfig" "plan: $P_OUT"
 grep -q "No changes." <<< "$P_OUT" || fail "secureconfig" "the replan from the records alone was not empty: $P_OUT"
+BEFORE="$(aws s3api head-object --bucket "$BUCKET" --key "$RECORD" --query '[VersionId,ETag]' --output text)"
 echo "2 added; record encrypted with aws:kms under the key; 2 changed under If-Match; replan empty" | evidence
 proof "create, read and update as the scoped role, through a key only it and the operator may use."
 
@@ -218,10 +218,10 @@ rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
 cmd "choudoufu plan   # as the estate's role, 'precious' back in the configuration"
 R_OUT="$(as_estate recovered plan -input=false -no-color 2>&1)" || fail "secureconfig" "the plan after recovery failed: $R_OUT"
 grep -q "No changes." <<< "$R_OUT" || fail "secureconfig" "after recovery the plan was not empty, so the record that came back is not the record that was lost: $R_OUT"
-BACK_ID="$(cd "$SMOKE_WORK/est" && as_role "$ROLE" "$TOFU" show -no-color 2>/dev/null | awk '/effect\["precious"\]/{f=1} f&&/ id /{print $3; exit}' | tr -d '"')"
-[ -n "$PRECIOUS_ID" ] && [ "$PRECIOUS_ID" = "$BACK_ID" ] || fail "secureconfig" "precious came back with id '$BACK_ID', it was created with '$PRECIOUS_ID'"
-echo "precious: id $PRECIOUS_ID before the mistake, $BACK_ID after recovery; plan empty" | evidence
-proof "recovered from a noncurrent version, the same identity and not a re-creation. The estate's role was refused the same act."
+AFTER="$(aws s3api head-object --bucket "$BUCKET" --key "$RECORD" --query '[VersionId,ETag]' --output text)"
+[ -n "$BEFORE" ] && [ "$BEFORE" = "$AFTER" ] || fail "secureconfig" "the record current after recovery is version '$AFTER'; before the mistake it was '$BEFORE'"
+echo "precious's record: version $(cut -f1 <<< "$BEFORE") before the mistake, $(cut -f1 <<< "$AFTER") after recovery; plan empty" | evidence
+proof "recovered from a noncurrent version: the very object version that was current before the mistake, and a plan that proposes no re-creation. The estate's role was refused the same act."
 
 step "6. what the run actually used, against what the policy grants"
 explain \
