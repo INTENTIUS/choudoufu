@@ -1616,7 +1616,7 @@ type TypeScan struct {
 	// It is the one number in this struct that grows with the estate
 	// rather than with the type count, so it is reported rather than
 	// folded into anything: #1037 and #1039 made the sweep flat and
-	// site/content/docs/model/plan-cost.md publishes that, and a leg that
+	// live/costs/plan-cost.md publishes that, and a leg that
 	// bends the claim has to be visible in the scan row where the claim is
 	// measured.
 	ServiceTagReads int

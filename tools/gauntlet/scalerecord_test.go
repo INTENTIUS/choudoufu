@@ -521,7 +521,7 @@ func TestUpsertScaleRecordKeepsEverySize(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestParsePlanCallsDetailReadsBothTokens uses the exact numbers
-// site/content/docs/model/plan-cost.md quotes for the scale-50 real-AWS run
+// live/costs/plan-cost.md quotes for the scale-50 real-AWS run
 // ("the first post-migration instrumented plan counted 8,305
 // provider-mediated AWS API requests exactly ... against stock's 7,207 on
 // the same run") to prove parsePlanCallsDetail reads BOTH sides off one

@@ -465,7 +465,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("   commit, date and outcome of the row it replaced, so a citation that")
 	w("   followed a figure which has since moved still leads somewhere. A")
 	w("   scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one this")
-	w("   way, and `site/content/docs/what-you-pay.md` quotes that file by path.")
+	w("   way, and `live/costs/what-you-pay.md` quotes that file by path.")
 	w("3. A refusal never replaces a measurement. The runner refuses the write")
 	w("   and names the row it protected; nothing is written. Dropping a measured")
 	w("   row is a reviewed change, not a side effect of a later run that")

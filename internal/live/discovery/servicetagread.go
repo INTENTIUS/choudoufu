@@ -62,7 +62,7 @@ import (
 //
 // One call per candidate object of a covered type, per sweep. Not one per
 // type. #1037 and #1039 made the native sweep flat in estate size and
-// site/content/docs/model/plan-cost.md publishes that flatness; this leg
+// live/costs/plan-cost.md publishes that flatness; this leg
 // does not preserve it for the types it covers, and the honest statement of
 // why is that IAM offers no batch tag read to build a flat shape out of:
 // iam:ListInstanceProfiles omits tags by design ("this operation does not

@@ -175,8 +175,8 @@ Two bounds on that measurement, both worth knowing before you rely on it. The
 ratio was taken at one scale, against a generated estate rather than somebody's
 real one. And stamping is one tag-write round trip per resource, so its cost
 is linear in the resource count - the shape, not a seconds figure: [what a
-plan costs]({{< relref "/docs/model/plan-cost#emulator-wall-clock-is-not-on-this-page" >}})
-and [what you pay, and when]({{< relref "/docs/what-you-pay#and-an-emulator-cannot-answer-this-question" >}})
+plan costs](https://github.com/INTENTIUS/choudoufu/blob/main/live/costs/plan-cost.md#emulator-wall-clock-is-not-on-this-page)
+and [what you pay, and when](https://github.com/INTENTIUS/choudoufu/blob/main/live/costs/what-you-pay.md#and-an-emulator-cannot-answer-this-question)
 both withhold an emulator-measured wall clock deliberately, since it grades
 the machine the test ran on rather than this repository's code; issue #566's
 own local-emulator seconds are dropped here for the same reason rather than

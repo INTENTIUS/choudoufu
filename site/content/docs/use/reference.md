@@ -91,7 +91,7 @@ inline policy on the pinned emulator at commit `e1dec69cef` (2026-08-30,
 estate was 53 lines. **Stale**: since `09d180f921` an ordinary plan prints
 fewer sweep warnings, and the line counts have not been re-measured (see
 [what a plan
-costs]({{< relref "/docs/model/plan-cost#when-the-native-leg-is-narrowed-and-when-it-is-not" >}})).
+costs](https://github.com/INTENTIUS/choudoufu/blob/main/live/costs/plan-cost.md#when-the-native-leg-is-narrowed-and-when-it-is-not)).
 
 The mode changes what is printed, and since `09d180f921` it also changes what
 is done. The live reads and the plan are the same, and every verdict in the

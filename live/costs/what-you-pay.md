@@ -1,9 +1,11 @@
----
-title: "What you pay, and when"
-weight: 4
----
 
 # What you pay, and when
+
+> A figure written as a field name in backticks, such as `plan_calls.cold.choudoufu`,
+> names a field of the scale 1 `terralith-scale` record in
+> [`live/gauntlet-scale.json`](../gauntlet-scale.json). It is not typed here, so
+> that it cannot drift from the measurement. The docs site prints the current
+> values at https://intentius.io/choudoufu/docs/model/plan-cost/.
 
 choudoufu puts a resource's identity on the resource, as two AWS tags, so that
 a state file stops being the record of what you own. That swap has a price.
@@ -20,7 +22,7 @@ on which of three things the run is doing:
 | The same plan, in seconds | **withdrawn**, see below | — |
 | Adopting, auditing, or rebuilding identity from markers | The estate-wide sweep: [**about 512 calls, per state file**](#the-sweep-is-the-real-cost-of-slicing-and-it-does-not-shrink-per-slice) | emulator |
 
-**Every figure on this page describes choudoufu {{< version >}}.** Each one
+**Every figure on this page describes choudoufu the current release.** Each one
 names its fixture, its commit, and whether it came from the pinned AWS
 emulator or from a real AWS account. The two are not interchangeable and are
 never combined. Certification rows come only from an unheld run: `LIVECERT_HOLD=1` (`live/live-cert/terralith-scale.sh`, #1032) skips teardown to make real-account iteration affordable, and marks every stage it reports `held: true` for exactly this reason - a held run's account was never verified empty afterward, so it never counts as evidence here.
@@ -46,16 +48,16 @@ issue #1051 for exactly which points still need one.
 The record keeps a plan and an audit apart. The row for
 `terralith-scale`/floci/scale 1 carries `plan_calls`, an ordinary `tofu plan`
 of the migrated estate: cold
-{{< scale-num scale="1" estate="terralith-scale" path="plan_calls.cold.choudoufu" >}}
+`plan_calls.cold.choudoufu`
 calls against stock's
-{{< scale-num scale="1" estate="terralith-scale" path="plan_calls.cold.stock" >}},
+`plan_calls.cold.stock`,
 warm
-{{< scale-num scale="1" estate="terralith-scale" path="plan_calls.warm.choudoufu" >}}.
+`plan_calls.warm.choudoufu`.
 It carries `audit_calls` as a separate field, the sweep the last row of the
 table above describes: total
-{{< scale-num scale="1" estate="terralith-scale" path="audit_calls.total.choudoufu" >}}
+`audit_calls.total.choudoufu`
 against stock's
-{{< scale-num scale="1" estate="terralith-scale" path="audit_calls.total.stock" >}}.
+`audit_calls.total.stock`.
 An earlier `plan_calls`
 ([#1053](https://github.com/INTENTIUS/choudoufu/issues/1053)) carried the
 sweep, and a downstream reader published it as choudoufu's plan cost.
@@ -366,7 +368,7 @@ version, then a `ListObjectsV2` that proves the listing returns it. The hint
 and each root output are a `GetObject` each, outside the bulk read. An apply
 adds a `GetObject` and a conditional write per record that changed, the same
 for the hint, and the same per root output that changed.
-[Where things are stored]({{< relref "/docs/use/storage#requests" >}}) has
+[Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#requests) has
 the table.
 
 So what a bucket bills is requests and storage, and there is no count to run
@@ -378,7 +380,7 @@ out of:
   bucket is versioned, so every update leaves the previous record behind as a
   noncurrent version, billed as storage until the lifecycle rule expires it.
   The retention window you chose as a recovery window
-  ([the three settings]({{< relref "/docs/use/bucket-contract" >}})) is
+  ([the three settings](https://intentius.io/choudoufu/docs/use/bucket-contract/)) is
   therefore also the multiplier on storage: an estate applied daily under a
   thirty-day window holds up to thirty versions of each record that changes
   daily, and one version of each that does not.
@@ -388,7 +390,7 @@ out of:
 
 None of this has been measured in money. No run on this page was billed for a
 bucket at scale. The request shapes above are read from the code and from
-[claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})'s
+[claim 37](../smoke/claims/the-recommended-secure-configuration.md)'s
 request log.
 
 ## Migration writes no markers by hand
@@ -429,7 +431,7 @@ identity from the state file directly, so it never reaches that wall at all.
 
 What that leaves is the day the state file is gone or wrong, which is the
 adoption path proper and the one place the expensive sweep is worth its price.
-[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) covers both
+[Migrate an existing estate](https://intentius.io/choudoufu/docs/use/migrate/) covers both
 routes.
 
 ### At 3,705 resources, migration itself still holds - the post-migrate plan does not
@@ -702,7 +704,7 @@ A negative control ran at scale 50 too: `BREAK_APPROVAL=1` expects the
 post-approval apply to wrongly succeed, and choudoufu still refused it, so
 only that wrong expectation failed while `cold_deploy` through
 `plan_approval` passed exactly as the row above. The refusal
-[claim 15]({{< relref "/docs/claims/apply-what-was-approved" >}})
+[claim 15](../smoke/claims/apply-what-was-approved.md)
 covers still holds at 3,705 resources.
 
 ## Splitting an estate into several states
@@ -751,7 +753,7 @@ native leg. Both were fixed at `c0632fa3b7` (2026-09-11), floci pin
 `sha256:9ec3fa64...`, and the same three rows now read 508, 510 and 510.
 
 [What a plan
-costs]({{< relref "/docs/model/plan-cost#the-native-leg-is-flat-across-slices-but-not-across-scale" >}})
+costs](plan-cost.md#the-native-leg-is-flat-across-slices-but-not-across-scale)
 carries the fixed numbers. Only the unsliced (k=1) row was re-measured for
 this fix. The k=2 and k=8 figures above have not been re-run since.
 
@@ -778,7 +780,7 @@ third point now exists, 2332 at N=745. Those totals predate the native-leg fix
 at `c0632fa3b7` ([#1037](https://github.com/INTENTIUS/choudoufu/issues/1037))
 and have not been re-measured against it. The current re-fit is on [what a
 plan
-costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}}).
+costs](plan-cost.md#the-measured-split-on-a-migrated-estate).
 
 What still holds is visible in the current rows. Stock's full-sweep total is
 150, 558 and 1374 calls at 79, 301 and 745 instances, and choudoufu's migrated
@@ -950,7 +952,7 @@ the prefix are unconditionally zero.
 
 ## Where the mechanism is
 
-This page is the decision. [What a plan costs]({{< relref "/docs/model/plan-cost" >}})
+This page is the decision. [What a plan costs](plan-cost.md)
 is the mechanism: the two terms a plan is made of and how each one grows, the
 per-leg split at three scales, and the two concurrency bounds you can turn
 down when a real account starts answering `Rate exceeded`.

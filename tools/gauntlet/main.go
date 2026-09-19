@@ -699,7 +699,7 @@ func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord
 // #1151 is about - what it superseded. Superseding used to be invisible: a
 // scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one with no
 // output saying a row had been replaced at all, in a file
-// site/content/docs/what-you-pay.md quotes by path.
+// live/costs/what-you-pay.md quotes by path.
 func describeScaleWrite(estate string, rec ScaleRecord) string {
 	var b strings.Builder
 	switch {
