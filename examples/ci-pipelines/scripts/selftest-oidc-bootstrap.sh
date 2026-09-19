@@ -267,7 +267,7 @@ else
   done
 fi
 
-echo "== case: the apply role's record store policy is the renderer's, for the sidecar's estate and bucket (#1346) =="
+echo "== case: each role's record store policy is the renderer's, full for apply and --read-only for plan and adopt (#1346, #1370) =="
 # Until GitHub issue #1346 the record store was Parameter Store and this case
 # pinned two hand-derived ssm: statements. The store is a bucket now, and its
 # policy has one source: examples/record-store-bucket/iam/render-policy.sh,
@@ -276,7 +276,18 @@ echo "== case: the apply role's record store policy is the renderer's, for the s
 #   - the apply policy carries the renderer's statements, every one, equal to
 #     what the renderer prints for the estate and bucket the SIDECAR names
 #     (read here independently of the script under test);
-#   - the plan and adopt policies carry none of them;
+#   - the plan and adopt policies carry the --read-only rendering's
+#     statements, every one, equal to what the renderer prints with that flag
+#     (GitHub issue #1370). They used to carry no record store statement at
+#     all, so a `live-plan` job that assumed the plan role would have failed
+#     on its first record call; the real-AWS smoke never caught it because it
+#     assumes the apply role for every job. Neither role writes a record:
+#     `live-plan` reads the store and records are written after an apply
+#     (internal/live/projection/writeback.go), and what the adopt Op writes is
+#     two tags on the live resource, which WriteTheMarker already grants.
+#   - and they carry none of the statements only the full rendering has, so
+#     the read-only rendering being given to the plan role is not the full one
+#     under another name;
 #   - no policy grants ANY s3: or kms: action under a Sid the renderer did
 #     not emit. Until #1379 this case compared only the statements whose Sid
 #     the renderer emits, so a hand-written
@@ -333,8 +344,32 @@ else
       echo "FAIL: the renderer printed fewer than five statements, so the comparisons below would prove little: $SIDS" >&2
       FAILURES=$((FAILURES + 1))
     fi
+    # The read-only rendering (#1370), read the same way and just as
+    # independently of the script under test.
+    WANT_RO="$("$RENDERER" "$WANT_ESTATE" "$WANT_BUCKET" --account "$EXPECT_ACCOUNT" --read-only 2>/dev/null | jq -cS '.Statement')"
+    SIDS_RO="$(jq -c '[.[].Sid]' <<< "$WANT_RO")"
+    if [ "$(jq 'length' <<< "$SIDS_RO")" -lt 3 ]; then
+      echo "FAIL: the --read-only renderer printed fewer than three statements, so the comparisons below would prove little: $SIDS_RO" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+    # The two renderings have to actually differ, or "the plan role gets the
+    # read-only one" is a sentence about nothing and every comparison below
+    # passes whichever policy the bootstrap wrote.
+    if [ "$WANT_RO" = "$WANT" ]; then
+      echo "FAIL: the renderer prints the same policy with and without --read-only, so nothing below distinguishes the plan role's policy from the apply role's" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+    # The Sids the FULL rendering has and the read-only one does not: what a
+    # plan role must not be carrying.
+    SIDS_WRITE_ONLY="$(jq -c --argjson ro "$SIDS_RO" '[.[] | select(. as $s | $ro | index($s) | not)]' <<< "$SIDS")"
+    if [ "$(jq 'length' <<< "$SIDS_WRITE_ONLY")" = "0" ]; then
+      echo "FAIL: every Sid the full rendering emits is also in the read-only one, so the check for write-only statements below cannot fail" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
     GOT="$(jq -cS --argjson sids "$SIDS" '[.Statement[] | select(.Sid as $s | $sids | index($s))]' "$WORK/recordstore.apply.json")"
-    echo "  rendered Sids: $SIDS"
+    echo "  rendered Sids:           $SIDS"
+    echo "  --read-only Sids:        $SIDS_RO"
+    echo "  full-rendering-only Sids: $SIDS_WRITE_ONLY"
     if [ "$GOT" != "$WANT" ]; then
       echo "FAIL: the apply policy's record store statements are not the renderer's output for $WANT_ESTATE / $WANT_BUCKET." >&2
       echo "  want: $WANT" >&2
@@ -342,23 +377,59 @@ else
       FAILURES=$((FAILURES + 1))
     fi
     for role in plan adopt; do
-      n="$(jq --argjson sids "$SIDS" '[.Statement[] | select(.Sid as $s | $sids | index($s))] | length' "$WORK/recordstore.$role.json")"
+      GOT_RO="$(jq -cS --argjson sids "$SIDS_RO" '[.Statement[] | select(.Sid as $s | $sids | index($s))]' "$WORK/recordstore.$role.json")"
+      if [ "$GOT_RO" != "$WANT_RO" ]; then
+        echo "FAIL: the $role policy's record store statements are not the renderer's --read-only output for $WANT_ESTATE / $WANT_BUCKET (#1370)." >&2
+        echo "  A plan job under this role opens the estate's record store, and without these statements its first record call is denied." >&2
+        echo "  want: $WANT_RO" >&2
+        echo "  got:  $GOT_RO" >&2
+        FAILURES=$((FAILURES + 1))
+      fi
+      n="$(jq --argjson sids "$SIDS_WRITE_ONLY" '[.Statement[] | select(.Sid as $s | $sids | index($s))] | length' "$WORK/recordstore.$role.json")"
       if [ "$n" != "0" ]; then
-        echo "FAIL: the $role policy carries $n record store statement(s); only the apply role writes records" >&2
+        echo "FAIL: the $role policy carries $n statement(s) the --read-only rendering leaves out ($SIDS_WRITE_ONLY); only the apply role writes records" >&2
         FAILURES=$((FAILURES + 1))
       fi
     done
+    # And the plainest form of the same thing, stated in actions rather than
+    # in Sids: neither role may be allowed a write, a delete or a tag write
+    # on the bucket under ANY Sid.
+    for role in plan adopt; do
+      WRITES="$(jq -c '[ .Statement[]
+        | select(.Effect == "Allow")
+        | [.Action] | flatten | .[]
+        | select(type == "string" and (. == "s3:PutObject" or . == "s3:PutObjectTagging" or . == "s3:DeleteObject" or . == "s3:DeleteObjectVersion" or . == "kms:GenerateDataKey"))
+      ] | unique' "$WORK/recordstore.$role.json")"
+      echo "  $role policy: record store write actions allowed: $WRITES"
+      if [ "$(jq 'length' <<< "$WRITES")" != "0" ]; then
+        echo "FAIL: the $role policy allows $WRITES on the record store; a role that plans changes nothing in the bucket (#1370)" >&2
+        FAILURES=$((FAILURES + 1))
+      fi
+    done
+    # The control for the line above: the apply policy DOES allow them, so
+    # the assertion is measuring the difference between the two renderings
+    # and not a list of actions nothing ever grants.
+    APPLY_WRITES="$(jq -c '[ .Statement[]
+      | select(.Effect == "Allow")
+      | [.Action] | flatten | .[]
+      | select(type == "string" and (. == "s3:PutObject" or . == "s3:DeleteObject"))
+    ] | unique' "$WORK/recordstore.apply.json")"
+    echo "  apply policy: record store write actions allowed: $APPLY_WRITES"
+    if [ "$(jq 'length' <<< "$APPLY_WRITES")" != "2" ]; then
+      echo "FAIL: the apply policy does not allow both s3:PutObject and s3:DeleteObject ($APPLY_WRITES), so the two checks above are not measuring anything" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
 
     # The other direction, and the one #1379 found missing: no policy may
     # grant an s3: or kms: action under any Sid but the renderer's. Comparing
     # only the Sids the renderer emits leaves every other statement in the
     # file unread, which is how a hand-written "s3:*" on "*" passed. The
-    # apply role may carry the renderer's Sids; plan and adopt may carry no
-    # s3: or kms: statement at all.
+    # apply role may carry the full rendering's Sids; plan and adopt may
+    # carry the read-only rendering's and no other.
     for role in plan adopt apply; do
       case "$role" in
         apply) allowed="$SIDS" ;;
-        *)     allowed='[]' ;;
+        *)     allowed="$SIDS_RO" ;;
       esac
       STRAY="$(jq -c --argjson sids "$allowed" '
         [ .Statement[]
@@ -424,12 +495,26 @@ else
     FAILURES=$((FAILURES + 1))
   fi
 fi
-ACCOUNTLESS="$(jq -c '[.Statement[] | select(.Effect == "Allow") | select([.Action] | flatten | map(select(type == "string" and startswith("s3:"))) | length > 0) | select(.Condition.StringEquals["aws:ResourceAccount"] != "'"$EXPECT_ACCOUNT"'") | .Sid]' "$WORK/recordstore.apply.json")"
-echo "  apply policy s3: Allow statements without aws:ResourceAccount: $ACCOUNTLESS"
-if [ "$(jq 'length' <<< "$ACCOUNTLESS")" != "0" ]; then
-  echo "FAIL: the apply policy has s3: Allow statement(s) that do not require aws:ResourceAccount = $EXPECT_ACCOUNT: $ACCOUNTLESS" >&2
-  FAILURES=$((FAILURES + 1))
-fi
+# All three policies, not just the apply one: since #1370 the plan and adopt
+# roles carry s3: Allow statements too, and a read that is not pinned to the
+# owner reads a stranger's bucket of the same name just as happily as a write
+# fills one.
+for role in plan adopt apply; do
+  ACCOUNTLESS="$(jq -c '[.Statement[] | select(.Effect == "Allow") | select([.Action] | flatten | map(select(type == "string" and startswith("s3:"))) | length > 0) | select(.Condition.StringEquals["aws:ResourceAccount"] != "'"$EXPECT_ACCOUNT"'") | .Sid]' "$WORK/recordstore.$role.json")"
+  PINNED_N="$(jq '[.Statement[] | select(.Effect == "Allow") | select([.Action] | flatten | map(select(type == "string" and startswith("s3:"))) | length > 0)] | length' "$WORK/recordstore.$role.json")"
+  echo "  $role policy: $PINNED_N s3: Allow statement(s), unpinned: $ACCOUNTLESS"
+  # A policy with no s3: Allow statement at all would pass the check below
+  # with nothing in it, which is exactly what the plan policy looked like
+  # before #1370.
+  if [ "$PINNED_N" = "0" ]; then
+    echo "FAIL: the $role policy has no s3: Allow statement at all, so the owner pin below is checked over nothing. Every one of the three roles opens the estate's record store." >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+  if [ "$(jq 'length' <<< "$ACCOUNTLESS")" != "0" ]; then
+    echo "FAIL: the $role policy has s3: Allow statement(s) that do not require aws:ResourceAccount = $EXPECT_ACCOUNT: $ACCOUNTLESS" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+done
 
 echo "== case: the CloudWatch Logs tag actions are granted on both log-group ARN forms (#807) =="
 # Issue #807's run 34640702934: live-apply's fatal error named the log group
@@ -703,7 +788,7 @@ selftest_finished=1
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket, the bucket owner is pinned on the head-bucket and on every s3: Allow, the CloudWatch Logs tag actions are granted on both log-group ARN forms, a region that is not the bucket's own stops the run with both regions named, and a renderer that fails or prints nothing stops it by name."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket and the plan and adopt roles' is its --read-only output with no write, delete or tag-write in it, the bucket owner is pinned on the head-bucket and on every s3: Allow of all three, the CloudWatch Logs tag actions are granted on both log-group ARN forms, a region that is not the bucket's own stops the run with both regions named, and a renderer that fails or prints nothing stops it by name."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."
