@@ -223,6 +223,12 @@ echo "== case: the apply role's record store policy is the renderer's, for the s
 #     what the renderer prints for the estate and bucket the SIDECAR names
 #     (read here independently of the script under test);
 #   - the plan and adopt policies carry none of them;
+#   - no policy grants ANY s3: or kms: action under a Sid the renderer did
+#     not emit. Until #1379 this case compared only the statements whose Sid
+#     the renderer emits, so a hand-written
+#     {"Sid":"HandWrittenCopy","Action":["s3:*"],"Resource":"*"} appended to
+#     the apply policy, and s3:GetObject/s3:GetObjectVersion on
+#     arn:aws:s3:::*/* added to the plan policy, both passed;
 #   - no policy grants an ssm: action any more;
 #   - each policy fits IAM's 10,240-character inline limit, which the
 #     rendered statements brought the apply policy closer to.
@@ -244,9 +250,22 @@ if ! PATH="$STUBDIR:$PATH" bash "$runner"; then
 else
   SIDECAR="$(dirname "$SCRIPT_PATH")/../terraform/estate.chdf.hcl"
   RENDERER="$(dirname "$SCRIPT_PATH")/../../record-store-bucket/iam/render-policy.sh"
-  WANT_ESTATE="$(sed -nE 's/^estate[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$SIDECAR")"
-  WANT_BUCKET="$(sed -nE 's/^[[:space:]]*bucket[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$SIDECAR")"
+  # Read independently of oidc-bootstrap.sh. Until #1379 this used that
+  # script's own sed expression character for character, so one broken regex
+  # satisfied both sides and the comparison compared nothing. It splits on
+  # the quote with awk instead, and then checks the two values against the
+  # literals below: the sidecar names one estate and one bucket, and if
+  # either changes, this line is where a reader is told about it.
+  EXPECT_ESTATE="ci-pipelines-example"
+  EXPECT_BUCKET="choudoufu-records-354867293429-us-east-1"
+  WANT_ESTATE="$(awk -F'"' '$1 ~ /^estate[[:space:]]*=[[:space:]]*$/ {print $2; exit}' "$SIDECAR")"
+  WANT_BUCKET="$(awk -F'"' '$1 ~ /^[[:space:]]*bucket[[:space:]]*=[[:space:]]*$/ {print $2; exit}' "$SIDECAR")"
   echo "  sidecar: estate=$WANT_ESTATE bucket=$WANT_BUCKET"
+  if [ "$WANT_ESTATE" != "$EXPECT_ESTATE" ] || [ "$WANT_BUCKET" != "$EXPECT_BUCKET" ]; then
+    echo "FAIL: $SIDECAR reads estate=$WANT_ESTATE bucket=$WANT_BUCKET, and this test expects estate=$EXPECT_ESTATE bucket=$EXPECT_BUCKET." >&2
+    echo "  If the sidecar changed on purpose, change EXPECT_ESTATE/EXPECT_BUCKET here too." >&2
+    FAILURES=$((FAILURES + 1))
+  fi
   if [ -z "$WANT_ESTATE" ] || [ -z "$WANT_BUCKET" ]; then
     echo "FAIL: $SIDECAR does not name an estate and a record_store \"s3\" bucket" >&2
     FAILURES=$((FAILURES + 1))
@@ -269,6 +288,32 @@ else
       n="$(jq --argjson sids "$SIDS" '[.Statement[] | select(.Sid as $s | $sids | index($s))] | length' "$WORK/recordstore.$role.json")"
       if [ "$n" != "0" ]; then
         echo "FAIL: the $role policy carries $n record store statement(s); only the apply role writes records" >&2
+        FAILURES=$((FAILURES + 1))
+      fi
+    done
+
+    # The other direction, and the one #1379 found missing: no policy may
+    # grant an s3: or kms: action under any Sid but the renderer's. Comparing
+    # only the Sids the renderer emits leaves every other statement in the
+    # file unread, which is how a hand-written "s3:*" on "*" passed. The
+    # apply role may carry the renderer's Sids; plan and adopt may carry no
+    # s3: or kms: statement at all.
+    for role in plan adopt apply; do
+      case "$role" in
+        apply) allowed="$SIDS" ;;
+        *)     allowed='[]' ;;
+      esac
+      STRAY="$(jq -c --argjson sids "$allowed" '
+        [ .Statement[]
+          | select([.Action] | flatten | map(select(type == "string" and (startswith("s3:") or startswith("kms:")))) | length > 0)
+          | select((.Sid // "") as $s | ($sids | index($s)) == null)
+        ]' "$WORK/recordstore.$role.json")"
+      STRAY_N="$(jq 'length' <<< "$STRAY")"
+      echo "  $role policy: $STRAY_N s3:/kms: statement(s) outside the renderer's Sids"
+      if [ "$STRAY_N" != "0" ]; then
+        echo "FAIL: the $role policy grants s3: or kms: actions under $STRAY_N Sid(s) the renderer did not emit for $WANT_ESTATE / $WANT_BUCKET." >&2
+        echo "  The record store policy has one source, examples/record-store-bucket/iam/render-policy.sh." >&2
+        echo "  stray: $STRAY" >&2
         FAILURES=$((FAILURES + 1))
       fi
     done

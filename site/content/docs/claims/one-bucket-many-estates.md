@@ -40,10 +40,18 @@ As the run prints them:
    prefix. It is denied a list of the bare prefix `tofu-records/smoke-a`,
    the one that would also name an estate called `smoke-a-eu`. It is
    denied a write under `b`'s prefix, and a write under its own prefix
-   tagged as `b`'s.
+   tagged as `b`'s. A decoy under `tofu-records/smoke-a-eu/` gets the
+   same three refusals, a write, a delete and a read, because for those
+   the trailing slash on the object ARN is the whole defence.
 3. `the prefix written wrong, and the tag still holding` - the role's
    allows are widened to every estate's objects. It still cannot read
-   `b`'s record.
+   `b`'s record. It then tries the obvious next move: `put-object-tagging`
+   to relabel `b`'s record as its own, and `delete-object-tagging` to
+   strip the tag. Both are refused, the record is still tagged `smoke-b`,
+   and the read is refused again. The write statement checks the tag a
+   request sends and says nothing about the object it lands on, so this
+   refusal is a statement of its own,
+   `DenyRelabellingAnotherEstatesObjects`.
 4. `what the tag cannot defend` - under the same widened policy the role
    overwrites and deletes an object tagged as `b`'s, and both are
    allowed. A wrong prefix is enough to destroy a neighbour's records.
@@ -51,13 +59,23 @@ As the run prints them:
    this reason.
 5. `another estate's outputs are readable only with the statement that grants it` - reading `b`'s outputs is denied until the
    policy is rendered with `--reads-outputs-of smoke-b`, and allowed
-   after. `b`'s records stay denied. What the grant exposes is what `b`
+   after. `b`'s records stay denied, and they stay denied when the prefix
+   is also written wrong, because `b`'s tag is accepted under `b`'s
+   outputs prefix and nowhere else. What the grant exposes is what `b`
    wrote under `tofu-outputs/`, and an output marked `sensitive` is never
    written there. No choudoufu run makes this read; the grant is for a
    reader you write yourself
    ([Reading a value from another estate]({{< relref "/docs/use/cross-estate" >}})).
 
-The `BREAK=1` run widens the prefix and also removes the tag's `Deny`.
-The read of `b`'s record then succeeds. If it were still denied,
-something other than the two defences this claim names would be doing
-the denying.
+The `BREAK=1` run has two arms.
+
+The first widens the prefix and removes one statement, the relabel Deny,
+leaving the read Deny in place. The role retags `b`'s record as its own
+and then reads it. That is the policy this repository published until
+#1381, and until then step 3's headline was false: one mistake was
+enough. It was found by an audit and measured against AWS before the
+statement was added.
+
+The second widens the prefix and removes the read Deny. The read of
+`b`'s record then succeeds. If it were still denied, something other
+than the defences this claim names would be doing the denying.

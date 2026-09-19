@@ -74,6 +74,15 @@ must_deny "a lists the bare prefix tofu-records/smoke-a" "$ROLE_A" list-objects-
 echo x > "$SMOKE_WORK/x"
 must_deny "a writes under b's prefix, tagged as a" "$ROLE_A" put-object --bucket "$BUCKET" --key tofu-records/smoke-b/intruder --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a
 must_deny "a writes under its OWN prefix, tagged as b" "$ROLE_A" put-object --bucket "$BUCKET" --key tofu-records/smoke-a/mislabelled --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-b
+# A neighbour whose NAME begins with this estate's. The list above already
+# refuses the bare prefix; this is the same trap for a write, a delete and a
+# read, where the object ARN's trailing slash is the whole defence. An ARN
+# ending "tofu-records/smoke-a*" would also be "tofu-records/smoke-a-eu/...".
+awsl s3api put-object --bucket "$BUCKET" --key tofu-records/smoke-a-eu/decoy --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a-eu >/dev/null \
+  || fail "manyestates" "could not write the smoke-a-eu decoy"
+must_deny "a writes under smoke-a-eu, tagged as a" "$ROLE_A" put-object --bucket "$BUCKET" --key tofu-records/smoke-a-eu/intruder --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a
+must_deny "a deletes under smoke-a-eu" "$ROLE_A" delete-object --bucket "$BUCKET" --key tofu-records/smoke-a-eu/decoy
+must_deny "a reads under smoke-a-eu" "$ROLE_A" get-object --bucket "$BUCKET" --key tofu-records/smoke-a-eu/decoy "$SMOKE_WORK/o"
 proof "out of reach by prefix, and the bare prefix - the one that would also name a neighbour called smoke-a-eu - is refused outright."
 
 # From here the prefix scope is deliberately WRONG: estate a's allows reach
@@ -82,8 +91,34 @@ MISSCOPED="$("$POLICY_RENDERER" smoke-a "$BUCKET" | jq --arg b "arn:aws:s3:::$BU
   (.Statement[] | select(.Sid == "ReadAndDeleteByPrefix" or .Sid == "WriteOnlyObjectsTaggedAsThisEstate") | .Resource) = [$b + "/tofu-*"]
   | (.Statement[] | select(.Sid == "ListOwnNamespaces") | .Condition.StringLike["s3:prefix"]) = ["tofu-*"]')"
 
+tag_of() { awsl s3api get-object-tagging --bucket "$BUCKET" --key "$1" --query 'TagSet[?Key==`tofu-estate`].Value | [0]' --output text; }
+
 if [ "${BREAK:-0}" = "1" ]; then
-  step "BREAK control - both defects at once must let the read through"
+  step "BREAK control 1 - without the relabel Deny, one mistake IS enough"
+  explain \
+    "The prefix is mis-scoped and ONE statement is removed: the Deny on" \
+    "relabelling another estate's object. The read Deny is still there." \
+    "The write statement checks the tag a request SENDS and nothing about" \
+    "the object it lands on, so the role retags estate b's record as its" \
+    "own and the read Deny then has nothing to object to. This is the" \
+    "policy this repository published until #1381, measured."
+  NORELABEL="$(jq 'del(.Statement[] | select(.Sid == "DenyRelabellingAnotherEstatesObjects"))' <<< "$MISSCOPED")"
+  grep -q DenyRelabellingAnotherEstatesObjects <<< "$NORELABEL" && fail "manyestates" "the break did not remove the relabel Deny"
+  grep -q DenyReadingAnotherEstatesObjects <<< "$NORELABEL" || fail "manyestates" "the break removed the read Deny too, so this arm would prove nothing about relabelling"
+  role_with_policy "$ROLE_A" "$NORELABEL" "$BUCKET" || fail "manyestates" "could not install the policy without the relabel Deny"
+  OUT="$(s3_as "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o")" \
+    && fail "manyestates" "before any retag the read of estate b's record was ALLOWED, so the read Deny is not in force and this arm measures nothing: $OUT"
+  OUT="$(s3_as "$ROLE_A" put-object-tagging --bucket "$BUCKET" --key "$B_RECORD" --tagging 'TagSet=[{Key=tofu-estate,Value=smoke-a}]')" \
+    || fail "manyestates" "without the relabel Deny the retag of estate b's record was still refused, so something else is refusing it and step 3 cannot credit that statement: $OUT"
+  [ "$(tag_of "$B_RECORD")" = "smoke-a" ] || fail "manyestates" "the retag was allowed and the tag did not change"
+  OUT="$(s3_as "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/stolen")" \
+    || fail "manyestates" "the record was retagged and the read was still refused: $OUT"
+  [ -s "$SMOKE_WORK/stolen" ] || fail "manyestates" "the read was allowed and returned nothing"
+  echo "a retags b's record as its own: ALLOWED; a then reads it: ALLOWED, $(wc -c < "$SMOKE_WORK/stolen" | tr -d ' ') bytes" | evidence
+  awsl s3api put-object-tagging --bucket "$BUCKET" --key "$B_RECORD" --tagging 'TagSet=[{Key=tofu-estate,Value=smoke-b}]' >/dev/null
+  proof "caught - without that one statement a widened prefix alone reads a neighbour's record. In step 3 it is the relabel Deny that refuses the retag, and nothing else."
+
+  step "BREAK control 2 - both defects at once must let the read through"
   explain \
     "The prefix is mis-scoped AND the tag's Deny is removed. If the read" \
     "of estate b's record is still denied, something other than the two" \
@@ -105,7 +140,14 @@ role_with_policy "$ROLE_A" "$MISSCOPED" "$BUCKET" || fail "manyestates" "could n
 jq -c '.Statement[] | select(.Sid == "ReadAndDeleteByPrefix") | .Resource' <<< "$MISSCOPED" | evidence
 must_allow "a reads its own record" "$ROLE_A" get-object --bucket "$BUCKET" --key "$A_RECORD" "$SMOKE_WORK/o"
 must_deny "a reads b's record, prefix mis-scoped" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
-proof "one mistake is not enough to read a neighbour's records: the object carries its own estate's tag."
+# The tag is only a defence if it cannot be rewritten. The write statement
+# checks the tag a request sends, never the object it lands on, so this is
+# the obvious next move for a role that has just been refused.
+must_deny "a retags b's record as its own" "$ROLE_A" put-object-tagging --bucket "$BUCKET" --key "$B_RECORD" --tagging 'TagSet=[{Key=tofu-estate,Value=smoke-a}]'
+must_deny "a strips b's record's tags" "$ROLE_A" delete-object-tagging --bucket "$BUCKET" --key "$B_RECORD"
+[ "$(tag_of "$B_RECORD")" = "smoke-b" ] || fail "manyestates" "estate b's record is no longer tagged smoke-b: $(tag_of "$B_RECORD")"
+must_deny "a reads b's record after both attempts" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
+proof "one mistake is not enough to read a neighbour's records: the object carries its own estate's tag, and this role can neither change that tag nor remove it."
 
 step "4. what the tag cannot defend, shown and not left out"
 explain \
@@ -126,6 +168,14 @@ role_with_policy "$ROLE_A" "$("$POLICY_RENDERER" smoke-a "$BUCKET" --reads-outpu
 cmd "render-policy.sh smoke-a $BUCKET --reads-outputs-of smoke-b"
 must_allow "a reads b's outputs, dependency declared" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
 must_deny "a reads b's RECORDS, dependency declared" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
+# The same, with the prefix ALSO written wrong. The dependency's tag is
+# accepted under its outputs prefix and nowhere else. It used to be accepted
+# across the whole bucket, and then this read went through (#1381).
+DEP_MISSCOPED="$("$POLICY_RENDERER" smoke-a "$BUCKET" --reads-outputs-of smoke-b | jq --arg b "arn:aws:s3:::$BUCKET" '
+  (.Statement[] | select(.Sid == "ReadAndDeleteByPrefix" or .Sid == "WriteOnlyObjectsTaggedAsThisEstate") | .Resource) = [$b + "/tofu-*"]')"
+role_with_policy "$ROLE_A" "$DEP_MISSCOPED" "$BUCKET" || fail "manyestates" "could not install the mis-scoped dependency policy"
+must_allow "a reads b's outputs, dependency declared, prefix mis-scoped" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
+must_deny "a reads b's RECORDS, dependency declared, prefix mis-scoped" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
 proof "outputs and nothing else. What is there to read is what the other estate wrote: its root output values, never one marked sensitive. No choudoufu run makes this read; the grant is for a reader you write yourself."
 
 step "6. teardown"

@@ -121,6 +121,15 @@ jobs:
       # remote-state backends. In the tier they are below the run-to-run
       # spread - two paired runs on a loaded machine gave 380.3s/381.4s
       # wall before and 368.9s/374.7s after.
+      # live/record_store_bucket_test.go runs the shipped `just verify` and
+      # `just down` recipes against stub binaries and asserts their exit codes
+      # (GitHub issue #1379: the guard it replaced only grepped the justfile,
+      # and stayed green with `verify` ignoring the binary and `down` no longer
+      # refusing). It fails rather than skips when just is missing, because a
+      # guard that skips is permanently green. The runner image does not ship
+      # just, so it is installed here, the way contribute.yml does.
+      - name: Install just
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq just
       - name: Fast test tier
         run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
       - uses: peaceiris/actions-hugo@v3

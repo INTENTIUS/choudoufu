@@ -821,7 +821,7 @@
       "needs_go": false,
       "real_aws": true,
       "theme": "operate",
-      "break_mode": "BREAK=1 mis-scopes the prefix AND removes the tag's Deny, and passes only when the neighbour's record then reads back, proving the tag was what refused it",
+      "break_mode": "BREAK=1 has two arms. With the prefix mis-scoped and only the relabel Deny removed, it passes only when the role retags the neighbour's record and then reads it. With the prefix mis-scoped and the read Deny removed, it passes only when the record reads back. Each proves which statement was doing the refusing",
       "providers": {
         "aws": {
           "status": "proven",
