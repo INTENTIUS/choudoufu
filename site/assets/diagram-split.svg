@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300"
      role="img" aria-labelledby="split-title split-desc">
   <title id="split-title">The three jobs of a state file, and where each one goes</title>
-  <desc id="split-desc">One state file on the left holds identity, values and
-  effects. On the right the same three jobs are held by tags on the resource, a
+  <desc id="split-desc">One state file on the left holds identity, records and
+  effects. On the right the same three jobs are held by a marker on the resource, a
   record store, and a receipt.</desc>
 
   <!-- Palette matches site/static/style.css. Kept literal rather than
@@ -33,8 +33,8 @@
   <text x="48" y="115" class="l muted">which live resource</text>
 
   <rect x="34" y="128" width="188" height="52" rx="5" class="card"/>
-  <text x="48" y="148" class="s ink">Values</text>
-  <text x="48" y="169" class="l muted">what AWS cannot hold</text>
+  <text x="48" y="148" class="s ink">Records</text>
+  <text x="48" y="169" class="l muted">what a read cannot return</text>
 
   <rect x="34" y="182" width="188" height="52" rx="5" class="card"/>
   <text x="48" y="202" class="s ink">Effects</text>
@@ -60,16 +60,16 @@
     <rect x="364" y="46" width="342" height="52" rx="6" class="card"/>
     <rect x="364" y="46" width="342" height="52" rx="6" fill="none" class="rule"/>
     <circle cx="384" cy="72" r="5" class="olive"/>
-    <text x="400" y="69" class="h ink">Two tags on the resource</text>
-    <text x="400" y="88" class="l muted">read with any cloud tool, governed by your IAM</text>
+    <text x="400" y="69" class="h ink">A marker on the resource</text>
+    <text x="400" y="88" class="l muted">two tags on AWS, one label on Kubernetes</text>
   </g>
 
   <g>
     <rect x="364" y="128" width="342" height="52" rx="6" class="card"/>
     <rect x="364" y="128" width="342" height="52" rx="6" fill="none" class="rule"/>
     <circle cx="384" cy="154" r="5" class="olive"/>
-    <text x="400" y="151" class="h ink">A record store you declare</text>
-    <text x="400" y="170" class="l muted">Parameter Store, S3, or a local directory</text>
+    <text x="400" y="151" class="h ink">A record store</text>
+    <text x="400" y="170" class="l muted">one record per instance: a directory, a bucket, or Secrets</text>
   </g>
 
   <g>

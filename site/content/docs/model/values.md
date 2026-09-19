@@ -1,26 +1,42 @@
 ---
-title: "Values"
+title: "Records"
 weight: 3
 ---
 
-# Values
+# Records
 
-Most resources need nothing here. A resource with a cloud twin recovers its
-values by reading the live object, the same way it recovers its identity.
+Ownership lives on the resource, as a marker. Everything else a run has to
+remember between applies lives in the record store: one record for every
+managed resource instance, written by choudoufu, in a place you choose.
 
-The exceptions are resources with no twin at all. Nothing in AWS knows a
-`null_resource` ran a script, a `time_static` captured a timestamp, or a
-`random_pet` generated a name.
+![Every managed instance has a record, of one of two kinds, in one of three stores](diagram-values.svg)
 
-![Which resources need a record store, and which do not](diagram-values.svg)
+## Two kinds of record
 
-Those persist as one small record each, and every estate already has somewhere
-to put them. A `live` block that names no `record_store` gets an implied local
-one, a `.tofu-records` directory beside the module, so these resources are
-admitted with no `record_store` block present. What is still refused is a
-configuration with no `live` block at all.
+| `kind` | Written for | Holds | Losing it costs |
+|---|---|---|---|
+| `identity` | A resource with a live twin, which is most of them | What a read of the live object cannot give back: an import identity, arguments the API never returns, whether a create-time provisioner ran, and on Kubernetes the label and annotation keys the configuration last declared | A slower or noisier plan. Ownership is the marker and does not depend on the record |
+| `object` | A resource with no live twin: `null_resource`, `terraform_data`, `random_*`, `time_*`, `tls_*` | The whole value, the provider's private data, and which attributes were sensitive | The resource. The record is the only copy |
 
-Declare the block to send the records somewhere a team can share instead:
+The `kind` inside the record decides what a plan may do with a record that no
+configuration declares. Only an `object` record is proposed for destroy.
+
+A record is never consulted for ownership, and its values are never folded
+into a marker: an identity-bearing argument is evaluated over `var`, `local`,
+`path`, `terraform` and `tofu` alone. A lost `object` record can still cost
+more than itself. `name = "svc-${random_pet.suffix.id}"` is the ordinary
+shape, and losing the pet's record regenerates the pet, so everything named
+after it is proposed for create under a new name.
+[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) has the
+procedure.
+
+## Three stores
+
+| Backend | Records are | For |
+|---|---|---|
+| `local` | Files in `.tofu-records` beside the module | One operator, or a demo. It is what an estate gets when it declares nothing |
+| `s3` | Objects in a bucket you own | A team on AWS |
+| `kubernetes` | Secrets in a namespace you own | A team on a cluster, with no AWS account involved |
 
 ```hcl
 # estate.chdf.hcl
@@ -31,62 +47,31 @@ record_store "s3" {
 }
 ```
 
-The label picks the backend, `local` or `s3`. The bucket is one you create
-first. [Where things are stored]({{< relref "/docs/use/storage" >}}) has how it
-is laid out, and [What you set up by hand]({{< relref "/docs/use/setup" >}}) has
-the creating.
+All three give the same guarantees, and a run cannot tell them apart.
 
-## Four things to know
+Every write is conditional. A create succeeds only if the record does not
+exist, and an update or a delete only if the record still has the version the
+writer read. A losing writer gets a named conflict and changes nothing.
+Nothing is locked, so a crashed run leaves nothing held.
+[Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the cases.
 
-**You are not meant to read it.** The payload is a self-describing ctyjson
-envelope for this fork's own code. Its format is not a contract.
+A run reads its estate's records whole before it plans, and the read is
+complete or the run fails. A store that errors partway never reaches the plan
+as a smaller estate.
 
-**Writes are conditional.** A record is written only if it still holds the
-version the writer read. A losing writer gets a named failure rather than a
-blocking wait or a silent overwrite.
+Each record is its own object, tagged or labelled with the estate's name the
+way a managed resource is. One bucket or one cluster serves any number of
+estates, and your IAM or RBAC decides who reads which.
 
-**Losing one cannot produce a wrong marker.** An identity-bearing argument is
-evaluated over `var`, `local`, `path`, `terraform` and `tofu` alone, so a
-record's value is never folded into a marker. What it can cost is more than
-churn: a record-backed value may be a *component* of another resource's
-identity - `name = "svc-${random_pet.suffix.id}"` is the ordinary shape - and
-losing that record regenerates the pet, so everything named after it is
-proposed for create under a name no live object has. [Recover an
-estate]({{< relref "/docs/use/recover-an-estate" >}}) has the mechanism and
-the procedure.
+## It holds secrets
 
-**The record store may hold any value the state file would have held,
-including secrets, unless you set `strict { secrets = "refuse" }`.** The
-default is `strict { secrets = "store" }`, which keeps what a stock state file
-keeps: `random_password`, `random_bytes` and the `tls_*` types are admitted
-and their generated values are recorded in clear. That is the thing to weigh
-when picking a backend, because it decides who ends up able to read them:
-[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has the
-answer for the local store and for a bucket.
+A record store holds what a state file would have held. Under the default,
+`strict { secrets = "store" }`, a generated password is recorded in clear,
+and so is a database password the API never returns. Whoever can read the
+store can read them, so pick who that is before you pick a backend.
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) says exactly
+what is recorded and what `secrets = "refuse"` changes.
 
-## What the store actually holds
-
-Identity is the part that has to be authoritative, and it lives on the
-resources. What reaches a record store is a handful of values for resources the
-cloud cannot see - and four supporting records, each derived, none of
-them ever consulted for ownership:
-
-- an identity envelope per instance, written at apply, which is what
-  lets a `-refresh=false` run vouch for a cached instance without
-  re-reading it
-- the guided-discovery hint, a speed-up for the estate sweep
-- the evidence a plan narrows its sweep by: an estate whose store holds
-  keys skips the account-wide look its own records already answer
-- tombstone and deposed seeds, which keep a crash between destroy and
-  create recoverable
-
-Losing any of these costs a slower run, never a wrong one - the same
-contract as the state cache. And while most estates never write a
-`record_store` block, every live estate has a store: an undeclared one
-is implied as a local directory beside the module, provisioned at first
-use. Declaring the block chooses where the store lives, not whether it
-exists.
-
-A record store is also not where a receipt goes. A `key_prefix` starting with
-`tofu-receipts` is a configuration error.
-[Effects]({{< relref "/docs/model/effects" >}}) covers why.
+[Where things are stored]({{< relref "/docs/use/storage" >}}) has the layout
+of each store, and [What you set up by hand]({{< relref "/docs/use/setup" >}})
+has what must exist before the first plan.
