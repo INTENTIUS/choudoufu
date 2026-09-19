@@ -7,19 +7,16 @@ package staterecord
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
 // Record is one stored record's content and version, as [BulkReader.GetAll]
@@ -56,7 +53,6 @@ type BulkReader interface {
 var (
 	_ BulkReader = (*LocalStore)(nil)
 	_ BulkReader = (*S3Store)(nil)
-	_ BulkReader = (*SSMStore)(nil)
 )
 
 // GetAll reads every record under keyPrefix from the store directory in one
@@ -103,51 +99,6 @@ func (s *LocalStore) GetAll(_ context.Context, keyPrefix string) (map[string]Rec
 	})
 	if err != nil {
 		return nil, fmt.Errorf("staterecord: local: reading everything under %q: %w", keyPrefix, err)
-	}
-	return out, nil
-}
-
-// GetAll reads every record under keyPrefix with one GetParametersByPath
-// pagination — the identical call [SSMStore.List] already makes, keeping the
-// values it already returns instead of throwing them away and fetching each
-// one again with GetParameter. This is the backend the bulk read is worth
-// most to: an estate of N instances costs ceil(N/10) API calls here rather
-// than N.
-func (s *SSMStore) GetAll(ctx context.Context, keyPrefix string) (map[string]Record, error) {
-	if err := validateKeyPrefix(keyPrefix); err != nil {
-		return nil, err
-	}
-	folder := s.keyPrefix
-	if i := strings.LastIndex(keyPrefix, "/"); i >= 0 {
-		folder = s.parameterName(keyPrefix[:i])
-	}
-
-	out := map[string]Record{}
-	var token *string
-	for {
-		res, err := s.client.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
-			Path:      aws.String(folder),
-			Recursive: aws.Bool(true),
-			NextToken: token,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("staterecord: ssm: reading everything under %q: %w", keyPrefix, err)
-		}
-		for _, p := range res.Parameters {
-			key := s.keyFromParameterName(aws.ToString(p.Name))
-			if !strings.HasPrefix(key, keyPrefix) {
-				continue
-			}
-			payload, err := base64.StdEncoding.DecodeString(aws.ToString(p.Value))
-			if err != nil {
-				return nil, fmt.Errorf("staterecord: ssm: decoding the value stored for %q: %w", key, err)
-			}
-			out[key] = Record{Payload: payload, Version: strconv.FormatInt(p.Version, 10)}
-		}
-		if res.NextToken == nil || aws.ToString(res.NextToken) == "" {
-			break
-		}
-		token = res.NextToken
 	}
 	return out, nil
 }

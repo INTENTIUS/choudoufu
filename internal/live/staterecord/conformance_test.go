@@ -23,8 +23,8 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 	t.Run("AbsoluteKeysAreRefusedLoudly", func(t *testing.T) {
 		// Issue #689, from #688's terralith run: keys are
 		// store-relative, and a leading slash used to be accepted then
-		// handled differently by every store - the local and SSM
-		// stores normalized it on write but not in List's filter, so
+		// handled differently by every store - the local store and
+		// the Parameter Store one that existed then normalized it on write but not in List's filter, so
 		// the write succeeded and the List came back empty, which a
 		// caller cannot tell from an empty estate. Every operation now
 		// refuses the shape with the same named error, on every store.
@@ -70,11 +70,10 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		// component at NAME_MAX - so a long address is now spread across
 		// several segments rather than crammed into one. This is that
 		// shape, at the full 230-byte chunk length the encoder uses, run
-		// against every backend rather than only the local one: SSM
-		// bounds a parameter hierarchy at fifteen levels and S3 bounds a
-		// whole object key, so a key shape that only the filesystem was
-		// asked about is a key shape two of the three stores were never
-		// tested with.
+		// against every backend rather than only the local one: S3
+		// bounds a whole object key, so a key shape that only the
+		// filesystem was asked about is a key shape the other store was
+		// never tested with.
 		//
 		// The update path is exercised on purpose. The local store names
 		// two sidecars after the leaf ("<leaf>.lock" and os.CreateTemp's

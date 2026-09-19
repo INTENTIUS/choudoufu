@@ -56,9 +56,8 @@ type Store interface {
 	// keyPrefix, as an ordinary Go string prefix (not a path-hierarchy
 	// match), sorted lexically. keyPrefix == "" lists every key. See each
 	// implementation's own doc comment for how closely its underlying
-	// primitive matches this — [SSMStore], notably, does not have a native
-	// string-prefix list and approximates one; the returned set is exactly
-	// this contract regardless.
+	// primitive matches this; the returned set is exactly this contract
+	// regardless.
 	List(ctx context.Context, keyPrefix string) ([]string, error)
 }
 
@@ -111,11 +110,11 @@ func (e *VersionConflictError) Error() string {
 }
 
 // validateKey rejects the ways an opaque key can stop being safe to turn
-// into a filesystem path, a parameter name or an object key: empty, a NUL
-// byte (illegal in all three), or a ".." path segment (a local-store
+// into a filesystem path or an object key: empty, a NUL
+// byte (illegal in both), or a ".." path segment (a local-store
 // traversal risk this package refuses categorically rather than trusting
 // every caller to have sanitized it). It does not enforce a charset beyond
-// that — [SSMStore] and [S3Store] each carry their own backend's naming
+// that — [S3Store] carries its own backend's naming
 // rules, and those simply surface as an ordinary error from the underlying
 // API when violated.
 func validateKey(key string) error {
@@ -134,7 +133,8 @@ func validateKeyPrefix(keyPrefix string) error {
 	if strings.HasPrefix(keyPrefix, "/") {
 		// Keys are store-relative: every backend prepends its own
 		// configured prefix. A leading slash used to be accepted and
-		// handled differently by every store - the local and SSM stores
+		// handled differently by every store - the local store and the
+		// Parameter Store one that existed then (retired, #1346)
 		// normalized it away on write but not in List's filter, so a
 		// Put succeeded and the List that should return it came back
 		// empty, and the S3 store kept the slash and diverged from

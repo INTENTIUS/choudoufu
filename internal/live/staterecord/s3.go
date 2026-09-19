@@ -31,7 +31,7 @@ import (
 //
 // Every conditional operation is a single S3 request carrying the
 // condition; there is no read-compare-write window for this store to
-// document a caveat about, unlike [SSMStore]:
+// document a caveat about:
 //
 //   - [S3Store.PutIfAbsent] and a "" [S3Store.PutIfVersion] call send
 //     If-None-Match: * — S3 rejects the write with HTTP 412 if any object
@@ -125,8 +125,9 @@ func (s *S3Store) objectKey(key string) string {
 }
 
 // ObjectKey is the S3 object key this store will read and write key at:
-// [S3Config.KeyPrefix] joined ahead of it. Exported for the same reason
-// [SSMStore.ParameterName] is - see that method's comment and issue #916.
+// [S3Config.KeyPrefix] joined ahead of it. Exported so a caller can say
+// where a record actually is, in words an operator can paste into the AWS
+// CLI - issue #916.
 func (s *S3Store) ObjectKey(key string) string {
 	return s.objectKey(key)
 }
@@ -286,7 +287,7 @@ func (s *S3Store) Delete(ctx context.Context, key string, expectedVersion string
 // this store's own key prefix plus keyPrefix — S3's list primitive is
 // already an ordinary string prefix, the same contract [Store.List]
 // promises, so no client-side filtering beyond stripping s.keyPrefix back
-// off is needed (unlike [SSMStore.List]).
+// off is needed.
 func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) {
 	if err := validateKeyPrefix(keyPrefix); err != nil {
 		return nil, err

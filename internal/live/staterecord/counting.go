@@ -21,14 +21,14 @@ import (
 // internal/live/flocitest's CountingProxy counts for provider traffic. The
 // proxy stands in front of the AWS endpoint and is therefore blind to these:
 // a record read
-// goes to a local directory, an SSM parameter or an S3 object, none of which
+// goes to a local directory or an S3 object, neither of which
 // the provider's endpoint ever sees. Until this existed, no instrument in
 // this repository counted them at all, so "a plan costs N calls" was a
 // partial number by construction.
 //
 // A "trip" is one call to the wrapped store, because that is the unit that
 // costs something: against [LocalStore] a stat plus a read, against
-// [SSMStore] or [S3Store] a network round trip. Stock OpenTofu makes zero of
+// [S3Store] a network round trip. Stock OpenTofu makes zero of
 // them — it reads its whole state once, from one file.
 //
 // Each trip records more than a method name, because a bare per-method total
