@@ -33,12 +33,39 @@ REPO="INTENTIUS/choudoufu"
 # estate and the bucket are: a value taken from the script under test proves
 # only that the script agrees with itself.
 EXPECT_ACCOUNT="354867293429"
+# The sidecar names one estate and one bucket, and the cases below check the
+# file against these two literals rather than reading whatever is there. They
+# are declared here, at the top, and not inside the case that first uses them:
+# under `set -u` a later case reading an unset one kills the whole script, and
+# see the EXIT trap below for what that used to look like from outside.
+EXPECT_ESTATE="ci-pipelines-example"
+EXPECT_BUCKET="choudoufu-records-354867293429-us-east-1"
 PLAIN_SUBJECT="repo:${REPO}:*"
 IMMUTABLE_PREFIX="repo:INTENTIUS@259705176/choudoufu@1332291567"
 IMMUTABLE_SUBJECT="${IMMUTABLE_PREFIX}:*"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The status is saved and re-raised. An EXIT trap whose last command is `rm`
+# hands `rm`'s status to whoever ran this script, so a selftest killed by
+# `set -u` or `set -e` part way through - which is what happens when a case
+# leaves a later one reading a variable it never got to set - exited 0 and
+# read as a pass. Measured while writing #1381's cases.
+# selftest_finished is set on the last line that runs when every case has run.
+# Without it this script exited 0 when it was killed part way through - bash
+# 3.2 hands the EXIT trap a status of 0 for a `set -u` or `set -e` abort, and
+# the trap's own `rm` then finishes with 0 as well, so a selftest that never
+# reached half its cases read as a pass from outside. Measured while writing
+# #1381's cases, where a bootstrap that refused early left a later case
+# reading a variable that case never got to set.
+selftest_finished=0
+# shellcheck disable=SC2154 # selftest_rc is assigned on the trap's first line
+trap 'selftest_rc=$?
+      rm -rf "$WORK"
+      if [ "$selftest_finished" != 1 ]; then
+        echo "FAIL: this selftest stopped before its last case, so most of it never ran. Read the output above for where." >&2
+        exit 1
+      fi
+      exit $selftest_rc' EXIT
 STUBDIR="$WORK/bin"
 mkdir -p "$STUBDIR"
 
@@ -280,11 +307,10 @@ else
   # Read independently of oidc-bootstrap.sh. Until #1379 this used that
   # script's own sed expression character for character, so one broken regex
   # satisfied both sides and the comparison compared nothing. It splits on
-  # the quote with awk instead, and then checks the two values against the
-  # literals below: the sidecar names one estate and one bucket, and if
-  # either changes, this line is where a reader is told about it.
-  EXPECT_ESTATE="ci-pipelines-example"
-  EXPECT_BUCKET="choudoufu-records-354867293429-us-east-1"
+  # the quote with awk instead, and then checks the two values against
+  # EXPECT_ESTATE and EXPECT_BUCKET at the top of this file: the sidecar names
+  # one estate and one bucket, and if either changes, that is where a reader
+  # is told about it.
   WANT_ESTATE="$(awk -F'"' '$1 ~ /^estate[[:space:]]*=[[:space:]]*$/ {print $2; exit}' "$SIDECAR")"
   WANT_BUCKET="$(awk -F'"' '$1 ~ /^[[:space:]]*bucket[[:space:]]*=[[:space:]]*$/ {print $2; exit}' "$SIDECAR")"
   echo "  sidecar: estate=$WANT_ESTATE bucket=$WANT_BUCKET"
@@ -602,7 +628,44 @@ else
     FAILURES=$((FAILURES + 1))
   fi
 fi
-# The second half: a renderer that exits 0 and prints a document with no
+# The second half, and the one only the exit status catches: a renderer that
+# prints a whole, parseable policy and THEN fails. Nothing downstream can tell
+# that document from a good one - jq parses it, it has statements in it, it
+# would go straight into the apply role's policy - so if the exit status is
+# not read, a renderer that died half way through its work is indistinguishable
+# from one that finished.
+cat > "$RENDERER_STUB" <<'RENDEOF'
+#!/usr/bin/env bash
+echo '{"Version":"2012-10-17","Statement":[{"Sid":"ListOwnNamespaces","Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::b"}]}'
+echo "render-policy.sh: ran out of something half way through" >&2
+exit 2
+RENDEOF
+chmod +x "$RENDERER_STUB"
+runner="$WORK/run-lyingrenderer.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+export POLICY_RENDERER="$RENDERER_STUB"
+source "$SCRIPT_PATH" --dry-run >"$WORK/lyingrenderer.out" 2>"$WORK/lyingrenderer.err"
+RUNEOF
+chmod +x "$runner"
+if PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL: the renderer printed a parseable policy and exited 2, and the bootstrap took the policy anyway." >&2
+  echo "  Only the exit status distinguishes that from a renderer that finished." >&2
+  FAILURES=$((FAILURES + 1))
+else
+  echo "  parseable-then-failed render: refused, saying:"
+  sed 's/^/    /' "$WORK/lyingrenderer.err" | tail -6
+  if ! grep -q "failing-render-policy.sh" "$WORK/lyingrenderer.err"; then
+    echo "FAIL: the refusal does not name the renderer" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+  if ! grep -q "ran out of something half way through" "$WORK/lyingrenderer.err"; then
+    echo "FAIL: the refusal does not pass on what the renderer said, which is the only account of what went wrong" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+# The third: a renderer that exits 0 and prints a document with no
 # statements in it. The exit status alone would let that through, and the
 # apply role would come out with no access to the record store at all.
 cat > "$RENDERER_STUB" <<'RENDEOF'
@@ -635,6 +698,8 @@ fi
 # renderer's own output. Without it a bootstrap that refused every render
 # would pass the two cases here.
 rm -f "$RENDERER_STUB"
+
+selftest_finished=1
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
