@@ -181,6 +181,6 @@ just chant-apply  # stops at its gate; chant approve bucket-apply apply
 ## Where this runs
 
 Real AWS. The pinned floci emulator reports `CREATE_COMPLETE` for this
-stack and applies none of the bucket's properties (lex00/floci#207), and
+stack and applies none of the bucket's properties (lex00/floci#213), and
 `just verify` is what noticed. The S3 API calls themselves work on floci,
 which is how choudoufu's own smoke claims about this bucket run locally.
