@@ -194,8 +194,11 @@ be **reached**, or that IAM would not let the role into, does not stop them.
 They go on without records and say so in a warning titled
 `The record store was not read`, which also says what that does to the output:
 a record-backed resource is known only by its record, so it may appear as
-something to create when it already exists. Before #1376 both kinds were a
-line in the debug log.
+something to create when it already exists. A `kubernetes_manifest` is affected
+the other way: its record is how a plan tells a label the configuration dropped
+from one somebody added by hand, so without it a removed label is not planned
+for removal and the output can read "No changes" while the live object keeps
+it. Before #1376 both kinds were a line in the debug log.
 
 **Losing a record cannot produce a wrong marker.** An identity-bearing
 argument is evaluated over `var`, `local`, `path`, `terraform` and `tofu`
