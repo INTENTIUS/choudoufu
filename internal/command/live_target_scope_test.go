@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
 )
 
 // GitHub issue #1203. #1176 found two live-path passes that reasoned over
