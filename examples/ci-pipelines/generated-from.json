@@ -7,7 +7,7 @@
   ],
   "inputs": {
     "chant.config.ts": "06dab2c66ab94a7bbe3d3d228c15665230bed766b28b4be5c385b197df9ae8b2",
-    "generate.ts": "531dbdc654fb8cf946b983bb5eebb4eddd2321655b1c61f173f0a12138c1b3c0",
+    "generate.ts": "8cc40f6bcdf37c1ae5b5b7bed2008c4cb78d24d2f2837b0570f8653a1c3efe4d",
     "package-lock.json": "a23ca6b6fcfb0c2875d73ac8197c8eb9ca0a7531d0dfb4b00df91ab1e1659152",
     "package.json": "fd2201e2e0397ad362171689e5edbdd5b880e5a563dbaa30884a00035445de7f",
     "src/forge.ts": "e93b3e9fa34a94667be3e1adb1e7de5c4983bf8f131ddc1c45e36d937e2ce604",
