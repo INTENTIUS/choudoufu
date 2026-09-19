@@ -324,6 +324,12 @@ func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
 			if !wired {
 				t.Errorf("claim %d (%s): line %d tests %s and does not follow it with `|| fail`, so the scenario runs on regardless", c.ID, name, refusalAt+1, smokeRefusal)
 			}
+			// At column zero, so it runs when the file runs. A refusal in a
+			// function body or an if block is one the scenario may never
+			// reach, and reads exactly like one it always reaches.
+			if raw := strings.Split(script, "\n")[refusalAt]; raw != strings.TrimLeft(raw, " \t") {
+				t.Errorf("claim %d (%s): the refusal on line %d is indented, so it sits inside a block or a function and may never run; it belongs at the top level of the script", c.ID, name, refusalAt+1)
+			}
 			if awsAt >= 0 && awsAt < refusalAt {
 				t.Errorf("claim %d (%s): line %d can reach an account before the refusal on line %d: %s", c.ID, name, awsAt+1, refusalAt+1, awsLine)
 			}
