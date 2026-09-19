@@ -483,8 +483,8 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if got, want := rs.Path, ".tofu-records"; got != want {
 			t.Errorf("Path = %q, want %q", got, want)
 		}
-		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet {
-			t.Errorf("local record_store carries bucket/key_prefix/region: %+v", rs)
+		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet || rs.BucketOwnerSet {
+			t.Errorf("local record_store carries bucket/key_prefix/region/bucket_owner: %+v", rs)
 		}
 	})
 
@@ -513,6 +513,36 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 		if rs.PathSet {
 			t.Errorf("s3 record_store carries a path: %+v", rs)
+		}
+		// Optional, and unset here, so a build that defaulted it to something
+		// would be caught: an ExpectedBucketOwner nobody wrote would refuse
+		// every request against a bucket in another account, including the
+		// ordinary case of one shared on purpose.
+		if rs.BucketOwnerSet || rs.BucketOwner != "" {
+			t.Errorf("bucket_owner is set on a block that does not name one: %+v", rs)
+		}
+	})
+
+	// GitHub issue #1381. A bucket name is global: a name that is free can be
+	// taken by anyone, in any account, so the name alone does not say whose
+	// bucket this is.
+	t.Run("s3 with bucket_owner", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-s3-bucket-owner")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if got, want := rs.BucketOwner, "111122223333"; got != want {
+			t.Errorf("BucketOwner = %q, want %q", got, want)
+		}
+		if !rs.BucketOwnerSet {
+			t.Error("BucketOwnerSet is false for a block that names an owner")
+		}
+		if rs.BucketOwnerRange.Empty() {
+			t.Error("BucketOwnerRange is empty, so a diagnostic about it would point nowhere")
 		}
 	})
 }
@@ -688,6 +718,12 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-allow-insecure-boolean.tf", `must be a literal list of strings`},
 		{"testdata/invalid-files/live-record-store-allow-insecure-twice.tf", `names "versioning" more than once`},
 		{"testdata/invalid-files/live-record-store-allow-insecure-on-local.tf", `has no meaning for record_store "local"`},
+		// GitHub issue #1381. An account ID that is not twelve digits would
+		// go on the wire as ExpectedBucketOwner and be refused by S3 on
+		// every request, with nothing saying the configuration is why.
+		{"testdata/invalid-files/live-record-store-bucket-owner-not-an-account.tf", `It must be an AWS account ID: exactly twelve digits`},
+		{"testdata/invalid-files/live-record-store-bucket-owner-too-short.tf", `It must be an AWS account ID: exactly twelve digits`},
+		{"testdata/invalid-files/live-record-store-bucket-owner-on-local.tf", `has no meaning for record_store "local"`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)
