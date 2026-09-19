@@ -556,7 +556,12 @@ func TestModule_liveRecordStoreRetired(t *testing.T) {
 					t.Errorf("the refusal does not say %q:\n%s", want, got)
 				}
 			}
-			for _, never := range []string{"SSM is removed", "SSM is retired", "names a backend this fork does not know"} {
+			// The quota sentence used to end "past that every parameter is
+			// billed monthly on the advanced tier", which reads as every
+			// parameter in the account being billed. Only the ones put on
+			// the advanced tier are; standard parameters are free at any
+			// number up to the cap. GitHub issue #1383.
+			for _, never := range []string{"SSM is removed", "SSM is retired", "names a backend this fork does not know", "every parameter is billed"} {
 				if strings.Contains(got, never) {
 					t.Errorf("the refusal says %q:\n%s", never, got)
 				}

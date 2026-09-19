@@ -5,7 +5,7 @@ weight: 5
 
 # Two runs at once
 
-Nothing is locked, anywhere. Ownership lives on the resources themselves, and
+No lock is held across a run. Ownership lives on the resources themselves, and
 contention settles at the API that is being written to. Two simultaneous applies against one estate
 resolve one of four ways.
 
@@ -31,8 +31,9 @@ unlock or recover.
 The table above is about cloud resources. Records are the other thing two runs
 can both write, and nothing is held there either. Every record write is one
 conditional request: a create carries `If-None-Match: *`, an update or a
-delete carries `If-Match` with the version the writer read. S3 decides, in one
-atomic step, and keeps nothing afterwards.
+delete carries `If-Match` with the version the writer read. The store decides, in one
+atomic step, and keeps nothing afterwards. On a bucket that is S3, and on a
+cluster it is the API server comparing `resourceVersion`.
 
 | Race | Outcome |
 |---|---|
@@ -43,6 +44,12 @@ atomic step, and keeps nothing afterwards.
 [Claim 32]({{< relref "/docs/claims/two-writers-one-record" >}}) holds two
 writers at the wire so that both arrive with the same version in hand, and
 requires exactly one winner and one named conflict on every round.
+
+The local store is the one place a lock file appears. A plain directory has no
+conditional write, so a write takes a `<file>.lock` sidecar for the length of
+one file operation, and a sidecar older than thirty seconds is broken by the
+next writer. It is never held across an operation, so a killed run cannot
+strand an apply behind it.
 
 A conditional write is not a lock. A lock is held across operations and can
 be orphaned by a crash. A conditional write succeeds or fails atomically and

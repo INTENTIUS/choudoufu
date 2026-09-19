@@ -13,7 +13,7 @@ estate. Every claim below has a job trace behind it (#1026 item 3).
 | GitLab CE | 17.11.0, revision `5e1517f7b46`, `enterprise: false` |
 | gitlab-runner | 17.11.0 (`0f67ff19`), docker executor, arm64 |
 | floci | the digest in `live/floci-image` |
-| choudoufu | v0.16.0, downloaded by the job's own install line |
+| choudoufu | the release `generate.ts` pins, downloaded by the job's own install line |
 | chant | 0.60.0, the version `package.json` pins |
 
 ```bash

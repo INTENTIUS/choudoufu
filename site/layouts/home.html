@@ -5,22 +5,22 @@
   <img class="hero-logo" src="{{ (resources.Get "choudoufu-inline-64.png").RelPermalink }}" width="64" height="64" alt="">
   <h1>choudoufu</h1>
   <p class="tagline">OpenTofu, with your platform holding the record of what you own.</p>
-  <p class="hero-lead">A fork of OpenTofu that puts each resource's identity on the resource itself, where the platform's own policy engine can see it. Adopt what already runs, gate it with the policy you already have, and treat the state file as a cache you are allowed to lose.</p>
+  <p class="hero-lead">OpenTofu keeps a state file that says what you own. choudoufu writes that onto the resources themselves, as a marker your cloud's own access control can read. Adopt what already runs, decide who may change what with the policy you already have, and keep the state file only as a cache you may delete.</p>
   <p class="hero-actions"><a class="button" href="{{ "aws/" | relURL }}">Start with AWS</a> <a class="button secondary" href="{{ "how-it-works/" | relURL }}">How it works</a></p>
 </section>
 
 <section class="beats">
   <div class="beat">
     <h2>Adopt live infrastructure</h2>
-    <p>Point it at what already runs. Adoption is a marker written onto each resource, not a state migration; a plan run before the markers are on reads the resource as absent, proposes a duplicate, and says so before you apply.</p>
+    <p>Point it at what already runs. Adopting a resource means writing a marker onto it. A plan run before the markers are on reads the resource as absent, proposes a duplicate, and says so before you apply.</p>
   </div>
   <div class="beat">
     <h2>Gate with the platform's own policy</h2>
-    <p>Ownership is a marker the platform can select on, so its policy engine decides who may change what, per resource. Handover is a role grant. Splitting an estate is a retag. No lock table, no bucket policy to keep in step.</p>
+    <p>Ownership is a marker the platform can select on, so its policy engine decides who may change what, per resource. Handover is a role grant, splitting an estate is a retag, and there is no lock table.</p>
   </div>
   <div class="beat">
     <h2>Lose the state file</h2>
-    <p>Identity lives on the resources, values in a record store, effects as receipts. The state file is a projection of those three; delete it and the next plan rebuilds it from live reads, with the same answer.</p>
+    <p>A marker on every resource says who owns it, and a small record per resource holds what cannot be read back. The state file stays as a cache: delete it and the next plan reads the live system and gives the same answer.</p>
   </div>
 </section>
 

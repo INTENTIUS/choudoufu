@@ -20,67 +20,52 @@ That it should not run on every plan was
 ruling rested on, and it is still the measurement of what the sweep costs when
 a run does take it.
 
-> **Read this page as the sweep's cost.** Since
-> `09d180f921` a plan of an estate that has its own evidence to narrow by -
-> types declared in configuration, or holding a key in the record store - no
-> longer enumerates the whole admission table, and the 79-instance fixture
-> measured throughout this page went from **710 API calls to 157**, against
-> stock's 150. Every full-sweep figure below still describes a run where the
-> narrowing has nothing to narrow by - an adoption, an audit, a rebuild from
-> markers - because every gate fails toward doing the work. The exact gates
-> are [below](#when-the-native-leg-is-narrowed-and-when-it-is-not). It no
-> longer describes an ordinary plan of an adopted estate. The scales above 79
-> instances have not been re-measured in calls since. What a steady-state plan
-> costs and what is still outstanding is on
+> Read this page as the sweep's cost. Since `09d180f921` a plan of an estate
+> that has its own evidence to narrow by (types declared in configuration, or
+> a key held in the record store) no longer enumerates the whole admission
+> table. The 79-instance fixture measured throughout this page went from
+> **710 API calls to 157**, against stock's 150. Every full-sweep figure below
+> describes a run where the narrowing has nothing to narrow by: an adoption,
+> an audit, or a rebuild from markers. The exact gates are
+> [below](#when-the-native-leg-is-narrowed-and-when-it-is-not). The scales
+> above 79 instances have not been re-measured in calls since `09d180f921`.
+> What a steady-state plan costs is on
 > [what you pay, and when]({{< relref "/docs/what-you-pay" >}}).
 
-> **This page is prose; a machine reader wants `live/gauntlet-scale.json`.**
+> A machine reader wants `live/gauntlet-scale.json`
 > ([issue #1051](https://github.com/INTENTIUS/choudoufu/issues/1051),
-> [chant-bench#33](https://github.com/INTENTIUS/chant-bench/issues/33)) The
-> real-AWS resource/taggable counts, per-stage seconds, and throttle/retry
-> counts this page and
-> [what you pay]({{< relref "/docs/what-you-pay" >}}) describe in words are
-> also emitted as structured records there, one per (estate, target, scale) -
-> `terralith-scale` at 79, 301, 745 and 3,705 resources today. That record
-> keeps two numbers deliberately apart, after an earlier version of this
-> field ([issue #1053](https://github.com/INTENTIUS/choudoufu/issues/1053))
-> conflated them and let a downstream reader publish an audit's cost as
-> though it were a plan's: **`plan_calls`** is what an ordinary CLI
-> `tofu plan` of the migrated estate actually costs - a `cold` pass and a
-> back-to-back `warm` one, each a choudoufu-and-stock pair where the bench
-> measured both sides - and **`audit_calls`** is the sweep-versus-read-pass
-> split this page's own table below describes, taken with
-> `Request.CollectUnclaimed` forced true (the account inventory, which by
-> construction takes the whole admission table regardless of narrowing or
-> cache state - see
-> ["When the native leg is narrowed, and when it is not"](#when-the-native-leg-is-narrowed-and-when-it-is-not)
-> above). `gauntlet scale-import-slice` converts
-> `internal/live/discovery/slicing_bench_test.go`'s own `SLICE_OUT` report
-> into both fields at once, merged into the estate's existing floci row
-> rather than replacing it. The 79-instance point is recorded this way
-> today; 301 and 745 still want a re-run of the bench to land the same way.
-> The real-AWS side has `plan_calls.cold` only (`terralith-scale.sh`'s own
-> `analyze_api_calls` times the first post-migrate plan and never a second,
-> and has no leg split to give `audit_calls` at all): `plan_calls_choudoufu=`/
-> `plan_calls_stock=` tokens on `test_plan`'s stage detail, read by
-> `scalerecord.go`, landed for the scale-50 run below.
+> [chant-bench#33](https://github.com/INTENTIUS/chant-bench/issues/33)). The
+> figures this page and [what you pay]({{< relref "/docs/what-you-pay" >}})
+> describe are emitted there as records, one per (estate, target,
+> scale): `terralith-scale` at 79, 301, 745 and 3,705 resources. Each
+> record keeps two numbers apart
+> ([issue #1053](https://github.com/INTENTIUS/choudoufu/issues/1053)).
+> `plan_calls` is what an ordinary CLI `tofu plan` of the migrated estate
+> costs, as a `cold` pass and a back-to-back `warm` one. `audit_calls` is the
+> sweep and read-pass split in the table below, taken with
+> `Request.CollectUnclaimed` forced true, which takes the whole admission
+> table. The 79-instance point is recorded both ways. 301 and 745 still want a
+> re-run, and the real-AWS side has `plan_calls.cold` only.
 
-The one recorded point reads, straight from that file rather than typed
-here: at the 79-instance point a `tofu plan` of the migrated estate cost
-choudoufu {{< scale-num scale="1" path="plan_calls.cold.choudoufu" >}} calls
-against stock's {{< scale-num scale="1" path="plan_calls.cold.stock" >}}, and
-a second, warm plan right after cost
-{{< scale-num scale="1" path="plan_calls.warm.choudoufu" >}} - the same
-figure, to the call. The account-inventory audit this page measures below is
-a different, larger number at the same scale: sweep
+The one recorded point is read straight from that file, measured at commit
+`{{< scale-num scale="1" path="commit" short="true" >}}` on
+{{< scale-num scale="1" path="date" >}}. At the 79-instance point a
+`tofu plan` of the migrated estate cost choudoufu
+{{< scale-num scale="1" path="plan_calls.cold.choudoufu" >}} calls against
+stock's {{< scale-num scale="1" path="plan_calls.cold.stock" >}}, and a warm
+plan right after cost
+{{< scale-num scale="1" path="plan_calls.warm.choudoufu" >}}, the same figure
+to the call.
+
+The account-inventory audit this page measures below is a larger number at
+the same scale: sweep
 {{< scale-num scale="1" path="audit_calls.sweep.choudoufu" >}} calls, read
 pass {{< scale-num scale="1" path="audit_calls.read_pass.choudoufu" >}}
 against stock's {{< scale-num scale="1" path="audit_calls.read_pass.stock" >}},
 for a total of {{< scale-num scale="1" path="audit_calls.total.choudoufu" >}}
-against {{< scale-num scale="1" path="audit_calls.total.stock" >}} - measured
-at commit `{{< scale-num scale="1" path="commit" short="true" >}}` on
-{{< scale-num scale="1" path="date" >}}. When a re-run lands a newer record
-for the same scale, this sentence follows it with no edit.
+against {{< scale-num scale="1" path="audit_calls.total.stock" >}}. When a
+re-run lands a newer record for the same scale, these figures follow it with
+no edit.
 
 ## The two terms
 
@@ -158,14 +143,12 @@ Every other removal is unaffected, which
 `TestNarrowedNativeSweepStillProposesRemovals` and the `day2_remove` gauntlet
 stages check by value rather than by argument.
 
-**A narrowed plan says so.** The "Foreign resources" section prints the count
-it skipped and the command that asks anyway, rather than letting silence read
-as "there is nothing out there". 987 below is the fixed sample
-`TestForeign_narrowedSweepSaysSo`
+A narrowed plan says so. The "Foreign resources" section prints the count it
+skipped and the command that asks anyway. The 987 below is the fixed sample
+that `TestForeign_narrowedSweepSaysSo`
 (`internal/command/views/live_plan_nativesweep_test.go`) renders the message
-with, not a measured type count - it names the shape of the sentence, not a
-current value, so it is not the same quantity as the sweep universe (1027)
-above or the admission-table size elsewhere on this page:
+with. It is a different quantity from the sweep universe (1027) above and
+from the admission-table size elsewhere on this page:
 
 ```
 This run did not ask which live resources carry no ownership marker at all, so
@@ -198,46 +181,26 @@ reported in
 | 301 | 2 | 552 | 706 | 556 | 1262 | 44.1% |
 | 745 | 4 | 612 | 960 | 1372 | 2332 | 58.8% |
 
-**All three rows are now re-measured, but at two different commits.** The
-79-instance row is `5ff7f43f5b`'s re-measure (2026-08-30, floci pin
-`sha256:c55d74e1`): as published it read `521 / 558 / 706 / 21.0%`; re-run its
-legs read tagging 1, native 512, configuration scan 26, boundary 9,
-post-sweep 0 - sweep 548, total 696. That nine-call drift in the native leg
-is unrelated to the `#628` provider-block defect that corrupted CLI-plan
-counts elsewhere on this page: the in-process bench configures its provider
-from a literal three-flag body that never carried
-`skip_requesting_account_id`.
+The 79-instance row is the re-measure at `5ff7f43f5b` (2026-08-30, floci pin
+`sha256:c55d74e1`). Its legs read tagging 1, native 512, configuration scan
+26, boundary 9 and post-sweep 0, for a sweep of 548 and a total of 696.
 
-The 301- and 745-instance rows are a fresh re-measure taken for
+The 301- and 745-instance rows were re-measured for
 [#1032](https://github.com/INTENTIUS/choudoufu/issues/1032) at commit
-`56099dcd63` (2026-09-09), floci pin `sha256:d9207de1`, with the same harness
-- `SLICE_SCALE=4 SLICE_K=1` and `SLICE_SCALE=10 SLICE_K=1`, `TF_FLOCI_TEST=1
-env -u PWD go test ./internal/live/discovery/ -run TestSlicingMatrixAgainstFloci`.
-Both runs passed (`--- PASS: TestSlicingMatrixAgainstFloci`, 146.98s and
-301.52s). As published, these two rows read `521 / 592 / 1148 / 48.4%` and
-`521 / 660 / 2032 / 67.5%`. Re-measured: the read pass did not move at either
-scale, 556 and 1372, matching the published figures to the call, and the
-stock-side comparison two sections down (558 and 1374) matched to the call
-too. **The native leg did move**, to 552 at 301 instances and 612 at 745 -
-up 31 and up 91 from the values this page carried until now, and up 40 and
-up 100 from the 79-instance row's own re-measured 512. Every prior
-measurement on this page called the native leg flat regardless of scale;
-this run's 301- and 745-instance figures are not flat with each other or
-with the 79-instance row. What changed between `5ff7f43f5b` and `56099dcd63`
-that moved it has not been isolated - `git log --oneline
-5ff7f43f5b..56099dcd63 -- internal/live/discovery/` lists 58 commits, wider
-than this measurement's scope to bisect - so this was
-[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) rather than
-explained here. It no longer needs isolating: #1037 and
+`56099dcd63` (2026-09-09), floci pin `sha256:d9207de1`, with the same
+harness: `SLICE_SCALE=4 SLICE_K=1` and `SLICE_SCALE=10 SLICE_K=1`,
+`TF_FLOCI_TEST=1 env -u PWD go test ./internal/live/discovery/ -run
+TestSlicingMatrixAgainstFloci`. The read pass matched the earlier published
+figures to the call at both scales, 556 and 1372, and so did the stock-side
+comparison two sections down (558 and 1374).
+
+The native leg grew with scale in that run, to 552 at 301 instances and 612
+at 745. [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) and
 [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) found and fixed
-the mechanism without bisecting the fifty-eight - it was two things the
-native leg was doing regardless of which commit last touched it, not a
-regression introduced by one of them - and the native leg is flat again as
-of `c0632fa3b7`; see
+the two causes, and the native leg is flat again as of `c0632fa3b7`; see
 ["The native leg is flat across slices but not across scale"](#the-native-leg-is-flat-across-slices-but-not-across-scale)
 below for the fixed numbers. The rows and fits in the rest of this section
-describe the broken state that measurement predates and are kept as the
-historical record rather than corrected in place.
+describe the state before that fix and are kept as the historical record.
 
 The two legs do not add up to the sweep on their own. At `56099dcd63`, the
 rest of it is the configuration scan (60 at 301 instances, 128 at 745,
@@ -247,60 +210,41 @@ post-sweep 84 and 210, at 301 and 745 respectively. Tagging, native,
 configuration scan, boundary and post-sweep sum to the sweep column above
 exactly at all three scales in this run.
 
-The old fit, `sweep = 545.9 + 0.15315N` against `read pass = 1.8378N + 2.8`,
-crossing at 322 instances, is retired rather than carried forward: it was
-taken before any of the three rows above moved, and a line built from
-numbers this page now contradicts is not a fit worth keeping. Re-fitting it,
-and deciding whether a native leg that no longer reads flat changes the
-shape rather than only the numbers, is this paragraph.
+Fitted by least squares to the three rows above, the line is `sweep = 508.5 +
+0.612N`, crossing `read pass = 1.8378N + 2.8` at **413 instances**. The fit
+predicts 557, 693 and 964 against the measured 548, 706 and 960. The pairwise
+slopes are 0.71 per instance from 79 to 301 and 0.57 from 301 to 745, so the
+growth was decelerating, and 413 is where a straight approximation of that
+curve meets the read pass. It replaces an earlier fit,
+`sweep = 545.9 + 0.15315N` crossing at 322 instances, taken before the rows
+were re-measured. Both fits are stale: they rest on rows measured at
+`5ff7f43f5b` and `56099dcd63`, before the native leg went flat again at
+`c0632fa3b7`.
 
-Fitted by least squares to the three rows as measured here - sweep 548, 706
-and 960 at 79, 301 and 745 instances - the line is `sweep = 508.5 +
-0.612N`, crossing `read pass = 1.8378N + 2.8` at **413 instances**. Unlike
-every two-point fit elsewhere on this page, this one has a real residual,
-because three points drawn from a curve that is not straight cannot sit on
-one line: the fit predicts 557, 693 and 964 against the measured 548, 706
-and 960, off by +9, -13 and +4. The pairwise slopes between the three rows
-are not equal either - 0.71 per instance from 79 to 301, 0.57 from 301 to
-745 - so the growth is decelerating, not linear, and 413 marks where a
-straight approximation of that curve meets the read pass rather than a
-crossing this page has independently confirmed.
+[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) traced part of
+the growth to three types, `aws_iam_policy`, `aws_iam_role` and
+`aws_ecs_service`, whose provider list resource carries no filter block, so
+their cost tracks how many of them exist in the account. In the table above
+the account holds nothing but the estate under test, so a bigger N means a
+longer unfiltered list. The claims page's [foreign-load
+table]({{< relref "/docs/claims/plan-cost-under-foreign-load" >}}) shows the
+same mechanism from the other side, growing a neighboring estate: there the
+plan calls climb 187, 197 and 687.
 
-What was driving the growth is now named and isolated, not merely named.
-[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039), filed from this
-same unit's foreign-load side, traced part of the account-tracking term to
-three types - `aws_iam_policy`, `aws_iam_role`, `aws_ecs_service` - whose
-provider list resource carries no filter block, so their cost tracks how
-many of them exist rather than how many types are admitted. In the table
-above the account holds nothing but the estate under test, so a bigger N
-means more of those objects and a fatter unfiltered list; that is the same
-mechanism the claims page's [foreign-load
-table]({{< relref "/docs/claims/plan-cost-under-foreign-load" >}})
-shows from the other side, growing a neighboring estate instead of this one
-- there the analogous column, the plan calls rather than the flat Cloud
-Control list, climbs 187, 197 and 687 for the same reason.
-[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037)'s own bisect
-turned up the rest: `e15b23eb7b` (2026-09-01, `[issue:692] the vouching
-set, the unserved-service routing, and the cache-vouch listing pass`), one
-of the fifty-eight commits in the range above, is what made `sweepTypes`
-add a DECLARED `aws_iam_policy`/`aws_iam_role` back into the native sweep
-universe even when the config-driven scan had already listed the whole
-account for it - a call `#692` needed for a type with no needs-discovery
-instance at all (the entirely-record-backed case it was written for) but
-paid a second time, for nothing, for a type that also has one. Both causes
-are fixed at `c0632fa3b7`; see the flat-again table two sections up.
+[#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) found the rest.
+Since `e15b23eb7b` (2026-09-01), `sweepTypes` added a declared
+`aws_iam_policy` or `aws_iam_role` back into the native sweep universe even
+when the config-driven scan had already listed the whole account for it. Both
+causes are fixed at `c0632fa3b7`, and
+[the flat-again table](#the-native-leg-is-flat-across-slices-but-not-across-scale)
+is below.
 
-Below 413 a plan was mostly the fixed sweep; above it, cost tracked the
-estate more than the sweep did - but that boundary rested on a native leg
-that is no longer growing the way this fit assumed, so it is retired along
-with the fit rather than restated as settled. A fresh crossover, refit
-against the flat native leg, is not this page's job today: re-fitting the
-sweep also means re-measuring the configuration scan, boundary and
-post-sweep terms this section's own fit drew on, together, which nothing
-in this unit did. This is
-still a crossover between choudoufu's *own* two terms on a full-sweep run,
-not between choudoufu and stock - there is no such crossing, as
-[what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets out.
+No crossover has been refit against the flat native leg. Refitting the sweep
+also means re-measuring the configuration scan, boundary and post-sweep terms
+together, which has not been done. Any such crossover is between choudoufu's
+own two terms on a full-sweep run. There is no crossing between choudoufu and
+stock, as [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) sets
+out.
 
 ### The read pass is the number stock pays to read the same resources
 
@@ -316,13 +260,10 @@ and the totals differ by a constant:
 A constant two calls separates the two. Stock's provider block resolves its
 own account with one `GetCallerIdentity` and one `GetUser`; the read pass has
 no equivalent, since nothing in it needs the account identity. The read pass
-fits `1.8378N + 2.8`, and stock's own two-point fit is `1.84N + 5` - the same
-line, two more calls of constant. 745 was not re-run on either side when that
-fit was taken; 1374 was what stock's shared slope implied rather than
-anything anyone had counted. It is now counted: the `56099dcd63` re-measure
-above ran a stock `terraform plan` on the same 745-instance estate as part of
-the same harness run and read exactly 1374, and 558 at 301 instances,
-matching the fit at both points to the call.
+fits `1.8378N + 2.8`, and stock's own two-point fit is `1.84N + 5`, the same
+line with two more calls of constant. The `56099dcd63` re-measure above ran a
+stock `terraform plan` on the same estates in the same harness run and read
+exactly 558 at 301 instances and 1374 at 745, matching the fit to the call.
 
 So the shared term is the resource reads: the read pass is the AWS provider's
 own `Read` implementations, which stock invokes on the same resources when it
@@ -330,18 +271,14 @@ refreshes, and **nothing in this fork adds to them or can subtract from
 them.** `live/plan-budget.json` says the same of its own figures: the shape
 "is a property of the AWS provider's own Read".
 
-Above stock, everything choudoufu spends is the sweep - but that is a claim
-about API calls on a run that sweeps in full, and it holds only there. It
-does not describe a steady-state plan, and it does not survive the move to
-seconds. At
-745 resources on real AWS, counting the requests the AWS provider itself logs,
-stock issues 1392 and choudoufu 1399, seven apart, while the wall clock reads
-22–39 s against 123–124 s. Seven requests do not cost ninety seconds. That
+Above stock, everything choudoufu spends in API calls is the sweep, on a run
+that sweeps in full. That does not describe a steady-state plan, and it does
+not carry over to seconds. At 745 resources on real AWS, counting the
+requests the AWS provider itself logs, stock issues 1392 and choudoufu 1399,
+seven apart, while the wall clock reads 22 to 39 s against 123 to 124 s. That
 count excludes choudoufu's own Cloud Control and Tagging clients, which log no
-line per request, so it is a floor rather than a total; what is spending the
-ninety seconds is
-[unaccounted for]({{< relref "/docs/what-you-pay" >}}), and this page will not
-guess.
+line per request, so it is a floor. What is spending the ninety seconds is
+[unaccounted for]({{< relref "/docs/what-you-pay" >}}).
 
 The sweep is the term that is genuinely ours. Stock has no equivalent, because
 a state file already answers the question the sweep asks.
@@ -362,31 +299,32 @@ measures it; default plans are untouched, since the read is drift detection.
 Two different axes share this leg, and they no longer behave the same way.
 
 Sliced at a fixed 79-instance estate, `native_sweep_calls` measures **512 in
-every configuration** the slicing work covered: the whole estate, both
-slices of a two-way split, and each of eight slices of an eight-way split,
-all at that one scale. It does not shrink when a configuration declares
-fewer types, for the mechanism below. (It read **521** in all thirteen when
-that work was published, and 512 on the re-measure at `5ff7f43f5b`; the
-split table above accounts for the nine calls.) That finding stands - the
-slicing measurement has never been re-run at a scale other than 79.
+every configuration** the slicing work covered, re-measured at `5ff7f43f5b`:
+the whole estate, both slices of a two-way split, and each of eight slices of
+an eight-way split. It does not shrink when a configuration declares fewer
+types, for the mechanism below. The slicing measurement has never been run at
+a scale other than 79.
 
 Held at one slice and varied by estate scale, this used to grow: the split
 table above gave 512, 552 and 612 at 79, 301 and 745 instances before
 [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) and
-[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) were fixed. Two
-causes, both isolated by measurement rather than argued: `aws_iam_policy`
-and `aws_iam_role` are in the service the Resource Groups Tagging API never
-indexes ("aws_iam_"), so a DECLARED instance of either was listed a second
-time by the native sweep even though the config-driven scan had already
-listed the whole account for it a call earlier - every finding of the
-second call was already in `res.Orphans`, deduped and discarded, so it paid
-a full per-object provider Read (`GetPolicyVersion` per policy) for
-nothing. `aws_ecs_service` had no `arnJoinTable` row for its "service" ARN
-segment, so it took the whole-account native leg too even though the
-Tagging API genuinely serves ECS. `dedupAlreadyConfigScanned` (the first) and
-the `ecs`/`service` row (the second) fixed both, at `c0632fa3b7`
-(2026-09-11), floci pin `sha256:9ec3fa64...` (`live/floci-image`), the same
-harness as above (`TestSlicingMatrixAgainstFloci`, `SLICE_K=1`):
+[#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) were fixed at
+`c0632fa3b7`.
+
+Two causes were isolated by measurement. `aws_iam_policy` and `aws_iam_role`
+are in the service the Resource Groups Tagging API never indexes
+("aws_iam_"), so a declared instance of either was listed a second
+time by the native sweep after the config-driven scan had already listed the
+whole account for it. Every finding of the second call was already in
+`res.Orphans` and was discarded, so it paid a full per-object provider Read
+(`GetPolicyVersion` per policy) for nothing. `aws_ecs_service` had no
+`arnJoinTable` row for its "service" ARN segment, so it took the
+whole-account native leg even though the Tagging API serves ECS.
+
+`dedupAlreadyConfigScanned` fixed the first and the `ecs`/`service` row fixed
+the second, at `c0632fa3b7` (2026-09-11), floci pin `sha256:9ec3fa64...`
+(`live/floci-image`), with the same harness as above
+(`TestSlicingMatrixAgainstFloci`, `SLICE_K=1`):
 
 | Instances | Native leg, before the fix | Native leg, after |
 |---|---|---|
@@ -394,11 +332,9 @@ harness as above (`TestSlicingMatrixAgainstFloci`, `SLICE_K=1`):
 | 301 | 548 | 510 |
 | 745 | 612 | 510 |
 
-Flat again, to within the 2-call spread the tagging leg's own page size
-(floci's 100) would explain as noise - not a residual of the mechanism
-#1037 found, which is now gone. Two offline unit tests (a fake provider
-handle, no emulator) pin each
-mechanism by value against a deliberate revert:
+Flat again, to within the 2-call spread that the tagging leg's own page size
+(floci's 100) would explain as noise. Two offline unit tests (a fake provider
+handle, no emulator) pin each mechanism by value against a deliberate revert:
 `TestSweepDoesNotReListAConfigScannedUnservedType` (the duplicate listing)
 and `TestECSServiceRoutesThroughTheTaggingLeg` (the missing join row), both
 in `internal/live/discovery`.
@@ -410,13 +346,12 @@ admission table, so a slice declaring five types has a sweep universe of
 1022 to 1026 against the whole estate's 1021. A small slice pays slightly
 more than the whole estate does, at whatever the estate's own scale is.
 
-The consequence for an already-sliced estate is where the sweep actually
-hurts: because it does not shrink per slice, its cost multiplies with slice
-count even though a steady-state plan's does not - the same 512-calls-per-
-slice figure `5ff7f43f5b` measured at 79 instances, times the number of
-slices, 4096 summed at eight, on any run that sweeps in full. Whether that
-multiplier itself grows with estate scale has not been measured; only the
-unsliced case has, above.
+The consequence for an already-sliced estate is where the sweep hurts. Because
+it does not shrink per slice, its cost multiplies with slice count on any run
+that sweeps in full, even though a steady-state plan's does not: the 512
+calls per slice that `5ff7f43f5b` measured at 79 instances, times the number
+of slices, is 4096 summed at eight. Whether that multiplier grows with estate
+scale has not been measured.
 [What you pay]({{< relref "/docs/what-you-pay#splitting-an-estate-into-several-states" >}})
 has the steady-state ratio table (1.05x/1.07x/1.21x at k=1/2/8) and the
 choice this leaves an adopter with.
@@ -431,19 +366,20 @@ that does, and it is written down here rather than left in a source comment
 because every other number on this page is a flat one.
 
 It runs for a resource type only when all three of the ordinary marker
-routes have already failed on that run: the type's CloudFormation schema
+routes have already failed on that run. The type's CloudFormation schema
 carries no `Tags` property, so Cloud Control's `ListResources` and
-`GetResource` can never return a marker for it however the object is tagged;
-and the estate's Resource Groups Tagging API index holds no object of the
-type either, so #266's join has nothing to say. Both are checked per run
-against what the target actually answered, not against a list of services -
+`GetResource` can never return a marker for it however the object is tagged.
+The estate's Resource Groups Tagging API index holds no object of the type
+either, so #266's join has nothing to say.
+
+Both are checked per run against what the target answered. A leg selected by
+service name would be wrong about one of two targets:
 [#1134](https://github.com/INTENTIUS/choudoufu/issues/1134) measured a real
-account serving `iam:instance-profile` through `GetResources` in
-`us-east-1` while the pinned emulator serves no IAM at all
-([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152)), so a leg
-selected by service name would have to be wrong about one of those two
-targets. On a target where the index serves the type, the leg never runs and
-the sweep is flat exactly as the tables above measure it.
+account serving `iam:instance-profile` through `GetResources` in `us-east-1`,
+while the pinned emulator serves no IAM at all
+([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152)). On a target
+where the index serves the type, the leg never runs and the sweep is flat
+exactly as the tables above measure it.
 
 Where it does run, the bill is the number of live objects of the covered
 types in the account. On `terralith-scale` that is `aws_iam_instance_profile`
@@ -459,17 +395,18 @@ far" with one profile already destroyed by `day2_remove`:
 | 745 (scale 10) | 100 | 100 |
 | 4005 (scale 80) | 800 | 800 |
 
-Two things bound that. The first is that the type was already paying a
-per-object call on this leg before #1131 existed: Cloud Control sends no
-`Tags` key for an instance profile, so `cloudControlTags` was already
-refining every listed one with an individual `GetResource`
-(`TypeScan.Refined`). The tag read doubles an existing per-object constant
-for this one type rather than adding a new term to the sweep's shape. The
-second is that no batch alternative exists to build a flat shape out of:
-`iam:ListInstanceProfiles` omits tags by design - AWS's own reference says
+Two things bound that. The type was already paying a per-object call on this
+leg before #1131 existed: Cloud Control sends no `Tags` key for an instance
+profile, so `cloudControlTags` was already refining every listed one with an
+individual `GetResource` (`TypeScan.Refined`). The tag read doubles an
+existing per-object constant for this one type and adds no new term to the
+sweep's shape.
+
+No batch alternative exists to build a flat shape out of.
+`iam:ListInstanceProfiles` omits tags by design (AWS's own reference says
 "this operation does not return tags, even though they are an attribute of
-the returned object" - `GetInstanceProfile` and `ListInstanceProfileTags`
-are both per-object, and neither takes a tag filter.
+the returned object"), `GetInstanceProfile` and `ListInstanceProfileTags` are
+both per-object, and neither takes a tag filter.
 
 The measured tables above are unaffected and were not re-taken: the
 `plan-budget` estate `TestPlanCallBudgetAgainstFloci` measures is a single
@@ -498,16 +435,15 @@ The sweep is the remaining 200 seconds. Spread over the 558 sweep calls
 counted at that scale it is about 0.36s each, which is one network round trip
 apiece, and at the time of that run the sweep made them one after another.
 
-Three bounds on that paragraph. The seconds are real AWS and the call counts
+Two bounds on that paragraph. The seconds are real AWS and the call counts
 are the emulator, so 0.36s per call is an estimate built from two
-measurements, not a measured quantity -
+measurements;
 [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)
-sets out when two wall clocks may be combined. The table predates the sweep
-going concurrent (next section) and predates the narrowing, so a
-steady-state plan of this estate no longer looks like the second row at all:
-the same pair now reads 3, 4, 3s against 17, 18, 17s. The 200s column is what
-a full sweep cost sequentially on a real account; an ordinary plan costs far
-less.
+sets out when two wall clocks may be combined. The table is stale for an
+ordinary plan: it was taken in #578's run, before the sweep went concurrent
+(next section) and before the narrowing, and the same pair now reads 3, 4, 3s
+against 17, 18, 17s. The 200s column is what a full sweep cost sequentially
+on a real account.
 
 ### At 3,705 resources the pair could not be formed
 
@@ -517,56 +453,53 @@ real-AWS harness to scale 50, 3,705 resources, `us-east-2`, commit
 three converged, no-change `terraform plan` runs at 192s, 289s and 184s
 (`TF_LOG` unset, warm provider), and one further instrumented plan (also
 empty) counting **7,248 provider-mediated AWS API requests exactly**, from
-`rpc.method` entries - dominated by IAM (1,658 `ListAttachedRolePolicies`,
-1,074 `GetRole`, 1,024 `GetRolePolicy`, 560 `ListRolePolicies`, 523
-`GetPolicy`, 522 `GetPolicyVersion`, 507 `GetInstanceProfile`) and Route 53
-(641 `GetHostedZone`, 627 `ListResourceRecordSets`), the same two services
+`rpc.method` entries. 435 throttling-error lines and 435 retries landed on
+this one plan alone, all absorbed.
+
+The count is dominated by IAM (1,658 `ListAttachedRolePolicies`, 1,074
+`GetRole`, 1,024 `GetRolePolicy`, 560 `ListRolePolicies`, 523 `GetPolicy`,
+522 `GetPolicyVersion`, 507 `GetInstanceProfile`) and Route 53 (641
+`GetHostedZone`, 627 `ListResourceRecordSets`). Those are the same two
+services
 [What you pay]({{< relref "/docs/what-you-pay#the-same-comparison-on-real-aws-at-79-and-745-resources" >}})
-names as the account-tracking term at 745 resources - continuing to grow
-with estate scale rather than staying flat. 435 throttling-error lines and
-435 retries landed on this one plan alone, all absorbed.
+names as the account-tracking term at 745 resources, and they keep growing
+with estate scale.
 
-choudoufu's side of the pair did not exist at this scale on that first run,
-and this page did not estimate it in place of measuring it. `test_plan`
-found a real defect instead - the post-migrate plan was not empty; see
+choudoufu's side of the pair was not measured on that first run. `test_plan`
+found a real defect: the post-migrate plan was not empty (see
 [what you pay]({{< relref "/docs/what-you-pay#at-3705-resources-migration-itself-still-holds---the-post-migrate-plan-does-not" >}})
-for what it proposed and why. A harness bug in the same stage's own
-identity check ([#1047](https://github.com/INTENTIUS/choudoufu/issues/1047))
-then masked that finding behind an unrelated, false "no resource carries
-this estate's marker" message and, because it failed before the script's
-own deferred timing fallback ran, no choudoufu-side `timed_plans` or
-API-call count was ever taken at this scale on that run - not a zero, an
-unmeasured cell.
+for what it proposed and why). A harness bug in the same stage's own identity
+check ([#1047](https://github.com/INTENTIUS/choudoufu/issues/1047)) then
+failed the stage before any choudoufu-side `timed_plans` or API-call count
+was taken.
 
-#1047 fixed the identity check's own counting bug
-(`ab70b1018d`), and a second scale-50 run (commit `8bbef274d6`, 2026-09-11)
-reached the deferred fallback this time, so the cell is measured now - it is
-just not the empty, like-for-like pair the table above needs. choudoufu's
-gating plan proposed `Plan: 358 to add, 0 to change, 4 to destroy` (the
-`aws_iam_policy` defect, still open as
-[#1046](https://github.com/INTENTIUS/choudoufu/issues/1046) - see
+The identity check was fixed at `ab70b1018d`, and a second scale-50 run
+(commit `8bbef274d6`, 2026-09-11) reached the timing fallback, so the cell is
+measured now. It is still short of the empty, like-for-like pair the table
+above needs. choudoufu's gating plan proposed `Plan: 358 to add, 0 to change,
+4 to destroy`, the `aws_iam_policy` defect still open as
+[#1046](https://github.com/INTENTIUS/choudoufu/issues/1046) (see
 [what you pay]({{< relref "/docs/what-you-pay#the-real-mechanism-a-cross-service-indexing-lag-not-a-page-size" >}})
-for the mechanism this second run found), so three timed re-plans of that
-same non-empty state read **375s, 356s and 373s** (`TF_LOG` unset, warm
-provider, each verdict self-labelled `Plan:_358_to_add,_0_to_change,_4_to_destroy`
-rather than `empty`), and the first post-migration instrumented plan counted
-**8,305 provider-mediated AWS API requests exactly** - dominated by IAM
-(1,530 `GetRolePolicy`, 1,477 `ListAttachedRolePolicies`, 1,115
-`ListRolePolicies`, 1,075 `GetRole`, 823 `GetPolicyVersion`, 517
-`GetInstanceProfile`, 325 `GetPolicy`) and Route 53 (648 `GetHostedZone`,
-614 `ListResourceRecordSets`) - against stock's 7,207 on the same run. A
-steady-state instrumented replan afterward counted 8,340, both counts
-`TypeScan.Refined = 0` throughout (this estate's policies and roles resolve
-their tags from the list call or the tag-index join, never a per-object
-GetResource refinement).
+for the mechanism). Three timed re-plans of that same non-empty state read
+**375s, 356s and 373s** (`TF_LOG` unset, warm provider, each verdict
+self-labelled `Plan:_358_to_add,_0_to_change,_4_to_destroy`).
 
-Reading these numbers as a cost comparison would be the wrong lesson: a plan
-proposing 358 creates does strictly more work than an empty one, on both
-sides, so 375s-versus-183s here says nothing about choudoufu's plan being
-slower than stock's - it says the two plans are not doing the same thing.
-The 79-versus-745 comparison above stays the only like-for-like real-AWS
-pair on this page until a clean (empty) post-migrate plan at 3,705 resources
-produces one, which needs #1046 resolved first.
+The first post-migration instrumented plan of that run counted **8,305
+provider-mediated AWS API requests exactly**, against stock's 7,207 on the
+same run. It is dominated by IAM (1,530 `GetRolePolicy`, 1,477
+`ListAttachedRolePolicies`, 1,115 `ListRolePolicies`, 1,075 `GetRole`, 823
+`GetPolicyVersion`, 517 `GetInstanceProfile`, 325 `GetPolicy`) and Route 53
+(648 `GetHostedZone`, 614 `ListResourceRecordSets`). A steady-state
+instrumented replan afterward counted 8,340. `TypeScan.Refined` was 0 in both
+counts: this estate's policies and roles resolve their tags from the list
+call or the tag-index join.
+
+These numbers are no cost comparison. A plan proposing 358 creates does
+strictly more work than an empty one, on both sides, so 375s against 183s
+says only that the two plans are doing different things. The 79-versus-745
+comparison above stays the only like-for-like real-AWS pair on this page
+until a clean (empty) post-migrate plan at 3,705 resources produces one,
+which needs #1046 resolved first.
 
 ### The sweep now overlaps its own waiting
 
@@ -576,7 +509,7 @@ be made one after another, and since
 `Discover` prefetches the sweep's per-type listings through a bounded worker
 pool, `DefaultSweepParallelism = 10`
 (`internal/live/discovery/sweepconcurrency.go`), the same bound stock plans an
-estate at. It covers the sweep's per-type listing and nothing else - the
+estate at. It covers the sweep's per-type listing and nothing else. The
 config-driven scan, the tagging leg's single `GetResources`, and the parent
 and record-orphan reads are untouched.
 
@@ -615,8 +548,7 @@ mechanism; that page is the number.
 
 Both terms overlap their own waiting, and each has its own bound. The two are
 separate settings because they are separate phases. Neither of them is
-stock's `-parallelism` - that flag bounds the graph walk and nothing on this
-page.
+stock's `-parallelism`, which bounds the graph walk and nothing on this page.
 
 | Variable | Bounds | Default | Honoured by |
 |---|---|---|---|
@@ -632,21 +564,18 @@ buffer follows it.
 For the read pass that is a hundred per in-flight slot, so a thousand at the
 default width. Until [#683](https://github.com/INTENTIUS/choudoufu/issues/683)
 one number was both, and an answer that had landed went on holding the width
-until the loop reached that instance in build order - so a single read in a
+until the loop reached that instance in build order. A single read in a
 provider backoff, 26 seconds of it on a 745-resource plan, stopped the pass
 from starting anything else at all.
 
 The sweep had the same shape and the same defect, one phase over
 ([#839](https://github.com/INTENTIUS/choudoufu/issues/839)): its listings were
-released by the scan loop in universe order rather than when the call
-returned, so one throttled list call held the sweep's whole width behind it.
-Its buffer is ten per slot rather than a hundred, because an unconsumed
-listing here is every live object of its type and the scan drops those objects
-once it has filed its row - read-ahead the run would not otherwise pay for at
-all, where the read pass's answers duplicate objects prior state ends up
-holding anyway. Ten per slot is worth about thirty-six seconds of sweeping at
-the rate the timing table above measures, which is what the straggler it
-covers costs.
+released by the scan loop in universe order, so one throttled list call held
+the sweep's whole width behind it. Its buffer is ten per slot where the read
+pass has a hundred, because an unconsumed listing here is every live object
+of its type, and the scan drops those objects once it has filed its row. Ten
+per slot is worth about thirty-six seconds of sweeping at the rate the timing
+table above measures, which is what the straggler it covers costs.
 
 Peak memory is still a multiple of the two bounds and never of the estate or
 of the admission table, which is what the single number was protecting.
@@ -654,14 +583,13 @@ of the admission table, which is what the single number was protecting.
 ### What the split was worth, measured
 
 [#867](https://github.com/INTENTIUS/choudoufu/issues/867) re-took #683's trace
-on the same estate after both fixes landed - `us-east-2`, provider 6.59.0,
+on the same estate after both fixes landed: `us-east-2`, provider 6.59.0,
 choudoufu built from `d455a2fed4`, harness and instrument at `3889d2476c`,
 2026-09-06. Three steady-state `choudoufu plan` runs, and three stock
 `terraform plan` runs of the same estate in the same session, so that the
 account's own throttling is roughly the same on both sides of the comparison.
 An idle gap is a stretch of at least 0.8 seconds during which no AWS request
-is in flight at all; `live/live-cert/wallclock-gaps.py` is the instrument, and
-it is in the tree rather than on a branch this time.
+is in flight at all; `live/live-cert/wallclock-gaps.py` is the instrument.
 
 | plan, all at `d455a2fed4` | span | idle at or above 0.8s | largest stall | closed by an SDK retry | provider requests |
 |---|---|---|---|---|---|
@@ -672,21 +600,21 @@ it is in the tree rather than on a branch this time.
 | stock 2 | 38.2s | 15.9s (42%) | 8.04s | 6 of 6 | 1,418 requests |
 | stock 3 | 29.2s | 10.6s (36%) | 7.79s | 2 of 2 | 1,409 requests |
 
-The fork's extra three hundred are not the read pass, which still makes
+The fork's extra three hundred are outside the read pass, which still makes
 stock's calls call for call. They are the sweep's two client-side-filtered
 listings, `aws_iam_policy` and `aws_iam_role`, which enumerate the whole
-ACCOUNT rather than this estate: `GetPolicyVersion` 102 to 201,
-`ListRolePolicies` 113 to 226, `GetRolePolicy` 203 to 308 between the stock
-column and the fork's. That column is therefore not a property of this estate
-alone - the test account also held objects earlier runs had left behind - and
-it is why the fork's span here is longer than #683's on the same estate.
+account: `GetPolicyVersion` 102 to 201, `ListRolePolicies` 113 to 226,
+`GetRolePolicy` 203 to 308 between the stock column and the fork's. The test
+account also held objects earlier runs had left behind, so that column
+describes more than this estate, and it is why the fork's span here is longer
+than #683's on the same estate.
 
 The fork's idle share is not the number to read on its own. An account does
 not throttle the same way twice: stock's own share moved from 20% in #683's
 session to somewhere between 0% and 42% in this one. What compares is the
 fork's share against stock's *in the same session*. #683's captures, put
 through this same instrument (`3889d2476c`), read 49% and 56% idle against
-stock's 20% - about two and a half times stock. Here the fork is 6% to 20%
+stock's 20%, about two and a half times stock. Here the fork is 6% to 20%
 against stock's 0% to 42%, which is below stock, and the worst single stall a
 `choudoufu plan` took, 4.68s, is shorter than the worst stock took on the same
 estate minutes earlier, 8.04s.
@@ -701,23 +629,23 @@ remain than the width and a slow one has nothing left to overlap with. #683's
 stalls were spread across the whole run, because back then any one of them
 stopped everything.
 
-**The sweep showed no straggler, and this estate cannot produce one.** Two
-throttled list calls across the three runs, costing 1.23s and 1.51s, measured
-at `d455a2fed4`. Thirty-two of this estate's swept types are answered by the
-single estate-filtered `GetResources` described above, which takes no per-type
-slot at all; only 3 types - `aws_ecs_service`, `aws_iam_policy` and
-`aws_iam_role` - take the per-type list path the sweep's bounds cover, on the
-first post-migration plan and on a steady-state one alike. Three outstanding
-calls against a width of ten means at most three listings are ever fetched and
-unconsumed, so the sweep's buffer is never reached and a factor of one would
-have produced the identical run. Ten per slot therefore still rests on the
-derivation above rather than on a measurement; testing it needs an estate
-whose types mostly lack a server-side tag filter, which is also the only shape
-in which #839's defect could have cost anything.
+The sweep showed no straggler, and this estate cannot produce one. Two
+throttled list calls across the three runs cost 1.23s and 1.51s, measured at
+`d455a2fed4`. Thirty-two of this estate's swept types are answered by the
+single estate-filtered `GetResources` described above, which takes no
+per-type slot at all. Only 3 types, `aws_ecs_service`, `aws_iam_policy` and
+`aws_iam_role`, take the per-type list path the sweep's bounds cover, on the
+first post-migration plan and on a steady-state one alike.
+
+Three outstanding calls against a width of ten means the sweep's buffer is
+never reached, and a factor of one would have produced the identical run. Ten
+per slot therefore still rests on the derivation above. Measuring it needs an
+estate whose types mostly lack a server-side tag filter, which is also the
+only shape in which #839's defect could have cost anything.
 
 Set either to `1` for the sequential loop, one call at a time in the order the
-phase would have made them. A value below 1 is refused rather than read as "no
-limit" - the read bound's refusal lands before the run reads anything at all,
+phase would have made them. A value below 1 is refused, never read as "no
+limit". The read bound's refusal lands before the run reads anything at all,
 because it is resolved before the configuration is even loaded.
 
 Neither changes what a plan costs in calls. The sweep's counts were measured
@@ -730,15 +658,14 @@ cheaper plan.
 
 Both defaults are 10 because stock plans an estate at `-parallelism 10`. That
 argument is the stronger of the two for the read pass, which makes call for
-call the same requests a stock refresh of the same estate makes - the
-stock-versus-choudoufu table earlier on this page - so ten asks an account for
-exactly what it already answers for OpenTofu. Read-side throttling cannot be
-measured from an emulator, since floci does not throttle, and it has now been
-measured on a real account instead: at `d455a2fed4` a steady-state plan of the
-745 instances above was throttled 43 to 46 times per run at this width,
-every one of them retried and answered, with the section just above for what
-the waiting cost. That is the account tolerating ten concurrent reads, not
-refusing them.
+call the same requests a stock refresh of the same estate makes (the
+stock-versus-choudoufu table earlier on this page), so ten asks an account for
+exactly what it already answers for OpenTofu. floci does not throttle, so
+read-side throttling was measured on a real account: at `d455a2fed4` a
+steady-state plan of the 745 instances above was throttled 43 to 46 times per
+run at this width, every one of them retried and answered. The account
+tolerates ten concurrent reads, and the section just above has what the
+waiting cost.
 
 `live-mv` honours the read bound and has no sweep to bound: a rename lists one
 resource type rather than the estate. `live-import`'s own `-parallelism` flag
@@ -806,16 +733,13 @@ passes through once.
   reads 1, 2 and 4 rather than 1 everywhere. `cloudcontrol.Client.GetResources`
   sets no `ResourcesPerPage`, so the real page size is the Resource Groups
   Tagging API's own default and no emulator-backed run can report it.
-- **One fixture, one composition** - the native leg is mostly a property of
-  the admission table and the ARN join table rather than of the estate.
-  [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) measured it
-  growing with estate scale instead (521, 548, 612 at 79, 301 and 745
-  instances) and [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039)
-  traced part of that growth to three types whose list calls tracked
-  population rather than type count; both are fixed at `c0632fa3b7`
-  (508, 510, 510 on the same three rows). Only this estate was measured, and
-  it declares thirteen types.
-- **AWS only** - nothing here says anything about another provider.
+- **One fixture, one composition.** The native leg is mostly a property of
+  the admission table and the ARN join table. It grew with estate scale until
+  [#1037](https://github.com/INTENTIUS/choudoufu/issues/1037) and
+  [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) were fixed at
+  `c0632fa3b7` (508, 510, 510 at 79, 301 and 745 instances). Only this estate
+  was measured, and it declares thirteen types.
+- **AWS only.** Nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
   79-instance fixture's headline, 157 against 710, and [the real-AWS pair
@@ -847,15 +771,13 @@ If you want a number for your estate, measure your estate. Extrapolating from
 somebody else's resource type will be wrong by whatever the ratio between the
 two providers' Read implementations happens to be.
 
-The `+ 8` in that fit is worth one line of its own, because an earlier version
-of this page described the fixed term wrongly and the correction is the more
-useful fact. These are not account-level probes. Six of the eight are
-`ListBuckets`: five issued by the parent-read sweep, one by the provider's own
-account and region resolution. The remaining two are `GetCallerIdentity` and
-`GetUser`. They are 1.8% of the total at N=20 and 0.04% at N=1000. A fixed
-term looks expensive on a small estate and disappears on a large one, which is
-the opposite of how the sweep behaves and a good reason to fit a line rather
-than divide once.
+The `+ 8` in that fit is eight fixed calls. Six of the eight are
+`ListBuckets`: five issued by the parent-read sweep, one by the provider's
+own account and region resolution. The remaining two are `GetCallerIdentity`
+and `GetUser`. They are 1.8% of the total at N=20 and 0.04% at N=1000. A
+fixed term looks expensive on a small estate and disappears on a large one,
+which is the opposite of how the sweep behaves and a good reason to fit a
+line.
 
 ## Emulator wall clock is not on this page
 
