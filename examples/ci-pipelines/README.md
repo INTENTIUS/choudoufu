@@ -477,7 +477,7 @@ Three roles, not one, which is the whole reason `setup` is a per-Op option:
 | `live-check` | none | nothing. It makes no cloud call |
 | `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, and discover the account (below) |
 | `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker |
-| `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and read/write on the record store's SSM prefix |
+| `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and the record store bucket's policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
 
 **Discover the account.** Issue #807's first real-AWS dispatch (run
 34632345663) got past `live-check` and then failed `live-plan` with no
@@ -555,7 +555,7 @@ pull-request job no longer holds a credential that can change the estate:
 | `live-check` | none | nothing. It makes no cloud call |
 | `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ACCESS_KEY_ID` / `CHOUDOUFU_PLAN_SECRET_ACCESS_KEY` | read: describe the declared types, and `tag:GetResources` |
 | `live-adopt` | `CHOUDOUFU_ADOPT_ACCESS_KEY_ID` / `CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY` | the above, plus the per-service tagging calls that write a marker |
-| `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and read/write on the record store's SSM prefix |
+| `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and the record store bucket's policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
 
 The two write pairs are not the read pair, and `tests/pipelines.test.ts` asserts as
 much - the same shape the GitHub role table above is asserted by. What is still
@@ -662,7 +662,8 @@ JSON
 #    GetTagValues, sts:GetCallerIdentity, and the account-wide DiscoverTheAccount
 #    statement below) for plan; read plus the marker-writing tag calls for adopt;
 #    read plus marker-writing plus create/update/delete on the two resource types
-#    and the SSM record store's own prefix for apply.
+#    and the record store bucket's rendered policy for apply. The bucket itself
+#    is stood up beforehand: cd examples/record-store-bucket && just up <bucket>.
 #    scripts/oidc-bootstrap.sh (below) generates exactly these three documents from
 #    this same terraform root - the commands here are what it runs.
 aws iam create-role --role-name choudoufu-ci-pipelines-plan \
@@ -697,7 +698,10 @@ them, skips `create-role` for a role that already exists (calling `update-assume
 and `put-role-policy` instead, so it is safe to re-run after a policy change), queries
 `repos/$REPO/actions/oidc/customization/sub` itself to build the two-subject-form
 `StringLike` list above rather than hand-composing it, and refuses to run at all if
-the OIDC provider is missing rather than creating one:
+the OIDC provider is missing rather than creating one. It reads the estate name and
+the record store bucket out of `terraform/estate.chdf.hcl`, refuses to run if that
+bucket does not exist, and takes the apply role's record store statements from
+`examples/record-store-bucket/iam/render-policy.sh` rather than keeping a copy:
 
 ```bash
 scripts/oidc-bootstrap.sh --dry-run   # prints every aws/gh command it would run
@@ -733,15 +737,19 @@ SMOKE total pass=13 fail=0
 ```
 
 This section does not tear anything down: after `live-apply` runs `ok` against a real
-account, the CloudWatch log group, the IAM role, and the three SSM record-store
-entries in "The estate" below are real and stay real - nothing in `scripts/smoke.sh`
+account, the CloudWatch log group, the IAM role, and the estate's objects in the
+record store bucket named in "The estate" below are real and stay real - nothing in `scripts/smoke.sh`
 destroys them, on either target, and there is no `live-destroy` in the sequence. On
 the emulator this costs nothing because the whole container is thrown away after;
 against a real account a maintainer who dispatches `target: real-aws` more than once
 is re-applying the same estate, not creating a new one each time (the marker tags are
 how it recognizes its own prior run). Run 34644390301 left exactly that behind - one
-log group, one IAM role, three SSM records, all free - and it is still there. Tearing
-it down is a manual step this issue does not automate:
+log group, one IAM role and, at the time, three Parameter Store records - and it is
+still there. Those three parameters are abandoned, not migrated: Parameter Store is
+retired as a record store (#1346), both resources are taggable, and the first plan
+against the bucket finds them again by their marker tags. Deleting the parameters
+under `/tofu-records/ci-pipelines-example/` and `/tofu-hints/ci-pipelines-example/`
+is safe and is a manual step. Tearing the estate down is one too:
 
 ```bash
 cd terraform && choudoufu destroy   # using the apply role
@@ -756,19 +764,29 @@ log group and an IAM role, both taggable, and no backend block. What makes it li
 ```hcl
 estate = "ci-pipelines-example"
 
-record_store "ssm" {}
+record_store "s3" {
+  bucket = "choudoufu-records-354867293429-us-east-1"
+}
 ```
 
 The sidecar rather than a `live` block inside `terraform{}` because strict HCL parsers
 are right to reject an unknown block there, and the sidecar's extension is one no
 stock tool reads. Either form works, and a root may use only one of them.
 
-The `ssm` record store is a CI decision. Every run gets a fresh runner, so the implied
+The bucket is a CI decision. Every run gets a fresh runner, so the implied
 local record store would be empty every time and every instance would fall back to its
 marker tags, which is correct and slower. That is the foundation's own rule, not a
 workaround: the cache is never consulted for ownership, live always wins, and losing
-the record costs a slower run and nothing else. An `ssm` (or `s3`) store is shared and
-lives under IAM, which is what a pipeline should declare.
+the record costs a slower run and nothing else. A bucket is shared and lives under
+IAM, which is what a pipeline should declare.
+
+The bucket is not created by this example. It is stood up once with
+[`examples/record-store-bucket`](../record-store-bucket/) (`just up`, then
+`just verify`), before `scripts/oidc-bootstrap.sh` runs, and its name is global, so a
+fork changes that line. `scripts/smoke.sh` makes its own on the emulator. Before
+#1346 this line was `record_store "ssm" {}`. Parameter Store is retired as a record
+store, and a configuration that still names it is refused with the reason and the
+replacement.
 
 Running this root prints `Resource type has no orphan recovery` warnings under
 the v0.15.0 release the generated jobs currently install, and none at all under

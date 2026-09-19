@@ -41,8 +41,8 @@
 //   - Keys are opaque strings. Every implementation accepts a reasonably
 //     portable subset — this package itself only rejects the empty
 //     string, a NUL byte, and a ".." path segment (see validateKey) —
-//     but each store's own backend (a filesystem, an SSM parameter name,
-//     an S3 object key) may reject a key its own naming rules forbid;
+//     but each store's own backend (a filesystem, an S3 object key)
+//     may reject a key its own naming rules forbid;
 //     that surfaces as an ordinary error, not a [Store]-defined one.
 //   - Payloads are opaque []byte. No implementation inspects, parses, or
 //     redacts a payload's content; that is the caller's job, every time,
@@ -52,7 +52,7 @@
 //     as a live record's version, so a caller can treat it as a stable
 //     sentinel without inspecting which store it is talking to. Beyond
 //     that, a version's shape is entirely implementation-defined — a
-//     content hash, an S3 ETag, an SSM parameter version number — and
+//     content hash, an S3 ETag — and
 //     [Store] callers are expected to hold it opaque too: compare it for
 //     equality, pass it to PutIfVersion/Delete, never parse it.
 //   - Every conditional operation that fails on a version mismatch
@@ -60,25 +60,37 @@
 //     both the version the caller expected and the version the store
 //     actually found (or "" for "no record"). A caller never has to
 //     distinguish "conflict" from "some other failure" by parsing prose.
-//   - What "conditional" guarantees varies by store, and each
-//     implementation's own doc comment states its own store's true
-//     strength honestly rather than implying parity with the others:
-//     [LocalStore] and [S3Store] give real compare-and-swap with no
-//     read-compare-write race window; [SSMStore] gives real CAS only for
-//     create ([SSMStore.PutIfAbsent]), and a documented weaker,
-//     best-effort race story for everything that updates or removes an
-//     existing record. Nothing in this package's exported API hides that
-//     difference behind a uniform-looking success/failure return — it is
-//     written out in full in ssm.go's package-level doc comment.
+//   - "Conditional" means real compare-and-swap with no read-compare-write
+//     race window, on every store: [LocalStore] and [S3Store] both give
+//     it. That is a requirement of the interface and not a property two
+//     implementations happen to share. See "The store that was retired".
 //
-// # The three implementations
+// # The two implementations
 //
-// Per issue #73's maintainer rulings: [LocalStore] (a directory of files,
-// the zero-configuration default — solo development, tests, air-gapped
-// runs, mirroring plain local state's own "just works" shape),
-// [SSMStore] (AWS Systems Manager Parameter Store, the zero-infrastructure
-// team default), and [S3Store] (S3 conditional writes, true CAS
-// end-to-end, for teams that want it). All three implement the identical
-// [Store] interface; a caller choosing between them is choosing an
-// operational tradeoff, never a different programming model.
+// [LocalStore] (a directory of files, the zero-configuration default — solo
+// development, tests, air-gapped runs, mirroring plain local state's own
+// "just works" shape) and [S3Store] (S3 conditional writes, for anything
+// more than one operator shares). Both implement the identical [Store]
+// interface; a caller choosing between them is choosing an operational
+// tradeoff, never a different programming model.
+//
+// # The store that was retired
+//
+// Until GitHub issue #1346 there was a third, on AWS Systems Manager
+// Parameter Store, and it was the default recommendation for a team. It was
+// retired as a RECORD store for three reasons. Standard parameters cap at
+// 10,000 per account and region, against the customer's own quota. Past
+// that, every parameter bills monthly on the advanced tier. And it has no
+// general conditional write: it could create-if-absent and nothing
+// else, so every update and delete was a read-compare-write with a race
+// window, where this package's whole consistency story is a per-key
+// conditional write.
+//
+// No migration was written, because no estate was on it when it was
+// retired. That is the reason, and it is recorded so nobody later assumes a
+// migration path was designed and lost.
+//
+// This says nothing about Parameter Store for SECRET values. Keeping secret
+// material out of the bucket, in SSM, is planned (#1244 section 3) and not
+// built; nothing in this package does it today.
 package staterecord

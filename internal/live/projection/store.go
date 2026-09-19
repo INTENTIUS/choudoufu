@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/smithy-go/middleware"
 
 	"github.com/intentius/choudoufu/internal/configs"
@@ -40,10 +39,10 @@ const defaultRecordDirName = ".tofu-records"
 // moduleDir is the directory the "local" backend's relative path (rs.Path,
 // or the default) is resolved against - ordinarily the module directory a
 // stateless run's live block was read from. estate names the key namespace
-// the "ssm" and "s3" backends default to when rs.KeyPrefix is unset; see
+// the "s3" backend defaults to when rs.KeyPrefix is unset; see
 // [RecordKeyPrefix].
 //
-// Building an "ssm" or "s3" store loads the AWS SDK's own default
+// Building an "s3" store loads the AWS SDK's own default
 // credential chain (environment, shared config, IMDS) unless rs.Region asks
 // for a specific region; this package has no opinion on credentials beyond
 // that, the same position every other AWS client this fork builds takes.
@@ -52,9 +51,9 @@ const defaultRecordDirName = ".tofu-records"
 // decides how many attempts a record write gets and under which retry mode.
 // It is threaded in rather than read from the environment because the record
 // store is where the attempt budget actually bites: an estate writes one
-// record per resource, so a large one reaches Parameter Store's throughput
-// ceiling on its own, and the SDK's default of three attempts is not enough
-// to cross it (#1196, #1148).
+// record per record-backed resource, and the SDK's default of three attempts
+// was measured not to be enough for a large one (#1196, #1148, against the
+// Parameter Store backend that #1346 retired; the threading stayed).
 func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string, opts ...RecordStoreOption) (staterecord.Store, error) {
 	var o recordStoreOptions
 	for _, opt := range opts {
@@ -147,21 +146,20 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 	return createdVersion, nil
 }
 
-// backendKeyPrefix is what the "ssm" and "s3" backends' own KeyPrefix is
-// set to: nothing. The namespace a record lives under is carried by the
+// backendKeyPrefix is what the "s3" backend's own KeyPrefix is set to:
+// nothing. The namespace a record lives under is carried by the
 // KEY - [RecordKey] builds every key from [recordStoreKeyPrefix]'s output,
 // [provisionStoreSentinel] puts the sentinel under it, [RecordAddr] reads
 // an address back out of it and [staterecord.NewRunCache] bulk-loads it -
 // so handing that same string to the backend as its own prefix made every
 // backend name carry it twice: measured against real AWS on 2026-09-06,
-// a record_store "ssm" with key_prefix = "chdf916probe/e1" wrote the
-// parameter "/chdf916probe/e1/chdf916probe/e1/aws_instance/<key>", and the
-// s3 backend wrote the object key "chdf916probe/e1/chdf916probe/e1/..." in
-// the same run. Nothing inside this package noticed, because both halves
+// a record_store "s3" with key_prefix = "chdf916probe/e1" wrote the object
+// key "chdf916probe/e1/chdf916probe/e1/...", and the Parameter Store
+// backend of the time doubled its parameter names the same way. Nothing inside this package noticed, because both halves
 // of every round trip went through the doubled name; what broke was the
-// contract with everything OUTSIDE it - an operator's IAM policy, an
-// `aws ssm get-parameters-by-path --path /<key_prefix>` listing, and the
-// live-cert harness's own teardown - all of which name the prefix the
+// contract with everything OUTSIDE it - an operator's IAM policy, a
+// listing of the prefix with the AWS CLI, and the live-cert harness's own
+// teardown - all of which name the prefix the
 // configuration set, once. Issue #916.
 const backendKeyPrefix = ""
 
@@ -182,8 +180,8 @@ type recordStoreOptions struct {
 // WithBulkReadParallelism bounds how many reads a backend that fans its bulk
 // read out has in flight at once - today the "s3" backend's GetAll (GitHub
 // issue #1336). Zero or negative leaves the backend's own default,
-// [staterecord.DefaultS3GetAllParallelism]. The local and SSM backends read
-// their namespaces another way and ignore it.
+// [staterecord.DefaultS3GetAllParallelism]. The local backend reads its
+// namespace another way and ignores it.
 func WithBulkReadParallelism(n int) RecordStoreOption {
 	return func(o *recordStoreOptions) { o.bulkReadParallelism = n }
 }
@@ -208,26 +206,6 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		}
 		return store, nil
 
-	case "ssm":
-		awsCfg, err := loadAWSConfig(ctx, rs.Region, rt)
-		if err != nil {
-			return nil, fmt.Errorf("record_store \"ssm\": %w", err)
-		}
-		store, err := staterecord.NewSSMStore(staterecord.SSMConfig{
-			Client: ssm.NewFromConfig(awsCfg),
-			// Empty on purpose: see backendKeyPrefix.
-			KeyPrefix: backendKeyPrefix,
-			// Issue #1146. Empty when the block names no tier, which sends
-			// no Tier at all and leaves the account's default-tier
-			// configuration in charge - the only default that changes
-			// nothing about what a run before this argument existed did.
-			Tier: staterecord.SSMTier(rs.Tier),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("record_store \"ssm\": %w", err)
-		}
-		return store, nil
-
 	case "s3":
 		awsCfg, err := loadAWSConfig(ctx, rs.Region, rt)
 		if err != nil {
@@ -242,7 +220,7 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 
 	default:
 		// internal/configs/live.go's decodeRecordStoreBlock already refuses
-		// anything but "local"/"ssm"/"s3" at config-decode time, so a
+		// anything but "local"/"s3" at config-decode time, so a
 		// caller reaching here has a *configs.LiveRecordStore that bypassed
 		// that decoder - an internal inconsistency, not a configuration
 		// mistake an operator could have made.

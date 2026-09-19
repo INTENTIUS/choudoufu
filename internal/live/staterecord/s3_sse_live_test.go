@@ -8,6 +8,7 @@ package staterecord
 import (
 	"context"
 	"crypto/md5" //nolint:gosec // comparing against S3's own MD5 ETag, not using it for security
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -168,4 +169,17 @@ func deleteEverythingUnder(t *testing.T, client *s3.Client, bucket, prefix strin
 		}
 		token = out.NextContinuationToken
 	}
+}
+
+// randomKeySegment gives each runConformance subtest call its own key
+// prefix, so unrelated subtests sharing one real bucket never collide on a
+// key like "k1" the way [LocalStore]'s per-call t.TempDir() already
+// guarantees for free.
+func randomKeySegment(t *testing.T) string {
+	t.Helper()
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		t.Fatalf("generating a random key segment: %v", err)
+	}
+	return hex.EncodeToString(b[:])
 }

@@ -129,57 +129,25 @@ LOG_GROUP_ARN_BASE="arn:aws:logs:${REGION}:${ACCOUNT_ID}:log-group:${LOG_GROUP_N
 # against exactly this bare form - already what this line produces, so
 # there is nothing here to split.
 IAM_ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME_APP}"
-# SSM parameter ARNs have no CloudWatch-Logs-style with/without-suffix split
-# either: a parameter resource type's ARN is always
-# "arn:aws:ssm:region:account:parameter/name" (Service Authorization
-# Reference's "parameter" resource type), and the "*" characters below are
-# ordinary IAM wildcard globbing inside that one shape, not a second ARN
-# form the way log-group vs. log-stream is - the leaf-vs-path split that
-# matters for SSM is which ARGUMENT (parameter name vs. path) an action
-# authorizes against, covered by SSM_RESOURCE_ARN vs. SSM_RECORD_PATH_ARN
-# below, not by the ARN's own spelling.
+
+# The record store is a bucket (GitHub issue #1346; before that it was
+# Parameter Store, and this script granted ssm: actions on two hand-derived
+# ARNs). Nothing about its policy is written here. The estate name and the
+# bucket are read out of the sidecar that declares them, and the statements
+# come from examples/record-store-bucket/iam/render-policy.sh, which is the
+# single source of that policy and was measured against real AWS (#1342). A
+# second copy kept in this file is how the two would come to disagree.
 #
-# The leaf ARN: GetParameter, PutParameter, DeleteParameter and the batch
-# GetParameters/DeleteParameters all take a parameter NAME and are
-# authorized resource-level against that name's own ARN. Every record or
-# hint key this example's estate writes is
-# "/tofu-records/ci-pipelines-example/..." or
-# "/tofu-hints/ci-pipelines-example/..." (internal/live/projection/record.go's
-# recordNamespaceRoot + RecordKeyPrefix, internal/live/projection/hint_store.go's
-# hintNamespaceRoot + HintKey) - the "tofu-*" segment covers both roots at
-# once, "ci-pipelines-example*" keeps every write scoped to this estate.
-SSM_RESOURCE_ARN="arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/tofu-*/ci-pipelines-example*"
-# The path ARN: GetParametersByPath is authorized against the ARN built
-# from its own Path argument, never against the leaf pattern above -
-# issue #807's run 34636502021 is exactly this: live-plan's own error
-# named "arn:...:parameter/tofu-records" verbatim, not the estate-scoped
-# leaf. That Path argument is not this estate's own prefix either; it is
-# always one directory entry short of it, because
-# internal/live/staterecord/ssm.go's List and GetAll both compute the
-# GetParametersByPath folder by trimming the LAST "/"-segment off the
-# keyPrefix they are asked for (GetParametersByPath matches whole
-# hierarchy segments, not an arbitrary string prefix - see that file's
-# "List's approximation" doc). Two call shapes reach it, both rooted here:
-#   - Before GitHub issue #1335, internal/live/discovery/recordorphan_read.go's
-#     "Listing the record store to find untaggable resources whose
-#     configuration block was removed failed" (the run's own error text)
-#     listed projection.RecordKeyPrefix(estate) with no trailing slash, so
-#     the last segment trimmed off was "ci-pipelines-example" itself and
-#     the folder queried was the bare, account-wide "/tofu-records" - the
-#     namespace root every estate shares. That is what run 34636502021
-#     hit, and why the bare ARN below is granted.
-#   - Since #1335 every estate namespace carries its trailing slash
-#     (staterecord.NamespacePrefix), the same shape
-#     internal/live/projection/store.go's provisionStoreSentinel always
-#     listed: the last segment trimmed off is empty and the folder queried
-#     is one level DEEPER, "/tofu-records/ci-pipelines-example" - a child
-#     of the root above, needing the "/*" form. A record listing no longer
-#     pages through every other estate's parameters to filter them out
-#     client-side.
-# Both forms stay granted. The "/*" form is the one a current binary needs;
-# the bare one keeps a role bootstrapped here working with a binary from
-# before #1335, and narrowing it has not been measured against real AWS.
-SSM_RECORD_PATH_ARN="arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/tofu-records"
+# This script does not create the bucket, for the reason it does not create
+# the OIDC provider: it writes policy that refers to one. It stops if the
+# bucket is not there.
+ESTATE_FILE="$EXAMPLE_DIR/terraform/estate.chdf.hcl"
+ESTATE="$(sed -nE 's/^estate[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$ESTATE_FILE")"
+RECORD_BUCKET="$(sed -nE 's/^[[:space:]]*bucket[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$ESTATE_FILE")"
+[ -n "$ESTATE" ]        || { echo "could not read the estate name out of $ESTATE_FILE" >&2; exit 1; }
+[ -n "$RECORD_BUCKET" ] || { echo "could not read record_store \"s3\"'s bucket out of $ESTATE_FILE" >&2; exit 1; }
+POLICY_RENDERER="$EXAMPLE_DIR/../record-store-bucket/iam/render-policy.sh"
+[ -x "$POLICY_RENDERER" ] || { echo "no policy renderer at $POLICY_RENDERER" >&2; exit 1; }
 
 PLAN_ROLE="choudoufu-ci-pipelines-plan"
 ADOPT_ROLE="choudoufu-ci-pipelines-adopt"
@@ -235,8 +203,8 @@ echo "region:       $REGION"
 echo "name_prefix:  $NAME_PREFIX  (from $TF_MAIN)"
 echo "log group:    $LOG_GROUP_ARN  (tag ops also granted on $LOG_GROUP_ARN_BASE)"
 echo "iam role:     $IAM_ROLE_ARN"
-echo "ssm prefix:   $SSM_RESOURCE_ARN"
-echo "ssm path:     $SSM_RECORD_PATH_ARN (+ /*)"
+echo "estate:       $ESTATE  (from $ESTATE_FILE)"
+echo "record store: s3://$RECORD_BUCKET  (from $ESTATE_FILE)"
 echo "subject(s):   ${SUBJECT_PATTERNS[*]}"
 [ "$DRY_RUN" = "1" ] && echo "MODE:         dry-run - printing every command, running none"
 echo
@@ -254,6 +222,20 @@ if ! aws iam list-open-id-connect-providers --output json \
   exit 1
 fi
 echo "  found: $OIDC_PROVIDER_ARN"
+echo
+
+# ------------------------------------------------ the bucket (read only)
+
+log "confirming the record store bucket exists (never created here)"
+if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" > /dev/null 2>&1; then
+  echo "  s3://$RECORD_BUCKET does not exist, or these credentials cannot see it." >&2
+  echo "  $ESTATE_FILE names it as the estate's record store, and the apply role's" >&2
+  echo "  policy below is written against it. Stand it up first:" >&2
+  echo "    cd examples/record-store-bucket && AWS_REGION=$REGION just up $RECORD_BUCKET && just verify $RECORD_BUCKET" >&2
+  echo "  then re-run." >&2
+  exit 1
+fi
+echo "  found: s3://$RECORD_BUCKET"
 echo
 
 # --------------------------------------------------------------- trust policy
@@ -405,6 +387,15 @@ write_marker_statement() {
 JSON
 }
 
+# record_store_statements - the rendered policy's statements, comma-joined
+# for the heredoc list below. The renderer's output is used whole: every
+# statement in it was measured to be needed by an estate's life (smoke claim
+# 37 reconciles the two), and leaving one out here would be this script
+# having an opinion the renderer's tests do not know about.
+record_store_statements() {
+  "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" | jq -c '.Statement[]' | paste -sd, -
+}
+
 # Every logs: action here (CreateLogGroup, DeleteLogGroup, PutRetentionPolicy)
 # is a true log-group-level action, none of them the Resource-suffixed
 # tagging trio - so, unlike DescribeTheEstate and WriteTheMarker above,
@@ -427,24 +418,7 @@ manage_estate_statement() {
       ],
       "Resource": ["$LOG_GROUP_ARN", "$IAM_ROLE_ARN"]
     },
-    {
-      "Sid": "TheRecordStore",
-      "Effect": "Allow",
-      "Action": [
-        "ssm:GetParameter",
-        "ssm:GetParameters",
-        "ssm:PutParameter",
-        "ssm:DeleteParameter",
-        "ssm:DeleteParameters"
-      ],
-      "Resource": "$SSM_RESOURCE_ARN"
-    },
-    {
-      "Sid": "TheRecordStorePathListing",
-      "Effect": "Allow",
-      "Action": "ssm:GetParametersByPath",
-      "Resource": ["$SSM_RECORD_PATH_ARN", "$SSM_RECORD_PATH_ARN/*"]
-    }
+    $(record_store_statements)
 JSON
 }
 

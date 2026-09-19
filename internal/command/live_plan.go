@@ -634,24 +634,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// own comment below.
 	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
 
-	// GitHub issue #1146's record-store ceiling, checked here because this
-	// is the first point in a live-plan where the estate's instance count
-	// is settled and nothing has been written yet - not even the store's
-	// provisioning sentinel, which the NewRecordStore call just below is
-	// what writes. An SSM store cannot hold more records than its tier's
-	// hard AWS quota allows, and that arithmetic is knowable now rather
-	// than at parameter 10,000 of an apply. See
-	// [projection.CheckRecordCapacity] for why one band refuses and the
-	// one below it warns.
-	if config.Module != nil {
-		capDiags := statelessRecordCapacity(config.Module.Live, resolutions.All(), scope)
-		diags = diags.Append(capDiags)
-		if capDiags.HasErrors() {
-			diags = diags.Append(provs.close(ctx))
-			return 1, false, diags
-		}
-	}
-
 	// The estate's record store, when the live block names one - opened
 	// here originally only as guided discovery's hint source (issue #109),
 	// now also read from directly by statelessProviderDataReads. A store
@@ -4397,38 +4379,4 @@ func kubernetesSweepExecBlock(block cty.Value) (*kubesweep.ExecCredential, bool)
 		}
 	}
 	return e, true
-}
-
-// statelessRecordCapacity is GitHub issue #1146's record-store ceiling,
-// asked at the one point in a live run where the estate's instance count is
-// settled and no record has been written: can the configured store
-// physically hold this many records?
-//
-// SSM Parameter Store caps standard parameters at 10,000 per account per
-// region (L-C3B871CB, Adjustable: False) and one record is one parameter, so
-// an estate above that has no standard-tier answer at all - not a quota
-// request, not a retry. [projection.CheckRecordCapacity] carries the
-// reasoning and decides refusal against warning; this function's whole job
-// is producing the count it takes.
-//
-// It counts only instances IN SCOPE. That is the -target/-exclude rule of
-// GitHub issues #1176 and #1203, and it matters here because an out-of-scope
-// block keeps its resolution on purpose (see [identity.Scope]), so
-// resolutions carries the whole configuration even on a narrowed run.
-// Counting all of it would refuse a "-target aws_instance.one" run against a
-// twelve-thousand-resource estate, which writes one record and would have
-// succeeded. An untargeted run has a nil scope and counts everything, which
-// is the case the ceiling is actually about.
-func statelessRecordCapacity(live *configs.Live, resolutions []identity.Resolution, scope identity.Scope) tfdiags.Diagnostics {
-	if live == nil {
-		return nil
-	}
-	planned := 0
-	for _, res := range resolutions {
-		if scope != nil && !scope(res.Addr.ConfigResource()) {
-			continue
-		}
-		planned++
-	}
-	return projection.CheckRecordCapacity(live.RecordStore, planned)
 }

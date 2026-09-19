@@ -94,14 +94,6 @@ var refusals = []Refusal{
 		What:    "Writing a record for an effect back to the record store failed.",
 	},
 	{
-		Summary: SummaryRecordStoreNearlyFull,
-		What:    "GitHub issue #1146: this estate's records take up more than nine tenths of the configured record store's ceiling. For SSM that ceiling counts every parameter in the account and region, not just this estate's, so whether they fit depends on a number the plan deliberately does not read. A warning rather than a refusal because the outcome is genuinely undecided here; the band above the ceiling is arithmetic and refuses.",
-	},
-	{
-		Summary: SummaryRecordStoreTooSmall,
-		What:    "GitHub issue #1146: this estate needs more records than the configured record store can physically hold - SSM Parameter Store caps standard parameters at 10,000 per account per region (L-C3B871CB, Adjustable: False) and one record is one parameter. Refused at plan time, before the first write, rather than partway through an apply. The record_store block's \"tier\" argument raises the SSM ceiling to 100,000; the s3 and local backends have no fixed ceiling.",
-	},
-	{
 		Summary: SummaryRecordStoreWriteFailed,
 		What:    "GitHub issue #1287: a migration could not write the record for an instance whose only ownership carrier is that record, so nothing claims the live object and the next plan would propose creating a second copy of it. The migration is incomplete and has to be run again.",
 	},

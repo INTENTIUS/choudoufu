@@ -378,8 +378,8 @@ const impliedRecordStoreRemedy = "Add a live block and it is admitted:\n\n" +
 	"That is the whole setup step: a live block with no record_store block of its own gets an " +
 	"implied local record store - a \".tofu-records\" directory beside the module, the way stock " +
 	"implies a local state file. To keep the records somewhere a team shares instead, name the " +
-	"backend: record_store \"ssm\" {}, record_store \"s3\" { bucket = \"...\" }, or " +
-	"record_store \"local\" { path = \"...\" }."
+	"backend: record_store \"s3\" { bucket = \"...\" } for a bucket (examples/record-store-bucket " +
+	"stands a correct one up), or record_store \"local\" { path = \"...\" }."
 
 func logicalResourceDetail(resourceType string, lt LogicalType, secrets strict.Secrets, recordStoreConfigured bool) string {
 	switch lt.Class {

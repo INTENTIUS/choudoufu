@@ -338,14 +338,14 @@ type LiveStrictMarkers struct {
 }
 
 // LiveRecordStore is the "record_store" block nested inside a live block. Its
-// label picks the backend ("local", "ssm", or "s3"), the same
+// label picks the backend ("local" or "s3"), the same
 // labeled-block-names-the-implementation shape a stock "backend" block uses,
 // per issue #73's "phrased in familiar backend-like terms" ruling. See
 // [Live.RecordStore].
 type LiveRecordStore struct {
-	// Type is the block's label: "local", "ssm", or "s3". Validated against
-	// exactly those three spellings in decodeRecordStoreBlock; nothing else
-	// reaches this field.
+	// Type is the block's label: "local" or "s3". Validated against exactly
+	// those two spellings in decodeRecordStoreBlock; nothing else reaches
+	// this field. "ssm" is refused there by name (GitHub issue #1346).
 	Type      string
 	TypeRange hcl.Range
 
@@ -359,12 +359,12 @@ type LiveRecordStore struct {
 	PathRange hcl.Range
 
 	// Bucket is the "s3" backend's bucket name. Required for that backend;
-	// unused by the other two.
+	// unused by the local one.
 	Bucket      string
 	BucketSet   bool
 	BucketRange hcl.Range
 
-	// KeyPrefix overrides the "ssm" and "s3" backends' default key
+	// KeyPrefix overrides the "s3" backend's default key
 	// namespace, which the caller derives from the estate name. Optional.
 	// When set, it must stay disjoint from the receipts namespace
 	// (live/RECEIPTS.md's "/tofu-receipts/<estate>/<effect>"): a key_prefix
@@ -375,34 +375,13 @@ type LiveRecordStore struct {
 	KeyPrefixSet   bool
 	KeyPrefixRange hcl.Range
 
-	// Region overrides the "ssm" and "s3" backends' AWS region. Optional;
+	// Region overrides the "s3" backend's AWS region. Optional;
 	// empty defers to the ordinary AWS SDK default-config chain (environment,
 	// shared config, IMDS), the same as every other AWS client this fork
 	// builds when a caller names no region.
 	Region      string
 	RegionSet   bool
 	RegionRange hcl.Range
-
-	// Tier is the "ssm" backend's Parameter Store tier: one of
-	// RecordStoreTiers, checked in decodeRecordStoreBlock. Optional, and
-	// unused by the other two backends, which refuse it.
-	//
-	// It is what raises SSM's record ceiling from 10,000 parameters per
-	// account per region to 100,000 - a hard, non-adjustable AWS quota
-	// (L-C3B871CB) that an estate of ten thousand resources walks into with
-	// nothing to negotiate. Before GitHub issue #1146 there was no way to
-	// select a tier at all, so that ceiling could not be raised even
-	// deliberately.
-	//
-	// Omitted is NOT "standard": it sends no tier and lets the account's own
-	// default-tier configuration decide, because both alternatives are
-	// silent changes an author did not ask for - pinning "standard" would
-	// override a default set outside this tool, and pinning "advanced" would
-	// start a per-parameter monthly charge. See
-	// [internal/live/staterecord.SSMTier].
-	Tier      string
-	TierSet   bool
-	TierRange hcl.Range
 
 	// AllowInsecure is the "s3" backend's waiver for the bucket contract
 	// (GitHub issue #1340): the names, out of RecordStoreInsecureSettings, of
@@ -641,7 +620,6 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "bucket"},
 		{Name: "key_prefix"},
 		{Name: "region"},
-		{Name: "tier"},
 		{Name: "allow_insecure"},
 	},
 }
@@ -652,19 +630,6 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 // [internal/live/staterecord.BucketSettings] by test, so a fourth assertion
 // cannot be added there without being waivable here, or the other way round.
 var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_access_block"}
-
-// RecordStoreTiers is every spelling the "ssm" backend's "tier" argument
-// accepts, in the order a diagnostic lists them. GitHub issue #1146.
-//
-// The vocabulary belongs to internal/live/staterecord's SSMTier, which is
-// what actually writes the parameters, and this package cannot import that
-// one (internal/configs depends on nothing under internal/live, and
-// inverting that would put the whole live stack under the configuration
-// loader). So the list is duplicated here on purpose and pinned equal to
-// staterecord.SSMTierNames() by a test in internal/live/projection, which
-// imports both. A spelling added to one and not the other fails that test
-// rather than reaching an author as "valid here, unknown there".
-var RecordStoreTiers = []string{"standard", "advanced", "intelligent_tiering"}
 
 func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 	return decodeLiveBody(block.Body, block.DefRange)
@@ -1067,6 +1032,32 @@ func decodeStrictMarkersBlock(block *hcl.Block) (*LiveStrictMarkers, hcl.Diagnos
 	return m, diags
 }
 
+// SummaryRecordStoreRetired is the refusal for a record_store backend that
+// used to exist. GitHub issue #1346.
+const SummaryRecordStoreRetired = "Retired record_store backend"
+
+// recordStoreRetiredDetail says what happened to the Parameter Store record
+// store, why, and what to declare instead.
+//
+// Two things in it are deliberate. It says "as a record store", every time:
+// what was retired is Parameter Store holding RECORDS, and a reader who
+// takes away "SSM is removed" has been misinformed. And it does not offer
+// SSM for secret values as something available, because it is not built:
+// that is planned (#1244 section 3), and today's only alternative to secret
+// values in the record store is strict { secrets = "refuse" }.
+//
+// There is no migration, and the message says so with the reason. No estate
+// was on this backend when it was retired.
+func recordStoreRetiredDetail(label string) string {
+	return fmt.Sprintf("record_store %q is retired: AWS Systems Manager Parameter Store is no longer supported as a record store. "+
+		"Standard parameters cap at 10,000 per account and region, a quota that is your account's and is shared with everything else in it, and past that every parameter is billed monthly on the advanced tier. "+
+		"It also has no general conditional write, only create-if-absent, where the record store's consistency rests on every write being conditional.\n\n"+
+		"Declare record_store \"s3\" with a bucket instead. examples/record-store-bucket stands a correct bucket up with \"just up\", \"choudoufu live-bucket\" says whether an existing one is correct, and its iam directory renders the policy an estate's role needs.\n\n"+
+		"Records already in Parameter Store are not migrated, and no migration command exists, because no estate was on this backend when it was retired. "+
+		"This is about where records are kept and says nothing against SSM for secret values: keeping those out of the bucket, in SSM, is planned (#1244) and not available yet. Until it is, strict { secrets = \"refuse\" } is the way to keep secret values out of the record store.",
+		label)
+}
+
 // decodeRecordStoreBlock decodes a live block's nested "record_store" block:
 // which backend (the block's label) and that backend's own arguments. See
 // [LiveRecordStore].
@@ -1075,14 +1066,26 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 
 	label := block.Labels[0]
 	switch label {
-	case "local", "ssm", "s3":
+	case "local", "s3":
 		rs.Type = label
 		rs.TypeRange = block.LabelRanges[0]
+	case "ssm", "ssm-tier":
+		// Refused by name and not as an unknown backend, because this one
+		// was the documented team default until GitHub issue #1346 and a
+		// configuration that still names it deserves to be told what
+		// happened and where to go. The body is not decoded: a retired
+		// backend's arguments are not worth a second diagnostic.
+		return rs, hcl.Diagnostics{&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  SummaryRecordStoreRetired,
+			Detail:   recordStoreRetiredDetail(label),
+			Subject:  block.LabelRanges[0].Ptr(),
+		}}
 	default:
 		return rs, hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid record_store backend",
-			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"ssm\" (the zero-infrastructure team default), and \"s3\" (true conditional-write CAS).", label),
+			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default) and \"s3\" (a bucket, for anything more than one operator shares).", label),
 			Subject:  block.LabelRanges[0].Ptr(),
 		}}
 	}
@@ -1196,28 +1199,6 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 		})
 	}
 
-	if attr, exists := content.Attributes["tier"]; exists {
-		rs.TierRange = attr.Range
-		val, valDiags := decodeLiteralString(attr, "tier")
-		diags = append(diags, valDiags...)
-		if !valDiags.HasErrors() {
-			switch {
-			case !slices.Contains(RecordStoreTiers, val):
-				diags = append(diags, &hcl.Diagnostic{
-					Severity: hcl.DiagError,
-					Summary:  "Invalid record_store tier",
-					Detail: fmt.Sprintf(
-						"The \"tier\" argument was set to %q. Valid tiers are %s. Omit the argument entirely to leave the tier to the account's own default-tier configuration, which is what every run before this argument existed did.",
-						val, strings.Join(quoteEach(RecordStoreTiers), ", "),
-					),
-					Subject: attr.Expr.Range().Ptr(),
-				})
-			default:
-				rs.Tier = val
-				rs.TierSet = true
-			}
-		}
-	}
 	if attr, exists := content.Attributes["allow_insecure"]; exists {
 		rs.AllowInsecureRange = attr.Range
 		vals, valDiags := decodeLiteralStringList(attr, "allow_insecure")
@@ -1265,15 +1246,6 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
 			Detail:   fmt.Sprintf("The \"allow_insecure\" argument waives assertions about an S3 bucket's settings and has no meaning for record_store %q, which is not in a bucket. Remove it.", rs.Type),
 			Subject:  rs.AllowInsecureRange.Ptr(),
-		})
-	}
-
-	if rs.Type != "ssm" && rs.TierSet {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
-			Detail:   fmt.Sprintf("The \"tier\" argument selects an SSM Parameter Store tier and has no meaning for record_store %q. Remove it.", rs.Type),
-			Subject:  rs.TierRange.Ptr(),
 		})
 	}
 
@@ -1526,8 +1498,8 @@ func validateRecordStorePath(raw string) string {
 	return ""
 }
 
-// validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
-// "s3" key_prefix may not be used, or "" when it is fine.
+// validateRecordStoreKeyPrefix returns the reason a record_store "s3"
+// key_prefix may not be used, or "" when it is fine.
 //
 // The rule that matters: five literal segments beside the records'
 // own must stay unreachable from an override. The receipts pattern
@@ -1570,7 +1542,7 @@ func validateRecordStorePath(raw string) string {
 // caller's own key prefix is always rooted at "tofu-records/<estate>" - see
 // internal/live/projection.RecordKeyPrefix), but an operator-supplied
 // override is checked here at the segment level, the same "/"-delimited
-// hierarchy SSM parameter names and S3 key prefixes both already use: a
+// hierarchy S3 key prefixes already use: a
 // key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints",
 // "tofu-located", "tofu-residue", "tofu-provisioned" or "tofu-outputs" is
 // refused, whether or not it carries a leading or trailing slash.

@@ -488,57 +488,6 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 	})
 
-	t.Run("ssm", func(t *testing.T) {
-		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-ssm")
-		if diags.HasErrors() {
-			t.Fatalf("unexpected diagnostics: %s", diags.Error())
-		}
-		rs := mod.Live.RecordStore
-		if rs == nil {
-			t.Fatal("no record_store block was decoded")
-		}
-		if rs.Type != "ssm" {
-			t.Errorf("Type = %q, want ssm", rs.Type)
-		}
-		if got, want := rs.KeyPrefix, "custom/prefix"; got != want {
-			t.Errorf("KeyPrefix = %q, want %q", got, want)
-		}
-		if got, want := rs.Region, "us-west-2"; got != want {
-			t.Errorf("Region = %q, want %q", got, want)
-		}
-		if rs.PathSet || rs.BucketSet {
-			t.Errorf("ssm record_store carries path/bucket: %+v", rs)
-		}
-		// GitHub issue #1146: a block that names no tier must leave
-		// TierSet false, so internal/live/projection sends no Tier at all
-		// and the account's own default-tier configuration keeps deciding.
-		// A default of "standard" here would silently override that choice
-		// for every estate written before the argument existed.
-		if rs.TierSet || rs.Tier != "" {
-			t.Errorf("ssm record_store with no tier argument decoded Tier=%q TierSet=%v", rs.Tier, rs.TierSet)
-		}
-	})
-
-	// GitHub issue #1146: the tier that raises SSM's hard 10,000-parameter
-	// ceiling to 100,000, which before this argument existed could not be
-	// selected even deliberately.
-	t.Run("ssm with a tier", func(t *testing.T) {
-		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-ssm-tier")
-		if diags.HasErrors() {
-			t.Fatalf("unexpected diagnostics: %s", diags.Error())
-		}
-		rs := mod.Live.RecordStore
-		if rs == nil {
-			t.Fatal("no record_store block was decoded")
-		}
-		if got, want := rs.Tier, "advanced"; got != want {
-			t.Errorf("Tier = %q, want %q", got, want)
-		}
-		if !rs.TierSet {
-			t.Error("TierSet is false for a block that wrote the tier argument")
-		}
-	})
-
 	t.Run("s3", func(t *testing.T) {
 		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-s3")
 		if diags.HasErrors() {
@@ -554,7 +503,66 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if got, want := rs.Bucket, "my-records-bucket"; got != want {
 			t.Errorf("Bucket = %q, want %q", got, want)
 		}
+		// Carried over from the Parameter Store fixture GitHub issue #1346
+		// retired, which was the only one that set these two.
+		if got, want := rs.KeyPrefix, "custom/prefix"; got != want {
+			t.Errorf("KeyPrefix = %q, want %q", got, want)
+		}
+		if got, want := rs.Region, "us-west-2"; got != want {
+			t.Errorf("Region = %q, want %q", got, want)
+		}
+		if rs.PathSet {
+			t.Errorf("s3 record_store carries a path: %+v", rs)
+		}
 	})
+}
+
+// TestModule_liveRecordStoreRetired is GitHub issue #1346: Parameter Store
+// is refused as a record store, by name, and the message carries the four
+// things an operator who still declares it needs - that it is retired, why,
+// what to declare instead, and that nothing migrates. It also holds the two
+// things the message must NOT say: that SSM as such is removed, and that SSM
+// is available for secrets today.
+func TestModule_liveRecordStoreRetired(t *testing.T) {
+	for _, file := range []string{
+		"testdata/invalid-files/live-record-store-ssm-retired.tf",
+		"testdata/invalid-files/live-record-store-ssm-retired-with-tier.tf",
+	} {
+		t.Run(file, func(t *testing.T) {
+			_, diags := NewParser(nil).LoadConfigFile(file)
+			if !diags.HasErrors() {
+				t.Fatal("record_store \"ssm\" loaded with no errors")
+			}
+			if len(diags) != 1 {
+				t.Errorf("want exactly one diagnostic, the refusal; a retired backend's arguments are not worth a second one. Got %d:\n%s", len(diags), diags.Error())
+			}
+			got := diags.Error()
+			if !strings.Contains(got, SummaryRecordStoreRetired) {
+				t.Errorf("the refusal is not the retirement one:\n%s", got)
+			}
+			for _, want := range []string{
+				`record_store "ssm" is retired`,
+				"as a record store",
+				"cap at 10,000 per account and region",
+				"no general conditional write",
+				`record_store "s3"`,
+				"examples/record-store-bucket",
+				"not migrated",
+				"no estate was on this backend",
+				"planned (#1244) and not available yet",
+				`strict { secrets = "refuse" }`,
+			} {
+				if !strings.Contains(got, want) {
+					t.Errorf("the refusal does not say %q:\n%s", want, got)
+				}
+			}
+			for _, never := range []string{"SSM is removed", "SSM is retired", "names a backend this fork does not know"} {
+				if strings.Contains(got, never) {
+					t.Errorf("the refusal says %q:\n%s", never, got)
+				}
+			}
+		})
+	}
 }
 
 // TestModule_liveRecordStoreImplied is GitHub issue #364's config surface,
@@ -566,7 +574,7 @@ func TestModule_liveRecordStore(t *testing.T) {
 // Every field is asserted BY VALUE rather than "it is non-nil", because the
 // values are what internal/live/projection.NewRecordStore then acts on: an
 // empty Path is what resolves to ".tofu-records" beside the module, and a
-// Type of anything but "local" would send this to the SSM or S3 branch and
+// Type of anything but "local" would send this to the S3 branch and
 // try to open an AWS client for a configuration that named no cloud store
 // at all.
 //
@@ -616,7 +624,6 @@ func TestModule_liveRecordStoreImplied(t *testing.T) {
 func TestModule_liveRecordStoreDeclaredIsNeverImplied(t *testing.T) {
 	for _, dir := range []string{
 		"testdata/valid-modules/live-record-store-local",
-		"testdata/valid-modules/live-record-store-ssm",
 		"testdata/valid-modules/live-record-store-s3",
 	} {
 		mod, diags := testModuleFromDir(dir)
@@ -663,9 +670,9 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-key-prefix-provisioned.tf", `must not begin with the "tofu-provisioned" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-outputs.tf", `must not begin with the "tofu-outputs" segment`},
 		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
-		{"testdata/invalid-files/live-record-store-tier-unknown.tf", `The "tier" argument was set to "gold"`},
-		{"testdata/invalid-files/live-record-store-tier-on-local.tf", `has no meaning for record_store "local"`},
-		{"testdata/invalid-files/live-record-store-tier-on-s3.tf", `has no meaning for record_store "s3"`},
+		// "tier" selected a Parameter Store tier and went with that backend
+		// (GitHub issue #1346). It is now simply not an argument.
+		{"testdata/invalid-files/live-record-store-tier-is-gone.tf", `An argument named "tier" is not expected here`},
 		// GitHub issue #1340. A typo must not silently waive nothing while
 		// reading as a waiver, and the override is a list, never a boolean.
 		{"testdata/invalid-files/live-record-store-allow-insecure-unknown.tf", `names "versionning", which is not a bucket setting this store asserts`},

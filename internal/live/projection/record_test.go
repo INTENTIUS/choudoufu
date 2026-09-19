@@ -493,9 +493,9 @@ func TestRecordKeyPrefixDisjointFromReceipts(t *testing.T) {
 	}
 	for _, estate := range estates {
 		prefix := RecordKeyPrefix(estate)
-		// The SSM parameter name shape a real store builds: a leading "/"
-		// plus the prefix, exactly what staterecord.SSMStore.parameterName
-		// does with its KeyPrefix.
+		// A name with a leading "/" ahead of the prefix. The Parameter Store
+		// backend built its names this way until GitHub issue #1346 retired
+		// it, and the receipts namespace is still spelled with one.
 		simulated := "/" + prefix + "/" + "some-key"
 		if strings.HasPrefix(simulated, receiptsPrefix) {
 			t.Errorf("RecordKeyPrefix(%q) = %q, whose simulated parameter name %q starts with the receipts namespace %q", estate, prefix, simulated, receiptsPrefix)

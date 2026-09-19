@@ -213,14 +213,17 @@ func IsThrottling(err error) bool {
 //
 // Issue #1148's complaint, in its own words: when a record write finally fails
 // on throttling, the error names an attempt count, and a reader has to already
-// know Parameter Store's quota model to understand it. An attempt count says
+// know the service's quota model to understand it. An attempt count says
 // how many times we asked; it does not say what said no, what the ceiling is,
 // or which of the two available moves - raise the ceiling, or spend more
 // attempts under it - applies. This supplies all three, in the reader's terms.
 //
-// store names the record store backend ("ssm", "s3", "local") so the advice
-// can be specific about which service's ceiling was hit; an unrecognised
-// backend gets the general form rather than a wrong quota number.
+// store names the record store backend ("s3", "local"). It selected the
+// Parameter Store backend's own ceiling, the one service whose numbers this
+// carried, until GitHub issue #1346 retired that backend. No backend has
+// advice of its own today, and the parameter stays so the next measured
+// ceiling has somewhere to go: every backend gets the general form, never a
+// quota number nobody measured.
 func ThrottleAdvice(err error, store string, c Config) string {
 	if !IsThrottling(err) {
 		return ""
@@ -235,13 +238,6 @@ func ThrottleAdvice(err error, store string, c Config) string {
 			c.MaxAttempts, c.Mode)
 	} else {
 		b.WriteString("The cloud throttled this call and it did not succeed within the attempts it was given.")
-	}
-	if store == "ssm" {
-		b.WriteString(
-			" The record store is SSM Parameter Store, whose default throughput is 40 transactions per second," +
-				" shared across the account and region - an estate that writes a record per resource reaches that on" +
-				" its own. The account setting /ssm/parameter-store/high-throughput-enabled raises it, and is the" +
-				" durable fix; it is charged per API interaction above the standard rate.")
 	}
 	if c.MaxAttempts > 0 && c.Mode != ModeAdaptive {
 		fmt.Fprintf(&b,

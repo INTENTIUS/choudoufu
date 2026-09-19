@@ -14,17 +14,16 @@ import (
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
-// Issue #916: the "ssm" and "s3" backends were built with the record key
+// Issue #916: the "s3" backend (and the Parameter Store backend that
+// GitHub issue #1346 retired) was built with the record key
 // prefix as their OWN namespace, and every key handed to them already
 // began with that same prefix, so the name that reached AWS carried it
 // twice. Nothing in this package could see it: writes and reads both went
 // through the doubled name and agreed with each other perfectly. Measured
 // against real AWS on 2026-09-06, key_prefix = "chdf916probe/e1" put the
-// record at the SSM parameter
-// "/chdf916probe/e1/chdf916probe/e1/aws_instance/<key>" and at the S3
-// object key "chdf916probe/e1/chdf916probe/e1/aws_instance/<key>", one
-// level deeper than the operator's IAM policy, `aws ssm
-// get-parameters-by-path --path /chdf916probe/e1`, or the live-cert
+// record at the S3 object key
+// "chdf916probe/e1/chdf916probe/e1/aws_instance/<key>", one level deeper
+// than the operator's IAM policy, a listing of the prefix, or the live-cert
 // harness's own teardown would ever look.
 //
 // So these assert the RENDERED backend name against a literal. A test that
@@ -53,33 +52,11 @@ func TestRecordStoreRendersTheKeyPrefixExactlyOnce(t *testing.T) {
 		name string
 		rs   *configs.LiveRecordStore
 
-		// wantRecord and wantSentinel are the full backend names - the SSM
-		// parameter name, or the S3 object key - not store-relative keys.
+		// wantRecord and wantSentinel are the full backend names - the S3
+		// object key - not store-relative keys.
 		wantRecord   string
 		wantSentinel string
 	}{
-		{
-			name: "ssm with a key_prefix the operator set",
-			rs: &configs.LiveRecordStore{
-				Type:         "ssm",
-				KeyPrefix:    "teamx/prod",
-				KeyPrefixSet: true,
-				Region:       "us-east-2",
-				RegionSet:    true,
-			},
-			wantRecord:   "/teamx/prod/aws_instance/" + encodedAddr,
-			wantSentinel: "/teamx/prod/.store-sentinel",
-		},
-		{
-			name: "ssm with the default prefix derived from the estate",
-			rs: &configs.LiveRecordStore{
-				Type:      "ssm",
-				Region:    "us-east-2",
-				RegionSet: true,
-			},
-			wantRecord:   "/tofu-records/prod-networking/aws_instance/" + encodedAddr,
-			wantSentinel: "/tofu-records/prod-networking/.store-sentinel",
-		},
 		{
 			name: "s3 with a key_prefix the operator set",
 			rs: &configs.LiveRecordStore{
@@ -125,8 +102,6 @@ func TestRecordStoreRendersTheKeyPrefixExactlyOnce(t *testing.T) {
 
 			var gotRecord, gotSentinel string
 			switch s := store.(type) {
-			case *staterecord.SSMStore:
-				gotRecord, gotSentinel = s.ParameterName(recordKey), s.ParameterName(sentinelKey)
 			case *staterecord.S3Store:
 				gotRecord, gotSentinel = s.ObjectKey(recordKey), s.ObjectKey(sentinelKey)
 			default:
