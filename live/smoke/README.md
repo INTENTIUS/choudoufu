@@ -561,8 +561,11 @@ showing its own checks would have caught it.
   the same widened role overwriting and deleting a neighbour's object is
   shown allowed, because nothing but the prefix defends that; and a
   `--reads-outputs-of` grant opens the other estate's outputs and nothing else.
-  The BREAK control widens the prefix and removes the tag's Deny, and
-  the read must then succeed (#1343). Needs jq.
+  Under the widened prefix the role also tries to relabel a neighbour's
+  record as its own and to strip its tag, and both are refused (#1381).
+  The BREAK control has two arms: without the relabel Deny the retag and
+  then the read both succeed, and without the read Deny the read
+  succeeds (#1343). Needs jq.
 - **objects-carry-the-estate-tag** - *Claim 36: every record store
   object carries its estate's tag, and the tag is load-bearing.* **Real
   AWS, maintainer-run.** An estate applies as its scoped role and every
