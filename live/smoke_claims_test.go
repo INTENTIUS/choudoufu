@@ -171,6 +171,100 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	}
 }
 
+// smokeRefusal is the test every real-AWS scenario runs before anything in
+// it can reach an account.
+const smokeRefusal = `[ "${SMOKE_REAL_AWS:-0}" = "1" ]`
+
+// smokeHeredocStart matches the opening of a heredoc, so its body (a
+// terraform file, a Python patch) is not read as shell.
+var smokeHeredocStart = regexp.MustCompile(`<<-?\s*(?:'([A-Za-z_]\w*)'|"([A-Za-z_]\w*)"|([A-Za-z_]\w*))`)
+
+// smokeTouchesAWS: the ways a scenario reaches an account. `real_aws_begin`
+// clears the emulator endpoint and reads the caller identity; `bucket_up`
+// and `role_with_policy` create resources; `aws`/`awsl` in command position
+// is any API call at all; `just up`/`just verify` run the shipped project
+// against the account. Sourcing bucket-iam.sh defines functions and calls
+// none of them, so it is allowed before the refusal.
+var smokeTouchesAWS = []*regexp.Regexp{
+	regexp.MustCompile(`\breal_aws_begin\b`),
+	regexp.MustCompile(`\bbucket_up\b`),
+	regexp.MustCompile(`\brole_with_policy\b`),
+	regexp.MustCompile("(^|[;&|(`]|\\$\\()\\s*(aws|awsl)\\s"),
+	regexp.MustCompile(`\bjust\s+(up|verify)\b`),
+}
+
+// smokeExecutableLines returns one entry per line of the script, holding the
+// trimmed line where bash would execute it and "" where it would not: blank
+// lines, whole-line comments, and heredoc bodies. A guard that greps the raw
+// file cannot tell a refusal from a refusal someone commented out, which is
+// the first of the three mutations #1379 recorded against this test.
+func smokeExecutableLines(script string) []string {
+	lines := strings.Split(script, "\n")
+	out := make([]string, len(lines))
+	term := ""
+	for i, line := range lines {
+		if term != "" {
+			if strings.TrimSpace(line) == term {
+				term = ""
+			}
+			continue
+		}
+		t := strings.TrimSpace(line)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		out[i] = t
+		if m := smokeHeredocStart.FindStringSubmatch(line); m != nil {
+			term = m[1] + m[2] + m[3]
+		}
+	}
+	return out
+}
+
+// smokeFirstAWSLine returns the index of the first executable line that can
+// reach an account, or -1.
+func smokeFirstAWSLine(exec []string) (int, string) {
+	for i, line := range exec {
+		if line == "" {
+			continue
+		}
+		for _, re := range smokeTouchesAWS {
+			if re.MatchString(line) {
+				return i, line
+			}
+		}
+	}
+	return -1, ""
+}
+
+// smokeRefusalLine returns the index of the executable line that refuses to
+// start without SMOKE_REAL_AWS=1 and whether that line is wired to `fail`,
+// either on itself or on the line its backslash continues onto. A refusal
+// whose `|| fail` went missing is a line that computes a boolean and throws
+// it away.
+func smokeRefusalLine(exec []string) (idx int, wired bool) {
+	for i, line := range exec {
+		if !strings.HasPrefix(line, smokeRefusal) {
+			continue
+		}
+		rest := strings.TrimSpace(strings.TrimPrefix(line, smokeRefusal))
+		if strings.HasPrefix(rest, "|| fail") {
+			return i, true
+		}
+		if rest != `\` {
+			return i, false
+		}
+		for j := i + 1; j < len(exec); j++ {
+			if exec[j] == "" {
+				continue
+			}
+			return i, strings.HasPrefix(exec[j], "|| fail")
+		}
+		return i, false
+	}
+	return -1, false
+}
+
 // TestSmokeClaimsRealAWSSaysSo: a claim that needs a real AWS account says so
 // in the index, and its scenario refuses to start without SMOKE_REAL_AWS=1.
 // The bucket backend epic (#1332) has five such claims, and its rule is that
@@ -179,21 +273,68 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 // without the refusal would spend a maintainer's money from a paste-and-go
 // prompt, and CLAUDE.md's rule is that such a run is never started by
 // anything but the maintainer.
+//
+// The audit in #1379 showed the substring form of this test green against a
+// commented-out refusal, a refusal moved below every resource the scenario
+// creates, and an emulator scenario that sourced bucket-iam.sh and called
+// real_aws_begin with no refusal at all. So what is checked is where the
+// refusal sits in the file bash would run: an executable line, wired to
+// `fail`, above the first line that can reach an account.
 func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
 	f := readSmokeClaims(t)
 	for _, c := range f.Claims {
-		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, c.Slug+".sh"))
+		name := c.Slug + ".sh"
+		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, name))
 		if err != nil {
 			t.Fatal(err)
 		}
 		script := string(raw)
-		refuses := strings.Contains(script, `[ "${SMOKE_REAL_AWS:-0}" = "1" ]`)
-		if c.RealAWS != refuses {
-			t.Errorf("claim %d: real_aws is %v in %s, but its scenario %s without SMOKE_REAL_AWS=1", c.ID, c.RealAWS, smokeClaimsPath, map[bool]string{true: "refuses to start", false: "does NOT refuse to start"}[refuses])
-		}
+		exec := smokeExecutableLines(script)
+		refusalAt, wired := smokeRefusalLine(exec)
+		awsAt, awsLine := smokeFirstAWSLine(exec)
+
 		if !c.RealAWS {
+			// An emulator claim's aws calls go to the emulator endpoint, so
+			// they prove nothing either way. What it must not do is reach for
+			// the real-AWS helpers: real_aws_begin unsets that endpoint, and
+			// bucket-iam.sh exists to create buckets, roles and keys in the
+			// account whose credentials are in the environment. #1379's third
+			// mutation was exactly this file, with no refusal in it.
+			if refusalAt >= 0 {
+				t.Errorf("%s: real_aws is false in %s, but line %d refuses to start without SMOKE_REAL_AWS=1", name, smokeClaimsPath, refusalAt+1)
+			}
+			for i, line := range exec {
+				for _, banned := range []string{"real_aws_begin", "bucket-iam.sh", "bucket_up", "role_with_policy"} {
+					if strings.Contains(line, banned) {
+						t.Errorf("%s: real_aws is false in %s, but line %d uses %s, which only runs against a real account: %s", name, smokeClaimsPath, i+1, banned, line)
+					}
+				}
+			}
 			continue
 		}
+
+		// Without this the ordering check below is vacuous: a scenario no
+		// pattern matches would pass it however the refusal is placed.
+		if awsAt < 0 {
+			t.Errorf("claim %d (%s): real_aws is true in %s and no line in the scenario matches any of the ways this test knows to reach an account, so the ordering check below would prove nothing; either the row is wrong or smokeTouchesAWS is out of date", c.ID, name, smokeClaimsPath)
+		}
+		if refusalAt < 0 {
+			t.Errorf("claim %d (%s): real_aws is true in %s and no executable line tests exactly %s; a refusal sitting in a comment, or one whose default is not 0, is not one", c.ID, name, smokeClaimsPath, smokeRefusal)
+		} else {
+			if !wired {
+				t.Errorf("claim %d (%s): line %d tests %s and does not follow it with `|| fail`, so the scenario runs on regardless", c.ID, name, refusalAt+1, smokeRefusal)
+			}
+			// At column zero, so it runs when the file runs. A refusal in a
+			// function body or an if block is one the scenario may never
+			// reach, and reads exactly like one it always reaches.
+			if raw := strings.Split(script, "\n")[refusalAt]; raw != strings.TrimLeft(raw, " \t") {
+				t.Errorf("claim %d (%s): the refusal on line %d is indented, so it sits inside a block or a function and may never run; it belongs at the top level of the script", c.ID, name, refusalAt+1)
+			}
+			if awsAt >= 0 && awsAt < refusalAt {
+				t.Errorf("claim %d (%s): line %d can reach an account before the refusal on line %d: %s", c.ID, name, awsAt+1, refusalAt+1, awsLine)
+			}
+		}
+
 		if !strings.Contains(strings.SplitN(script, "\n", 3)[1], "REAL AWS") {
 			t.Errorf("claim %d: the scenario's header line does not say REAL AWS, so `just smoke` lists it like any other", c.ID)
 		}

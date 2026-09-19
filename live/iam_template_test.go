@@ -95,6 +95,130 @@ func anyStrings(v any) []string {
 	return nil
 }
 
+// iamWantStatement is one statement as this test says it must be. It is a
+// separate type from iamStatement so that Condition can be omitted where the
+// renderer emits none, and so that nothing this test asserts is derived from
+// the code that reads the renderer's output.
+type iamWantStatement struct {
+	Sid       string         `json:"Sid"`
+	Effect    string         `json:"Effect"`
+	Action    any            `json:"Action"`
+	Resource  any            `json:"Resource"`
+	Condition map[string]any `json:"Condition,omitempty"`
+}
+
+// iamWantedPolicy is the whole document render-policy.sh must print for an
+// estate, a bucket, an optional key and a list of estates whose outputs it
+// reads. It is written out here rather than read from a committed example,
+// because #1379's audit gutted the Deny, widened the write and the delete to
+// every estate, and dropped the trailing slash from the object ARNs, and
+// each time re-rendered the examples as TestIAMTemplateHasOneSource's own
+// message instructs - after which everything was green. An example file can
+// be re-rendered; this cannot.
+func iamWantedPolicy(estate, bucket, kms string, others ...string) map[string]any {
+	b := "arn:aws:s3:::" + bucket
+	// Each prefix ends in "/", so "prod" is not also "prod-eu" (#1335).
+	own := []string{"tofu-records/" + estate + "/", "tofu-hints/" + estate + "/", "tofu-outputs/" + estate + "/"}
+	var theirs []string
+	for _, o := range others {
+		theirs = append(theirs, "tofu-outputs/"+o+"/")
+	}
+	objects := func(prefixes []string) []string {
+		out := []string{}
+		for _, p := range prefixes {
+			out = append(out, b+"/"+p+"*")
+		}
+		return out
+	}
+	listPrefixes := []string{}
+	for _, p := range append(append([]string{}, own...), theirs...) {
+		listPrefixes = append(listPrefixes, p+"*")
+	}
+
+	st := []iamWantStatement{{
+		Sid: "ListOwnNamespaces", Effect: "Allow",
+		Action: "s3:ListBucket", Resource: b,
+		Condition: map[string]any{"StringLike": map[string]any{"s3:prefix": listPrefixes}},
+	}, {
+		Sid: "ReadAndDeleteByPrefix", Effect: "Allow",
+		Action: []string{"s3:GetObject", "s3:DeleteObject"}, Resource: objects(own),
+	}, {
+		Sid: "WriteOnlyObjectsTaggedAsThisEstate", Effect: "Allow",
+		Action: []string{"s3:PutObject", "s3:PutObjectTagging"}, Resource: objects(own),
+		Condition: map[string]any{"StringEquals": map[string]any{"s3:RequestObjectTag/tofu-estate": estate}},
+	}}
+	if len(theirs) > 0 {
+		st = append(st, iamWantStatement{
+			Sid: "ReadDeclaredDependenciesOutputs", Effect: "Allow",
+			Action: "s3:GetObject", Resource: objects(theirs),
+		})
+	}
+	st = append(st, iamWantStatement{
+		Sid: "DenyReadingAnotherEstatesObjects", Effect: "Deny",
+		Action:   []string{"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"},
+		Resource: b + "/*",
+		Condition: map[string]any{
+			"StringNotEquals": map[string]any{"s3:ExistingObjectTag/tofu-estate": append([]string{estate}, others...)},
+			"Null":            map[string]any{"s3:ExistingObjectTag/tofu-estate": "false"},
+		},
+	}, iamWantStatement{
+		Sid: "ReadTheBucketsAssertedSettings", Effect: "Allow",
+		Action:   []string{"s3:GetBucketVersioning", "s3:GetLifecycleConfiguration", "s3:GetBucketPublicAccessBlock"},
+		Resource: b,
+	})
+	if kms != "" {
+		st = append(st, iamWantStatement{
+			Sid: "UseTheBucketsKey", Effect: "Allow",
+			Action: []string{"kms:Decrypt", "kms:GenerateDataKey"}, Resource: kms,
+		})
+	}
+	return map[string]any{"Version": "2012-10-17", "Statement": st}
+}
+
+// iamCanonical re-encodes JSON with sorted keys, so two documents compare as
+// text. It decodes into any rather than into a struct: a struct would drop a
+// field the renderer grew and the comparison would not see it.
+func iamCanonical(t *testing.T, what string, raw []byte) string {
+	t.Helper()
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatalf("%s is not JSON: %v\n%s", what, err, raw)
+	}
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		t.Fatalf("%s: %v", what, err)
+	}
+	return string(out)
+}
+
+// TestIAMTemplateIsExactlyThisPolicy pins every statement of all three
+// renders. Any change to the renderer has to change this test deliberately,
+// which is the point: the policy was measured against real AWS on #1342 and
+// the examples it is compared against elsewhere are its own output.
+func TestIAMTemplateIsExactlyThisPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want map[string]any
+	}{
+		{"no flags", []string{"prod", iamBucket}, iamWantedPolicy("prod", iamBucket, "")},
+		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey}, iamWantedPolicy("prod", iamBucket, iamKMSKey)},
+		{"--reads-outputs-of", []string{"prod", iamBucket, "--reads-outputs-of", "network"}, iamWantedPolicy("prod", iamBucket, "", "network")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wantRaw, err := json.Marshal(tc.want)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := iamCanonical(t, "the expected policy", wantRaw)
+			got := iamCanonical(t, "render-policy.sh "+strings.Join(tc.args, " "), renderIAMPolicy(t, tc.args...))
+			if got != want {
+				t.Errorf("render-policy.sh %s does not print the measured policy.\nwant:\n%s\ngot:\n%s", strings.Join(tc.args, " "), want, got)
+			}
+		})
+	}
+}
+
 // TestIAMTemplateKeepsTheMeasuredShape holds the policy to what was measured
 // against real AWS on #1342. Each assertion is a way this policy has already
 // been wrong, in the epic's first draft or in the documentation it would
@@ -113,9 +237,32 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 		}
 		return false
 	}
+	// The Resource of every statement, spelled out. The audit widened the
+	// write and the delete from this estate's three prefixes to every
+	// estate's, and separately dropped the trailing slash so that "prod" also
+	// matched "prod-eu", and this test had nothing to say about either.
+	b := "arn:aws:s3:::" + iamBucket
+	own := []string{b + "/tofu-records/prod/*", b + "/tofu-hints/prod/*", b + "/tofu-outputs/prod/*"}
+	wantResource := map[string][]string{
+		"ListOwnNamespaces":                  {b},
+		"ReadAndDeleteByPrefix":              own,
+		"WriteOnlyObjectsTaggedAsThisEstate": own,
+		"ReadDeclaredDependenciesOutputs":    {b + "/tofu-outputs/network/*"},
+		"DenyReadingAnotherEstatesObjects":   {b + "/*"},
+		"ReadTheBucketsAssertedSettings":     {b},
+	}
+	seen := map[string]bool{}
+
 	var sawList, sawWrite, sawDeny bool
 	for _, st := range doc.Statement {
 		acts := st.actions()
+		seen[st.Sid] = true
+		want, known := wantResource[st.Sid]
+		if !known {
+			t.Errorf("%s is a statement this test knows nothing about; say here what its Resource must be", st.Sid)
+		} else if got := anyStrings(st.Resource); strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Errorf("%s grants\n  %v\nwant exactly\n  %v", st.Sid, got, want)
+		}
 		for op, keys := range st.Condition {
 			for key := range keys {
 				// An ALLOW conditioned on the existing tag: deletes are denied
@@ -155,6 +302,16 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 		}
 		if st.Effect == "Deny" {
 			sawDeny = true
+			// The Deny is the whole of the cross-estate boundary. The audit
+			// left it in place with its Action cut down to
+			// s3:GetObjectTagging and its Resource narrowed to a prefix
+			// nothing is written under, and the estate could then read every
+			// other estate's records.
+			for _, needed := range []string{"s3:GetObject", "s3:GetObjectVersion"} {
+				if !has(acts, needed) {
+					t.Errorf("%s does not deny %s, so an estate can read another estate's records with it; it names %v", st.Sid, needed, acts)
+				}
+			}
 			if st.Condition["Null"]["s3:ExistingObjectTag/tofu-estate"] != "false" {
 				t.Errorf("%s has no Null:false guard, so it fires where the tag is absent from the request context, which is every If-Match write", st.Sid)
 			}
@@ -171,6 +328,11 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 	}
 	if !sawWrite || !sawDeny {
 		t.Errorf("write statement present: %v, deny statement present: %v", sawWrite, sawDeny)
+	}
+	for sid := range wantResource {
+		if !seen[sid] {
+			t.Errorf("%s is missing from the rendered policy", sid)
+		}
 	}
 }
 
