@@ -53,14 +53,34 @@
       "Action": [
         "s3:GetObject",
         "s3:GetObjectVersion",
-        "s3:GetObjectTagging"
+        "s3:GetObjectTagging",
+        "s3:GetObjectVersionTagging",
+        "s3:GetObjectAcl",
+        "s3:GetObjectVersionAcl"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "s3:ExistingObjectTag/tofu-estate": "prod"
+        },
+        "Null": {
+          "s3:ExistingObjectTag/tofu-estate": "false"
+        }
+      },
+      "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/*"
+    },
+    {
+      "Sid": "DenyRelabellingAnotherEstatesObjects",
+      "Effect": "Deny",
+      "Action": [
+        "s3:PutObjectTagging",
+        "s3:DeleteObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:DeleteObjectVersionTagging"
       ],
       "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/*",
       "Condition": {
         "StringNotEquals": {
-          "s3:ExistingObjectTag/tofu-estate": [
-            "prod"
-          ]
+          "s3:ExistingObjectTag/tofu-estate": "prod"
         },
         "Null": {
           "s3:ExistingObjectTag/tofu-estate": "false"

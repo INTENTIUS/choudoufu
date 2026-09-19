@@ -72,11 +72,12 @@ func TestIAMTemplateHasOneSource(t *testing.T) {
 }
 
 type iamStatement struct {
-	Sid       string
-	Effect    string
-	Action    any
-	Resource  any
-	Condition map[string]map[string]any
+	Sid         string
+	Effect      string
+	Action      any
+	Resource    any
+	NotResource any
+	Condition   map[string]map[string]any
 }
 
 func (s iamStatement) actions() []string { return anyStrings(s.Action) }
@@ -100,11 +101,12 @@ func anyStrings(v any) []string {
 // renderer emits none, and so that nothing this test asserts is derived from
 // the code that reads the renderer's output.
 type iamWantStatement struct {
-	Sid       string         `json:"Sid"`
-	Effect    string         `json:"Effect"`
-	Action    any            `json:"Action"`
-	Resource  any            `json:"Resource"`
-	Condition map[string]any `json:"Condition,omitempty"`
+	Sid         string         `json:"Sid"`
+	Effect      string         `json:"Effect"`
+	Action      any            `json:"Action"`
+	Resource    any            `json:"Resource,omitempty"`
+	NotResource any            `json:"NotResource,omitempty"`
+	Condition   map[string]any `json:"Condition,omitempty"`
 }
 
 // iamWantedPolicy is the whole document render-policy.sh must print for an
@@ -153,14 +155,37 @@ func iamWantedPolicy(estate, bucket, kms string, others ...string) map[string]an
 			Action: "s3:GetObject", Resource: objects(theirs),
 		})
 	}
-	st = append(st, iamWantStatement{
-		Sid: "DenyReadingAnotherEstatesObjects", Effect: "Deny",
-		Action:   []string{"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"},
-		Resource: b + "/*",
-		Condition: map[string]any{
-			"StringNotEquals": map[string]any{"s3:ExistingObjectTag/tofu-estate": append([]string{estate}, others...)},
+	reads := []string{"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging", "s3:GetObjectVersionTagging", "s3:GetObjectAcl", "s3:GetObjectVersionAcl"}
+	foreignTag := func(accepted any) map[string]any {
+		return map[string]any{
+			"StringNotEquals": map[string]any{"s3:ExistingObjectTag/tofu-estate": accepted},
 			"Null":            map[string]any{"s3:ExistingObjectTag/tofu-estate": "false"},
-		},
+		}
+	}
+	// The read Deny accepts this estate's tag and no other. With a declared
+	// dependency it steps around that estate's outputs prefix, and a second
+	// Deny accepts the dependency's tag there and nowhere else (#1381: it
+	// used to be accepted bucket-wide, which left the dependency's RECORDS
+	// on the prefix alone).
+	denyRead := iamWantStatement{Sid: "DenyReadingAnotherEstatesObjects", Effect: "Deny", Action: reads, Condition: foreignTag(estate)}
+	if len(theirs) > 0 {
+		denyRead.NotResource = objects(theirs)
+	} else {
+		denyRead.Resource = b + "/*"
+	}
+	st = append(st, denyRead)
+	if len(theirs) > 0 {
+		st = append(st, iamWantStatement{
+			Sid: "DenyReadingOtherTagsUnderDeclaredOutputs", Effect: "Deny", Action: reads,
+			Resource: objects(theirs), Condition: foreignTag(append([]string{estate}, others...)),
+		})
+	}
+	// Measured on real AWS (#1381): without this, a role whose prefix was
+	// widened by mistake relabels a neighbour's object and then reads it.
+	st = append(st, iamWantStatement{
+		Sid: "DenyRelabellingAnotherEstatesObjects", Effect: "Deny",
+		Action:   []string{"s3:PutObjectTagging", "s3:DeleteObjectTagging", "s3:PutObjectVersionTagging", "s3:DeleteObjectVersionTagging"},
+		Resource: b + "/*", Condition: foreignTag(estate),
 	}, iamWantStatement{
 		Sid: "ReadTheBucketsAssertedSettings", Effect: "Allow",
 		Action:   []string{"s3:GetBucketVersioning", "s3:GetLifecycleConfiguration", "s3:GetBucketPublicAccessBlock"},
@@ -244,12 +269,36 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 	b := "arn:aws:s3:::" + iamBucket
 	own := []string{b + "/tofu-records/prod/*", b + "/tofu-hints/prod/*", b + "/tofu-outputs/prod/*"}
 	wantResource := map[string][]string{
-		"ListOwnNamespaces":                  {b},
-		"ReadAndDeleteByPrefix":              own,
-		"WriteOnlyObjectsTaggedAsThisEstate": own,
-		"ReadDeclaredDependenciesOutputs":    {b + "/tofu-outputs/network/*"},
-		"DenyReadingAnotherEstatesObjects":   {b + "/*"},
-		"ReadTheBucketsAssertedSettings":     {b},
+		"ListOwnNamespaces":                        {b},
+		"ReadAndDeleteByPrefix":                    own,
+		"WriteOnlyObjectsTaggedAsThisEstate":       own,
+		"ReadDeclaredDependenciesOutputs":          {b + "/tofu-outputs/network/*"},
+		"DenyReadingOtherTagsUnderDeclaredOutputs": {b + "/tofu-outputs/network/*"},
+		"DenyRelabellingAnotherEstatesObjects":     {b + "/*"},
+		"ReadTheBucketsAssertedSettings":           {b},
+	}
+	// The read Deny covers the whole bucket EXCEPT the declared dependency's
+	// outputs, where a second Deny accepts that estate's tag. So it is pinned
+	// by what it steps around, and it must have no Resource at all.
+	wantNotResource := map[string][]string{
+		"DenyReadingAnotherEstatesObjects": {b + "/tofu-outputs/network/*"},
+	}
+	// Which tags each Deny accepts, exactly. The dependency's tag is accepted
+	// under its outputs prefix and nowhere else: accepted bucket-wide, it
+	// left that estate's records on the prefix alone (#1381).
+	wantAccepted := map[string][]string{
+		"DenyReadingAnotherEstatesObjects":         {"prod"},
+		"DenyReadingOtherTagsUnderDeclaredOutputs": {"prod", "network"},
+		"DenyRelabellingAnotherEstatesObjects":     {"prod"},
+	}
+	// What each Deny must name. The two read Denies are the cross-estate
+	// boundary for a read. The relabel Deny is what makes the tag worth
+	// trusting: measured on real AWS, without it a role whose prefix was
+	// widened by mistake retags a neighbour's object and then reads it.
+	wantDenied := map[string][]string{
+		"DenyReadingAnotherEstatesObjects":         {"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"},
+		"DenyReadingOtherTagsUnderDeclaredOutputs": {"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"},
+		"DenyRelabellingAnotherEstatesObjects":     {"s3:PutObjectTagging", "s3:DeleteObjectTagging"},
 	}
 	seen := map[string]bool{}
 
@@ -258,10 +307,24 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 		acts := st.actions()
 		seen[st.Sid] = true
 		want, known := wantResource[st.Sid]
-		if !known {
+		wantNot, knownNot := wantNotResource[st.Sid]
+		switch {
+		case !known && !knownNot:
 			t.Errorf("%s is a statement this test knows nothing about; say here what its Resource must be", st.Sid)
-		} else if got := anyStrings(st.Resource); strings.Join(got, "\n") != strings.Join(want, "\n") {
-			t.Errorf("%s grants\n  %v\nwant exactly\n  %v", st.Sid, got, want)
+		case knownNot:
+			if got := anyStrings(st.NotResource); strings.Join(got, "\n") != strings.Join(wantNot, "\n") {
+				t.Errorf("%s steps around\n  %v\nwant exactly\n  %v", st.Sid, got, wantNot)
+			}
+			if st.Resource != nil {
+				t.Errorf("%s has both a Resource and a NotResource; IAM refuses that", st.Sid)
+			}
+		default:
+			if got := anyStrings(st.Resource); strings.Join(got, "\n") != strings.Join(want, "\n") {
+				t.Errorf("%s grants\n  %v\nwant exactly\n  %v", st.Sid, got, want)
+			}
+			if st.NotResource != nil {
+				t.Errorf("%s has a NotResource nobody asked for", st.Sid)
+			}
 		}
 		for op, keys := range st.Condition {
 			for key := range keys {
@@ -307,16 +370,20 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 			// s3:GetObjectTagging and its Resource narrowed to a prefix
 			// nothing is written under, and the estate could then read every
 			// other estate's records.
-			for _, needed := range []string{"s3:GetObject", "s3:GetObjectVersion"} {
-				if !has(acts, needed) {
-					t.Errorf("%s does not deny %s, so an estate can read another estate's records with it; it names %v", st.Sid, needed, acts)
+			needed, knownDeny := wantDenied[st.Sid]
+			if !knownDeny {
+				t.Errorf("%s is a Deny this test knows nothing about; say here which actions it must name and which tags it accepts", st.Sid)
+			}
+			for _, a := range needed {
+				if !has(acts, a) {
+					t.Errorf("%s does not deny %s; it names %v", st.Sid, a, acts)
 				}
 			}
 			if st.Condition["Null"]["s3:ExistingObjectTag/tofu-estate"] != "false" {
 				t.Errorf("%s has no Null:false guard, so it fires where the tag is absent from the request context, which is every If-Match write", st.Sid)
 			}
-			if got := anyStrings(st.Condition["StringNotEquals"]["s3:ExistingObjectTag/tofu-estate"]); !has(got, "prod") || !has(got, "network") {
-				t.Errorf("%s accepts tags %v, want this estate's and its declared dependency's", st.Sid, got)
+			if got, want := anyStrings(st.Condition["StringNotEquals"]["s3:ExistingObjectTag/tofu-estate"]), wantAccepted[st.Sid]; strings.Join(got, " ") != strings.Join(want, " ") {
+				t.Errorf("%s accepts tags %v, want exactly %v", st.Sid, got, want)
 			}
 			if has(acts, "s3:DeleteObject") || has(acts, "s3:PutObject") {
 				t.Errorf("%s names a write or a delete: AWS supplies no existing-object tag for those, so the statement would claim a defence that does not exist", st.Sid)
@@ -415,5 +482,40 @@ func TestKMSKeyStatementNamesPrincipals(t *testing.T) {
 	}
 	if out, err := exec.Command("bash", iamKeyStatementRenderer).CombinedOutput(); err == nil {
 		t.Errorf("render-key-statement.sh printed a statement naming nobody:\n%s", out)
+	}
+}
+
+// TestIAMRendererRefusesABucketOrKeyThatIsNotOne: the bucket and the key go
+// into Resource ARNs as they are. Until GitHub issue #1381 only the estate
+// names were checked, so a bucket of "*" rendered a policy for every bucket,
+// "b/*" and a pasted ARN rendered nonsense with exit 0, and a bucket of
+// "${aws:username}" reached the policy as a live IAM policy variable.
+func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
+	for _, bad := range []string{"*", "b/*", "", "arn:aws:s3:::dup", "${aws:username}", "Has Space", "UPPER", "a", "-leading", "trailing-"} {
+		if out, err := exec.Command("bash", iamRenderer, "prod", bad).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh accepted the bucket %q:\n%s", bad, out)
+		}
+	}
+	for _, bad := range []string{"*", "garbage", "arn:aws:kms:us-east-2:111122223333:key/*", "arn:aws:kms:us-east-2:111122223333:alias/mine", "arn:aws:s3:::a-bucket"} {
+		if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--kms", bad).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh accepted --kms %q:\n%s", bad, out)
+		}
+	}
+	// An estate that declares a dependency on itself would get its own
+	// outputs listed twice and a second Deny over its own prefix.
+	if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--reads-outputs-of", "prod").CombinedOutput(); err == nil {
+		t.Errorf("render-policy.sh accepted --reads-outputs-of naming the estate itself:\n%s", out)
+	}
+	// And the controls: what must still be accepted, so a renderer that
+	// refuses everything does not pass this test.
+	for _, good := range [][]string{
+		{"prod", iamBucket},
+		{"prod", "my.dotted.bucket-name"},
+		{"prod", iamBucket, "--kms", iamKMSKey},
+		{"prod", iamBucket, "--kms", "arn:aws-us-gov:kms:us-gov-west-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"},
+	} {
+		if out, err := exec.Command("bash", append([]string{iamRenderer}, good...)...).CombinedOutput(); err != nil {
+			t.Errorf("render-policy.sh refused %v: %v\n%s", good, err, out)
+		}
 	}
 }
