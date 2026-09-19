@@ -69,7 +69,8 @@ for two kinds of resource. One with no twin is known only by its record, so
 it may appear as something to create when it already exists. A
 `kubernetes_manifest` needs its record to tell a label the configuration
 dropped from one somebody added by hand, so without it a removed label is not
-planned for removal.
+planned for removal, and the output can read "No changes" while the live
+object keeps it.
 
 ## The local store
 

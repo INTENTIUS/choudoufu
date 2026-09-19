@@ -40,11 +40,18 @@ command -v jq >/dev/null 2>&1 || fail "manyestates" "jq is not installed; the po
 real_aws_begin manyestates
 BUCKET="chdf-smoke-estates-$SUFFIX"
 bucket_up "$BUCKET" || fail "manyestates" "could not create the bucket"
+# One name per RUN. A fixed role name is adopted by the next run whatever
+# policy it is carrying, and two runs at once overwrite each other's - and
+# this scenario's whole method is installing one policy after another on
+# estate a's role and measuring what it may do (#1378).
+ROLE_A="$(role_name smoke-estate-a)" || fail "manyestates" "could not name estate a's role"
+ROLE_B="$(role_name smoke-estate-b)" || fail "manyestates" "could not name estate b's role"
+role_of() { case "$1" in a) echo "$ROLE_A" ;; b) echo "$ROLE_B" ;; esac; }
 for e in a b; do
-  role_with_policy "smoke-estate-$e" "$("$POLICY_RENDERER" "smoke-$e" "$BUCKET")" "$BUCKET" || fail "manyestates" "could not create estate $e's role"
+  role_with_policy "$(role_of "$e")" "$("$POLICY_RENDERER" "smoke-$e" "$BUCKET")" "$BUCKET" || fail "manyestates" "could not create estate $e's role"
   write_bucket_estate "$SMOKE_WORK/$e" "smoke-$e" "$BUCKET" v1
   ( cd "$SMOKE_WORK/$e" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "manyestates" "init failed in $e"
-  OUT="$(cd "$SMOKE_WORK/$e" && as_role "smoke-estate-$e" chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "manyestates" "estate $e could not apply under its own role: $OUT"
+  OUT="$(cd "$SMOKE_WORK/$e" && as_role "$(role_of "$e")" chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "manyestates" "estate $e could not apply under its own role: $OUT"
   grep -q "Resources: 2 added" <<< "$OUT" || fail "manyestates" "estate $e: $OUT"
 done
 B_RECORD="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-b/terraform_data/ --query 'Contents[0].Key' --output text)"
@@ -59,14 +66,14 @@ explain \
   "With the AWS CLI and no choudoufu in the loop. The control comes" \
   "first: the role CAN read its own record, so a denial below is about" \
   "whose object it is, not about a role that can read nothing."
-must_allow "a reads its own record" smoke-estate-a get-object --bucket "$BUCKET" --key "$A_RECORD" "$SMOKE_WORK/o"
-must_deny "a reads b's record" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
-must_deny "a reads b's outputs" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
-must_deny "a lists b's records" smoke-estate-a list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-b/
-must_deny "a lists the bare prefix tofu-records/smoke-a" smoke-estate-a list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-a
+must_allow "a reads its own record" "$ROLE_A" get-object --bucket "$BUCKET" --key "$A_RECORD" "$SMOKE_WORK/o"
+must_deny "a reads b's record" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
+must_deny "a reads b's outputs" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
+must_deny "a lists b's records" "$ROLE_A" list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-b/
+must_deny "a lists the bare prefix tofu-records/smoke-a" "$ROLE_A" list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-a
 echo x > "$SMOKE_WORK/x"
-must_deny "a writes under b's prefix, tagged as a" smoke-estate-a put-object --bucket "$BUCKET" --key tofu-records/smoke-b/intruder --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a
-must_deny "a writes under its OWN prefix, tagged as b" smoke-estate-a put-object --bucket "$BUCKET" --key tofu-records/smoke-a/mislabelled --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-b
+must_deny "a writes under b's prefix, tagged as a" "$ROLE_A" put-object --bucket "$BUCKET" --key tofu-records/smoke-b/intruder --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a
+must_deny "a writes under its OWN prefix, tagged as b" "$ROLE_A" put-object --bucket "$BUCKET" --key tofu-records/smoke-a/mislabelled --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-b
 proof "out of reach by prefix, and the bare prefix - the one that would also name a neighbour called smoke-a-eu - is refused outright."
 
 # From here the prefix scope is deliberately WRONG: estate a's allows reach
@@ -84,8 +91,8 @@ if [ "${BREAK:-0}" = "1" ]; then
     "be describing a mechanism it never measured."
   BOTH="$(jq 'del(.Statement[] | select(.Sid == "DenyReadingAnotherEstatesObjects"))' <<< "$MISSCOPED")"
   grep -q DenyReadingAnotherEstatesObjects <<< "$BOTH" && fail "manyestates" "the break did not remove the Deny"
-  role_with_policy smoke-estate-a "$BOTH" "$BUCKET" || fail "manyestates" "could not install the doubly broken policy"
-  OUT="$(s3_as smoke-estate-a get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/stolen")" \
+  role_with_policy "$ROLE_A" "$BOTH" "$BUCKET" || fail "manyestates" "could not install the doubly broken policy"
+  OUT="$(s3_as "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/stolen")" \
     || fail "manyestates" "with the prefix mis-scoped AND the tag's Deny removed, the read of estate b's record was still refused: $OUT"
   [ -s "$SMOKE_WORK/stolen" ] || fail "manyestates" "the read was allowed and returned nothing"
   echo "a reads b's record: ALLOWED, $(wc -c < "$SMOKE_WORK/stolen" | tr -d ' ') bytes of another estate's record" | evidence
@@ -94,10 +101,10 @@ if [ "${BREAK:-0}" = "1" ]; then
 fi
 
 step "3. the prefix written wrong, and the tag still holding"
-role_with_policy smoke-estate-a "$MISSCOPED" "$BUCKET" || fail "manyestates" "could not install the mis-scoped policy"
+role_with_policy "$ROLE_A" "$MISSCOPED" "$BUCKET" || fail "manyestates" "could not install the mis-scoped policy"
 jq -c '.Statement[] | select(.Sid == "ReadAndDeleteByPrefix") | .Resource' <<< "$MISSCOPED" | evidence
-must_allow "a reads its own record" smoke-estate-a get-object --bucket "$BUCKET" --key "$A_RECORD" "$SMOKE_WORK/o"
-must_deny "a reads b's record, prefix mis-scoped" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
+must_allow "a reads its own record" "$ROLE_A" get-object --bucket "$BUCKET" --key "$A_RECORD" "$SMOKE_WORK/o"
+must_deny "a reads b's record, prefix mis-scoped" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
 proof "one mistake is not enough to read a neighbour's records: the object carries its own estate's tag."
 
 step "4. what the tag cannot defend, shown and not left out"
@@ -107,24 +114,24 @@ explain \
   "the prefix stands here. A throwaway object tagged as estate b's" \
   "stands in for one of b's records."
 awsl s3api put-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-b >/dev/null
-must_allow "a OVERWRITES an object tagged as b's" smoke-estate-a put-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a
+must_allow "a OVERWRITES an object tagged as b's" "$ROLE_A" put-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-a
 awsl s3api put-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy-2 --body "$SMOKE_WORK/x" --tagging tofu-estate=smoke-b >/dev/null
-must_allow "a DELETES an object tagged as b's" smoke-estate-a delete-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy-2
+must_allow "a DELETES an object tagged as b's" "$ROLE_A" delete-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy-2
 proof "a wrong prefix is enough to destroy a neighbour's records. Reading takes two mistakes; writing and deleting take one. The renderer refuses anything that is not an estate name for this reason."
 
 step "5. another estate's outputs are readable only with the statement that grants it"
-role_with_policy smoke-estate-a "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || fail "manyestates" "could not restore estate a's policy"
-must_deny "a reads b's outputs, no dependency declared" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
-role_with_policy smoke-estate-a "$("$POLICY_RENDERER" smoke-a "$BUCKET" --reads-outputs-of smoke-b)" "$BUCKET" || fail "manyestates" "could not install the dependency policy"
+role_with_policy "$ROLE_A" "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || fail "manyestates" "could not restore estate a's policy"
+must_deny "a reads b's outputs, no dependency declared" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
+role_with_policy "$ROLE_A" "$("$POLICY_RENDERER" smoke-a "$BUCKET" --reads-outputs-of smoke-b)" "$BUCKET" || fail "manyestates" "could not install the dependency policy"
 cmd "render-policy.sh smoke-a $BUCKET --reads-outputs-of smoke-b"
-must_allow "a reads b's outputs, dependency declared" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
-must_deny "a reads b's RECORDS, dependency declared" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
+must_allow "a reads b's outputs, dependency declared" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
+must_deny "a reads b's RECORDS, dependency declared" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
 proof "outputs and nothing else. What is there to read is what the other estate wrote: its root output values, never one marked sensitive. No choudoufu run makes this read; the grant is for a reader you write yourself."
 
 step "6. teardown"
-role_with_policy smoke-estate-a "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || true
+role_with_policy "$ROLE_A" "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || true
 for e in a b; do
-  D_OUT="$(cd "$SMOKE_WORK/$e" && as_role "smoke-estate-$e" chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "manyestates" "estate $e's teardown failed: $D_OUT"
+  D_OUT="$(cd "$SMOKE_WORK/$e" && as_role "$(role_of "$e")" chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "manyestates" "estate $e's teardown failed: $D_OUT"
   grep -q "2 destroyed" <<< "$D_OUT" || fail "manyestates" "estate $e's teardown did not destroy both instances: $D_OUT"
 done
 proof "both estates gone, each by its own role."

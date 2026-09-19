@@ -26,7 +26,7 @@ step "0. real AWS"
 for bin in jq just node npm; do command -v "$bin" >/dev/null 2>&1 || fail "secureconfig" "$bin is not installed; the runnable bucket project needs it"; done
 real_aws_begin secureconfig
 BUCKET="chdf-smoke-secure-$SUFFIX"
-ROLE="smoke-secure-estate"
+ROLE="$(role_name smoke-secure-estate)" || fail "secureconfig" "could not name this run's role"
 OPERATOR_ARN="$(aws sts get-caller-identity --query Arn --output text)"
 # A key policy names IAM principals. Credentials that are themselves an
 # assumed role arrive as an STS session ARN, so name the role behind it.
@@ -34,27 +34,46 @@ OPERATOR_ARN="$(sed -E 's#^(arn:aws[a-z-]*):sts::([0-9]+):assumed-role/([^/]+)/.
 [ -d "$PROJECT/node_modules" ] || ( cd "$PROJECT" && npm ci >/dev/null 2>&1 ) || fail "secureconfig" "npm ci failed in $PROJECT"
 
 # Teardown on top of bucket-iam.sh's: the stack, the key policy and the key.
-CREATED_KEY=""; ORIGINAL_KEY_POLICY=""; STACK_UP=0
+#
+# This is the body #1378 was filed about. It runs from an EXIT trap under
+# smoke.sh's `set -euo pipefail`, so one throttled list-object-versions
+# used to end it there and skip `just down`, the key policy of a key that
+# is somebody else's, the key deletion and the role deletion, printing
+# nothing at all. errexit and nounset go off first, each step prints its
+# own line naming the resource, and the last step is reached whatever the
+# steps before it did.
+CREATED_KEY=""; ORIGINAL_KEY_POLICY=""; KEY_POLICY_FILE=""; STACK_UP=0
 secure_teardown() {
+  set +e
+  set +u
   if [ "$STACK_UP" = "1" ]; then
     # Deliberate emptying, which is what `just down` tells an operator to do.
-    local del
-    while :; do
-      del="$(aws s3api list-object-versions --bucket "$BUCKET" --max-items 500 --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)"
-      [ "$(python3 -c 'import json,sys; print(len((json.load(sys.stdin) or {}).get("Objects") or []))' <<< "$del")" = "0" ] && break
-      aws s3api delete-objects --bucket "$BUCKET" --delete "$del" >/dev/null 2>&1 || break
-    done
+    if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
+      empty_bucket "$BUCKET"
+    else
+      echo "  no bucket $BUCKET to empty"
+    fi
     ( cd "$PROJECT" && RECORD_KMS_KEY_ARN="$KEY_ARN" just down "$BUCKET" >/dev/null 2>&1 ) && echo "  removed stack and bucket $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
   fi
-  if [ -n "$ORIGINAL_KEY_POLICY" ]; then
-    aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$ORIGINAL_KEY_POLICY" >/dev/null 2>&1 && echo "  restored the key's original policy" || echo "  COULD NOT RESTORE the key policy on $KEY_ARN" >&2
+  # A BORROWED key. Its policy was replaced by this run and belongs to
+  # whoever lent it, so the copy on disk outlives the work root on purpose.
+  if [ -n "$KEY_POLICY_FILE" ] && [ -f "$KEY_POLICY_FILE" ]; then
+    if aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "file://$KEY_POLICY_FILE" >/dev/null 2>&1; then
+      echo "  restored the key's original policy from $KEY_POLICY_FILE"
+      rm -f "$KEY_POLICY_FILE" && echo "  removed the saved copy of the original policy" \
+        || echo "  COULD NOT REMOVE the saved policy copy $KEY_POLICY_FILE - delete it by hand" >&2
+    else
+      echo "  COULD NOT RESTORE the key policy on $KEY_ARN" >&2
+      echo "  the original is still on disk. Restore it with:" >&2
+      echo "    aws kms put-key-policy --key-id $KEY_ARN --policy-name default --policy file://$KEY_POLICY_FILE" >&2
+    fi
   fi
   if [ -n "$CREATED_KEY" ]; then
-    aws kms schedule-key-deletion --key-id "$CREATED_KEY" --pending-window-in-days 7 >/dev/null 2>&1 && echo "  scheduled KMS key $CREATED_KEY for deletion in 7 days" || echo "  COULD NOT SCHEDULE deletion of $CREATED_KEY" >&2
+    aws kms schedule-key-deletion --key-id "$CREATED_KEY" --pending-window-in-days 7 >/dev/null 2>&1 && echo "  scheduled KMS key $CREATED_KEY for deletion in 7 days" || echo "  COULD NOT SCHEDULE deletion of $CREATED_KEY - do it by hand" >&2
   fi
   real_aws_teardown
 }
-trap 'secure_teardown; cleanup' EXIT
+trap 'set +e; set +u; secure_teardown; cleanup' EXIT
 
 step "1. the key, and a key policy that names who may use it"
 explain \
@@ -67,17 +86,31 @@ explain \
 if [ -n "${SMOKE_KMS_KEY_ARN:-}" ]; then
   KEY_ARN="$SMOKE_KMS_KEY_ARN"
   ORIGINAL_KEY_POLICY="$(aws kms get-key-policy --key-id "$KEY_ARN" --policy-name default --query Policy --output text)" || fail "secureconfig" "could not read the policy of $KEY_ARN"
+  # The policy of a key this run does not own, written to disk BEFORE the
+  # first put-key-policy and outside $SMOKE_WORKROOT, which cleanup deletes
+  # (#1378). A shell variable is gone the moment the run is killed, and
+  # what is lost is somebody else's key policy.
+  KEY_POLICY_FILE="${TMPDIR:-/tmp}/choudoufu-smoke-keypolicy-${KEY_ARN##*/}-$(date +%Y%m%d-%H%M%S).json"
+  printf '%s\n' "$ORIGINAL_KEY_POLICY" > "$KEY_POLICY_FILE" \
+    || fail "secureconfig" "could not save the borrowed key's original policy to $KEY_POLICY_FILE; refusing to touch a key whose policy is not backed up"
+  chmod 600 "$KEY_POLICY_FILE" 2>/dev/null || true
   echo "reusing $(mask <<< "$KEY_ARN"); its policy is restored at the end" | evidence
+  echo "its original policy is saved at $KEY_POLICY_FILE" | evidence
+  echo "if this run dies before restoring it, restore it by hand with:" | evidence
+  echo "  aws kms put-key-policy --key-id $KEY_ARN --policy-name default --policy file://$KEY_POLICY_FILE" | evidence
 else
   CREATED_KEY="$(aws kms create-key --description "choudoufu smoke claim 37, safe to delete" --query KeyMetadata.KeyId --output text)" || fail "secureconfig" "could not create the KMS key"
   KEY_ARN="$(aws kms describe-key --key-id "$CREATED_KEY" --query KeyMetadata.Arn --output text)"
 fi
-# The role has to exist before a key policy can name it.
-role_bootstrap='{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"sts:GetCallerIdentity","Resource":"*"}]}'
-aws iam get-role --role-name "$ROLE" >/dev/null 2>&1 || {
-  aws iam create-role --role-name "$ROLE" --assume-role-policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::$ACCOUNT:root\"},\"Action\":\"sts:AssumeRole\"}]}" >/dev/null || fail "secureconfig" "could not create the role"
-  REAL_ROLES+=("$ROLE")
-}
+# The role has to exist before a key policy can name it, so it is created
+# here rather than by role_with_policy in step 3. Registering it in
+# REAL_ROLES is what tells step 3 this run owns it; a role of that name
+# that this run did NOT create is refused, here and there, because its
+# policy would be an earlier run's and teardown would leave it behind.
+aws iam get-role --role-name "$ROLE" >/dev/null 2>&1 \
+  && fail "secureconfig" "the role $ROLE already exists and this run did not create it; remove it by hand and run again"
+aws iam create-role --role-name "$ROLE" --assume-role-policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::$ACCOUNT:root\"},\"Action\":\"sts:AssumeRole\"}]}" >/dev/null || fail "secureconfig" "could not create the role"
+REAL_ROLES+=("$ROLE")
 ROLE_ARN="arn:aws:iam::$ACCOUNT:role/$ROLE"
 # key_policy <principal-arn>...: the account administers the key, and the
 # statement that says who may USE it is the one the project ships.
@@ -106,8 +139,11 @@ proof "usage is granted by name in the key policy, and to nobody else."
 
 step "2. the bucket, from the project that ships"
 cmd "RECORD_KMS_KEY_ARN=<key> just up $BUCKET   # examples/record-store-bucket"
-UP_OUT="$(cd "$PROJECT" && RECORD_KMS_KEY_ARN="$KEY_ARN" RECORD_NONCURRENT_DAYS=7 just up "$BUCKET" 2>&1)" || fail "secureconfig" "just up failed: $UP_OUT"
+# Before the deploy, never after it: a `just up` that creates the stack and
+# then fails, or is interrupted, leaves one behind, and a flag set on the
+# line after would still read 0 (#1378).
 STACK_UP=1
+UP_OUT="$(cd "$PROJECT" && RECORD_KMS_KEY_ARN="$KEY_ARN" RECORD_NONCURRENT_DAYS=7 just up "$BUCKET" 2>&1)" || fail "secureconfig" "just up failed: $UP_OUT"
 grep -E 'RECORD_STORE_BUCKET=|noncurrent versions expire' <<< "$UP_OUT" | evidence
 cmd "just verify $BUCKET"
 V_OUT="$(cd "$PROJECT" && CHOUDOUFU_BIN="$TOFU" RECORD_KMS_KEY_ARN="$KEY_ARN" just verify "$BUCKET" 2>&1)" || fail "secureconfig" "just verify says the bucket it just made is not correct: $V_OUT"
@@ -218,6 +254,10 @@ MARKER="$(aws s3api list-object-versions --bucket "$BUCKET" --prefix "$RECORD" -
 echo "the record is gone from a listing; a delete marker and $(aws s3api list-object-versions --bucket "$BUCKET" --prefix "$RECORD" --query 'length(Versions || `[]`)' --output text) earlier version(s) remain" | evidence
 cmd "aws s3api delete-object --version-id <the delete marker>   # as the operator"
 D_ROLE="$(as_role "$ROLE" aws s3api delete-object --bucket "$BUCKET" --key "$RECORD" --version-id "$MARKER" 2>&1)" && fail "secureconfig" "the ESTATE'S role removed a delete marker; it must not be able to rewrite history: $D_ROLE"
+# The call failing is not the claim. An assume-role that timed out, or a
+# key that is no longer readable, fails here too and would read as a
+# refusal (#1378). What the claim rests on is AWS refusing the delete.
+denied "$D_ROLE" || fail "secureconfig" "the estate's role did not remove the delete marker, but the failure is not a denial, so nothing here shows the policy refused it: $D_ROLE"
 aws s3api delete-object --bucket "$BUCKET" --key "$RECORD" --version-id "$MARKER" >/dev/null || fail "secureconfig" "the operator could not remove the delete marker"
 write_estate '["keep", "precious"]' v2
 rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
