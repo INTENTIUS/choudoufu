@@ -3,7 +3,7 @@
 #
 #   render-policy.sh <estate> <bucket> [--account <account-id>] [--kms <key-arn>]
 #                    [--partition aws|aws-us-gov|aws-cn] [--key-prefix <prefix>]
-#                    [--reads-outputs-of <other-estate>]...
+#                    [--reads-outputs-of <other-estate>]... [--read-only]
 #
 # This script is the single source of that policy (GitHub issue #1342). The
 # documentation's IAM page shows its output and a test holds the two together,
@@ -24,12 +24,16 @@
 #   - The ListBucket statement is what makes a key that does not exist answer
 #     404 instead of AccessDenied. choudoufu reads keys that do not exist yet
 #     for every new resource, so that statement is not only for listing.
+#
+# --read-only renders the same policy for a role that plans and never applies
+# (GitHub issue #1370). See the read_only comment further down for what it
+# drops and why each thing it drops is not needed by a plan.
 set -euo pipefail
 
 usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 2 ] || usage
 estate="$1"; bucket="$2"; shift 2
-kms=""; account=""; partition="aws"; key_prefix=""; others=()
+kms=""; account=""; partition="aws"; key_prefix=""; others=(); read_only=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --account) account="${2:?--account needs a 12-digit AWS account id}"; shift 2 ;;
@@ -37,6 +41,7 @@ while [ $# -gt 0 ]; do
     --partition) partition="${2:?--partition needs aws, aws-us-gov or aws-cn}"; shift 2 ;;
     --key-prefix) key_prefix="${2:?--key-prefix needs the key_prefix the record_store block sets}"; shift 2 ;;
     --reads-outputs-of) others+=("${2:?--reads-outputs-of needs an estate name}"); shift 2 ;;
+    --read-only) read_only=true; shift ;;
     *) usage ;;
   esac
 done
@@ -140,10 +145,44 @@ if [ -n "$kms" ]; then
   esac
 fi
 
+# --read-only is GitHub issue #1370: the policy for a role that PLANS and
+# never applies, which is what a CI plan job and a reviewer get. It is the
+# same policy with three things taken out, and each one is a permission a
+# plan genuinely never uses:
+#
+#   - s3:PutObject and s3:PutObjectTagging. A plan writes no record. The one
+#     write it used to attempt is the store sentinel, and since #1416
+#     provisionStoreSentinel carries a denial on that write past to its List
+#     and opens the store when the sentinel is already there
+#     (internal/live/projection/store.go). A store with NO sentinel is still
+#     refused by name, which is the case this policy cannot and must not
+#     paper over.
+#   - s3:DeleteObject. Deleting a record is what an apply does when the
+#     configuration no longer declares the resource.
+#   - the three bucket-configuration reads of ReadTheBucketsAssertedSettings.
+#     The bucket contract is asserted in exactly two places, and a plan under
+#     this policy is neither: on an estate FIRST contact with its store,
+#     which is gated on this run having created the sentinel
+#     (internal/live/projection/store.go:135, createdVersion != ""), and
+#     before an apply (internal/command/live_bucket_contract.go:43,
+#     BeforeApply). A read-only run never creates the sentinel - a denied
+#     write leaves createdVersion "" (store.go:220) - and never applies, so
+#     it would never make those three calls and granting them would be
+#     granting what nothing uses.
+#
+# With --kms the grant drops to kms:Decrypt alone: kms:GenerateDataKey is
+# what S3 asks for on a PUT, and this role makes none.
+#
+# Both Deny statements stay, including the one over tagging actions this
+# policy grants nothing of. That is deliberate and it is the same rule the
+# full policy follows for the three read actions it denies and never allows:
+# a Deny written for the actions of the day stops covering the boundary the
+# moment somebody widens the Allow list.
 others_json="$(printf '%s\n' ${others[@]+"${others[@]}"} | jq -R . | jq -s 'map(select(. != ""))')"
 
 jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg account "$account" \
       --arg partition "$partition" --arg keyprefix "$key_prefix" --arg viaservice "$via_service" \
+      --argjson readonly "$read_only" \
       --argjson others "$others_json" '
   ("arn:" + $partition + ":s3:::" + $bucket) as $b
   # Every prefix ends in "/". S3 matches a prefix as a plain string, so
@@ -167,7 +206,18 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg accou
           Action: "s3:ListBucket",
           Resource: $b,
           Condition: { StringLike: { "s3:prefix": (($own + $theirs) | map(. + "*")) } }
-        },
+        }
+      ]
+      # --read-only (#1370): one read statement in place of the read-and-delete
+      # and the write. A plan reads records and writes none, and the one write
+      # it attempts - the store sentinel - is denied and survived rather than
+      # granted. See the read_only comment in the shell above.
+      + (if $readonly then [{
+          Sid: "ReadByPrefix",
+          Effect: "Allow",
+          Action: "s3:GetObject",
+          Resource: ($own | map($b + "/" + . + "*"))
+        }] else [
         {
           Sid: "ReadAndDeleteByPrefix",
           Effect: "Allow",
@@ -180,8 +230,7 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg accou
           Action: ["s3:PutObject", "s3:PutObjectTagging"],
           Resource: ($own | map($b + "/" + . + "*")),
           Condition: { StringEquals: { "s3:RequestObjectTag/tofu-estate": $estate } }
-        }
-      ]
+        }] end)
       + (if ($theirs | length) > 0 then [{
           Sid: "ReadDeclaredDependenciesOutputs",
           Effect: "Allow",
@@ -232,18 +281,24 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg accou
             StringNotEquals: { "s3:ExistingObjectTag/tofu-estate": $estate },
             Null: { "s3:ExistingObjectTag/tofu-estate": "false" }
           }
-        },
-        {
+        }
+      ]
+      # The bucket contract is read on an estate FIRST contact with its store
+      # and again before an apply, and a read-only run is neither: it never
+      # creates the sentinel and it never applies. See the read_only comment
+      # in the shell above for the two call sites.
+      + (if $readonly then [] else [{
           Sid: "ReadTheBucketsAssertedSettings",
           Effect: "Allow",
           Action: ["s3:GetBucketVersioning", "s3:GetLifecycleConfiguration", "s3:GetBucketPublicAccessBlock"],
           Resource: $b
-        }
-      ]
+        }] end)
       + (if $kms != "" then [{
           Sid: "UseTheBucketsKey",
           Effect: "Allow",
-          Action: ["kms:Decrypt", "kms:GenerateDataKey"],
+          # kms:GenerateDataKey is what S3 asks for on a PUT, so a role that
+          # never writes never needs it (#1370).
+          Action: (if $readonly then ["kms:Decrypt"] else ["kms:Decrypt", "kms:GenerateDataKey"] end),
           Resource: $kms,
           # See the via_service comment in the shell above, including why
           # there is no encryption-context condition here.

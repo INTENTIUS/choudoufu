@@ -208,6 +208,49 @@ An object with no `tofu-estate` tag at all is readable by any role whose
 prefix reaches it. choudoufu tags every object it writes, so an untagged
 object under an estate's prefix was put there by something else.
 
+## A role that plans and never applies
+
+```
+render-policy.sh prod <bucket> --read-only
+```
+
+This is for a CI plan job, a pull-request check, or a reviewer who should
+see what a change would do and be unable to do it. It composes with every
+other flag on this page.
+
+It is the same policy with four grants taken out, and each one is something
+a plan never uses. `s3:PutObject` and `s3:PutObjectTagging`, because a plan
+writes no record. `s3:DeleteObject`, because deleting a record is what an
+apply does when a block goes away. The three `ReadTheBucketsAssertedSettings`
+reads, because the bucket assertions run on an estate's first contact with
+its store and again before an apply, and a read-only plan is neither. And
+under `--kms` the grant drops to `kms:Decrypt` alone, since
+`kms:GenerateDataKey` is what S3 asks for on a PUT.
+
+Both Deny statements stay, including the one over tagging actions this
+rendering allows none of. That is the same rule the full policy follows for
+the three read actions it denies and never allows: a Deny written for the
+actions of the day stops covering the boundary the moment somebody widens
+the Allow list.
+
+Every run still sends one conditional write, for the store's sentinel. Under
+this policy it is denied, and the run carries on when the sentinel is already
+there. A store that has never been written is refused by name instead, so run
+the estate once under the full policy and read-only plans work from then on.
+[Claim 38]({{< relref "/docs/claims/a-read-only-role-can-plan" >}}) measures
+both halves on real AWS, and reconciles what such a plan asks S3 for against
+what this rendering grants.
+
+A Kubernetes estate's plan job gets this same rendering. Such a job holds two
+credentials and nothing routes one to the other: the kubernetes provider's
+kubeconfig or in-cluster ServiceAccount token reaches the cluster, and the
+process's own AWS credentials reach the record store (or, for a `local`
+store, the process's filesystem user). The record store is never opened with
+the cluster identity, and there is no cluster-backed record store to open it
+with. So a ServiceAccount bound to `get`, `list` and `watch` says nothing
+about whether the run may write the sentinel, and the AWS role beside it is
+what this flag renders.
+
 ## What a recovery needs
 
 The rendered policy is for running an estate, and it cannot recover a deleted

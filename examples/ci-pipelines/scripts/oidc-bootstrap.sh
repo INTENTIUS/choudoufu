@@ -304,28 +304,71 @@ echo
 # sidecar's bucket_owner, which is NOT set yet: the generated workflows pin a
 # released binary that does not know the argument and would refuse the whole
 # configuration. It goes in with the pin bump after the next release.
-RECORD_STORE_POLICY="$WORKDIR/record-store-policy.json"
-if ! "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" --account "$ACCOUNT_ID" \
-    > "$RECORD_STORE_POLICY" 2> "$WORKDIR/renderer.err"; then
-  echo "$POLICY_RENDERER exited non-zero for estate \"$ESTATE\" and bucket \"$RECORD_BUCKET\"." >&2
-  echo "  That script is the single source of the apply role's record store policy and" >&2
-  echo "  there is no second copy here to fall back on, so this stops rather than writing" >&2
-  echo "  a role policy with no record store statements in it. It said:" >&2
-  sed 's/^/    /' "$WORKDIR/renderer.err" >&2
-  exit 1
-fi
-if ! RECORD_STORE_STATEMENTS="$(jq -c '.Statement[]' "$RECORD_STORE_POLICY" | paste -sd, -)"; then
-  echo "$POLICY_RENDERER printed something that is not a policy document for estate \"$ESTATE\"" >&2
-  echo "  and bucket \"$RECORD_BUCKET\". First 200 characters of what it printed:" >&2
-  head -c 200 "$RECORD_STORE_POLICY" | sed 's/^/    /' >&2
-  exit 1
-fi
-if [ -z "$RECORD_STORE_STATEMENTS" ]; then
-  echo "$POLICY_RENDERER printed a policy with no statements in it for estate \"$ESTATE\"" >&2
-  echo "  and bucket \"$RECORD_BUCKET\". The apply role would then have no access to the" >&2
-  echo "  record store at all, and its first run would fail on its first record call." >&2
-  exit 1
-fi
+# render_record_store_statements <out-file> <role-words> [extra renderer flags...]
+# prints the rendered policy's statements, comma-joined for the heredoc lists
+# below, and stops the whole bootstrap if the renderer said anything but a
+# whole policy. role-words names the roles the statements are for, so a
+# refusal says which of the two renders failed.
+render_record_store_statements() {
+  local out="$1" who="$2"; shift 2
+  local err="$out.err" statements
+  local for_what="estate \"$ESTATE\" and bucket \"$RECORD_BUCKET\""
+  [ $# -eq 0 ] || for_what="$for_what, rendered with $*"
+  if ! "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" --account "$ACCOUNT_ID" "$@" \
+      > "$out" 2> "$err"; then
+    echo "$POLICY_RENDERER exited non-zero for $for_what." >&2
+    echo "  That script is the single source of the $who record store policy and" >&2
+    echo "  there is no second copy here to fall back on, so this stops rather than writing" >&2
+    echo "  a role policy with no record store statements in it. It said:" >&2
+    sed 's/^/    /' "$err" >&2
+    exit 1
+  fi
+  if ! statements="$(jq -c '.Statement[]' "$out" | paste -sd, -)"; then
+    echo "$POLICY_RENDERER printed something that is not a policy document for $for_what." >&2
+    echo "  First 200 characters of what it printed:" >&2
+    head -c 200 "$out" | sed 's/^/    /' >&2
+    exit 1
+  fi
+  if [ -z "$statements" ]; then
+    echo "$POLICY_RENDERER printed a policy with no statements in it for $for_what." >&2
+    echo "  The $who record store policy would then grant no access to the record store" >&2
+    echo "  at all, and the first run under it would fail on its first record call." >&2
+    exit 1
+  fi
+  printf '%s\n' "$statements"
+}
+
+RECORD_STORE_STATEMENTS="$(render_record_store_statements "$WORKDIR/record-store-policy.json" "apply role's")"
+
+# The plan and adopt roles get the READ-ONLY rendering (GitHub issue #1370).
+# Until now they got no record store access at all, and a `live-plan` job that
+# assumed the plan role would have failed on its first record call; the
+# real-AWS smoke never caught it because it assumes the apply role for every
+# job.
+#
+# Read-only rather than the full policy, because neither role writes a record:
+#
+#   - `live-plan` opens the store as one more source and only reads from it
+#     (internal/command/live_plan.go:646). Records are written after a
+#     successful apply and nowhere else (internal/live/projection/writeback.go,
+#     WriteBack), and the guided-discovery hint the same way, after an apply
+#     persists its final state (internal/live/projection/manager.go:216).
+#   - the adopt Op (examples/ci-pipelines/src/live-adopt.op.ts) is four
+#     phases: `live-check`, `live-plan` in adoption-only mode, the gate, and
+#     the marker writes. The adoption ledger is a filtered view of what the
+#     plan already decided and recomputes nothing
+#     (internal/command/live_adoption.go:54), and what adoption WRITES is two
+#     tags on the live resource, which is why every row carries
+#     CanCarryMarker (live_adoption.go:118). Those are the per-service
+#     tagging calls WriteTheMarker already grants. Not one of them touches
+#     the bucket. `live-import` does write records, and it is deliberately
+#     not this Op and not a job.
+#
+# So both roles get a policy that can read the estate's records and cannot
+# change them. The sentinel write each run sends is denied and survived
+# (#1416); a store that has never been written is still refused by name,
+# which is what an apply run settles once.
+RECORD_STORE_READ_STATEMENTS="$(render_record_store_statements "$WORKDIR/record-store-read-policy.json" "plan and adopt roles'" --read-only)"
 
 # --------------------------------------------------------------- trust policy
 
@@ -489,6 +532,13 @@ record_store_statements() {
   printf '%s\n' "$RECORD_STORE_STATEMENTS"
 }
 
+# record_store_read_statements - the same for the read-only rendering, which
+# is what the plan and adopt roles carry (#1370). Same rule: it only reprints
+# what was rendered and checked further up.
+record_store_read_statements() {
+  printf '%s\n' "$RECORD_STORE_READ_STATEMENTS"
+}
+
 # Every logs: action here (CreateLogGroup, DeleteLogGroup, PutRetentionPolicy)
 # is a true log-group-level action, none of them the Resource-suffixed
 # tagging trio - so, unlike DescribeTheEstate and WriteTheMarker above,
@@ -519,6 +569,8 @@ PLAN_POLICY="$WORKDIR/plan-policy.json"
 {
   echo '{ "Version": "2012-10-17", "Statement": ['
   describe_read_statements
+  echo ','
+  record_store_read_statements
   echo '] }'
 } | jq . > "$PLAN_POLICY"
 
@@ -528,6 +580,8 @@ ADOPT_POLICY="$WORKDIR/adopt-policy.json"
   describe_read_statements
   echo ','
   write_marker_statement
+  echo ','
+  record_store_read_statements
   echo '] }'
 } | jq . > "$ADOPT_POLICY"
 

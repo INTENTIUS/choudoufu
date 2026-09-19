@@ -894,6 +894,32 @@
         "live/smoke/evidence/the-recommended-secure-configuration.lastrun.json"
       ],
       "substrate": "aws"
+    },
+    {
+      "id": 38,
+      "slug": "a-read-only-role-can-plan",
+      "title": "A role with the read-only policy plans an established estate and writes nothing, and a store with no sentinel is still refused by name",
+      "scenario": "live/smoke/scenarios/a-read-only-role-can-plan.sh",
+      "command": "just smoke a-read-only-role-can-plan",
+      "minutes": 6,
+      "needs_go": true,
+      "real_aws": true,
+      "theme": "operate",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so provisionStoreSentinel returns a denied sentinel write instead of carrying it past to its List (go build -overlay, needs Go), which is what every binary before #1416 did, and passes only when the read-only role then cannot plan at all",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "Real AWS and maintainer-run, not CI: the claim is about what one IAM policy permits and another refuses, and the pinned emulator evaluates neither the policy nor its conditions. Run with SMOKE_REAL_AWS=1; it creates a bucket and two IAM roles and removes them."
+        },
+        "kubernetes": {
+          "status": "restated",
+          "note": "A Kubernetes estate's plan job opens the record store with the process's own AWS credentials, never with the cluster identity, so the role it needs is the same read-only rendering this claim measures. TestNoRecordStoreBackendIsKubernetes pins that there is no cluster-backed record store to state a different claim about."
+        }
+      },
+      "evidence": [
+        "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json"
+      ],
+      "substrate": "aws"
     }
   ]
 }

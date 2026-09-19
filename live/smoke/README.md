@@ -607,6 +607,23 @@ showing its own checks would have caught it.
   policy, and the run must be refused naming the key, the KMS action and
   the role, not just the words "KMS key" (#1345, #1379). Needs jq, just,
   node and npm.
+- **a-read-only-role-can-plan** - *Claim 38: a role with the read-only
+  policy plans an established estate and writes nothing, and a store with
+  no sentinel is still refused by name.* **Real AWS, maintainer-run.** An
+  estate is recorded once under the full policy, which provisions the
+  sentinel. A second role carries `render-policy.sh --read-only`, with
+  the Allow half of a second read-only render merged in for the estate
+  name step 4 uses. As that role the plan is empty, a direct
+  `put-object` under the estate's prefix is denied, and the three
+  namespaces hold the same object versions after the plan as before, the
+  sentinel included. The same role against an estate name with no
+  sentinel is refused by name, naming the key and saying this identity
+  may not write it, and proposes nothing. The plan's own S3 calls are
+  then reconciled with the rendering in both directions, with the
+  denied sentinel write as the one expected difference and no
+  bucket-configuration read at all. The BREAK control rebuilds choudoufu
+  so a denied sentinel write is returned rather than carried past to the
+  List, and the read-only plan must then fail (#1370). Needs jq and Go.
 
 ## Knobs
 
