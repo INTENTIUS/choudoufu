@@ -166,13 +166,11 @@ replaced it. Guided discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
-One label picks the backend, `"local"` or `"s3"`. `"ssm"` is retired and is
-refused with the reason and the replacement. The block stores the
-values of logical resources such as `null_resource`, `terraform_data`, `time_*`
-and `random_*`. Declaring the block is not what admits those types: every
-estate has a store, and one that names no `record_store` gets an implied local
-one, so a logical resource is admitted with no `record_store` block present.
-Declare it to choose where the records go. Writes are conditional rather than
+One label picks the backend: `"local"`, `"s3"` or `"kubernetes"`. The store
+holds one record per managed instance
+([Records]({{< relref "/docs/model/values" >}})). Every estate has one: a
+`live` block that names no `record_store` gets an implied local store.
+Declare the block to choose where the records go. Writes are conditional rather than
 locked. [Storage]({{< relref "/docs/use/storage" >}}) has the bucket's layout
 and the choice between the two, and
 [What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket

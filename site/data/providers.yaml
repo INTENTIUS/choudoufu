@@ -19,7 +19,7 @@ providers:
     cells:
       identity: "Two resource tags, `tofu-estate` and `tofu-address`, written on the create call. About half the provider's types have no tag surface; those derive their identity from configuration or hold it in the record store."
       values: "`record_store \"s3\"`: one object per managed instance in a bucket you own, each tagged with the estate, written conditionally with no lock, under your IAM. An estate that declares nothing gets a local directory."
-      effects: "A receipt: an ordinary resource, by convention an SSM parameter holding a hash of the effect's input, that appears in your plan."
+      effects: "A receipt: an ordinary resource, for example an SSM parameter, holding a hash of the effect's input, that appears in your plan."
       cache: "`choudoufu-cache.tfstate` under the data dir. Never consulted for ownership; when it and the live system disagree, live wins; losing it costs a read."
       gate: "IAM conditions on `aws:ResourceTag/tofu-estate` and `aws:RequestTag/tofu-estate`. They fence reads and writes, per resource, and bind the credential rather than the binary."
       inventory: "`aws resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=<estate>`"

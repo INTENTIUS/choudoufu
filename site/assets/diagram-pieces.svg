@@ -74,8 +74,8 @@
     <rect x="494" y="90" width="212" height="94" rx="7" fill="none" class="rule"/>
     <text x="512" y="118" class="h ink">A receipt</text>
     <text x="512" y="144" class="l muted">an ordinary resource,</text>
-    <text x="512" y="160" class="l muted">by convention an SSM</text>
-    <text x="512" y="176" class="l muted">parameter you declare</text>
+    <text x="512" y="160" class="l muted">holding a hash, that</text>
+    <text x="512" y="176" class="l muted">you declare yourself</text>
 
     <rect x="494" y="192" width="212" height="32" rx="6" class="dim"/>
     <text x="512" y="213" class="l ink">you write it</text>

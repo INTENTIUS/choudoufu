@@ -356,20 +356,21 @@ today's record path and is not claimed current.
 
 ### What that one trip is made of, on a bucket
 
-"One trip" is one call into the store. What it costs on the wire depends on
-the store, and the arithmetic changed shape when Parameter Store was retired
-as a record store. There, a paged read returned ten values a call, so N
-records cost `ceil(N/10)` calls, and the ceiling that mattered was a count:
-10,000 parameters per account and region, shared with everything else in the
-account.
+"One trip" is one call into the store. On a bucket that call is
+`ceil(N/1000)` `ListObjectsV2` requests plus a `GetObject` per key, eight in
+flight at a time by default, where N is the estate's instance count plus one
+for the sentinel, which sits under the same prefix. The request count is
+linear in the estate and the wall clock is about an eighth of that.
 
-S3 cannot return bodies from a listing. A plan's read of N records is
-`ceil(N/1000)` `ListObjectsV2` calls plus N `GetObject` calls, eight in flight
-at a time by default, so the request count is linear in the estate and the
-wall clock is about an eighth of that. Every run also sends one conditional
-`PutObject` for the store's sentinel, which writes only the first time. An
-apply adds one conditional write per instance whose record changed, one for
-the hint, and one per root output that changed.
+That is not everything a run sends. Opening the store costs a conditional
+`PutObject` of the sentinel, which writes only on the first run and is
+answered `412` afterwards, then a `GetObject` of the sentinel to name its
+version, then a `ListObjectsV2` that proves the listing returns it. The hint
+and each root output are a `GetObject` each, outside the bulk read. An apply
+adds a `GetObject` and a conditional write per record that changed, the same
+for the hint, and the same per root output that changed.
+[Where things are stored]({{< relref "/docs/use/storage#requests" >}}) has
+the table.
 
 So what a bucket bills is requests and storage, and there is no count to run
 out of:
@@ -389,12 +390,9 @@ out of:
   `examples/record-store-bucket` turns them on.
 
 None of this has been measured in money. No run on this page was billed for a
-bucket at scale; the request shapes above are read from the code and from
+bucket at scale. The request shapes above are read from the code and from
 [claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})'s
-request log, and the real-AWS runs further down were made while the harness
-still used the Parameter Store record store. The S3 floor of `1 + N` was
-already the figure this page gave for S3. What is new is that it is the only
-one.
+request log.
 
 ## Migration writes no markers by hand
 
