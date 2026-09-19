@@ -80,10 +80,13 @@ auto_teardown() {
       aws cloudformation delete-stack --stack-name "$BUCKET" >/dev/null 2>&1 \
         || echo "  COULD NOT ASK for the deletion of stack $BUCKET - remove it by hand" >&2
       aws cloudformation wait stack-delete-complete --stack-name "$BUCKET" >/dev/null 2>&1 \
-        && echo "  removed stack and bucket $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
+        && echo "  removed stack $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
     else
       echo "  no stack $BUCKET to remove"
     fi
+    # The stack retains its bucket (#1382), so the bucket is a step of its
+    # own, and it is attempted whatever the stack deletion said.
+    remove_retained_bucket "$BUCKET"
   fi
   # Nothing here registers a role or a bucket today, and this is what makes
   # it safe for one to be added later.
