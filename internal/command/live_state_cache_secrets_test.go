@@ -11,7 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -137,5 +140,29 @@ func TestRefuseWritesNoStateCacheEndToEnd(t *testing.T) {
 				t.Errorf("cache file present = %v, want %v", got, tc.wantCache)
 			}
 		})
+	}
+}
+
+// TestRefuseReadsNoStateCache: a run that writes no cache must not go on
+// serving reads out of one an earlier run left behind. The control is the
+// same file under the default setting, which does load.
+func TestRefuseReadsNoStateCache(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TF_DATA_DIR", dir)
+	t.Setenv(EnvStateCache, "")
+	f, err := os.Create(filepath.Join(dir, "choudoufu-cache.tfstate"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := statefile.Write(statefile.New(states.NewState(), "", 0), f, encryption.StateEncryptionDisabled()); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if loadStateCache(strict.Store) == nil {
+		t.Fatal("control: the cache file did not load under the default setting, so this test proves nothing")
+	}
+	if got := loadStateCache(strict.Refuse); got != nil {
+		t.Error("a state cache was loaded under strict { secrets = \"refuse\" }")
 	}
 }
