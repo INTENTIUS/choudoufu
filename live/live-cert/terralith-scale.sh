@@ -240,6 +240,12 @@ HOLD_TAG=""
 # record-store teardown an aws run gets, against the emulator's own
 # endpoint (#1145). That is how the s3 arms get exercised without paying
 # for a real-AWS cycle.
+# The two marker lines bracket everything that decides the backend, so
+# selftest-record-store-s3.sh can run this block alone. It must never be
+# tested by executing this script: a selection that fails to refuse lets the
+# run carry on, and with TARGET=aws that is a paid run. That happened once,
+# from a mutation test (GitHub issue #1346).
+# >>> record store backend selection
 if [ "$TARGET" = "aws" ]; then
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-s3}"
 else
@@ -275,6 +281,7 @@ case "$RECORD_STORE_BACKEND" in
       region     = \"$REGION\"" ;;
   *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND (want local or s3)" >&2; exit 2 ;;
 esac
+# <<< record store backend selection
 # Where this run's records land, per backend, as an outside observer names
 # them. The ssm backend prepends "/" to the key prefix to make a legal
 # parameter path; the s3 backend uses the key prefix verbatim as an object
