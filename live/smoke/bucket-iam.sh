@@ -153,12 +153,28 @@ role_with_policy() {
   MARKER_N=$((MARKER_N+1)); marker="markers/$role-$MARKER_N"
   echo marker > "$SMOKE_WORK/marker"
   aws s3api put-object --bucket "$bucket" --key "$marker" --body "$SMOKE_WORK/marker" >/dev/null || return 1
-  policy="$(jq --arg r "arn:aws:s3:::$bucket/$marker" '.Statement += [{"Sid":"ProofThisPolicyIsLive","Effect":"Allow","Action":"s3:GetObject","Resource":$r}]' <<< "$policy")" || return 1
+  # The proof statement grants a READ and a WRITE of the marker, and the loop
+  # below wants both, several times running. One successful GetObject used to
+  # be the whole proof, and on 2026-09-19 it was not enough: claim 35 printed
+  # "policy proven live after ~9s" for a brand-new role and that role's first
+  # PutObject, seconds later, was denied with "no identity-based policy
+  # allows". IAM reaches S3's hosts one at a time, and a write is a different
+  # request from the read that happened to land on a host that had the policy.
+  # Several consecutive read-and-write pairs do not make that impossible. They
+  # make it rare, and they prove the action the scenarios actually start with.
+  policy="$(jq --arg r "arn:aws:s3:::$bucket/$marker" '.Statement += [{"Sid":"ProofThisPolicyIsLive","Effect":"Allow","Action":["s3:GetObject","s3:PutObject"],"Resource":$r}]' <<< "$policy")" || return 1
   aws iam put-role-policy --role-name "$role" --policy-name estate --policy-document "$policy" || return 1
-  for i in $(seq 1 60); do
-    if as_role "$role" aws s3api get-object --bucket "$bucket" --key "$marker" "$SMOKE_WORK/marker.out" >/dev/null 2>&1; then
-      echo "  ($role: policy proven live after ~$((i*3))s)"
-      return 0
+  local streak=0 want_streak=4
+  for i in $(seq 1 80); do
+    if as_role "$role" aws s3api get-object --bucket "$bucket" --key "$marker" "$SMOKE_WORK/marker.out" >/dev/null 2>&1 \
+       && as_role "$role" aws s3api put-object --bucket "$bucket" --key "$marker" --body "$SMOKE_WORK/marker" >/dev/null 2>&1; then
+      streak=$((streak+1))
+      if [ "$streak" -ge "$want_streak" ]; then
+        echo "  ($role: policy proven live, $want_streak read-and-write pairs running, after ~$((i*3))s)"
+        return 0
+      fi
+    else
+      streak=0
     fi
     sleep 3
   done
