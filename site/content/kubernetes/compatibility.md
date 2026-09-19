@@ -50,47 +50,45 @@ cover first: a mark under an already-marked ancestor is not a change.
 
 ## Custom resources
 
-`kubernetes_manifest`, and so every custom resource, plans since
-[#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)'s first unit:
-its identity is the natural key written inside the `manifest` argument's
-own object constructor - `apiVersion`, `kind`, `metadata.namespace`,
-`metadata.name` - read key by key without evaluating the manifest (a local
-or variable the argument is set to is walked the same way) and rendered as
-the provider's own import id. A manifest computed some other way,
-`yamldecode(file(...))` or a module output, is refused by name, because the
-key that names the object is not known until the value exists. Since the
-ruling's second unit the object carries the same one label as every
-built-in type: the plan writes `tofu-estate` into
-`manifest.metadata.labels` on create, merged with any labels the manifest
-declares, so the admission policy fences it like any other object, and
-the estate sweep lists every kind the cluster serves, CRDs included, so
-an object whose block is removed is found by that label and proposed for
-removal at `kubernetes_manifest.orphan_<kind>_<namespace>_<name>` ([claim
-24]({{< relref "/docs/claims/k8s-custom-resource" >}})). A block whose
-apiVersion and kind the cluster does not serve - the CRD not installed,
-or served at another version - is refused by name at the plan's first
-contact with the cluster, ahead of the provider's own error: the block,
-the kind, the apiVersion and the CRD to install (`Kubernetes kind not
-served by the cluster`). `live-check` is offline and cannot ask a
-cluster, so it does not raise this; a cluster that cannot answer is a
-warning, never a refusal.
+`kubernetes_manifest`, and so every custom resource, plans
+([#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)). Its
+identity is the natural key written inside the `manifest` argument's own
+object constructor: `apiVersion`, `kind`, `metadata.namespace` and
+`metadata.name`. The key is read without evaluating the manifest, and a
+local or variable the argument is set to is walked the same way. A
+manifest computed some other way, `yamldecode(file(...))` or a module
+output, is refused by name, because the key that names the object is not
+known until the value exists.
+
+The object carries the same one label as every built-in type. The plan
+writes `tofu-estate` into `manifest.metadata.labels` on create, merged
+with any labels the manifest declares, so the admission policy fences it
+like any other object. The estate sweep lists every kind the cluster
+serves, CRDs included, so an object whose block is removed is found by
+that label and proposed for removal at
+`kubernetes_manifest.orphan_<kind>_<namespace>_<name>` ([claim
+24]({{< relref "/docs/claims/k8s-custom-resource" >}})).
+
+A block whose apiVersion and kind the cluster does not serve is refused by
+name at the plan's first contact with the cluster (`Kubernetes kind not
+served by the cluster`), naming the CRD to install. `live-check` is offline
+and does not raise this, and a cluster that cannot answer is a warning.
 
 Once the plan exists, every planned create or update of a
 `kubernetes_manifest` instance is sent to the API server as the apply
 would write it, label included, with `dryRun=All`
-([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 3):
-the server validates it against the kind's schema, applies its defaults
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 3).
+The server validates it against the kind's schema, applies its defaults
 and runs every admission policy, and persists nothing. The answer prints
-above the plan, one line per object; a rejection is `Kubernetes API
+above the plan, one line per object. A rejection is `Kubernetes API
 server rejected the planned object`, quoting the server, and the run
 stops with nothing rendered and nothing applied, on `plan` and on
-`apply` alike. This reaches the manifest shape only. A built-in type's
-block is not submitted, because the mapping from `metadata[0]` and its
-spec blocks to the API object is the provider's own and is not reproduced
-here; an object whose namespace the same plan creates is reported rather
-than submitted, since the server would answer for the apply's order and
-not for the object; a server that cannot answer is a warning. `live-check`
-does not ask.
+`apply` alike.
+
+This reaches the manifest shape only. A built-in type's block is not
+submitted. An object whose namespace the same plan creates is reported
+rather than submitted, and a server that cannot answer is a warning.
+`live-check` does not ask.
 
 ## Refused
 
@@ -113,20 +111,17 @@ Still refused: the handful of types whose block is not object metadata
 `*_data` patch types), which act on an object rather than being one.
 
 `helm_release` is refused in a live root, and the refusal is the ordinary
-unadmitted-type one, with or without the provider's schema
+unadmitted-type one
 ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 4;
 ruled 2026-09-13 in
 [#1105](https://github.com/INTENTIUS/choudoufu/issues/1105)).
 hashicorp/helm 3.2.0 serves the type with no resource identity schema and
-no object-metadata block (its `metadata` is a computed record of release
-facts, with no labels map), so neither admission route reaches it, and
-`live-check` says so in those words. It stays refused rather than joining
-the record rung because a release is not one object this tool creates,
-reads and deletes: it is a release secret in the release namespace plus
-whatever the chart rendered, made by a path this tool never sees, and
-those objects carry the chart's labels and Helm's own
-`meta.helm.sh/release-name` annotation, not the estate's label. Helm keeps
-its estate and this tool keeps its own.
+no object-metadata block, so neither admission route reaches it, and
+`live-check` says so in those words. A release is more than one object:
+it is a release secret in the release namespace plus whatever the chart
+rendered. Those objects carry the chart's labels and Helm's own
+`meta.helm.sh/release-name` annotation, and the estate's label is on none
+of them, so the type stays refused.
 
 Nothing about Helm is limited in stock OpenTofu, and this fork changes
 nothing there: a root with no `live` block installs, upgrades and

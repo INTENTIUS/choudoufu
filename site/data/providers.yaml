@@ -5,7 +5,6 @@
 keys:
   identity: Where a resource's identity lives
   values: Where the record of each managed instance goes
-  effects: How an effect with nothing to read back is recorded
   cache: What the state file is
   gate: What fences a write
   inventory: How anyone lists an estate without the tool
@@ -19,7 +18,6 @@ providers:
     cells:
       identity: "Two resource tags, `tofu-estate` and `tofu-address`, written on the create call. About half the provider's types have no tag surface; those derive their identity from configuration or hold it in the record store."
       values: "`record_store \"s3\"`: one object per managed instance in a bucket you own, each tagged with the estate, written conditionally with no lock, under your IAM. An estate that declares nothing gets a local directory."
-      effects: "A receipt: an ordinary resource, for example an SSM parameter, holding a hash of the effect's input, that appears in your plan."
       cache: "`choudoufu-cache.tfstate` under the data dir. Never consulted for ownership; when it and the live system disagree, live wins; losing it costs a read."
       gate: "IAM conditions on `aws:ResourceTag/tofu-estate` and `aws:RequestTag/tofu-estate`. They fence reads and writes, per resource, and bind the credential rather than the binary."
       inventory: "`aws resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=<estate>`"
@@ -32,7 +30,6 @@ providers:
     cells:
       identity: "One label, `tofu-estate`, written on the create; the object is re-bound through group, kind, namespace and name. A label value is capped at 63 characters and cannot carry a config address, so the address stays off the object. `generateName` is refused."
       values: "`record_store \"kubernetes\"`: one Secret per managed instance in a namespace you own, each labelled with the estate, written conditionally on `resourceVersion` with no lock, under your RBAC. No AWS account is involved."
-      effects: "Not yet designed."
       cache: "The same file and the same three rules."
       gate: "One `ValidatingAdmissionPolicy` (`live/kubernetes/estate-boundary.yaml`) whose CEL reads the label off `oldObject` and `object` and asks the authorizer whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`; the grant is a ClusterRole. It fences create, update and delete only, never list or get, not subresources, and it is a cluster-wide object a cluster admin installs. Until it is installed the label is advisory."
       inventory: "`kubectl get <kind> -A -l tofu-estate=<estate>`, one kind at a time; `/apis` lists every kind the cluster serves, CRDs included."

@@ -28,7 +28,7 @@ Every managed instance has a record, and secret material reaches one by two
 routes. The default, `strict { secrets = "store" }`, keeps what a stock
 `terraform.tfstate` keeps on both.
 
-A resource with no live twin is recorded whole. `random_password`,
+A record-backed resource is recorded whole. `random_password`,
 `tls_private_key` and the rest have no live object to carry a marker, so the
 record is the only copy of the value: a generated password, a private key, as
 the provider returned them, with the provider's `private` blob and the list

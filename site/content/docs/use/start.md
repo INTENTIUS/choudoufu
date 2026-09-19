@@ -49,13 +49,13 @@ and that tag is how the next plan finds the resource again.
 
 That one file is the whole setup. No `.tf` changes, so stock `terraform
 validate`, `tflint` and editors keep passing. Reverting means deleting the
-file. Effects the cloud cannot report back - a `null_resource`, a
-`random_pet` - already work: the estate gets an implied local record store,
-a `.tofu-records` directory beside the module. Add a `record_store "s3"` here
-only to put those records in a bucket where a team can share them, and that
+file. Record-backed resources, a `null_resource` or a `random_pet`, already work:
+the estate gets an implied local record store, a `.tofu-records` directory
+beside the module. Add a `record_store "s3"` here
+to put the records in a bucket where a team can share them, and that
 bucket is [one you create first]({{< relref "/docs/use/setup" >}}).
 
-Add `.tofu-records/` to your `.gitignore` before the first apply. Nothing
+Add `.tofu-records/` to your `.gitignore` before the first run. Nothing
 writes that line for you, and the directory holds whatever the state file
 would have held, generated secrets included, unless you set
 `strict { secrets = "refuse" }`.

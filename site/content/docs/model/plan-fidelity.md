@@ -37,20 +37,15 @@ coming and why.
 Today that is `plan_approval`: `plan -out` followed by `apply <planfile>`
 applies cleanly when the world has not moved since the plan was taken, and
 refuses, naming the mismatch, when it has. Stock applies a stale planfile
-anyway. choudoufu does not, by design, and the gauntlet asserts that refusal
-directly rather than diffing it against stock's more permissive behavior.
-`plan_approval` is not active yet; it is a planned stage, listed in
-[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
-so the target is visible before it starts counting toward an estate's clear
-bar. The contract it will enforce is already decided, though, which is why
-it belongs here - and since
-[#878](https://github.com/INTENTIUS/choudoufu/issues/878) the mechanism
-behind it exists: `plan -out` and `apply <planfile>` are admitted under a
-live block, the apply re-reads the live system and plans against it, and it
-refuses - `The approved plan no longer matches the live system`, exit
-status 3 - when that fresh plan is not the one the file describes. What is
-still missing is the stage: a crossing script that asserts this per estate,
-which is what flipping `plan_approval` to active would need.
+anyway. The gauntlet asserts choudoufu's refusal directly and does not diff
+it against stock's more permissive behavior.
+
+`plan_approval` is an active stage, measured on every estate. The mechanism
+behind it exists since
+[#878](https://github.com/INTENTIUS/choudoufu/issues/878): under a `live`
+block the apply re-reads the live system, plans against it, and refuses
+with `The approved plan no longer matches the live system`, exit status 3,
+when that fresh plan differs from the one the file describes.
 
 A refusal that isn't written into a stage's own definition this way gets no
 such pass. It is scored as choudoufu refusing where stock proceeds, and that

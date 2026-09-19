@@ -228,7 +228,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("A \"named refusal\" is the one way \"choudoufu refuses where stock proceeds\"")
 	w("is not automatically that table's first row: a stage whose own Proves and")
 	w("Oracle text above commits, before any estate runs against it, to refusing on")
-	w("purpose. Today that is `plan_approval` (stage 12, planned): its Oracle")
+	w("purpose. Today that is `plan_approval` (stage 12, active): its Oracle")
 	w("states plainly that the planfile applies when the world has not moved, and")
 	w("that choudoufu is stricter than stock by design when it has, so that refusal")
 	w("is asserted rather than diffed against stock. A refusal no stage names this")

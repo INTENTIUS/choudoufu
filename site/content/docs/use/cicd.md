@@ -29,23 +29,23 @@ Five Ops, whose names are also the five job names:
 Three of them read and nothing else. The two that write are the two on a push
 trigger, and both stop at an approval first.
 
-The gate is a fact on chant's ledger rather than a runner held open: a run
-that reaches it finds no resolution, records that it is waiting, and ends.
-`chant approve live-apply approve-live-apply` writes the resolution, and
-re-running the workflow walks through it, via the plan file `plan -out`
-wrote - `apply <planfile>` does not replay that file. Prior state is rebuilt
-from the live system on every run, so the apply re-plans against the cloud
-as it is now and compares that fresh plan against the approved one, down to
-the planned values: agreeing, it applies without re-prompting; disagreeing,
-it refuses before anything changes, printing `The approved plan no longer
-matches the live system` and exiting **3** - neither an ordinary failure nor
-`-detailed-exitcode`'s 2, so a pipeline can route the run back to review
-instead of paging someone. That refusal is the gauntlet's `plan_approval`
-stage, measured on every estate: see
+The gate is a fact on chant's ledger, and no runner is held open for it. A
+run that reaches the gate finds no resolution, records that it is waiting,
+and ends. `chant approve live-apply approve-live-apply` writes the
+resolution, and re-running the workflow walks through it with the plan file
+`plan -out` wrote.
+
+`apply <planfile>` does not replay that file. The apply re-plans against
+the cloud as it is now and compares that fresh plan with the approved one,
+down to the planned values. If they agree, it applies without re-prompting.
+If they disagree, it refuses before anything changes, prints `The approved
+plan no longer matches the live system` and exits **3**, so a pipeline can
+route the run back to review. That refusal is the gauntlet's
+`plan_approval` stage, measured on every estate: see
 [the stage table]({{< relref "/docs/progress#the-stages" >}}) and
 [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) for what
-the two plans are compared on. What a gate resolution binds - and does not -
-is covered below.
+the two plans are compared on. What a gate resolution binds is covered
+below.
 
 ## The per-environment dial
 
@@ -139,19 +139,16 @@ What running rather than reading found:
   off an unprotected branch, the same symptom and the same 401, with no line
   naming either cause.
 
-None of the three dialect-proof runs above had an AWS account behind it. GitHub's
-own OIDC exchange has since been verified for real, separately: run
+None of the three dialect-proof runs above had an AWS account behind it.
+GitHub's own OIDC exchange has since been verified separately: run
 [34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301) (main
 at `172bf2a390`, 2026-09-11) minted a short-lived credential over
 `token.actions.githubusercontent.com` and applied against account `354867293429`
 with no stored key. GitLab's `id_tokens:` role assumption follows GitHub's shape,
-but floci's static credentials shadowed it end to end in the GitLab run above, so no
+but floci's static credentials shadowed it in the GitLab run above, so no
 STS call was made there ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)
-Q2 stays open). Forgejo has no OIDC surface to reach for at all - it ships
-static keys and says so - which is the credential model worth replacing
-outright rather than the one waiting on a proof. Since #1028, at least each
-job holds only the key pair its own Op needs, rather than one pair shared by
-every job in the file.
+Q2 stays open). Forgejo has no OIDC surface and ships static keys. Since
+#1028, each job holds only the key pair its own Op needs.
 
 [`examples/ci-pipelines/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md#what-each-forge-gets-and-what-it-refuses)
 and its [smoke workflow](https://github.com/INTENTIUS/choudoufu/blob/main/.github/workflows/ci-pipelines-smoke.yml)

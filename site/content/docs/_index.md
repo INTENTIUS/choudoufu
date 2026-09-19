@@ -1,256 +1,65 @@
 ---
-title: "Evidence"
+title: "Documentation"
 weight: 1
 aliases: ["/evidence/"]
-lead: "Everything the six-page hubs summarise, at full depth: the runnable claims, the gauntlet over real estates, the measured costs, the per-type lookup, and the model the hooks implement. Nothing here is a claim you have to take on faith; every figure names its fixture and its commit."
+lead: "What choudoufu is, how to run it, and the evidence behind each claim it makes. Every figure on these pages names its fixture and its commit."
 ---
 
-# See it work before reading about it
+# Documentation
 
-The smoke stack stands up a real estate against a local AWS emulator and
-proves the claims below as it goes, one verdict line per step. Docker,
-about two minutes per scenario, exit 0 means every claim held. Paste this
-to a coding agent (Claude Code or similar) and it runs the whole thing:
+choudoufu is OpenTofu with one thing changed: what you own is written on the
+resources themselves, as a marker your platform's access control can read,
+and the state file becomes a cache you may delete. Almost everything else in
+the fork is stock OpenTofu, unmodified. A configuration with no `live` block
+gets stock behaviour exactly, measured at the same number of AWS API calls
+as `tofu plan`
+([#588](https://github.com/INTENTIUS/choudoufu/issues/588)).
 
-```
-Clone https://github.com/INTENTIUS/choudoufu, then do the following.
+## Start here
 
-1. Confirm Docker is running (`docker info` must succeed) and the AWS CLI
-   is installed (`aws --version`).
-2. If Go is installed, skip this step. Otherwise pick the latest release
-   tag from https://github.com/INTENTIUS/choudoufu/releases and
-   export CHOUDOUFU_VERSION=<that tag> so the smoke runs a prebuilt binary.
-3. From the repo root, run: just smoke import
-4. Then run: just smoke greenfield
-5. Report each step's verdict line as it prints, and each scenario's final
-   PASS or FAIL line.
-```
+| If you want to | Read |
+|---|---|
+| Understand it in five minutes | [What it is]({{< relref "/docs/model" >}}) |
+| Watch it work, with Docker and no AWS account | [Tutorial]({{< relref "/docs/tutorial" >}}) |
+| Start a new estate | [Start a new estate]({{< relref "/docs/use/start" >}}) |
+| Bring in resources you already run | [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) |
+| Know what you must create first | [What you set up by hand]({{< relref "/docs/use/setup" >}}) |
+| Check your own configuration | [Check a configuration]({{< relref "/docs/use/check-a-config" >}}) |
 
-By hand, `just smoke` lists the scenarios. `import` is the migration
-path - stock OpenTofu stands an estate up, the state file is deleted, and
-the estate plans empty from its markers alone. `greenfield` is a new
-estate from nothing, markers riding the create calls. `BREAK=1` corrupts
-one expected fact mid-run and the scenario passes only by catching it.
-[The claims]({{< relref "/docs/claims" >}}) walks all four claim
-scenarios phase by phase, with a paste-and-go prompt for each.
-[The harness's own page](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/README.md)
-has every knob, including pinning both the emulator and the choudoufu
-version, and the optional request-count instrumentation.
+## The commands you will use
 
-# What choudoufu is
+`choudoufu init`, `plan` and `apply` work as they do in OpenTofu, and with a
+`live` block present they use the live backend. Three commands are new.
 
-**OpenTofu plus identity hooks.** Almost everything in this fork is stock
-OpenTofu, unmodified. On top of that base it adds a set of hooks that put a
-resource's identity on the resource itself, as a marker the platform can
-select on (two tags, on AWS), so that a state file becomes a cache rather
-than the record of what you own.
+| Command | What it does |
+|---|---|
+| `choudoufu live-import` | Bulk migration: reads a stock state file once, verifies each entry against the live resource, and writes a marker on everything that verifies |
+| `choudoufu live-mv <old> <new>` | Renames a resource by rewriting its marker, with an empty plan on both sides |
+| `choudoufu live-check` | Says what in a configuration would be refused, before anything runs |
 
-The promise this buys is that **if OpenTofu runs an estate, choudoufu runs it too.**
-Migration from a stock state file is lossless and a greenfield apply is
-equivalent. Day-2 operations behave the way stock's do. That promise is
-measured continuously by running real Terraform and OpenTofu configurations
-side by side with stock OpenTofu. This page names every
-place that measurement lives, so nothing below is a claim you have to take on
-faith.
+## The promise, and where it is measured
 
-## The hooks are not all in play at once
-
-Worth knowing before anything else, because the rest of this site reads
-differently once you have it: **none of the machinery below runs unless a
-configuration asks for it, and the ones that do run are not all needed on
-every run.**
-
-A configuration with no `live` block and no `estate.chdf.hcl` sidecar gets
-stock behaviour, and that is measured rather than promised. Over the same
-estate, in the same session, `terraform plan`, `tofu plan` and `choudoufu
-plan` each issued **exactly the same number of AWS API calls** - 150 at 79
-instances and 558 at 301 - with no variance across three runs each. Lint, the
-refusals, marker stamping, discovery and the projection are each behind a
-guard that a missing live block turns off, so none of them fires and none of
-them can refuse a configuration stock accepts. Seven small things do run
-unconditionally; they are enumerated, and the one among them that can change
-a verdict does so in the accepting direction. The measurement and the
-guard-by-guard reading are in
-the stateful-equivalence measurement ([#588](https://github.com/INTENTIUS/choudoufu/issues/588)).
-
-Turn a live block on and the hooks below become available. They still differ
-in when they earn their cost:
-
-| Hook | In play when | What it costs |
-|---|---|---|
-| Reading resources this estate owns | Always | Exact call parity with a stock refresh |
-| Marker verification | Whenever identity comes from tags | The tagging leg, `ceil(tagged/100)` calls |
-| Adoption and unclaimed discovery | Migrating, auditing, or hunting drift you did not cause | The estate-wide sweep, the expensive one |
-| Migration by tag | During a migration | `choudoufu live-import`, its own command |
-| Central policy | When governance is configured | Not measured here |
-
-Only the first two are unconditional today. The third is the one that costs,
-and [what a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the
-measured split. It used to run on every plan; since `09d180f921` a plan of an
-estate that has its own evidence to narrow by does not pay it, which took this
-fixture's plan from 710 API calls to 157 against stock's 150. That evidence is
-the estate's own record store, so an estate holding no keys in one, a fresh
-estate or one still mid-migration, takes the full sweep as before. The ruling
-behind that is
-the stale-state ruling ([#604](https://github.com/INTENTIUS/choudoufu/issues/604), pinned by `live/stale_state_ruling_test.go`),
-and [what you pay, and when]({{< relref "/docs/what-you-pay" >}}) is the
-measured statement of what is left.
-
-## How far it goes
-
-Two numbers, read live from the same artifact the test suite writes: how
-many estates - real Terraform and OpenTofu configurations, pinned by commit -
-behave exactly like stock OpenTofu under this fork, today.
+If OpenTofu runs an estate, choudoufu runs it too: an equal plan, or a refusal
+this documentation names in advance. Anything else is a defect.
+[Plan fidelity]({{< relref "/docs/model/plan-fidelity" >}}) states the
+contract. It is measured by running real Terraform and OpenTofu
+configurations side by side with stock OpenTofu:
 
 {{< gauntlet-bars >}}
 
-Every stage behind those bars, and every estate's own detail, is on
-[the progress page]({{< relref "/docs/progress" >}}).
+| Evidence | What it is |
+|---|---|
+| [The claims]({{< relref "/docs/claims" >}}) | Runnable scenarios, one per claim, each with an arm that breaks it on purpose. `just smoke import` runs one in about two minutes |
+| [How close AWS is]({{< relref "/docs/progress" >}}) | Every stage and every estate behind the two bars above |
+| [What you pay, and when]({{< relref "/docs/what-you-pay" >}}) | The measured cost of a plan, and what is still unmeasured |
+| [Resource tier lookup]({{< relref "/docs/use/resource-tiers" >}}) | Every provider resource type, and what recovers its identity |
+| [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) | Every construct that is refused, the rule that refuses it, and the remedy |
 
 ## The stock base
 
 {{< fork-surface >}}
 
-Everything outside those fork-owned roots and the individually justified
-`other` entries is stock OpenTofu, unmodified beyond the module path it is
-built under. [Compatibility reference]({{< relref "/docs/use/compatibility" >}})
-covers what running under this fork changes about how a configuration
-behaves; this section is only about which files changed to make that happen.
-
-## What's added
-
-Four pieces, each doing one job. [The three pieces]({{< relref "/docs/model" >}})
-is the full model; this is the customer-facing summary of what you would
-actually touch.
-
-### Markers: an ownership tag AWS can read
-
-Every taggable resource this fork manages carries two AWS tags written at
-create time: `tofu-estate` names which estate owns it, `tofu-address` names
-which configuration block does. Together they are the resource's identity - which
-config address it binds to on the next plan, and the attribute your IAM
-policies condition on. No side channel, no registry: any tool that can read
-tags can list an estate, and any tool that writes the same two tags according
-to [the marker spec](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-can adopt a resource, with no dependency on choudoufu itself.
-
-This is the tier the [resource type lookup]({{< relref "/docs/use/resource-tiers#marker-carried" >}})
-calls **marker-carried**: every taggable AWS type gets one, and it is the one
-tier where losing every other piece of state - the record store, a prior
-run's memory, choudoufu itself - is not a structural loss, because the tag
-on the live object is the identity.
-
-Measured at the "Migrate" and "Drift and reconverge" rows of
-[the gauntlet's stage table]({{< relref "/docs/progress#the-stages" >}}): binding
-a stock state file's entries to markers, and reconciling a marker-tagged
-object that drifted out of band, are both stages run against real estates on
-every measurement, not asserted once.
-
-### The record store: what AWS has no object for
-
-Not every managed instance has a tag to write. Some AWS types mint their own
-identity and carry no `tags` argument at all - the located-record cases the
-[resource type lookup]({{< relref "/docs/use/resource-tiers#record-carried" >}})
-calls **record-carried**. Every managed instance, taggable or not, also has a
-**record**: the arguments the provider never echoes back, sensitivity marks,
-taint, and the deposed key, written with compare-and-swap under your IAM,
-namespaced per estate. The record store is also what holds logical resources
-with no cloud object at all - `null_resource`, `terraform_data`, `time_*`,
-`random_*` - the same way stock keeps them in a state file. Every estate has
-one: a local directory unless a `record_store "s3"` block names a bucket (see
-[Storage]({{< relref "/docs/use/storage" >}})).
-
-See it working end to end in a real estate's "Greenfield apply" row, for
-example
-[corpus-ec2-instance-complete]({{< relref "/docs/progress/corpus-ec2-instance-complete" >}}):
-every instance lands in the local record store, whether taggable or not, and
-the next plan reads it back empty.
-
-### `live-import`, `live-mv`, `live-plan`: the commands that use them
-
-Three commands most estates run, named exactly as
-[the command reference](https://github.com/INTENTIUS/choudoufu/blob/main/HANDOFF.md)
-and [the marker spec](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-describe them:
-
-- **`choudoufu live-import`** is bulk migration: it reads an existing stock
-  state file once, verifies each entry against the live object, and stamps a
-  marker on everything that verifies.
-- **`choudoufu live-mv <old> <new>`** rewrites the `tofu-address` tag in
-  place - the replacement for a `moved` block, with the same zero-churn plan
-  on both sides of the rename.
-- **`choudoufu live-plan`** is the live plan, invoked directly: read every
-  marker and record, verify each against the live object, and propose only
-  what actually changed.
-
-These three are exactly what
-[the gauntlet's "Migrate" and "Rename" stages]({{< relref "/docs/progress#the-stages" >}})
-measure by name: "`choudoufu live-import -approve` against the stock state
-file binds every instance... the summary line reports zero skipped," and
-"renaming a resource through a `moved` block and through `choudoufu live-mv`
-both produce zero churn." Read a worked example on a real module in
-[reference-ec2-vpc]({{< relref "/docs/progress/reference-ec2-vpc" >}}) or any
-other estate on [the progress page]({{< relref "/docs/progress" >}}).
-
-### Strict toggles: turning the defaults off
-
-Out of the box, choudoufu behaves like stock plus markers: nothing extra
-refused, nothing extra required. The `strict` block is where you trade that
-convenience for a tighter default, one toggle at a time. Each toggle has a
-fixture proving it refuses exactly what it names and nothing else - see
-[the strict block reference]({{< relref "/docs/use/reference#strict-block" >}})
-for the full table. Today the toggles are
-`marker_repair` (stop repairing a tag something else owns), `secrets` (refuse
-a secret-generating type outright, and never record a sensitive argument -
-`aws_iam_access_key` is stored by default and refused once this is set), and
-`no_source_create` (refuse an instance with no record, no marker and nothing
-derivable from configuration, rather than silently planning a create for it).
-
-This is [the gauntlet's "Strict profile" stage]({{< relref "/docs/progress#the-stages" >}}) -
-listed as a planned stage today, not yet active, so the target is visible
-before it starts counting toward an estate's clear bar.
-
-## The plan-fidelity contract
-
-What every gauntlet stage adds up to, stated once: **an equal plan, or a
-refusal this documentation names in advance. Anything else is a defect.**
-[Plan fidelity]({{< relref "/docs/model/plan-fidelity" >}}) is the full
-customer-facing statement of that contract, including the one normalization
-it allows (the marker tags themselves are stripped from both sides before
-comparing) and the one stage that is allowed to refuse on purpose
-(`plan_approval`, applying a stale planfile). The underlying spec is
-[`live/GAUNTLET.md`'s "The plan-fidelity contract" section](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md#the-plan-fidelity-contract).
-
-## Every resource type, tiered
-
-"Every type stock supports is admitted" says nothing about how an admitted
-type's identity survives losing the record store, a state file, or the tool
-itself. The [resource tier lookup]({{< relref "/docs/use/resource-tiers" >}})
-is the answer: every one of the provider's resource types, classified into
-exactly one of four tiers by what recovers its identity and at what cost -
-**marker-carried** (a live tag), **declaration-carried** (recomputed from
-configuration, no marker ever written), **record-carried** (only the record
-store remembers it), or **excluded by design** (never persisted at all,
-because doing so would mean storing plaintext credential material). Search
-that page for the AWS resource types your own configuration declares and
-read off which one applies, and why, for anything short of usable today.
-
-## What's refused
-
-Turning markers on does not relax what a configuration may express. Every
-construct this fork bounds or refuses outright is written down in
-[`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md),
-one entry per rule. Each entry names the lint rule that enforces it and the
-fixture that proves it refuses exactly that and nothing else. Read it before
-assuming a refusal is a bug: it is often the documented boundary working
-as designed, and the message it prints names the remedy.
-
-## Read next
-
-| Section | What it covers |
-|---------|-----------------|
-| [What you pay, and when]({{< relref "/docs/what-you-pay" >}}) | The measured cost of running an estate here, which of three modes it is paid in, and what is still unmeasured |
-| [The model]({{< relref "/docs/model" >}}) | Identity, values and effects: the three things that have to survive between runs |
-| [Governance]({{< relref "/docs/use/governance" >}}) | The IAM policies a marker makes possible, and where AWS honours the condition they rest on |
-| [Use it]({{< relref "/docs/use" >}}) | Bringing an existing estate in, starting a new one, day-2 operations, storage, and reference |
-| [How close AWS is]({{< relref "/docs/progress" >}}) | The gauntlet: every stage, every estate, and the two numbers read from the same artifact the test suite writes |
+Everything outside those fork-owned roots is stock OpenTofu, unmodified beyond
+the module path it is built under.
+[Compatibility reference]({{< relref "/docs/use/compatibility" >}}) covers what
+running under this fork changes about how a configuration behaves.

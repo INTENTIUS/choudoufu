@@ -110,18 +110,14 @@ residue record - the same record that already carries this type's
 `wait_for_*` arguments - and the removal set is
 `(recorded) \ (currently declared)`.
 
-The obvious alternative was tried first and refuted on a real cluster. The
-object's own `metadata.managedFields` names, per field manager, every
-field that manager last wrote, which sounds like the same set and is not:
-`computed_fields` makes the apply resend every key the object already had,
-foreign ones included, so server-side apply records *this estate* as the
-writer of keys nobody declared. One apply later it owns
-`kubernetes.io/metadata.name`, with no co-owner to filter on, and a
-removal rule built on that set proposes deleting a label the API server
-writes back every time. `managedFields` answers "who wrote this field"
-exactly; the question is "did this configuration declare it". It survives
-as a safety rail - a recorded key is not removed if another manager owns
-it now - and never as the source.
+The object's own `metadata.managedFields` was tried first as the source
+and refuted on a real cluster. `computed_fields` makes the apply resend
+every key the object already had, foreign ones included, so server-side
+apply records this estate as the writer of keys nobody declared. One
+apply later it owns `kubernetes.io/metadata.name`, and a removal rule
+built on that set proposes deleting a label the API server writes back
+every time. `managedFields` survives as a safety rail only: a recorded
+key is not removed if another manager owns it now.
 
 Degradation is toward the quiet answer, never toward churn. No record -
 a fresh clone, an estate migrated before the member existed - proposes

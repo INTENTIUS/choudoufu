@@ -8,10 +8,10 @@ deeper:
 
 # Records
 
-Every managed instance has one record. For a resource with a live twin it
+Every managed instance has one record. For a resource with a live object it
 holds what a read cannot return: the arguments a provider never echoes back,
 sensitivity marks, taint, a deposed key. Ownership is the marker, so losing
-that record costs a slower plan. For a resource with no twin at all, a
+that record costs a slower plan. For a record-backed resource, one with no live object at all, a
 `null_resource`, a `time_static`, a `random_pet`, the record is the whole
 value and the only copy.
 
