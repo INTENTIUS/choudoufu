@@ -16,8 +16,11 @@ store bucket. choudoufu asserts nothing about encryption, so nothing
 else in the repository would notice if that advice stopped working.
 This claim builds the recommended stack from what ships, with no
 hand-written substitutes: the bucket comes from
-`examples/record-store-bucket` with `just up`, and the role's only
-policy is the output of `render-policy.sh --kms`, unedited.
+`examples/record-store-bucket` with `just up`, and the role's policy is
+the output of `render-policy.sh --kms`, unedited, plus one statement the
+harness adds over a single marker key so it can tell when IAM has
+propagated. The live policy is read back and compared to a fresh render
+with that one statement dropped.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. You need AWS credentials
