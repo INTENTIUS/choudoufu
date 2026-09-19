@@ -74,6 +74,7 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 	c.Meta.input = false
 
 	bucket, region, estate := args.Bucket, args.Region, args.Estate
+	owner := args.BucketOwner
 	var rs *configs.LiveRecordStore
 	if bucket == "" {
 		live, liveDiags := c.statelessSettings(ctx, false)
@@ -89,6 +90,13 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 			if region == "" {
 				region = rs.Region
 			}
+			// Same direction as -region: the flag wins, and without it the
+			// block's own bucket_owner is used, so running this command in a
+			// configuration directory checks the bucket the estate's own runs
+			// check (#1381).
+			if owner == "" {
+				owner = rs.BucketOwner
+			}
 		}
 		if diags.HasErrors() {
 			c.View.Diagnostics(diags)
@@ -96,7 +104,7 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 		}
 	}
 
-	findings, err := projection.VerifyBucket(ctx, bucket, region, estate, rs)
+	findings, err := projection.VerifyBucket(ctx, bucket, region, owner, estate, rs)
 	if err != nil {
 		c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read the bucket's settings",
 			fmt.Sprintf("Bucket %q could not be checked: %s. This says nothing about whether the bucket is correct.", bucket, err))))
@@ -197,6 +205,11 @@ Options:
                  key namespaces. Without it only a lifecycle rule with no
                  prefix filter counts.
   -region=name   The bucket's region.
+  -bucket-owner=id
+                 The twelve-digit AWS account that must own the bucket.
+                 Every read carries it, so a bucket of this name in
+                 another account is refused rather than reported on.
+                 Without it, the configuration's bucket_owner is used.
   -json          One JSON document on stdout.
 `)
 }

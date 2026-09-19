@@ -319,6 +319,10 @@ func s3StoreConfig(awsCfg aws.Config, rs *configs.LiveRecordStore, o recordStore
 		// Empty on purpose: see backendKeyPrefix.
 		KeyPrefix: backendKeyPrefix,
 
+		// #1381: a bucket name is global, so the name alone does not say
+		// whose bucket this is. Set, every request carries the account.
+		ExpectedBucketOwner: rs.BucketOwner,
+
 		GetAllParallelism: o.bulkReadParallelism,
 
 		// #1337: every object in an estate's namespaces is the estate's.
@@ -422,7 +426,11 @@ func BucketContractRefusalText(bucket string, findings []staterecord.BucketFindi
 // estate may be "". With one, the lifecycle assertion is checked against
 // that estate's three namespaces; without, only a lifecycle rule with no
 // prefix filter counts, which is what the project's own bucket carries.
-func VerifyBucket(ctx context.Context, bucket, region, estate string, rs *configs.LiveRecordStore) ([]staterecord.BucketFinding, error) {
+//
+// expectedOwner may be "" as well. With one, the three reads carry it as
+// ExpectedBucketOwner, so this reports on a bucket in that account or on no
+// bucket at all (#1381).
+func VerifyBucket(ctx context.Context, bucket, region, expectedOwner, estate string, rs *configs.LiveRecordStore) ([]staterecord.BucketFinding, error) {
 	awsCfg, err := loadAWSConfig(ctx, region, nil)
 	if err != nil {
 		return nil, err
@@ -431,5 +439,5 @@ func VerifyBucket(ctx context.Context, bucket, region, estate string, rs *config
 	if estate != "" {
 		namespaces = BucketNamespaces(rs, estate)
 	}
-	return staterecord.CheckBucketContract(ctx, s3.NewFromConfig(awsCfg), bucket, namespaces)
+	return staterecord.CheckBucketContract(ctx, s3.NewFromConfig(awsCfg), bucket, expectedOwner, namespaces)
 }
