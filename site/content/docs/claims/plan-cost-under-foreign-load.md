@@ -74,17 +74,15 @@ estate is 3,705.** It tracks ownership and nothing else. Between rows one
 and three the account grew by 3,705 resources and the read pass did not
 move by one call.
 
-**The Cloud Control column is flat, and that answers the question this
-claim was expected to lose.** Cloud Control's `ListResources` offers no
-server-side tag filter on any type at all, so every call it makes
-enumerates the account and the estate filter is applied on this side of
-the wire. It reads **435 calls in all four rows**, and its one
-`GetResource` refinement fires once in all four. 435 is one call per
-admitted type the provider offers no native list resource for: an
-account-wide plan of the same fixture, captured with `TF_LOG=debug`, logs
-exactly 435 `listing <type> via Cloud Control` lines. That count is a
-property of the provider's admission table, not of the account, which is
-why 3,705 more resources do not move it.
+The Cloud Control column is flat. Cloud Control's `ListResources` offers
+no server-side tag filter on any type, so every call enumerates the
+account and the estate filter is applied on this side of the wire. It
+still reads **435 calls in all four rows**, and its one `GetResource`
+refinement fires once in each. 435 is one call per admitted type the
+provider offers no native list resource for: an account-wide plan of the
+same fixture, captured with `TF_LOG=debug`, logs exactly 435
+`listing <type> via Cloud Control` lines. The count comes from the
+provider's admission table, so 3,705 more resources do not move it.
 
 Two of the thirteen types a terralith declares have no native list
 resource either, and neither of them goes this way. The same capture says
@@ -100,19 +98,16 @@ That is the estate-filtered leg - one `GetResources` carrying a
 the account nothing. A steady-state `choudoufu plan` with a warm record
 store reaches Cloud Control zero times at all.
 
-**What does grow is the native leg, and it is not Cloud Control.** The
-plan column climbs 187 to 197 to 687 as the account fills, and every call
-of that growth is `GetPolicyVersion`: `aws_iam_policy`'s list resource
-offers the provider no filter block, so the sweep lists the account's
-policies and the provider reads each one's default version. The scenario's
-step 3 prints the same fact from the run's own log - `aws_ecs_service`,
-`aws_iam_policy` and `aws_iam_role` listed unfiltered, each naming "the
-list configuration has no filter argument". Per foreign resource the
-growth is 0.13 calls, against the 1.0 a bound state file pays; the shape
-is not the state file's, but it is not zero either, and this page will not
-print it as zero. It is the per-object refinement
-[#622](https://github.com/INTENTIUS/choudoufu/issues/622) named, measured
-here at a size where it shows.
+The native leg is what grows. The plan column climbs 187 to 197 to 687
+as the account fills, and every call of that growth is
+`GetPolicyVersion`: `aws_iam_policy`'s list resource offers the provider
+no filter block, so the sweep lists the account's policies and the
+provider reads each one's default version. Step 3 prints the same fact
+from the run's own log: `aws_ecs_service`, `aws_iam_policy` and
+`aws_iam_role` listed unfiltered, each naming "the list configuration
+has no filter argument". Per foreign resource the growth is 0.13 calls,
+against the 1.0 a bound state file pays. It is the per-object refinement
+[#622](https://github.com/INTENTIUS/choudoufu/issues/622) named.
 
 **The `BREAK=1` control.** On the same account carrying 79 foreign
 resources, the same estate asked the account-wide question instead of its
@@ -166,20 +161,17 @@ go test ./internal/live/discovery/ -run TestSweepUniversePartitionIsMostlyNative
 sweep universe=1027 tagging_leg=35 native_leg=992
 ```
 
-That bounds the sweep's shape - one call per admitted type, not one call per
-object the account holds. Whether the account's own object count could
-still leak in through the one per-object refinement call the native leg
-makes was a real, named risk
-([#622](https://github.com/INTENTIUS/choudoufu/issues/622)). On a real,
-populated account of its own - 24 IAM roles, 5 buckets, 2 hosted zones, 11
-active ECS task definitions, none of them this estate's - at commit
-`eb1d145dc5`, that call fired **zero** times, at a small scale and at ten
-times it, on the first plan and the steady-state one alike. The
-foreign-load table above is where it does not fire zero times: that account
-carries 3,705 foreign resources including several hundred IAM policies,
-which is a population the `eb1d145dc5` account did not have. Both readings
-are true of their own accounts, and the difference between them is which
-types the neighbours are made of.
+That bounds the sweep's shape at one call per admitted type.
+[#622](https://github.com/INTENTIUS/choudoufu/issues/622) named the risk
+that the account's object count could still leak in through the one
+per-object refinement call the native leg makes. On a real, populated
+account (24 IAM roles, 5 buckets, 2 hosted zones, 11 active ECS task
+definitions, none of them this estate's) at commit `eb1d145dc5`, that
+call fired **zero** times, at a small scale and at ten times it, on the
+first plan and the steady-state one alike. In the foreign-load table
+above it does fire, because that account carries 3,705 foreign resources
+including several hundred IAM policies, a population the `eb1d145dc5`
+account did not have.
 
 **What this claim does not say.** It says nothing about incremental plan
 time within one already-adopted state; the day-2 call counts on

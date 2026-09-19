@@ -25,8 +25,8 @@ of access control.
 
 A **marker** is the estate's name written on a resource, with the address of
 the block that declares it. On AWS it is two tags, `tofu-estate` and
-`tofu-address`, and a `count` instance carries a third, `tofu-slot`. On
-Kubernetes it is one label. The apply writes it on the
+`tofu-address`. A `count` instance whose members the configuration does not
+tell apart carries a third, `tofu-slot`. On Kubernetes it is one label. The apply writes it on the
 create call, so a resource that exists has one.
 
 A **record** holds what cannot be read back from the live resource: a

@@ -72,14 +72,9 @@ The steps as they print:
    pruning it. Nothing destroyed it, so nothing says it was.
 8. `teardown` - the estate destroyed, the deposed object with it.
 
-The `BREAK=1` run has two arms. At step 5 it creates a second, genuinely
-running instance carrying the same estate and address markers as the
-survivor, with nothing recorded as having destroyed it. The plan must exit
-non-zero with `Two live resources claiming one address`, naming both live
-ids. This is the arm that makes the claim load-bearing: the same shape used
-to be waved through with a warning and exit 0, and a mechanism that quiets
-a dead object's marker is only safe if it still refuses a live one. At step
-7 it patches the record by hand to list the running, deposed instance under
-`tombstone`, the entry the write side produced before #901, and the read
-must catch it: an assertion that only ever reads an empty list is not
-load-bearing.
+The `BREAK=1` run has two arms. At step 5 it creates a second running
+instance carrying the same estate and address markers as the survivor.
+The plan must exit non-zero with `Two live resources claiming one
+address`, naming both live ids. At step 7 it patches the record by hand
+to list the running, deposed instance under `tombstone`, the entry the
+write side produced before #901, and the read must catch it.

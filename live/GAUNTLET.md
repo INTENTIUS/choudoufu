@@ -215,7 +215,7 @@ closes a finding without fixing something.
 A "named refusal" is the one way "choudoufu refuses where stock proceeds"
 is not automatically that table's first row: a stage whose own Proves and
 Oracle text above commits, before any estate runs against it, to refusing on
-purpose. Today that is `plan_approval` (stage 12, planned): its Oracle
+purpose. Today that is `plan_approval` (stage 12, active): its Oracle
 states plainly that the planfile applies when the world has not moved, and
 that choudoufu is stricter than stock by design when it has, so that refusal
 is asserted rather than diffed against stock. A refusal no stage names this

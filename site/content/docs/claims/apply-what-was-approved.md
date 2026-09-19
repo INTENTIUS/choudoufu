@@ -8,15 +8,12 @@ claim: apply-what-was-approved
 
 CI runs Terraform as: plan on the pull request, a human approves, apply
 exactly what was approved. The artifact that crosses that gate is the
-plan file, and here it stays the stock one - `plan -out=FILE`, `apply
-FILE`. What changes is what the apply does with it. It never replays the
-file. It reads the live system and plans against what is there now, the
-way every run under the live backend does, and then compares its own fresh plan
-with the one the file describes: same resources, same actions, same live
-objects, and the same values planned for them. Matching, it applies
-without asking again, because the file was the approval. Differing, it
-refuses by name and exits 3, which is a pipeline's signal to send the
-change back to review rather than to page somebody about a broken run.
+stock plan file: `plan -out=FILE`, then `apply FILE`. The apply never
+replays the file. It reads the live system, makes a fresh plan, and
+compares it with the one the file describes: same resources, same
+actions, same live objects, same planned values. If they match, it
+applies without asking again. If they differ, it refuses by name and
+exits 3, a pipeline's signal to send the change back to review.
 
 Values are compared canonically, not byte for byte: map and object keys
 sorted, sets compared by their elements rather than their order, every

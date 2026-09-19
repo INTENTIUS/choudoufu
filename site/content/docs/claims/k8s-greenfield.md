@@ -63,12 +63,11 @@ The steps, in the order they print:
    rewritten from `kubernetes_config_map` to `kubernetes_config_map_v1`
    with the same metadata and no `moved` block, and the replan is empty:
    both spellings name the same object
-   ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). A create
-   or a destroy here fails the step.
+   ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)).
 7. `destroy - exactly what was made` - four objects destroyed, the
    ConfigMap through its new spelling, `kube-system` untouched.
 8. `the inventory after destroy - empty` - the same `live-ls` reports
-   that nothing carries the marker, `Nothing found.`
+   `Nothing found.`
 
 The `BREAK=1` run removes the label with `kubectl label configmap
 app-config -n smoke-k8s tofu-estate-` after step 3. `live-ls` must then

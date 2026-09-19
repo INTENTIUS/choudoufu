@@ -51,14 +51,15 @@ walks a whole split this way.
 
 The marker is one label, `tofu-estate`, and the object carries no
 address: it is bound to its block by its own kind, namespace and name. A
-rename within an estate therefore has nothing to write. Rename the block;
-`live-mv` run out of habit reports `Nothing to write` and exits 0, and the
-next plan is empty. Moving an object to another estate is the same
-`-from-estate` command as above, run in the destination's configuration.
-It rewrites the label through the provider, as a labels-only plan and
-apply on that one object, under your own credential, so the cluster's
-admission policy judges it exactly as it judges a plain `kubectl label`:
-you must hold both the estate the object is leaving and the one it is
-entering ([claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
+rename within an estate therefore has nothing to write. Rename the block,
+and the next plan is empty. `live-mv` run out of habit reports
+`Nothing to write` and exits 0.
+
+Moving an object to another estate is the same `-from-estate` command as
+above, run in the destination's configuration. It rewrites the label
+through the provider under your own credential, so the cluster's admission
+policy judges it as it judges a plain `kubectl label`: you must hold both
+the estate the object is leaving and the one it is entering
+([claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
 An object declared through a manifest block is refused by name with the
 equivalent `kubectl label` command.

@@ -63,14 +63,14 @@ A store that refused stops every command: a bucket that fails
 [its three settings]({{< relref "/docs/use/bucket-contract" >}}), a listing
 that does not return what was just written, a KMS key that refused the run.
 For `plan`, `apply` and `live-import`, a store that could not be reached
-stops the run too. `live-plan` and `live-mv` go on without records and say so
-in a warning titled `The record store was not read`. That warning matters
-for two kinds of resource. A record-backed one is known only by its record, so
-it may appear as something to create when it already exists. A
-`kubernetes_manifest` needs its record to tell a label the configuration
-dropped from one somebody added by hand, so without it a removed label is not
-planned for removal, and the output can read "No changes" while the live
-object keeps it.
+stops the run too.
+
+`live-plan` and `live-mv` go on without records and say so in a warning
+titled `The record store was not read`. A record-backed resource is known
+only by its record, so it may appear as something to create when it already
+exists. A `kubernetes_manifest` needs its record to see that the
+configuration dropped a label, so without it the output can read
+"No changes" while the live object keeps the label.
 
 ## The local store
 

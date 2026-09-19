@@ -338,22 +338,18 @@ An acceptable configuration can still be refused by how it is invoked.
 - Every `tofu state` subcommand is refused, including read-only `state list`
   and `state show`.
 - Four commands are refused: `import`, `refresh`, `taint`, `untaint`.
-- A saved plan works, in the stock form, with one difference that matters:
-  `plan -out=FILE` writes stock's own plan file, and `apply FILE` **re-reads
-  the live system and plans against it**, then compares that fresh plan with
-  the one the file describes. Same resources, same actions, same live
-  objects, same planned values - compared canonically, with unknown
-  ("known after apply") attributes skipped and sensitive values compared as
-  a stable digest rather than in plaintext - and it applies without
-  re-prompting, exactly as stock does.
-  Different, and it refuses - `The approved plan no longer matches the live
-  system` - and exits **3**, so a pipeline can route it back to review rather
-  than treat it as a broken run. **This is how most CI runs Terraform**, and
-  it is why the file is an approval rather than an instruction: it is never
-  prior state, and it is never consulted for ownership.
-  [#878](https://github.com/INTENTIUS/choudoufu/issues/878). `live-plan
-  -estate=NAME -out` stays refused: that directory has no live block, so
-  plain `apply` in it is an ordinary state-backed command.
+- A saved plan works in the stock form, with one difference. `plan
+  -out=FILE` writes stock's own plan file, and `apply FILE` **re-reads the
+  live system and plans against it**, then compares that fresh plan with
+  the one the file describes. If the resources, actions, live objects and
+  planned values are the same, it applies without re-prompting, as stock
+  does. If they differ it refuses with `The approved plan no longer matches
+  the live system` and exits **3**, so a pipeline can route it back to
+  review. The file is an approval: it is never prior state, and it is never
+  consulted for ownership
+  ([#878](https://github.com/INTENTIUS/choudoufu/issues/878)).
+- `live-plan -estate=NAME -out` stays refused: that directory has no `live`
+  block, so plain `apply` in it is an ordinary state-backed command.
 - The `-json` and `-json-into` flags are refused.
 - A `-refresh-only` run is refused: both sides of that comparison are the
   live system here, so there is nothing for it to do.
@@ -460,21 +456,17 @@ naming a marker key ([#103](https://github.com/INTENTIUS/choudoufu/issues/103)).
 Ignoring a tag key of your own, such as `tags["Owner"]`, stays admitted.
 
 **A module call's child-side `providers` mapping can name an alias nothing
-resolves.** [#104](https://github.com/INTENTIUS/choudoufu/issues/104) opened
-this as a refusal of both shapes a mapping's alias can take, because nothing
-in the live path read the mapping at all.
-[#188](https://github.com/INTENTIUS/choudoufu/issues/188) closed that for the
-parent-side shape: `providers = { aws = aws.useast1 }` is now resolved by
-`internal/live/providerscope` and honoured, which is every one of the 110
-sites the corpus had ever produced for this rule. What stays refused is the
-`configuration_aliases` shape, `providers = { aws.primary = aws }`: the alias
-is on the child side, and the root declares no configuration under that name
-for the module's resources to resolve against. The provider would be
-configured from the environment with nothing from the configuration reaching
-it. `providers = { aws = aws }` is admitted, naming what the live backend
-already does, and so is `{ myaws = aws }`, where only the child's local name
-differs. Root-level provider aliases work correctly, and a resource's own
-`provider =` argument is honoured.
+resolves.** The refused shape is `configuration_aliases`,
+`providers = { aws.primary = aws }`
+([#104](https://github.com/INTENTIUS/choudoufu/issues/104)). The alias is
+on the child side, and the root declares no configuration under that name
+for the module's resources to resolve against, so the provider would be
+configured from the environment alone. The parent-side shape,
+`providers = { aws = aws.useast1 }`, is resolved and honoured
+([#188](https://github.com/INTENTIUS/choudoufu/issues/188)).
+`providers = { aws = aws }` is admitted, and so is `{ myaws = aws }`, where
+only the child's local name differs. Root-level provider aliases work, and
+a resource's own `provider =` argument is honoured.
 
 A `provider` block inside a child module is a different question, and it is
 admitted. [#70](https://github.com/INTENTIUS/choudoufu/issues/70) originally

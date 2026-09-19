@@ -59,18 +59,13 @@ every object is found again by its name and carries the label. The gauntlet's
 
 A custom resource in that state file comes with it
 ([#1109](https://github.com/INTENTIUS/choudoufu/issues/1109)). Its label
-is written as one API merge patch under your own credential rather than
-through the provider, because `kubernetes_manifest` has no metadata block
-to write into and a labels-only write through the provider would re-apply
-the whole manifest. The patch is sent first with `dryRun=All`: the server
-validates it, runs every admission policy, and answers with the object it
-would have stored, which is compared with the object it holds now. If
-anything outside the labels map moved - a mutating webhook rewriting the
-spec, say - the write is refused by name and nothing is sent. Until this,
-every `kubernetes_manifest` entry migrated as untaggable: bound by its
-natural key, counted as migrated, and left outside the boundary, so the
-sweep did not list it, the admission policy did not fence it, and the
-report said nothing.
+is written as one API merge patch under your own credential, because
+`kubernetes_manifest` has no metadata block to write into and a
+labels-only write through the provider would re-apply the whole manifest.
+The patch is sent first with `dryRun=All`, and the object the server would
+have stored is compared with the object it holds now. If anything outside
+the labels map moved, as it would under a mutating webhook that rewrites
+the spec, the write is refused by name and nothing is sent.
 
 If the stock state lives in the `kubernetes` backend, it is a Secret named
 `tfstate-<workspace>-<suffix>` with a Lease beside it. `tofu state pull >
