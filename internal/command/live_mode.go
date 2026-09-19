@@ -413,7 +413,7 @@ var testStatelessRunner func(*statelessRunner)
 // reads this value says exactly why it is the exception.
 type statelessSurface int
 
-// The state cache's path: where this run's state cache lives.
+// stateCachePathFor resolves where this run's state cache lives.
 //
 // The default is choudoufu-cache.tfstate under the working directory's data
 // dir (.terraform, or TF_DATA_DIR when set): a derived, disposable file in
@@ -421,8 +421,9 @@ type statelessSurface int
 // recorded on issue #685. CHOUDOUFU_STATE_CACHE overrides the path, and the
 // literal value "off" disables persistence entirely - for a run that must
 // leave no file behind, such as an audit from a read-only working copy.
-// stateCachePathFor is that resolution with the estate's secrets setting
-// taken into account. offForSecrets is true only when the cache is off
+//
+// The estate's secrets setting is taken into account. offForSecrets is true
+// only when the cache is off
 // BECAUSE of strict { secrets = "refuse" }, so the caller can say so; an
 // operator who set CHOUDOUFU_STATE_CACHE=off already knows.
 //
