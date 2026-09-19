@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -77,6 +78,13 @@ type BucketFinding struct {
 	// with OK. From the caller's side it is the same refusal a wrong setting
 	// gets, because a bucket nobody could check is not a bucket that passed.
 	Unreadable bool
+
+	// DeletesRecords is true for the one lifecycle failure that is not an
+	// absence: an enabled rule that expires CURRENT objects under the store's
+	// keys. It is a different refusal with a different remedy, and it is the
+	// one finding allow_insecure does not reach (see [SplitWaived]). GitHub
+	// issue #1377.
+	DeletesRecords bool
 
 	// Found says what the bucket actually has, in one clause, for the
 	// refusal to quote: "versioning is Suspended", "no lifecycle
@@ -199,30 +207,91 @@ func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket string, n
 		return settingReadFailure(f, "s3:GetLifecycleConfiguration", err)
 	}
 
+	// First, the thing that outranks everything else this assertion checks:
+	// a rule that expires CURRENT objects deletes records on a timer. A
+	// converged estate does not rewrite its records, so N days after the
+	// last write they are gone, and the next plan reads an empty estate.
+	// The noncurrent expiry below exists so a record can come BACK; it says
+	// nothing about a bucket that throws live ones away, and until GitHub
+	// issue #1377 this function reported such a bucket correct.
+	var deleting []string
+	for _, rule := range out.Rules {
+		if rule.Status != s3types.ExpirationStatusEnabled {
+			continue
+		}
+		when := expiresCurrentObjects(rule)
+		if when == "" || !ruleMayReach(rule, namespaces) {
+			continue
+		}
+		deleting = append(deleting, fmt.Sprintf("rule %q expires current objects %s, and a record is a current object", ruleID(rule), when))
+	}
+	if len(deleting) > 0 {
+		f.DeletesRecords = true
+		f.Found = strings.Join(deleting, "; ")
+		return f, nil
+	}
+
 	// The assertion names what the lifecycle DOES, not that one exists. A
 	// configuration whose rules only transition storage classes, or only
 	// abort multipart uploads, or expire noncurrent versions of some other
 	// prefix, satisfies "has a lifecycle policy" and fixes nothing.
+	//
+	// Coverage is per namespace: one rule may cover all three, or three
+	// rules may cover one each. Each rule having to cover everything by
+	// itself refused a correct configuration (#1377).
 	var near []string
+	var covering []s3types.LifecycleRule
 	for _, rule := range out.Rules {
-		id := aws.ToString(rule.ID)
-		if id == "" {
-			id = "(unnamed rule)"
-		}
 		if rule.NoncurrentVersionExpiration == nil || aws.ToInt32(rule.NoncurrentVersionExpiration.NoncurrentDays) <= 0 {
 			continue
 		}
 		if rule.Status != s3types.ExpirationStatusEnabled {
-			near = append(near, fmt.Sprintf("rule %q expires noncurrent versions but is %s", id, rule.Status))
+			near = append(near, fmt.Sprintf("rule %q expires noncurrent versions but is %s", ruleID(rule), rule.Status))
 			continue
 		}
-		if why := ruleDoesNotCover(rule, namespaces); why != "" {
-			near = append(near, fmt.Sprintf("rule %q expires noncurrent versions but %s", id, why))
+		if why := ruleFilteredBeyondPrefix(rule); why != "" {
+			near = append(near, fmt.Sprintf("rule %q expires noncurrent versions but %s", ruleID(rule), why))
 			continue
 		}
+		covering = append(covering, rule)
+	}
+	var used []string
+	var uncovered []string
+	targets := namespaces
+	if len(targets) == 0 {
+		// Not told which keys the store writes: only a rule with no prefix
+		// can be shown to reach them.
+		targets = []string{""}
+	}
+	for _, ns := range targets {
+		found := false
+		for _, rule := range covering {
+			prefix := rulePrefix(rule)
+			if prefix == "" || (ns != "" && strings.HasPrefix(NamespacePrefix(ns), prefix)) {
+				if d := describeNoncurrentExpiry(rule); !slices.Contains(used, d) {
+					used = append(used, d)
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			uncovered = append(uncovered, ns)
+		}
+	}
+	if len(uncovered) == 0 && len(covering) > 0 {
 		f.OK = true
-		f.Found = fmt.Sprintf("rule %q expires noncurrent versions after %d day(s)", id, aws.ToInt32(rule.NoncurrentVersionExpiration.NoncurrentDays))
+		f.Found = strings.Join(used, "; ")
 		return f, nil
+	}
+	for _, rule := range covering {
+		if len(namespaces) == 0 {
+			near = append(near, fmt.Sprintf("rule %q expires noncurrent versions but only under the prefix %q, and this check was not told which keys the store writes", ruleID(rule), rulePrefix(rule)))
+			continue
+		}
+		for _, ns := range uncovered {
+			near = append(near, fmt.Sprintf("rule %q expires noncurrent versions but only under the prefix %q, which does not contain %q", ruleID(rule), rulePrefix(rule), NamespacePrefix(ns)))
+		}
 	}
 	switch {
 	case len(near) > 0:
@@ -235,23 +304,48 @@ func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket string, n
 	return f, nil
 }
 
-// ruleDoesNotCover says why rule cannot be relied on to reach every object
-// under every one of namespaces, or "" when it can.
-//
-// Conservative on purpose. A rule filtered by tag or by object size may well
-// cover every record today and stop covering them tomorrow with nothing here
-// to notice, so only a rule with no filter, or a prefix filter that every
-// namespace sits under, counts.
-func ruleDoesNotCover(rule s3types.LifecycleRule, namespaces []string) string {
+func ruleID(rule s3types.LifecycleRule) string {
+	if id := aws.ToString(rule.ID); id != "" {
+		return id
+	}
+	return "(unnamed rule)"
+}
+
+// describeNoncurrentExpiry is the sentence a passing finding reports. It
+// says so when the rule ALSO keeps the newest N noncurrent versions whatever
+// their age, because "after 30 day(s)" alone would understate what is kept.
+func describeNoncurrentExpiry(rule s3types.LifecycleRule) string {
+	nve := rule.NoncurrentVersionExpiration
+	d := fmt.Sprintf("rule %q expires noncurrent versions after %d day(s)", ruleID(rule), aws.ToInt32(nve.NoncurrentDays))
+	if n := aws.ToInt32(nve.NewerNoncurrentVersions); n > 0 {
+		d += fmt.Sprintf(", keeping the newest %d whatever their age", n)
+	}
+	return d
+}
+
+// expiresCurrentObjects says when rule deletes current objects ("after N
+// day(s)", "on <date>"), or "" when it does not. ExpiredObjectDeleteMarker
+// alone is not an expiry of anything current: it tidies a delete marker that
+// has no versions left under it.
+func expiresCurrentObjects(rule s3types.LifecycleRule) string {
+	e := rule.Expiration
+	if e == nil {
+		return ""
+	}
+	if d := aws.ToInt32(e.Days); d > 0 {
+		return fmt.Sprintf("after %d day(s)", d)
+	}
+	if e.Date != nil && !e.Date.IsZero() {
+		return "on " + e.Date.UTC().Format("2006-01-02")
+	}
+	return ""
+}
+
+// rulePrefix is the key prefix rule is limited to, "" for none.
+func rulePrefix(rule s3types.LifecycleRule) string {
 	prefix := aws.ToString(rule.Prefix) //nolint:staticcheck // the deprecated top-level Prefix is still what older configurations carry
 	if fl := rule.Filter; fl != nil {
-		if fl.Tag != nil || fl.ObjectSizeGreaterThan != nil || fl.ObjectSizeLessThan != nil {
-			return "is filtered by tag or object size, which this check does not rely on"
-		}
 		if fl.And != nil {
-			if len(fl.And.Tags) > 0 || fl.And.ObjectSizeGreaterThan != nil || fl.And.ObjectSizeLessThan != nil {
-				return "is filtered by tag or object size, which this check does not rely on"
-			}
 			if p := aws.ToString(fl.And.Prefix); p != "" {
 				prefix = p
 			}
@@ -260,18 +354,48 @@ func ruleDoesNotCover(rule s3types.LifecycleRule, namespaces []string) string {
 			prefix = p
 		}
 	}
-	if prefix == "" {
+	return prefix
+}
+
+// ruleFilteredBeyondPrefix says why rule cannot be RELIED ON to reach every
+// object under a prefix, or "" when its only filter is a prefix (or none).
+//
+// Conservative on purpose. A rule filtered by tag or by object size may well
+// cover every record today and stop covering them tomorrow with nothing here
+// to notice.
+func ruleFilteredBeyondPrefix(rule s3types.LifecycleRule) string {
+	const why = "is filtered by tag or object size, which this check does not rely on"
+	fl := rule.Filter
+	if fl == nil {
 		return ""
 	}
-	if len(namespaces) == 0 {
-		return fmt.Sprintf("only under the prefix %q, and this check was not told which keys the store writes", prefix)
+	if fl.Tag != nil || fl.ObjectSizeGreaterThan != nil || fl.ObjectSizeLessThan != nil {
+		return why
 	}
-	for _, ns := range namespaces {
-		if !strings.HasPrefix(NamespacePrefix(ns), prefix) {
-			return fmt.Sprintf("only under the prefix %q, which does not contain %q", prefix, NamespacePrefix(ns))
-		}
+	if fl.And != nil && (len(fl.And.Tags) > 0 || fl.And.ObjectSizeGreaterThan != nil || fl.And.ObjectSizeLessThan != nil) {
+		return why
 	}
 	return ""
+}
+
+// ruleMayReach is the opposite question from coverage, asked of a rule that
+// DELETES: could it touch a key under any of namespaces? Conservative the
+// other way. A tag or size filter is no reassurance, since records carry
+// tags and have sizes, so only a prefix that provably lies outside every
+// namespace lets a deleting rule through. With no namespaces given, any
+// enabled deleting rule may reach.
+func ruleMayReach(rule s3types.LifecycleRule, namespaces []string) bool {
+	prefix := rulePrefix(rule)
+	if prefix == "" || len(namespaces) == 0 {
+		return true
+	}
+	for _, ns := range namespaces {
+		n := NamespacePrefix(ns)
+		if strings.HasPrefix(n, prefix) || strings.HasPrefix(prefix, n) {
+			return true
+		}
+	}
+	return false
 }
 
 func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket string) (BucketFinding, error) {
@@ -352,6 +476,11 @@ func BucketContractRefusal(bucket string, f BucketFinding) (summary, detail stri
 		why = "A record in this bucket can be the only copy of what it says: a record-backed resource carries no marker and cannot be imported under a live block, so an overwrite or a delete in an unversioned bucket is final."
 		fix = fmt.Sprintf("Enable it: aws s3api put-bucket-versioning --bucket %s --versioning-configuration Status=Enabled", bucket)
 	case BucketLifecycle:
+		if f.DeletesRecords {
+			summary = "The record store bucket's lifecycle deletes records"
+			detail = fmt.Sprintf("Bucket %q: %s.\n\nThat rule deletes records. An estate that has converged does not rewrite its records, so they age, and once one is expired the next plan reads an estate with that resource missing and proposes creating what already exists. For a record-backed resource the record was the only copy. Versioning keeps an expired record as a noncurrent version for a while, which is a recovery window and not a reason to let it happen.\n\nRemove the Expiration action from that rule, or limit the rule to a prefix outside this store's keys. Only NoncurrentVersionExpiration belongs on a rule that reaches them. The allow_insecure waiver does not cover this: it lets a run proceed without a setting being asserted, and this is a setting that was read and is destructive.", bucket, f.Found)
+			return summary, detail
+		}
 		why = "Versioning is on and every apply writes records, so without a rule that expires noncurrent versions the bucket keeps every version of every record forever. The number of days in that rule is also the recovery window: a deleted or overwritten record survives as a noncurrent version for exactly that long, and that is the only way a record destroyed by mistake comes back. Choose it deliberately."
 		fix = "Add an enabled lifecycle rule with no filter (or a prefix this store's keys sit under) and a NoncurrentVersionExpiration of the number of days you want to be able to recover within. A rule that only transitions storage classes, only aborts multipart uploads, or is filtered by tag does not satisfy this."
 	case BucketPublicAccessBlock:
@@ -401,6 +530,13 @@ func SplitWaived(findings []BucketFinding, waived []string) (refused, waivedFail
 		}
 		isWaived := false
 		for _, name := range waived {
+			// A rule that deletes records is never waived. The waiver's
+			// stated cost (see [BucketWaiverCost]) is that nothing is KNOWN
+			// to expire noncurrent versions; here something is known, and it
+			// is destructive.
+			if f.DeletesRecords {
+				break
+			}
 			if BucketSetting(name) == f.Setting {
 				isWaived = true
 				break

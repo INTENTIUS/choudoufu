@@ -102,8 +102,10 @@ func TestLifecycleThatExpiresCurrentObjectsIsRefused(t *testing.T) {
 			}
 			if !tc.ok {
 				_, detail := BucketContractRefusal("the-bucket", f)
-				if !strings.Contains(detail, "current") || !strings.Contains(detail, "delete") {
-					t.Errorf("the refusal does not say that the rule deletes records: %q", detail)
+				for _, want := range []string{"deletes records", "Remove the Expiration", "NoncurrentVersionExpiration"} {
+					if !strings.Contains(detail, want) {
+						t.Errorf("the refusal does not say %q: %q", want, detail)
+					}
 				}
 			}
 		})
@@ -149,5 +151,30 @@ func TestLifecycleFindingSaysWhenVersionsAreAlsoKeptByCount(t *testing.T) {
 	}
 	if !strings.Contains(f.Found, "5") || !strings.Contains(f.Found, "newest") {
 		t.Errorf("Found does not mention the versions kept by count: %s", f.Found)
+	}
+}
+
+// TestAWaiverDoesNotCoverALifecycleThatDeletesRecords: allow_insecure lets a
+// run proceed without a setting being ASSERTED, and its stated cost is that
+// nothing is known to expire noncurrent versions. A rule read from the bucket
+// and found to delete records is not that, so naming "lifecycle" does not
+// waive it. An ordinary lifecycle failure is still waived by the same name.
+func TestAWaiverDoesNotCoverALifecycleThatDeletesRecords(t *testing.T) {
+	deleting := lifecycleFinding(t, []s3types.LifecycleRule{expiresNoncurrent("ok", 30), expiresCurrent("sweep", 90, "")})
+	if !deleting.DeletesRecords {
+		t.Fatalf("the finding is not marked as deleting records: %+v", deleting)
+	}
+	refused, waived := SplitWaived([]BucketFinding{deleting}, []string{"lifecycle"})
+	if len(refused) != 1 || len(waived) != 0 {
+		t.Errorf("a lifecycle that deletes records was waived: refused=%d waived=%d", len(refused), len(waived))
+	}
+
+	absent := lifecycleFinding(t, nil)
+	if absent.DeletesRecords {
+		t.Fatalf("a bucket with no rules is marked as deleting records")
+	}
+	refused, waived = SplitWaived([]BucketFinding{absent}, []string{"lifecycle"})
+	if len(refused) != 0 || len(waived) != 1 {
+		t.Errorf("an ordinary lifecycle failure was not waived by name: refused=%d waived=%d", len(refused), len(waived))
 	}
 }
