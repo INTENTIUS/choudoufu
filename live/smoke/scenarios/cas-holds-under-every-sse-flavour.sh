@@ -68,16 +68,45 @@ fi
 
 bucket_of() { echo "chdf-smoke-$1-$SUFFIX"; }
 KEY_ID=""
+# This runs from an EXIT trap under smoke.sh's `set -euo pipefail`, where a
+# single failed call ends the trap and skips everything after it with
+# nothing printed (#1378). errexit and nounset go off first, each step
+# prints its own line naming the resource, and the key is reached whatever
+# the four buckets did.
+sse_empty_bucket() { # <bucket>: every version and delete marker, or a line saying why not
+  local b="$1" del n i=0
+  while [ "$i" -lt 500 ]; do
+    i=$((i+1))
+    del="$(aws s3api list-object-versions --bucket "$b" --max-items 500 --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)"
+    if [ -z "$del" ]; then
+      echo "  COULD NOT LIST the object versions of bucket $b - empty it by hand" >&2
+      return 1
+    fi
+    n="$(python3 -c 'import json,sys; print(len((json.load(sys.stdin) or {}).get("Objects") or []))' <<< "$del" 2>/dev/null)"
+    if [ -z "$n" ]; then
+      echo "  COULD NOT READ the object-version listing of bucket $b - empty it by hand" >&2
+      return 1
+    fi
+    [ "$n" = "0" ] && return 0
+    if ! aws s3api delete-objects --bucket "$b" --delete "$del" >/dev/null 2>&1; then
+      echo "  COULD NOT DELETE $n object version(s) from bucket $b - empty it by hand" >&2
+      return 1
+    fi
+  done
+  echo "  COULD NOT EMPTY bucket $b in $i rounds - empty it by hand" >&2
+  return 1
+}
 aws_teardown() {
-  local f b del
+  set +e
+  set +u
+  local f b
   for f in $FLAVOURS; do
     b="$(bucket_of "$f")"
-    aws s3api head-bucket --bucket "$b" >/dev/null 2>&1 || continue
-    del="$(aws s3api list-object-versions --bucket "$b" --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)"
-    while [ "$(python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("Objects") or []))' <<< "$del")" != "0" ]; do
-      aws s3api delete-objects --bucket "$b" --delete "$del" >/dev/null 2>&1 || break
-      del="$(aws s3api list-object-versions --bucket "$b" --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)"
-    done
+    if ! aws s3api head-bucket --bucket "$b" >/dev/null 2>&1; then
+      echo "  no bucket $b to remove"
+      continue
+    fi
+    sse_empty_bucket "$b"
     aws s3api delete-bucket --bucket "$b" >/dev/null 2>&1 && echo "  removed bucket $b" || echo "  COULD NOT REMOVE bucket $b - remove it by hand" >&2
   done
   if [ -n "$KEY_ID" ]; then
@@ -86,7 +115,7 @@ aws_teardown() {
       || echo "  COULD NOT SCHEDULE deletion of KMS key $KEY_ID - do it by hand" >&2
   fi
 }
-trap 'aws_teardown; cleanup' EXIT
+trap 'set +e; set +u; aws_teardown; cleanup' EXIT
 
 step "1. one customer managed key, and a bucket per flavour"
 # SMOKE_KMS_KEY_ARN reuses a key you already have, and then this scenario
