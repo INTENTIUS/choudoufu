@@ -33,12 +33,39 @@ REPO="INTENTIUS/choudoufu"
 # estate and the bucket are: a value taken from the script under test proves
 # only that the script agrees with itself.
 EXPECT_ACCOUNT="354867293429"
+# The sidecar names one estate and one bucket, and the cases below check the
+# file against these two literals rather than reading whatever is there. They
+# are declared here, at the top, and not inside the case that first uses them:
+# under `set -u` a later case reading an unset one kills the whole script, and
+# see the EXIT trap below for what that used to look like from outside.
+EXPECT_ESTATE="ci-pipelines-example"
+EXPECT_BUCKET="choudoufu-records-354867293429-us-east-1"
 PLAIN_SUBJECT="repo:${REPO}:*"
 IMMUTABLE_PREFIX="repo:INTENTIUS@259705176/choudoufu@1332291567"
 IMMUTABLE_SUBJECT="${IMMUTABLE_PREFIX}:*"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The status is saved and re-raised. An EXIT trap whose last command is `rm`
+# hands `rm`'s status to whoever ran this script, so a selftest killed by
+# `set -u` or `set -e` part way through - which is what happens when a case
+# leaves a later one reading a variable it never got to set - exited 0 and
+# read as a pass. Measured while writing #1381's cases.
+# selftest_finished is set on the last line that runs when every case has run.
+# Without it this script exited 0 when it was killed part way through - bash
+# 3.2 hands the EXIT trap a status of 0 for a `set -u` or `set -e` abort, and
+# the trap's own `rm` then finishes with 0 as well, so a selftest that never
+# reached half its cases read as a pass from outside. Measured while writing
+# #1381's cases, where a bootstrap that refused early left a later case
+# reading a variable that case never got to set.
+selftest_finished=0
+# shellcheck disable=SC2154 # selftest_rc is assigned on the trap's first line
+trap 'selftest_rc=$?
+      rm -rf "$WORK"
+      if [ "$selftest_finished" != 1 ]; then
+        echo "FAIL: this selftest stopped before its last case, so most of it never ran. Read the output above for where." >&2
+        exit 1
+      fi
+      exit $selftest_rc' EXIT
 STUBDIR="$WORK/bin"
 mkdir -p "$STUBDIR"
 
@@ -55,6 +82,11 @@ mkdir -p "$STUBDIR"
   # when oidc-bootstrap.sh is sourced from a subshell with a trimmed
   # environment.
   echo "AWS_CALL_LOG=\"$WORK/aws-calls.log\""
+  # What get-bucket-location answers, as the CLI would print it with
+  # --output text --query LocationConstraint. A case that wants a bucket in
+  # another region writes that region here. "None" is what a us-east-1 bucket
+  # answers, since its LocationConstraint is null.
+  echo "BUCKET_LOCATION_FILE=\"$WORK/bucket-location\""
   cat <<'AWSEOF'
 printf '%s\n' "$*" >> "$AWS_CALL_LOG"
 case "$1 $2" in
@@ -64,6 +96,10 @@ case "$1 $2" in
     ;;
   "s3api head-bucket")
     exit 0 # the record store bucket exists; the script only reads it
+    ;;
+  "s3api get-bucket-location")
+    cat "$BUCKET_LOCATION_FILE"
+    exit 0
     ;;
   "iam get-role")
     exit 1 # not found -> script takes the create-role branch, still under run()
@@ -77,6 +113,12 @@ AWSEOF
 } > "$STUBDIR/aws"
 chmod +x "$STUBDIR/aws"
 : > "$WORK/aws-calls.log"
+# The bucket this example names is in us-east-1, which is the one region
+# get-bucket-location does not name: its LocationConstraint is null, printed
+# as "None" by --output text. Every case below runs against that answer
+# unless it overwrites this file, so the ordinary path is the one with the
+# empty-answer special case in it.
+echo "None" > "$WORK/bucket-location"
 
 # gh stub: the only unconditional call is the oidc customization read.
 # `gh variable set` is behind run() and must never actually execute either.
@@ -265,11 +307,10 @@ else
   # Read independently of oidc-bootstrap.sh. Until #1379 this used that
   # script's own sed expression character for character, so one broken regex
   # satisfied both sides and the comparison compared nothing. It splits on
-  # the quote with awk instead, and then checks the two values against the
-  # literals below: the sidecar names one estate and one bucket, and if
-  # either changes, this line is where a reader is told about it.
-  EXPECT_ESTATE="ci-pipelines-example"
-  EXPECT_BUCKET="choudoufu-records-354867293429-us-east-1"
+  # the quote with awk instead, and then checks the two values against
+  # EXPECT_ESTATE and EXPECT_BUCKET at the top of this file: the sidecar names
+  # one estate and one bucket, and if either changes, that is where a reader
+  # is told about it.
   WANT_ESTATE="$(awk -F'"' '$1 ~ /^estate[[:space:]]*=[[:space:]]*$/ {print $2; exit}' "$SIDECAR")"
   WANT_BUCKET="$(awk -F'"' '$1 ~ /^[[:space:]]*bucket[[:space:]]*=[[:space:]]*$/ {print $2; exit}' "$SIDECAR")"
   echo "  sidecar: estate=$WANT_ESTATE bucket=$WANT_BUCKET"
@@ -468,9 +509,201 @@ else
   fi
 fi
 
+echo "== case: the bucket's own region decides, and a mismatch stops the run (#1381) =="
+# --region took whatever it was given and nothing compared it to the bucket.
+# The AWS_REGION repository variable it sets is what every generated workflow
+# runs in, and the AWS SDK for Go does not follow the redirect S3 answers a
+# cross-region request with, so the first record call of the first run fails
+# with an error about an endpoint and nothing about this variable.
+#
+# expect_region_refusal <bucket-location> <--region argument>: run the
+# bootstrap under the stubs and require it to stop, saying both regions.
+expect_region_refusal() {
+  local location="$1" asked="$2" name="$3"
+  echo "$location" > "$WORK/bucket-location"
+  write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
+  local runner="$WORK/run-$name.sh"
+  cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$SCRIPT_PATH" --dry-run --region $asked >"$WORK/$name.out" 2>"$WORK/$name.err"
+RUNEOF
+  chmod +x "$runner"
+  if PATH="$STUBDIR:$PATH" bash "$runner"; then
+    echo "FAIL: the bucket answered $location and the run asked for --region $asked, and the bootstrap went ahead anyway." >&2
+    echo "  It would have set AWS_REGION to a region the record store bucket is not in." >&2
+    FAILURES=$((FAILURES + 1))
+    return
+  fi
+  local said; said="$(cat "$WORK/$name.err" 2>/dev/null || true)"
+  echo "  $location vs --region $asked: refused, saying:"
+  sed 's/^/    /' "$WORK/$name.err" | tail -8
+  # Both regions by name. A refusal that names neither leaves the reader
+  # guessing which of the two to change.
+  local want_bucket="$location"
+  [ "$want_bucket" != "None" ] || want_bucket="us-east-1"
+  if ! grep -q "$want_bucket" <<< "$said" || ! grep -q "$asked" <<< "$said"; then
+    echo "FAIL: the refusal does not name both $want_bucket (the bucket) and $asked (the variable it was about to set)" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+# The bucket is in us-east-1 (a null LocationConstraint) and the run asks for
+# us-west-2. This is the reported shape.
+expect_region_refusal None us-west-2 regionmismatch
+# And the other way round, so the us-east-1 special case is not the only path
+# tested: a bucket that names its region, against the terraform default.
+expect_region_refusal eu-west-1 us-east-1 regionmismatch2
+# The control. Put back the answer the real bucket gives and pass the region
+# it is in explicitly: the bootstrap has to go through. Without this line a
+# bootstrap that refused every region at all would pass the two above.
+echo "None" > "$WORK/bucket-location"
+write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
+runner="$WORK/run-regionok.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$SCRIPT_PATH" --dry-run --region us-east-1 >"$WORK/regionok.out" 2>"$WORK/regionok.err"
+RUNEOF
+chmod +x "$runner"
+if PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "  control: --region us-east-1 against a us-east-1 bucket went through"
+else
+  echo "FAIL: the bootstrap refused --region us-east-1 against a bucket that is in us-east-1. stderr:" >&2
+  cat "$WORK/regionok.err" >&2 2>/dev/null || true
+  FAILURES=$((FAILURES + 1))
+fi
+# And the read itself is pinned to the owner, for head-bucket's reason: a
+# bucket of this name in someone else's account would otherwise answer with
+# its own region and this comparison would pass on a stranger's bucket.
+LOC_CALLS="$(grep -c '^s3api get-bucket-location' "$WORK/aws-calls.log" || true)"
+echo "  get-bucket-location calls: $LOC_CALLS"
+if [ "$LOC_CALLS" = "0" ]; then
+  echo "FAIL: oidc-bootstrap.sh never read the bucket's region, so nothing compared it to AWS_REGION" >&2
+  FAILURES=$((FAILURES + 1))
+else
+  UNPINNED_LOC="$(grep '^s3api get-bucket-location' "$WORK/aws-calls.log" | grep -vc -- "--expected-bucket-owner $EXPECT_ACCOUNT" || true)"
+  if [ "$UNPINNED_LOC" != "0" ]; then
+    echo "FAIL: $UNPINNED_LOC get-bucket-location call(s) carried no --expected-bucket-owner $EXPECT_ACCOUNT" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+
+echo "== case: a renderer that fails stops the bootstrap, by name (#1381) =="
+# The renderer used to run inside a command substitution nested in the
+# heredoc that builds the apply policy. An exit there kills that subshell and
+# nothing else, so the bootstrap carried on with no record store statements
+# and was stopped - when it was stopped at all - by jq failing to parse an
+# empty string, which says nothing about the renderer. The stub below is a
+# renderer that fails the way the real one does for a bad argument.
+RENDERER_STUB="$STUBDIR/failing-render-policy.sh"
+cat > "$RENDERER_STUB" <<'RENDEOF'
+#!/usr/bin/env bash
+echo "not a bucket name: $2" >&2
+exit 2
+RENDEOF
+chmod +x "$RENDERER_STUB"
+write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
+runner="$WORK/run-brokenrenderer.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+export POLICY_RENDERER="$RENDERER_STUB"
+source "$SCRIPT_PATH" --dry-run >"$WORK/brokenrenderer.out" 2>"$WORK/brokenrenderer.err"
+RUNEOF
+chmod +x "$runner"
+if PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL: the record store policy renderer exited 2 and the bootstrap finished anyway." >&2
+  echo "  It would have written the apply role a policy with no record store statements in it." >&2
+  FAILURES=$((FAILURES + 1))
+else
+  echo "  refused, saying:"
+  sed 's/^/    /' "$WORK/brokenrenderer.err" | tail -8
+  if ! grep -q "failing-render-policy.sh" "$WORK/brokenrenderer.err"; then
+    echo "FAIL: the refusal does not name the renderer, so a reader has to guess which of the several things this script runs failed" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+  # A jq parse error is what used to stop this, and it is not an answer.
+  if grep -qi "jq: error\|parse error" "$WORK/brokenrenderer.err"; then
+    echo "FAIL: the bootstrap stopped on a jq parse error rather than on the renderer's own exit status" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+# The second half, and the one only the exit status catches: a renderer that
+# prints a whole, parseable policy and THEN fails. Nothing downstream can tell
+# that document from a good one - jq parses it, it has statements in it, it
+# would go straight into the apply role's policy - so if the exit status is
+# not read, a renderer that died half way through its work is indistinguishable
+# from one that finished.
+cat > "$RENDERER_STUB" <<'RENDEOF'
+#!/usr/bin/env bash
+echo '{"Version":"2012-10-17","Statement":[{"Sid":"ListOwnNamespaces","Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::b"}]}'
+echo "render-policy.sh: ran out of something half way through" >&2
+exit 2
+RENDEOF
+chmod +x "$RENDERER_STUB"
+runner="$WORK/run-lyingrenderer.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+export POLICY_RENDERER="$RENDERER_STUB"
+source "$SCRIPT_PATH" --dry-run >"$WORK/lyingrenderer.out" 2>"$WORK/lyingrenderer.err"
+RUNEOF
+chmod +x "$runner"
+if PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL: the renderer printed a parseable policy and exited 2, and the bootstrap took the policy anyway." >&2
+  echo "  Only the exit status distinguishes that from a renderer that finished." >&2
+  FAILURES=$((FAILURES + 1))
+else
+  echo "  parseable-then-failed render: refused, saying:"
+  sed 's/^/    /' "$WORK/lyingrenderer.err" | tail -6
+  if ! grep -q "failing-render-policy.sh" "$WORK/lyingrenderer.err"; then
+    echo "FAIL: the refusal does not name the renderer" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+  if ! grep -q "ran out of something half way through" "$WORK/lyingrenderer.err"; then
+    echo "FAIL: the refusal does not pass on what the renderer said, which is the only account of what went wrong" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+# The third: a renderer that exits 0 and prints a document with no
+# statements in it. The exit status alone would let that through, and the
+# apply role would come out with no access to the record store at all.
+cat > "$RENDERER_STUB" <<'RENDEOF'
+#!/usr/bin/env bash
+echo '{"Version":"2012-10-17","Statement":[]}'
+RENDEOF
+chmod +x "$RENDERER_STUB"
+runner="$WORK/run-emptyrenderer.sh"
+cat > "$runner" <<RUNEOF
+#!/usr/bin/env bash
+set -euo pipefail
+export POLICY_RENDERER="$RENDERER_STUB"
+source "$SCRIPT_PATH" --dry-run >"$WORK/emptyrenderer.out" 2>"$WORK/emptyrenderer.err"
+RUNEOF
+chmod +x "$runner"
+if PATH="$STUBDIR:$PATH" bash "$runner"; then
+  echo "FAIL: the renderer printed a policy with no statements and the bootstrap finished anyway." >&2
+  FAILURES=$((FAILURES + 1))
+else
+  echo "  empty render: refused, saying:"
+  sed 's/^/    /' "$WORK/emptyrenderer.err" | tail -4
+  if ! grep -q "failing-render-policy.sh" "$WORK/emptyrenderer.err"; then
+    echo "FAIL: the empty-render refusal does not name the renderer" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+# The control for both halves is the record store case further up: it runs
+# with POLICY_RENDERER unset, so it is the real renderer going through, and
+# it compares the apply policy statement for statement against that
+# renderer's own output. Without it a bootstrap that refused every render
+# would pass the two cases here.
+rm -f "$RENDERER_STUB"
+
+selftest_finished=1
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket, the bucket owner is pinned on the head-bucket and on every s3: Allow, and the CloudWatch Logs tag actions are granted on both log-group ARN forms."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket, the bucket owner is pinned on the head-bucket and on every s3: Allow, the CloudWatch Logs tag actions are granted on both log-group ARN forms, a region that is not the bucket's own stops the run with both regions named, and a renderer that fails or prints nothing stops it by name."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."

@@ -119,7 +119,10 @@ ROLE_ARN="arn:aws:iam::$ACCOUNT:role/$ROLE"
 # statement that says who may USE it is the one the project ships.
 KEY_STATEMENT="$PROJECT/iam/render-key-statement.sh"
 key_policy() {
-  local users; users="$("$KEY_STATEMENT" "$@")" || return 1
+  # --key confines the grant to S3 (kms:ViaService, #1381). The operator is
+  # named by the same statement, and everything the operator does to a record
+  # below goes through S3 too, so the condition is on trial for both.
+  local users; users="$("$KEY_STATEMENT" --key "$KEY_ARN" "$@")" || return 1
   jq -n --arg root "arn:aws:iam::$ACCOUNT:root" --argjson users "$users" '{
     Version: "2012-10-17",
     Statement: [
@@ -129,7 +132,7 @@ key_policy() {
       $users
     ]}'
 }
-cmd "render-key-statement.sh <operator> <the estate's role>   # examples/record-store-bucket/iam"
+cmd "render-key-statement.sh --key <key> <operator> <the estate's role>   # examples/record-store-bucket/iam"
 # A principal just created is not always visible to KMS at once.
 KP_OK=0
 for i in $(seq 1 20); do
@@ -155,8 +158,12 @@ grep -q "bucket $BUCKET: correct" <<< "$V_OUT" || fail "secureconfig" "verify di
 proof "stood up and verified with the shipped project. Nothing about this bucket was written by hand."
 
 step "3. the estate's role, from the published policy"
-cmd "render-policy.sh smoke-secure $BUCKET --kms <key>"
-role_with_policy "$ROLE" "$("$POLICY_RENDERER" smoke-secure "$BUCKET" --kms "$KEY_ARN")" "$BUCKET" \
+cmd "render-policy.sh smoke-secure $BUCKET --kms <key> --account <this account>"
+# Every flag the recommended configuration has (#1381): the key, and the
+# account that owns the bucket, which puts aws:ResourceAccount on every Allow.
+# One array, so the three renders in this file cannot drift apart.
+RENDER_ARGS=(smoke-secure "$BUCKET" --kms "$KEY_ARN" --account "$ACCOUNT")
+role_with_policy "$ROLE" "$("$POLICY_RENDERER" "${RENDER_ARGS[@]}")" "$BUCKET" \
   || fail "secureconfig" "the role's policy never went live"
 # The sentence below was printed and not asked (#1379), and it was not quite
 # true either: role_with_policy adds a ProofThisPolicyIsLive statement over
@@ -166,7 +173,7 @@ role_with_policy "$ROLE" "$("$POLICY_RENDERER" smoke-secure "$BUCKET" --kms "$KE
 LIVE_POLICY="$(aws iam get-role-policy --role-name "$ROLE" --policy-name estate --query PolicyDocument --output json)" \
   || fail "secureconfig" "could not read back the role's inline policy"
 LIVE_MINUS_MARKER="$(jq -S '.Statement |= map(select(.Sid != "ProofThisPolicyIsLive"))' <<< "$LIVE_POLICY")"
-FRESH_RENDER="$("$POLICY_RENDERER" smoke-secure "$BUCKET" --kms "$KEY_ARN" | jq -S .)"
+FRESH_RENDER="$("$POLICY_RENDERER" "${RENDER_ARGS[@]}" | jq -S .)"
 grep -q ProofThisPolicyIsLive <<< "$LIVE_POLICY" \
   || fail "secureconfig" "the live policy carries no ProofThisPolicyIsLive statement, so dropping it below removes nothing and the comparison is not the one this step describes"
 [ "$LIVE_MINUS_MARKER" = "$FRESH_RENDER" ] \
@@ -189,23 +196,42 @@ if [ "${BREAK:-0}" = "1" ]; then
     "and not under the one before it."
   aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$(key_policy "$OPERATOR_ARN")" >/dev/null || fail "secureconfig" "could not install the key policy that omits the role"
   aws kms get-key-policy --key-id "$KEY_ARN" --policy-name default --query Policy --output text | jq -c '.Statement[] | {Sid, Principal}' | mask | evidence
-  CUT=0
-  for i in $(seq 1 60); do
-    RAW="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" "$SMOKE_WORK/marker.out" 2>&1)" || {
-      # Any failure used to end this loop and read as "the role can no longer
-      # decrypt" (#1379): an assume-role that timed out, a throttle, a
-      # network blip. What this arm needs is AWS refusing the read.
+  # The cut is proven the way role_with_policy proves a policy live, and for
+  # the reason written there: a key policy reaches KMS's hosts one at a time.
+  # One denied read used to end this wait. On 2026-09-19 it was not enough:
+  # the read was denied, and seconds later the estate's apply wrote two
+  # records under the key it had supposedly lost, so the arm measured the old
+  # policy and failed for the wrong reason. A read is kms:Decrypt and the
+  # apply starts with a write, which is kms:GenerateDataKey, so both are
+  # asked, and both have to be DENIED several times running.
+  CUT=0; STREAK=0
+  for i in $(seq 1 80); do
+    RAW="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" "$SMOKE_WORK/marker.out" 2>&1)" && G_RC=0 || G_RC=$?
+    RAW_PUT="$(as_role "$ROLE" aws s3api put-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" --body "$SMOKE_WORK/marker" 2>&1)" && W_RC=0 || W_RC=$?
+    if [ "$G_RC" != "0" ] && [ "$W_RC" != "0" ]; then
+      # Any failure used to read as "the role can no longer decrypt" (#1379):
+      # an assume-role that timed out, a throttle, a network blip. What this
+      # arm needs is AWS refusing the request.
       denied "$RAW" \
         || fail "secureconfig" "the role's read of its marker failed, but not on a denial, so nothing here shows the key policy is what cut it: $RAW"
-      CUT=1
-      break
-    }
+      denied "$RAW_PUT" \
+        || fail "secureconfig" "the role's write of its marker failed, but not on a denial, so nothing here shows the key policy is what cut it: $RAW_PUT"
+      STREAK=$((STREAK+1))
+      [ "$STREAK" -ge 4 ] && { CUT=1; break; }
+    else
+      STREAK=0
+    fi
     sleep 3
   done
-  [ "$CUT" = "1" ] || fail "secureconfig" "three minutes after the role was taken out of the key policy it can still decrypt, so this arm has nothing to measure"
+  [ "$CUT" = "1" ] || fail "secureconfig" "four minutes after the role was taken out of the key policy it can still read or write under the key, so this arm has nothing to measure"
   echo "what AWS itself says: $(flat <<< "$RAW" | mask)" | evidence
+  echo "the role's read and its write were both denied $STREAK times running before the apply below" | evidence
 fi
 
+# The owner is pinned in the configuration as well as in the policy (#1381):
+# bucket_owner puts ExpectedBucketOwner on every request the run makes.
+# BUCKET_OWNER is this account unless a step says otherwise.
+BUCKET_OWNER="$ACCOUNT"
 write_estate() { # instances-literal input
   cat > "$SMOKE_WORK/est/main.tf" <<TFEOF
 terraform {
@@ -213,8 +239,9 @@ terraform {
     estate = "smoke-secure"
 
     record_store "s3" {
-      bucket = "$BUCKET"
-      region = "$AWS_REGION"
+      bucket       = "$BUCKET"
+      region       = "$AWS_REGION"
+      bucket_owner = "$BUCKET_OWNER"
     }
   }
 }
@@ -268,7 +295,31 @@ P_OUT="$(as_estate plan plan -input=false -no-color 2>&1)" || fail "secureconfig
 grep -q "No changes." <<< "$P_OUT" || fail "secureconfig" "the replan from the records alone was not empty: $P_OUT"
 BEFORE="$(aws s3api head-object --bucket "$BUCKET" --key "$RECORD" --query '[VersionId,ETag]' --output text)"
 echo "2 added; record encrypted with aws:kms under the key; 2 changed under If-Match; replan empty" | evidence
-proof "create, read and update as the scoped role, through a key only it and the operator may use."
+proof "create, read and update as the scoped role, through a key only it and the operator may use, and only through S3. Every request carried this account as the bucket's expected owner, and every Allow in the role's policy required it."
+
+step "4b. the same bucket name, expected in another account"
+explain \
+  "A bucket name is global. If this bucket were ever deleted, anyone could" \
+  "create the name in their own account and wait for the next apply. The" \
+  "configuration pins the owner, so a run that finds the name in the wrong" \
+  "account stops on its first request. One account cannot stage a" \
+  "stranger's bucket, so the pin is moved instead: the same bucket, with" \
+  "bucket_owner one digit off. S3 answers both cases the same way."
+LAST="${ACCOUNT: -1}"; WRONG_OWNER="${ACCOUNT%?}$(( (LAST + 1) % 10 ))"
+BUCKET_OWNER="$WRONG_OWNER"; write_estate '["keep", "precious"]' v2
+rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
+cmd "choudoufu plan   # bucket_owner names another account"
+W_OUT="$(as_estate wrongowner plan -input=false -no-color 2>&1)" && fail "secureconfig" "the plan SUCCEEDED with bucket_owner naming an account that does not own the bucket: $W_OUT"
+W_FLAT="$(flat <<< "$W_OUT")"
+grep -qE 'Plan: [0-9]+ to add' <<< "$W_FLAT" && fail "secureconfig" "the run rendered a plan against a bucket it was told belongs to someone else: $W_OUT"
+grep -q "may be owned by an account other than $WRONG_OWNER" <<< "$W_FLAT" \
+  || fail "secureconfig" "the run failed, but it does not say the bucket may belong to an account other than the one pinned, so an operator is sent to the role's S3 permissions: $W_OUT"
+grep -oE "S3 refused this request[^.]*\." <<< "$W_FLAT" | head -1 | mask | evidence
+BUCKET_OWNER="$ACCOUNT"; write_estate '["keep", "precious"]' v2
+rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
+P2_OUT="$(as_estate rightowner plan -input=false -no-color 2>&1)" || fail "secureconfig" "the plan with the right owner back failed: $P2_OUT"
+grep -q "No changes." <<< "$P2_OUT" || fail "secureconfig" "the plan with the right owner back was not empty: $P2_OUT"
+proof "one digit off and the run stops on its first request, naming the bucket and the account it expected. With the right owner back the same plan is empty."
 
 step "5. a record destroyed by mistake, and brought back"
 explain \
@@ -317,7 +368,7 @@ to_action() { case "$1" in
   GetBucketLifecycleConfiguration) echo s3:GetLifecycleConfiguration ;; GetPublicAccessBlock) echo s3:GetBucketPublicAccessBlock ;;
   *) echo "UNMAPPED:$1" ;; esac; }
 USED_ACTIONS="$(for op in $USED; do to_action "$op"; done | tr ' ' '\n' | sort -u)"
-GRANTED="$("$POLICY_RENDERER" smoke-secure "$BUCKET" --kms "$KEY_ARN" | jq -r '.Statement[] | select(.Effect == "Allow") | .Action | if type == "array" then .[] else . end' | grep '^s3:' | sort -u)"
+GRANTED="$("$POLICY_RENDERER" "${RENDER_ARGS[@]}" | jq -r '.Statement[] | select(.Effect == "Allow") | .Action | if type == "array" then .[] else . end' | grep '^s3:' | sort -u)"
 grep -q UNMAPPED <<< "$USED_ACTIONS" && fail "secureconfig" "the run made an S3 call this scenario cannot map to an IAM action: $USED_ACTIONS"
 ONLY_USED="$(comm -23 <(echo "$USED_ACTIONS") <(echo "$GRANTED"))"
 ONLY_GRANTED="$(comm -13 <(echo "$USED_ACTIONS") <(echo "$GRANTED"))"
