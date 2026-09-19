@@ -187,9 +187,19 @@ func statelessBegin(
 	// the cache is on by default, at a path under the data dir every
 	// OpenTofu gitignore already covers, and the env var becomes the
 	// override - see stateCachePath for the full contract.
-	if cachePath := stateCachePath(); cachePath != "" {
+	//
+	// GitHub issue #1375: under strict { secrets = "refuse" } the file is not
+	// written. It is a stock state file, unencrypted, holding every sensitive
+	// attribute and output, and an operator who set "refuse" has been told the
+	// tool keeps no secret material.
+	cachePath, cacheOffForSecrets := stateCachePathFor(identity.SecretsFor(&configs.Config{Module: &configs.Module{Live: settings}}))
+	if cachePath != "" {
 		mgr.EnableStateCache(cachePath)
 		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
+	}
+	if cacheOffForSecrets {
+		log.Printf("[INFO] stateless: strict { secrets = \"refuse\" } is set, so no state cache is written or read; set %s to a path to keep one on purpose", EnvStateCache)
+		diags = diags.Append(stateCacheOffForSecretsDiags())
 	}
 
 	// Issue #732's estate-level toggle, resolved before the runner
@@ -403,7 +413,7 @@ var testStatelessRunner func(*statelessRunner)
 // reads this value says exactly why it is the exception.
 type statelessSurface int
 
-// stateCachePath resolves where this run's state cache lives.
+// stateCachePathFor resolves where this run's state cache lives.
 //
 // The default is choudoufu-cache.tfstate under the working directory's data
 // dir (.terraform, or TF_DATA_DIR when set): a derived, disposable file in
@@ -411,19 +421,58 @@ type statelessSurface int
 // recorded on issue #685. CHOUDOUFU_STATE_CACHE overrides the path, and the
 // literal value "off" disables persistence entirely - for a run that must
 // leave no file behind, such as an audit from a read-only working copy.
-func stateCachePath() string {
+//
+// The estate's secrets setting is taken into account. offForSecrets is true
+// only when the cache is off
+// BECAUSE of strict { secrets = "refuse" }, so the caller can say so; an
+// operator who set CHOUDOUFU_STATE_CACHE=off already knows.
+//
+// Maintainer's ruling on GitHub issue #1375, 2026-09-19: "refuse" also turns
+// the cache off, as if CHOUDOUFU_STATE_CACHE=off. The cache is a stock state
+// file written unencrypted, so it holds every sensitive attribute and every
+// sensitive root output in clear on each machine that applies, and "refuse"
+// is an operator saying the tool keeps no secret material. Naming a path in
+// CHOUDOUFU_STATE_CACHE is still honoured under "refuse": that is a person
+// asking for the file on purpose, and it is what keeps the cache-as-the-exit
+// route (copy it to terraform.tfstate and leave) open for such an estate.
+func stateCachePathFor(secrets strict.Secrets) (path string, offForSecrets bool) {
 	switch v := os.Getenv(EnvStateCache); v {
 	case "":
-		dataDir := os.Getenv("TF_DATA_DIR")
-		if dataDir == "" {
-			dataDir = ".terraform"
+		if secrets == strict.Refuse {
+			return "", true
 		}
-		return filepath.Join(dataDir, "choudoufu-cache.tfstate")
+		return defaultStateCachePath(), false
 	case "off":
-		return ""
+		return "", false
 	default:
-		return v
+		return v, false
 	}
+}
+
+func defaultStateCachePath() string {
+	dataDir := os.Getenv("TF_DATA_DIR")
+	if dataDir == "" {
+		dataDir = ".terraform"
+	}
+	return filepath.Join(dataDir, "choudoufu-cache.tfstate")
+}
+
+// stateCacheOffForSecretsDiags is what a run under "refuse" owes the operator
+// about the cache: nothing, unless a cache file from before the setting is
+// still on disk. Turning the cache off stops the next write. It does nothing
+// about a file an earlier run left, which still holds what it held, and the
+// run is the only thing that knows both facts. It is not deleted: the file is
+// the operator's, and it is also the way out to stock.
+func stateCacheOffForSecretsDiags() tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	leftover := defaultStateCachePath()
+	if _, err := os.Stat(leftover); err != nil {
+		return diags
+	}
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+		"An earlier state cache is still on disk",
+		fmt.Sprintf("The live block sets strict { secrets = \"refuse\" }, so this run writes no state cache and reads none. The file %s was written by an earlier run. It is a stock state file, unencrypted, and it holds every sensitive attribute and output that run saw, in clear. Delete it, or move it somewhere built to hold it. To keep a state cache on purpose under this setting, name a path in %s.", leftover, EnvStateCache),
+	))
 }
 
 // loadStateCache reads the cache stateCachePath resolves, or returns nil.
@@ -433,8 +482,12 @@ func stateCachePath() string {
 // None of them can fail the run, because the projection reads live for
 // anything the cache does not answer, and because a cache that could fail a
 // plan would be a record rather than a cache.
-func loadStateCache() *states.State {
-	path := stateCachePath()
+//
+// Under strict { secrets = "refuse" } there is no path to read from either
+// (#1375): a run that writes no cache must not quietly go on serving reads
+// out of one an earlier run left behind.
+func loadStateCache(secrets strict.Secrets) *states.State {
+	path, _ := stateCachePathFor(secrets)
 	if path == "" {
 		return nil
 	}
@@ -1106,7 +1159,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// issue #692's vouch-listing pass needs to know, before discovery
 	// runs, which concrete-declared types it holds candidates for. Nil
 	// when no cache loads, and everything downstream degrades to reading.
-	stateCache := loadStateCache()
+	stateCache := loadStateCache(identity.SecretsFor(&configs.Config{Module: &configs.Module{Live: r.settings}}))
 	var cacheVouchTypes []string
 	if r.envelopeVouch {
 		// Gated on the envelope arm, not merely on cacheServesReads

@@ -69,12 +69,20 @@ that was rotated is still in the bucket until then.
 Every apply also writes `.terraform/choudoufu-cache.tfstate` on the machine
 that ran it. It is a stock-format state file, written unencrypted, and it
 holds what a state file holds: every attribute of every resource, sensitive
-ones included, and every root output, sensitive ones included. Neither
-`secrets` setting changes that. `refuse` governs what goes into the record
-store and has no effect on this file.
+ones included, and every root output, sensitive ones included. That is
+what it holds under the default setting, `store`.
 
-So the values this page is about are in two places: the bucket, and the
-working directory of each laptop and CI runner that applied. `.terraform` is
+Under `strict { secrets = "refuse" }` the file is not written and not read,
+as if `CHOUDOUFU_STATE_CACHE=off` (#1375). If an earlier run left one in the
+data directory, a run under `refuse` warns about it by name and leaves it for
+you to delete, since the file is yours. Naming a path in
+`CHOUDOUFU_STATE_CACHE` still writes one there under `refuse`: that is you
+asking for the file on purpose, and it is what keeps
+[the way out to stock]({{< relref "/docs/model/cache" >}}) open for such an
+estate.
+
+So under `store` the values this page is about are in two places: the bucket,
+and the working directory of each laptop and CI runner that applied. `.terraform` is
 gitignored by convention, which keeps the file out of a commit and does
 nothing about who can read the disk or what a CI system caches between jobs.
 `CHOUDOUFU_STATE_CACHE=off` stops the file being written, at the cost of
@@ -91,7 +99,8 @@ It is two refusals.
 - For an ordinary cloud resource, a sensitive argument the API never returns
   is left out of its record.
 
-It does not mean the run keeps nothing secret. Two things are outside it.
+It also turns the cache file off, above. It does not mean the run keeps
+nothing secret. One thing is outside it.
 
 - A record-backed resource that your configuration hands a secret is recorded
   whole. `terraform_data { input = var.db_password }`, or a `null_resource`
@@ -99,7 +108,6 @@ It does not mean the run keeps nothing secret. Two things are outside it.
   into the record in clear with a note of which paths were sensitive. The
   refusal is by resource type, and these types have no sensitive attribute of
   their own.
-- The cache file, above.
 
 What `refuse` costs: the seven types cannot be in the estate, so generate the
 secret somewhere built to hold one and pass a reference. And an argument that
