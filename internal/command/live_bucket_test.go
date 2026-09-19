@@ -93,4 +93,25 @@ func TestParseLiveBucket(t *testing.T) {
 	if _, diags := arguments.ParseLiveBucket([]string{"some-dir"}); !diags.HasErrors() {
 		t.Error("a positional argument was accepted")
 	}
+
+	// GitHub issue #1381. The flag goes on the wire as ExpectedBucketOwner,
+	// which IAM and S3 compare as a literal string, so anything that is not
+	// twelve digits refuses all three reads with nothing saying the flag is
+	// why.
+	lb, diags := arguments.ParseLiveBucket([]string{"-bucket=b", "-bucket-owner=111122223333"})
+	if diags.HasErrors() {
+		t.Errorf("-bucket-owner with a real account id was refused: %s", diags.Err())
+	}
+	if lb.BucketOwner != "111122223333" {
+		t.Errorf("BucketOwner = %q", lb.BucketOwner)
+	}
+	for _, bad := range []string{"1234-5678-9012", "11112222333", "arn:aws:iam::111122223333:root", "abcdefghijkl", "*"} {
+		if _, diags := arguments.ParseLiveBucket([]string{"-bucket=b", "-bucket-owner=" + bad}); !diags.HasErrors() {
+			t.Errorf("-bucket-owner=%q was accepted", bad)
+		}
+	}
+	// The control: leaving it out is the ordinary case and checks nothing.
+	if lb, diags := arguments.ParseLiveBucket([]string{"-bucket=b"}); diags.HasErrors() || lb.BucketOwner != "" {
+		t.Errorf("omitting -bucket-owner: owner %q, diags %v", lb.BucketOwner, diags.Err())
+	}
 }
