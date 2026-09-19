@@ -299,17 +299,19 @@ terraform {
 }
 ```
 
-Two things `"refuse"` does not cover, which a reader could easily assume it
+`"refuse"` also turns the local cache file off. `.terraform/choudoufu-cache.tfstate`
+is a stock state file written unencrypted, so under `"refuse"` it is neither
+written nor read, unless `CHOUDOUFU_STATE_CACHE` names a path on purpose. A
+cache file left by an earlier run is warned about by name and not deleted.
+
+One thing `"refuse"` does not cover, which a reader could easily assume it
 does:
 
-- **The local cache file.** `.terraform/choudoufu-cache.tfstate` is a stock
-  state file written unencrypted on every apply, and it holds every sensitive
-  attribute and output under either setting.
 - **A record-backed resource handed a secret by configuration.**
   `terraform_data { input = var.db_password }` is admitted and recorded
   whole. The refusal is by resource type.
 
-[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has both.
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has it.
 
 Three things neither setting reaches, and they are not the same kind of
 thing:

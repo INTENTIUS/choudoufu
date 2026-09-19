@@ -35,9 +35,11 @@ the cache in the bucket:
 ## It holds what a state file holds, secrets included
 
 The file is written unencrypted and nothing scrubs it. Every sensitive
-attribute and every sensitive root output is in it, in clear, under either
-`strict { secrets = ... }` setting: that setting governs the record store and
-does not reach this file. Treat a working directory that has applied the way
+attribute and every sensitive root output is in it, in clear. For that reason
+an estate that sets `strict { secrets = "refuse" }` gets no cache at all,
+written or read, unless `CHOUDOUFU_STATE_CACHE` names a path on purpose.
+Everything below about what the cache buys, and about it being the exit,
+applies to such an estate only with that path set. Treat a working directory that has applied the way
 you would treat one holding `terraform.tfstate`. That matters most in CI,
 where a cache or an artifact step that sweeps up `.terraform` carries the
 values to wherever that goes.
