@@ -106,11 +106,17 @@ func (s *LocalStore) GetAll(_ context.Context, keyPrefix string) (map[string]Rec
 // DefaultS3GetAllParallelism is how many GetObject calls [S3Store.GetAll] has
 // in flight at once unless [S3Config.GetAllParallelism] says otherwise.
 //
-// Eight is chosen to be unremarkable, not tuned. The namespace read here is
-// the record-backed slice only - a small fraction of an estate - so the bound
-// is not load-bearing, and it is configurable because the estate that needs
-// otherwise will know why and should not have to patch the binary to find
-// out. GitHub issue #1336.
+// Eight is chosen to be unremarkable, not tuned, and it has not been measured
+// at scale. The namespace read here holds one record per managed instance -
+// internal/live/projection's write-back records every instance, an identity
+// envelope for an ordinary taggable resource as well as the whole value of a
+// record-backed one - so the read is N GetObject calls for an estate of N
+// instances and this bound sets how long that takes. An earlier version of
+// this comment called the namespace "the record-backed slice only, a small
+// fraction of an estate" and the bound "not load-bearing". That was the
+// design text's claim and the code never matched it. The bound is
+// configurable because the estate that needs otherwise will know why and
+// should not have to patch the binary to find out. GitHub issue #1336.
 const DefaultS3GetAllParallelism = 8
 
 // GetAll reads every record under keyPrefix: one ListObjectsV2 pagination,

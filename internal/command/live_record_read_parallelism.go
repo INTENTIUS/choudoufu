@@ -22,11 +22,13 @@ import (
 //
 // # Why 8, and why it can be changed
 //
-// The record namespace is the record-backed slice of an estate only, a small
-// fraction of it, so the bound is not load-bearing and 8 was chosen to be
-// unremarkable rather than tuned. It can be changed because the estate that
-// needs otherwise will know why, and a fixed bound would make them patch the
-// binary to find out.
+// 8 was chosen to be unremarkable rather than tuned, and it has not been
+// measured at scale. The record namespace holds one record per managed
+// instance, not only the record-backed ones (see
+// [staterecord.DefaultS3GetAllParallelism]), so a bulk read is linear in the
+// estate and this bound sets how long it takes. It can be changed because the
+// estate that needs otherwise will know why, and a fixed bound would make
+// them patch the binary to find out.
 //
 // # Why an environment variable, and why here
 //
