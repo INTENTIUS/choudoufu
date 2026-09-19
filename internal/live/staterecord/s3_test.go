@@ -111,7 +111,16 @@ func (f *fakeS3Server) putObject(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		return
 	}
-	if ifMatch != "" && (!exists || ifMatch != cur.etag) {
+	if ifMatch != "" && !exists {
+		// What real S3 answers, measured on #1344: a PutObject carrying
+		// If-Match for a key that does not exist is 404 NoSuchKey, NOT 412.
+		// This fake used to answer 412 here, so the store's handling of the
+		// real answer was never exercised and was wrong.
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>`))
+		return
+	}
+	if ifMatch != "" && ifMatch != cur.etag {
 		w.WriteHeader(http.StatusPreconditionFailed)
 		return
 	}

@@ -5,7 +5,8 @@
     "scenario directory and to the site's per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
     "substrate names the platform the scenario itself runs on (aws: the floci emulator; kubernetes: a kind cluster); that provider's cell must read proven.",
     "providers.<name>.status is one of: proven (a scenario runs on that substrate and passes), restated (the claim holds in a",
-    "different or weaker form, said in note), n/a (the claim's premise does not exist there), open (not yet stated either way)."
+    "different or weaker form, said in note), n/a (the claim's premise does not exist there), open (not yet stated either way).",
+    "real_aws: true marks a claim whose scenario cannot run against the emulator honestly and runs against a real AWS account instead. It is maintainer-run (SMOKE_REAL_AWS=1), never CI-gated, and its aws cell reads proven from a maintainer's run recorded in the note, not from CI. live/smoke_claims_test.go holds the flag to the scenario's own refusal."
   ],
   "themes": {
     "adopt": "Adopt live infrastructure without state surgery",
@@ -756,6 +757,30 @@
         "kubernetes": {
           "status": "n/a",
           "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. Claim 2 is where contention at a platform's own API is measured."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
+    },
+    {
+      "id": 33,
+      "slug": "cas-holds-under-every-sse-flavour",
+      "title": "Compare-and-swap holds under every SSE flavour",
+      "scenario": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",
+      "command": "just smoke cas-holds-under-every-sse-flavour",
+      "minutes": 6,
+      "needs_go": true,
+      "real_aws": true,
+      "theme": "operate",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the store checks every ETag against the payload's MD5 (go build -overlay) and passes only when that binary works under SSE-S3 and fails, on that check and nothing else, under all three KMS flavours",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "Real AWS and maintainer-run, not CI: an emulator does not reproduce the ETag semantics that are the subject. Run with SMOKE_REAL_AWS=1; it creates four buckets and a KMS key and removes them. Last run 2026-09-18, us-east-2, all four flavours."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
       "evidence": [],

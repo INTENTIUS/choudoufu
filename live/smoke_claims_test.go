@@ -53,6 +53,7 @@ type smokeClaim struct {
 	Command   string                            `json:"command"`
 	Minutes   int                               `json:"minutes"`
 	NeedsGo   bool                              `json:"needs_go"`
+	RealAWS   bool                              `json:"real_aws"`
 	Theme     string                            `json:"theme"`
 	BreakMode string                            `json:"break_mode"`
 	Substrate string                            `json:"substrate"`
@@ -167,6 +168,41 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	}
 	if seen != len(f.Claims) {
 		t.Errorf("%d claim scenarios on disk, %d rows in %s", seen, len(f.Claims), smokeClaimsPath)
+	}
+}
+
+// TestSmokeClaimsRealAWSSaysSo: a claim that needs a real AWS account says so
+// in the index, and its scenario refuses to start without SMOKE_REAL_AWS=1.
+// The bucket backend epic (#1332) has five such claims, and its rule is that
+// the index states it rather than leaving a cell nobody can explain. The
+// other direction matters as much: a scenario that reaches for real AWS
+// without the refusal would spend a maintainer's money from a paste-and-go
+// prompt, and CLAUDE.md's rule is that such a run is never started by
+// anything but the maintainer.
+func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
+	f := readSmokeClaims(t)
+	for _, c := range f.Claims {
+		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, c.Slug+".sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		script := string(raw)
+		refuses := strings.Contains(script, `[ "${SMOKE_REAL_AWS:-0}" = "1" ]`)
+		if c.RealAWS != refuses {
+			t.Errorf("claim %d: real_aws is %v in %s, but its scenario %s without SMOKE_REAL_AWS=1", c.ID, c.RealAWS, smokeClaimsPath, map[bool]string{true: "refuses to start", false: "does NOT refuse to start"}[refuses])
+		}
+		if !c.RealAWS {
+			continue
+		}
+		if !strings.Contains(strings.SplitN(script, "\n", 3)[1], "REAL AWS") {
+			t.Errorf("claim %d: the scenario's header line does not say REAL AWS, so `just smoke` lists it like any other", c.ID)
+		}
+		if note := c.Providers["aws"].Note; !strings.Contains(note, "maintainer-run") || !strings.Contains(note, "SMOKE_REAL_AWS=1") {
+			t.Errorf("claim %d: the aws cell's note must say the claim is maintainer-run and how to run it; got %q", c.ID, note)
+		}
+		if strings.Contains(script, "stack_up") {
+			t.Errorf("claim %d: a real-AWS scenario starts the emulator", c.ID)
+		}
 	}
 }
 
