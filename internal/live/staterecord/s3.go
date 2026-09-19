@@ -62,6 +62,10 @@ type S3Store struct {
 	bucket    string
 	keyPrefix string
 
+	// expectedBucketOwner rides every request as ExpectedBucketOwner when it
+	// is set. See bucketowner.go.
+	expectedBucketOwner string
+
 	getAllParallelism int
 
 	baseTags map[string]string
@@ -84,6 +88,17 @@ type S3Config struct {
 	// KeyPrefix's structure at all — it is an opaque string, the same as
 	// every key passed to the [Store] interface.
 	KeyPrefix string
+
+	// ExpectedBucketOwner is the AWS account that must own Bucket, as twelve
+	// digits. Set, every request this store makes carries it as S3's
+	// ExpectedBucketOwner and S3 refuses the request if the bucket belongs to
+	// any other account. Empty means no check, which is the behaviour of
+	// every build before GitHub issue #1381.
+	//
+	// It comes from record_store's bucket_owner. See bucketowner.go for why a
+	// bucket's NAME is not an answer to whose bucket it is, and for what the
+	// refusal looks like.
+	ExpectedBucketOwner string
 
 	// GetAllParallelism bounds how many GetObject calls [S3Store.GetAll] has
 	// in flight at once. Zero or negative takes
@@ -111,9 +126,24 @@ func NewS3Store(cfg S3Config) (*S3Store, error) {
 		bucket:    cfg.Bucket,
 		keyPrefix: cfg.KeyPrefix,
 
+		expectedBucketOwner: cfg.ExpectedBucketOwner,
+
 		getAllParallelism: cfg.GetAllParallelism,
 		baseTags:          cfg.BaseTags,
 	}, nil
+}
+
+// expectedOwner is the ExpectedBucketOwner every input this store builds
+// carries: the pinned account, or nil when none is pinned.
+func (s *S3Store) expectedOwner() *string {
+	return expectedOwnerPtr(s.expectedBucketOwner)
+}
+
+// opError is [s3OpError] with this store's own bucket and pinned owner, so a
+// denial while an owner is pinned says so. It is the only wrapper the store's
+// record operations use.
+func (s *S3Store) opError(doing, key string, err error) error {
+	return s3OpError(s.bucket, s.expectedBucketOwner, doing, key, err)
 }
 
 // objectKey joins s.keyPrefix and key into the object key sent to S3.
@@ -200,8 +230,9 @@ func (s *S3Store) Get(ctx context.Context, key string) ([]byte, string, bool, er
 		return nil, "", false, err
 	}
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(s.objectKey(key)),
+		Bucket:              aws.String(s.bucket),
+		Key:                 aws.String(s.objectKey(key)),
+		ExpectedBucketOwner: s.expectedOwner(),
 	})
 	if err != nil {
 		if missingKey(err) {
@@ -210,7 +241,7 @@ func (s *S3Store) Get(ctx context.Context, key string) ([]byte, string, bool, er
 		if status, ok := httpStatus(err); ok && status == http.StatusNotFound {
 			return nil, "", false, fmt.Errorf("staterecord: s3: getting %q: %s: %w", key, s.notTheKey(err), err)
 		}
-		return nil, "", false, s3OpError("getting", key, err)
+		return nil, "", false, s.opError("getting", key, err)
 	}
 	defer func() { _ = out.Body.Close() }()
 	payload, err := io.ReadAll(out.Body)
@@ -261,9 +292,10 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 		return "", err
 	}
 	input := &s3.PutObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(s.objectKey(key)),
-		Body:   bytes.NewReader(payload),
+		Bucket:              aws.String(s.bucket),
+		Key:                 aws.String(s.objectKey(key)),
+		Body:                bytes.NewReader(payload),
+		ExpectedBucketOwner: s.expectedOwner(),
 	}
 	if expectedVersion == "" {
 		input.IfNoneMatch = aws.String("*")
@@ -311,7 +343,7 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 		if ok && status == http.StatusNotFound && !missingKey(err) {
 			return "", fmt.Errorf("staterecord: s3: writing %q: %s: %w", key, s.notTheKey(err), err)
 		}
-		return "", s3OpError("writing", key, err)
+		return "", s.opError("writing", key, err)
 	}
 	return aws.ToString(out.ETag), nil
 }
@@ -336,9 +368,10 @@ func (s *S3Store) Delete(ctx context.Context, key string, expectedVersion string
 		return s.conflictError(ctx, key, expectedVersion, nil)
 	}
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket:  aws.String(s.bucket),
-		Key:     aws.String(s.objectKey(key)),
-		IfMatch: aws.String(expectedVersion),
+		Bucket:              aws.String(s.bucket),
+		Key:                 aws.String(s.objectKey(key)),
+		IfMatch:             aws.String(expectedVersion),
+		ExpectedBucketOwner: s.expectedOwner(),
 	})
 	if err != nil {
 		status, ok := httpStatus(err)
@@ -356,7 +389,7 @@ func (s *S3Store) Delete(ctx context.Context, key string, expectedVersion string
 		if ok && status == http.StatusNotFound {
 			return fmt.Errorf("staterecord: s3: deleting %q: %s: %w", key, s.notTheKey(err), err)
 		}
-		return s3OpError("deleting", key, err)
+		return s.opError("deleting", key, err)
 	}
 	return nil
 }
@@ -376,9 +409,10 @@ func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) 
 	var token *string
 	for {
 		out, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-			Bucket:            aws.String(s.bucket),
-			Prefix:            aws.String(prefix),
-			ContinuationToken: token,
+			Bucket:              aws.String(s.bucket),
+			Prefix:              aws.String(prefix),
+			ContinuationToken:   token,
+			ExpectedBucketOwner: s.expectedOwner(),
 		})
 		if err != nil {
 			// A LIST has no "the key is absent" answer to be confused with,
@@ -388,7 +422,7 @@ func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) 
 			if status, ok := httpStatus(err); ok && status == http.StatusNotFound {
 				return nil, fmt.Errorf("staterecord: s3: listing %q: %s: %w", keyPrefix, s.notTheKey(err), err)
 			}
-			return nil, s3OpError("listing", keyPrefix, err)
+			return nil, s.opError("listing", keyPrefix, err)
 		}
 		for _, obj := range out.Contents {
 			keys = append(keys, s.keyFromObjectKey(aws.ToString(obj.Key)))

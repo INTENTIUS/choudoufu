@@ -27,8 +27,9 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
 
 Explain each step's verdict line to me as it prints. Then run
 BREAK=1 just smoke a-wrong-bucket-is-refused and report the "caught"
-line: it runs a refusal arm with nothing corrupted, and the check for a
-refusal must find none.
+line: it builds a choudoufu whose bucket contract reports nothing,
+runs one arm against a bucket whose versioning is Suspended, and passes
+only when that arm catches the apply going through. It needs Go.
 ```
 
 As the run prints them:

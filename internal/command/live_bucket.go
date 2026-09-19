@@ -39,9 +39,17 @@ type LiveBucketCommand struct {
 
 // liveBucketReport is the -json document, and the source of the table.
 type liveBucketReport struct {
-	Bucket   string                  `json:"bucket"`
-	Correct  bool                    `json:"correct"`
-	Settings []liveBucketSettingLine `json:"settings"`
+	Bucket  string `json:"bucket"`
+	Correct bool   `json:"correct"`
+	// CheckedAsEstate is the estate whose key namespaces the lifecycle was
+	// checked against, or "" when none was given. With none, only a lifecycle
+	// rule with no filter is credited: the answer that holds for every estate
+	// that might share the bucket, and a stricter one than a run of some
+	// estate gives, since a run also credits rules that reach its own three
+	// namespaces. The two can disagree, so the report says which question it
+	// answered (GitHub issue #1377).
+	CheckedAsEstate string                  `json:"checked_as_estate"`
+	Settings        []liveBucketSettingLine `json:"settings"`
 	// Waived is what the configuration's allow_insecure names, empty with
 	// -bucket or with no waiver. It never affects Correct.
 	Waived []liveBucketWaiverLine `json:"waived"`
@@ -74,6 +82,7 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 	c.Meta.input = false
 
 	bucket, region, estate := args.Bucket, args.Region, args.Estate
+	owner := args.BucketOwner
 	var rs *configs.LiveRecordStore
 	if bucket == "" {
 		live, liveDiags := c.statelessSettings(ctx, false)
@@ -89,6 +98,13 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 			if region == "" {
 				region = rs.Region
 			}
+			// Same direction as -region: the flag wins, and without it the
+			// block's own bucket_owner is used, so running this command in a
+			// configuration directory checks the bucket the estate's own runs
+			// check (#1381).
+			if owner == "" {
+				owner = rs.BucketOwner
+			}
 		}
 		if diags.HasErrors() {
 			c.View.Diagnostics(diags)
@@ -96,14 +112,14 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 		}
 	}
 
-	findings, err := projection.VerifyBucket(ctx, bucket, region, estate, rs)
+	findings, err := projection.VerifyBucket(ctx, bucket, region, owner, estate, rs)
 	if err != nil {
 		c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read the bucket's settings",
 			fmt.Sprintf("Bucket %q could not be checked: %s. This says nothing about whether the bucket is correct.", bucket, err))))
 		return 1
 	}
 
-	report := buildLiveBucketReport(bucket, findings, rs)
+	report := buildLiveBucketReport(bucket, estate, findings, rs)
 
 	if args.JSON {
 		out, jsonErr := json.MarshalIndent(report, "", "  ")
@@ -123,9 +139,10 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 
 // buildLiveBucketReport is the whole of this command's judgement, kept apart
 // from the AWS call so it can be held to the one rule that matters: Correct
-// comes from the findings alone. rs is nil with -bucket.
-func buildLiveBucketReport(bucket string, findings []staterecord.BucketFinding, rs *configs.LiveRecordStore) liveBucketReport {
-	report := liveBucketReport{Bucket: bucket, Correct: true, Settings: []liveBucketSettingLine{}, Waived: []liveBucketWaiverLine{}}
+// comes from the findings alone. rs is nil with -bucket. estate is what the
+// findings were checked as and is only reported, never judged.
+func buildLiveBucketReport(bucket, estate string, findings []staterecord.BucketFinding, rs *configs.LiveRecordStore) liveBucketReport {
+	report := liveBucketReport{Bucket: bucket, Correct: true, CheckedAsEstate: estate, Settings: []liveBucketSettingLine{}, Waived: []liveBucketWaiverLine{}}
 	failing := map[staterecord.BucketSetting]bool{}
 	for _, f := range findings {
 		verdict := "ok"
@@ -161,6 +178,11 @@ func renderLiveBucketReport(r liveBucketReport) string {
 			fmt.Fprintf(&b, "  waiver: allow_insecure names %q. The bucket passes it today, so the waiver is hiding nothing and can be removed.\n", w.Setting)
 		}
 	}
+	if r.CheckedAsEstate == "" {
+		b.WriteString("  checked with no estate: only a lifecycle rule with no filter is credited, which is the answer that holds for every estate sharing this bucket. A run also credits rules that reach its own estate's namespaces. -estate=<name> checks as that estate's runs would.\n")
+	} else {
+		fmt.Fprintf(&b, "  checked as estate %q: a lifecycle rule is credited when it reaches that estate's key namespaces.\n", r.CheckedAsEstate)
+	}
 	b.WriteString("\n")
 	if r.Correct {
 		fmt.Fprintf(&b, "bucket %s: correct", r.Bucket)
@@ -195,8 +217,14 @@ Options:
   -bucket=name   The bucket to check, instead of the configuration's.
   -estate=name   With -bucket: check the lifecycle against this estate's
                  key namespaces. Without it only a lifecycle rule with no
-                 prefix filter counts.
+                 prefix filter counts. The report says which of the two
+                 it did.
   -region=name   The bucket's region.
+  -bucket-owner=id
+                 The twelve-digit AWS account that must own the bucket.
+                 Every read carries it, so a bucket of this name in
+                 another account is refused rather than reported on.
+                 Without it, the configuration's bucket_owner is used.
   -json          One JSON document on stdout.
 `)
 }

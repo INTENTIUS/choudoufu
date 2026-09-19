@@ -50,7 +50,10 @@ As the run prints them:
    write conflict`, naming the version it expected and the version the
    store now holds, and saying nothing was overwritten. The scenario
    reads both versions out of the message and requires them to differ.
-   `Acquiring state lock` appears in neither writer's output.
+   After every round the bucket is listed and holds no lock-shaped key.
+   (It used to grep the writers' output for `Acquiring state lock`, a
+   line the CLI prints only after a lock has been outstanding for 400ms,
+   so a lock taken and released quickly left nothing to find.)
 4. `the loser's recovery is an ordinary re-plan` - no unlock and no
    repair verb. The writer that lost plans again, sees the winner's
    record, and applies over it.

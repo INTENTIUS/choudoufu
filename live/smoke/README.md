@@ -244,10 +244,14 @@ showing its own checks would have caught it.
   the lock table. An apply is then killed with SIGKILL mid-flight and
   the very next run finishes the work, because nothing was held. The
   teardown admits there is a bucket to take down, and `just down`
-  refuses while it holds record versions. The BREAK control makes only
-  the record store unreachable and proves the run refuses by name
-  instead of planning an empty-looking estate - the #693 failure class,
-  permanently on watch (#1349). Needs jq, just, node and npm.
+  refuses while it holds record versions. The stack's resource list must
+  hold only the bucket and its policy, and every key in the bucket is
+  matched against the four shapes this backend writes (#1379). The BREAK
+  control makes only the record store unreachable and proves the run
+  refuses by name instead of planning an empty-looking estate - the #693
+  failure class, permanently on watch (#1349); it does not show that the
+  sentinel is what caught it, because an S3 client fails a closed port
+  either way. Needs jq, just, node and npm.
 - **recovery-is-a-rerun** - *Claim 5: recovery is a re-run, never
   surgery.* An apply that died after its first create call (resource
   made, markers stamped, run gone) recovers by being run again: the plan
@@ -487,8 +491,12 @@ showing its own checks would have caught it.
   against the drifted bucket goes through, because the assertions do not
   run on every plan, and the step says what that costs. A brand-new
   estate's first plan is refused twice running and leaves nothing under
-  its prefix. The BREAK control runs an arm with nothing corrupted and
-  requires the refusal check to find nothing (#1339).
+  its prefix. The BREAK control used to run an arm with nothing
+  corrupted, which corrupted nothing; it now rebuilds choudoufu with
+  CheckBucketContract reporting no findings (go build -overlay, needs
+  Go, refuses a release binary), runs one arm against a bucket whose
+  versioning is Suspended, and passes only when that arm's own check
+  catches the apply going through (#1339, #1379).
 
 - **a-waiver-names-what-it-waives** - *Claim 30: a bucket waiver waives
   only the assertion it names, and says so on every run.* A bucket with
@@ -496,8 +504,12 @@ showing its own checks would have caught it.
   proceeds, warns with what the waiver costs, and says the bucket really
   does fail the waived assertion. A plan and a second apply of the
   unchanged estate each warn again. The lifecycle and the public-access
-  block, broken in turn, are each still refused by name. A misspelt name
-  is refused at configuration load. The BREAK control rebuilds choudoufu
+  block, broken in turn, are each still refused by name. The plan's own
+  request log is read for the three bucket-configuration calls, which
+  the apply's log carries and the plan's must not. A misspelt name is
+  refused at configuration load, naming the word in what the run says
+  rather than only in the configuration line it echoes back, and listing
+  the three names it does accept. The BREAK control rebuilds choudoufu
   so the warning appears on an estate's first run only (go build
   -overlay, needs Go, refuses a release binary) and passes only when run
   two is caught proceeding in silence (#1340).
@@ -507,8 +519,12 @@ showing its own checks would have caught it.
   plan.* Twelve record-backed resources, then a small proxy in front of
   S3 that can answer one record's GET with a 500, which nothing else can
   do from outside the binary. A control plan through the unarmed proxy
-  is empty; one GET failed once leaves the plan true; the same GET
-  failed every time makes the run refuse and name the record. The BREAK
+  is empty, and the proxy's count of record GETs in flight is more than
+  one by default and exactly one under
+  TOFU_LIVE_RECORD_READ_PARALLELISM=1, which is where "eight at a time"
+  is measured; one GET failed once leaves the plan true, empty on a zero
+  exit and a refusal naming the record otherwise; the same GET failed
+  every time makes the run refuse and name the record. The BREAK
   control rebuilds choudoufu so a failed GET drops its key (go build
   -overlay, needs Go, refuses a release binary) and passes only when the
   plan is caught proposing to create a resource that exists (#1336).
@@ -521,9 +537,11 @@ showing its own checks would have caught it.
   both have arrived and releases them in a chosen order, alternating
   between rounds, so the race is a race every time. Exactly one apply
   lands per round; the other gets a record store write conflict naming
-  the expected and the found version; no state lock appears in either
-  output; the loser re-plans and converges; a writer killed with SIGKILL
-  mid-write leaves nothing to unlock. The BREAK control rebuilds
+  the expected and the found version; the bucket holds no lock-shaped
+  key after any round; the loser re-plans and converges; a writer killed
+  with SIGKILL mid-write leaves the record holding what the round before
+  it left, with the proxy's log showing its PUT dropped and not
+  forwarded. The BREAK control rebuilds
   choudoufu with no If-Match on the write (go build -overlay, needs Go,
   refuses a release binary) and passes only when both applies are caught
   reporting success (#1338). Needs python3.
@@ -586,8 +604,26 @@ showing its own checks would have caught it.
   act), the S3 actions in the request log are reconciled with the
   policy's grants in both directions, and `just down` refuses while
   versions remain. The BREAK control takes the role out of the key
-  policy, and the run must be refused naming the key and its policy
-  (#1345). Needs jq, just, node and npm.
+  policy, and the run must be refused naming the key, the KMS action and
+  the role, not just the words "KMS key" (#1345, #1379). Needs jq, just,
+  node and npm.
+- **a-read-only-role-can-plan** - *Claim 38: a role with the read-only
+  policy plans an established estate and writes nothing, and a store with
+  no sentinel is still refused by name.* **Real AWS, maintainer-run.** An
+  estate is recorded once under the full policy, which provisions the
+  sentinel. A second role carries `render-policy.sh --read-only`, with
+  the Allow half of a second read-only render merged in for the estate
+  name step 4 uses. As that role the plan is empty, a direct
+  `put-object` under the estate's prefix is denied, and the three
+  namespaces hold the same object versions after the plan as before, the
+  sentinel included. The same role against an estate name with no
+  sentinel is refused by name, naming the key and saying this identity
+  may not write it, and proposes nothing. The plan's own S3 calls are
+  then reconciled with the rendering in both directions, with the
+  denied sentinel write as the one expected difference and no
+  bucket-configuration read at all. The BREAK control rebuilds choudoufu
+  so a denied sentinel write is returned rather than carried past to the
+  List, and the read-only plan must then fail (#1370). Needs jq and Go.
 
 ## Knobs
 

@@ -25,8 +25,9 @@ machine that applies.
 ## What is recorded
 
 Every managed instance has a record, and secret material reaches one by two
-routes. The default, `strict { secrets = "store" }`, keeps what a stock
-`terraform.tfstate` keeps on both.
+routes. The default is `strict { secrets = "store" }`. On the first route it
+keeps what a stock `terraform.tfstate` keeps. On the second it keeps less, and
+the two exceptions are below.
 
 A record-backed resource is recorded whole. `random_password`,
 `tls_private_key` and the rest have no live object to carry a marker, so the
@@ -38,6 +39,15 @@ An ordinary resource is recorded in part. Its record holds what a
 read of the live resource cannot give back, and that includes arguments the
 API never returns. A database's master password is the usual one. So an estate
 with no `random_*` or `tls_*` in it can still have secrets in its store.
+
+Two kinds of sensitive argument stay out of that record under either setting,
+because a record is stored unmarked and its sensitivity is put back from the
+provider's schema when it is read. An argument that is sensitive only because
+a `sensitive = true` variable fed it has no schema mark to put back. A
+sensitive argument inside a nested block carries its mark at a path the schema
+pass cannot reproduce exactly, so the whole block stays out. Neither value is
+in the store. The cost is a plan that keeps proposing that argument or that
+block, which is visible.
 
 A write-only argument is never recorded, under either setting.
 

@@ -154,7 +154,7 @@ func TestBucketContract(t *testing.T) {
 			if tc.break_ != nil {
 				tc.break_(b)
 			}
-			findings, err := CheckBucketContract(context.Background(), b, "the-bucket", estateNamespaces)
+			findings, err := CheckBucketContract(context.Background(), b, "the-bucket", "", estateNamespaces)
 			if err != nil {
 				t.Fatalf("CheckBucketContract: %v", err)
 			}
@@ -204,7 +204,7 @@ func TestBucketContract(t *testing.T) {
 func TestBucketContractDoesNotMistakeAnOutageForAFinding(t *testing.T) {
 	b := correctBucket()
 	b.lifecycleErr = errors.New("dial tcp: connection refused")
-	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", estateNamespaces)
+	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", "", estateNamespaces)
 	if err == nil {
 		t.Fatalf("an unreachable endpoint produced findings instead of an error: %+v", findings)
 	}
@@ -221,7 +221,7 @@ func TestBucketContractWithNoNamespacesTrustsOnlyAnUnfilteredRule(t *testing.T) 
 	filtered.Filter = &s3types.LifecycleRuleFilter{Prefix: aws.String("tofu-")}
 	b := correctBucket()
 	b.rules = []s3types.LifecycleRule{filtered}
-	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", nil)
+	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestBucketContractWithNoNamespacesTrustsOnlyAnUnfilteredRule(t *testing.T) 
 		t.Errorf("a prefix-filtered rule passed with no namespaces to check it against: %s", findings[1].Found)
 	}
 	b.rules = []s3types.LifecycleRule{expiresNoncurrent("whole-bucket", 30)}
-	findings, err = CheckBucketContract(context.Background(), b, "the-bucket", nil)
+	findings, err = CheckBucketContract(context.Background(), b, "the-bucket", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
