@@ -666,6 +666,12 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-tier-unknown.tf", `The "tier" argument was set to "gold"`},
 		{"testdata/invalid-files/live-record-store-tier-on-local.tf", `has no meaning for record_store "local"`},
 		{"testdata/invalid-files/live-record-store-tier-on-s3.tf", `has no meaning for record_store "s3"`},
+		// GitHub issue #1340. A typo must not silently waive nothing while
+		// reading as a waiver, and the override is a list, never a boolean.
+		{"testdata/invalid-files/live-record-store-allow-insecure-unknown.tf", `names "versionning", which is not a bucket setting this store asserts`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-boolean.tf", `must be a literal list of strings`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-twice.tf", `names "versioning" more than once`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-on-local.tf", `has no meaning for record_store "local"`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)
