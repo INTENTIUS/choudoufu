@@ -47,6 +47,13 @@ type fakeS3Server struct {
 	// page, so pagination can be exercised deterministically without a
 	// thousand-object fixture.
 	pageSize int
+
+	// beforeGet, when set, runs for every GetObject BEFORE the server's lock
+	// is taken, so requests really do overlap inside it - the lock below
+	// serializes everything else, which would hide concurrency from a test
+	// that needs to see it. A non-zero status is written as the response and
+	// the object store is never consulted: a GET that failed.
+	beforeGet func(path string) (status int)
 }
 
 func newFakeS3Server(t *testing.T) (*httptest.Server, *fakeS3Server) {
@@ -58,6 +65,13 @@ func newFakeS3Server(t *testing.T) (*httptest.Server, *fakeS3Server) {
 }
 
 func (f *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
+	if f.beforeGet != nil && r.Method == http.MethodGet && r.URL.Query().Get("list-type") != "2" {
+		if status := f.beforeGet(r.URL.Path); status != 0 {
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code><Message>injected</Message></Error>`))
+			return
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
