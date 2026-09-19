@@ -39,7 +39,25 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.18.0 (Unreleased)
 
-Nothing recorded yet.
+FORK WORK:
+
+- **`record_store "ssm"` is retired** (#1346, part of the bucket backend,
+  #1332). Parameter Store is no longer a record store. A configuration that
+  still declares it is refused at load with `Retired record_store backend`,
+  which says why and what to declare instead: `record_store "s3"` with a
+  bucket, which `examples/record-store-bucket` stands up. The reasons are
+  the 10,000-parameter cap per account and region (the customer's quota,
+  shared with everything else in the account), per-parameter billing past
+  it, and no general conditional write, where the record store's
+  consistency rests on every write being conditional. The `tier` argument,
+  the plan-time capacity refusals (`Record store too small for this estate`,
+  `Record store is close to its ceiling`) and the throttle advice that
+  quoted Parameter Store's numbers existed only for that backend and go
+  with it. Nothing is migrated and no migration command exists, because no
+  estate was on this backend when it was retired. This is about where
+  records are kept: SSM for secret values is a separate, planned feature
+  (#1244) and is not available yet. `examples/ci-pipelines` and the
+  live-cert harness, which both declared `ssm`, move to a bucket.
 
 ## choudoufu v0.17.0 (2026-09-09)
 
