@@ -11,7 +11,7 @@ exactly what was approved. The artifact that crosses that gate is the
 plan file, and here it stays the stock one - `plan -out=FILE`, `apply
 FILE`. What changes is what the apply does with it. It never replays the
 file. It reads the live system and plans against what is there now, the
-way every live-markers run does, and then compares its own fresh plan
+way every run under the live backend does, and then compares its own fresh plan
 with the one the file describes: same resources, same actions, same live
 objects, and the same values planned for them. Matching, it applies
 without asking again, because the file was the approval. Differing, it

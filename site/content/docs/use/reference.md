@@ -269,12 +269,12 @@ configuration that generates a password runs here with a `live` block added
 and nothing else. What a state file would hold, the estate's record store
 holds - namespaced per estate, under IAM, written with compare-and-swap,
 with the sensitivity marks travelling beside the value. Like every other
-logical type, a secret-generating one needs no `record_store` block: an estate
+record-backed type, a secret-generating one needs no `record_store` block: an estate
 that declares none gets the implied local store.
 
 `"refuse"` is the principle, and it is two refusals rather than one:
 
-- a **secret-generating logical type** (`random_password`, `tls_private_key`,
+- a **secret-generating record-backed type** (`random_password`, `tls_private_key`,
   `local_sensitive_file` and their measured siblings) is refused at lint,
   naming the setting. It is refused again at the two other layers that could
   write such a record without lint having run: identity resolution, and

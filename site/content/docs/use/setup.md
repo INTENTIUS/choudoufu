@@ -30,11 +30,11 @@ that is the SDK chain: environment variables, then `~/.aws/config` and
 
 A configuration with no `provider "aws"` block still runs. `choudoufu init`
 resolves the provider from the resource type prefix, and the provider takes
-its region and credentials from the ambient environment. A marker-mode plan
+its region and credentials from the ambient environment. A plan under the live backend
 reads far more of an account than a stock plan does, so set `AWS_PROFILE`
 deliberately before the first plan.
 
-When something is missing, the failure arrives under a live-markers heading,
+When something is missing, the failure arrives under a marker-discovery heading,
 because discovery needs a configured provider before the plan graph is
 walked.
 
@@ -50,7 +50,7 @@ admission evidence version` and carries on.
 
 ## The estate declaration
 
-One file or one block turns marker mode on.
+One file or one block turns the live backend on.
 
 ```hcl
 # estate.chdf.hcl

@@ -471,7 +471,7 @@ sites the corpus had ever produced for this rule. What stays refused is the
 is on the child side, and the root declares no configuration under that name
 for the module's resources to resolve against. The provider would be
 configured from the environment with nothing from the configuration reaching
-it. `providers = { aws = aws }` is admitted, naming what live mode
+it. `providers = { aws = aws }` is admitted, naming what the live backend
 already does, and so is `{ myaws = aws }`, where only the child's local name
 differs. Root-level provider aliases work correctly, and a resource's own
 `provider =` argument is honoured.
@@ -481,7 +481,7 @@ admitted. [#70](https://github.com/INTENTIUS/choudoufu/issues/70) originally
 refused every one of them, on the measurement that none of the ten
 most-installed shared AWS modules declares one and that upstream calls the
 pattern legacy. The corpus then found a real site using exactly that shape,
-and since [#201](https://github.com/INTENTIUS/choudoufu/issues/201) live mode
+and since [#201](https://github.com/INTENTIUS/choudoufu/issues/201) the live backend
 walks to a module's own provider block and honours it rather than falling
 back to the root. The one shape the rule still names is a module-local
 provider block reached through a call using `count`, `for_each`, `enabled` or `depends_on`.

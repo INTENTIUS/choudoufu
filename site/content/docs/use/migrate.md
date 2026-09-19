@@ -13,7 +13,7 @@ time, until each carries its own ownership record. Nothing does this
 automatically, and the failure mode is quiet.
 
 {{% hint warning %}}
-Turning on live markers does not bind resources you already manage. A resource
+Turning on the live backend does not bind resources you already manage. A resource
 with no marker is not yours yet, so the first plan reads it as absent and
 proposes a second one beside it. Applying that plan succeeds, and creates the
 duplicate.
@@ -43,7 +43,7 @@ So deleting the file takes [the bulk path](#moving-a-large-estate-in-one-go)
 with it, leaving the plan-based loop and its `count`/`for_each` blind spot as
 the only way through.
 
-Keeping it costs nothing while you decide. Marker mode does not read a state
+Keeping it costs nothing while you decide. The live backend does not read a state
 file, refuse one, or mention one, so a `terraform.tfstate` sitting beside a
 live configuration changes no behaviour at all:
 [What you set up by hand]({{< relref "/docs/use/setup#deleting-the-state-file-is-not-enforced" >}})

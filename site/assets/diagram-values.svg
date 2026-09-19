@@ -2,9 +2,9 @@
      role="img" aria-labelledby="v-title v-desc">
   <title id="v-title">Every managed instance has a record, of one of two kinds, in one of three stores</title>
   <desc id="v-desc">Every managed resource instance has one record. A resource
-  with a live twin gets an identity record, which holds what a read of the
+  with a live object gets an identity record, which holds what a read of the
   live object cannot return; its ownership is the marker on the resource. A
-  resource with no live twin gets an object record, which is the only copy of
+  record-backed resource, one with no live object, gets an object record, which is the only copy of
   its value. Records live in a local directory, an S3 bucket or Kubernetes
   Secrets, one object per instance, written conditionally with no lock.</desc>
 

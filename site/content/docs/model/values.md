@@ -15,8 +15,13 @@ managed resource instance, written by choudoufu, in a place you choose.
 
 | `kind` | Written for | Holds | Losing it costs |
 |---|---|---|---|
-| `identity` | A resource with a live twin, which is most of them | What a read of the live object cannot give back: an import identity, arguments the API never returns, whether a create-time provisioner ran, and on Kubernetes the label and annotation keys the configuration last declared | A slower or noisier plan. Ownership is the marker and does not depend on the record |
-| `object` | A resource with no live twin: `null_resource`, `terraform_data`, `random_*`, `time_*`, `tls_*` | The whole value, the provider's private data, and which attributes were sensitive | The resource. The record is the only copy |
+| `identity` | A resource with a live object, which is most of them | What a read of the live object cannot give back: an import identity, arguments the API never returns, whether a create-time provisioner ran, and on Kubernetes the label and annotation keys the configuration last declared | A slower or noisier plan. Ownership is the marker and does not depend on the record |
+| `object` | A record-backed resource, one with no live object: `null_resource`, `terraform_data`, `random_*`, `time_*`, `tls_*` | The whole value, the provider's private data, and which attributes were sensitive | The resource. The record is the only copy |
+
+The [resource tier lookup]({{< relref "/docs/use/resource-tiers" >}}) uses a
+similar word for a different thing. A record-carried type has a live object
+and no tags, so its record holds its identity. A record-backed type has no
+live object, so its record holds all of it.
 
 The `kind` inside the record decides what a plan may do with a record that no
 configuration declares. Only an `object` record is proposed for destroy.
