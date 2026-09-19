@@ -120,7 +120,6 @@ var scenarioTitleDiffers = map[int]string{
 	25: "pre-#1332; the header names the claim and then restates it",
 	26: "pre-#1332; the header names the claim and then restates it",
 	27: "pre-#1332; the header names the claim and then restates it",
-	35: "#1379 found this one too; its scenario belongs to the open PR #1381 and is not edited here",
 }
 
 // goToolchainCall matches a scenario line that runs the Go toolchain. It is
