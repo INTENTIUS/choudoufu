@@ -48,6 +48,17 @@ stack_up
 export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 awsl s3api create-bucket --bucket "$BUCKET" >/dev/null || fail "nameprefix" "could not create the shared bucket"
+# A bucket the bucket contract accepts (claim 29). This scenario was written
+# before that contract existed and made a bare bucket, which an estate's first
+# contact has refused ever since; nothing re-ran it and it stayed red from
+# #1339 until this was added. The three settings have nothing to do with what
+# is measured here, which is why they are set once and never mentioned again.
+awsl s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled >/dev/null \
+  || fail "nameprefix" "could not enable versioning on the shared bucket"
+awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}' >/dev/null \
+  || fail "nameprefix" "could not set the lifecycle rule on the shared bucket"
+awsl s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null \
+  || fail "nameprefix" "could not set the public-access block on the shared bucket"
 cmd "choudoufu apply -auto-approve   # in smoke-prod, then in smoke-prod-eu: same bucket, nothing else shared"
 for estate in prod prod-eu; do
   ( cd "$SMOKE_WORK/$estate" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "nameprefix" "init failed in smoke-$estate"
