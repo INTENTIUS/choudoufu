@@ -486,14 +486,18 @@ if ! grep -qF 'VERDICT: not empty' <<< "$C5B_OUT"; then
 fi
 
 ########################################################################
-# Case 6: the ssm backend, which #1145 did not break but this change
-# touches - ssm_prefix_count and the delete loop moved from a bare `aws` to
-# livecert_aws, the TARGET=aws gate came off, and the hint namespace was
-# added. A regression here would be invisible until the next real-AWS run,
-# so it is asserted rather than assumed.
+# Case 6: the ssm backend's TEARDOWN, which is all that is left of it.
+# GitHub issue #1346 retired Parameter Store as a record store: choudoufu
+# refuses the block and this harness refuses a new run that names it (case
+# 6c). What stays is cleanup. A work dir held from before #1346 recorded
+# RECORD_STORE_BACKEND=ssm, its parameters are still in the account, and a
+# teardown-only dispatch is how they get deleted - so teardown's ssm arm and
+# verify_empty's ssm listings are still asserted rather than assumed. The
+# values-piece check is not: no run can reach it with ssm any more, and its
+# ssm arm is gone (case 6d).
 ########################################################################
 log ""
-log "=== case 6: teardown and values-piece check with RECORD_STORE_BACKEND=ssm ==="
+log "=== case 6: teardown with RECORD_STORE_BACKEND=ssm (cleanup of a run from before #1346) ==="
 seed_params() {
   if [ -n "$ENDPOINT" ]; then
     for n in "/choudoufu/livecert/$PREFIX/.store-sentinel" \
@@ -540,7 +544,6 @@ COLD6="$WORK/cold6"; mkdir -p "$COLD6"
   printf 'WORK=%q\n' "$WORK/case6work"
   printf 'FLOCI_NAME=none\n'
   printf '%s\n' 'mkdir -p "$WORK"'
-  printf '%s\n' "$VALUES_SRC"
   printf '%s\n' 'teardown'
 } > "$R6"
 C6_OUT="$(bash "$R6" 2>&1)"; C6_RC=$?
@@ -549,10 +552,7 @@ A6_REC="$(count_params "/choudoufu/livecert/$PREFIX")"
 A6_HINT="$(count_params "/tofu-hints/$ESTATE")"
 A6_OTHER="$(count_params "/someone-elses")"
 log "  after teardown: $A6_REC record param(s), $A6_HINT hint param(s), $A6_OTHER unrelated"
-if ! grep -qE 'values \(record_store ssm at ' <<< "$C6_OUT"; then
-  fail_note "the ssm values-piece check stopped running - regression from the #1145 rewrite"
-fi
-[ "$C6_RC" -eq 0 ] || fail_note "the ssm path exited $C6_RC over a store holding records"
+[ "$C6_RC" -eq 0 ] || fail_note "the ssm teardown exited $C6_RC over a store holding records"
 [ "$A6_REC" = "0" ] || fail_note "ssm teardown left $A6_REC record parameter(s) under /choudoufu/livecert/$PREFIX"
 [ "$A6_HINT" = "0" ] || fail_note "ssm teardown left $A6_HINT guided-discovery hint parameter(s) under /tofu-hints/$ESTATE"
 [ "$A6_OTHER" = "1" ] || fail_note "ssm teardown touched an unrelated parameter: 1 before, $A6_OTHER after"
@@ -585,6 +585,40 @@ seed_one_param "/tofu-hints/$ESTATE/guided"
 log "  6b (BREAK arm): verify_empty with one ssm hint parameter, no records"
 C6B="$(bash "$R6V" 2>&1)"; printf '%s\n' "$C6B" | sed 's/^/    | /'
 grep -qF 'VERDICT: not empty' <<< "$C6B" || fail_note "verify_empty reported EMPTY over Parameter Store holding a guided-discovery hint parameter"
+
+# 6c: a NEW run that names ssm is refused before it does anything, by the
+# shipped script, with the reason and the replacement. It exits at variable
+# setup, before a work dir, a container or a credential is touched, which is
+# why this can run the real script with nothing stubbed.
+log "  6c: a new run with RECORD_STORE_BACKEND=ssm is refused up front"
+SHIPPED_SRC="$ROOT/live/live-cert/terralith-scale.sh"
+if [ "$SRC_ARG" = "$SHIPPED_SRC" ]; then
+  C6C="$(env -u LIVECERT_TEARDOWN_ONLY RECORD_STORE_BACKEND=ssm TARGET=floci bash "$SHIPPED_SRC" 2>&1)"; C6C_RC=$?
+  printf '%s\n' "$C6C" | sed 's/^/    | /'
+  [ "$C6C_RC" -eq 2 ] || fail_note "a new RECORD_STORE_BACKEND=ssm run exited $C6C_RC, want the up-front refusal's 2"
+  for want in 'retired as a record store' '#1346' 'RECORD_STORE_BACKEND=s3' 'RECORD_STORE_BUCKET'; do
+    grep -qF "$want" <<< "$C6C" || fail_note "the ssm refusal does not say \"$want\""
+  done
+  C6C2="$(env -u LIVECERT_TEARDOWN_ONLY -u RECORD_STORE_BACKEND -u RECORD_STORE_BUCKET TARGET=aws bash "$SHIPPED_SRC" 2>&1)"; C6C2_RC=$?
+  grep -qF 'RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET' <<< "$C6C2" \
+    || fail_note "TARGET=aws with no backend named did not default to s3 and ask for its bucket (rc=$C6C2_RC): $C6C2"
+else
+  log "    skipped: $SRC_ARG is not the shipped script, and this case executes it"
+fi
+
+# 6d: the values-piece check has no ssm arm, so ssm there is the loud default.
+log "  6d: the values-piece check refuses ssm as a backend it cannot list"
+R6D="$WORK/case6d.sh"
+{
+  common_preamble
+  printf 'TARGET=aws\n'
+  printf 'RECORD_STORE_BACKEND=ssm\n'
+  printf '%s\n' "$VALUES_SRC"
+} > "$R6D"
+C6D="$(bash "$R6D" 2>&1)"; C6D_RC=$?
+printf '%s\n' "$C6D" | sed 's/^/    | /'
+[ "$C6D_RC" -ne 0 ] || fail_note "the values-piece check passed for RECORD_STORE_BACKEND=ssm; it has no arm for it and must refuse"
+grep -qF 'unknown record_store backend "ssm"' <<< "$C6D" || fail_note "the values-piece check did not name ssm as a backend it cannot list"
 
 ########################################################################
 # Case 7: `terralith-scale.sh teardown <work dir>` on a HELD s3 estate.

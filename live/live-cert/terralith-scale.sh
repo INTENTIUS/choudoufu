@@ -54,14 +54,17 @@ set -uo pipefail
 #   SCALE           terralith-gen's own -scale (default 1, the smallest
 #                    tier - #546's own rule: prove teardown at each tier
 #                    before growing).
-#   RECORD_STORE_BACKEND  local, ssm or s3; anything else is refused before
-#                    the run starts. Default ssm for TARGET=aws, local for
-#                    TARGET=floci. ssm and s3 are the two that put the
-#                    VALUES half of the state model in the cloud, and both
-#                    are checked at 4a2 and torn down at the end; local is
-#                    a directory inside WORK and goes with it. s3 is the
-#                    only backend with no capacity cap, which is what the
-#                    10k rung of the scale ladder needs.
+#   RECORD_STORE_BACKEND  local or s3; anything else is refused before the
+#                    run starts. Default s3 for TARGET=aws, local for
+#                    TARGET=floci. s3 is the one that puts the VALUES half
+#                    of the state model in the cloud: it is checked at 4a2
+#                    and torn down at the end; local is a directory inside
+#                    WORK and goes with it. "ssm" was the third and the aws
+#                    default until GitHub issue #1346 retired Parameter
+#                    Store as a record store. choudoufu now refuses that
+#                    block, so a new run that names it is refused here
+#                    first; a teardown-only dispatch still accepts it, to
+#                    clean up what a held run from before #1346 wrote.
 #   RECORD_STORE_BUCKET  Required for RECORD_STORE_BACKEND=s3, ignored
 #                    otherwise. An EXISTING bucket the run writes two key
 #                    namespaces into and deletes those two namespaces from
@@ -225,19 +228,20 @@ HOLD_TAG=""
 # pieces (identity as tags, values in a record store, effects as receipts),
 # only identity was genuinely under test.
 #
-# "ssm" is the default for TARGET=aws because it needs nothing created first:
-# it writes under a prefix derived from the estate name, and teardown is a
-# prefix delete. "s3" needs RECORD_STORE_BUCKET to name a bucket that
-# already exists - the run writes two key namespaces into it and deletes
-# those two at teardown, and never creates or destroys the bucket itself.
-# floci keeps "local", because the point there is speed and the emulator's
-# Parameter Store is not what is under test - but a floci run that names
-# ssm or s3 explicitly now gets the same 4a2 values check and the same
+# "s3" is the default for TARGET=aws, and it needs RECORD_STORE_BUCKET to
+# name a bucket that already exists - the run writes two key namespaces into
+# it and deletes those two at teardown, and never creates or destroys the
+# bucket itself. examples/record-store-bucket stands a correct one up. Until
+# GitHub issue #1346 the aws default was "ssm", which needed nothing created
+# first; Parameter Store is retired as a record store and choudoufu refuses
+# the block, so that convenience is gone with it.
+# floci keeps "local", because the point there is speed - but a floci run
+# that names s3 explicitly gets the same 4a2 values check and the same
 # record-store teardown an aws run gets, against the emulator's own
 # endpoint (#1145). That is how the s3 arms get exercised without paying
 # for a real-AWS cycle.
 if [ "$TARGET" = "aws" ]; then
-  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-ssm}"
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-s3}"
 else
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-local}"
 fi
@@ -255,13 +259,21 @@ case "$RECORD_STORE_BACKEND" in
   # shape loudly). The ssm backend renders it into the parameter name
   # "/choudoufu/livecert/$PREFIX/...", which is what SSM_PREFIX below
   # counts and tears down. Issue #916.
-  ssm)   RECORD_STORE_ARGS="      key_prefix = \"$RECORD_KEY_PREFIX\"
+  # Retired (#1346). Only a teardown-only dispatch gets past this: it
+  # generates no configuration, and it is how the parameters a held run from
+  # before #1346 wrote get deleted. The ssm arms in teardown and in the
+  # emptiness check below stay for that and nothing else.
+  ssm)   if [ -z "$TEARDOWN_ONLY_DIR" ]; then
+           echo "RECORD_STORE_BACKEND=ssm: Parameter Store is retired as a record store (GitHub issue #1346) and choudoufu refuses record_store \"ssm\", so this run could not get past its first plan. Use RECORD_STORE_BACKEND=s3 with RECORD_STORE_BUCKET naming an existing bucket (examples/record-store-bucket stands one up). Only a teardown-only dispatch of a work dir from before #1346 may still name ssm." >&2
+           exit 2
+         fi
+         RECORD_STORE_ARGS="      key_prefix = \"$RECORD_KEY_PREFIX\"
       region     = \"$REGION\"" ;;
   s3)    : "${RECORD_STORE_BUCKET:?RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET}"
          RECORD_STORE_ARGS="      bucket     = \"$RECORD_STORE_BUCKET\"
       key_prefix = \"$RECORD_KEY_PREFIX\"
       region     = \"$REGION\"" ;;
-  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND (want local, ssm or s3)" >&2; exit 2 ;;
+  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND (want local or s3)" >&2; exit 2 ;;
 esac
 # Where this run's records land, per backend, as an outside observer names
 # them. The ssm backend prepends "/" to the key prefix to make a legal
@@ -1840,25 +1852,15 @@ fi
 # else printed "(local disk)" over an s3 store: an s3 run skipped this check
 # entirely and said the reason was a backend it was not using.
 case "$RECORD_STORE_BACKEND" in
-  ssm)
-    rec_n="$(ssm_prefix_count "$SSM_PREFIX")"
-    log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
-    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
-    # A read-side check was tried here and REMOVED as vacuous rather than
-    # kept looking rigorous: it grepped the plan log for "ssm", which matches
-    # the provider's own aws_ssm_parameter type sweep 600+ times on any run,
-    # so it could not fail for the right reason. choudoufu's staterecord SSM
-    # client logs nothing per request (the #682 logging covers the
-    # cloudcontrol/tagging client, a different seam), so there is nothing
-    # honest to grep for until that client logs too. Write-side proof stands;
-    # the read side is proved at the cache stage (5b), whose "state cache
-    # supplied N" line comes from the projection itself.
-    ;;
   s3)
     rec_n="$(s3_prefix_count "$S3_PREFIX")"
     log "  values (record_store s3 at s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rec_n object(s) in the bucket"
     [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"s3\" but s3://$RECORD_STORE_BUCKET/$S3_PREFIX holds no objects - the store was declared and never written"
-    # Same read-side caveat as the ssm arm: nothing honest to grep for yet.
+    # No read-side check: a grep of the plan log for the store's name was
+    # tried for the retired ssm arm and removed as vacuous (it matched the
+    # provider's own type sweep), and the read side is proved at the cache
+    # stage (5b), whose "state cache supplied N" line comes from the
+    # projection itself.
     ;;
   local)
     log "  values: record_store is \"local\", a directory on disk beside the module, so the CLOUD values piece is NOT under test in this run"
