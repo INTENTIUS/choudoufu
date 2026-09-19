@@ -536,6 +536,27 @@ showing its own checks would have caught it.
   on that check under all three KMS flavours (#1344). Needs Go and
   python3.
 
+- **a-new-estate-writes-its-first-record** - *Claim 34: under the
+  published IAM policy a new estate's first write succeeds, and so does
+  every write after it.* **Real AWS, maintainer-run**
+  (`SMOKE_REAL_AWS=1`). A control role that is allowed nothing is
+  denied; a brand-new estate applies as its scoped role into an empty
+  prefix under `render-policy.sh`'s output, then updates, replans and
+  destroys with every count checked. Each policy is proven live by a
+  marker statement before it is tested. The BREAK control changes one
+  key, `s3:RequestObjectTag` to `s3:ExistingObjectTag`, and the first
+  create must be denied (#1343). Needs jq.
+- **one-bucket-many-estates** - *Claim 35: reading a neighbour's records
+  takes two mistakes, not one.* **Real AWS, maintainer-run.** Two
+  estates under their own roles in one bucket; one role is refused the
+  other's records, outputs and listings, and the bare prefix; with its
+  prefix deliberately widened it is still refused the read, by the tag;
+  the same widened role overwriting and deleting a neighbour's object is
+  shown allowed, because nothing but the prefix defends that; and a
+  declared dependency opens the other estate's outputs and nothing else.
+  The BREAK control widens the prefix and removes the tag's Deny, and
+  the read must then succeed (#1343). Needs jq.
+
 ## Knobs
 
 | Variable | Effect |
