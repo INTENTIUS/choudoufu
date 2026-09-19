@@ -173,9 +173,26 @@ object under an estate's prefix was put there by something else.
 render-policy.sh prod <bucket> --kms arn:aws:kms:us-east-2:111122223333:key/...
 ```
 
-adds `kms:Decrypt` and `kms:GenerateDataKey` on the key. The key's own
-policy has to name the role as well. A key policy that does not is the
-usual reason an estate's first run against a new bucket fails.
+adds `kms:Decrypt` and `kms:GenerateDataKey` on the key. That is half of
+it. A customer managed key is usable only by the principals its own key
+policy allows, so the key policy has to name the role as well:
+
+```
+render-key-statement.sh arn:aws:iam::111122223333:role/prod-estate
+```
+
+prints the statement to add to it. The rest of the key policy is yours.
+Pass every principal that uses the bucket, including whoever would
+recover a deleted record. The script refuses the account root and
+wildcards.
+
+A key policy that leaves the role out is the usual reason an estate's
+first run against a new bucket fails. S3 reports a KMS refusal as
+`AccessDenied` on its own operation, so choudoufu reads the message and
+says `The record store bucket's KMS key refused this run`, with the key,
+the action, the role, and which policy AWS blamed.
+[Claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
+measures all of this on real AWS.
 
 ## Reading another estate's outputs
 

@@ -117,8 +117,23 @@ tests that policy with three writes under `_verify/`.
 
 This project never creates the key. A key minted by `up` would be a key
 `down` could delete, and deleting it makes every record in the bucket
-unreadable. The key policy has to let the estate's role use it
-(`kms:Decrypt`, `kms:GenerateDataKey`), or the estate's first run fails.
+unreadable.
+
+The key policy has to let the estate's role use it, and the role's own
+IAM policy is not enough: a customer managed key is usable only by the
+principals its key policy allows. The statement to add is printed by
+
+```
+just key-statement arn:aws:iam::111122223333:role/prod-estate arn:aws:iam::111122223333:role/records-operator
+```
+
+Name every estate's role, and whoever would recover a deleted record,
+since recovery reads the record. It refuses the account root and
+wildcards: naming the account hands the decision to every IAM policy in
+it. Without the statement an estate's first run stops with
+`The record store bucket's KMS key refused this run`, naming the key, the
+action and the role. Smoke claim 37 runs this whole arrangement on real
+AWS, and its BREAK arm is a key policy with the role left out.
 
 Each `Deny` in that policy is also conditioned on the header being
 present. The obvious form, `StringNotEquals` on

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -185,5 +186,72 @@ func TestIAMRendererRefusesWhatIsNotAnEstateName(t *testing.T) {
 	}
 	if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--reads-outputs-of", "net*").CombinedOutput(); err == nil {
 		t.Errorf("render-policy.sh accepted a dependency named net*:\n%s", out)
+	}
+}
+
+const iamKeyStatementRenderer = "../examples/record-store-bucket/iam/render-key-statement.sh"
+
+// TestKMSKeyStatementIsWhatTheRunNeeds holds the key policy statement the
+// project ships (GitHub issue #1345) to what smoke claim 37 measured on real
+// AWS: the two actions S3 makes on a caller's behalf, for named principals
+// only. The committed example is the renderer's output, and the actions are
+// the same two render-policy.sh --kms grants the role, since either half
+// without the other is a refusal.
+func TestKMSKeyStatementIsWhatTheRunNeeds(t *testing.T) {
+	args := []string{"arn:aws:iam::111122223333:role/prod-estate", "arn:aws:iam::111122223333:role/records-operator"}
+	got, err := exec.Command("bash", append([]string{iamKeyStatementRenderer}, args...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("render-key-statement.sh: %v\n%s", err, got)
+	}
+	want, err := os.ReadFile(filepath.Join(iamExamples, "example-key-statement.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("example-key-statement.json is not what render-key-statement.sh prints; re-render it")
+	}
+
+	var st struct {
+		Effect    string
+		Principal struct{ AWS []string }
+		Action    []string
+	}
+	if err := json.Unmarshal(got, &st); err != nil {
+		t.Fatalf("the statement is not JSON: %v\n%s", err, got)
+	}
+	if st.Effect != "Allow" || strings.Join(st.Principal.AWS, " ") != strings.Join(args, " ") {
+		t.Errorf("effect %q, principals %v", st.Effect, st.Principal.AWS)
+	}
+
+	var rolePolicy struct{ Statement []iamStatement }
+	if err := json.Unmarshal(renderIAMPolicy(t, "prod", iamBucket, "--kms", iamKMSKey), &rolePolicy); err != nil {
+		t.Fatal(err)
+	}
+	var roleKMS []string
+	for _, s := range rolePolicy.Statement {
+		for _, a := range s.actions() {
+			if strings.HasPrefix(a, "kms:") {
+				roleKMS = append(roleKMS, a)
+			}
+		}
+	}
+	sort.Strings(roleKMS)
+	keyKMS := append([]string(nil), st.Action...)
+	sort.Strings(keyKMS)
+	if len(keyKMS) == 0 || strings.Join(keyKMS, " ") != strings.Join(roleKMS, " ") {
+		t.Errorf("the key statement allows %v and the role's policy allows %v; they are two halves of one grant and must name the same actions", keyKMS, roleKMS)
+	}
+}
+
+// TestKMSKeyStatementNamesPrincipals: the account root or a wildcard as the
+// principal hands the key to every IAM policy in the account.
+func TestKMSKeyStatementNamesPrincipals(t *testing.T) {
+	for _, bad := range []string{"arn:aws:iam::111122223333:root", "*", "arn:aws:iam::111122223333:role/*", "111122223333", "arn:aws:sts::111122223333:assumed-role/x/y", ""} {
+		if out, err := exec.Command("bash", iamKeyStatementRenderer, bad).CombinedOutput(); err == nil {
+			t.Errorf("render-key-statement.sh accepted %q:\n%s", bad, out)
+		}
+	}
+	if out, err := exec.Command("bash", iamKeyStatementRenderer).CombinedOutput(); err == nil {
+		t.Errorf("render-key-statement.sh printed a statement naming nobody:\n%s", out)
 	}
 }

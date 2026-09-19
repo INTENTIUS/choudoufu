@@ -28,6 +28,9 @@ real_aws_begin secureconfig
 BUCKET="chdf-smoke-secure-$SUFFIX"
 ROLE="smoke-secure-estate"
 OPERATOR_ARN="$(aws sts get-caller-identity --query Arn --output text)"
+# A key policy names IAM principals. Credentials that are themselves an
+# assumed role arrive as an STS session ARN, so name the role behind it.
+OPERATOR_ARN="$(sed -E 's#^(arn:aws[a-z-]*):sts::([0-9]+):assumed-role/([^/]+)/.*$#\1:iam::\2:role/\3#' <<< "$OPERATOR_ARN")"
 [ -d "$PROJECT/node_modules" ] || ( cd "$PROJECT" && npm ci >/dev/null 2>&1 ) || fail "secureconfig" "npm ci failed in $PROJECT"
 
 # Teardown on top of bucket-iam.sh's: the stack, the key policy and the key.
@@ -76,22 +79,25 @@ aws iam get-role --role-name "$ROLE" >/dev/null 2>&1 || {
   REAL_ROLES+=("$ROLE")
 }
 ROLE_ARN="arn:aws:iam::$ACCOUNT:role/$ROLE"
-# key_policy <json array of the principals that may USE the key>
+# key_policy <principal-arn>...: the account administers the key, and the
+# statement that says who may USE it is the one the project ships.
+KEY_STATEMENT="$PROJECT/iam/render-key-statement.sh"
 key_policy() {
-  jq -n --arg root "arn:aws:iam::$ACCOUNT:root" --argjson users "$1" '{
+  local users; users="$("$KEY_STATEMENT" "$@")" || return 1
+  jq -n --arg root "arn:aws:iam::$ACCOUNT:root" --argjson users "$users" '{
     Version: "2012-10-17",
     Statement: [
       { Sid: "TheAccountAdministersTheKey", Effect: "Allow", Principal: { AWS: $root },
         Action: ["kms:Create*","kms:Describe*","kms:Enable*","kms:List*","kms:Put*","kms:Update*","kms:Revoke*","kms:Disable*","kms:Get*","kms:Delete*","kms:TagResource","kms:UntagResource","kms:ScheduleKeyDeletion","kms:CancelKeyDeletion"],
         Resource: "*" },
-      { Sid: "OnlyTheseMayUseIt", Effect: "Allow", Principal: { AWS: $users },
-        Action: ["kms:Decrypt","kms:GenerateDataKey"], Resource: "*" }
+      $users
     ]}'
 }
+cmd "render-key-statement.sh <operator> <the estate's role>   # examples/record-store-bucket/iam"
 # A principal just created is not always visible to KMS at once.
 KP_OK=0
 for i in $(seq 1 20); do
-  aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$(key_policy "[\"$OPERATOR_ARN\", \"$ROLE_ARN\"]")" >/dev/null 2>"$SMOKE_WORK/kp.err" && { KP_OK=1; break; }
+  aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$(key_policy "$OPERATOR_ARN" "$ROLE_ARN")" >/dev/null 2>"$SMOKE_WORK/kp.err" && { KP_OK=1; break; }
   sleep 3
 done
 [ "$KP_OK" = "1" ] || fail "secureconfig" "could not set the key policy: $(cat "$SMOKE_WORK/kp.err")"
@@ -128,7 +134,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "arm waits until the role can no longer read an object it could read" \
     "a moment ago - so what follows is measured under the broken policy" \
     "and not under the one before it."
-  aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$(key_policy "[\"$OPERATOR_ARN\"]")" >/dev/null || fail "secureconfig" "could not install the key policy that omits the role"
+  aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$(key_policy "$OPERATOR_ARN")" >/dev/null || fail "secureconfig" "could not install the key policy that omits the role"
   aws kms get-key-policy --key-id "$KEY_ARN" --policy-name default --query Policy --output text | jq -c '.Statement[] | {Sid, Principal}' | mask | evidence
   CUT=0
   for i in $(seq 1 60); do
