@@ -478,10 +478,11 @@ showing its own checks would have caught it.
 
 - **a-wrong-bucket-is-refused** - *Claim 29: a record store bucket that
   cannot keep its records is refused by name before anything is
-  applied.* A correct bucket costs an apply nothing; then four arms each
-  break one setting with the AWS CLI - versioning suspended, no
+  applied.* A correct bucket costs an apply nothing; then five arms each
+  break one thing with the AWS CLI - versioning suspended, no
   lifecycle, a lifecycle that exists and expires nothing, no
-  public-access block - and each apply must fail naming the setting and
+  public-access block, and a lifecycle that also expires current objects
+  and so deletes records (#1377) - and each apply must fail naming it and
   the bucket, with the record store's object versions unchanged. A plan
   against the drifted bucket goes through, because the assertions do not
   run on every plan, and the step says what that costs. A brand-new

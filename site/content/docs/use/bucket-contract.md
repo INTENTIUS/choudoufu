@@ -12,7 +12,7 @@ specific about what a record is.
 | Setting | What is asserted | What it protects against |
 |---|---|---|
 | `versioning` | Versioning is `Enabled` | A record can be the only copy of what it says. A record-backed resource carries no marker and cannot be imported under a live block, so in an unversioned bucket an overwrite or a delete is final |
-| `lifecycle` | An enabled rule expires **noncurrent** versions, and it reaches every key an estate writes | With versioning on, every apply adds versions. Without this rule the bucket keeps all of them forever, and nobody has chosen how long a record destroyed by mistake stays recoverable |
+| `lifecycle` | Enabled rules expire **noncurrent** versions under every key an estate writes, and no enabled rule expires **current** objects there | With versioning on, every apply adds versions. Without this rule the bucket keeps all of them forever, and nobody has chosen how long a record destroyed by mistake stays recoverable |
 | `public_access_block` | All four settings are on | Records hold secret material by default ([Secrets]({{< relref "/docs/use/secrets" >}})). A public bucket policy or ACL would publish them |
 
 Encryption at rest is deliberately not a fourth.
@@ -32,13 +32,31 @@ So choose the number as the answer to "how long until we would notice", and
 do not inherit it from an example. `examples/record-store-bucket` defaults to
 thirty days and keeps whatever a bucket already has when `just up` runs again.
 
-The rule must expire noncurrent versions. A rule that only transitions
-storage classes or only aborts multipart uploads does not count. A rule with
-a prefix or tag filter counts only when choudoufu can show it covers the
-estate's three namespaces, and a rule with no filter is the one shape that
-is true of for every estate that will ever share the bucket. Never expire
-**current** objects: that deletes an estate's identity for a resource that
-still exists, and the next plan proposes creating something already there.
+What counts, exactly:
+
+- A rule must expire noncurrent versions. One that only transitions storage
+  classes, or only aborts multipart uploads, does not count.
+- A rule with a prefix filter counts for the namespaces that sit under its
+  prefix. The three namespaces may be covered by one rule or by one rule
+  each. A rule with no filter covers every estate that will ever share the
+  bucket, which is why the shipped project uses one.
+- A rule filtered by tag or by object size never counts. It may cover every
+  record today and stop tomorrow with nothing to notice.
+
+And one thing refuses the bucket whatever else it has: an enabled rule that
+expires **current** objects and could reach the estate's keys. A converged
+estate does not rewrite its records, so they age, and such a rule deletes
+them on a timer. The next plan then reads an estate with those resources
+missing and proposes creating what already exists. This refusal has its own
+headline, `The record store bucket's lifecycle deletes records`, and it is
+the one finding `allow_insecure` does not cover, because the waiver's cost is
+that a setting goes unasserted and this is a setting that was read and is
+destructive. A rule that only removes expired delete markers is fine. A
+deleting rule filtered by tag or size is refused too, since records have tags
+and sizes and nothing shows the filter misses them.
+
+Until #1377 the check looked only for the noncurrent expiry and passed a
+bucket with a deleting rule beside it.
 
 ## When it is checked
 
@@ -82,7 +100,7 @@ What you give up, per name, in the words the run itself prints:
 | Waived | The cost |
 |---|---|
 | `versioning` | An overwritten or deleted record cannot be brought back, and a record can be the only copy of what it says |
-| `lifecycle` | Nothing is known to expire noncurrent versions: the bucket may keep every version of every record forever, and nobody has chosen how long a record destroyed by mistake stays recoverable |
+| `lifecycle` | Nothing is known to expire noncurrent versions: the bucket may keep every version of every record forever, and nobody has chosen how long a record destroyed by mistake stays recoverable. It does not waive a rule that deletes records |
 | `public_access_block` | Nothing is known to stop a bucket policy or an ACL from publishing the records, which hold secret material |
 
 A waiver is loud on every run, plan included, and names the setting and its
@@ -104,13 +122,13 @@ organization runs differently on purpose.
 using it. A bucket is correct when:
 
 - versioning is `Enabled`;
-- an enabled lifecycle rule with no filter carries a
-  `NoncurrentVersionExpiration`;
+- enabled lifecycle rules carry a `NoncurrentVersionExpiration` for every key
+  an estate writes (one rule with no filter is the simple way), and no enabled
+  rule expires current objects there;
 - all four public-access block settings are on;
 - it exists before the first plan, and it is not declared by an estate that
   uses it as its own store.
 
 `choudoufu live-bucket` is the authority on the first three, for a bucket made
-any way at all. One thing it does not check and you should: no rule may expire
-current objects under `tofu-`, for the reason given above. [What you set up by hand]({{< relref "/docs/use/setup" >}})
+any way at all. [What you set up by hand]({{< relref "/docs/use/setup" >}})
 walks through creating one.

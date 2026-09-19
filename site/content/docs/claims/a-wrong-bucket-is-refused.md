@@ -36,14 +36,17 @@ As the run prints them:
 
 1. `a correct bucket, and an apply that goes through` - with all three
    settings in place the apply is not interrupted.
-2. `four ways to be wrong` - versioning suspended, no lifecycle
+2. `five ways to be wrong` - versioning suspended, no lifecycle
    configuration, a lifecycle that exists and only transitions storage
-   classes, and no public-access block. Each apply fails, its headline
-   names the setting, its paragraph names the bucket and what the bucket
-   has, and the record store holds exactly the object versions it held
-   before. The third arm is the reason the assertion is about what the
-   lifecycle does: a policy that merely exists keeps every version
-   forever.
+   classes, no public-access block, and a lifecycle that has the right
+   rule and also a rule that expires current objects. Each apply fails,
+   its headline names what is wrong, its paragraph names the bucket and
+   what the bucket has, and the record store holds exactly the object
+   versions it held before. The third arm is the reason the assertion is
+   about what the lifecycle does: a policy that merely exists keeps every
+   version forever. The fifth is a bucket that passes that test and
+   deletes its records on a timer. Until #1377 the check passed it, and
+   the arm fails against a binary from before that fix.
 3. `what not asking on every plan costs` - the assertions run before an
    apply changes anything, and on an estate's first contact with the
    bucket. They do not run on an ordinary plan, which would be three
