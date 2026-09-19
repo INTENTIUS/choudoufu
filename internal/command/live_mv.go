@@ -237,18 +237,16 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// to find a resource, not the only one, and a run with no live block
 	// or no record_store block leaves recordStore nil, which degrades
 	// live-mv to exactly its pre-existing behavior for such a type.
+	// A store that REFUSED does stop it. See [openRecordStoreAsOneMoreSource]
+	// and GitHub issue #1376.
 	var recordStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		var store staterecord.Store
-		storeOpts, storeErr := recordStoreOpenOptions()
-		if storeErr == nil {
-			store, storeErr = projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".", storeOpts...)
+	if config.Module != nil && config.Module.Live != nil {
+		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-mv")
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
+			return nil, diags
 		}
-		if storeErr != nil {
-			log.Printf("[WARN] live-mv: could not open the record store: %s", storeErr)
-		} else {
-			recordStore = store
-		}
+		recordStore = store
 	}
 
 	coreOpts, err := c.contextOpts(ctx)

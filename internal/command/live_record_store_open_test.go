@@ -33,6 +33,15 @@ func TestRecordStoreOpenDiagNamesAKMSRefusal(t *testing.T) {
 		}
 	}
 
+	// The headline and the remedy appear once. The detail used to append the
+	// whole wrapped error, which is the headline and the remedy again.
+	if n := strings.Count(d.Description().Detail, "refused kms:GenerateDataKey"); n != 1 {
+		t.Errorf("the headline appears %d time(s) in the detail, want 1:\n%s", n, d.Description().Detail)
+	}
+	if !strings.Contains(d.Description().Detail, "api error AccessDenied") {
+		t.Errorf("the detail lost what S3 actually said:\n%s", d.Description().Detail)
+	}
+
 	plain := recordStoreOpenDiag("s3", errors.New("api error AccessDenied: s3:GetObject"))
 	if got := plain.Description().Summary; got != "Cannot open the record store" {
 		t.Errorf("an error that is not a KMS refusal got the summary %q", got)

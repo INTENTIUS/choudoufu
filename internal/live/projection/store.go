@@ -63,6 +63,44 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 	if err != nil || store == nil {
 		return store, err
 	}
+	return openBuiltStore(ctx, store, rs, estate)
+}
+
+// StoreRefusal marks a failure to open the record store as a REFUSAL: the
+// store was reached and something about it is wrong in a way no retry and no
+// other command will get past. A bucket that fails its contract on first
+// contact is one, a store whose List does not return what was just written
+// is another, and so is a KMS key that refused the run (that one is
+// recognised by its own type, [staterecord.KMSDeniedError]).
+//
+// Everything else - a store that could not be reached, a role IAM would not
+// let in - is an outage from where this package stands. The difference is
+// for internal/command. `plan` and `apply` fail on both. `live-plan` and
+// `live-mv` treat the store as one more source and go on without it after an
+// outage, loudly; they must never go on past a refusal, because a refused
+// bucket is one the estate should not be planned against at all. GitHub
+// issue #1376: before this type existed those two commands logged both kinds
+// and carried on.
+type StoreRefusal struct{ Err error }
+
+func (e *StoreRefusal) Error() string { return e.Err.Error() }
+func (e *StoreRefusal) Unwrap() error { return e.Err }
+
+// IsStoreRefusal reports whether err, from [NewRecordStore], is a refusal
+// and not an outage. See [StoreRefusal].
+func IsStoreRefusal(err error) bool {
+	var refusal *StoreRefusal
+	var kms *staterecord.KMSDeniedError
+	return errors.As(err, &refusal) || errors.As(err, &kms)
+}
+
+// openBuiltStore is everything [NewRecordStore] does to a store once it is
+// built: the trip counter, the provisioning handshake, the first-contact
+// bucket contract, the run cache. It is its own function so that a test can
+// drive exactly the production sequence over a fake store. The first-contact
+// tests used to reimplement this glue, and deleting the first-contact call
+// from NewRecordStore left them green (#1376).
+func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string) (staterecord.Store, error) {
 	// Order is load-bearing. The counter goes UNDER the cache, so what it
 	// counts is trips that actually reached the backend; over the cache it
 	// would count the calls the cache absorbs and report no change from
@@ -141,7 +179,7 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 		return "", fmt.Errorf("record_store: reading the sentinel back through List: %w", err)
 	}
 	if !slices.Contains(keys, key) {
-		return "", fmt.Errorf("record_store: the store accepted the sentinel write at %q but List(%q) does not return it, so this store's List is broken and every record in it is invisible to a plan; refusing rather than planning against an estate that would read as empty (issue #693)", key, listPrefix)
+		return "", &StoreRefusal{Err: fmt.Errorf("record_store: the store accepted the sentinel write at %q but List(%q) does not return it, so this store's List is broken and every record in it is invisible to a plan; refusing rather than planning against an estate that would read as empty (issue #693)", key, listPrefix)}
 	}
 	return createdVersion, nil
 }
@@ -343,7 +381,7 @@ func assertBucketOnFirstContact(ctx context.Context, store staterecord.Store, rs
 		// not just the first.
 		refused, _ := staterecord.SplitWaived(findings, rs.AllowInsecure)
 		if msg := BucketContractRefusalText(rs.Bucket, refused); msg != "" {
-			refusal = errors.New(msg)
+			refusal = &StoreRefusal{Err: errors.New(msg)}
 		}
 	}
 	if refusal == nil {

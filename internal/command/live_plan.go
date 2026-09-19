@@ -636,23 +636,20 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	// The estate's record store, when the live block names one - opened
 	// here originally only as guided discovery's hint source (issue #109),
-	// now also read from directly by statelessProviderDataReads. A store
-	// that will not open is not this command's error to fail on: the hint
-	// is a plan-cost cache, so the run proceeds hintless (guided discovery
-	// and the record-rung read both stay off) and everything below behaves
-	// exactly as it always has.
+	// now also read from directly by statelessProviderDataReads. This command
+	// previews, so a store that could not be REACHED does not stop it: it
+	// goes on hintless and recordless and says so as a warning. A store that
+	// REFUSED stops it. See [openRecordStoreAsOneMoreSource] and GitHub issue
+	// #1376, before which both kinds were a log line.
 	var hintStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		var store staterecord.Store
-		storeOpts, storeErr := recordStoreOpenOptions()
-		if storeErr == nil {
-			store, storeErr = projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".", storeOpts...)
+	if config.Module != nil && config.Module.Live != nil {
+		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
+			diags = diags.Append(provs.close(ctx))
+			return 1, false, diags
 		}
-		if storeErr != nil {
-			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
-		} else {
-			hintStore = store
-		}
+		hintStore = store
 	}
 	// recordStoreForReads is the same wrapper [statelessDiscover] gets below
 	// as recordShrinkStore, built once here and unconditionally (unlike
