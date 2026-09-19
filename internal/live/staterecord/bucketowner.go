@@ -7,7 +7,6 @@ package staterecord
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
@@ -88,27 +87,16 @@ func (e *BucketOwnerMismatchError) Remedy() string {
 // nil when no owner is pinned, so a store that names none cannot produce this
 // error at all, and nil for any failure that is not a denial.
 //
-// A denial is the code AWS sends (AccessDenied) or the status alone, since an
-// S3-compatible store may answer 403 with a body this does not parse.
+// A denial is whatever [accessDenied] says one is, the same classification
+// the bucket contract's reads and the sentinel handshake use. The KMS
+// classification in kmsdenied.go reads the same errors and runs first
+// everywhere both apply, because a KMS refusal has a remedy this one does not.
 func asBucketOwnerMismatch(bucket, expectedOwner string, err error) *BucketOwnerMismatchError {
 	if expectedOwner == "" {
 		return nil
 	}
-	if !deniedRequest(err) {
+	if !accessDenied(err) {
 		return nil
 	}
 	return &BucketOwnerMismatchError{Bucket: bucket, ExpectedOwner: expectedOwner, Err: err}
-}
-
-// deniedRequest reports whether err is S3 refusing the request rather than
-// failing it. The KMS classification in kmsdenied.go reads the same errors
-// and runs first everywhere both apply, because a KMS refusal has a remedy
-// this one does not.
-func deniedRequest(err error) bool {
-	switch apiErrorCode(err) {
-	case "AccessDenied", "AccessDeniedException", "Forbidden":
-		return true
-	}
-	status, ok := httpStatus(err)
-	return ok && status == http.StatusForbidden
 }
