@@ -42,7 +42,7 @@ parent's whole identity ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1
 A `kubernetes_secret_v1` whose `data` keys read sensitive variables plans
 empty after adoption. The same root found the case where it did not: the
 provider's schema marks the whole `data` map sensitive, the configuration
-marks each key inside it, and a stateless prior read from the cluster
+marks each key inside it, and a prior read from the cluster
 carries only the schema's mark, so the planner's sensitivity comparison
 saw a difference on every run and proposed an in-place update it rendered
 as unchanged. The comparison now reduces both sides to their minimal

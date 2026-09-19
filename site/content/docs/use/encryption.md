@@ -87,7 +87,7 @@ allow it, an IAM policy that does not, or an explicit deny. Claim 37's
 
 ### What a lost key costs
 
-Losing the key is losing the bucket. Record-backed resources have no marker
+A lost key is a lost bucket, because record-backed resources have no marker
 and cannot be imported under a live block, so their records have no recovery
 path that does not go through the key. That is the argument against adding
 encryption inside choudoufu on top of SSE: a second unrecoverable failure mode

@@ -115,7 +115,7 @@ The steps as they print:
    configurations hold between them.
 
 This scenario runs the region axis. The account axis is
-[claim 19](#claim-19-the-boundary-holds-across-accounts), a sibling
+[claim 19]({{< relref "/docs/claims/the-boundary-holds-across-accounts" >}}), a sibling
 scenario with the same estate and the same steps, differing by account
 instead of by region - the reasoning that the two are one mechanism (the
 provider configuration is the partition key in both cases, and nothing in

@@ -52,8 +52,8 @@ name, and the `tofu-estate` label is written into `metadata.labels`
 through a labels-only plan and apply. A plan that would also rename the
 object, move it between namespaces or change anything outside the labels
 map is refused, and so is an object already labelled for another estate.
-Then delete the state file and plan: the plan is empty, because every
-object is found again by its name and carries the label. The gauntlet's
+Then plan with the state file out of the way: the plan is empty, because
+every object is found again by its name and carries the label. The gauntlet's
 `reference-k8s` estate measures exactly this at its `migrate` and
 `test_plan` stages.
 
@@ -71,6 +71,17 @@ every `kubernetes_manifest` entry migrated as untaggable: bound by its
 natural key, counted as migrated, and left outside the boundary, so the
 sweep did not list it, the admission policy did not fence it, and the
 report said nothing.
+
+If the stock state lives in the `kubernetes` backend, it is a Secret named
+`tfstate-<workspace>-<suffix>` with a Lease beside it. `tofu state pull >
+stock.tfstate` gives `live-import` its file. Keep the Secret until you trust
+the migration, since it is the way back to stock, and delete it last.
+
+The migration also carries over what the state knew about a custom resource's
+labels. A `kubernetes_manifest` entry's last-applied label and annotation keys
+go into the estate's record, so a label you remove from the configuration
+after migrating is planned for removal, the way stock would plan it
+([claim 27]({{< relref "/docs/claims/k8s-a-label-is-a-change" >}})).
 
 ## The marker
 

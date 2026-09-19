@@ -120,8 +120,10 @@ plan with an error that says nothing about listing.
 `ReadAndDeleteByPrefix` allows reads and deletes under the estate's three
 prefixes, with no tag condition. That is deliberate, and it is the
 statement most likely to be "tightened" by someone reading this page.
-Conditioning it on `s3:ExistingObjectTag` breaks the estate in two ways,
-both measured against AWS. The key does not work on `s3:DeleteObject` at
+Conditioning it on `s3:ExistingObjectTag` breaks the estate in two ways.
+Both were measured against AWS in
+[#1342](https://github.com/INTENTIUS/choudoufu/issues/1342), and no claim
+re-runs them. The key does not work on `s3:DeleteObject` at
 all, so every delete is denied. And a write that carries `If-Match` is
 also authorized as `s3:GetObject`, without the object's tags in the
 request, so every conditional update is denied. Every record update and
@@ -149,8 +151,6 @@ the waiver for that is `allow_insecure`, with its cost.
 
 ## What this does and does not defend
 
-There are two defences and they are not equal.
-
 For reading another estate's objects there are two, and both have to
 fail. The prefix scope has to be wrong, and the object has to carry the
 wrong tag or none. A role scoped by mistake to `tofu-records/*` still
@@ -166,6 +166,20 @@ that is not an estate name for that reason.
 An object with no `tofu-estate` tag at all is readable by any role whose
 prefix reaches it. choudoufu tags every object it writes, so an untagged
 object under an estate's prefix was put there by something else.
+
+## What a recovery needs
+
+The rendered policy is for running an estate, and it cannot recover a deleted
+record. Recovery removes a delete marker, which takes `s3:ListBucketVersions`
+on the bucket and `s3:DeleteObjectVersion` on the estate's prefixes, and
+reading a noncurrent version takes `s3:GetObjectVersion`. Give those to the
+person who recovers and leave them off the estate's role.
+[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) has the
+procedure.
+
+The same permissions clean up after a first run that was refused. A refusal
+on first contact deletes the sentinel it had just written, and in a versioned
+bucket that leaves a delete marker behind until the lifecycle rule removes it.
 
 ## A bucket encrypted with your own key
 
@@ -192,7 +206,8 @@ first run against a new bucket fails. S3 reports a KMS refusal as
 says `The record store bucket's KMS key refused this run`, with the key,
 the action, the role, and which policy AWS blamed.
 [Claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
-measures all of this on real AWS.
+measures the refusal and its message on real AWS, for an estate with no root
+outputs.
 
 ## Reading another estate's outputs
 

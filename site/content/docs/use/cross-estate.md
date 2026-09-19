@@ -56,8 +56,8 @@ live root has no state file to remember the old value in. The estate that
 wrote them reads them. An output marked `sensitive` is never written, and
 neither is one whose value is not wholly known.
 
-**No choudoufu command reads another estate's `tofu-outputs/`.** That is worth
-stating because two things could make you think otherwise:
+No choudoufu command reads another estate's `tofu-outputs/`. Two things could
+make you think otherwise:
 
 - The IAM policy renderer takes `--reads-outputs-of <estate>`, which grants a
   role read access to another estate's `tofu-outputs/` prefix and to nothing

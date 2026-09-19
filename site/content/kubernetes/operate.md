@@ -43,6 +43,32 @@ exactly four objects
 same edit with no `moved` block is a destroy and a create, because there
 the type is part of the address the marker carries.
 
+## Records
+
+Every managed object has a record, the same as on AWS
+([Records]({{< relref "/docs/model/values" >}})). For most objects it costs
+nothing to lose. Two kinds depend on it: a resource with no live object, such
+as a `random_password` feeding a Secret, and a `kubernetes_manifest`, whose
+record holds the label and annotation keys the configuration last declared.
+Without that record a label removed from the configuration is not planned
+for removal.
+
+A team keeps its records in the cluster, and no AWS account is involved:
+
+```hcl
+record_store "kubernetes" {
+  namespace = "my-estate-records"
+}
+```
+
+Each record is one Secret in that namespace, labelled `tofu-estate`, written
+conditionally on `resourceVersion` with no Lease. Give each estate its own
+namespace, because RBAC cannot condition on a label and the namespace is what
+keeps one estate out of another's records.
+[Where things are stored]({{< relref "/docs/use/storage#the-cluster" >}}) has
+the rest. A plan job needs `get` and `list` on those Secrets and nothing
+more.
+
 ## Two runs at once
 
 Server-side apply is the conflict primitive: a 409 names the competing
