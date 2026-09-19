@@ -340,9 +340,14 @@ func UnescapeKey(s string) string {
 	return markerkey.Decode(b.String())
 }
 
-// RecordObjectTags is the marker pair for the record of one instance, as the
-// tags of the store object that holds it: tofu-estate, and tofu-address with
-// its continuation tags when the escaped address is longer than one value.
+// AddressObjectTags is the address half of the marker pair for the record of
+// one instance, as the tags of the store object that holds it: tofu-address
+// with its continuation tags when the escaped address is longer than one
+// value. It is the half a caller that knows an address and not an estate can
+// supply, which is what internal/live/projection's record store is; the
+// estate half is set once, in [staterecord.S3Config.BaseTags], where the
+// store is opened for an estate, and it wins on its own key so a per-write
+// tag can never move an object to another estate.
 //
 // It is built from [EscapeAddress], [SplitAddress] and [AddressTagKey] and
 // from nothing else, which are what stamp a managed resource's own markers.
@@ -351,17 +356,12 @@ func UnescapeKey(s string) string {
 // resource's would make the bucket lie about who owns what, and an IAM
 // condition on the tag would then admit or deny on the lie.
 //
-// S3 allows an object ten tags and these are at most 1 + [MaxContinuations].
-func RecordObjectTags(estate string, addr addrs.AbsResourceInstance) map[string]string {
-	tags := AddressObjectTags(addr)
-	tags[TagEstate] = estate
-	return tags
-}
-
-// AddressObjectTags is [RecordObjectTags] without the estate: the half a
-// caller that knows an address and not an estate can supply. The record
-// envelope store is that caller; the estate half is set once, where the
-// store is opened for an estate.
+// S3 allows an object ten tags and the full set is at most
+// 1 + [MaxContinuations].
+//
+// A RecordObjectTags that returned both halves at once used to sit above
+// this. Nothing outside its own test ever called it, because the two halves
+// are set in two different places, so it was removed (#1383).
 func AddressObjectTags(addr addrs.AbsResourceInstance) map[string]string {
 	tags := map[string]string{}
 	for i, chunk := range SplitAddress(EscapeAddress(addr.String())) {

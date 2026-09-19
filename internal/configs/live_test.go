@@ -669,6 +669,15 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-key-prefix-residue.tf", `must not begin with the "tofu-residue" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-provisioned.tf", `must not begin with the "tofu-provisioned" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-outputs.tf", `must not begin with the "tofu-outputs" segment`},
+		// GitHub issue #1383. A leading slash used to pass here and fail
+		// every run afterwards, with a message about a record key and never
+		// about key_prefix.
+		{"testdata/invalid-files/live-record-store-key-prefix-leading-slash.tf", `must not begin with "/"`},
+		// "ssm-tier" was never a backend label at any release; "tier" was an
+		// argument of record_store "ssm". It gets the unknown-backend
+		// refusal, not the retirement one, which would tell a reader it
+		// existed once (#1383).
+		{"testdata/invalid-files/live-record-store-ssm-tier-is-not-a-backend.tf", `names a backend this fork does not know`},
 		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
 		// "tier" selected a Parameter Store tier and went with that backend
 		// (GitHub issue #1346). It is now simply not an argument.
@@ -707,7 +716,12 @@ func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 	}{
 		{"my-estate", ""},
 		{"tofu-records/my-estate", ""},
-		{"/tofu-records/my-estate/", ""},
+		{"tofu-records/my-estate/", ""},
+		// A leading slash is refused in its own right (#1383), and the six
+		// reserved namespaces below still get their own reason when they
+		// carry one, because that is the more dangerous of the two.
+		{"/tofu-records/my-estate/", `must not begin with "/"`},
+		{"/", "empty"},
 		// A prefix that merely starts with the same letters is not a
 		// segment match and must not be refused.
 		{"tofu-receipts-archive", ""},
