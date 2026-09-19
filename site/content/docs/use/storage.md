@@ -187,7 +187,7 @@ record store on purpose: its job is to be readable with a plain cloud CLI by som
 access and no `choudoufu` binary, and a record is tool-internal JSON in a store few people may read. A
 `key_prefix` starting with `tofu-receipts` is a configuration error, and
 `terraform_data`'s `triggers_replace` is not a substitute.
-[Effects]({{< relref "/docs/model/effects" >}}) and `live/RECEIPTS.md` have
+[Receipts]({{< relref "/docs/use/record-an-effect" >}}) and `live/RECEIPTS.md` have
 the pattern and the lint rules. An SSM parameter at
 `/tofu-receipts/<estate>/<effect>` is one supported home for a receipt, and
 nothing requires it.

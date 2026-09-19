@@ -61,7 +61,9 @@ abbreviated rather than something to match against.
 Step 2, `standup`, is a plain `init` and `apply` with a plain local state
 file. The one thing to notice is in the fixture: every resource declares two
 tags, `tofu-estate` and `tofu-address`, so the apply writes them onto the live
-resources as it creates them. Those tags are the markers.
+resources as it creates them. Those tags are the markers. This fixture spells
+them out so you can see them. In your own estate you write no tags: one
+`estate.chdf.hcl` file makes choudoufu add them on every create.
 
 Step 3 deletes `terraform.tfstate` in front of you, and nothing else changes.
 That is safe here only because the markers are already on every resource.
