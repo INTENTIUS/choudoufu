@@ -93,7 +93,7 @@ if [ -n "${SMOKE_KMS_KEY_ARN:-}" ]; then
   KEY_POLICY_FILE="${TMPDIR:-/tmp}/choudoufu-smoke-keypolicy-${KEY_ARN##*/}-$(date +%Y%m%d-%H%M%S).json"
   printf '%s\n' "$ORIGINAL_KEY_POLICY" > "$KEY_POLICY_FILE" \
     || fail "secureconfig" "could not save the borrowed key's original policy to $KEY_POLICY_FILE; refusing to touch a key whose policy is not backed up"
-  chmod 600 "$KEY_POLICY_FILE" 2>/dev/null
+  chmod 600 "$KEY_POLICY_FILE" 2>/dev/null || true
   echo "reusing $(mask <<< "$KEY_ARN"); its policy is restored at the end" | evidence
   echo "its original policy is saved at $KEY_POLICY_FILE" | evidence
   echo "if this run dies before restoring it, restore it by hand with:" | evidence
