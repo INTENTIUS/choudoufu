@@ -98,18 +98,31 @@ fi
 [ "$A_RC" = "0" ] || fail "objecttags" "the estate could not apply under the published policy: $A_OUT"
 grep -q "Resources: 2 added" <<< "$A_OUT" || fail "objecttags" "the apply: $A_OUT"
 N=0
+RECORD_ADDRS=""
 while read -r key; do
   [ -n "$key" ] || continue
   TAGS="$(aws s3api get-object-tagging --bucket "$BUCKET" --key "$key" --query 'TagSet[].[Key,Value]' --output text | sort | tr '\t' '=' | tr '\n' ' ')"
   grep -q "tofu-estate=smoke-tagged" <<< "$TAGS" || fail "objecttags" "$key does not carry tofu-estate=smoke-tagged: [$TAGS]"
   case "$key" in
-    tofu-records/*/terraform_data/*) grep -q "tofu-address=terraform_data.effect:" <<< "$TAGS" || fail "objecttags" "record $key carries no tofu-address: [$TAGS]" ;;
+    tofu-records/*/terraform_data/*)
+      ADDR="$(grep -oE 'tofu-address=[^ ]+' <<< "$TAGS" | cut -d= -f2)"
+      [ -n "$ADDR" ] || fail "objecttags" "record $key carries no tofu-address: [$TAGS]"
+      RECORD_ADDRS="$RECORD_ADDRS $ADDR"
+      ;;
   esac
   echo "$key   $TAGS" | evidence
   N=$((N+1))
 done < <(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu- --query 'Contents[].Key' --output json | jq -r '.[]')
 [ "$N" -ge 5 ] || fail "objecttags" "only $N objects were checked; expected the sentinel, the hint, an output and two records"
-proof "$N objects, every one tagged with its estate, and each record with the marker form of its address (a.b is a@db, the same escape the resource's own tag uses)."
+# The escape is the point of the a.b instance, and matching the prefix
+# tofu-address=terraform_data.effect: could not see it (#1379). The two
+# addresses are asserted by value: a dot inside an instance key becomes @d,
+# the same escape the resource's own tag carries.
+WANT_ADDRS="terraform_data.effect:a@db terraform_data.effect:plain"
+GOT_ADDRS="$(printf '%s\n' $RECORD_ADDRS | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+[ "$GOT_ADDRS" = "$WANT_ADDRS" ] \
+  || fail "objecttags" "the records' tofu-address tags are [$GOT_ADDRS], want [$WANT_ADDRS]: effect[\"a.b\"] must carry the escaped marker form a@db"
+proof "$N objects, every one tagged with its estate, and the two records carrying exactly $WANT_ADDRS: a.b is a@db, the same escape the resource's own tag uses."
 
 step "2. a record tagged as another estate's is refused to this one"
 explain \

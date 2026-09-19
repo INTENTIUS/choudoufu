@@ -134,6 +134,18 @@ cmd "just verify $BUCKET"
 V_OUT="$(cd "$PROJECT" && CHOUDOUFU_BIN="$TOFU" just verify "$BUCKET" 2>&1)" || fail "auto" "just verify says the bucket it just made is not correct: $V_OUT"
 grep -E ' OK |: correct' <<< "$V_OUT" | evidence
 grep -q "bucket $BUCKET: correct" <<< "$V_OUT" || fail "auto" "verify did not report the bucket correct: $V_OUT"
+# "No lock table is created" was printed and never asked (#1379). The stack's
+# own resource list is where a lock table would have to be, and there are only
+# two resource types in the answer: the bucket, and with a key its policy.
+STACK_TYPES="$(aws cloudformation list-stack-resources --stack-name "$BUCKET" --query 'StackResourceSummaries[].ResourceType' --output text | tr '\t' '\n' | grep -v '^$' | sort -u)"
+[ -n "$STACK_TYPES" ] \
+  || fail "auto" "the stack $BUCKET lists no resources at all, so 'no lock table' below would be a claim about an empty answer"
+UNEXPECTED="$(grep -vxE 'AWS::S3::Bucket|AWS::S3::BucketPolicy' <<< "$STACK_TYPES" || true)"
+[ -z "$UNEXPECTED" ] \
+  || fail "auto" "the stack makes resources that are not the bucket and its policy: $(echo $UNEXPECTED). Stock's day one made a lock table here; this project must not."
+grep -q 'AWS::DynamoDB::Table' <<< "$STACK_TYPES" \
+  && fail "auto" "the stack creates a DynamoDB table, which is the lock table this claim says is gone"
+echo "$STACK_TYPES" | sed 's/^/stack resource type: /' | evidence
 write_b() { # <sleep-seconds for the slow resource, or 0 for none>
   cat > "$SMOKE_WORK/b/main.tf" <<TFEOF
 terraform {
@@ -172,18 +184,22 @@ SENTINEL="$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/s
 [ -n "$SENTINEL" ] || fail "auto" "no sentinel object exists in the bucket - the declared store never proved itself"
 aws s3api get-object --bucket "$BUCKET" --key "$SENTINEL" /dev/stdout 2>/dev/null | head -c 90 | evidence
 echo | evidence
-proof "one command made the bucket, the binary says it is correct, and on first use the store wrote its sentinel where any S3 tool can read it. A bucket, versioning and IAM, the same as stock. No lock table."
+proof "one command made the bucket, the binary says it is correct, and on first use the store wrote its sentinel where any S3 tool can read it. A bucket, versioning and IAM, the same as stock. The stack's resources are the two types listed above and nothing else, so there is no lock table."
 
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - a store that cannot answer must refuse, never impersonate emptiness"
   explain \
-    "The corruption the sentinel exists for: the record store becomes" \
-    "unreachable (only S3, via the SDK's service-specific endpoint" \
-    "override). Before the sentinel, a store whose List returned nothing" \
-    "read as an empty estate and the plan proposed re-creating live" \
-    "resources. Now the run must REFUSE, and the refusal must name the" \
-    "store - if it plans anything at all, the self-verification this" \
-    "claim rests on is scenery."
+    "What this arm proves, exactly: a record store the run cannot reach" \
+    "makes the run REFUSE, by name, proposing nothing. It points S3 at a" \
+    "closed port, which any S3 client fails, so it does NOT show that the" \
+    "sentinel is what caught it - a store that answered but was empty is" \
+    "a different corruption and this arm does not make it (#1379). The" \
+    "failure class it is on watch for is #693's: a run that reads an" \
+    "unreachable or empty store as an empty estate and plans to re-create" \
+    "live resources. Step 4, the headline, has no red arm of its own." \
+    "" \
+    "Only S3 is cut, via the SDK's service-specific endpoint override, so" \
+    "the rest of the run is unchanged."
   cmd "AWS_ENDPOINT_URL_S3=http://localhost:9 choudoufu plan"
   BOUT="$(cd "$SMOKE_WORK/b" && AWS_ENDPOINT_URL_S3=http://localhost:9 AWS_MAX_ATTEMPTS=1 chdf plan -input=false -no-color 2>&1)" && \
     fail "auto" "the plan SUCCEEDED against an unreachable record store: $BOUT"
@@ -191,7 +207,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -qiE "record.store|sentinel" <<< "$BOUT" \
     || fail "auto" "the run failed but nothing named the record store - an anonymous failure is not the loud refusal the claim promises: $BOUT"
   grep -iE "record.store|sentinel" <<< "$BOUT" | head -1 | evidence
-  proof "caught - unreachable means refused-by-name, never an empty-looking estate. The sentinel is why."
+  proof "caught - a store that cannot be reached is refused by name, and nothing is proposed. What made it fail is not shown here: an S3 client cannot reach a closed port either way."
   exit 0
 fi
 
@@ -223,10 +239,23 @@ N_OUT="$(cd "$SMOKE_WORK/b" && chdf apply -auto-approve -input=false -no-color 2
 grep -qi "lock" <<< "$N_OUT" && fail "auto" "the run after the killed one mentions a lock: $N_OUT"
 grep -E 'Resources: ' <<< "$N_OUT" | head -1 | evidence
 grep -qE 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$N_OUT" || fail "auto" "the run after the killed one did not simply finish the work: $N_OUT"
-KEYS="$(aws s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text | tr '\t' '\n')"
+KEYS="$(aws s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -v '^$' || true)"
 echo "$KEYS" | evidence
 grep -i "lock" <<< "$KEYS" && fail "auto" "an object in the bucket is named like a lock"
-proof "the next run finished the work, first try. Every object in the bucket is listed above: a sentinel, a hint and the records. There is no lock object because there is no lock, and so nothing for a dead run to leave held."
+# "Every object in the bucket is a sentinel, a hint and the records" was
+# printed and not asked (#1379). Every key is matched against the shapes this
+# backend writes, and anything else is named. A grep for "lock" only catches
+# an object that says what it is; a lock under another name would not.
+[ -n "$KEYS" ] || fail "auto" "the bucket is empty after an apply, so there is nothing here to account for"
+KNOWN_SHAPES='^tofu-records/[^/]+/\.store-sentinel$|^tofu-records/[^/]+/[^/]+/.+$|^tofu-hints/[^/]+/guided$|^tofu-outputs/[^/]+/[^/]+$'
+STRANGERS="$(grep -vE "$KNOWN_SHAPES" <<< "$KEYS" || true)"
+[ -z "$STRANGERS" ] \
+  || fail "auto" "the bucket holds object(s) of no shape this backend writes: $(echo $STRANGERS). The shapes are a store sentinel, a record, a guided-discovery hint and a root output; anything else is something nobody has accounted for."
+for shape in 'tofu-records/[^/]+/\.store-sentinel$' 'tofu-records/[^/]+/[^/]+/' 'tofu-hints/[^/]+/guided$'; do
+  grep -qE "$shape" <<< "$KEYS" \
+    || fail "auto" "no object in the bucket matches $shape, so the sentence about what the bucket holds is naming something that is not there: $KEYS"
+done
+proof "the next run finished the work, first try. Every object in the bucket is listed above and every one of them is a sentinel, a record or a guided-discovery hint, matched key by key. There is no lock object because there is no lock, and so nothing for a dead run to leave held."
 
 step "5. teardown - and this time there IS something to deprovision"
 cmd "choudoufu apply -destroy -auto-approve   # in both copies"
