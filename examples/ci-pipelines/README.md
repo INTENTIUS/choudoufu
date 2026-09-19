@@ -718,7 +718,7 @@ account, through `aws-actions/configure-aws-credentials` assuming
 check the pin of):
 
 ```
-SMOKE op=choudoufu-pin verdict=pass version=v0.17.0
+SMOKE op=choudoufu-pin verdict=pass version=v0.18.0
 SMOKE op=live-check verdict=pass status=ok
 SMOKE op=live-plan verdict=pass status=ok
 SMOKE op=live-apply verdict=pass status=gated
@@ -783,26 +783,12 @@ IAM, which is what a pipeline should declare.
 The bucket is not created by this example. It is stood up once with
 [`examples/record-store-bucket`](../record-store-bucket/) (`just up`, then
 `just verify`), before `scripts/oidc-bootstrap.sh` runs, and its name is global, so a
-fork changes that line. `scripts/smoke.sh` makes its own on the emulator. Before
-#1346 this line was `record_store "ssm" {}`. Parameter Store is retired as a record
-store, and a configuration that still names it is refused with the reason and the
-replacement.
+fork changes that line. `scripts/smoke.sh` makes its own on the emulator.
 
-Running this root prints `Resource type has no orphan recovery` warnings under
-the v0.15.0 release the generated jobs currently install, and none at all under
-v0.16.0. That is [#980](https://github.com/INTENTIUS/choudoufu/issues/980), found
-by building this example: the warning was firing for the schema-first admission
-path as well as for the type-not-in-the-table path it was written for. It is
-fixed in v0.16.0, which fires it only for types nothing can sweep.
-
-`scripts/smoke.sh` counts the warnings on every run and prints the count as its
-own verdict line, so the fix is a number rather than a claim. Measured over
-`live-check`, `live-plan`, `live-apply`, `live-adopt` and `live-discover`
-together: `count=34 per-live-plan=4` on v0.15.0, `count=0 per-live-plan=0` on
-v0.16.0. Two corrections to what this file used to say - the warning names
-`aws_cloudwatch_log_group` only, never `aws_iam_role`, so it was never "one per
-resource"; and a single `live-plan` emits it four times, in the `-json` document
-and the human render both.
+`scripts/smoke.sh` counts `Resource type has no orphan recovery` warnings on
+every run and prints the count as its own verdict line. It is zero: the warning
+fires only for types nothing can sweep
+([#980](https://github.com/INTENTIUS/choudoufu/issues/980)).
 
 The IAM role is in the root on purpose. IAM is one of the services whose tagging call
 choudoufu does not print a paste-ready adopt command for (Route53 and S3 are the

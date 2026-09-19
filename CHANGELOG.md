@@ -53,14 +53,19 @@ BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.17.0.json li
 - Regressed: none
 - Emulator repinned from `ghcr.io/lex00/floci@sha256:d9207de1...` to `ghcr.io/lex00/floci@sha256:74ffd40e...`
 
+The notes tool prints sets and not lanes. This snapshot is the first with
+lanes, and one of them is new ground: `kubernetes`, four estates on a kind
+cluster with a bar of its own (#1067).
+
 How fresh that board is, stated plainly. It was not re-measured as a whole for
 this release. Its rows were measured between 2026-09-10 and 2026-09-18, and
 `gauntlet check` reports that the crossing script or the shared protocol
 library has changed since the measurement for all but one of them. The one row
-measured at the release commit is `terralith-scale`: its row from 2026-09-15
+measured for this release is `terralith-scale`: its row from 2026-09-15
 read `day2_remove=fail`, the issues naming that failure (#881, #1125) had
 since been closed, and every fix for it landed after that measurement, so it
-was run again at `a3864ec9a2` and clears. The six newly cleared estates are
+was run again at `a3864ec9a2` and clears. That commit is three before the tag,
+and the two between them change no code. The six newly cleared estates are
 the ones v0.17.0's notes attributed to registry mirror lag and one emulator
 gap.
 
@@ -227,6 +232,7 @@ Records and the record store:
 Scale, live-cert and the gauntlet:
 
 - site: funnel redesign with per-provider slots; claims, gauntlet, readiness and fork-surface decoupled from layout (#1055) (PR #1056)
+- examples/ci-pipelines: pin choudoufu v0.17.0 (PR #1036)
 - examples/cross-estate-dependency: two estates, one reading the other's live VPC (#1059) (PR #1072)
 - scale: terralith-scale measured at 10,069 resources, and two carry-forward defects it exposed (#1051, #1069) (PR #1075)
 - live-cert: the three gates collapse to none - spend is bounded at the account, and every gate here constrained only the maintainer (#1102) (PR #1123)

@@ -143,7 +143,7 @@ never reach.
 
 **Provider call counts hold at parity with stock, or under it, at that
 scale.** The same real account, both sides planning a no-change estate -
-[what you pay, and when]({{< relref "/docs/what-you-pay#planning-an-adopted-estate" >}})'s
+[what you pay, and when]({{< relref "/docs/what-you-pay#planning-an-estate-straight-after-adoption" >}})'s
 "same comparison on real AWS" table:
 
 | Resources | stock | choudoufu | Difference | Commit |
@@ -183,7 +183,7 @@ types the neighbours are made of.
 
 **What this claim does not say.** It says nothing about incremental plan
 time within one already-adopted state; the day-2 call counts on
-[what you pay, and when]({{< relref "/docs/what-you-pay#planning-an-adopted-estate" >}})
+[what you pay, and when]({{< relref "/docs/what-you-pay#planning-an-estate-straight-after-adoption" >}})
 and [what a plan costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}})
 are their own, separately measured figures, and this claim does not restate
 them as if they were part of it. And the seconds comparison - how long a

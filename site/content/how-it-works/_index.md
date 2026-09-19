@@ -1,7 +1,7 @@
 ---
 title: "How it works"
 weight: 30
-lead: "Three things have to survive between runs: which live object each block owns, the values the platform cannot hold, and whether an effect already ran. Each lives somewhere the platform already has, and the state file becomes a projection of them."
+lead: "Three things have to survive between runs: which live object each block owns, what a read of that object cannot return, and whether an effect already ran. Each lives somewhere the platform already has, and the state file becomes a projection of them."
 hideChildren: false
 ---
 

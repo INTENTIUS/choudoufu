@@ -40,6 +40,18 @@ done
 for name in "$estate" ${others[@]+"${others[@]}"}; do
   [[ "$name" =~ ^[a-z][a-z0-9-]{0,127}$ ]] || { echo "not an estate name: $name" >&2; exit 2; }
 done
+for name in ${others[@]+"${others[@]}"}; do
+  [ "$name" != "$estate" ] || { echo "--reads-outputs-of names this estate itself: $name" >&2; exit 2; }
+done
+# The bucket and the key go into Resource ARNs as they are, so they are held
+# to what they are supposed to be. Until GitHub issue #1381 only the estate
+# names were: a bucket of "*" rendered a policy for every bucket, "b/*" and
+# a pasted ARN rendered nonsense with exit 0, and "\${aws:username}" reached
+# the policy as a live IAM policy variable.
+[[ "$bucket" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ ]] || { echo "not a bucket name: $bucket" >&2; exit 2; }
+if [ -n "$kms" ]; then
+  [[ "$kms" =~ ^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]{36}$ ]] || { echo "not a KMS key ARN: $kms" >&2; exit 2; }
+fi
 
 others_json="$(printf '%s\n' ${others[@]+"${others[@]}"} | jq -R . | jq -s 'map(select(. != ""))')"
 
@@ -51,6 +63,7 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --argjson o
   | ["tofu-records/", "tofu-hints/", "tofu-outputs/"] as $roots
   | ($roots | map(. + $estate + "/")) as $own
   | ($others | map("tofu-outputs/" + . + "/")) as $theirs
+  | ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging", "s3:GetObjectVersionTagging", "s3:GetObjectAcl", "s3:GetObjectVersionAcl"] as $reads
   | {
       Version: "2012-10-17",
       Statement: ([
@@ -82,13 +95,47 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --argjson o
           Resource: ($theirs | map($b + "/" + . + "*"))
         }] else [] end)
       + [
-        {
+        ({
           Sid: "DenyReadingAnotherEstatesObjects",
           Effect: "Deny",
-          Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"],
-          Resource: ($b + "/*"),
+          Action: $reads,
+          Condition: {
+            StringNotEquals: { "s3:ExistingObjectTag/tofu-estate": $estate },
+            Null: { "s3:ExistingObjectTag/tofu-estate": "false" }
+          }
+        } + (if ($theirs | length) > 0
+             then { NotResource: ($theirs | map($b + "/" + . + "*")) }
+             else { Resource: ($b + "/*") } end))
+      ]
+      # A declared dependency opens the OUTPUTS of the other estate and nothing
+      # else of it. Its tag is accepted only under its outputs prefix. It used
+      # to be accepted bucket-wide, which left the records of that estate on
+      # the prefix alone (#1381).
+      + (if ($theirs | length) > 0 then [{
+          Sid: "DenyReadingOtherTagsUnderDeclaredOutputs",
+          Effect: "Deny",
+          Action: $reads,
+          Resource: ($theirs | map($b + "/" + . + "*")),
           Condition: {
             StringNotEquals: { "s3:ExistingObjectTag/tofu-estate": ([$estate] + $others) },
+            Null: { "s3:ExistingObjectTag/tofu-estate": "false" }
+          }
+        }] else [] end)
+      + [
+        # Measured on real AWS (#1381): s3:RequestObjectTag constrains only the
+        # tag being SENT, so a role whose prefix was widened by mistake could
+        # PutObjectTagging an object of a neighbour as its own and then read it.
+        # The tag is only a defence if it cannot be rewritten. This does not
+        # reach a tagged PutObject over a foreign object: AWS does not evaluate
+        # s3:ExistingObjectTag for PutObject, so overwrite and delete stay on
+        # the prefix alone.
+        {
+          Sid: "DenyRelabellingAnotherEstatesObjects",
+          Effect: "Deny",
+          Action: ["s3:PutObjectTagging", "s3:DeleteObjectTagging", "s3:PutObjectVersionTagging", "s3:DeleteObjectVersionTagging"],
+          Resource: ($b + "/*"),
+          Condition: {
+            StringNotEquals: { "s3:ExistingObjectTag/tofu-estate": $estate },
             Null: { "s3:ExistingObjectTag/tofu-estate": "false" }
           }
         },

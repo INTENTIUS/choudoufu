@@ -72,14 +72,34 @@ examples/record-store-bucket/iam/render-policy.sh prod choudoufu-records-1111222
       "Action": [
         "s3:GetObject",
         "s3:GetObjectVersion",
-        "s3:GetObjectTagging"
+        "s3:GetObjectTagging",
+        "s3:GetObjectVersionTagging",
+        "s3:GetObjectAcl",
+        "s3:GetObjectVersionAcl"
+      ],
+      "Condition": {
+        "StringNotEquals": {
+          "s3:ExistingObjectTag/tofu-estate": "prod"
+        },
+        "Null": {
+          "s3:ExistingObjectTag/tofu-estate": "false"
+        }
+      },
+      "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/*"
+    },
+    {
+      "Sid": "DenyRelabellingAnotherEstatesObjects",
+      "Effect": "Deny",
+      "Action": [
+        "s3:PutObjectTagging",
+        "s3:DeleteObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:DeleteObjectVersionTagging"
       ],
       "Resource": "arn:aws:s3:::choudoufu-records-111122223333-us-east-2/*",
       "Condition": {
         "StringNotEquals": {
-          "s3:ExistingObjectTag/tofu-estate": [
-            "prod"
-          ]
+          "s3:ExistingObjectTag/tofu-estate": "prod"
         },
         "Null": {
           "s3:ExistingObjectTag/tofu-estate": "false"
@@ -120,8 +140,10 @@ plan with an error that says nothing about listing.
 `ReadAndDeleteByPrefix` allows reads and deletes under the estate's three
 prefixes, with no tag condition. That is deliberate, and it is the
 statement most likely to be "tightened" by someone reading this page.
-Conditioning it on `s3:ExistingObjectTag` breaks the estate in two ways,
-both measured against AWS. The key does not work on `s3:DeleteObject` at
+Conditioning it on `s3:ExistingObjectTag` breaks the estate in two ways.
+Both were measured against AWS in
+[#1342](https://github.com/INTENTIUS/choudoufu/issues/1342), and no claim
+re-runs them. The key does not work on `s3:DeleteObject` at
 all, so every delete is denied. And a write that carries `If-Match` is
 also authorized as `s3:GetObject`, without the object's tags in the
 request, so every conditional update is denied. Every record update and
@@ -143,19 +165,31 @@ is not this estate's. It is written as a deny with `Null: "false"` so
 that it applies only when the tag is there, which is what lets the
 conditional writes above through.
 
+`DenyRelabellingAnotherEstatesObjects` is what makes that tag worth
+trusting. `s3:RequestObjectTag` on the write statement constrains the tag a
+request SENDS and says nothing about the object it lands on, so without this
+statement a role that can reach a neighbour's object can call
+`PutObjectTagging` on it, relabel it as its own, and read it. Measured against
+AWS: with this Deny the relabel and a tag removal are both refused, and every
+write the store makes (a tagged create, a tagged update under `If-Match`, a
+tagged overwrite of an untagged object) still goes through. Until #1381 the
+published policy did not have it.
+
 `ReadTheBucketsAssertedSettings` is what the three bucket assertions
 read. A role without it is refused the same way a wrong bucket is, and
 the waiver for that is `allow_insecure`, with its cost.
 
 ## What this does and does not defend
 
-There are two defences and they are not equal.
-
 For reading another estate's objects there are two, and both have to
 fail. The prefix scope has to be wrong, and the object has to carry the
 wrong tag or none. A role scoped by mistake to `tofu-records/*` still
 cannot read a neighbour's records, because they carry the neighbour's
-tag.
+tag, and it cannot change that tag either. An earlier version of this policy
+lacked the relabel Deny, and under it this paragraph was false: measured
+against AWS, such a role retagged a neighbour's record and then read it.
+[Claim 35]({{< relref "/docs/claims/one-bucket-many-estates" >}}) now makes
+the attempt.
 
 For listing, writing and deleting there is one: the prefix. S3 has no
 condition key for the tags of an object being overwritten or deleted, so
@@ -167,10 +201,24 @@ An object with no `tofu-estate` tag at all is readable by any role whose
 prefix reaches it. choudoufu tags every object it writes, so an untagged
 object under an estate's prefix was put there by something else.
 
+## What a recovery needs
+
+The rendered policy is for running an estate, and it cannot recover a deleted
+record. Recovery removes a delete marker, which takes `s3:ListBucketVersions`
+on the bucket and `s3:DeleteObjectVersion` on the estate's prefixes, and
+reading a noncurrent version takes `s3:GetObjectVersion`. Give those to the
+person who recovers and leave them off the estate's role.
+[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) has the
+procedure.
+
+The same permissions clean up after a first run that was refused. A refusal
+on first contact deletes the sentinel it had just written, and in a versioned
+bucket that leaves a delete marker behind until the lifecycle rule removes it.
+
 ## A bucket encrypted with your own key
 
 ```
-render-policy.sh prod <bucket> --kms arn:aws:kms:us-east-2:111122223333:key/...
+render-policy.sh prod <bucket> --kms arn:aws:kms:us-east-2:111122223333:key/<key-id>
 ```
 
 adds `kms:Decrypt` and `kms:GenerateDataKey` on the key. That is half of
@@ -192,7 +240,8 @@ first run against a new bucket fails. S3 reports a KMS refusal as
 says `The record store bucket's KMS key refused this run`, with the key,
 the action, the role, and which policy AWS blamed.
 [Claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
-measures all of this on real AWS.
+measures the refusal and its message on real AWS, for an estate with no root
+outputs.
 
 ## Reading another estate's outputs
 
@@ -208,10 +257,12 @@ and the policy has to grant it back explicitly:
 render-policy.sh prod <bucket> --reads-outputs-of network
 ```
 
-That changes three statements, which is why it is a flag and not an edit:
+That changes four statements, which is why it is a flag and not an edit:
 the list prefixes gain `tofu-outputs/network/*`, a statement allows
-`s3:GetObject` there, and the deny accepts `network`'s tag beside
-`prod`'s.
+`s3:GetObject` there, the read Deny steps around that one prefix, and a
+second Deny accepts `network`'s tag beside `prod`'s under that prefix and
+nowhere else. `network`'s tag used to be accepted across the whole bucket,
+which left `network`'s records defended by the prefix alone.
 
 What the grant exposes is everything the other estate wrote under
 `tofu-outputs/`: its root output values. An output marked `sensitive` is

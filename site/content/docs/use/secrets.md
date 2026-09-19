@@ -5,11 +5,17 @@ weight: 9
 
 # Secrets in the record store
 
-**Anyone who holds `s3:GetObject` on an estate's prefix can read every value
-that estate recorded, secrets included, in clear.** S3 decrypts on read for
-any caller IAM allows, so encryption at rest does not change this. With a
-customer managed key the reader also needs `kms:Decrypt` on the key, and that
-is the only configuration in which a second thing stands in the way.
+Anyone who can read an estate's records can read every value that estate
+recorded, secrets included, in clear. On a bucket that is anyone holding
+`s3:GetObject` on the estate's prefix. On a cluster it is anyone who can
+`get` Secrets in the records namespace. On the local store it is anyone who
+can read the directory.
+
+Encryption at rest does not change this. S3 decrypts on read for any caller
+IAM allows, and the API server does the same for any caller RBAC allows. With
+a customer managed key the reader of a bucket also needs `kms:Decrypt` on the
+key, and that is the only configuration in which a second thing stands in the
+way.
 
 That is the default, and it is the same bargain a state file makes. This page
 is about who ends up holding that read, what the settings do and do not
@@ -22,34 +28,33 @@ Every managed instance has a record, and secret material reaches one by two
 routes. The default, `strict { secrets = "store" }`, keeps what a stock
 `terraform.tfstate` keeps on both.
 
-**A resource with no cloud twin is recorded whole.** `random_password`,
-`tls_private_key` and the rest have nothing in AWS to carry a marker, so the
+A resource with no live twin is recorded whole. `random_password`,
+`tls_private_key` and the rest have no live object to carry a marker, so the
 record is the only copy of the value: a generated password, a private key, as
 the provider returned them, with the provider's `private` blob and the list
 of which attributes were sensitive.
 
-**An ordinary cloud resource is recorded in part.** Its record holds what a
+An ordinary resource is recorded in part. Its record holds what a
 read of the live resource cannot give back, and that includes arguments the
 API never returns. A database's master password is the usual one. So an estate
-with no `random_*` or `tls_*` in it can still have secrets in the bucket.
+with no `random_*` or `tls_*` in it can still have secrets in its store.
 
 A write-only argument is never recorded, under either setting.
 
-Root output values are recorded too, under `tofu-outputs/<estate>/`, with one
-exception that matters here: **an output marked `sensitive` is never
-written.** It renders as `(sensitive value)` in a plan the way it always did.
+Root output values are recorded too, except that an output marked
+`sensitive` is never written. It renders as `(sensitive value)` in a plan the way it always did.
 
 ## Who holds the read
 
 | Who | Why they can read it |
 |---|---|
 | The estate's own role | It has to. [The published policy]({{< relref "/docs/use/iam" >}}) scopes it to the estate's prefixes and denies it objects tagged as another estate's |
-| Anyone with `s3:GetObject` on `tofu-records/<estate>/*` | A broad `s3:GetObject` on the bucket or the account, a read-only audit role, a leaked read-only credential |
+| Anyone with `s3:GetObject` on `tofu-records/<estate>/*`, or `get` on Secrets in the records namespace | A broad read grant on the bucket, the account or the cluster, a read-only audit role, a leaked read-only credential |
 | Anyone who can assume either | Including CI, for the pipeline's role |
 | Whoever recovers a deleted record | Recovery reads the record |
 
 The middle row is the one to look for. A read-only role is usually thought of
-as harmless, and on this bucket it reads private keys. The public-access block
+as harmless, and on a record store it reads private keys. The public-access block
 the store [asserts]({{< relref "/docs/use/bucket-contract" >}}) stops the
 bucket being published. It does nothing about a principal inside the account,
 and nothing about a bucket policy that names another specific account, since
@@ -85,7 +90,7 @@ nothing about who can read the disk or what a CI system caches between jobs.
 
 ## What `strict { secrets = "refuse" }` does, exactly
 
-It is available today, and it is two refusals.
+It is two refusals.
 
 - Seven resource types whose provider schema marks an attribute sensitive are
   refused at lint and never recorded: `random_password`, `random_bytes`,
@@ -95,8 +100,7 @@ It is available today, and it is two refusals.
   is left out of its record.
 
 It also turns the cache file off, above. It does not mean the run keeps
-nothing secret, and an earlier version of this page said it did. One thing is
-outside it.
+nothing secret. One thing is outside it.
 
 - A record-backed resource that your configuration hands a secret is recorded
   whole. `terraform_data { input = var.db_password }`, or a `null_resource`
@@ -110,20 +114,19 @@ secret somewhere built to hold one and pass a reference. And an argument that
 is neither returned by the API nor remembered has no prior value, so every
 plan shows it as a change.
 
-## The other way out, which is not built
-[Reference]({{< relref "/docs/use/reference" >}}) covers the setting and the
-environment pin that stops a configuration relaxing it.
+## Keeping secret values in SSM
 
-Secret values in SSM: planned, and not built. The design is for records to
-stay in the bucket while `sensitive_attributes` and `private` alone go to
-Parameter Store as `SecureString` under a KMS key, the record carrying a
-reference. [#1244](https://github.com/INTENTIUS/choudoufu/issues/1244)
-section 3 has it. No code implements it, no configuration selects it, and a
-page that tells you to turn it on is wrong. It would mean depending on two
-services, which is a cost to weigh when it exists.
+Optional, and nothing requires it. Some organisations keep secret material in
+SSM because their rotation, audit and access review already live there. For
+them the records stay in the record store, and the sensitive attributes and
+the provider's private data alone are written to SSM as `SecureString` under
+a KMS key, with the record carrying a reference in place of the value.
 
-This is separate from Parameter Store as a *record store*, which is retired:
-`record_store "ssm"` is refused. What is planned keeps records in the bucket.
+It means depending on two services, and a secret's write is then conditional
+on SSM's terms and not the store's. Weigh that against
+`strict { secrets = "refuse" }` with secrets passed in by reference, which
+keeps one store. [Reference]({{< relref "/docs/use/reference" >}}) covers the
+setting and the environment pin that stops a configuration relaxing it.
 
 ## What a customer managed key adds
 

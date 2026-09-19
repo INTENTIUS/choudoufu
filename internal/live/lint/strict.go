@@ -172,8 +172,9 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 			"%q is not a secrets setting. Valid settings: %s. %q, which is what omitting the argument means, "+
 				"keeps the secret material a configuration generates or sets the way stock OpenTofu keeps it - "+
 				"in the estate's record store rather than in a state file, with its sensitivity travelling "+
-				"beside it. %q keeps none of it: a secret-generating logical type is refused outright, and a "+
-				"sensitive settable argument is never recorded. Neither setting can make a write-only "+
+				"beside it. %q is two refusals: a secret-generating logical type is refused outright, and a "+
+				"sensitive settable argument is left out of its record. It does not reach the cache file, or a "+
+				"terraform_data or null_resource the configuration hands a secret. Neither setting can make a write-only "+
 				"attribute recordable - the plugin protocol forbids a provider ever returning one, so no "+
 				"stored value could be checked against the object it describes.",
 			st.Secrets, strict.SecretsNames(), strict.DefaultSecrets, strict.Refuse,
