@@ -123,6 +123,16 @@ verify bucket="":
     fi
     exit "$fail"
 
+# The IAM policy for one estate's role against this bucket. Pass the rest of
+# render-policy.sh's flags through: --kms <key-arn>, --reads-outputs-of <estate>.
+# This is the documentation's policy, from the same script; the bucket policy
+# above grants nobody anything.
+policy estate bucket="" *flags="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+    ./iam/render-policy.sh "{{estate}}" "$b" {{flags}}
+
 # A broken Op should fail here rather than the first time somebody reaches
 # for the approval gate.
 
