@@ -26,25 +26,86 @@ real_aws_begin() {
   SUFFIX="${ACCOUNT: -4}-$(date +%H%M%S)"
   # lib.sh's awsl points at the emulator. Here it is the real CLI.
   awsl() { aws "$@"; }
-  trap 'real_aws_teardown; cleanup' EXIT
+  trap 'set +e; set +u; real_aws_teardown; cleanup' EXIT
   echo "account ...${ACCOUNT: -4}, region $AWS_REGION" | evidence
 }
 
+# Teardown runs under smoke.sh's `set -euo pipefail`, where a trap body is
+# no different from any other code: the first command that fails ends the
+# whole trap, silently, and every step after it is skipped (#1378). One
+# throttled list-object-versions used to skip the role deletion, the stack
+# and a borrowed key's policy with nothing printed. So every teardown body
+# in this file and in the scenarios that source it starts by turning
+# errexit and nounset OFF, every step that can fail prints its own line
+# naming the resource, and the last step is always reached.
 real_aws_teardown() {
-  local r b del
+  set +e
+  set +u
+  local r b
   for r in ${REAL_ROLES[@]+"${REAL_ROLES[@]}"}; do
-    aws iam delete-role-policy --role-name "$r" --policy-name estate >/dev/null 2>&1 || true
+    aws iam delete-role-policy --role-name "$r" --policy-name estate >/dev/null 2>&1
     aws iam delete-role --role-name "$r" >/dev/null 2>&1 && echo "  removed role $r" || echo "  COULD NOT REMOVE role $r - remove it by hand" >&2
   done
   for b in ${REAL_BUCKETS[@]+"${REAL_BUCKETS[@]}"}; do
-    aws s3api head-bucket --bucket "$b" >/dev/null 2>&1 || continue
-    while :; do
-      del="$(aws s3api list-object-versions --bucket "$b" --max-items 500 --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)"
-      [ "$(python3 -c 'import json,sys; print(len((json.load(sys.stdin) or {}).get("Objects") or []))' <<< "$del")" = "0" ] && break
-      aws s3api delete-objects --bucket "$b" --delete "$del" >/dev/null 2>&1 || break
-    done
+    if ! aws s3api head-bucket --bucket "$b" >/dev/null 2>&1; then
+      echo "  no bucket $b to remove"
+      continue
+    fi
+    empty_bucket "$b"
+    # Attempted even when the emptying failed: the failure may have been a
+    # listing that timed out on an already empty bucket, and a delete that
+    # is refused says so in its own line.
     aws s3api delete-bucket --bucket "$b" >/dev/null 2>&1 && echo "  removed bucket $b" || echo "  COULD NOT REMOVE bucket $b - remove it by hand" >&2
   done
+}
+
+# empty_bucket <bucket>: remove every version and delete marker, so a
+# versioned bucket can be deleted. It never lets a failure out: each way it
+# can stop prints a line naming the bucket and returns 1, because its
+# callers are trap bodies that still have work after it.
+#
+# The round cap is not a performance budget. The loop's exit condition is
+# "AWS said zero objects", and a listing that keeps answering while the
+# deletes are refused would spin in a trap forever.
+empty_bucket() {
+  local b="$1" del n i=0
+  while [ "$i" -lt 500 ]; do
+    i=$((i+1))
+    del="$(aws s3api list-object-versions --bucket "$b" --max-items 500 --query '{Objects: [Versions, DeleteMarkers][] | [?@ != `null`] | [].{Key:Key,VersionId:VersionId}}' --output json 2>/dev/null)"
+    if [ -z "$del" ]; then
+      echo "  COULD NOT LIST the object versions of bucket $b - empty it by hand" >&2
+      return 1
+    fi
+    n="$(python3 -c 'import json,sys; print(len((json.load(sys.stdin) or {}).get("Objects") or []))' <<< "$del" 2>/dev/null)"
+    if [ -z "$n" ]; then
+      echo "  COULD NOT READ the object-version listing of bucket $b - empty it by hand" >&2
+      return 1
+    fi
+    [ "$n" = "0" ] && return 0
+    if ! aws s3api delete-objects --bucket "$b" --delete "$del" >/dev/null 2>&1; then
+      echo "  COULD NOT DELETE $n object version(s) from bucket $b - empty it by hand" >&2
+      return 1
+    fi
+  done
+  echo "  COULD NOT EMPTY bucket $b in $i rounds - empty it by hand" >&2
+  return 1
+}
+
+# role_name <base>: the name this RUN gives a role. Fixed role names made
+# two overlapping runs share one role, where the second overwrites the
+# first's policy and a must_deny then passes for a reason that has nothing
+# to do with what it claims to measure (#1378). $SUFFIX is the account's
+# last four digits and the start time, set by real_aws_begin.
+#
+# IAM allows 64 characters. A name that would be truncated is refused here
+# rather than silently colliding with the next one that truncates the same.
+role_name() {
+  local n="$1-$SUFFIX"
+  if [ "${#n}" -gt 64 ]; then
+    echo "the role name '$n' is ${#n} characters and IAM allows 64" >&2
+    return 1
+  fi
+  printf '%s\n' "$n"
 }
 
 # bucket_up <bucket>: a bucket that satisfies the bucket contract (claim 29),
@@ -66,9 +127,25 @@ bucket_up() {
 # every policy installed here carries one extra statement: read access to a
 # marker object no other policy ever granted. The role is polled until it can
 # read that marker. Only then is the policy under test the policy in force.
+#
+# A role this run has not created is REFUSED (#1378). The old code reused
+# whatever role already carried the name, which meant a role leaked by an
+# earlier run was silently adopted, given a new policy, and then never
+# deleted, because teardown only removes what REAL_ROLES says this run
+# made. A role the run created earlier is a different thing and is reused:
+# that is what REAL_ROLES is consulted for.
 role_with_policy() {
-  local role="$1" policy="$2" bucket="$3" trust marker i
-  if ! aws iam get-role --role-name "$role" >/dev/null 2>&1; then
+  local role="$1" policy="$2" bucket="$3" trust marker i r mine=0
+  for r in ${REAL_ROLES[@]+"${REAL_ROLES[@]}"}; do
+    if [ "$r" = "$role" ]; then mine=1; fi
+  done
+  if [ "$mine" = "0" ]; then
+    if aws iam get-role --role-name "$role" >/dev/null 2>&1; then
+      echo "  the role $role already exists and this run did not create it." >&2
+      echo "  Its policy is some earlier run's, this run would overwrite it, and teardown would leave it behind." >&2
+      echo "  Remove it by hand (aws iam delete-role-policy --role-name $role --policy-name estate; aws iam delete-role --role-name $role) and run again." >&2
+      return 1
+    fi
     trust="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::$ACCOUNT:root\"},\"Action\":\"sts:AssumeRole\"}]}"
     aws iam create-role --role-name "$role" --assume-role-policy-document "$trust" >/dev/null || return 1
     REAL_ROLES+=("$role")

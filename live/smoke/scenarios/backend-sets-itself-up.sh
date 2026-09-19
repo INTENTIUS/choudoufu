@@ -60,17 +60,36 @@ real_aws_begin auto
 BUCKET="chdf-smoke-auto-$SUFFIX"
 [ -d "$PROJECT/node_modules" ] || ( cd "$PROJECT" && npm ci >/dev/null 2>&1 ) || fail "auto" "npm ci failed in $PROJECT"
 STACK_UP=0
+# Every step prints its own line and the next one runs whatever it said:
+# under smoke.sh's `set -euo pipefail` one failed call used to end the trap
+# and skip the rest of it silently (#1378). STACK_UP is set BEFORE `just
+# up`, so a deploy that fails or is interrupted half way is still torn
+# down, which is why each step here tolerates a thing that never appeared.
 auto_teardown() {
+  set +e
+  set +u
   if [ "$STACK_UP" = "1" ]; then
     # `just down` refuses a bucket that holds record versions (step 5 shows
     # it). Emptying it is the deliberate act it asks for.
-    REAL_BUCKETS=("$BUCKET"); real_aws_teardown >/dev/null 2>&1; REAL_BUCKETS=()
-    aws cloudformation delete-stack --stack-name "$BUCKET" >/dev/null 2>&1
-    aws cloudformation wait stack-delete-complete --stack-name "$BUCKET" >/dev/null 2>&1 \
-      && echo "  removed stack and bucket $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
+    if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
+      empty_bucket "$BUCKET"
+    else
+      echo "  no bucket $BUCKET to empty"
+    fi
+    if aws cloudformation describe-stacks --stack-name "$BUCKET" >/dev/null 2>&1; then
+      aws cloudformation delete-stack --stack-name "$BUCKET" >/dev/null 2>&1 \
+        || echo "  COULD NOT ASK for the deletion of stack $BUCKET - remove it by hand" >&2
+      aws cloudformation wait stack-delete-complete --stack-name "$BUCKET" >/dev/null 2>&1 \
+        && echo "  removed stack and bucket $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
+    else
+      echo "  no stack $BUCKET to remove"
+    fi
   fi
+  # Nothing here registers a role or a bucket today, and this is what makes
+  # it safe for one to be added later.
+  real_aws_teardown
 }
-trap 'auto_teardown; cleanup' EXIT
+trap 'set +e; set +u; auto_teardown; cleanup' EXIT
 
 step "1. no store declared - the local one appears unbidden"
 explain \
@@ -106,8 +125,11 @@ explain \
   "one: no lock table is created, and nothing in the configuration" \
   "names one."
 cmd "just up $BUCKET   # examples/record-store-bucket"
-UP_OUT="$(cd "$PROJECT" && RECORD_NONCURRENT_DAYS=7 just up "$BUCKET" 2>&1)" || fail "auto" "just up failed: $UP_OUT"
+# Before the deploy, never after it: a `just up` that creates the stack and
+# then fails, or is interrupted, leaves one behind, and a flag set on the
+# line after would still read 0 (#1378).
 STACK_UP=1
+UP_OUT="$(cd "$PROJECT" && RECORD_NONCURRENT_DAYS=7 just up "$BUCKET" 2>&1)" || fail "auto" "just up failed: $UP_OUT"
 cmd "just verify $BUCKET"
 V_OUT="$(cd "$PROJECT" && CHOUDOUFU_BIN="$TOFU" just verify "$BUCKET" 2>&1)" || fail "auto" "just verify says the bucket it just made is not correct: $V_OUT"
 grep -E ' OK |: correct' <<< "$V_OUT" | evidence

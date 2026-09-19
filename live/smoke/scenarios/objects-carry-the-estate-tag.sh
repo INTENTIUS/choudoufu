@@ -22,6 +22,9 @@ step "0. real AWS"
 command -v jq >/dev/null 2>&1 || fail "objecttags" "jq is not installed; the policy renderer needs it"
 real_aws_begin objecttags
 BUCKET="chdf-smoke-objecttags-$SUFFIX"
+# One name per RUN. A fixed role name is adopted by the next run whatever
+# policy it is carrying, and two runs at once overwrite each other's (#1378).
+ROLE="$(role_name smoke-tagged-estate)" || fail "objecttags" "could not name the estate's role"
 
 # The binary under test. BREAK=1 swaps in one that sends no tags.
 RUN_BIN="$TOFU"
@@ -51,11 +54,11 @@ PYEOF
     || fail "objecttags" "the broken binary did not build"
   RUN_BIN="$SMOKE_WORK/break/choudoufu"
 fi
-run_as_estate() { ( cd "$SMOKE_WORK/est" && as_role smoke-tagged-estate "$RUN_BIN" "$@" ); }
+run_as_estate() { ( cd "$SMOKE_WORK/est" && as_role "$ROLE" "$RUN_BIN" "$@" ); }
 
 step "1. an estate applies under the published policy"
 bucket_up "$BUCKET" || fail "objecttags" "could not create the bucket"
-role_with_policy smoke-tagged-estate "$("$POLICY_RENDERER" smoke-tagged "$BUCKET")" "$BUCKET" || fail "objecttags" "could not create the estate's role"
+role_with_policy "$ROLE" "$("$POLICY_RENDERER" smoke-tagged "$BUCKET")" "$BUCKET" || fail "objecttags" "could not create the estate's role"
 mkdir -p "$SMOKE_WORK/est"
 cat > "$SMOKE_WORK/est/main.tf" <<TFEOF
 terraform {
@@ -117,7 +120,7 @@ explain \
 VICTIM="$(grep 'terraform_data/' <<< "$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-tagged/terraform_data/ --query 'Contents[].Key' --output json | jq -r '.[]')" | head -1)"
 aws s3api put-object-tagging --bucket "$BUCKET" --key "$VICTIM" --tagging 'TagSet=[{Key=tofu-estate,Value=someone-else}]' >/dev/null || fail "objecttags" "could not retag the record"
 cmd "aws s3api get-object ...   # as the estate's role, the retagged record"
-G_OUT="$(as_role smoke-tagged-estate aws s3api get-object --bucket "$BUCKET" --key "$VICTIM" "$SMOKE_WORK/o" 2>&1)" && fail "objecttags" "the estate's role read a record tagged as another estate's: $G_OUT"
+G_OUT="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "$VICTIM" "$SMOKE_WORK/o" 2>&1)" && fail "objecttags" "the estate's role read a record tagged as another estate's: $G_OUT"
 denied "$G_OUT" || fail "objecttags" "the read failed, but not on a denial: $G_OUT"
 rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
 cmd "choudoufu plan   # as the estate's role"
