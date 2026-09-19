@@ -12,7 +12,9 @@ customer managed key the reader also needs `kms:Decrypt` on the key, and that
 is the only configuration in which a second thing stands in the way.
 
 That is the default, and it is the same bargain a state file makes. This page
-is about who ends up holding that read, and the two ways out of it.
+is about who ends up holding that read, what the settings do and do not
+change, and the other place the same values are kept: a cache file on every
+machine that applies.
 
 ## What is recorded
 
@@ -49,27 +51,62 @@ written.** It renders as `(sensitive value)` in a plan the way it always did.
 The middle row is the one to look for. A read-only role is usually thought of
 as harmless, and on this bucket it reads private keys. The public-access block
 the store [asserts]({{< relref "/docs/use/bucket-contract" >}}) stops the
-bucket being published. It does nothing about a principal inside the account.
+bucket being published. It does nothing about a principal inside the account,
+and nothing about a bucket policy that names another specific account, since
+a named account is not "public".
 
 Noncurrent versions are readable the same way, to a caller with
 `s3:GetObjectVersion`, for as long as the lifecycle rule keeps them. A secret
 that was rotated is still in the bucket until then.
 
-## The two ways out
+## The cache file holds them too
 
-**`strict { secrets = "refuse" }`, available today.** Resource types that
-generate or hold secret material are refused at lint time and never recorded,
-and for an ordinary resource a sensitive argument the API never returns is
-left out of its record. Nothing the run keeps holds key material. This is
-stronger than any encryption of the store, because there is nothing in the
-store to decrypt. It costs two things. Those types cannot be in the estate:
-generate the secret somewhere that is built to hold one, and pass a
-reference. And an argument that is neither returned by the API nor remembered
-has no prior value, so every plan shows it as a change.
+Every apply also writes `.terraform/choudoufu-cache.tfstate` on the machine
+that ran it. It is a stock-format state file, written unencrypted, and it
+holds what a state file holds: every attribute of every resource, sensitive
+ones included, and every root output, sensitive ones included. Neither
+`secrets` setting changes that. `refuse` governs what goes into the record
+store and has no effect on this file.
+
+So the values this page is about are in two places: the bucket, and the
+working directory of each laptop and CI runner that applied. `.terraform` is
+gitignored by convention, which keeps the file out of a commit and does
+nothing about who can read the disk or what a CI system caches between jobs.
+`CHOUDOUFU_STATE_CACHE=off` stops the file being written, at the cost of
+[what the cache buys]({{< relref "/docs/model/cache" >}}).
+
+## What `strict { secrets = "refuse" }` does, exactly
+
+It is available today, and it is two refusals.
+
+- Seven resource types whose provider schema marks an attribute sensitive are
+  refused at lint and never recorded: `random_password`, `random_bytes`,
+  `tls_private_key`, `tls_cert_request`, `tls_self_signed_cert`,
+  `tls_locally_signed_cert` and `local_sensitive_file`.
+- For an ordinary cloud resource, a sensitive argument the API never returns
+  is left out of its record.
+
+It does not mean the run keeps nothing secret, and an earlier version of this
+page said it did. Two things are outside it.
+
+- A record-backed resource that your configuration hands a secret is recorded
+  whole. `terraform_data { input = var.db_password }`, or a `null_resource`
+  trigger built from a secret, is admitted under `refuse`, and the value goes
+  into the record in clear with a note of which paths were sensitive. The
+  refusal is by resource type, and these types have no sensitive attribute of
+  their own.
+- The cache file, above.
+
+What `refuse` costs: the seven types cannot be in the estate, so generate the
+secret somewhere built to hold one and pass a reference. And an argument that
+is neither returned by the API nor remembered has no prior value, so every
+plan shows it as a change.
+
+## The other way out, which is not built
 [Reference]({{< relref "/docs/use/reference" >}}) covers the setting and the
 environment pin that stops a configuration relaxing it.
 
-**Secret values in SSM, planned and not built.** The design is for records to
+Secret values in SSM: planned, and not built. The design is for records to
 stay in the bucket while `sensitive_attributes` and `private` alone go to
 Parameter Store as `SecureString` under a KMS key, the record carrying a
 reference. [#1244](https://github.com/INTENTIUS/choudoufu/issues/1244)
