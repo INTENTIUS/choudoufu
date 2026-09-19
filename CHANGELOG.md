@@ -37,9 +37,93 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.18.0 (Unreleased)
+## choudoufu v0.19.0 (Unreleased)
+
+Nothing recorded yet.
+
+## choudoufu v0.18.0 (2026-09-19)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.18.0.json`](live/history/v0.18.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.17.0.json live/history/v0.18.0.json`):
+
+- Core estates: 20/26 clear -> 26/26 clear (+6)
+- All estates: 21/27 clear -> 27/27 clear (+6)
+- Newly cleared: corpus-alb-complete, corpus-ec2-instance-complete, corpus-iam-policy, corpus-iam-read-only-policy, corpus-rds-complete-postgres, corpus-sqs-basic
+- Regressed: none
+- Emulator repinned from `ghcr.io/lex00/floci@sha256:d9207de1...` to `ghcr.io/lex00/floci@sha256:74ffd40e...`
+
+How fresh that board is, stated plainly. It was not re-measured as a whole for
+this release. Its rows were measured between 2026-09-10 and 2026-09-18, and
+`gauntlet check` reports that the crossing script or the shared protocol
+library has changed since the measurement for all but one of them. The one row
+measured at the release commit is `terralith-scale`: its row from 2026-09-15
+read `day2_remove=fail`, the issues naming that failure (#881, #1125) had
+since been closed, and every fix for it landed after that measurement, so it
+was run again at `a3864ec9a2` and clears. The six newly cleared estates are
+the ones v0.17.0's notes attributed to registry mirror lag and one emulator
+gap.
+
+One thing this release is needed for, found the day it was cut:
+`examples/ci-pipelines` pins a released binary, and the pinned v0.17.0 sends no
+object tags, so the bucket policy this release publishes denies its first
+write (`AccessDenied` on `s3:PutObject` for the store's sentinel, run
+35453724296). The example cannot pass on real AWS until its pin moves to this
+release, which is the first pull request after the tag.
 
 FORK WORK:
+
+- **The record store is a bucket** (#1332, fifteen issues, PRs #1350 to
+  #1369). `record_store "s3"` is now how a shared estate is run, and this
+  release makes it something that can be set up, checked, scoped and
+  recovered from. One bucket serves any number of estates. Nothing is
+  locked: every write is one conditional request, and a run killed with
+  `SIGKILL` in mid-apply leaves nothing for the next run to trip over
+  (claim 4, rewritten around that property).
+  - *An estate's name can no longer be a prefix of another's.* Every
+    namespace ends in `/`, so `prod` and `prod-eu` share no keys, no listing
+    and no bulk read (#1335, claim 28).
+  - *The bucket has to be a safe place for the only copy of something.*
+    choudoufu asserts versioning, a lifecycle rule that expires noncurrent
+    versions, and public-access block, on an estate's first contact with a
+    bucket and before every apply, and refuses by name (#1339, claim 29).
+    `allow_insecure = ["..."]` waives a setting by name and says what that
+    costs on every run (#1340, claim 30). Encryption at rest is deliberately
+    not asserted: S3 encrypts everything by default, so the check could not
+    fail.
+  - *`choudoufu live-bucket`* reports those three settings for any bucket,
+    and `examples/record-store-bucket` stands a correct one up with
+    `just up`, checks it with `just verify`, and refuses `just down` while
+    any version of a record remains (#1341).
+  - *The bulk read is parallel and all-or-nothing.* Eight `GetObject` calls
+    in flight by default, `TOFU_LIVE_RECORD_READ_PARALLELISM` to change it,
+    and a read that fails partway fails the run and never reaches a plan as
+    a smaller estate (#1336, claim 31).
+  - *Every object carries the estate's marker tags*, written in the same
+    request as the object (#1337, claim 36).
+  - *Two writers racing on one record get exactly one winner and one named
+    conflict* (#1338, claim 32).
+  - *Conditional writes hold under every SSE flavour*, measured on real S3.
+    That run found that S3 answers a conditional update of a key that is
+    gone with `404`, not `412`. The store now reports both as the same
+    version conflict (#1344, claim 33).
+  - *The IAM policy for an estate's role has one source*,
+    `examples/record-store-bucket/iam/render-policy.sh`, in the shape
+    measured against real AWS: allow by prefix, require the estate's tag on
+    a write, deny a read of an object tagged as another estate's. The
+    obvious policy, an allow conditioned on `s3:ExistingObjectTag`, denies
+    every first write into a new estate (#1342, #1343, claims 34 and 35).
+  - *The recommended configuration is measured*: a customer managed key
+    whose policy names who may use it, the shipped bucket project, the
+    rendered policy, an estate's whole life as that role, and a record
+    destroyed by mistake recovered from its noncurrent version (#1345, claim
+    37). `render-key-statement.sh` prints the key policy statement. A KMS
+    refusal, which S3 relays as `AccessDenied` on its own operation, is now
+    reported as `The record store bucket's KMS key refused this run`, with
+    the key, the action, the role and which policy AWS blamed.
+  - *New pages*: the three settings, encryption at rest, IAM, secrets, and
+    reading a value from another estate. The storage and setup pages are
+    rewritten (#1347, #1348).
 
 - **`record_store "ssm"` is retired** (#1346, part of the bucket backend,
   #1332). Parameter Store is no longer a record store. A configuration that
@@ -51,13 +135,153 @@ FORK WORK:
   it, and no general conditional write, where the record store's
   consistency rests on every write being conditional. The `tier` argument,
   the plan-time capacity refusals (`Record store too small for this estate`,
-  `Record store is close to its ceiling`) and the throttle advice that
+  `Record store is close to its ceiling`, both added earlier in this same
+  release window by #1146) and the throttle advice that
   quoted Parameter Store's numbers existed only for that backend and go
   with it. Nothing is migrated and no migration command exists, because no
   estate was on this backend when it was retired. This is about where
   records are kept: SSM for secret values is a separate, planned feature
   (#1244) and is not available yet. `examples/ci-pipelines` and the
   live-cert harness, which both declared `ssm`, move to a bucket.
+
+Also in this release, 114 pull requests, listed by their own merged titles
+and grouped by area. Titles are as merged and the grouping is by keyword, so a
+line may sit under a neighbouring heading.
+
+Kubernetes:
+
+- smoke: k8s-greenfield, a Kubernetes estate on a per-run kind cluster (#1057) (PR #1058)
+- markers, projection: the Kubernetes marker is one tofu-estate label; k8s-greenfield becomes claim 21 (#1061) (PR #1062)
+- identity: the object-metadata rule admits every Kubernetes type; generateName refused (#1064) (PR #1068)
+- discovery: the Kubernetes estate sweep, one label-selected list per kind, with controller-made objects excluded (#1065) (PR #1070)
+- live/kubernetes: the estate boundary as one admission policy, and claim 23 k8s-the-label-is-the-boundary (#1066) (PR #1071)
+- gauntlet: the kubernetes lane on the kind substrate, with reference-k8s as its first estate and a bar of its own (#1067) (PR #1074)
+- live-import: the label surface is a marker carrier, so a Kubernetes estate migrates from a stock state (#1073) (PR #1078)
+- gauntlet: corpus-quickpizza, the kubernetes lane's first published estate, and the two product gaps it found (#1067) (PR #1089)
+- ci: the Kubernetes smokes and the kubernetes gauntlet lane on kind in GitHub Actions (#1080) (PR #1090)
+- identity: a kubernetes_manifest block binds by the natural key inside its manifest, and claim 24 k8s-custom-resource (#1079) (PR #1091)
+- projection: the tofu-estate label is stamped into a kubernetes_manifest block's manifest.metadata.labels, and mirrored from the live object (#1079) (PR #1092)
+- kubesweep: the sweep lists every kind the cluster serves, a custom kind's orphan filed under kubernetes_manifest, and claim 24 proves the removal (#1079) (PR #1093)
+- k8s: an api_version change is not a move, measured; helm_release is refused, pinned (#1081 items 2 and 4) (PR #1094)
+- live-ls: a Kubernetes estate is listed through DIR, the sweep's own listing and join, and claim 21 proves it on kind (#1081) (PR #1095)
+- live-mv: the Kubernetes answer - a rename has nothing to write, -from-estate is the governed relabel (#1081) (PR #1096)
+- discovery: refuse a manifest block whose kind the cluster does not serve, by name, at the plan's first cluster contact (#1079) (PR #1097)
+- plan: the API server's own dry run of every planned kubernetes_manifest object, printed above the plan and refused by name (#1081, item 3) (PR #1101)
+- site: the Kubernetes pages say what is on main, everywhere a reader lands first (PR #1103)
+- site: the two honest Helm paths, both stock, and the ruling on release-annotated objects (PR #1117)
+- #1111: join kubesweep kinds on group and kind, not kind alone (PR #1163)
+- #1109: a stock state's kubernetes_manifest entries migrate with their label, written as one API merge patch (PR #1165)
+- #1108: the projection reads a Kubernetes object's label before admitting it (PR #1167)
+- #1174: reference-k8s-cert-manager, the kubernetes lane's CRD estate (lands red on two stages, with an issue naming each) (PR #1181)
+- #1175: reference-k8s-stateful, the kubernetes lane's stateful estate - and the PVC the sweep cannot tell from a declared object (PR #1182)
+- #1110: day2_crash reads on the kind substrate - an apply of several objects, killed between two creates (PR #1189)
+- #1190: a kubernetes_manifest gets a residue record, so its field_manager block stops being a perpetual diff (PR #1205)
+- #1177: a kubernetes_manifest label or annotation edit is an ordinary change (PR #1218)
+- #1178: a counted (and for_each) kubernetes_manifest never binds - the configured seed had no repetition data (PR #1224)
+- #1188: the Kubernetes record holds residue, not identity - measured, and the issue's premise is wrong (PR #1234)
+- live: reference-k8s-cert-manager's first measured row - 12 pass, day2_replace n/a, day2_crash never written (#1237) (PR #1238)
+- #1235 #1237: day2_crash measures the record with a type that has one, the k8s estates get the lost-store control, and cert-manager gets the stage at all (PR #1263)
+- #1211: a label deleted from the configuration is removed, from a residue record (PR #1277)
+- #1278: k8s-custom-resource raced the CRD's status - wait for the conditions to exist, then wait on the condition (PR #1284)
+- #1285: an empty `kubectl wait --all` match is not a 300-second timeout (PR #1289)
+- #1288: day2_crash reads what a kubernetes_manifest's record now holds (PR #1290)
+- #1114: the kubesweep client authenticates through an exec credential plugin, and says which of four things failed (PR #1297)
+
+Discovery, markers and IAM:
+
+- discovery: enumerating a type is not the same as reading its marker (#881) (PR #1129)
+- discovery: fix stale aws_iam_role routing assertions (#1050) (PR #1130)
+- #1132: a type with no readable marker is not a type that is swept clean (PR #1153)
+- #881: the emulator indexes no IAM tags, so #1134's cheap repair cannot be proven here (PR #1155)
+- #1133: survey-gen stops claiming a tag-filtered-list route IAM doesn't serve (PR #1156)
+- discovery: the native leg must say so when no leg can read a marker, and foreign must not call such an object a stray (#1136) (PR #1159)
+- #1160: stage 4's test-apply oracle counts IAM directly instead of assuming GetResources sees it (PR #1199)
+- #1192: a marker the server discarded is no longer reported as written (PR #1201)
+- #1176: -target reaches the estate sweep and the projection (PR #1202)
+- #1206: the empty tofu-address was a paged AWS CLI listing, and a guard so an empty marker is never ownership (PR #1213)
+- #1125: the native sweep leg reads IAM markers through IAM's own tag API (PR #1217)
+- #1166: declared_untagged does not reach an object marked for another estate (PR #1227)
+- #1143: index_wait polls a target the tag index can hold, and a timed-out wait stops reading as a converged one (PR #1266)
+- #1212: a name_prefix policy is recoverable from its own tag - pin it (PR #1272)
+- [gauntlet:corpus-iam-policy/greenfield] count IAM through IAM's own tag APIs: one loud failure fixed and two checks that could not fail (PR #1276)
+- #1274: live-mv reads an IAM marker through the service's own tag API (PR #1282)
+- #1152/#1144: retire the expired emulator exceptions, and key the tag index's coverage by type and region (PR #1319)
+- #1318: a served tag index that held nothing is not an untaggable type (PR #1320)
+- #1322: the sweep stops reading CloudFormation's update-tags claim as "can this object carry a marker" (PR #1326)
+- #1327: registry-gen records CloudFormation's silence about tagging separately from its denial (PR #1329)
+- #1328 #1321: the sweep's gates and its fallbacks, made to agree with what the body does (PR #1331)
+
+Records and the record store:
+
+- #1124: claim 1's step 6 reads the admission table, and its last green run is recorded (PR #1210)
+- #1142, #1149, #1187: a tool that cannot measure says so, and a scale record is published where it is written (PR #1221)
+- #1172: record the stateless* ruling in live.go and drop the hedge (PR #1243)
+- #1145: the s3 record store is checked, named and torn down (PR #1250)
+- #1233: an estate with no scale ladder records its refusal on a shelf beside the ladder (PR #1273)
+- #1283: chunk a long record key across segments instead of one filename (PR #1286)
+- #1291: the 41-site record-count audit, and a store root is refused rather than documented against (PR #1293)
+- #1287: a failed record write refuses later reads instead of reading as absent (PR #1302)
+- #1301: RunCache.List stops naming keys that hold no record (PR #1305)
+- #1146: state SSM's record ceiling, refuse before the first write, and make the tier selectable (PR #1309)
+
+Scale, live-cert and the gauntlet:
+
+- site: funnel redesign with per-provider slots; claims, gauntlet, readiness and fork-surface decoupled from layout (#1055) (PR #1056)
+- examples/cross-estate-dependency: two estates, one reading the other's live VPC (#1059) (PR #1072)
+- scale: terralith-scale measured at 10,069 resources, and two carry-forward defects it exposed (#1051, #1069) (PR #1075)
+- live-cert: the three gates collapse to none - spend is bounded at the account, and every gate here constrained only the maintainer (#1102) (PR #1123)
+- live-cert: the two ceilings that could not carry a real run (#1102) (PR #1126)
+- corpus-alb-complete: re-tense the day2_rename RegisterTargets attribution, comment-only follow-up to #1005 (PR #1135)
+- gauntlet: pin hashicorp/aws in every crossing script, not just #1034's five (#1041) (PR #1138)
+- corpus-ec2-instance-complete: a failed foreign-object count must show the list (#1137) (PR #1157)
+- #1131: a per-service tag-read leg, and #881's day2_remove passes (PR #1161)
+- #1173: cold_deploy grows a declared pre-apply, and the stock oracle performs the identical one (PR #1180)
+- #1183: refuse an unpopulated .corpus instead of writing a collapsed artifact (PR #1198)
+- live: a retry block, so a transient 400 stops ending runs the estate was fine for (PR #1200)
+- #1207: a crossing script that calls the aws pin must not also carry a copy of it (PR #1215)
+- #1139: crossing-script pin guard now checks coverage, not just presence (PR #1229)
+- #1150/#1151: one live-cert per estate at a time, and a refusal that lands beside the rung below it (PR #1231)
+- #1204: the greenfield fail verdict stops naming #1097's refusal when it saw 0 of it (PR #1246)
+- #1264: say when a gauntlet row predates its own estate script (PR #1270)
+- #1267: wire the five unrun live-cert selftests, and two that were green for the wrong reason (PR #1281)
+- #1292: script staleness watches the shared protocol library, not only the estate's own directory (PR #1296)
+- #1141: the greenfield half was the emulator repin, not a flake; the day2_count half's evidence was thrown away, so failing runs now keep it (PR #1298)
+- #1333: live/e2e/estates/ gets the .gitignore its singular sibling has had all along (PR #1334)
+
+Plan, apply and targeting:
+
+- #1110: claim 26, admission runs after the plan and the server gets the last word (PR #1193)
+- live-plan: the unclaimed reach the -json document (PR #1209)
+- #1185: re-derive a destroy's timeout meta from the timeouts block (PR #1236)
+- #1232: apply the refusal TestLiveCertRefusalDoesNotDisplaceARealRun was only describing (PR #1245)
+- #1203: audit every live-path pass for the missing target set (PR #1255)
+- #1256: the target set reaches internal/live/lint (PR #1265)
+- #1257: the reconciliation threshold counts what this run will destroy (PR #1269)
+
+Site, docs and wording:
+
+- #1171, #1172: stop saying a live block removes or has no state file (PR #1225)
+- #1172 item 1: the word "stateless" leaves the strings a user reads (PR #1241)
+- #1242: one ownership sentence, shared, and true for a resource with no tags (PR #1251)
+- #1325: a recovery runbook, and two corrections it turned up (PR #1330)
+
+Tooling and CI:
+
+- gitignore: the gate's launch log is scratch, never tracked (PR #1099)
+- live/e2e: sum tagged-object pages instead of counting per page (#1042) (PR #1127)
+- #1069: per-stage provenance, so a carried verdict stops reading as a pass (PR #1128)
+- #1040: honor a caller-supplied FLOCI_PORT instead of forcing 20000 (PR #1140)
+- #1110: claim 25, a delete the platform accepted but has not finished is not a finished delete (PR #1186)
+- #1158: print full evidence on failure instead of a discarding grep (PR #1219)
+- #1179: judge a controller-made object by who wrote its content, not by owner references (PR #1223)
+- #1228: fail when live/LIMITATIONS.md's counts disagree with the rows they count (PR #1247)
+- #1216: reference-ec2-vpc reads the aws pin instead of hand-spelling 6.58.0 nineteen times, and is re-measured at 6.63.0 (PR #1254)
+- #1214: widen the per-page --query guard from one idiom to the class, derived from botocore (PR #1261)
+- #1294: the four NUL bytes were an incidental paste, and no swept shell script may be binary to grep again (PR #1304)
+- #1308: a merge driver for the rendered files, and a board that has to describe its own rows (PR #1311)
+- #1307/#1299: wait on the gate's identity, and keep the floci container that died so something can read it (PR #1313)
+- #1300: one plugin-cache convention, and the lock only real terraform needs (PR #1315)
+- #1280: floci-tier.yml installs the terraform (and tofu) it never had, plus the guard that would have caught seventeen blind nights (PR #1317)
 
 ## choudoufu v0.17.0 (2026-09-09)
 
