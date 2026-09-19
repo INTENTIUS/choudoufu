@@ -78,9 +78,10 @@
 //
 // Until GitHub issue #1346 there was a third, on AWS Systems Manager
 // Parameter Store, and it was the default recommendation for a team. It was
-// retired as a RECORD store for three reasons. It bills. It caps at 10,000
-// parameters per account and region, against the customer's own quota. And
-// it has no general conditional write: it could create-if-absent and nothing
+// retired as a RECORD store for three reasons. Standard parameters cap at
+// 10,000 per account and region, against the customer's own quota. Past
+// that, every parameter bills monthly on the advanced tier. And it has no
+// general conditional write: it could create-if-absent and nothing
 // else, so every update and delete was a read-compare-write with a race
 // window, where this package's whole consistency story is a per-key
 // conditional write.
