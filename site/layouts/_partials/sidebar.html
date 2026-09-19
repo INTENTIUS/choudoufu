@@ -27,7 +27,7 @@
   <a class="sidebar-top{{ if eq $cur $top }} active{{ end }}" href="{{ $top.RelPermalink }}">{{ $top.Title }}</a>
   {{- end }}
   <ul>
-  {{- range $top.RegularPages.ByWeight }}
+  {{- range where $top.RegularPages.ByWeight "Layout" "ne" "redirect" }}
     <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
   {{- end }}
   </ul>
@@ -36,14 +36,14 @@
   <details{{ if or (eq $sec $cur) ($cur.IsDescendant $sec) }} open{{ end }}>
     <summary><a href="{{ $sec.RelPermalink }}"{{ if eq $sec $cur }} class="active"{{ end }}>{{ $sec.Title }}</a></summary>
     <ul>
-    {{- range $sec.RegularPages.ByWeight }}
+    {{- range where $sec.RegularPages.ByWeight "Layout" "ne" "redirect" }}
       <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
     {{- end }}
     {{- range $sec.Sections.ByWeight }}
       {{- $sub := . }}
       <li class="sub"><a href="{{ $sub.RelPermalink }}"{{ if eq $sub $cur }} class="active"{{ end }}>{{ $sub.Title }}</a>
         <ul>
-        {{- range $sub.RegularPages.ByWeight }}
+        {{- range where $sub.RegularPages.ByWeight "Layout" "ne" "redirect" }}
           <li><a href="{{ .RelPermalink }}"{{ if eq . $cur }} class="active" aria-current="page"{{ end }}>{{ .Title }}</a></li>
         {{- end }}
         </ul>

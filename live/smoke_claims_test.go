@@ -31,7 +31,7 @@ const (
 	smokeClaimsPath   = "smoke/claims.json"
 	smokeScenariosDir = "smoke/scenarios"
 	siteClaimsCopy    = "../site/data/claims.json"
-	siteClaimsPages   = "../site/content/docs/claims"
+	siteClaimsPages   = "smoke/claims"
 )
 
 // smokeDemoScenarios are the scenarios that are demos, not claims. They
@@ -383,8 +383,11 @@ func TestSmokeClaimsProviderCells(t *testing.T) {
 }
 
 // TestSmokeClaimsSiteCopyAndPages: the site renders a byte-for-byte copy
-// of the file, and every claim has exactly one page under
-// site/content/docs/claims whose front matter names its slug.
+// of the file, and every claim has exactly one page under live/smoke/claims
+// whose front matter names its slug. The pages lived under
+// site/content/docs/claims until GitHub issue #1414 moved the evidence off
+// the site and beside the scenarios; the site keeps the generated index and
+// a redirect at each old URL, which TestSmokeClaimsSiteRedirects holds.
 func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 	src, err := os.ReadFile(smokeClaimsPath)
 	if err != nil {
@@ -405,7 +408,7 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if e.Name() == "_index.md" || !strings.HasSuffix(e.Name(), ".md") {
+		if e.Name() == "README.md" || !strings.HasSuffix(e.Name(), ".md") {
 			continue
 		}
 		pages[strings.TrimSuffix(e.Name(), ".md")] = true
@@ -432,6 +435,26 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 	for p := range pages {
 		if i := sort.SearchStrings(slugs, p); i >= len(slugs) || slugs[i] != p {
 			t.Errorf("%s/%s.md has no row in %s", siteClaimsPages, p, smokeClaimsPath)
+		}
+	}
+}
+
+// TestSmokeClaimsSiteRedirects: every claim's old site URL still exists as a
+// redirect to its page in the repository (#1414). Links to
+// /docs/claims/<slug>/ are in issues, pull requests and search indexes, and
+// a claim whose stub is missing would answer them with a 404.
+func TestSmokeClaimsSiteRedirects(t *testing.T) {
+	f := readSmokeClaims(t)
+	for _, c := range f.Claims {
+		stub := filepath.Join("../site/content/docs/claims", c.Slug+".md")
+		raw, err := os.ReadFile(stub)
+		if err != nil {
+			t.Errorf("claim %d: no redirect stub at %s: %v", c.ID, stub, err)
+			continue
+		}
+		want := "live/smoke/claims/" + c.Slug + ".md"
+		if !strings.Contains(string(raw), "\nlayout: redirect\n") || !strings.Contains(string(raw), want) {
+			t.Errorf("%s is not a redirect to %s", stub, want)
 		}
 	}
 }
