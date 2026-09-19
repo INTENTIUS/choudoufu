@@ -22,6 +22,19 @@ hold     "<substring>"
          the first of <work-dir>/markers' whitespace-separated words found in
          the request body ("-" when none is), so a scenario can tell which of
          two racing writers arrived first.
+count    "<substring>"
+         A GET whose path contains <substring> is counted while it is in
+         flight, and the highest number ever in flight at once is written to
+         <work-dir>/inflight-max. Deleting that file resets the high-water
+         mark, so a scenario measures one run at a time. Claim 31.
+
+stall    "<substring> <seconds>"
+         A GET whose path contains <substring> waits <seconds> before it is
+         forwarded. Requests that are genuinely concurrent then overlap for
+         long enough to be seen; without it a fan-out against a local
+         emulator can finish each GET before the next begins and read as
+         sequential. Claim 31.
+
 release  "<seq> <seq> ..." or "drop"
          Held PUTs are forwarded one at a time in that order, each completing
          its round trip before the next starts, which is what makes a race
@@ -41,6 +54,13 @@ upstream_port, work = int(sys.argv[1]), sys.argv[2]
 lock = threading.Lock()
 turn = threading.Condition()
 released = set()
+
+# The in-flight high-water mark (claim 31's "eight at a time"). A separate
+# lock from `lock`, which the file-backed controls hold while they read and
+# write, so counting a request in can never wait on one of those.
+count_lock = threading.Lock()
+in_flight = 0
+in_flight_max = 0
 
 
 def read(name):
@@ -68,6 +88,41 @@ def should_fail(path, query):
         if count > 0:
             open(os.path.join(work, "fail"), "w").write("%s %d" % (sub, count - 1))
         return True
+
+
+def count_enter(path):
+    """Counts this GET in, if it is one the scenario asked to count.
+
+    Returns True when it was counted, which is what obliges the caller to
+    call count_leave. The high-water mark resets when the scenario deletes
+    <work-dir>/inflight-max, so a mark left by an earlier measurement can
+    never be read as this one's.
+    """
+    global in_flight, in_flight_max
+    sub = read("count")
+    if not sub or sub not in path:
+        return False
+    mark = os.path.join(work, "inflight-max")
+    with count_lock:
+        if not os.path.exists(mark):
+            in_flight_max = 0
+        in_flight += 1
+        if in_flight > in_flight_max:
+            in_flight_max = in_flight
+            open(mark, "w").write(str(in_flight_max))
+    return True
+
+
+def count_leave():
+    global in_flight
+    with count_lock:
+        in_flight -= 1
+
+
+def stall(path):
+    parts = read("stall").split()
+    if len(parts) == 2 and parts[0] in path:
+        time.sleep(float(parts[1]))
 
 
 def hold(path, body):
@@ -123,6 +178,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.connection.close()
                 return
+        counted = self.command == "GET" and "list-type=2" not in query and count_enter(path)
         if self.command == "GET" and should_fail(path, query):
             payload = (b'<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code>'
                        b"<Message>injected by the smoke proxy</Message></Error>")
@@ -132,6 +188,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(payload)
             status = 500
         else:
+            if self.command == "GET":
+                stall(path)
             host = self.headers.get("Host", "localhost").rsplit(":", 1)[0]
             headers = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "connection")}
             headers["Host"] = "%s:%d" % (host, upstream_port)
@@ -153,6 +211,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(data)
+        if counted:
+            count_leave()
         log("%s %s %d" % (self.command, self.path, status))
 
     do_GET = do_PUT = do_DELETE = do_HEAD = do_POST = relay

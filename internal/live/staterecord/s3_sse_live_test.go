@@ -22,9 +22,19 @@ import (
 )
 
 // sseBucketsEnvVar names the real buckets [TestS3StoreCASUnderEverySSEFlavour]
-// runs against: a comma-separated list of flavour=bucket, the flavours being
-// the keys of sseFlavours. The smoke scenario cas-holds-under-every-sse-flavour
-// creates the buckets, sets this, and runs the test.
+// runs against: a comma-separated list of flavour=bucket, or
+// flavour=bucket=key-arn where the bucket's default encryption names a
+// customer managed key. The flavours are the keys of sseFlavours. The smoke
+// scenario cas-holds-under-every-sse-flavour creates the buckets, sets this,
+// and runs the test.
+//
+// The key ARN is not decoration. Without it the check that the sse-kms-cmk
+// bucket is not quietly running under the AWS-managed key could not fire:
+// HeadObject answers with the key's ARN, never with the alias
+// "alias/aws/s3", so a check for that string was a check that could not fail
+// (#1379). The scenario knows which key it configured, so it says so, and
+// what is compared is the key AWS reports against the key that was asked
+// for.
 const sseBucketsEnvVar = "CHOUDOUFU_SSE_BUCKETS"
 
 type sseFlavour struct {
@@ -82,10 +92,14 @@ func TestS3StoreCASUnderEverySSEFlavour(t *testing.T) {
 
 	seen := map[string]bool{}
 	for _, pair := range strings.Split(raw, ",") {
-		name, bucket, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		name, rest, ok := strings.Cut(strings.TrimSpace(pair), "=")
+		bucket, keyARN, _ := strings.Cut(rest, "=")
 		flavour, known := sseFlavours[name]
 		if !ok || !known || bucket == "" {
-			t.Fatalf("%s entry %q is not flavour=bucket with a flavour out of %v", sseBucketsEnvVar, pair, flavourNames())
+			t.Fatalf("%s entry %q is not flavour=bucket or flavour=bucket=key-arn with a flavour out of %v", sseBucketsEnvVar, pair, flavourNames())
+		}
+		if name == "sse-kms-cmk" && keyARN == "" {
+			t.Fatalf("%s entry %q names no key ARN. The sse-kms-cmk bucket is the whole reason this test exists, and whether it is really under a customer managed key can only be answered against the ARN the caller configured: HeadObject reports a key ARN and never the AWS-managed alias.", sseBucketsEnvVar, pair)
 		}
 		seen[name] = true
 		t.Run(name, func(t *testing.T) {
@@ -108,8 +122,10 @@ func TestS3StoreCASUnderEverySSEFlavour(t *testing.T) {
 			if head.ServerSideEncryption != flavour.algorithm {
 				t.Fatalf("bucket %q encrypted the probe with %q, but it was given as %s (%q): the buckets are mislabelled, and running on would measure the wrong flavour", bucket, head.ServerSideEncryption, name, flavour.algorithm)
 			}
-			if name == "sse-kms-cmk" && strings.Contains(aws.ToString(head.SSEKMSKeyId), "alias/aws/s3") {
-				t.Fatalf("the sse-kms-cmk bucket is using the AWS-managed key")
+			if keyARN != "" {
+				if got := aws.ToString(head.SSEKMSKeyId); got != keyARN {
+					t.Fatalf("bucket %q encrypted the probe under key %q, and %s says it was configured with %q: the buckets are mislabelled, and under %s that means the flavour being measured is not the one it is reported as", bucket, got, sseBucketsEnvVar, keyARN, name)
+				}
 			}
 			sum := md5.Sum(payload) //nolint:gosec // see the import
 			md5ETag := `"` + hex.EncodeToString(sum[:]) + `"`

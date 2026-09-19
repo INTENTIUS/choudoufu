@@ -483,8 +483,8 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if got, want := rs.Path, ".tofu-records"; got != want {
 			t.Errorf("Path = %q, want %q", got, want)
 		}
-		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet {
-			t.Errorf("local record_store carries bucket/key_prefix/region: %+v", rs)
+		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet || rs.BucketOwnerSet {
+			t.Errorf("local record_store carries bucket/key_prefix/region/bucket_owner: %+v", rs)
 		}
 	})
 
@@ -513,6 +513,36 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 		if rs.PathSet {
 			t.Errorf("s3 record_store carries a path: %+v", rs)
+		}
+		// Optional, and unset here, so a build that defaulted it to something
+		// would be caught: an ExpectedBucketOwner nobody wrote would refuse
+		// every request against a bucket in another account, including the
+		// ordinary case of one shared on purpose.
+		if rs.BucketOwnerSet || rs.BucketOwner != "" {
+			t.Errorf("bucket_owner is set on a block that does not name one: %+v", rs)
+		}
+	})
+
+	// GitHub issue #1381. A bucket name is global: a name that is free can be
+	// taken by anyone, in any account, so the name alone does not say whose
+	// bucket this is.
+	t.Run("s3 with bucket_owner", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-s3-bucket-owner")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if got, want := rs.BucketOwner, "111122223333"; got != want {
+			t.Errorf("BucketOwner = %q, want %q", got, want)
+		}
+		if !rs.BucketOwnerSet {
+			t.Error("BucketOwnerSet is false for a block that names an owner")
+		}
+		if rs.BucketOwnerRange.Empty() {
+			t.Error("BucketOwnerRange is empty, so a diagnostic about it would point nowhere")
 		}
 	})
 }
@@ -674,6 +704,13 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-key-prefix-residue.tf", `must not begin with the "tofu-residue" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-provisioned.tf", `must not begin with the "tofu-provisioned" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-outputs.tf", `must not begin with the "tofu-outputs" segment`},
+		// GitHub issue #1381. These three go through the real decoder, not
+		// just validateRecordStoreKeyPrefix, because the estate name has to
+		// reach the validator from the surrounding live block for any of
+		// them to be decidable at all.
+		{"testdata/invalid-files/live-record-store-key-prefix-another-estate.tf", `is the namespace estate "other" writes its own records to`},
+		{"testdata/invalid-files/live-record-store-key-prefix-records-root.tf", `was set to the "tofu-records" root itself`},
+		{"testdata/invalid-files/live-record-store-key-prefix-no-estate.tf", `does not say which estate it owns`},
 		// GitHub issue #1383. A leading slash used to pass here and fail
 		// every run afterwards, with a message about a record key and never
 		// about key_prefix.
@@ -693,6 +730,12 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-allow-insecure-boolean.tf", `must be a literal list of strings`},
 		{"testdata/invalid-files/live-record-store-allow-insecure-twice.tf", `names "versioning" more than once`},
 		{"testdata/invalid-files/live-record-store-allow-insecure-on-local.tf", `has no meaning for record_store "local"`},
+		// GitHub issue #1381. An account ID that is not twelve digits would
+		// go on the wire as ExpectedBucketOwner and be refused by S3 on
+		// every request, with nothing saying the configuration is why.
+		{"testdata/invalid-files/live-record-store-bucket-owner-not-an-account.tf", `It must be an AWS account ID: exactly twelve digits`},
+		{"testdata/invalid-files/live-record-store-bucket-owner-too-short.tf", `It must be an AWS account ID: exactly twelve digits`},
+		{"testdata/invalid-files/live-record-store-bucket-owner-on-local.tf", `has no meaning for record_store "local"`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)
@@ -714,63 +757,108 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 // namespace (issue #109), checked at the "/"-delimited segment level so a
 // merely-similar-looking prefix ("tofu-receipts-archive") is not falsely
 // refused.
+//
+// The records' own root is the seventh and is not reserved, because
+// "tofu-records/<this estate>" IS the default. What it may not name is another
+// estate's records namespace, which GitHub issue #1381 measured as accepted.
 func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 	for _, tc := range []struct {
 		prefix string
+		// estate is what the live block names, "" meaning it names none and
+		// the name comes from the tofu-estate tags at run time. Every row
+		// that leaves it blank is read as "my-estate", which is what the
+		// fixtures use; the rows about the estate say so.
+		estate string
 		want   string // a fragment of the refusal, or "" for accepted
 	}{
-		{"my-estate", ""},
-		{"tofu-records/my-estate", ""},
-		{"tofu-records/my-estate/", ""},
+		{prefix: "my-estate"},
+		{prefix: "tofu-records/my-estate"},
+		{prefix: "tofu-records/my-estate/"},
+		// A deeper namespace under this estate's own records is still this
+		// estate's: nothing else writes there.
+		{prefix: "tofu-records/my-estate/inner"},
+		// GitHub issue #1381. recordStoreKeyPrefix uses the override
+		// verbatim, so this is the exact string estate "other" writes its
+		// own records under, and each estate would read the other's
+		// inventory as its own.
+		{prefix: "tofu-records/other", want: `the estate this configuration owns is "my-estate"`},
+		{prefix: "tofu-records/other/", want: `namespace estate "other" writes its own records to`},
+		{prefix: "tofu-records/other/deeper", want: `namespace estate "other" writes its own records to`},
+		// "my-estate-eu" is a different estate, and a prefix match is not an
+		// estate match: NamespacePrefix gives both a trailing delimiter, so
+		// these are two namespaces, and this one is not ours.
+		{prefix: "tofu-records/my-estate-eu", want: `namespace estate "my-estate-eu" writes its own records to`},
+		// The root itself holds every estate's records.
+		{prefix: "tofu-records", want: "the \"tofu-records\" root itself"},
+		{prefix: "tofu-records/", want: "the \"tofu-records\" root itself"},
+		// With no estate argument the name is derived from the tags at run
+		// time, so nothing at decode time can say whether this is our own
+		// namespace or a neighbour's. Refused rather than guessed.
+		{prefix: "tofu-records/my-estate", estate: "-", want: "does not say which estate it owns"},
+		{prefix: "tofu-records/other", estate: "-", want: "does not say which estate it owns"},
+		// A prefix outside the records root needs no estate to be judged.
+		{prefix: "somewhere/else", estate: "-"},
 		// A leading slash is refused in its own right (#1383), and the six
 		// reserved namespaces below still get their own reason when they
 		// carry one, because that is the more dangerous of the two.
-		{"/tofu-records/my-estate/", `must not begin with "/"`},
-		{"/", "empty"},
+		{prefix: "/tofu-records/my-estate/", want: `must not begin with "/"`},
+		{prefix: "/", want: "empty"},
 		// A prefix that merely starts with the same letters is not a
 		// segment match and must not be refused.
-		{"tofu-receipts-archive", ""},
-		{"nested/tofu-receipts", ""},
-		{"tofu-hints-archive", ""},
-		{"nested/tofu-hints", ""},
-		{"tofu-located-archive", ""},
-		{"nested/tofu-located", ""},
-		{"tofu-residue-archive", ""},
-		{"nested/tofu-residue", ""},
-		{"tofu-provisioned-archive", ""},
-		{"nested/tofu-provisioned", ""},
-		{"tofu-outputs-archive", ""},
-		{"nested/tofu-outputs", ""},
+		{prefix: "tofu-receipts-archive"},
+		{prefix: "nested/tofu-receipts"},
+		{prefix: "tofu-hints-archive"},
+		{prefix: "nested/tofu-hints"},
+		{prefix: "tofu-located-archive"},
+		{prefix: "nested/tofu-located"},
+		{prefix: "tofu-residue-archive"},
+		{prefix: "nested/tofu-residue"},
+		{prefix: "tofu-provisioned-archive"},
+		{prefix: "nested/tofu-provisioned"},
+		{prefix: "tofu-outputs-archive"},
+		{prefix: "nested/tofu-outputs"},
 
-		{"tofu-receipts", "must not begin with the \"tofu-receipts\" segment"},
-		{"tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
-		{"/tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
+		{prefix: "tofu-receipts", want: "must not begin with the \"tofu-receipts\" segment"},
+		{prefix: "tofu-receipts/my-estate", want: "must not begin with the \"tofu-receipts\" segment"},
+		{prefix: "/tofu-receipts/my-estate", want: "must not begin with the \"tofu-receipts\" segment"},
 
-		{"tofu-hints", "must not begin with the \"tofu-hints\" segment"},
-		{"tofu-hints/my-estate", "must not begin with the \"tofu-hints\" segment"},
-		{"/tofu-hints/my-estate", "must not begin with the \"tofu-hints\" segment"},
+		{prefix: "tofu-hints", want: "must not begin with the \"tofu-hints\" segment"},
+		{prefix: "tofu-hints/my-estate", want: "must not begin with the \"tofu-hints\" segment"},
+		{prefix: "/tofu-hints/my-estate", want: "must not begin with the \"tofu-hints\" segment"},
 
-		{"tofu-located", "must not begin with the \"tofu-located\" segment"},
-		{"tofu-located/my-estate", "must not begin with the \"tofu-located\" segment"},
-		{"/tofu-located/my-estate", "must not begin with the \"tofu-located\" segment"},
+		{prefix: "tofu-located", want: "must not begin with the \"tofu-located\" segment"},
+		{prefix: "tofu-located/my-estate", want: "must not begin with the \"tofu-located\" segment"},
+		{prefix: "/tofu-located/my-estate", want: "must not begin with the \"tofu-located\" segment"},
 
-		{"tofu-residue", "must not begin with the \"tofu-residue\" segment"},
-		{"tofu-residue/my-estate", "must not begin with the \"tofu-residue\" segment"},
-		{"/tofu-residue/my-estate", "must not begin with the \"tofu-residue\" segment"},
+		{prefix: "tofu-residue", want: "must not begin with the \"tofu-residue\" segment"},
+		{prefix: "tofu-residue/my-estate", want: "must not begin with the \"tofu-residue\" segment"},
+		{prefix: "/tofu-residue/my-estate", want: "must not begin with the \"tofu-residue\" segment"},
 
-		{"tofu-provisioned", "must not begin with the \"tofu-provisioned\" segment"},
-		{"tofu-provisioned/my-estate", "must not begin with the \"tofu-provisioned\" segment"},
-		{"/tofu-provisioned/my-estate", "must not begin with the \"tofu-provisioned\" segment"},
+		{prefix: "tofu-provisioned", want: "must not begin with the \"tofu-provisioned\" segment"},
+		{prefix: "tofu-provisioned/my-estate", want: "must not begin with the \"tofu-provisioned\" segment"},
+		{prefix: "/tofu-provisioned/my-estate", want: "must not begin with the \"tofu-provisioned\" segment"},
 
-		{"tofu-outputs", "must not begin with the \"tofu-outputs\" segment"},
-		{"tofu-outputs/my-estate", "must not begin with the \"tofu-outputs\" segment"},
-		{"/tofu-outputs/my-estate", "must not begin with the \"tofu-outputs\" segment"},
+		{prefix: "tofu-outputs", want: "must not begin with the \"tofu-outputs\" segment"},
+		{prefix: "tofu-outputs/my-estate", want: "must not begin with the \"tofu-outputs\" segment"},
+		{prefix: "/tofu-outputs/my-estate", want: "must not begin with the \"tofu-outputs\" segment"},
 
-		{"", "empty"},
-		{"///", "empty"},
+		{prefix: "", want: "empty"},
+		{prefix: "///", want: "empty"},
 	} {
-		t.Run(tc.prefix, func(t *testing.T) {
-			got := validateRecordStoreKeyPrefix(tc.prefix)
+		t.Run(tc.prefix+"/estate="+tc.estate, func(t *testing.T) {
+			// "" is the ordinary case and means the fixtures' estate name;
+			// "-" is the row that says the live block names no estate at
+			// all, which is a real configuration (the name then comes from
+			// the tofu-estate tags) and is not the same thing as "unset in
+			// this table".
+			estate := tc.estate
+			switch estate {
+			case "":
+				estate = "my-estate"
+			case "-":
+				estate = ""
+			}
+			got := validateRecordStoreKeyPrefix(tc.prefix, estate)
 			switch {
 			case tc.want == "" && got != "":
 				t.Errorf("%q was refused: %s", tc.prefix, got)

@@ -79,6 +79,17 @@ if [ "${BREAK:-0}" = "1" ]; then
   RUN_BIN="$SMOKE_WORK/break/choudoufu"
 fi
 run() { ( cd "$1" && shift && "$RUN_BIN" "$@" ); }
+# run_logged is run with the SDK's request log captured, whatever
+# SMOKE_INSTRUMENT says: step 2's claim that a plan warns WITHOUT READING THE
+# BUCKET is about requests, and until #1379 nothing consulted a log for it.
+run_logged() { local dir="$1" log="$2"; shift 2; ( cd "$dir" && TF_LOG=debug TF_LOG_PATH="$log" "$RUN_BIN" "$@" ); }
+# bucket_reads counts the three bucket-configuration reads the contract makes
+# in one run's log. The record store logs its own S3 requests under
+# TF_LOG=debug (#682), which is what makes this readable at all.
+bucket_reads() {
+  grep 'stateless/recordstore: HTTP Request Sent' "$1" \
+    | grep -cE 'rpc\.method=(GetBucketVersioning|GetBucketLifecycleConfiguration|GetPublicAccessBlock)' || true
+}
 
 step "1. a bucket with no versioning, and a waiver that names versioning"
 stack_up
@@ -89,7 +100,9 @@ awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-con
 awsl s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration "$PAB" >/dev/null || fail "waiver" "could not set the public-access block"
 run "$SMOKE_WORK/est" init -input=false -no-color >/dev/null 2>&1 || fail "waiver" "init failed"
 cmd "choudoufu apply -auto-approve   # allow_insecure = [\"versioning\"]"
-OUT1="$(run "$SMOKE_WORK/est" apply -auto-approve -input=false -no-color 2>&1)" \
+APPLY_LOG="$SMOKE_WORKROOT/logs/waiver-apply.log"
+PLAN_LOG="$SMOKE_WORKROOT/logs/waiver-plan.log"
+OUT1="$(run_logged "$SMOKE_WORK/est" "$APPLY_LOG" apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "waiver" "the apply was refused although the one failing assertion is the one waived: $OUT1"
 grep -qE 'Resources: 1 added' <<< "$OUT1" || fail "waiver" "nothing applied: $OUT1"
 warned "run 1" "$OUT1"
@@ -105,7 +118,7 @@ explain \
   "to the first run, or to something having changed, this is where it" \
   "would go quiet."
 cmd "choudoufu plan"
-OUT2="$(run "$SMOKE_WORK/est" plan -input=false -no-color 2>&1)" || fail "waiver" "the plan failed: $OUT2"
+OUT2="$(run_logged "$SMOKE_WORK/est" "$PLAN_LOG" plan -input=false -no-color 2>&1)" || fail "waiver" "the plan failed: $OUT2"
 if [ "${BREAK:-0}" = "1" ]; then
   if grep -q "$WARNING" <<< "$OUT2"; then
     fail "waiver" "the binary built to go quiet on run two still warned, so the break did not take and this control proves nothing"
@@ -115,13 +128,26 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 warned "run 2, a plan" "$OUT2"
+# "Without reading the bucket" is the sentence this step's proof line makes,
+# and it is a statement about requests (#1379). The same count is taken from
+# the apply's log and from the plan's: the apply reads the bucket, so a zero
+# from the plan is a measurement rather than a grep that never matches.
+[ -s "$APPLY_LOG" ] && [ -s "$PLAN_LOG" ] \
+  || fail "waiver" "no request log was written for the apply or the plan, so nothing about what they read was measured"
+APPLY_READS="$(bucket_reads "$APPLY_LOG")"
+PLAN_READS="$(bucket_reads "$PLAN_LOG")"
+[ "$APPLY_READS" -ge 1 ] \
+  || fail "waiver" "the apply in step 1 sent no GetBucketVersioning, GetBucketLifecycleConfiguration or GetPublicAccessBlock at all. Either the assertions no longer read the bucket or this count is looking in the wrong place; either way the plan's zero below would prove nothing."
+[ "$PLAN_READS" -eq 0 ] \
+  || fail "waiver" "the plan sent $PLAN_READS bucket-configuration request(s), so its warning is not made from the configuration alone: $(grep 'stateless/recordstore: HTTP Request Sent' "$PLAN_LOG" | grep -oE 'rpc\.method=[A-Za-z0-9]+' | sort -u | tr '\n' ' ')"
+echo "bucket-configuration requests - the apply: $APPLY_READS, the plan: $PLAN_READS" | evidence
 write_estate "$SMOKE_WORK/est" smoke-waived v2 '["versioning"]'
 cmd "choudoufu apply -auto-approve   # a second apply"
 OUT3="$(run "$SMOKE_WORK/est" apply -auto-approve -input=false -no-color 2>&1)" || fail "waiver" "the second apply failed: $OUT3"
 warned "run 3, a second apply" "$OUT3"
 count_warnings() { flat <<< "$1" | grep -o "$WARNING" | wc -l | tr -d ' '; }
 echo "run 1: $(count_warnings "$OUT1")  run 2: $(count_warnings "$OUT2")  run 3: $(count_warnings "$OUT3")   (warnings naming the versioning waiver)" | evidence
-proof "three runs, three warnings. A plan warns too, from the configuration alone, without reading the bucket."
+proof "three runs, three warnings. The plan warns from the configuration alone: its request log carries $PLAN_READS of the three bucket-configuration reads the apply's log carries $APPLY_READS of."
 
 step "3. the other two assertions are still in force"
 explain \
@@ -152,9 +178,20 @@ explain \
 cmd "choudoufu plan   # allow_insecure = [\"versionning\"]"
 T_OUT="$(run "$SMOKE_WORK/typo" init -input=false -no-color 2>&1; run "$SMOKE_WORK/typo" plan -input=false -no-color 2>&1)" \
   && fail "waiver" "a misspelt waiver was accepted: $T_OUT"
-grep -q 'versionning' <<< "$T_OUT" || fail "waiver" "the refusal does not name the misspelt setting: $T_OUT"
-grep -E 'versionning' <<< "$T_OUT" | head -1 | evidence
-proof "refused at configuration load, naming the word it did not recognize and listing the three it does."
+# The configuration snippet a diagnostic echoes back carries the misspelt
+# word too, so a grep over the whole output matched the operator's own line
+# and nothing the run said (#1379). Lines that are the echoed source - they
+# begin with a line number and a colon - are dropped before anything is read
+# out of the refusal.
+T_SAID="$(grep -vE '^[[:space:]]*[0-9]+:' <<< "$T_OUT" | flat)"
+grep -q 'versionning' <<< "$T_SAID" \
+  || fail "waiver" "the only place versionning appears is the configuration snippet the diagnostic echoes back; nothing the run SAYS names the word it refused: $T_OUT"
+for known in versioning lifecycle public_access_block; do
+  grep -q "$known" <<< "$T_SAID" \
+    || fail "waiver" "the refusal does not list $known among the names it does accept, so an operator is told their word is wrong and not what the right ones are: $T_OUT"
+done
+grep -vE '^[[:space:]]*[0-9]+:' <<< "$T_OUT" | grep 'versionning' | head -1 | flat | evidence
+proof "refused at configuration load, naming the word it did not recognize in what it says rather than only in the line it echoes back, and listing all three names it does accept."
 
 step "5. teardown"
 write_estate "$SMOKE_WORK/est" smoke-waived v2 '["versioning"]'

@@ -165,6 +165,13 @@ is not this estate's. It is written as a deny with `Null: "false"` so
 that it applies only when the tag is there, which is what lets the
 conditional writes above through.
 
+Three of the six actions it denies are granted by no statement above:
+`s3:GetObjectVersionTagging`, `s3:GetObjectAcl` and
+`s3:GetObjectVersionAcl`. They are denied anyway, so that a role somebody
+later widens with one of them still cannot use it on another estate's
+object. A Deny written for the actions of the day stops covering the
+boundary the moment the Allow list grows.
+
 `DenyRelabellingAnotherEstatesObjects` is what makes that tag worth
 trusting. `s3:RequestObjectTag` on the write statement constrains the tag a
 request SENDS and says nothing about the object it lands on, so without this
@@ -201,6 +208,49 @@ An object with no `tofu-estate` tag at all is readable by any role whose
 prefix reaches it. choudoufu tags every object it writes, so an untagged
 object under an estate's prefix was put there by something else.
 
+## A role that plans and never applies
+
+```
+render-policy.sh prod <bucket> --read-only
+```
+
+This is for a CI plan job, a pull-request check, or a reviewer who should
+see what a change would do and be unable to do it. It composes with every
+other flag on this page.
+
+It is the same policy with four grants taken out, and each one is something
+a plan never uses. `s3:PutObject` and `s3:PutObjectTagging`, because a plan
+writes no record. `s3:DeleteObject`, because deleting a record is what an
+apply does when a block goes away. The three `ReadTheBucketsAssertedSettings`
+reads, because the bucket assertions run on an estate's first contact with
+its store and again before an apply, and a read-only plan is neither. And
+under `--kms` the grant drops to `kms:Decrypt` alone, since
+`kms:GenerateDataKey` is what S3 asks for on a PUT.
+
+Both Deny statements stay, including the one over tagging actions this
+rendering allows none of. That is the same rule the full policy follows for
+the three read actions it denies and never allows: a Deny written for the
+actions of the day stops covering the boundary the moment somebody widens
+the Allow list.
+
+Every run still sends one conditional write, for the store's sentinel. Under
+this policy it is denied, and the run carries on when the sentinel is already
+there. A store that has never been written is refused by name instead, so run
+the estate once under the full policy and read-only plans work from then on.
+[Claim 38]({{< relref "/docs/claims/a-read-only-role-can-plan" >}}) measures
+both halves on real AWS, and reconciles what such a plan asks S3 for against
+what this rendering grants.
+
+A Kubernetes estate's plan job gets this same rendering. Such a job holds two
+credentials and nothing routes one to the other: the kubernetes provider's
+kubeconfig or in-cluster ServiceAccount token reaches the cluster, and the
+process's own AWS credentials reach the record store (or, for a `local`
+store, the process's filesystem user). The record store is never opened with
+the cluster identity, and there is no cluster-backed record store to open it
+with. So a ServiceAccount bound to `get`, `list` and `watch` says nothing
+about whether the run may write the sentinel, and the AWS role beside it is
+what this flag renders.
+
 ## What a recovery needs
 
 The rendered policy is for running an estate, and it cannot recover a deleted
@@ -215,24 +265,84 @@ The same permissions clean up after a first run that was refused. A refusal
 on first contact deletes the sentinel it had just written, and in a versioned
 bucket that leaves a delete marker behind until the lifecycle rule removes it.
 
+## Pinning the account that owns the bucket
+
+```
+render-policy.sh prod <bucket> --account 111122223333
+```
+
+adds `"aws:ResourceAccount": "111122223333"` as a `StringEquals` condition
+to every `Allow` in the policy, merged into whatever condition that
+statement already had. No `Deny` gets it: a `Deny` that stopped applying
+once the account was wrong would stop applying in the case it is there
+for.
+
+A bucket name is global. Nothing about a name says which account the
+bucket is in, and a name nobody holds can be created by anyone. So a
+policy that names the bucket only by name grants its estate the right to
+read and write a bucket of that name wherever it turns up. If the real
+bucket is ever deleted, someone who knows the name can create it in their
+own account, admit this role with a bucket policy, turn on the three
+settings choudoufu asserts, and take delivery of the next apply. Records
+hold secret material.
+
+With the condition, every statement here matches a bucket in that one
+account and nothing else. A render without the flag says so on stderr and
+still prints the policy, so nothing that already calls the script breaks.
+
+The other half is in the configuration:
+
+```
+record_store "s3" {
+  bucket       = "my-records-bucket"
+  bucket_owner = "111122223333"
+}
+```
+
+which puts `ExpectedBucketOwner` on every S3 request the run makes, so S3
+itself refuses a bucket owned by anyone else. Either half alone leaves a
+gap. The policy binds a role; the argument binds a run, including one
+whose credentials came from somewhere this policy does not cover.
+
+S3 answers an owner mismatch with `403 AccessDenied`, which is exactly
+what an IAM denial looks like, so choudoufu cannot tell you which it was.
+It says the bucket may be owned by an account other than the expected
+one, names both, and leaves the conclusion to you.
+
 ## A bucket encrypted with your own key
 
 ```
 render-policy.sh prod <bucket> --kms arn:aws:kms:us-east-2:111122223333:key/<key-id>
 ```
 
-adds `kms:Decrypt` and `kms:GenerateDataKey` on the key. That is half of
-it. A customer managed key is usable only by the principals its own key
-policy allows, so the key policy has to name the role as well:
+adds `kms:Decrypt` and `kms:GenerateDataKey` on the key, conditioned on
+`kms:ViaService` being the S3 endpoint in the key's own region. That
+condition is what keeps the grant to what it is for: S3 asking the key on
+the role's behalf. Without it, `kms:Decrypt` on the key is `kms:Decrypt` on
+the key, and the role can decrypt anything encrypted under it from
+anywhere.
+
+There is deliberately no `kms:EncryptionContext:aws:s3:arn` condition
+beside it. S3 sets that context to the bucket ARN when S3 Bucket Keys are
+on and to the object ARN when they are off, so either literal is wrong for
+half the buckets this renderer is pointed at, and a wrong one denies every
+write, starting with the first one a new estate makes.
+
+That is half of it. A customer managed key is usable only by the principals
+its own key policy allows, so the key policy has to name the role as well:
 
 ```
-render-key-statement.sh arn:aws:iam::111122223333:role/prod-estate
+render-key-statement.sh --key arn:aws:kms:us-east-2:111122223333:key/<key-id> \
+  arn:aws:iam::111122223333:role/prod-estate
 ```
 
-prints the statement to add to it. The rest of the key policy is yours.
-Pass every principal that uses the bucket, including whoever would
-recover a deleted record. The script refuses the account root and
-wildcards.
+prints the statement to add to it, with the same `kms:ViaService` condition
+and for the same reason. The rest of the key policy is yours. Pass every
+principal that uses the bucket, including whoever would recover a deleted
+record. The script refuses the account root and wildcards, and it refuses
+principals from a partition the key is not in. `--key` is optional, so an
+invocation written before it keeps working; without it the statement carries
+no condition and the render says so on stderr.
 
 A key policy that leaves the role out is the usual reason an estate's
 first run against a new bucket fails. S3 reports a KMS refusal as
@@ -242,6 +352,49 @@ the action, the role, and which policy AWS blamed.
 [Claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
 measures the refusal and its message on real AWS, for an estate with no root
 outputs.
+
+## GovCloud and China
+
+```
+render-policy.sh prod <bucket> --partition aws-us-gov
+```
+
+The partition is the second field of every ARN the policy names, and it was
+the literal `aws` until
+[#1381](https://github.com/INTENTIUS/choudoufu/issues/1381). A policy that
+names commercial-partition resources attaches to a GovCloud role without
+complaint, reviews correctly, and matches no request that role ever makes.
+The three values are `aws`, `aws-us-gov` and `aws-cn`, and nothing about a
+bucket name says which one it is in, so it is a flag with `aws` as the
+default.
+
+`--kms` has to name a key in the same partition, and the renderer stops and
+names both if it does not. The `kms:ViaService` value follows the key: in
+China the service principal ends in `.amazonaws.com.cn`.
+
+## An estate that sets key_prefix
+
+```
+render-policy.sh prod <bucket> --key-prefix team/prod
+```
+
+`key_prefix` in a `record_store "s3"` block moves where the estate's
+records live. It moves the records and nothing else: the guided-discovery
+hint stays under `tofu-hints/<estate>/` and the root output values stay
+under `tofu-outputs/<estate>/`. Render with `--key-prefix` set to the same
+string the block sets, and the three prefixes in the policy are the three
+namespaces the store writes under. A test renders the policy and compares
+its object ARNs against what the store's own
+`projection.BucketNamespaces` returns for that prefix and estate, so the
+two cannot drift.
+
+Without the flag the policy scopes the records to
+`tofu-records/<estate>/`, which such an estate never writes to, and its
+first run is denied.
+
+A `key_prefix` that would put this estate's records under another estate's
+namespace is refused when the configuration loads, not here. See
+[Reference]({{< relref "/docs/use/reference" >}}).
 
 ## Reading another estate's outputs
 

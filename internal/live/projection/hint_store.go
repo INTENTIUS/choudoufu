@@ -206,14 +206,26 @@ func writeHint(ctx context.Context, store staterecord.Store, estate string, stat
 
 // hintWriteWarning wraps one failed hint write in the sourceless warning
 // shape the manager's persistence side effects report through, and logs it.
+//
+// A write this run's identity was not allowed to make says so, rather than
+// leaving a bare AccessDenied for the reader to place. GitHub issue #1370
+// lets a run that may read the record store and not write it open the store
+// and plan, so a denial reaching here is now an ordinary consequence of a
+// read-only role rather than a sign that something is wrong with the
+// bucket, and it is the one failure on this path whose remedy is "nothing,
+// this is what a reader's run looks like".
 func hintWriteWarning(estate string, err error) tfdiags.Diagnostics {
 	log.Printf("[WARN] stateless hint: writing the guided-discovery hint for estate %q: %s", estate, err)
+	cause := ""
+	if staterecord.IsAccessDenied(err) {
+		cause = fmt.Sprintf(" This run's identity may read the record store and not write to it, so it cannot keep the hint at %q current; a run under a role with write access refreshes it.", HintKey(estate))
+	}
 	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(
 		tfdiags.Warning,
 		"Could not write the discovery hint",
 		fmt.Sprintf(
-			"Writing guided discovery's hint for estate %q to the record store failed: %s. The hint is a plan-cost cache: without a fresh one, the next run's estate-wide sweep enumerates every admitted type instead of skipping the quiet ones, which costs more and changes nothing else.",
-			estate, err,
+			"Writing guided discovery's hint for estate %q to the record store failed: %s.%s The hint is a plan-cost cache: without a fresh one, the next run's estate-wide sweep enumerates every admitted type instead of skipping the quiet ones, which costs more and changes nothing else.",
+			estate, err, cause,
 		),
 	))
 }
