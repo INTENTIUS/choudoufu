@@ -154,11 +154,11 @@ identity and carry no `tags` argument at all - the located-record cases the
 calls **record-carried**. Every managed instance, taggable or not, also has a
 **record**: the arguments the provider never echoes back, sensitivity marks,
 taint, and the deposed key, written with compare-and-swap under your IAM,
-namespaced per estate. Declaring a `record_store` block (`local`, `ssm`, or
-`s3` - see [Storage]({{< relref "/docs/use/storage" >}}) for the trade-offs)
-is what admits logical resources with no cloud object at all -
-`null_resource`, `terraform_data`, `time_*`, non-secret `random_*` - the same
-way stock keeps them in a state file.
+namespaced per estate. The record store is also what holds logical resources
+with no cloud object at all - `null_resource`, `terraform_data`, `time_*`,
+`random_*` - the same way stock keeps them in a state file. Every estate has
+one: a local directory unless a `record_store "s3"` block names a bucket (see
+[Storage]({{< relref "/docs/use/storage" >}})).
 
 See it working end to end in a real estate's "Greenfield apply" row, for
 example

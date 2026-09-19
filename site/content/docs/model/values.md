@@ -26,11 +26,15 @@ Declare the block to send the records somewhere a team can share instead:
 # estate.chdf.hcl
 estate = "my-estate"
 
-record_store "ssm" {}
+record_store "s3" {
+  bucket = "my-records-bucket"
+}
 ```
 
-The label picks the backend, one of `local`, `ssm` or `s3`.
-[Where things are stored]({{< relref "/docs/use/storage" >}}) has the arguments.
+The label picks the backend, `local` or `s3`. The bucket is one you create
+first. [Where things are stored]({{< relref "/docs/use/storage" >}}) has how it
+is laid out, and [What you set up by hand]({{< relref "/docs/use/setup" >}}) has
+the creating.
 
 ## Four things to know
 

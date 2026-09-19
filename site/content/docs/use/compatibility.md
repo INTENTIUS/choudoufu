@@ -429,19 +429,22 @@ unsupported. They are not.
 
 Nothing has to be turned on for that: a `live` block with no `record_store`
 block of its own gets an implied local one, a `.tofu-records` directory beside
-the module, the way stock implies a local state file. Declaring an estate is
-the whole setup step. Name a `record_store` to put the records somewhere a
-team shares instead.
+the module, the way stock implies a local state file. For the local store,
+declaring an estate is the whole setup step. Name a `record_store` to put the
+records somewhere a team shares instead, which is a bucket you create first.
 
 ```hcl
 # estate.chdf.hcl
 estate = "my-estate"
 
-record_store "ssm" {}
+record_store "s3" {
+  bucket = "my-records-bucket"
+}
 ```
 
-The label picks the backend, one of `local`, `ssm` or `s3`. [Where things are
-stored]({{< relref "/docs/use/storage" >}}) has the arguments.
+The label picks the backend, `local` or `s3`. [Where things are
+stored]({{< relref "/docs/use/storage" >}}) has the arguments, and
+[What you set up by hand]({{< relref "/docs/use/setup" >}}) has the bucket.
 
 ## Two hazards that are now refusals
 
