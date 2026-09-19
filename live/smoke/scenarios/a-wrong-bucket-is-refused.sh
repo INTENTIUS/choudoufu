@@ -26,6 +26,9 @@ write_estate "$SMOKE_WORK/est" smoke-asserted v1
 write_estate "$SMOKE_WORK/fresh" smoke-asserted-fresh v1
 
 EXPIRING='{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}'
+# A lifecycle that has the rule the contract asks for AND a rule that expires
+# current objects. It is the bucket the assertion passed until #1377.
+DELETES_RECORDS='{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}},{"ID":"sweep-old-objects","Status":"Enabled","Filter":{"Prefix":""},"Expiration":{"Days":90}}]}'
 TRANSITION_ONLY='{"Rules":[{"ID":"to-glacier","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionTransitions":[{"NoncurrentDays":30,"StorageClass":"GLACIER"}]}]}'
 
 make_correct() {
@@ -39,11 +42,12 @@ version_count() { awsl s3api list-object-versions --bucket "$BUCKET" --prefix "t
 # names the setting, the paragraph names the bucket, and nothing was applied.
 refused_by_name() {
   local arm="$1" setting="$2" out="$3"
-  grep -q "fails its $setting assertion" <<< "$out" \
-    || fail "wrongbucket" "[$arm] the run did not refuse by name - no line says the bucket fails its $setting assertion: $out"
+  local headline="${4:-fails its $setting assertion}"
+  grep -q "$headline" <<< "$out" \
+    || fail "wrongbucket" "[$arm] the run did not refuse by name - no line says '$headline': $out"
   grep -q "$BUCKET" <<< "$out" || fail "wrongbucket" "[$arm] the refusal never names the bucket: $out"
   grep -qE 'Apply complete|Resources: [0-9]+ added' <<< "$out" && fail "wrongbucket" "[$arm] the run reported applying something past the refusal: $out"
-  grep -E "fails its $setting assertion|Bucket \"$BUCKET\"" <<< "$out" | head -2 | evidence
+  grep -E "$headline|Bucket \"$BUCKET\"" <<< "$out" | head -2 | evidence
 }
 
 step "the claim"
@@ -105,13 +109,13 @@ one_arm() {
   cmd "choudoufu apply -auto-approve   # $name"
   out="$(cd "$SMOKE_WORK/est" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
     && fail "wrongbucket" "[$name] the apply SUCCEEDED against a bucket that fails its $setting assertion: $out"
-  refused_by_name "$name" "$setting" "$out"
+  refused_by_name "$name" "$setting" "$out" "${ARM_HEADLINE:-}"
   after="$(version_count)"
   [ "$before" = "$after" ] || fail "wrongbucket" "[$name] the refused apply still wrote to the record store: $before object version(s) before, $after after"
   make_correct || fail "wrongbucket" "[$name] could not restore the bucket"
 }
 
-step "2. four ways to be wrong, each refused by name with nothing applied"
+step "2. five ways to be wrong, each refused by name with nothing applied"
 explain \
   "Each arm breaks one setting with the AWS CLI, changes the" \
   "configuration so there is something to apply, and applies. The run" \
@@ -125,7 +129,15 @@ one_arm "a lifecycle that exists and expires nothing" lifecycle \
   awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration "$TRANSITION_ONLY"
 one_arm "no public-access block" public_access_block \
   awsl s3api delete-public-access-block --bucket "$BUCKET"
-proof "four refusals, four settings named, and the record store untouched by every one of them. The third arm is the point of the lifecycle assertion: a policy that merely exists satisfies a checkbox and keeps every version forever."
+explain \
+  "The fifth is the dangerous one, because the bucket has the rule the" \
+  "contract asks for. It also has a rule that expires CURRENT objects," \
+  "and a record is a current object: a converged estate does not rewrite" \
+  "its records, so that rule deletes them on a timer. The refusal has its" \
+  "own headline, and the waiver does not cover it."
+ARM_HEADLINE="lifecycle deletes records" one_arm "a lifecycle that also expires current objects" lifecycle \
+  awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration "$DELETES_RECORDS"
+proof "five refusals, each named, and the record store untouched by every one of them. The third arm is the point of the lifecycle assertion: a policy that merely exists satisfies a checkbox and keeps every version forever. The fifth is a bucket that passes that checkbox and destroys what it holds."
 
 step "3. what not asking on every plan costs"
 explain \
