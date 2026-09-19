@@ -107,7 +107,9 @@ What you give up, per name, in the words the run itself prints:
 A waiver is loud on every run that opens the store, `plan`, `live-plan` and
 `live-mv` included, and names the setting and its cost each time. When the bucket does fail the waived setting, an apply also
 says the assertion would have refused it. When the bucket passes, `live-bucket`
-says the waiver is hiding nothing and can be removed. An unknown name, a
+says the waiver is hiding nothing and can be removed. It reports on waivers
+only when run in the estate's directory with no `-bucket` flag, because a
+bucket named on the command line has no configuration to read a waiver from. An unknown name, a
 repeated name, a boolean, and `allow_insecure` on a store that is not a bucket
 are all configuration errors.
 [Claim 30]({{< relref "/docs/claims/a-waiver-names-what-it-waives" >}})
