@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu, with your platform holding the record of what you own.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+**Your cloud already knows what you own.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
 Each resource carries its own identity on the resource itself, as a marker
 the platform can select on: on AWS, two resource tags. The apply writes it

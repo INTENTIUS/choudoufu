@@ -1,4 +1,4 @@
 ---
 title: choudoufu
-description: OpenTofu with the record of what you own held by your platform, not a state file.
+description: OpenTofu that tags each resource with its owner, so your cloud's own permissions decide who can change it.
 ---
