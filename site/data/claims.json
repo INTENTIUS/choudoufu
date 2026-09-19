@@ -112,7 +112,9 @@
           "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/backend-sets-itself-up.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -784,7 +786,9 @@
           "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -808,7 +812,9 @@
           "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -832,7 +838,9 @@
           "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/one-bucket-many-estates.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -856,7 +864,9 @@
           "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/objects-carry-the-estate-tag.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
@@ -880,7 +890,9 @@
           "note": "The claim is about the record store bucket, its key and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/the-recommended-secure-configuration.lastrun.json"
+      ],
       "substrate": "aws"
     },
     {
