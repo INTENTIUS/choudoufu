@@ -91,9 +91,9 @@ func TestEveryBreakPatchStillMatchesItsSource(t *testing.T) {
 			}
 		}
 	}
-	// The scenarios that patch source today are claims 29, 31, 32, 33 and 36.
-	// Fewer than that means the extraction above stopped seeing them.
-	if patched < 5 {
-		t.Errorf("only %d BREAK patch(es) were found and run; there were five when this test was written", patched)
+	// The scenarios that patch source today are claims 29, 31, 32, 33, 36 and
+	// 38. Fewer than that means the extraction above stopped seeing them.
+	if patched < 6 {
+		t.Errorf("only %d BREAK patch(es) were found and run; there were six when this line was last changed", patched)
 	}
 }
