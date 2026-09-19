@@ -42,14 +42,26 @@ AWS-native
 (`aws_ssm_parameter`, `/tofu-receipts/<estate>/<effect>`) so its value stays
 readable with a plain `aws ssm get-parameter` by anyone with read-only IAM
 access and no `choudoufu` binary at all, whether a person, a script, or an
-incident responder at 3am. A `staterecord` payload (internal/live/projection's
-`recordPayload`, a self-describing ctyjson envelope) is tool-internal by
-design: readable by this fork's own code, not meant as an operator-facing
-artifact the way an SSM parameter's plain string value is. Moving a
-receipt's value onto that payload format would trade a `aws ssm
-get-parameter` away for "read `choudoufu`'s internal JSON envelope",
-which is strictly worse visibility for the exact artifact whose whole job
-is being visible.
+incident responder at 3am. A record is the opposite on both counts. Its
+payload (internal/live/projection's record envelope, self-describing ctyjson)
+is tool-internal by design: readable by this fork's own code, not meant as an
+operator-facing artifact the way an SSM parameter's plain string value is.
+And it lives in the record store bucket, where read access is something to
+hand to almost nobody: records hold secret material by default, the published
+IAM policy scopes a role to one estate's prefixes, and under a customer
+managed key a reader needs the key as well. A receipt's read access is
+something to hand to everybody who reviews or responds. Moving a receipt's
+value into the record store would trade `aws ssm get-parameter` for
+"`aws s3api get-object` on a bucket you were rightly not given, then read
+`choudoufu`'s internal JSON envelope", which is strictly worse visibility for
+the exact artifact whose whole job is being visible.
+
+(Until GitHub issue #1346 a record store could itself be Parameter Store, so a
+record and a receipt could sit side by side as parameters, and this argument
+rested on the payload format alone. That backend is retired as a record store.
+Receipts are unaffected: they were never in a record store, and
+`aws_ssm_parameter` is an ordinary resource this fork manages like any
+other.)
 
 Second, and more concretely: **using `terraform_data`'s `triggers_replace`
 as a pseudo-receipt is exactly the anti-pattern this boundary forbids.** It

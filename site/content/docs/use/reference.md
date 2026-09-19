@@ -143,8 +143,8 @@ OpenTofu and Terraform skip it, and so do fmt and linters.
 # estate.chdf.hcl
 estate = "prod-networking"
 
-record_store "ssm" {
-  key_prefix = "tofu-records/prod-networking"
+record_store "s3" {
+  bucket = "my-records-bucket"
 }
 ```
 
@@ -166,24 +166,25 @@ replaced it. Guided discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
-One label picks the backend, `"local"`, `"ssm"`, or `"s3"`. It stores the
+One label picks the backend, `"local"` or `"s3"`. `"ssm"` is retired and is
+refused with the reason and the replacement. The block stores the
 values of logical resources such as `null_resource`, `terraform_data`, `time_*`
 and `random_*`. Declaring the block is not what admits those types: every
 estate has a store, and one that names no `record_store` gets an implied local
 one, so a logical resource is admitted with no `record_store` block present.
 Declare it to choose where the records go. Writes are conditional rather than
-locked. [Storage]({{< relref "/docs/use/storage" >}}) has the per-backend
-trade-offs, and
-[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what each
-backend needs to exist first.
+locked. [Storage]({{< relref "/docs/use/storage" >}}) has the bucket's layout
+and the choice between the two, and
+[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket
+needs to exist first.
 
 | Argument | Applies to | Meaning |
 |---|---|---|
 | `path` | `local` | Directory for the records, relative to the module. |
 | `bucket` | `s3` | The bucket holding the records. |
-| `key_prefix` | `ssm`, `s3` | Namespace for this estate's records. A prefix whose first segment is `tofu-receipts` or `tofu-hints` is a decode error, because those namespaces belong to receipts (ordinary declared resources) and the guided-discovery hint respectively. |
-| `region` | `ssm`, `s3` | Region of the store. Unset, the AWS SDK's own default-configuration chain decides. |
-| `tier` | `ssm` | `"standard"`, `"advanced"` or `"intelligent_tiering"`. Standard holds 10,000 parameters per account per region and 4KB values, free. Advanced holds 100,000 and 8KB, and bills per parameter per month. Intelligent tiering reaches the same 100,000 and charges only past 10,000. Unset sends no tier, leaving the account's own default-tier configuration in charge. |
+| `key_prefix` | `s3` | Namespace for this estate's records, in place of `tofu-records/<estate>/`. A prefix whose first segment is one of the reserved roots (`tofu-receipts`, `tofu-hints`, `tofu-outputs`, `tofu-located`, `tofu-residue`, `tofu-provisioned`) is a decode error, because those namespaces belong to something else: receipts are ordinary declared resources, and the hint and the root outputs are not records. It moves the records only. The hint and the outputs stay under their own roots. |
+| `region` | `s3` | Region of the bucket. Unset, the AWS SDK's own default-configuration chain decides. |
+| `allow_insecure` | `s3` | A list naming the bucket settings this estate proceeds without: any of `"versioning"`, `"lifecycle"`, `"public_access_block"`. Never a boolean. Each waiver is announced on every run with what it costs. [The three settings]({{< relref "/docs/use/bucket-contract" >}}) has the costs. |
 
 ### `policy` block
 
@@ -289,7 +290,7 @@ type does.
 terraform {
   live {
     estate = "prod"
-    record_store "ssm" {}
+    record_store "s3" { bucket = "my-records-bucket" }
 
     strict {
       secrets = "refuse"
@@ -336,7 +337,7 @@ resource as this estate's, and neither can any other tool that lists by tag.
 terraform {
   live {
     estate = "prod"
-    record_store "ssm" {}
+    record_store "s3" { bucket = "my-records-bucket" }
 
     strict {
       marker_repair = "never"
@@ -396,8 +397,7 @@ exactly as any OpenTofu run. The fork's own surface follows.
 |---|---|---|
 | Estate-wide tag sweep | `tag:GetResources` | `internal/live/cloudcontrol/tagging.go` |
 | Cloud Control fallback | `cloudformation:ListResources`, `cloudformation:GetResource` | `internal/live/cloudcontrol/client.go` |
-| Record store, `ssm` | `ssm:GetParameter`, `ssm:PutParameter`, `ssm:DeleteParameter`, `ssm:GetParametersByPath` | `internal/live/staterecord/ssm.go` |
-| Record store, `s3` | `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` | `internal/live/staterecord/s3.go` |
+| Record store, `s3` | `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:PutObjectTagging`, `s3:DeleteObject`, and for the bucket's asserted settings `s3:GetBucketVersioning`, `s3:GetLifecycleConfiguration`, `s3:GetBucketPublicAccessBlock`. With a customer managed key, `kms:Decrypt` and `kms:GenerateDataKey`, which S3 makes on the caller's behalf. This is the set an estate's whole life was measured to use ([claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})); [IAM]({{< relref "/docs/use/iam" >}}) has the policy | `internal/live/staterecord/s3.go`, `bucketcontract.go` |
 | Record store, `local` | none | `internal/live/staterecord/local.go` |
 
 Each row names the file making the calls. That list is short and fixed, so a

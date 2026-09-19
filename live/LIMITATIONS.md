@@ -199,7 +199,7 @@ configuration with a `record_store` was told its type could never work.
   namespace is the "no persisted micro-state" limit closing, not a
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
-  observation (`internal/live/staterecord`, local/SSM/S3 backends). See
+  observation (`internal/live/staterecord`, local and S3 backends). See
   `site/content/docs/use/reference.md`'s `record_store` block for the config
   surface. Without
   a store, the refusal Detail names this class and cites #73 exactly as it
@@ -1580,11 +1580,12 @@ defaults out longhand is legitimate: it records an estate's retry behaviour
 rather than inheriting it.
 
 **Where it applies.** The record store's AWS clients, which is where the
-attempt budget actually bites — an estate writes one record per resource, so a
-large one reaches Parameter Store's throughput ceiling on its own. When a
-record write does fail on throttling, the error names that ceiling and the
-account setting that raises it, rather than an attempt count a reader would
-have to translate.
+attempt budget actually bites. When a record write does fail on throttling,
+the error says how many attempts it was given, in which mode, and which of the
+two moves applies: `mode = "adaptive"`, or a larger `max_attempts`. It was
+measured against the Parameter Store record store, which is retired (#1346),
+and it used to name that service's ceiling. No ceiling has been measured for
+the bucket, so none is quoted.
 
 ### strict-marker-repair
 

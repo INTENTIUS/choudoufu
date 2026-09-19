@@ -18,10 +18,10 @@ A receipt is how you make it visible.
 An ordinary resource you declare, by convention an SSM parameter at
 `/tofu-receipts/<estate>/<effect>` holding a hash of the effect's input.
 
-A record store can be backed by Parameter Store too, so both can end up as
-parameters in the same account. The difference is who owns them. A record is
-written by choudoufu and its format is internal. A receipt is written by your
-configuration, appears in your plan, and is yours to read.
+A receipt is not a record, and the two do not share a home. A record is
+written by choudoufu into the record store, a bucket or a local directory, and
+its format is internal. A receipt is written by your configuration, appears in
+your plan, and is yours to read with any AWS tool.
 
 It goes through the ordinary plan and apply cycle. Its diff appearing in a plan
 is what tells a reviewer or a CI gate that this apply will trigger something
