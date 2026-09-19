@@ -58,14 +58,14 @@ Root output values are recorded too, except that an output marked
 
 | Who | Why they can read it |
 |---|---|
-| The estate's own role | It has to. [The published policy]({{< relref "/docs/use/iam" >}}) scopes it to the estate's prefixes and denies it objects tagged as another estate's |
+| The estate's own role | It has to. [The published policy]({{< relref "/docs/use/bucket" >}}) scopes it to the estate's prefixes and denies it objects tagged as another estate's |
 | Anyone with `s3:GetObject` on `tofu-records/<estate>/*`, or `get` on Secrets in the records namespace | A broad read grant on the bucket, the account or the cluster, a read-only audit role, a leaked read-only credential |
 | Anyone who can assume either | Including CI, for the pipeline's role |
 | Whoever recovers a deleted record | Recovery reads the record |
 
 The middle row is the one to look for. A read-only role is usually thought of
 as harmless, and on a record store it reads private keys. The public-access block
-the store [asserts]({{< relref "/docs/use/bucket-contract" >}}) stops the
+the store [asserts]({{< relref "/docs/use/bucket" >}}) stops the
 bucket being published. It does nothing about a principal inside the account,
 and nothing about a bucket policy that names another specific account, since
 a named account is not "public".
@@ -141,7 +141,7 @@ setting and the environment pin that stops a configuration relaxing it.
 ## What a customer managed key adds
 
 A second gate, and a revocation that does not go through IAM.
-[Encryption at rest]({{< relref "/docs/use/encryption" >}}) has the
+[Encryption at rest]({{< relref "/docs/use/bucket" >}}) has the
 arrangement. It narrows the middle row of the table above to principals the
 key policy also names. It does not help against the estate's own role being
 misused, since that role has to hold both.

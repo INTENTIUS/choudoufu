@@ -1,8 +1,3 @@
----
-title: "IAM for the record store bucket"
-weight: 9
----
-
 # IAM for the record store bucket
 
 One bucket serves every estate, and each estate's role is scoped to that
@@ -195,7 +190,7 @@ cannot read a neighbour's records, because they carry the neighbour's
 tag, and it cannot change that tag either. An earlier version of this policy
 lacked the relabel Deny, and under it this paragraph was false: measured
 against AWS, such a role retagged a neighbour's record and then read it.
-[Claim 35]({{< relref "/docs/claims/one-bucket-many-estates" >}}) now makes
+[Claim 35](../../../live/smoke/claims/one-bucket-many-estates.md) now makes
 the attempt.
 
 For listing, writing and deleting there is one: the prefix. S3 has no
@@ -237,7 +232,7 @@ Every run still sends one conditional write, for the store's sentinel. Under
 this policy it is denied, and the run carries on when the sentinel is already
 there. A store that has never been written is refused by name instead, so run
 the estate once under the full policy and read-only plans work from then on.
-[Claim 38]({{< relref "/docs/claims/a-read-only-role-can-plan" >}}) measures
+[Claim 38](../../../live/smoke/claims/a-read-only-role-can-plan.md) measures
 both halves on real AWS, and reconciles what such a plan asks S3 for against
 what this rendering grants.
 
@@ -258,7 +253,7 @@ record. Recovery removes a delete marker, which takes `s3:ListBucketVersions`
 on the bucket and `s3:DeleteObjectVersion` on the estate's prefixes, and
 reading a noncurrent version takes `s3:GetObjectVersion`. Give those to the
 person who recovers and leave them off the estate's role.
-[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) has the
+[Recover an estate](https://intentius.io/choudoufu/docs/use/recover-an-estate/) has the
 procedure.
 
 The same permissions clean up after a first run that was refused. A refusal
@@ -349,7 +344,7 @@ first run against a new bucket fails. S3 reports a KMS refusal as
 `AccessDenied` on its own operation, so choudoufu reads the message and
 says `The record store bucket's KMS key refused this run`, with the key,
 the action, the role, and which policy AWS blamed.
-[Claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
+[Claim 37](../../../live/smoke/claims/the-recommended-secure-configuration.md)
 measures the refusal and its message on real AWS, for an estate with no root
 outputs.
 
@@ -394,13 +389,13 @@ first run is denied.
 
 A `key_prefix` that would put this estate's records under another estate's
 namespace is refused when the configuration loads, not here. See
-[Reference]({{< relref "/docs/use/reference" >}}).
+[Reference](https://intentius.io/choudoufu/docs/use/reference/).
 
 ## Reading another estate's outputs
 
 No choudoufu run reads another estate's objects. An estate reads a value from
 another one off the live resource, with a data source
-([Reading a value from another estate]({{< relref "/docs/use/cross-estate" >}})),
+([Reading a value from another estate](https://intentius.io/choudoufu/docs/use/cross-estate/)),
 and needs nothing extra on the bucket for it. This flag is for a reader you
 write yourself, such as a script or a dashboard that shows one estate's
 outputs from a role scoped to another. The isolation above denies that read,

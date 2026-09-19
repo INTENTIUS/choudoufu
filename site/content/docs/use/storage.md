@@ -60,7 +60,7 @@ exists, a run that cannot write it reads it back and carries on. A store with
 no sentinel, opened by a role that cannot write one, is refused by name.
 
 A store that refused stops every command: a bucket that fails
-[its three settings]({{< relref "/docs/use/bucket-contract" >}}), a listing
+[its three settings]({{< relref "/docs/use/bucket" >}}), a listing
 that does not return what was just written, a KMS key that refused the run.
 For `plan`, `apply` and `live-import`, a store that could not be reached
 stops the run too.
@@ -94,8 +94,8 @@ the store.
 
 One bucket serves any number of estates. choudoufu never creates it and never
 configures it. [What you set up by hand]({{< relref "/docs/use/setup" >}}) has
-the creating, [the three settings]({{< relref "/docs/use/bucket-contract" >}})
-has what it must have, and [IAM]({{< relref "/docs/use/iam" >}}) has the
+the creating, [the three settings]({{< relref "/docs/use/bucket" >}})
+has what it must have, and [IAM]({{< relref "/docs/use/bucket" >}}) has the
 policy for an estate's role.
 
 ### Layout
