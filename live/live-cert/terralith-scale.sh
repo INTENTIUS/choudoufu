@@ -168,6 +168,20 @@ source "$LIB/live-cert.sh"
 # through the same "${VAR:-default}" form every one of them already uses.
 # Part 2, which actually runs the destroy, sits right before "0. tools"
 # below - it needs teardown()/verify_empty()/sweep() already defined.
+#
+# The marker lines below bracket each half, the way the record store
+# selection block above is bracketed, and for the same reason (#1380): a
+# self-test must never test this dispatch by EXECUTING this script. A
+# mutation of the dispatch that loses its `exit 0` falls straight through
+# into "0. tools" and then into a cold deploy, which with TARGET=aws is a
+# paid one - that is how #1346 happened, and how a mutation test started a
+# real-AWS deploy on 2026-09-18. selftest-hold-resume.sh case 3 and
+# selftest-record-store-s3.sh case 7 extract the span from part 1's opening
+# marker to part 2's closing marker (the whole prelude, function
+# definitions included, stopping before "0. tools") and run that text
+# instead. The extracted text ENDS at the dispatch, so no mutation inside it
+# can reach a deploy: there is nothing after it to reach.
+# >>> teardown-only dispatch part 1
 livecert_marker_get() {
   grep -m1 "^$2=" "$1" 2>/dev/null | cut -d= -f2-
 }
@@ -198,6 +212,7 @@ if [ -n "$TEARDOWN_ONLY_DIR" ]; then
     || { echo "teardown: $COLD_MARKER_EARLY is missing PREFIX/TARGET/REGION - a marker from an older script version?" >&2; exit 2; }
   LIVECERT_WORK_DIR="${LIVECERT_WORK_DIR:-$TEARDOWN_ONLY_DIR}"
 fi
+# <<< teardown-only dispatch part 1
 
 TARGET="${TARGET:-floci}"
 REGION="${REGION:-us-east-1}"
@@ -1029,6 +1044,7 @@ sweep() {
 # for when the trusted stock destroy plus the independent verify-empty
 # listing (and the raw-CLI sweep, if anything survives) is what "tear this
 # down" actually needs.
+# >>> teardown-only dispatch part 2
 if [ -n "$TEARDOWN_ONLY_DIR" ]; then
   log "=== teardown-only: $TEARDOWN_ONLY_DIR (target=$TARGET region=$REGION prefix=$PREFIX scale=$SCALE run_id=$RUN_ID) ==="
   log "  running the bounded, trusted stock destroy plus the verify-empty listing only - not the best-effort choudoufu destroy path (see this dispatch's own comment above)"
@@ -1043,6 +1059,7 @@ if [ -n "$TEARDOWN_ONLY_DIR" ]; then
   log "=== teardown-only: done ==="
   exit 0
 fi
+# <<< teardown-only dispatch part 2
 
 # ── 0. tools ────────────────────────────────────────────────────────────
 log "=== 0. tools (target=$TARGET run_id=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="

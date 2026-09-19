@@ -59,6 +59,28 @@ type fakeS3Server struct {
 	// that needs to see it. A non-zero status is written as the response and
 	// the object store is never consulted: a GET that failed.
 	beforeGet func(path string) (status int)
+
+	// missingBucket, when set, makes every request answer 404 NoSuchBucket,
+	// the way real S3 answers for a bucket that was deleted, renamed or never
+	// existed. The STATUS is the same one a missing key gets, which is the
+	// whole point: only the code tells them apart, and before GitHub issue
+	// #1383 this store read both as the record's absence.
+	missingBucket bool
+
+	// putNotFoundAsKey, when set, makes every PutObject answer 404 NoSuchKey
+	// whatever this fake holds. An If-Match put for a key that is gone gets
+	// that answer from the fake's own bookkeeping already (#1344); this
+	// forces it for a create (If-None-Match) too, which real S3 has no reason
+	// to send and which the store must still never read as a conflict, since
+	// a create has no version to conflict with.
+	putNotFoundAsKey bool
+}
+
+// writeS3Error writes the status and the error XML real S3 carries with it,
+// which is what the store's own classification reads.
+func writeS3Error(w http.ResponseWriter, status int, code, message string) {
+	w.WriteHeader(status)
+	_, _ = fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>%s</Message></Error>`, code, message)
 }
 
 func newFakeS3Server(t *testing.T) (*httptest.Server, *fakeS3Server) {
@@ -70,10 +92,21 @@ func newFakeS3Server(t *testing.T) (*httptest.Server, *fakeS3Server) {
 }
 
 func (f *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
+	if f.missingBucket {
+		writeS3Error(w, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist")
+		return
+	}
 	if f.beforeGet != nil && r.Method == http.MethodGet && r.URL.Query().Get("list-type") != "2" {
 		if status := f.beforeGet(r.URL.Path); status != 0 {
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code><Message>injected</Message></Error>`))
+			// The code has to match the status, or an injected 404 arrives
+			// carrying a code that says something else entirely and the
+			// store classifies it on that. A 404 from real S3 for a key that
+			// was deleted in between is NoSuchKey.
+			code := "InternalError"
+			if status == http.StatusNotFound {
+				code = "NoSuchKey"
+			}
+			writeS3Error(w, status, code, "injected")
 			return
 		}
 	}
@@ -103,6 +136,10 @@ func (f *fakeS3Server) putObject(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	if f.putNotFoundAsKey {
+		writeS3Error(w, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.")
+		return
+	}
 	cur, exists := f.objects[r.URL.Path]
 
 	ifNoneMatch := r.Header.Get("If-None-Match")
@@ -116,8 +153,7 @@ func (f *fakeS3Server) putObject(w http.ResponseWriter, r *http.Request) {
 		// If-Match for a key that does not exist is 404 NoSuchKey, NOT 412.
 		// This fake used to answer 412 here, so the store's handling of the
 		// real answer was never exercised and was wrong.
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>`))
+		writeS3Error(w, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.")
 		return
 	}
 	if ifMatch != "" && ifMatch != cur.etag {
@@ -135,8 +171,7 @@ func (f *fakeS3Server) putObject(w http.ResponseWriter, r *http.Request) {
 func (f *fakeS3Server) getObject(w http.ResponseWriter, r *http.Request) {
 	obj, exists := f.objects[r.URL.Path]
 	if !exists {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>not found</Message></Error>`))
+		writeS3Error(w, http.StatusNotFound, "NoSuchKey", "not found")
 		return
 	}
 	w.Header().Set("ETag", obj.etag)
@@ -148,7 +183,20 @@ func (f *fakeS3Server) deleteObject(w http.ResponseWriter, r *http.Request) {
 	obj, exists := f.objects[r.URL.Path]
 	ifMatch := r.Header.Get("If-Match")
 	if ifMatch != "" {
-		if !exists || ifMatch != obj.etag {
+		if !exists {
+			// ASSUMED, not measured. #1344 measured the PutObject case
+			// against real S3: an If-Match for a key that does not exist is
+			// 404 NoSuchKey, not 412. The same shape is assumed for
+			// DeleteObject here, because it is the same precondition against
+			// the same missing object, and because 412 was plainly wrong -
+			// it let the store's Delete 404 branch be deleted with no test
+			// noticing. If a real-S3 run ever shows DeleteObject answering
+			// 412 for a missing key, this is the line to change, and the
+			// store handles both already.
+			writeS3Error(w, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.")
+			return
+		}
+		if ifMatch != obj.etag {
 			w.WriteHeader(http.StatusPreconditionFailed)
 			return
 		}

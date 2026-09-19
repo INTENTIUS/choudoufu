@@ -1069,12 +1069,19 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 	case "local", "s3":
 		rs.Type = label
 		rs.TypeRange = block.LabelRanges[0]
-	case "ssm", "ssm-tier":
+	case "ssm":
 		// Refused by name and not as an unknown backend, because this one
 		// was the documented team default until GitHub issue #1346 and a
 		// configuration that still names it deserves to be told what
 		// happened and where to go. The body is not decoded: a retired
 		// backend's arguments are not worth a second diagnostic.
+		//
+		// "ssm" alone. "ssm-tier" used to be listed here too and it was
+		// never a backend label at any release - "tier" was an ARGUMENT of
+		// record_store "ssm" (git grep '"ssm-tier"' v0.17.0 is empty). A
+		// label nobody could have written told a reader that it once
+		// existed, so it goes to the unknown-backend message like any other
+		// name this fork does not know. GitHub issue #1383.
 		return rs, hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  SummaryRecordStoreRetired,
@@ -1546,6 +1553,9 @@ func validateRecordStorePath(raw string) string {
 // key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints",
 // "tofu-located", "tofu-residue", "tofu-provisioned" or "tofu-outputs" is
 // refused, whether or not it carries a leading or trailing slash.
+//
+// A leading slash is refused in its own right as well, after those six, so
+// that the argument is named here rather than at the first run's first write.
 func validateRecordStoreKeyPrefix(raw string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
@@ -1569,6 +1579,20 @@ func validateRecordStoreKeyPrefix(raw string) string {
 	}
 	if first == "tofu-provisioned" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-provisioned\" segment: that namespace holds the one bit saying a create-time provisioner failed on a live object (GitHub issue #353). It must stay unenumerable for \"tofu-located\"'s reason - a record key with no configuration behind it is proposed for destruction, and a provisioner note is only a record that a command failed against an object that exists."
+	}
+	// Last, so a prefix that both carries a slash and names one of the six
+	// reserved namespaces still gets the reserved namespace's reason, which
+	// is the more dangerous of the two.
+	//
+	// internal/live/staterecord's validateKeyPrefix refuses a leading slash
+	// at the store, for issue #688's reasons. It only sees the key the store
+	// builds, though, so a key_prefix with a leading slash passed this
+	// validator, survived the whole of config loading, and then failed every
+	// run with an error naming a record key nobody wrote and never the
+	// argument that caused it. The trim above is for the segment checks and
+	// does not reach the value that is kept. GitHub issue #1383.
+	if strings.HasPrefix(raw, "/") {
+		return "The \"key_prefix\" argument must not begin with \"/\". Keys in a record store are store-relative: the store prepends its own configured prefix, and a leading slash here becomes an empty first segment in every object key the estate writes. Remove the leading slash (\"tofu-records/my-estate\", not \"/tofu-records/my-estate\")."
 	}
 	return ""
 }
