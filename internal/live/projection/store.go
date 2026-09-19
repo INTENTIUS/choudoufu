@@ -354,3 +354,25 @@ func BucketContractRefusalText(bucket string, findings []staterecord.BucketFindi
 	}
 	return b.String()
 }
+
+// VerifyBucket reads the bucket contract for a bucket named directly, with
+// no store opened and no sentinel written: it is what `choudoufu live-bucket`
+// runs, and what the runnable bucket project's `just verify` calls (GitHub
+// issue #1341), so that the project and the tool cannot drift into
+// disagreeing about what a correct bucket is. The client is built exactly
+// the way [NewRecordStore] builds the store's own.
+//
+// estate may be "". With one, the lifecycle assertion is checked against
+// that estate's three namespaces; without, only a lifecycle rule with no
+// prefix filter counts, which is what the project's own bucket carries.
+func VerifyBucket(ctx context.Context, bucket, region, estate string, rs *configs.LiveRecordStore) ([]staterecord.BucketFinding, error) {
+	awsCfg, err := loadAWSConfig(ctx, region, nil)
+	if err != nil {
+		return nil, err
+	}
+	var namespaces []string
+	if estate != "" {
+		namespaces = BucketNamespaces(rs, estate)
+	}
+	return staterecord.CheckBucketContract(ctx, s3.NewFromConfig(awsCfg), bucket, namespaces)
+}
