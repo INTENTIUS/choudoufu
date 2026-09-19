@@ -196,21 +196,36 @@ if [ "${BREAK:-0}" = "1" ]; then
     "and not under the one before it."
   aws kms put-key-policy --key-id "$KEY_ARN" --policy-name default --policy "$(key_policy "$OPERATOR_ARN")" >/dev/null || fail "secureconfig" "could not install the key policy that omits the role"
   aws kms get-key-policy --key-id "$KEY_ARN" --policy-name default --query Policy --output text | jq -c '.Statement[] | {Sid, Principal}' | mask | evidence
-  CUT=0
-  for i in $(seq 1 60); do
-    RAW="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" "$SMOKE_WORK/marker.out" 2>&1)" || {
-      # Any failure used to end this loop and read as "the role can no longer
-      # decrypt" (#1379): an assume-role that timed out, a throttle, a
-      # network blip. What this arm needs is AWS refusing the read.
+  # The cut is proven the way role_with_policy proves a policy live, and for
+  # the reason written there: a key policy reaches KMS's hosts one at a time.
+  # One denied read used to end this wait. On 2026-09-19 it was not enough:
+  # the read was denied, and seconds later the estate's apply wrote two
+  # records under the key it had supposedly lost, so the arm measured the old
+  # policy and failed for the wrong reason. A read is kms:Decrypt and the
+  # apply starts with a write, which is kms:GenerateDataKey, so both are
+  # asked, and both have to be DENIED several times running.
+  CUT=0; STREAK=0
+  for i in $(seq 1 80); do
+    RAW="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" "$SMOKE_WORK/marker.out" 2>&1)" && G_RC=0 || G_RC=$?
+    RAW_PUT="$(as_role "$ROLE" aws s3api put-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" --body "$SMOKE_WORK/marker" 2>&1)" && W_RC=0 || W_RC=$?
+    if [ "$G_RC" != "0" ] && [ "$W_RC" != "0" ]; then
+      # Any failure used to read as "the role can no longer decrypt" (#1379):
+      # an assume-role that timed out, a throttle, a network blip. What this
+      # arm needs is AWS refusing the request.
       denied "$RAW" \
         || fail "secureconfig" "the role's read of its marker failed, but not on a denial, so nothing here shows the key policy is what cut it: $RAW"
-      CUT=1
-      break
-    }
+      denied "$RAW_PUT" \
+        || fail "secureconfig" "the role's write of its marker failed, but not on a denial, so nothing here shows the key policy is what cut it: $RAW_PUT"
+      STREAK=$((STREAK+1))
+      [ "$STREAK" -ge 4 ] && { CUT=1; break; }
+    else
+      STREAK=0
+    fi
     sleep 3
   done
-  [ "$CUT" = "1" ] || fail "secureconfig" "three minutes after the role was taken out of the key policy it can still decrypt, so this arm has nothing to measure"
+  [ "$CUT" = "1" ] || fail "secureconfig" "four minutes after the role was taken out of the key policy it can still read or write under the key, so this arm has nothing to measure"
   echo "what AWS itself says: $(flat <<< "$RAW" | mask)" | evidence
+  echo "the role's read and its write were both denied $STREAK times running before the apply below" | evidence
 fi
 
 # The owner is pinned in the configuration as well as in the policy (#1381):
