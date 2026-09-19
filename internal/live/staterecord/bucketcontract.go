@@ -103,7 +103,7 @@ type BucketContractChecker interface {
 
 // AsBucketContractChecker finds the bucket-backed store under s, looking
 // through this package's own wrappers ([RunCache], [CountingStore]). False
-// means there is nothing to assert - a local store, an SSM store - which is
+// means there is nothing to assert - a local store - which is
 // a different answer from a bucket that failed.
 func AsBucketContractChecker(s Store) (BucketContractChecker, bool) {
 	for s != nil {

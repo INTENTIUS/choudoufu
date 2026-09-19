@@ -1186,7 +1186,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		}
 		detail := logicalResourceDetail("null_resource", lt, strict.DefaultSecrets, false)
 
-		for _, want := range []string{"record_store", "live block", `record_store "ssm" {}`} {
+		for _, want := range []string{"record_store", "live block", `record_store "s3" { bucket = "..." }`} {
 			if !strings.Contains(detail, want) {
 				t.Errorf("RECORD_ADMITTED Detail must name the remedy: want it to contain %q, got %q", want, detail)
 			}
@@ -1236,7 +1236,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 	t.Run("SECRET_REFUSED under secrets=store with no record_store names the store", func(t *testing.T) {
 		lt, _ := ClassifyLogicalType("random_password")
 		detail := logicalResourceDetail("random_password", lt, strict.Store, false)
-		for _, want := range []string{"SECRET_REFUSED", lt.Evidence, "record_store", `record_store "ssm" {}`, recordStoreSupportExists} {
+		for _, want := range []string{"SECRET_REFUSED", lt.Evidence, "record_store", `record_store "s3" { bucket = "..." }`, recordStoreSupportExists} {
 			if !strings.Contains(detail, want) {
 				t.Errorf("SECRET_REFUSED Detail under secrets=store = %q, want it to contain %q", detail, want)
 			}
@@ -1275,7 +1275,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		detail := logicalResourceDetail("local_file", lt, strict.DefaultSecrets, false)
 		for _, want := range []string{
 			"EXTERNAL_ADMITTED", "#73", lt.Evidence, lt.External,
-			"record_store", `record_store "ssm" {}`, recordStoreSupportExists,
+			"record_store", `record_store "s3" { bucket = "..." }`, recordStoreSupportExists,
 			// The sentence that is this class's and no other's. An operator
 			// who reads this message is about to declare a store and
 			// re-plan; count.index is the next thing they can hit, and

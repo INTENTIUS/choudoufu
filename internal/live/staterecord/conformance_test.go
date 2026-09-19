@@ -24,8 +24,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		// Issue #689, from #688's terralith run: keys are
 		// store-relative, and a leading slash used to be accepted then
 		// handled differently by every store - the local store and
-		// the Parameter Store one that existed then normalized it on write but not in List's filter, so
-		// the write succeeded and the List came back empty, which a
+		// the Parameter Store one that existed then normalized it on
+		// write but not in List's filter, so the write succeeded and
+		// the List came back empty, which a
 		// caller cannot tell from an empty estate. Every operation now
 		// refuses the shape with the same named error, on every store.
 		s := newStore(t)

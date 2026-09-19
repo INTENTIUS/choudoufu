@@ -24,9 +24,8 @@ import (
 //     return (nil, err) the moment any part of the namespace cannot be read,
 //     so "the snapshot is incomplete" never reaches the cache as data. The
 //     local backend is exercised against a real unreadable file below; S3's
-//     and SSM's GetAll return on the first error from ListObjectsV2 /
-//     GetObject / GetParametersByPath respectively (bulk.go), so neither can
-//     produce one either.
+//     GetAll returns on the first error from ListObjectsV2 or GetObject
+//     (bulk.go), so it cannot produce one either.
 //
 //  2. A bulk read that fails entirely does NOT become a false absence.
 //     [RunCache.ensureLoaded] leaves c.loaded false, so every Get falls

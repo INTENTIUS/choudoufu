@@ -54,7 +54,7 @@ type WriteBackRequest struct {
 	// [retry.ThrottleAdvice] renders without claiming an attempt count.
 	Retry retry.Config
 
-	// Backend names the record store's backend ("ssm", "s3", "local") so a
+	// Backend names the record store's backend ("s3", "local") so a
 	// throttling failure can name that service's own ceiling rather than a
 	// generic one. Empty is legitimate and yields the general advice.
 	Backend string

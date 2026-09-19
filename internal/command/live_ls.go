@@ -249,7 +249,7 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 // liveLsAWSConfig is the ordinary aws-sdk-go-v2 default-config chain, with
 // an explicit region when one was named - the same shape
 // internal/live/projection/store.go's loadAWSConfig takes for the record
-// store's own "ssm"/"s3" clients, restated here because that function is
+// store's own "s3" client, restated here because that function is
 // unexported in a different package.
 func liveLsAWSConfig(ctx context.Context, region string) (aws.Config, error) {
 	if region != "" {

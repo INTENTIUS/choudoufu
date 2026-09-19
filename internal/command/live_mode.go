@@ -940,7 +940,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// passed - which means every RECORD_ADMITTED resource in this
 	// configuration either has one configured or was refused before this
 	// point was ever reached - and the estate name is settled, which the
-	// "ssm"/"s3" backends' default key namespace needs. A nil RecordStore
+	// "s3" backend's default key namespace needs. A nil RecordStore
 	// (a run with no record_store block) makes the hydration and
 	// write-back paths below no-ops, exactly like a run with no live block
 	// at all skips this whole file.
