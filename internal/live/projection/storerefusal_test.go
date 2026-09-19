@@ -33,6 +33,15 @@ func (kmsRefusingStore) PutIfAbsent(context.Context, string, []byte) (string, er
 	return "", fmt.Errorf("staterecord: s3: writing %q: %w", "k", &staterecord.KMSDeniedError{Action: "kms:GenerateDataKey", Err: errors.New("AccessDenied")})
 }
 
+// kmsUnusableStore fails the sentinel write the way S3 relays a KMS key that
+// is disabled or gone: a different type from the denial above, with no
+// policy remedy anywhere in it.
+type kmsUnusableStore struct{ staterecord.Store }
+
+func (kmsUnusableStore) PutIfAbsent(context.Context, string, []byte) (string, error) {
+	return "", fmt.Errorf("staterecord: s3: writing %q: %w", "k", &staterecord.KMSKeyUnusableError{Code: "KMS.DisabledException", Err: errors.New("KMS.DisabledException")})
+}
+
 // TestStoreOpenFailuresAreRefusalsOrOutages is GitHub issue #1376's
 // distinction, held at the one place it is made. `live-plan` and `live-mv`
 // go on without a store after an OUTAGE and must stop on a REFUSAL, so a
@@ -54,6 +63,10 @@ func TestStoreOpenFailuresAreRefusalsOrOutages(t *testing.T) {
 		{"a bucket that fails its contract on first contact", &bucketBackedStore{Store: newTestLocalStore(t), findings: failing}, true},
 		{"a store whose List does not return what was written", &brokenListStore{Store: newTestLocalStore(t)}, true},
 		{"a KMS key that refused the run", kmsRefusingStore{Store: newTestLocalStore(t)}, true},
+		// #1383. A disabled or deleted key was reached and answered, and no
+		// retry and no other command gets past it, so it is a refusal by the
+		// same rule the denial is.
+		{"a KMS key that cannot be used", kmsUnusableStore{Store: newTestLocalStore(t)}, true},
 		{"a store that cannot be reached", unreachableStore{Store: newTestLocalStore(t)}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

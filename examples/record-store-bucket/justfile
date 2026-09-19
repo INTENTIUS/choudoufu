@@ -36,14 +36,82 @@ _choudoufu:
 # The retention window to build with. An explicit RECORD_NONCURRENT_DAYS wins.
 # Otherwise, if the bucket already exists, whatever it has NOW - so running
 # `up` again never resets a window somebody has since changed. Otherwise 30.
+#
+# Exactly two failures mean "there is no window to preserve": the bucket is
+# not there, and it has no lifecycle configuration. A throttle, an expired
+# session and AccessDenied are reads that did not happen, and the old
+# `2>/dev/null || true` turned all of them into 30, which is how a window
+# somebody chose on purpose gets reset by the next `up`. Those stop the run.
+#
+# The candidate rule is an ENABLED one with no filter (or an empty prefix),
+# which is the same shape choudoufu's bucket contract counts. Taking the
+# first rule with any NoncurrentDays read a disabled rule, or a rule filtered
+# to one prefix, as if it were this bucket's window.
 _days bucket:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "${RECORD_NONCURRENT_DAYS:-}" ]; then echo "$RECORD_NONCURRENT_DAYS"; exit 0; fi
-    live=$(aws s3api get-bucket-lifecycle-configuration --bucket "{{bucket}}" \
-      --query 'Rules[?NoncurrentVersionExpiration.NoncurrentDays != `null`] | [0].NoncurrentVersionExpiration.NoncurrentDays' \
-      --output text 2>/dev/null || true)
-    case "$live" in ''|None|null) echo 30 ;; *) echo "$live" ;; esac
+    err=$(mktemp); trap 'rm -f "$err"' EXIT
+    if ! live=$(aws s3api get-bucket-lifecycle-configuration --bucket "{{bucket}}" --output json 2>"$err"); then
+      msg=$(cat "$err")
+      case "$msg" in
+        *NoSuchBucket*|*NoSuchLifecycleConfiguration*) echo 30; exit 0 ;;
+      esac
+      echo "Could not read {{bucket}}'s lifecycle configuration:" >&2
+      echo "$msg" >&2
+      echo "That is not the same as the bucket having no retention window, and building with the" >&2
+      echo "30 day default here would reset a window somebody chose. Fix the error above, or pass" >&2
+      echo "RECORD_NONCURRENT_DAYS to say what the window should be." >&2
+      exit 1
+    fi
+    cands=$(jq -c '
+      def unfiltered:
+        ((.Prefix // "") == "")
+        and ((.Filter // {}) | to_entries | map(select(.value != null))
+             | all(.key == "Prefix" and (.value == "")));
+      [ .Rules[]?
+        | select(.Status == "Enabled")
+        | select(.NoncurrentVersionExpiration.NoncurrentDays != null)
+        | select(unfiltered)
+        | {id: (.ID // .Id // "(no id)"), days: .NoncurrentVersionExpiration.NoncurrentDays} ]' <<< "$live")
+    n=$(jq 'length' <<< "$cands")
+    case "$n" in
+      0) echo 30; exit 0 ;;
+      1) ;;
+      *) echo "{{bucket}} has $n enabled rules that expire noncurrent versions and reach every key:" >&2
+         jq -r '.[] | "  \(.id): \(.days) day(s)"' <<< "$cands" >&2
+         echo "Which of those is the bucket's recovery window is not a guess this recipe should" >&2
+         echo "make. Pass RECORD_NONCURRENT_DAYS, or leave one such rule on the bucket." >&2
+         exit 1 ;;
+    esac
+    days=$(jq -r '.[0].days' <<< "$cands")
+    case "$days" in
+      ''|*[!0-9]*) echo "{{bucket}}'s retention window read as \"$days\", which is not a number of days." >&2; exit 1 ;;
+    esac
+    echo "$days"
+
+# The KMS key the LIVE bucket encrypts with, or nothing. Read the same way as
+# `_days`, and absent for the same two reasons only: no bucket, and no
+# encryption configuration on it.
+_livekey bucket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    err=$(mktemp); trap 'rm -f "$err"' EXIT
+    if ! live=$(aws s3api get-bucket-encryption --bucket "{{bucket}}" --output json 2>"$err"); then
+      msg=$(cat "$err")
+      case "$msg" in
+        *NoSuchBucket*|*ServerSideEncryptionConfigurationNotFoundError*) echo ""; exit 0 ;;
+      esac
+      echo "Could not read {{bucket}}'s default encryption:" >&2
+      echo "$msg" >&2
+      echo "A failed read is not the same as a bucket with no key, and the difference decides" >&2
+      echo "whether this run would drop the key's Deny statements. Fix the error above." >&2
+      exit 1
+    fi
+    jq -r '[.ServerSideEncryptionConfiguration[]?
+            | select(.ApplyServerSideEncryptionByDefault.SSEAlgorithm == "aws:kms")
+            | .ApplyServerSideEncryptionByDefault.KMSMasterKeyID // ""]
+           | map(select(. != "")) | .[0] // ""' <<< "$live"
 
 # Build the CloudFormation template from the lexicon declaration.
 _build bucket:
@@ -66,6 +134,40 @@ up bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
     b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
+
+    # `up` preserves the retention window it finds on the live bucket. The key
+    # is the same kind of decision and gets the same treatment. Without this,
+    # a second `up` with RECORD_KMS_KEY_ARN unset rebuilt the bucket as SSE-S3
+    # and dropped both KMS Deny statements from the bucket policy, and the
+    # only sign of it was a diff in the changeset nobody reads.
+    live_key=$(just _livekey "$b")
+    want="${RECORD_KMS_KEY_ARN:-}"
+    if [ -n "$live_key" ] && [ "$live_key" != "$want" ]; then
+      echo "REFUSING to update $b." >&2
+      echo "Its default encryption is SSE-KMS under:" >&2
+      echo "  $live_key" >&2
+      if [ -z "$want" ]; then
+        echo "RECORD_KMS_KEY_ARN is unset, so this run would rebuild the bucket with S3-managed" >&2
+        echo "encryption and drop the two Deny statements that keep a put off any other key." >&2
+      else
+        echo "RECORD_KMS_KEY_ARN names a different key:" >&2
+        echo "  $want" >&2
+        echo "so this run would repoint the default encryption and both Deny statements at it." >&2
+      fi
+      echo "Objects already written stay under the key that encrypted them either way, so a run" >&2
+      echo "that changes this by accident leaves a bucket whose policy and whose objects disagree." >&2
+      echo >&2
+      echo "To keep the key it has, which is what running up again usually means:" >&2
+      echo "  RECORD_KMS_KEY_ARN=$live_key just up $b" >&2
+      echo "To move to another key on purpose, name that key the same way, and give the estate" >&2
+      echo "roles access to both keys until nothing is left under the old one." >&2
+      echo "To go back to S3-managed encryption on purpose there is no flag, deliberately: change" >&2
+      echo "the bucket first and run up again, which will then agree with it." >&2
+      echo "  aws s3api put-bucket-encryption --bucket $b --region {{region}} \\" >&2
+      echo "    --server-side-encryption-configuration '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'" >&2
+      exit 1
+    fi
+
     days=$(just _build "$b")
     aws cloudformation deploy \
       --template-file templates/template.json \
@@ -164,25 +266,69 @@ chant-apply bucket="":
     b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
     RECORD_BUCKET="$b" npx chant run bucket-apply
 
-# Tear down what `up` created and nothing else; refuses while ANY version of a record is present.
+# Tear down what `up` created and nothing else; refuses while the bucket holds any object version.
 down bucket="":
     #!/usr/bin/env bash
     set -euo pipefail
     b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
-    # Every version, not just current objects. A deleted record is a delete
-    # marker over a noncurrent version that is still recoverable, and the
-    # bucket is the only place it can be recovered from.
-    held=$(aws s3api list-object-versions --bucket "$b" --prefix "tofu-" \
-      --query '[length(Versions || `[]`), length(DeleteMarkers || `[]`)]' --output text)
-    versions=$(cut -f1 <<< "$held"); markers=$(cut -f2 <<< "$held")
-    if [ "$versions" -gt 0 ] || [ "$markers" -gt 0 ]; then
+
+    # Every VERSION in the WHOLE bucket. Both halves are load-bearing.
+    #
+    # Versions, because a deleted record is a delete marker over a noncurrent
+    # version that is still recoverable, and the bucket is the only place it
+    # can be recovered from. A count of current objects reads that as empty.
+    #
+    # The whole bucket rather than `tofu-`, because an estate with a
+    # `key_prefix` override writes its records somewhere else entirely
+    # (`team/prod/...`), and a count under `tofu-` read that bucket as empty
+    # too. This bucket exists to hold records, so anything in it that is not
+    # one of `verify`'s own `_verify/` probes is something somebody would
+    # miss.
+    #
+    # --output json through jq, not --query 'length(...)' --output text: the
+    # CLI applies --query PER PAGE under text output, so a bucket past one
+    # page printed one count per line, both `[ "$x" -gt 0 ]` tests errored
+    # with "integer expression expected", the `if` read false and the
+    # teardown proceeded. Same bug as issue #1047, written up at
+    # live/live-cert/lib/live-cert.sh's livecert_rgta_count. Under --output
+    # json the CLI merges every page before the query runs, and jq counts the
+    # merged result.
+    held=$(aws s3api list-object-versions --bucket "$b" --output json \
+      --query '{Versions: Versions[].Key, DeleteMarkers: DeleteMarkers[].Key}')
+    keys=$(jq -c '[(.Versions // [])[], (.DeleteMarkers // [])[]] | map(select(startswith("_verify/") | not))' <<< "$held" 2>/dev/null || true)
+    count=$(jq 'length' <<< "$keys" 2>/dev/null || true)
+    # A count that is not a whole number is not a zero. Whatever produced it,
+    # it is not evidence that the bucket is empty, and this check is the only
+    # thing between a teardown and the one copy of an estate's identity.
+    case "$count" in
+      ''|*[!0-9]*)
+        echo "REFUSING to tear down $b." >&2
+        echo "Counting the object versions in it produced \"$count\", which is not a count." >&2
+        echo "Nothing here can tell an empty bucket from one that was never read, so nothing" >&2
+        echo "is deleted. The raw answer was:" >&2
+        echo "$held" >&2
+        exit 1 ;;
+    esac
+    if [ "$count" -gt 0 ]; then
       echo "REFUSING to tear down $b." >&2
-      echo "It holds $versions record version(s) and $markers delete marker(s) under tofu-*." >&2
+      echo "It holds $count object version(s) and delete marker(s) outside _verify/:" >&2
+      jq -r 'map(if test("/") then sub("/.*$"; "/") else . end) | group_by(.)
+             | map("  \(.[0])  \(length)") | .[]' <<< "$keys" >&2
       echo "For a record-backed resource the record is the ONLY copy of the estate's identity for it:" >&2
       echo "it carries no marker and cannot be imported under a live block. Destroying this bucket" >&2
       echo "destroys those identities, and the recovery copies of any already deleted." >&2
-      echo "Destroy the estates first (their records go with them and expire), or empty the" >&2
-      echo "tofu-* prefixes yourself, deliberately, and run this again." >&2
+      echo >&2
+      echo "A destroyed estate does not empty its prefixes. choudoufu destroy deletes the resources" >&2
+      echo "and writes a tombstone envelope over each identity record, and it leaves that envelope," >&2
+      echo "the estate's sentinel, its hint and every tofu-outputs/ object behind as CURRENT objects." >&2
+      echo "No lifecycle rule removes a current object here, on purpose: expiring one would delete an" >&2
+      echo "identity for a resource that still exists. The rule expires superseded VERSIONS, and" >&2
+      echo "clears a delete marker once nothing is left under it." >&2
+      echo "So emptying these prefixes is a deliberate step, and it is yours:" >&2
+      jq -r --arg b "$b" 'map(if test("/") then sub("/.*$"; "/") else . end) | unique
+             | map("  aws s3 rm \"s3://\($b)/\(.)\" --recursive") | .[]' <<< "$keys" >&2
+      echo "Each of those writes a delete marker over what it deletes, so this recipe keeps" >&2
+      echo "refusing until those versions and markers age out on the bucket's own window." >&2
       exit 1
     fi
     # `verify` may have left its own probe objects. Nothing else is touched:
@@ -195,4 +341,23 @@ down bucket="":
     fi
     aws cloudformation delete-stack --stack-name "$b" --region "{{region}}"
     aws cloudformation wait stack-delete-complete --stack-name "$b" --region "{{region}}"
-    echo "gone: $b"
+
+    # Not "gone". The bucket carries DeletionPolicy and UpdateReplacePolicy
+    # Retain, so CloudFormation releases it from the stack instead of deleting
+    # it, and saying otherwise here would send somebody away believing an
+    # empty account. The bucket policy is a separate resource without Retain
+    # and goes with the stack, which is why the last line below matters: what
+    # is left is a bucket nobody's IAM has been granted, and an unpolicied one.
+    echo "stack deleted: $b"
+    echo "bucket RETAINED on purpose: $b"
+    echo
+    echo "Retain is what keeps a stack operation from being able to destroy records: a bucket"
+    echo "CloudFormation may not delete cannot be deleted by a rollback, a rename or a mistake"
+    echo "in this recipe. The cost is that removing the bucket is now its own decision, and"
+    echo "that a later 'just up' under this name cannot recreate the stack until the bucket is gone."
+    echo "It is empty (this recipe refuses while it is not). Two commands remove it:"
+    echo "  aws s3api list-object-versions --bucket $b --region {{region}} --max-items 1"
+    echo "  aws s3api delete-bucket --bucket $b --region {{region}}"
+    echo "The first is the look before the second: expect an empty answer, then delete."
+    echo "The stack took the bucket policy with it, so until then the bucket denies nothing"
+    echo "by policy and is reachable by whatever IAM already reaches it."

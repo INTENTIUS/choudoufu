@@ -21,12 +21,29 @@ import (
 // issue #1345): it arrives as AccessDenied on an S3 operation, and a summary
 // that says only "cannot open the record store" sends the reader to the
 // bucket, which is usually fine.
+//
+// A key that cannot be USED gets a third summary (GitHub issue #1383). Its
+// remedies are all about the key's state and none of them is a policy edit,
+// so putting it under the refusal's headline would send the reader to the
+// key policy of a key that is disabled or pending deletion, where there is
+// nothing to find. See [staterecord.KMSKeyUnusableError].
+//
+// Each of the three renders the headline once and then what S3 said once.
+// The first version appended the whole wrapped error, which carries the
+// headline and the remedy inside it, so the reader got both twice.
 func recordStoreOpenDiag(storeType string, err error) tfdiags.Diagnostic {
 	var denied *staterecord.KMSDeniedError
 	if errors.As(err, &denied) {
 		return tfdiags.Sourceless(tfdiags.Error, "The record store bucket's KMS key refused this run", fmt.Sprintf(
 			"%s %s\n\nWhat S3 said, opening the live block's record_store %q: %s.",
 			denied.Headline(), denied.Remedy(), storeType, denied.Err,
+		))
+	}
+	var unusable *staterecord.KMSKeyUnusableError
+	if errors.As(err, &unusable) {
+		return tfdiags.Sourceless(tfdiags.Error, "The record store bucket's KMS key cannot be used", fmt.Sprintf(
+			"%s %s\n\nWhat S3 said, opening the live block's record_store %q: %s.",
+			unusable.Headline(), unusable.Remedy(), storeType, unusable.Err,
 		))
 	}
 	return tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
@@ -51,8 +68,9 @@ type recordStoreOpener func(ctx context.Context, rs *configs.LiveRecordStore, rt
 // The rule, from the maintainer's ruling on GitHub issue #1376:
 //
 //   - A REFUSAL is fatal here too: a bucket that failed its contract on first
-//     contact, a store whose List is broken, a KMS key that refused the run,
-//     an invalid TOFU_LIVE_RECORD_READ_PARALLELISM. A refused bucket is one the
+//     contact, a store whose List is broken, a KMS key that refused the run or
+//     that is disabled or gone, an invalid
+//     TOFU_LIVE_RECORD_READ_PARALLELISM. A refused bucket is one the
 //     estate should not be planned against at all, and before this function
 //     existed these two commands wrote it to the log and carried on.
 //   - An OUTAGE (unreachable, or a role IAM would not let in) is not fatal,

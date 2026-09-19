@@ -130,6 +130,24 @@ jobs:
       # just, so it is installed here, the way contribute.yml does.
       - name: Install just
         run: sudo apt-get update -qq && sudo apt-get install -y -qq just
+      # live/record_store_bucket_test.go also BUILDS the bucket project's
+      # CloudFormation template with chant and reads DeletionPolicy,
+      # UpdateReplacePolicy and the lifecycle rule out of the result (GitHub
+      # issue #1382). It reads the built template because the TypeScript can
+      # say anything and what CloudFormation receives is the template. It
+      # fails rather than skips without node_modules, so they are installed
+      # here. This does let a registry outage redden the Go tier, which is
+      # why examples/ci-pipelines keeps its own job. The cache is keyed on
+      # the lock file so that an ordinary run reaches the registry for
+      # nothing, and `npm ci` installs exactly the locked tree.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: examples/record-store-bucket/package-lock.json
+      - name: npm ci for the bucket project's template test
+        working-directory: examples/record-store-bucket
+        run: npm ci
       - name: Fast test tier
         run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
       - uses: peaceiris/actions-hugo@v3

@@ -7,6 +7,7 @@ package projection
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -21,6 +22,8 @@ import (
 type bucketBackedStore struct {
 	staterecord.Store
 	findings   []staterecord.BucketFinding
+	checkErr   error
+	deleteErr  error
 	checks     int
 	namespaces []string
 }
@@ -28,7 +31,14 @@ type bucketBackedStore struct {
 func (s *bucketBackedStore) CheckBucketContract(_ context.Context, namespaces []string) ([]staterecord.BucketFinding, error) {
 	s.checks++
 	s.namespaces = namespaces
-	return s.findings, nil
+	return s.findings, s.checkErr
+}
+
+func (s *bucketBackedStore) Delete(ctx context.Context, key, expectedVersion string) error {
+	if s.deleteErr != nil {
+		return s.deleteErr
+	}
+	return s.Store.Delete(ctx, key, expectedVersion)
 }
 
 func passing() []staterecord.BucketFinding {
@@ -120,5 +130,167 @@ func TestTheBucketIsFoundThroughTheProductionWrappers(t *testing.T) {
 	}
 	if !ok || inner.checks != 1 {
 		t.Errorf("the bucket under the wrappers was not reached: ok=%v checks=%d", ok, inner.checks)
+	}
+}
+
+// failing returns a full set of findings with setting failed.
+func failingSetting(setting staterecord.BucketSetting, found string) []staterecord.BucketFinding {
+	out := passing()
+	for i := range out {
+		if out[i].Setting == setting {
+			out[i] = staterecord.BucketFinding{Setting: setting, Found: found}
+		}
+	}
+	return out
+}
+
+// sentinelPresent reports whether the store holds the sentinel for the
+// namespace rs and estate actually resolve to, which is the point of it: a
+// key_prefix override moves the sentinel and a check that looked at the
+// default would pass over a sentinel nobody removed.
+func sentinelPresent(t *testing.T, store staterecord.Store, rs *configs.LiveRecordStore, estate string) bool {
+	t.Helper()
+	prefix := RecordStoreKeyPrefix(rs, estate)
+	keys, err := store.List(context.Background(), staterecord.NamespacePrefix(prefix))
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	return slices.Contains(keys, SentinelKey(prefix))
+}
+
+// TestFirstContactHonoursTheWaiver is GitHub issue #1340 on the first-contact
+// path, and a mutation the #1383 audit made survive: dropping SplitWaived
+// here refuses a bucket the operator has explicitly accepted, on the one run
+// that has nothing to fall back on. The waiver reaches only the setting it
+// names, so the second half of this test is the one that keeps the first
+// from being a waiver that waives everything.
+func TestFirstContactHonoursTheWaiver(t *testing.T) {
+	const estate = "prod"
+	waived := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket", AllowInsecure: []string{"versioning"}}
+	store := &bucketBackedStore{Store: localHintStore(t), findings: failingSetting(staterecord.BucketVersioning, "versioning is Suspended")}
+
+	if err := firstContact(t, store, waived, estate); err != nil {
+		t.Fatalf("a waived versioning failure was refused on first contact: %v", err)
+	}
+	if !sentinelPresent(t, store, waived, estate) {
+		t.Error("the run was accepted but its sentinel was taken back out, so every later run is a first contact again")
+	}
+	if store.checks != 1 {
+		t.Errorf("the bucket was checked %d time(s), want 1: a waiver does not skip the read, it decides what the findings mean", store.checks)
+	}
+
+	// The same waiver, a different setting failing: still refused.
+	other := &bucketBackedStore{Store: localHintStore(t), findings: failingSetting(staterecord.BucketPublicAccessBlock, "public-access block has BlockPublicPolicy off")}
+	err := firstContact(t, other, waived, estate)
+	if err == nil {
+		t.Fatal("waiving versioning also waived public_access_block")
+	}
+	if !strings.Contains(err.Error(), "public_access_block") {
+		t.Errorf("the refusal does not name the setting: %v", err)
+	}
+}
+
+// TestFirstContactRemovesTheSentinelFromTheConfiguredPrefix is the
+// key_prefix half of #1339's "a refusal leaves nothing behind". The sentinel
+// is written under the namespace [RecordStoreKeyPrefix] resolves to, so a
+// refusal that deleted the DEFAULT prefix's key would leave the real one in
+// place and the next run would not be a first contact at all.
+func TestFirstContactRemovesTheSentinelFromTheConfiguredPrefix(t *testing.T) {
+	const estate = "prod"
+	rs := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket", KeyPrefix: "team/prod", KeyPrefixSet: true}
+	if RecordStoreKeyPrefix(rs, estate) == RecordKeyPrefix(estate) {
+		t.Fatal("the override resolves to the default prefix, so this test cannot tell the two apart")
+	}
+	store := &bucketBackedStore{Store: localHintStore(t), findings: failingSetting(staterecord.BucketVersioning, "versioning is Suspended")}
+
+	err := firstContact(t, store, rs, estate)
+	if err == nil {
+		t.Fatal("a bucket with versioning off was accepted")
+	}
+	if sentinelPresent(t, store, rs, estate) {
+		t.Errorf("the sentinel is still at %q after a refusal, so the next run is not a first contact and the bucket is never checked again", SentinelKey(RecordStoreKeyPrefix(rs, estate)))
+	}
+	if strings.Contains(err.Error(), "could not be removed again") {
+		t.Errorf("the refusal reports a failed sentinel delete, which means it was deleting a key it never wrote: %v", err)
+	}
+}
+
+// TestFirstContactRefusesWhenTheContractCannotBeChecked: an error from the
+// contract read is not a bucket that passed. Swallowing it lets an estate's
+// first run write records into a bucket nobody has looked at, and leaves the
+// sentinel behind so no later run looks either.
+func TestFirstContactRefusesWhenTheContractCannotBeChecked(t *testing.T) {
+	const estate = "prod"
+	rs := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket"}
+	store := &bucketBackedStore{Store: localHintStore(t), findings: passing(), checkErr: errors.New("dial tcp: connect: connection refused")}
+
+	err := firstContact(t, store, rs, estate)
+	if err == nil {
+		t.Fatal("the store opened although the bucket contract could not be read")
+	}
+	if !strings.Contains(err.Error(), "connection refused") {
+		t.Errorf("the refusal does not carry what went wrong: %v", err)
+	}
+	if sentinelPresent(t, store, rs, estate) {
+		t.Error("the sentinel survived, so the next run is not a first contact and the bucket is never checked")
+	}
+	// An unreadable bucket is an OUTAGE, not a refusal: it may well read on
+	// the next attempt, which is the difference #1376 turns on.
+	if IsStoreRefusal(err) {
+		t.Errorf("a contract read that failed is reported as a refusal: %v", err)
+	}
+}
+
+// TestAFailedSentinelDeleteIsReportedWithTheRefusal: the refusal is what the
+// operator has to act on, and the leftover sentinel is what makes the next
+// run behave differently from this one. Reporting only one of the two leaves
+// whoever fixes the bucket wondering why the next plan says nothing.
+func TestAFailedSentinelDeleteIsReportedWithTheRefusal(t *testing.T) {
+	const estate = "prod"
+	rs := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket"}
+	store := &bucketBackedStore{
+		Store:     localHintStore(t),
+		findings:  failingSetting(staterecord.BucketVersioning, "versioning is Suspended"),
+		deleteErr: errors.New("s3:DeleteObject was denied"),
+	}
+
+	err := firstContact(t, store, rs, estate)
+	if err == nil {
+		t.Fatal("a bucket with versioning off was accepted")
+	}
+	for _, want := range []string{"versioning", "the-bucket", "s3:DeleteObject was denied", "The next plan will not repeat this check"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error does not say %q:\n%s", want, err)
+		}
+	}
+	if !IsStoreRefusal(err) {
+		t.Errorf("wrapping the failed delete around the refusal lost its type, so live-plan would treat it as an outage and go on: %v", err)
+	}
+}
+
+// TestBucketNamespacesCoversAllThree: the lifecycle assertion is only as
+// good as the list of namespaces it is told about, and a namespace left out
+// is a set of keys a lifecycle rule may expire with nothing here to notice.
+// The three are named one by one on purpose; comparing against
+// BucketNamespaces itself is a test of nothing.
+func TestBucketNamespacesCoversAllThree(t *testing.T) {
+	const estate = "prod"
+	rs := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket"}
+	got := BucketNamespaces(rs, estate)
+	for _, want := range []string{RecordKeyPrefix(estate), HintKeyPrefix(estate), RootOutputKeyPrefix(estate)} {
+		if !slices.Contains(got, want) {
+			t.Errorf("BucketNamespaces = %q, which does not cover %q", got, want)
+		}
+	}
+	if len(got) != 3 {
+		t.Errorf("BucketNamespaces = %q, want exactly the three namespaces one estate writes under", got)
+	}
+
+	// A key_prefix override moves the records namespace and nothing else:
+	// the hint and the outputs are not under it.
+	override := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket", KeyPrefix: "team/prod", KeyPrefixSet: true}
+	want := []string{staterecord.NamespacePrefix("team/prod"), HintKeyPrefix(estate), RootOutputKeyPrefix(estate)}
+	if got := BucketNamespaces(override, estate); !slices.Equal(got, want) {
+		t.Errorf("with key_prefix set, BucketNamespaces = %q, want %q", got, want)
 	}
 }

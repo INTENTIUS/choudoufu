@@ -59,6 +59,26 @@ real_aws_teardown() {
   done
 }
 
+# remove_retained_bucket <bucket>: delete the bucket a record-store-bucket
+# stack leaves behind. The project's bucket carries DeletionPolicy Retain
+# (#1382), so deleting the stack, by `just down` or directly, releases the
+# bucket and does not delete it. A teardown that stops at the stack leaves one
+# bucket in the account per run. The caller empties it first. Like
+# empty_bucket it never lets a failure out, and it prints one line either way.
+remove_retained_bucket() {
+  local b="$1"
+  if ! aws s3api head-bucket --bucket "$b" >/dev/null 2>&1; then
+    echo "  no bucket $b left behind by the stack"
+    return 0
+  fi
+  if aws s3api delete-bucket --bucket "$b" >/dev/null 2>&1; then
+    echo "  removed the retained bucket $b"
+    return 0
+  fi
+  echo "  COULD NOT REMOVE the retained bucket $b - remove it by hand" >&2
+  return 1
+}
+
 # empty_bucket <bucket>: remove every version and delete marker, so a
 # versioned bucket can be deleted. It never lets a failure out: each way it
 # can stop prints a line naming the bucket and returns 1, because its
