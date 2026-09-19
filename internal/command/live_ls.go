@@ -173,8 +173,7 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 		// the same variables cloudControlTarget reads by hand for the
 		// client above, which is why floci (and any endpoint override) just
 		// works with no extra plumbing - internal/live/projection/store.go's
-		// ssm.NewFromConfig/s3.NewFromConfig calls take the same shortcut for
-		// the same reason.
+		// s3.NewFromConfig call takes the same shortcut for the same reason.
 		if awsCfg, err := liveLsAWSConfig(ctx, args.Region); err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,

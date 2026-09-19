@@ -23,11 +23,17 @@ set -uo pipefail
 # calls, no docker, no terraform, no go build. Case 1 and case 2 extract
 # teardown() and resume_verify() VERBATIM out of a real terralith-scale.sh
 # (default: the one shipped beside this script) and drive them in a minimal
-# stubbed harness; case 3 runs the real script's own teardown-only dispatch
-# directly, which is safe to do because that dispatch is unconditionally
-# reached and exits before "0. tools" ever builds a binary or starts a
-# floci container - the whole point of a held work dir carrying its own
-# markers is that a later invocation never has to pay for either.
+# stubbed harness; case 3 extracts the teardown-only dispatch the same way
+# and runs that.
+#
+# Case 3 used to EXECUTE terralith-scale.sh, on the argument that the
+# dispatch exits before "0. tools" ever builds a binary or starts a floci
+# container. That argument holds only while the dispatch's own `exit 0`
+# does: a mutation of it falls through into stage 0 with the marker's
+# TARGET=aws, and the PATH stubs are then all that stands between this
+# self-test and a real cold deploy. Issue #1380; it is not hypothetical,
+# the same shape started one on 2026-09-18. The extracted span ends at the
+# dispatch, so there is nothing after it to fall into.
 #
 # Usage: bash live/live-cert/selftest-hold-resume.sh
 #   TERRALITH_SCALE_SH=<path> to extract from a different revision, e.g. the
@@ -291,15 +297,53 @@ fi
 
 ########################################################################
 # Case 3: `terralith-scale.sh teardown <work dir>` / LIVECERT_TEARDOWN_ONLY
-# - runs the real script's own dispatch directly (it exits before "0.
-# tools", so this needs no go build and no docker), against a stubbed aws
-# and a stubbed terraform, and checks it both destroys and verifies.
+# - runs the dispatch, EXTRACTED between its marker comments (#1380),
+# against a stubbed aws and a stubbed terraform, and checks it both
+# destroys and verifies.
+#
+# The span runs from part 1's opening marker to part 2's closing marker, so
+# it carries the marker read, the whole variable cascade those values feed,
+# every function teardown() needs, and the dispatch itself - the same code
+# an invocation would run, minus any way to continue past it. Only the
+# three lines the harness would otherwise inherit from the top of the file
+# (ROOT, LIB and the two `source`s) are supplied here.
 ########################################################################
 log ""
 log "=== case 3: teardown-only destroys and verifies ==="
+
+# extract_dispatch prints that span out of a terralith-scale.sh, or fails.
+#
+# The tail check is the load-bearing half: sed's range prints to EOF when
+# the closing address never matches, so a missing part 2 marker would hand
+# back the ENTIRE harness - stage 0, cold_deploy, test_apply - as "the
+# dispatch", to be run with a marker that says TARGET=aws. That is the
+# accident this case was rewritten to make impossible, so an extraction
+# that does not end exactly at the closing marker is not an extraction and
+# nothing gets run.
+DISPATCH_END='# <<< teardown-only dispatch part 2'
+extract_dispatch() {
+  local out
+  out="$(sed -n '/^# >>> teardown-only dispatch part 1$/,/^# <<< teardown-only dispatch part 2$/p' "$1")"
+  [ -n "$out" ] || return 1
+  [ "$(printf '%s\n' "$out" | tail -1)" = "$DISPATCH_END" ] || return 1
+  printf '%s\n' "$out"
+}
+
+DISPATCH_SRC="$(extract_dispatch "$SRC")" || DISPATCH_SRC=""
+
 if ! grep -qE 'LIVECERT_TEARDOWN_ONLY|TEARDOWN_ONLY_DIR' "$SRC"; then
   log "FAIL: $SRC_ARG has no LIVECERT_TEARDOWN_ONLY/teardown dispatch at all - this is the RED result on the pre-fix script: the 'teardown' argument and LIVECERT_TEARDOWN_ONLY are both unknown to it, so it proceeds toward a full cold_deploy run (needing real terralith-gen output, a real TARGET, the whole pipeline) instead of a bounded destroy"
   pass=0
+elif [ -z "$DISPATCH_SRC" ]; then
+  # A revision from before #1380 has the dispatch but not the markers. The
+  # grep above is then the whole check for it: the alternative is executing
+  # it, which is what #1380 forbids.
+  if [ "$SRC_ARG" = "$ROOT/live/live-cert/terralith-scale.sh" ]; then
+    log "FAIL: the shipped terralith-scale.sh has no complete '# >>> teardown-only dispatch part 1' ... '$DISPATCH_END' span to extract, so this case cannot run the dispatch without executing the harness, which #1380 forbids. Restore the markers (they bracket comments only) rather than restoring the execution."
+    pass=0
+  else
+    log "  $SRC_ARG carries no marked dispatch span (a revision from before #1380); the grep above is the whole check for it, because running it would mean executing the harness"
+  fi
 else
   CASE3_DIR="$WORK/case3"
   mkdir -p "$CASE3_DIR/cold"
@@ -339,21 +383,55 @@ exit 1
 FAKEEOF
   chmod +x "$CASE3_DIR/fakebin/aws" "$CASE3_DIR/fakebin/terraform" "$CASE3_DIR/fakebin/choudoufu"
 
-  # Run the actual shipped script at its real repo path, not the copy at
-  # $SRC: it computes ROOT/LIB from its own ${BASH_SOURCE[0]}, and needs
-  # that to resolve to the real checkout so it can source
-  # live/e2e/lib/gauntlet.sh and live/live-cert/lib/live-cert.sh (verify_empty
-  # and teardown() need the latter's livecert_aws/livecert_rgta_count) - the
-  # RED grep above already covers a different revision's source without
-  # needing to execute it at all.
+  # The runner: ROOT and LIB by hand (the extracted span starts below the
+  # top of the file, where the real script computes them from
+  # ${BASH_SOURCE[0]}), the two libraries the real script sources - teardown()
+  # and verify_empty() need live-cert.sh's livecert_aws/livecert_rgta_count -
+  # then the span verbatim.
+  #
+  # The last line is a tripwire. It is unreachable while the dispatch ends
+  # in `exit 0`, and printing it is the only way this case can observe that
+  # the dispatch fell through instead - which on the real script is the
+  # step before stage 0 and a cold deploy.
+  RUNNER3="$CASE3_DIR/dispatch.sh"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'set -uo pipefail'
+    printf 'ROOT=%q\n' "$ROOT"
+    printf 'LIB=%q\n' "$ROOT/live/live-cert/lib"
+    printf '%s\n' 'source "$ROOT/live/e2e/lib/gauntlet.sh"'
+    printf '%s\n' 'source "$LIB/live-cert.sh"'
+    printf '%s\n' "$DISPATCH_SRC"
+    printf '%s\n' 'printf "DISPATCH-FELL-THROUGH\n"'
+  } > "$RUNNER3"
+
+  # The credentials scrub is belt-and-braces, not the safety argument: the
+  # safety argument is that the text above stops at the dispatch. It is here
+  # because teardown() and verify_empty() do reach for `aws`, and if the
+  # stub ahead of it on PATH were ever missed, the commands they run
+  # (s3 rm --recursive, ssm delete-parameter) are destructive in whatever
+  # account the ambient chain resolves to. Invalid keys, no metadata
+  # service, no config files, and every endpoint pointed at a closed port.
   CASE3_OUT="$(PATH="$CASE3_DIR/fakebin:$PATH" \
-    TF_COLD_BIN="$CASE3_DIR/fakebin/terraform" \
-    TOFU_BIN="$CASE3_DIR/fakebin/choudoufu" \
-    LIVECERT_TEARDOWN_ONLY="$CASE3_DIR" \
-    LIVECERT_KEEP_WORK=1 \
-    bash "$ROOT/live/live-cert/terralith-scale.sh" 2>&1)"
+    env -u AWS_PROFILE -u AWS_DEFAULT_PROFILE -u AWS_SESSION_TOKEN -u AWS_SECURITY_TOKEN \
+      AWS_ACCESS_KEY_ID=invalid AWS_SECRET_ACCESS_KEY=invalid \
+      AWS_EC2_METADATA_DISABLED=true \
+      AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+      AWS_ENDPOINT_URL=http://127.0.0.1:9 \
+      TF_COLD_BIN="$CASE3_DIR/fakebin/terraform" \
+      TOFU_BIN="$CASE3_DIR/fakebin/choudoufu" \
+      LIVECERT_TEARDOWN_ONLY="$CASE3_DIR" \
+      LIVECERT_KEEP_WORK=1 \
+      bash "$RUNNER3" 2>&1)"
   CASE3_RC=$?
   printf '%s\n' "$CASE3_OUT" | sed 's/^/  /'
+
+  if grep -qF 'DISPATCH-FELL-THROUGH' <<< "$CASE3_OUT"; then
+    log "FAIL: the teardown-only dispatch did not exit - on the real script the next statement is \"0. tools\", and after that a cold deploy with the marker's TARGET=aws"
+    pass=0
+  else
+    log "  confirmed: the dispatch exited rather than continuing (the tripwire line after it never printed)"
+  fi
 
   if [ "$CASE3_RC" -ne 0 ]; then
     log "FAIL: teardown-only exited $CASE3_RC, want 0"

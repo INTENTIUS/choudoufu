@@ -112,8 +112,8 @@ func RootOutputKeyPrefix(estate string) string {
 //
 // The name is encoded by [recordKeyEncoding] for the reason every other key
 // in this package encodes what it names: the alphabet a store key may use is
-// the intersection of what SSM parameter names, S3 object keys and filesystem
-// paths all accept, and encoding is how that stops being a question. An HCL
+// the intersection of what S3 object keys and filesystem paths both accept,
+// and encoding is how that stops being a question. An HCL
 // output name happens to be within it today; deriving the key the same way as
 // its four siblings means nobody has to re-check that.
 //

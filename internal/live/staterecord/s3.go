@@ -153,6 +153,47 @@ func httpStatus(err error) (int, bool) {
 	return 0, false
 }
 
+// missingKey reports whether err is S3 saying the OBJECT is not there: a 404
+// whose error code names the key rather than the bucket.
+//
+// S3 answers a missing bucket with 404 too, so the status on its own cannot
+// tell the two apart, and this store used to not try: every 404 was read as
+// absence. A bucket deleted or misrouted mid-run therefore read as an empty
+// estate from Get, and as a version conflict from an update or a delete -
+// and a conflict is exactly what internal/live/projection's unwritten-record
+// ledger skips on purpose (issue #1287), so the run lost the only record it
+// had that a write never landed. GitHub issue #1383.
+//
+// Two codes count as the key's absence. "NoSuchKey" is what real S3 sends.
+// "NotFound" is what aws-sdk-go-v2 labels a 404 carrying no parseable <Code>
+// at all (measured against the SDK, both with an empty body and with a body
+// that is not S3's error XML), which is what some S3-compatible stores answer
+// for a missing object. Reading an uncoded 404 as absence keeps those stores
+// working, and the case it gets wrong - a compatible store that answers a
+// bare 404 for a missing BUCKET - is one real S3 never produces, because real
+// S3 always names NoSuchBucket.
+//
+// Every other coded 404, NoSuchBucket above all, is an error on every
+// operation.
+func missingKey(err error) bool {
+	if status, ok := httpStatus(err); !ok || status != http.StatusNotFound {
+		return false
+	}
+	switch apiErrorCode(err) {
+	case "NoSuchKey", "NotFound", "":
+		return true
+	}
+	return false
+}
+
+// notTheKey is the sentence a 404 gets when its code named something other
+// than the key. It names the bucket, which no other error from this store
+// needs to, because this is the one failure whose subject is the bucket
+// rather than the record.
+func (s *S3Store) notTheKey(err error) string {
+	return fmt.Sprintf("bucket %q answered %s, so the 404 is the bucket's own and not a missing key", s.bucket, apiErrorCode(err))
+}
+
 // Get implements [Store].
 func (s *S3Store) Get(ctx context.Context, key string) ([]byte, string, bool, error) {
 	if err := validateKey(key); err != nil {
@@ -163,8 +204,11 @@ func (s *S3Store) Get(ctx context.Context, key string) ([]byte, string, bool, er
 		Key:    aws.String(s.objectKey(key)),
 	})
 	if err != nil {
-		if code, ok := httpStatus(err); ok && code == http.StatusNotFound {
+		if missingKey(err) {
 			return nil, "", false, nil
+		}
+		if status, ok := httpStatus(err); ok && status == http.StatusNotFound {
+			return nil, "", false, fmt.Errorf("staterecord: s3: getting %q: %s: %w", key, s.notTheKey(err), err)
 		}
 		return nil, "", false, s3OpError("getting", key, err)
 	}
@@ -179,11 +223,22 @@ func (s *S3Store) Get(ctx context.Context, key string) ([]byte, string, bool, er
 // conflictError builds the *[VersionConflictError] for a 412 response: a
 // best-effort read to report the record's true current state, since the
 // conditional write itself already failed atomically before this call
-// makes it.
-func (s *S3Store) conflictError(ctx context.Context, key, expectedVersion string) error {
+// makes it. cause is the refusal that brought us here, kept so it survives
+// a re-read that fails.
+func (s *S3Store) conflictError(ctx context.Context, key, expectedVersion string, cause error) error {
 	_, actual, exists, err := s.Get(ctx, key)
 	if err != nil {
-		return err
+		// Both halves matter and this used to return only the second. The
+		// re-read exists purely to name the current version; when it fails,
+		// what the conditional write itself was told is still the fact the
+		// operator needs, and a re-read that fails for its own reason (a
+		// bucket that just went away, a denial) says something else again.
+		if cause == nil {
+			// The absent-version delete path, where the condition was checked
+			// by this store's own read and no request was refused.
+			return fmt.Errorf("staterecord: s3: %q failed its version condition, and the re-read that would name the version the store now holds failed too: %w", key, err)
+		}
+		return fmt.Errorf("staterecord: s3: %q failed its version condition, and the re-read that would name the version the store now holds failed too: %w (the condition failure: %w)", key, err, cause)
 	}
 	av := ""
 	if exists {
@@ -221,14 +276,21 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 	// PutObject REPLACES the object's tag set, so every write carries the
 	// full set, and an object an older build wrote without tags is tagged by
 	// the next write to it.
-	if tagging := encodeObjectTagging(s.baseTags, ObjectTags(ctx)); tagging != "" {
+	//
+	// [S3Config.BaseTags] is encoded LAST, so it wins on any key it defines.
+	// The estate tag is the one that matters: store.go's contract is that an
+	// object's tofu-estate can never name a different estate from the one the
+	// store was opened for, and a context tag that could overwrite it would
+	// make that a hope rather than a fact. A caller's per-write tags still
+	// carry every key BaseTags does not define, which is the address half.
+	if tagging := encodeObjectTagging(ObjectTags(ctx), s.baseTags); tagging != "" {
 		input.Tagging = aws.String(tagging)
 	}
 	out, err := s.client.PutObject(ctx, input)
 	if err != nil {
-		code, ok := httpStatus(err)
-		if ok && code == http.StatusPreconditionFailed {
-			return "", s.conflictError(ctx, key, expectedVersion)
+		status, ok := httpStatus(err)
+		if ok && status == http.StatusPreconditionFailed {
+			return "", s.conflictError(ctx, key, expectedVersion, err)
 		}
 		// An update whose record is GONE. Real S3 answers a PutObject that
 		// carries If-Match for a key that does not exist with 404 NoSuchKey,
@@ -240,10 +302,14 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 		// version re-read rather than assumed empty, since another writer may
 		// have created the key again in between.
 		//
-		// Only for an update. A create (If-None-Match) that meets a 404 is a
-		// missing bucket, and must stay the error it is.
-		if ok && code == http.StatusNotFound && expectedVersion != "" {
-			return "", s.conflictError(ctx, key, expectedVersion)
+		// Only for an update, and only for a 404 that named the KEY. A create
+		// (If-None-Match) that meets a 404 has nothing to conflict with, and
+		// a 404 that named the bucket is not about this record at all.
+		if missingKey(err) && expectedVersion != "" {
+			return "", s.conflictError(ctx, key, expectedVersion, err)
+		}
+		if ok && status == http.StatusNotFound && !missingKey(err) {
+			return "", fmt.Errorf("staterecord: s3: writing %q: %s: %w", key, s.notTheKey(err), err)
 		}
 		return "", s3OpError("writing", key, err)
 	}
@@ -267,7 +333,7 @@ func (s *S3Store) Delete(ctx context.Context, key string, expectedVersion string
 		if !exists {
 			return nil
 		}
-		return s.conflictError(ctx, key, expectedVersion)
+		return s.conflictError(ctx, key, expectedVersion, nil)
 	}
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket:  aws.String(s.bucket),
@@ -275,8 +341,20 @@ func (s *S3Store) Delete(ctx context.Context, key string, expectedVersion string
 		IfMatch: aws.String(expectedVersion),
 	})
 	if err != nil {
-		if code, ok := httpStatus(err); ok && (code == http.StatusPreconditionFailed || code == http.StatusNotFound) {
-			return s.conflictError(ctx, key, expectedVersion)
+		status, ok := httpStatus(err)
+		// A 412 is the version mismatch. A 404 that named the KEY is the same
+		// conflict from the other side: the record the caller read is gone, so
+		// the version it holds is not the store's. A 404 that named the BUCKET
+		// is neither, and reporting it as a conflict would have this run's
+		// unwritten-record ledger skip it (issue #1287).
+		if ok && status == http.StatusPreconditionFailed {
+			return s.conflictError(ctx, key, expectedVersion, err)
+		}
+		if missingKey(err) {
+			return s.conflictError(ctx, key, expectedVersion, err)
+		}
+		if ok && status == http.StatusNotFound {
+			return fmt.Errorf("staterecord: s3: deleting %q: %s: %w", key, s.notTheKey(err), err)
 		}
 		return s3OpError("deleting", key, err)
 	}
@@ -303,6 +381,13 @@ func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) 
 			ContinuationToken: token,
 		})
 		if err != nil {
+			// A LIST has no "the key is absent" answer to be confused with,
+			// so a 404 here was always an error. It still names the bucket,
+			// so the operator reading it learns the same thing the other
+			// operations now say.
+			if status, ok := httpStatus(err); ok && status == http.StatusNotFound {
+				return nil, fmt.Errorf("staterecord: s3: listing %q: %s: %w", keyPrefix, s.notTheKey(err), err)
+			}
 			return nil, s3OpError("listing", keyPrefix, err)
 		}
 		for _, obj := range out.Contents {

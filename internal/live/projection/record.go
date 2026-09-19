@@ -26,8 +26,8 @@ import (
 )
 
 // recordNamespaceRoot is the literal segment every record-backed key lives
-// under, in both the local store's directory layout and the SSM/S3 backends'
-// key hierarchy. It is a different literal from live/RECEIPTS.md's
+// under, in both the local store's directory layout and the S3 backend's key
+// hierarchy. It is a different literal from live/RECEIPTS.md's
 // "tofu-receipts" segment on purpose: namespace safety between the two is
 // disjoint by construction here, not by a runtime check that could be wrong.
 // See RecordKeyPrefix and internal/configs/live.go's
@@ -66,7 +66,7 @@ func keyUnder(prefix, rest string) string {
 // recordKeyEncoding is the alphabet RecordKey encodes an address string
 // with: unpadded, URL-safe base64. Its whole output charset
 // ("A-Za-z0-9_-") is a subset of every backend's allowed key characters
-// (SSM parameter names, S3 object keys, filesystem paths), and - unlike
+// (S3 object keys, filesystem paths), and - unlike
 // hex-of-a-hash - it is reversible, which orphan discovery
 // (builder.discoverOrphanedRecords) depends on: given only a store's List
 // of its own keys, with no configuration and no marker to read, the
@@ -104,13 +104,14 @@ var recordKeyEncoding = base64.RawURLEncoding
 //
 // Chunking moves the local store's own ceiling from NAME_MAX to PATH_MAX
 // (1024 on macOS, measured 1016 writable here), which lands it in the same
-// band as the two remote backends rather than 4x below them: an S3 object
-// key is bounded at 1024 bytes and an SSM parameter name at 1011 INCLUDING
-// the ~45-50 character ARN prefix that precedes it, with a hierarchy depth
-// limit of fifteen levels that six chunks of 230 plus this package's three
-// fixed segments stay well inside. None of the three reaches
-// markers.MaxAddressLen; see GitHub issue #1283 for the residual gap,
-// which is a ceiling ruling rather than an encoding problem.
+// band as the remote backend rather than 4x below it: an S3 object key is
+// bounded at 1024 bytes. The numbers were chosen when Parameter Store was a
+// backend too and its name limit of 1011 INCLUDING the ~45-50 character ARN
+// prefix, with a hierarchy depth limit of fifteen levels, was the tightest of
+// the three; six chunks of 230 plus this package's three fixed segments stay
+// well inside what is left. Neither store reaches markers.MaxAddressLen; see
+// GitHub issue #1283 for the residual gap, which is a ceiling ruling rather
+// than an encoding problem.
 const (
 	recordKeyLegacySegmentMax = 255
 	recordKeyChunkLen         = 230
@@ -121,8 +122,8 @@ const (
 // record_store block's key_prefix override).
 //
 // The instance address is not used verbatim: a for_each key can carry
-// characters SSM parameter names and S3 object keys either forbid ("[",
-// "]", the quotes around a string key). It is base64url-encoded instead
+// characters S3 object keys forbid ("[", "]", the quotes around a string
+// key). It is base64url-encoded instead
 // (see recordKeyEncoding), reversible by [RecordAddr]. The resource type
 // name is kept as a readable path segment ahead of the encoded address
 // (type names are always "[a-z0-9_]+", already safe everywhere) purely

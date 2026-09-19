@@ -43,15 +43,9 @@ func passing() []staterecord.BucketFinding {
 // assertion, the way newRecordStore does.
 func firstContact(t *testing.T, store *bucketBackedStore, rs *configs.LiveRecordStore, estate string) error {
 	t.Helper()
-	ctx := context.Background()
-	created, err := provisionStoreSentinel(ctx, store, recordStoreKeyPrefix(rs, estate))
-	if err != nil {
-		t.Fatalf("provisionStoreSentinel: %s", err)
-	}
-	if created == "" {
-		return nil
-	}
-	return assertBucketOnFirstContact(ctx, store, rs, estate, created)
+	// The production sequence, not a copy of it: see openBuiltStore.
+	_, err := openBuiltStore(context.Background(), store, rs, estate)
+	return err
 }
 
 // TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed is GitHub issue

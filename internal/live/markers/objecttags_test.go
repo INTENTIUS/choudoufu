@@ -32,8 +32,12 @@ var s3TagValue = regexp.MustCompile(`^[\p{L}\p{N}\s+\-=._:/@]*$`)
 // second acceptance item: the values come from the same source as the
 // markers on the estate's managed resources. The assertion is against
 // EscapeAddress, SplitAddress and AddressTagKey directly, which is what
-// stamps a resource, so a second derivation creeping into RecordObjectTags
+// stamps a resource, so a second derivation creeping into AddressObjectTags
 // shows up here as a disagreement.
+//
+// The estate tag is added here the way the store adds it, from
+// staterecord.S3Config.BaseTags, because the full set is what has to fit
+// inside S3's limits and stay inside the tag-value charset.
 func TestRecordObjectTagsAreTheResourcesOwnMarkers(t *testing.T) {
 	long := `module.m.aws_thing.x["` + strings.Repeat("k", MaxTagValue+40) + `"]`
 	for _, raw := range []string{
@@ -44,7 +48,8 @@ func TestRecordObjectTagsAreTheResourcesOwnMarkers(t *testing.T) {
 		long,
 	} {
 		addr := objectTagsAddr(t, raw)
-		tags := RecordObjectTags("prod-eu", addr)
+		tags := AddressObjectTags(addr)
+		tags[TagEstate] = "prod-eu"
 
 		if tags[TagEstate] != "prod-eu" {
 			t.Errorf("%s: %s = %q, want the estate as given", raw, TagEstate, tags[TagEstate])

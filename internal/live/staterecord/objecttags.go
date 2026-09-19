@@ -27,12 +27,14 @@ import (
 //
 // # Why the tags travel in the context
 //
-// [Store] is keys and payloads, and three backends implement it. Only one
-// has anywhere to put a tag, and the caller that knows the address is two
-// wrappers above it. A context value reaches the one backend that wants it
-// without widening an interface the other two would have to ignore, and
+// [Store] is keys and payloads, and two backends implement it. Only the S3
+// one has anywhere to put a tag, and the caller that knows the address is two
+// wrappers above it. A context value reaches the backend that wants it
+// without widening an interface the local store would have to ignore, and
 // without this package deriving an address back out of a key - which would
-// be the second derivation #1337 rules out.
+// be the second derivation #1337 rules out. There were three backends when
+// this was written; Parameter Store was the third and had nowhere to put a
+// tag either (retired, #1346).
 
 type objectTagsKey struct{}
 
