@@ -106,7 +106,7 @@ An estate writes under three prefixes and nowhere else.
 
 | Prefix | What is there | How many objects |
 |---|---|---|
-| `tofu-records/<estate>/` | One object per record-backed resource instance, at `<type>/<encoded address>`, plus `.store-sentinel` | The record-backed slice of the estate, which is usually a small fraction of it |
+| `tofu-records/<estate>/` | One object per managed resource instance, at `<type>/<encoded address>`, plus `.store-sentinel` | As many as the estate has instances |
 | `tofu-hints/<estate>/` | `guided`, the hint guided discovery uses to look where resources were last found | One |
 | `tofu-outputs/<estate>/` | The value each root output settled on at the last apply, so a plan can render a change as a change | One per root output, never a `sensitive` one |
 
@@ -122,18 +122,24 @@ A `key_prefix` override moves the first of the three. It may not begin with
 any of the reserved roots, so a record can never land where a hint, an output
 or a receipt lives.
 
-An ordinary taggable cloud resource has no object here at all. Its identity is
-its two tags.
-
 ### What is in an object
 
-A record is a JSON envelope for this fork's own code. It carries up to four
-independently optional facts about one instance: the resource's value (its
-attributes, the provider's `private` blob, and which attributes were
-sensitive), an import identity, argument values a provider's read never gives
-back, and whether a create-time provisioner ran. A `kind` field inside the
-envelope, and never the key's spelling, decides whether a reader may treat the
-object as something it can propose to destroy.
+A record is a JSON envelope for this fork's own code, and there are two kinds.
+
+| `kind` | Written for | Holds | Losing it costs |
+|---|---|---|---|
+| `object` | A record-backed resource, one with no cloud twin to carry a marker: `null_resource`, `terraform_data`, `random_*`, `time_*`, `tls_*` | The whole value: its attributes, the provider's `private` blob, and which attributes were sensitive | The resource itself. The record is the only copy |
+| `identity` | Every other managed instance, ordinary taggable cloud resources included | What a read of the live resource cannot give back: an import identity, argument values the provider's read never returns, and whether a create-time provisioner ran | A slower or noisier plan. Ownership is the resource's two tags and does not depend on it |
+
+The `kind` field inside the envelope, and never the key's spelling, decides
+whether a reader may treat a record with no configuration behind it as
+something to propose destroying. Only an `object` record is.
+
+The second row is where a taggable resource's secret can end up in the bucket:
+an argument such as a database password is one the API never returns, so under
+the default `strict { secrets = "store" }` it is remembered here, the way a
+state file remembers it. A write-only argument is never recorded under either
+setting. [Secrets]({{< relref "/docs/use/secrets" >}}) has the rest.
 
 You are not meant to read it, and its format is not a contract. The sentinel
 is the exception: its payload is a sentence saying what it is for.

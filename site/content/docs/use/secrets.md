@@ -16,17 +16,22 @@ is about who ends up holding that read, and the two ways out of it.
 
 ## What is recorded
 
-Only record-backed resources have records: the ones with no cloud twin to
-carry a marker, such as `random_password`, `random_pet`, `time_static`,
-`tls_private_key`, `null_resource` and `terraform_data`. An estate made only
-of ordinary taggable cloud resources records nothing secret, because it
-records no values at all.
+Every managed instance has a record, and secret material reaches one by two
+routes. The default, `strict { secrets = "store" }`, keeps what a stock
+`terraform.tfstate` keeps on both.
 
-For the ones that are recorded, the default is `strict { secrets = "store" }`,
-which keeps what a stock `terraform.tfstate` keeps: a `random_password`'s
-result, a `tls_private_key`'s key material and the rest, as the provider
-returned them. The record also carries the provider's `private` blob and the
-list of which attributes were sensitive.
+**A resource with no cloud twin is recorded whole.** `random_password`,
+`tls_private_key` and the rest have nothing in AWS to carry a marker, so the
+record is the only copy of the value: a generated password, a private key, as
+the provider returned them, with the provider's `private` blob and the list
+of which attributes were sensitive.
+
+**An ordinary cloud resource is recorded in part.** Its record holds what a
+read of the live resource cannot give back, and that includes arguments the
+API never returns. A database's master password is the usual one. So an estate
+with no `random_*` or `tls_*` in it can still have secrets in the bucket.
+
+A write-only argument is never recorded, under either setting.
 
 Root output values are recorded too, under `tofu-outputs/<estate>/`, with one
 exception that matters here: **an output marked `sensitive` is never
@@ -54,10 +59,13 @@ that was rotated is still in the bucket until then.
 
 **`strict { secrets = "refuse" }`, available today.** Resource types that
 generate or hold secret material are refused at lint time and never recorded,
-so nothing the run keeps holds key material. This is stronger than any
-encryption of the store, because there is nothing in the store to decrypt.
-The cost is that those types cannot be in the estate: generate the secret
-somewhere that is built to hold one, and pass a reference.
+and for an ordinary resource a sensitive argument the API never returns is
+left out of its record. Nothing the run keeps holds key material. This is
+stronger than any encryption of the store, because there is nothing in the
+store to decrypt. It costs two things. Those types cannot be in the estate:
+generate the secret somewhere that is built to hold one, and pass a
+reference. And an argument that is neither returned by the API nor remembered
+cannot be compared, so a plan cannot tell you it changed.
 [Reference]({{< relref "/docs/use/reference" >}}) covers the setting and the
 environment pin that stops a configuration relaxing it.
 
