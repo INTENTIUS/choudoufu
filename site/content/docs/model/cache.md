@@ -32,6 +32,18 @@ the cache in the bucket:
   work, and restoring `.terraform/choudoufu-cache.tfstate` from a CI cache to
   "fix" it buys nothing on a default plan, as the next section says.
 
+## It holds what a state file holds, secrets included
+
+The file is written unencrypted and nothing scrubs it. Every sensitive
+attribute and every sensitive root output is in it, in clear, under either
+`strict { secrets = ... }` setting: that setting governs the record store and
+does not reach this file. Treat a working directory that has applied the way
+you would treat one holding `terraform.tfstate`. That matters most in CI,
+where a cache or an artifact step that sweeps up `.terraform` carries the
+values to wherever that goes.
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has the
+rest, and `CHOUDOUFU_STATE_CACHE=off` below stops the file being written.
+
 ## What losing it costs
 
 A read. Delete the file, corrupt it, or let it go stale for a month,

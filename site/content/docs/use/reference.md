@@ -270,9 +270,9 @@ OpenTofu state file holds `random_password.result` in clear, so a
 configuration that generates a password runs here with a `live` block added
 and nothing else. What a state file would hold, the estate's record store
 holds - namespaced per estate, under IAM, written with compare-and-swap,
-with the sensitivity marks travelling beside the value. A secret-generating
-type still needs a `record_store` declared, exactly as every other logical
-type does.
+with the sensitivity marks travelling beside the value. Like every other
+logical type, a secret-generating one needs no `record_store` block: an estate
+that declares none gets the implied local store.
 
 `"refuse"` is the principle, and it is two refusals rather than one:
 
@@ -298,6 +298,18 @@ terraform {
   }
 }
 ```
+
+Two things `"refuse"` does not cover, which a reader could easily assume it
+does:
+
+- **The local cache file.** `.terraform/choudoufu-cache.tfstate` is a stock
+  state file written unencrypted on every apply, and it holds every sensitive
+  attribute and output under either setting.
+- **A record-backed resource handed a secret by configuration.**
+  `terraform_data { input = var.db_password }` is admitted and recorded
+  whole. The refusal is by resource type.
+
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has both.
 
 Three things neither setting reaches, and they are not the same kind of
 thing:
