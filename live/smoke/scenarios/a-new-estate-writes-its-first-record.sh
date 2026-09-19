@@ -1,5 +1,5 @@
 # a-new-estate-writes-its-first-record
-# CLAIM 34 - Under the published IAM policy a new estate's first write into an empty prefix succeeds, and so does every write after it (REAL AWS, maintainer-run). ~4 min.
+# CLAIM 34 - Under the published IAM policy a new estate's first write succeeds, and so does every write after it (REAL AWS, maintainer-run). ~4 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/firstwrite"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -158,7 +158,21 @@ step "3. the estate's role, from the published policy"
 cmd "render-policy.sh smoke-secure $BUCKET --kms <key>"
 role_with_policy "$ROLE" "$("$POLICY_RENDERER" smoke-secure "$BUCKET" --kms "$KEY_ARN")" "$BUCKET" \
   || fail "secureconfig" "the role's policy never went live"
-proof "the renderer's output, unedited, is the role's only policy."
+# The sentence below was printed and not asked (#1379), and it was not quite
+# true either: role_with_policy adds a ProofThisPolicyIsLive statement over
+# one marker key, which is how it knows IAM has propagated. So the live
+# policy is read back, that one statement is dropped, and what is left has to
+# be what the renderer produces today, statement for statement.
+LIVE_POLICY="$(aws iam get-role-policy --role-name "$ROLE" --policy-name estate --query PolicyDocument --output json)" \
+  || fail "secureconfig" "could not read back the role's inline policy"
+LIVE_MINUS_MARKER="$(jq -S '.Statement |= map(select(.Sid != "ProofThisPolicyIsLive"))' <<< "$LIVE_POLICY")"
+FRESH_RENDER="$("$POLICY_RENDERER" smoke-secure "$BUCKET" --kms "$KEY_ARN" | jq -S .)"
+grep -q ProofThisPolicyIsLive <<< "$LIVE_POLICY" \
+  || fail "secureconfig" "the live policy carries no ProofThisPolicyIsLive statement, so dropping it below removes nothing and the comparison is not the one this step describes"
+[ "$LIVE_MINUS_MARKER" = "$FRESH_RENDER" ] \
+  || fail "secureconfig" "the role's live policy is not the renderer's output: $(diff <(echo "$LIVE_MINUS_MARKER") <(echo "$FRESH_RENDER") | head -20 | mask)"
+jq -r '.Statement[].Sid' <<< "$LIVE_POLICY" | tr '\n' ' ' | sed 's/^/statements on the role: /' | evidence
+proof "the role's policy is the renderer's output statement for statement, plus the one ProofThisPolicyIsLive statement this harness adds over a single marker key to know that IAM has propagated. Nothing else was edited in."
 
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - the mistake people actually make"
@@ -177,7 +191,15 @@ if [ "${BREAK:-0}" = "1" ]; then
   aws kms get-key-policy --key-id "$KEY_ARN" --policy-name default --query Policy --output text | jq -c '.Statement[] | {Sid, Principal}' | mask | evidence
   CUT=0
   for i in $(seq 1 60); do
-    RAW="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" "$SMOKE_WORK/marker.out" 2>&1)" || { CUT=1; break; }
+    RAW="$(as_role "$ROLE" aws s3api get-object --bucket "$BUCKET" --key "markers/$ROLE-$MARKER_N" "$SMOKE_WORK/marker.out" 2>&1)" || {
+      # Any failure used to end this loop and read as "the role can no longer
+      # decrypt" (#1379): an assume-role that timed out, a throttle, a
+      # network blip. What this arm needs is AWS refusing the read.
+      denied "$RAW" \
+        || fail "secureconfig" "the role's read of its marker failed, but not on a denial, so nothing here shows the key policy is what cut it: $RAW"
+      CUT=1
+      break
+    }
     sleep 3
   done
   [ "$CUT" = "1" ] || fail "secureconfig" "three minutes after the role was taken out of the key policy it can still decrypt, so this arm has nothing to measure"
@@ -214,11 +236,21 @@ A_OUT="$(as_estate apply apply -auto-approve -input=false -no-color 2>&1)" && A_
 if [ "${BREAK:-0}" = "1" ]; then
   [ "$A_RC" != "0" ] || fail "secureconfig" "the estate applied although the key policy does not name its role: $A_OUT"
   A_FLAT="$(flat <<< "$A_OUT")"
-  grep -q "KMS key" <<< "$A_FLAT" && grep -q "key policy" <<< "$A_FLAT" \
-    || fail "secureconfig" "the run failed without naming the KMS key policy as the cause. An operator reading this has no idea where to look: $A_OUT"
+  # The page says the refusal names the key, the action and the role. It used
+  # to be checked with two substrings, "KMS key" and "key policy", both of
+  # which a message naming none of the three could carry (#1379). All three
+  # are named here, by their values in this run.
+  grep -q "key policy" <<< "$A_FLAT" \
+    || fail "secureconfig" "the run failed without pointing at the key policy. An operator reading this has no idea where to look: $A_OUT"
+  grep -q "${KEY_ARN##*/}" <<< "$A_FLAT" \
+    || fail "secureconfig" "the refusal does not name the key that refused ($(mask <<< "$KEY_ARN")): $A_OUT"
+  grep -qE 'kms:GenerateDataKey|kms:Decrypt' <<< "$A_FLAT" \
+    || fail "secureconfig" "the refusal does not name a KMS action, so it does not say what the role may not do: $A_OUT"
+  grep -q "$ROLE" <<< "$A_FLAT" \
+    || fail "secureconfig" "the refusal does not name the role it refused ($ROLE): $A_OUT"
   grep -oE 'Error: [^.]*\.' <<< "$A_FLAT" | head -1 | mask | evidence
   grep -oE "The bucket's KMS key[^.]*\.[^.]*\." <<< "$A_FLAT" | head -1 | mask | evidence
-  proof "caught - refused by name: the key, its policy, and the role that is missing from it."
+  proof "caught - refused by name, and the name is three things: the key $(mask <<< "${KEY_ARN##*/}"), the KMS action, and the role $ROLE that its policy no longer names."
   exit 0
 fi
 

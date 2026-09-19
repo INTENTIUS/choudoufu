@@ -73,6 +73,61 @@ var smokeClaimStatuses = map[string]bool{"proven": true, "restated": true, "n/a"
 // minutes must agree with the row.
 var scenarioHeader = regexp.MustCompile(`^# CLAIM (\d+) - .*~(\d+) min\.?\s*$`)
 
+// scenarioHeaderTitle splits the same line into its number, the sentence it
+// states as the claim, and its minutes.
+var scenarioHeaderTitle = regexp.MustCompile(`^# CLAIM (\d+) - (.*?)\.?\s*~(\d+) min\.?\s*$`)
+
+// realAWSHeaderSuffix is what a real-AWS scenario's header adds to the
+// claims.json title, so `just smoke` lists it as one only the maintainer
+// starts. TestSmokeClaimsRealAWSSaysSo requires the header to say REAL AWS;
+// this is the one spelling of that which also leaves the two titles
+// comparable.
+const realAWSHeaderSuffix = " (REAL AWS, maintainer-run)"
+
+// scenarioTitleDiffers is the set of claims whose scenario header is still a
+// longer restatement of the claims.json title instead of the same sentence,
+// with the reason each is still on the list. Every one of them predates the
+// bucket backend epic (#1332), where the two were written together.
+//
+// The list is a ratchet, not an excuse: TestSmokeClaimScenarioHeadersStateTheClaim
+// fails both on a claim that differs and is not listed AND on a listed claim
+// that no longer differs, so it can only shrink, and a new claim cannot join
+// it. #1379 found claims 29 and 34 differing with nothing checking; those two
+// are fixed rather than listed.
+var scenarioTitleDiffers = map[int]string{
+	1:  "pre-#1332; the header names the claim and then restates it",
+	2:  "pre-#1332; the header names the claim and then restates it",
+	3:  "pre-#1332; the header names the claim and then restates it",
+	5:  "pre-#1332; the header names the claim and then restates it",
+	6:  "pre-#1332; the header names the claim and then restates it",
+	7:  "pre-#1332; the header names the claim and then restates it",
+	8:  "pre-#1332; the header names the claim and then restates it",
+	9:  "pre-#1332; the header names the claim and then restates it",
+	10: "pre-#1332; the header names the claim and then restates it",
+	11: "pre-#1332; the header names the claim and then restates it",
+	12: "pre-#1332; the header also carries \"Needs Go\", which the index carries as a column",
+	13: "pre-#1332; the header names the claim and then restates it",
+	14: "pre-#1332; the header names the claim and then restates it",
+	15: "pre-#1332; the header names the claim and then restates it",
+	16: "pre-#1332; the header names the claim and then restates it",
+	18: "pre-#1332; the header names the claim and then restates it",
+	19: "pre-#1332; the header names the claim and then restates it",
+	20: "pre-#1332; the header also carries \"Needs Go\", which the index carries as a column",
+	21: "pre-#1332; the header names the claim and then restates it",
+	22: "pre-#1332; the header names the claim and then restates it",
+	23: "pre-#1332; the header names the claim and then restates it",
+	24: "pre-#1332; the header names the claim and then restates it",
+	25: "pre-#1332; the header names the claim and then restates it",
+	26: "pre-#1332; the header names the claim and then restates it",
+	27: "pre-#1332; the header names the claim and then restates it",
+	35: "#1379 found this one too; its scenario belongs to the open PR #1381 and is not edited here",
+}
+
+// goToolchainCall matches a scenario line that runs the Go toolchain. It is
+// what needs_go means: whether a reader without Go can run the scenario, its
+// BREAK arm included.
+var goToolchainCall = regexp.MustCompile(`\bgo (build|run|test)\b`)
+
 func readSmokeClaims(t *testing.T) smokeClaimsFile {
 	t.Helper()
 	raw, err := os.ReadFile(smokeClaimsPath)
@@ -168,6 +223,103 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	}
 	if seen != len(f.Claims) {
 		t.Errorf("%d claim scenarios on disk, %d rows in %s", seen, len(f.Claims), smokeClaimsPath)
+	}
+}
+
+// TestSmokeClaimScenarioHeadersStateTheClaim: the sentence a scenario prints
+// about itself and the sentence the index prints about it are the same
+// sentence. #1379's audit found claims 29, 34 and 35 stating one claim in the
+// script and another in claims.json, with nothing checking: a reader who runs
+// `just smoke <slug>` and a reader who reads the claims table were told
+// different things about what was proven.
+//
+// Proving it red: put claim 29's old header back
+// ("A record store bucket without versioning, a lifecycle that expires
+// noncurrent versions, or public-access block is refused ..."), or delete an
+// entry from scenarioTitleDiffers without fixing that scenario's header. Both
+// were run on 2026-09-19 and named the claim they were given.
+func TestSmokeClaimScenarioHeadersStateTheClaim(t *testing.T) {
+	f := readSmokeClaims(t)
+	for _, c := range f.Claims {
+		name := c.Slug + ".sh"
+		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.SplitN(string(raw), "\n", 3)
+		if len(lines) < 2 {
+			t.Errorf("%s has no header line", name)
+			continue
+		}
+		m := scenarioHeaderTitle.FindStringSubmatch(lines[1])
+		if m == nil {
+			t.Errorf("%s line 2 is not a \"# CLAIM N - <title>. ~M min.\" header: %q", name, lines[1])
+			continue
+		}
+		got := m[2]
+		want := c.Title
+		if c.RealAWS {
+			want += realAWSHeaderSuffix
+		}
+		reason, listed := scenarioTitleDiffers[c.ID]
+		switch {
+		case got == want && listed:
+			t.Errorf("claim %d (%s): the header now states the claims.json title, so take %d out of scenarioTitleDiffers (it is listed as %q). That list is only allowed to shrink.", c.ID, name, c.ID, reason)
+		case got != want && !listed:
+			t.Errorf("claim %d (%s): the scenario's header states\n  %q\nand %s states\n  %q\nThe two are what a reader running the scenario and a reader reading the index are each told this claim is.", c.ID, name, got, smokeClaimsPath, want)
+		}
+	}
+	for id := range scenarioTitleDiffers {
+		found := false
+		for _, c := range f.Claims {
+			if c.ID == id {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("scenarioTitleDiffers names claim %d, which is not in %s", id, smokeClaimsPath)
+		}
+	}
+}
+
+// TestSmokeClaimsNeedGoExactlyWhenTheyRunIt: needs_go is what the site's
+// claims table prints as "needs Go", and it is what tells a reader whose
+// machine has no Go toolchain which claims they can run. #1379 found it false
+// for all six claims whose BREAK arm builds a patched binary with
+// `go build -overlay`, one of which (claim 36) the README already described
+// as needing Go.
+//
+// Proving it red: set any of those rows back to false, or delete the
+// `go build -overlay` line from a scenario whose row says true.
+func TestSmokeClaimsNeedGoExactlyWhenTheyRunIt(t *testing.T) {
+	f := readSmokeClaims(t)
+	runsGo := 0
+	for _, c := range f.Claims {
+		name := c.Slug + ".sh"
+		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Executable lines only: a comment explaining that some other
+		// scenario builds a binary is not this scenario needing Go.
+		var calls []string
+		for i, line := range smokeExecutableLines(string(raw)) {
+			if line != "" && goToolchainCall.MatchString(line) {
+				calls = append(calls, fmt.Sprintf("line %d: %s", i+1, line))
+			}
+		}
+		if len(calls) > 0 {
+			runsGo++
+		}
+		if len(calls) > 0 && !c.NeedsGo {
+			t.Errorf("claim %d (%s) runs the Go toolchain and %s says needs_go is false, so the claims table tells a reader with no Go that they can run it:\n  %s", c.ID, name, smokeClaimsPath, strings.Join(calls, "\n  "))
+		}
+		if len(calls) == 0 && c.NeedsGo {
+			t.Errorf("claim %d (%s): %s says needs_go is true and no executable line in the scenario runs go build, go run or go test", c.ID, name, smokeClaimsPath)
+		}
+	}
+	if runsGo == 0 {
+		t.Errorf("no claim scenario runs the Go toolchain at all; every BREAK arm that builds a patched binary has gone, or this guard is looking in the wrong place")
 	}
 }
 

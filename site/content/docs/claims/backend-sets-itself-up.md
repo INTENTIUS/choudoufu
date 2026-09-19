@@ -61,13 +61,17 @@ As the run prints them:
    public-access block. The configuration then says
    `record_store "s3" { bucket = ... }` and nothing else. On first use
    the store writes its sentinel into the bucket, and the AWS CLI reads
-   it back. No lock table is created and nothing names one.
+   it back. The stack's own resource list is read back too, and it holds
+   two resource types: the bucket, and with a key its policy. No lock
+   table is created and nothing names one.
 4. `a run killed in the middle of an apply strands nothing` - a second
    resource takes a while to create, and the apply is killed with
    `SIGKILL` while that is in flight, so no handler runs and nothing
    cleans up. The very next apply, with nothing done in between, finishes
-   the work on its first try. Every object in the bucket is then listed:
-   a sentinel, a hint and the records. None of them is a lock.
+   the work on its first try. Every object in the bucket is then listed
+   and matched key by key against the shapes this backend writes: a
+   store sentinel, a record, a guided-discovery hint and a root output.
+   None of them is a lock, and none of them is anything else.
 5. `teardown - and this time there IS something to deprovision` - both
    estates are destroyed, and `just down` then refuses, because the
    bucket still holds the recoverable versions of the destroyed records.
@@ -75,11 +79,12 @@ As the run prints them:
    The scenario empties it on exit, deliberately.
 
 The `BREAK=1` run makes only the record store unreachable, through the
-SDK's S3 endpoint override. A store that cannot answer must refuse
-loudly, naming itself, because a store that answers with silence would
-read as an empty estate and the next plan would propose rebuilding
-everything. That property does not depend on which store it is, and it
-stays measured.
+SDK's S3 endpoint override, and requires the run to refuse by name with
+nothing proposed. What it does not show is what caught it: any S3 client
+fails a closed port, so the arm proves the refusal and not the sentinel
+behind it. The failure class it is on watch for is a run that reads a
+store it cannot reach as an empty estate and plans to rebuild
+everything. Step 4, the headline, has no red arm of its own.
 
 Two writers racing on one record, which is the other half of "nothing
 is locked", is

@@ -71,6 +71,16 @@ PYEOF
   RUN_BIN="$SMOKE_WORK/break/choudoufu"
 fi
 flat() { tr '\n' ' ' | sed 's/│/ /g' | tr -s ' '; }
+# lockish_keys lists every key in the bucket whose name looks like a lock.
+# It replaced a grep for "Acquiring state lock" in the writers' output, which
+# could not fire: internal/command/clistate/state.go prints that line only
+# after a lock has been outstanding for 400ms, so a lock taken and released
+# quickly - which is every lock a passing run of this scenario would take -
+# leaves nothing in the output to find (#1379). The bucket is where a lock
+# this store took would have to live, and an object is there or it is not.
+lockish_keys() {
+  awsl s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -iE 'lock|\.tflock' || true
+}
 record_input() { # the input value the record in the bucket holds right now
   local key
   key="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix "$RECORD_PATH" --query 'Contents[0].Key' --output text)"
@@ -175,7 +185,8 @@ for round in $(seq 1 $ROUNDS); do
   order="arrival"; [ $((round % 2)) = 0 ] && order="reversed"
   race "$round" "$order"
   HOLDS="$(record_input)"
-  grep -q "Acquiring state lock" <<< "$A_OUT$B_OUT" && fail "writerace" "[round $round] a writer took a state lock"
+  ROUND_LOCKS="$(lockish_keys)"
+  [ -z "$ROUND_LOCKS" ] || fail "writerace" "[round $round] a lock-shaped object is in the bucket: $ROUND_LOCKS"
   if [ "$A_RC" = "0" ] && [ "$B_RC" = "0" ]; then
     CLOBBERS=$((CLOBBERS+1))
     if [ "${BREAK:-0}" = "1" ]; then
@@ -208,7 +219,7 @@ PYEOF
   echo "round $round ($order): $WINNER landed; writer $LOSER was refused, expected $EXPECTED, found $FOUND" | evidence
 done
 [ "${BREAK:-0}" = "1" ] && fail "writerace" "the binary built with no write precondition never clobbered in $ROUNDS rounds, so the break did not take and this control proves nothing"
-proof "$ROUNDS races, $NAMED named conflicts, $CLOBBERS clobbers, and no lock in either writer's output. The record always holds the value of the PUT that was judged first."
+proof "$ROUNDS races, $NAMED named conflicts, $CLOBBERS clobbers, and no lock-shaped object in the bucket after any round. The record always holds the value of the PUT that was judged first."
 
 step "4. the loser's recovery is an ordinary re-plan"
 explain \
@@ -233,6 +244,9 @@ write_config "$SMOKE_WORK/b" "from-b-r99"
 rm -f "$SMOKE_WORK/held" "$SMOKE_WORK/release"
 echo "from-a-r99 from-b-r99" > "$SMOKE_WORK/markers"
 echo "$RECORD_PATH" > "$SMOKE_WORK/hold"
+# Emptied here so every proxy line read below belongs to this step.
+: > "$SMOKE_WORK/proxy.log"
+PRE_KILL="from-$LOSER-r$ROUNDS"
 ( cd "$SMOKE_WORK/a" && AWS_ENDPOINT_URL="$PROXY_URL" exec "$RUN_BIN" apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1 ) &
 KILL_PID=$!
 for _ in $(seq 1 600); do [ -s "$SMOKE_WORK/held" ] && break; sleep 0.05; done
@@ -242,14 +256,28 @@ kill -9 $KILL_PID 2>/dev/null; wait $KILL_PID 2>/dev/null || true
 echo drop > "$SMOKE_WORK/release"; sleep 0.3
 rm -f "$SMOKE_WORK/hold" "$SMOKE_WORK/release"
 BEFORE_B="$(record_input)"
-LOCKISH="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -iE 'lock|\.tflock' || true)"
+# The two assertions this step used to print and not make (#1379). BEFORE_B
+# was captured, echoed and never compared, so the sentence below held whether
+# the killed writer's PUT had landed or not: with the proxy forwarding the
+# held PUT instead of dropping it, this step read "record before writer b:
+# from-a-r99" and the scenario still printed PASS.
+[ "$BEFORE_B" = "$PRE_KILL" ] \
+  || fail "writerace" "the killed writer's change LANDED: the record holds $BEFORE_B, and step 4 left $PRE_KILL. A PUT that was never answered must not be in the store."
+DROPPED="$(grep -c "^PUT /${RECORD_PATH}.* dropped$" "$SMOKE_WORK/proxy.log" || true)"
+FORWARDED="$(grep -E "^PUT /${RECORD_PATH}" "$SMOKE_WORK/proxy.log" | grep -vc 'dropped$' || true)"
+[ "$DROPPED" -ge 1 ] \
+  || fail "writerace" "the proxy's log records no dropped PUT to the record, so writer a was not killed with its write in the proxy's hands and nothing here was measured: $(cat "$SMOKE_WORK/proxy.log")"
+[ "$FORWARDED" = "0" ] \
+  || fail "writerace" "$FORWARDED PUT(s) to the record were forwarded after writer a was killed; its write was not thrown away, so this step is not measuring a crash mid-write: $(grep -E "^PUT /${RECORD_PATH}" "$SMOKE_WORK/proxy.log")"
+LOCKISH="$(lockish_keys)"
 [ -z "$LOCKISH" ] || fail "writerace" "the killed writer left something lock-shaped in the bucket: $LOCKISH"
 cmd "choudoufu apply -auto-approve   # writer b, straight after, no unlock of any kind"
 K_OUT="$(cd "$SMOKE_WORK/b" && "$RUN_BIN" apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "writerace" "writer b could not apply after writer a was killed mid-write: $K_OUT"
 [ "$(record_input)" = "from-b-r99" ] || fail "writerace" "after writer b's apply the record holds $(record_input), want from-b-r99"
-echo "record before writer b: $BEFORE_B; after: $(record_input); lock-shaped keys in the bucket: none" | evidence
-proof "the killed writer's change never landed and nothing of it remained to clear. A conditional write keeps nothing between operations, so there is nothing for a crash to leave held."
+echo "the killed writer's PUT: $DROPPED dropped, $FORWARDED forwarded" | evidence
+echo "record before writer b: $BEFORE_B, which is what step 4 left; after: $(record_input); lock-shaped keys in the bucket: none" | evidence
+proof "the killed writer's change never landed - the record still held $PRE_KILL, and the proxy's log says its PUT was thrown away rather than forwarded - and nothing of it remained to clear. A conditional write keeps nothing between operations, so there is nothing for a crash to leave held."
 
 step "6. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
