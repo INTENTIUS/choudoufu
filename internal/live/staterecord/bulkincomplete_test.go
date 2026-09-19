@@ -55,13 +55,13 @@ func TestLocalGetAllRefusesRatherThanReturningAPartialNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLocalStore: %v", err)
 	}
-	for _, key := range []string{testPrefix + "/a", testPrefix + "/b"} {
+	for _, key := range []string{testPrefix + "a", testPrefix + "b"} {
 		if _, err := store.PutIfAbsent(ctx, key, []byte(`{"k":"`+key+`"}`)); err != nil {
 			t.Fatalf("PutIfAbsent(%q): %v", key, err)
 		}
 	}
 
-	unreadable := filepath.Join(dir, filepath.FromSlash(testPrefix+"/b"))
+	unreadable := filepath.Join(dir, filepath.FromSlash(testPrefix+"b"))
 	if err := os.Chmod(unreadable, 0); err != nil {
 		t.Fatalf("chmod: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestRunCacheReportsTheStoresErrorWhenTheBulkReadFailed(t *testing.T) {
 	inner := &bulkFailingStore{err: errors.New("simulated S3 outage")}
 	cache := NewRunCache(inner, testPrefix)
 
-	_, _, exists, err := cache.Get(ctx, testPrefix+"/aws_instance/whatever")
+	_, _, exists, err := cache.Get(ctx, testPrefix+"aws_instance/whatever")
 	if err == nil {
 		t.Fatalf("Get reported exists=%v with no error after a failed bulk read; \"the store could not be asked\" "+
 			"must never arrive at a reader as \"there is no record\"", exists)
@@ -111,11 +111,11 @@ func TestRunCacheTrustsACompleteSnapshotsAbsence(t *testing.T) {
 	resetRunCacheState(t)
 	ctx := context.Background()
 	inner := &bulkFailingStore{snapshot: map[string]Record{
-		testPrefix + "/aws_instance/present": {Payload: []byte(`{}`), Version: "1"},
+		testPrefix + "aws_instance/present": {Payload: []byte(`{}`), Version: "1"},
 	}}
 	cache := NewRunCache(inner, testPrefix)
 
-	if _, _, exists, err := cache.Get(ctx, testPrefix+"/aws_instance/absent"); err != nil || exists {
+	if _, _, exists, err := cache.Get(ctx, testPrefix+"aws_instance/absent"); err != nil || exists {
 		t.Fatalf("Get = (exists %v, err %v), want (false, nil) from a complete snapshot", exists, err)
 	}
 	if inner.perKeyGets != 0 {

@@ -458,6 +458,18 @@ showing its own checks would have caught it.
   account-wide question (`-adoption-only`), which is exactly the branch
   that drops the server-side estate filter, and the cost must explode.
 
+- **a-name-prefix-shares-no-keys** - *Claim 28: two estates whose names
+  prefix one another share a bucket and none of each other's keys.*
+  smoke-prod and smoke-prod-eu apply into one bucket; the AWS CLI shows
+  that the bare prefix tofu-records/smoke-prod names both estates and
+  the delimited one names one; smoke-prod then plans with the request
+  log on, and every LIST it sends ends in a slash while no request in
+  the run names its neighbour; it tears down and the neighbour's keys
+  and plan are unchanged. The delimiter is a line inside the binary, so
+  the BREAK control rebuilds choudoufu with it dropped (go build
+  -overlay, needs Go, refuses a release binary) and passes only when
+  the wire shows smoke-prod fetching smoke-prod-eu's record (#1335).
+
 ## Knobs
 
 | Variable | Effect |

@@ -77,8 +77,8 @@ func newFlakyCache(t *testing.T, failN int, present ...string) (Store, *LocalSto
 }
 
 const (
-	phantomKey = testPrefix + "/aws_thing/ghost"
-	realKey    = testPrefix + "/aws_thing/real"
+	phantomKey = testPrefix + "aws_thing/ghost"
+	realKey    = testPrefix + "aws_thing/real"
 )
 
 // TestRunCacheListOmitsAKeyThatHoldsNoRecord is the decisive arm: a
@@ -127,7 +127,7 @@ func TestRunCacheListOmitsAKeyThatHoldsNoRecord(t *testing.T) {
 // run read individually before the snapshot loaded.
 func TestRunCacheListStillNamesEveryStoredKey(t *testing.T) {
 	ctx := context.Background()
-	second := testPrefix + "/aws_thing/second"
+	second := testPrefix + "aws_thing/second"
 	cached, inner := newFlakyCache(t, 1, realKey, second)
 
 	// A miss and a hit, both served per-key while the bulk read was still
@@ -165,7 +165,7 @@ func TestRunCacheListAgreesWithGetAfterAFlakyBulkRead(t *testing.T) {
 	ctx := context.Background()
 	cached, _ := newFlakyCache(t, 1, realKey)
 
-	for _, key := range []string{phantomKey, testPrefix + "/aws_thing/ghost2", realKey} {
+	for _, key := range []string{phantomKey, testPrefix + "aws_thing/ghost2", realKey} {
 		if _, _, _, err := cached.Get(ctx, key); err != nil {
 			t.Fatalf("Get(%q): %v", key, err)
 		}

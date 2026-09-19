@@ -384,6 +384,56 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 	})
 
+	// GitHub issue #1335. Two namespaces whose names prefix one another -
+	// estates "prod" and "prod-eu" in one store, which the bucket backend
+	// (#1332) recommends - must not share a listing or a bulk read. The
+	// delimiter is the whole mechanism, on every backend, because List is a
+	// string-prefix match on every backend: the last assertion pins that, so
+	// nobody reads this case as the store doing path-aware matching for them.
+	t.Run("NeighbourNamespacesShareNoListingOrBulkRead", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		const (
+			prodKey = "tofu-records/prod/aws_thing/a"
+			euKey   = "tofu-records/prod-eu/aws_thing/b"
+		)
+		for _, key := range []string{prodKey, euKey} {
+			if _, err := s.PutIfAbsent(ctx, key, []byte(key)); err != nil {
+				t.Fatalf("PutIfAbsent(%q): %v", key, err)
+			}
+		}
+
+		for estate, want := range map[string]string{"prod": prodKey, "prod-eu": euKey} {
+			ns := NamespacePrefix("tofu-records/" + estate)
+			keys, err := s.List(ctx, ns)
+			if err != nil {
+				t.Fatalf("List(%q): %v", ns, err)
+			}
+			if !equalStrings(keys, []string{want}) {
+				t.Errorf("List(%q) = %v, want only %q", ns, keys, want)
+			}
+			if bulk, ok := s.(BulkReader); ok {
+				all, err := bulk.GetAll(ctx, ns)
+				if err != nil {
+					t.Fatalf("GetAll(%q): %v", ns, err)
+				}
+				if _, has := all[want]; !has || len(all) != 1 {
+					t.Errorf("GetAll(%q) returned %d records, want only %q", ns, len(all), want)
+				}
+			}
+		}
+
+		// The hazard itself, so this case cannot pass for the wrong reason:
+		// without the delimiter the same store returns both estates' keys.
+		bare, err := s.List(ctx, "tofu-records/prod")
+		if err != nil {
+			t.Fatalf("List(bare): %v", err)
+		}
+		if !equalStrings(bare, []string{euKey, prodKey}) {
+			t.Errorf("List(%q) = %v, want both estates' keys: List is a string-prefix match, and a namespace passed without NamespacePrefix reaches its neighbour", "tofu-records/prod", bare)
+		}
+	})
+
 	t.Run("VersionConflictErrorMessageNamesBothVersions", func(t *testing.T) {
 		s := newStore(t)
 		ctx := context.Background()

@@ -323,7 +323,9 @@ func TestRecordKeyStaysInsideTheRemoteBackendsShape(t *testing.T) {
 
 	// Chunking costs one byte per chunk boundary and nothing else, which is
 	// what keeps it from materially moving the two byte-counted ceilings.
-	unchunked := len(RecordKeyPrefix("prod")) + len("/null_resource/") + recordKeyEncoding.EncodedLen(len(addr.String()))
+	// RecordKeyPrefix carries its own trailing "/" (#1335), so the type
+	// segment contributes only the delimiter that follows it.
+	unchunked := len(RecordKeyPrefix("prod")) + len("null_resource/") + recordKeyEncoding.EncodedLen(len(addr.String()))
 	if extra := len(key) - unchunked; extra != (recordKeyEncoding.EncodedLen(len(addr.String()))-1)/recordKeyChunkLen {
 		t.Errorf("chunking added %d bytes to the key, want one per chunk boundary", extra)
 	}

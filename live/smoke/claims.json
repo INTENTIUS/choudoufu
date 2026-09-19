@@ -645,6 +645,29 @@
         }
       },
       "evidence": []
+    },
+    {
+      "id": 28,
+      "slug": "a-name-prefix-shares-no-keys",
+      "title": "Two estates whose names prefix one another share a bucket and none of each other's keys",
+      "scenario": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
+      "command": "just smoke a-name-prefix-shares-no-keys",
+      "minutes": 1,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with the namespace delimiter dropped (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the wire shows the run fetching its neighbour's record",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The claim is about the record store's key layout, and the record store is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }

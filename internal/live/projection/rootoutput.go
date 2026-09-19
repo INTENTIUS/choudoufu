@@ -98,8 +98,13 @@ const rootOutputNamespaceRoot = "tofu-outputs"
 // [LocatedKeyPrefix], [ResidueKeyPrefix] and [ProvisionedKeyPrefix] are:
 // internal/command's store construction and this package's own
 // namespace-safety tests both have to name one definition.
+//
+// It ends in "/" for [RecordKeyPrefix]'s reason (GitHub issue #1335). Nothing
+// lists this namespace today; the delimiter is there so that the day
+// something does, or an IAM policy scopes s3:prefix to it, "prod" does not
+// also mean "prod-eu".
 func RootOutputKeyPrefix(estate string) string {
-	return rootOutputNamespaceRoot + "/" + estate
+	return rootOutputNamespaceRoot + "/" + estate + "/"
 }
 
 // RootOutputKey is the store key one root output's remembered value lives at,
@@ -117,7 +122,7 @@ func RootOutputKeyPrefix(estate string) string {
 // would be building the first half of an enumeration this namespace is
 // defined by not having.
 func RootOutputKey(estate, name string) string {
-	return RootOutputKeyPrefix(estate) + "/" + recordKeyEncoding.EncodeToString([]byte(name))
+	return RootOutputKeyPrefix(estate) + recordKeyEncoding.EncodeToString([]byte(name))
 }
 
 // rootOutputFormatVersion identifies the JSON shape [rootOutputPayload]
