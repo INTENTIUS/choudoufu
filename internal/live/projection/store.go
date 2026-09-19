@@ -73,6 +73,13 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 // is another, and so is a KMS key that refused the run (that one is
 // recognised by its own type, [staterecord.KMSDeniedError]).
 //
+// A key that cannot be used at all is a refusal too, by the same rule
+// ([staterecord.KMSKeyUnusableError], GitHub issue #1383): the bucket was
+// reached and answered, and a key that is disabled, pending deletion or gone
+// stays that way for every retry and every other command. Every object in
+// the store is unreadable while it lasts, so a plan built without records
+// would propose creating an estate that exists.
+//
 // Everything else - a store that could not be reached, a role IAM would not
 // let in - is an outage from where this package stands. The difference is
 // for internal/command. `plan` and `apply` fail on both. `live-plan` and
@@ -91,7 +98,8 @@ func (e *StoreRefusal) Unwrap() error { return e.Err }
 func IsStoreRefusal(err error) bool {
 	var refusal *StoreRefusal
 	var kms *staterecord.KMSDeniedError
-	return errors.As(err, &refusal) || errors.As(err, &kms)
+	var unusable *staterecord.KMSKeyUnusableError
+	return errors.As(err, &refusal) || errors.As(err, &kms) || errors.As(err, &unusable)
 }
 
 // openBuiltStore is everything [NewRecordStore] does to a store once it is
