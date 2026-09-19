@@ -30,6 +30,11 @@ import (
 type fakeS3Object struct {
 	body []byte
 	etag string
+
+	// tagging is the PutObject's x-amz-tagging header as sent. Real S3
+	// REPLACES an object's tag set on every PutObject, and so does this: a
+	// put with no header leaves the object with no tags.
+	tagging string
 }
 
 // fakeS3Server is a minimal S3 speaking the real wire shapes this
@@ -113,7 +118,7 @@ func (f *fakeS3Server) putObject(w http.ResponseWriter, r *http.Request) {
 
 	f.seq++
 	etag := fmt.Sprintf(`"etag-%d"`, f.seq)
-	f.objects[r.URL.Path] = &fakeS3Object{body: body, etag: etag}
+	f.objects[r.URL.Path] = &fakeS3Object{body: body, etag: etag, tagging: r.Header.Get("x-amz-tagging")}
 	w.Header().Set("ETag", etag)
 	w.WriteHeader(http.StatusOK)
 }

@@ -340,6 +340,36 @@ func UnescapeKey(s string) string {
 	return markerkey.Decode(b.String())
 }
 
+// RecordObjectTags is the marker pair for the record of one instance, as the
+// tags of the store object that holds it: tofu-estate, and tofu-address with
+// its continuation tags when the escaped address is longer than one value.
+//
+// It is built from [EscapeAddress], [SplitAddress] and [AddressTagKey] and
+// from nothing else, which are what stamp a managed resource's own markers.
+// GitHub issue #1337 asks for the values to come from the same source and
+// not a second derivation of them: a record whose tag disagreed with the
+// resource's would make the bucket lie about who owns what, and an IAM
+// condition on the tag would then admit or deny on the lie.
+//
+// S3 allows an object ten tags and these are at most 1 + [MaxContinuations].
+func RecordObjectTags(estate string, addr addrs.AbsResourceInstance) map[string]string {
+	tags := AddressObjectTags(addr)
+	tags[TagEstate] = estate
+	return tags
+}
+
+// AddressObjectTags is [RecordObjectTags] without the estate: the half a
+// caller that knows an address and not an estate can supply. The record
+// envelope store is that caller; the estate half is set once, where the
+// store is opened for an estate.
+func AddressObjectTags(addr addrs.AbsResourceInstance) map[string]string {
+	tags := map[string]string{}
+	for i, chunk := range SplitAddress(EscapeAddress(addr.String())) {
+		tags[AddressTagKey(i)] = chunk
+	}
+	return tags
+}
+
 // EscapeAddress applies the marker spec's escaping rule to an address:
 // every "[...]" instance key becomes ":" followed by the key run through
 // [EscapeKey], and any "]" or '"' outside a key (there should never be one)

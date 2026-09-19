@@ -20,6 +20,7 @@ import (
 	"github.com/aws/smithy-go/middleware"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/retry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
@@ -171,6 +172,11 @@ type RecordStoreOption func(*recordStoreOptions)
 
 type recordStoreOptions struct {
 	bulkReadParallelism int
+
+	// estate is not an option a caller passes: newRecordStore fills it in
+	// from its own argument, so the tag can never name a different estate
+	// from the one the store was opened for.
+	estate string
 }
 
 // WithBulkReadParallelism bounds how many reads a backend that fans its bulk
@@ -227,6 +233,7 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
 		}
+		o.estate = estate
 		store, err := staterecord.NewS3Store(s3StoreConfig(awsCfg, rs, o))
 		if err != nil {
 			return nil, fmt.Errorf("record_store \"s3\": %w", err)
@@ -297,6 +304,9 @@ func s3StoreConfig(awsCfg aws.Config, rs *configs.LiveRecordStore, o recordStore
 		KeyPrefix: backendKeyPrefix,
 
 		GetAllParallelism: o.bulkReadParallelism,
+
+		// #1337: every object in an estate's namespaces is the estate's.
+		BaseTags: map[string]string{markers.TagEstate: o.estate},
 	}
 }
 
