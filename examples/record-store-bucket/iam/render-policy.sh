@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The IAM policy for one estate's role, against one record store bucket.
 #
-#   render-policy.sh <estate> <bucket> [--kms <key-arn>] [--reads-outputs-of <other-estate>]...
+#   render-policy.sh <estate> <bucket> [--account <account-id>] [--kms <key-arn>]
+#                    [--reads-outputs-of <other-estate>]...
 #
 # This script is the single source of that policy (GitHub issue #1342). The
 # documentation's IAM page shows its output and a test holds the two together,
@@ -24,12 +25,13 @@
 #     for every new resource, so that statement is not only for listing.
 set -euo pipefail
 
-usage() { sed -n '2,4p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 2 ] || usage
 estate="$1"; bucket="$2"; shift 2
-kms=""; others=()
+kms=""; account=""; others=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --account) account="${2:?--account needs a 12-digit AWS account id}"; shift 2 ;;
     --kms) kms="${2:?--kms needs a key ARN}"; shift 2 ;;
     --reads-outputs-of) others+=("${2:?--reads-outputs-of needs an estate name}"); shift 2 ;;
     *) usage ;;
@@ -52,10 +54,28 @@ done
 if [ -n "$kms" ]; then
   [[ "$kms" =~ ^arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]{36}$ ]] || { echo "not a KMS key ARN: $kms" >&2; exit 2; }
 fi
+# The account pins the bucket OWNER (GitHub issue #1381). A bucket name is
+# global and a free name can be taken by anyone, so nothing about the name
+# says which account the bucket is in. With --account, every Allow below also
+# requires aws:ResourceAccount, and a bucket of the right name in someone
+# else's account matches no statement in this policy at all.
+#
+# It is optional so that every invocation written before it keeps working, and
+# a render without it says on stderr what is missing. The warning goes to
+# stderr and never to stdout: stdout is the policy, compared byte for byte
+# against the documentation page.
+if [ -n "$account" ]; then
+  [[ "$account" =~ ^[0-9]{12}$ ]] || { echo "not an AWS account id (want exactly 12 digits): $account" >&2; exit 2; }
+else
+  echo "warning: rendering without --account, so this policy does not pin the bucket owner." >&2
+  echo "  A bucket name is global. If a bucket of this name is ever created in another" >&2
+  echo "  account, every statement here matches it too, and the records hold secrets." >&2
+  echo "  Add: --account <12-digit account id>" >&2
+fi
 
 others_json="$(printf '%s\n' ${others[@]+"${others[@]}"} | jq -R . | jq -s 'map(select(. != ""))')"
 
-jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --argjson others "$others_json" '
+jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg account "$account" --argjson others "$others_json" '
   ("arn:aws:s3:::" + $bucket) as $b
   # Every prefix ends in "/". S3 matches a prefix as a plain string, so
   # "tofu-records/prod" would also be "tofu-records/prod-eu" (#1335), and for a
@@ -152,4 +172,20 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --argjson o
           Action: ["kms:Decrypt", "kms:GenerateDataKey"],
           Resource: $kms
         }] else [] end))
-    }'
+    }
+  # The owner pin, applied to the finished document so that every Allow gets
+  # it, including one added later by someone who never read this line. It is
+  # MERGED into whatever condition a statement already carries: the write
+  # statement has a StringEquals on the tag being sent, and IAM takes one
+  # StringEquals object per statement, so a second one would replace the
+  # first and the tag requirement would vanish.
+  #
+  # Allow only. A Deny that also required the account would stop applying the
+  # moment the account was wrong, which is the case it exists for.
+  | if $account == "" then . else
+      .Statement |= map(
+        if .Effect == "Allow"
+        then .Condition = ((.Condition // {})
+               | .StringEquals = ((.StringEquals // {}) + {"aws:ResourceAccount": $account}))
+        else . end)
+    end'

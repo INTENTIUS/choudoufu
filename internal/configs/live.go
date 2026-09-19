@@ -383,6 +383,26 @@ type LiveRecordStore struct {
 	RegionSet   bool
 	RegionRange hcl.Range
 
+	// BucketOwner is the AWS account that must own the bucket: twelve
+	// digits, or empty for "do not check". When set, every S3 request the
+	// record store makes carries ExpectedBucketOwner, and S3 itself refuses
+	// the request if the bucket belongs to any other account.
+	//
+	// A bucket name is global and a name that is free can be taken by
+	// anyone. Without this, a bucket of the right NAME in someone else's
+	// account is a bucket this estate will happily write its records to,
+	// and the records hold secret material (GitHub issue #1381). The
+	// account is not a secret and pinning it costs nothing, so an estate
+	// whose bucket name is published anywhere should set it.
+	//
+	// It is the other half of the policy's aws:ResourceAccount condition
+	// (examples/record-store-bucket/iam/render-policy.sh --account). Either
+	// half alone leaves a gap: the policy protects a role that carries it,
+	// this protects a run whose credentials come from somewhere else.
+	BucketOwner      string
+	BucketOwnerSet   bool
+	BucketOwnerRange hcl.Range
+
 	// AllowInsecure is the "s3" backend's waiver for the bucket contract
 	// (GitHub issue #1340): the names, out of RecordStoreInsecureSettings, of
 	// the assertions this estate proceeds without. It is for a bucket an
@@ -620,6 +640,7 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "bucket"},
 		{Name: "key_prefix"},
 		{Name: "region"},
+		{Name: "bucket_owner"},
 		{Name: "allow_insecure"},
 	},
 }
@@ -1206,6 +1227,33 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 		})
 	}
 
+	if attr, exists := content.Attributes["bucket_owner"]; exists {
+		rs.BucketOwnerRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "bucket_owner")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if !validAWSAccountID(val) {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store bucket_owner",
+					Detail:   fmt.Sprintf("The \"bucket_owner\" argument was set to %q. It must be an AWS account ID: exactly twelve digits, with no dashes and no ARN around them. It is the account that must own the bucket, and every S3 request this estate makes carries it.", val),
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				rs.BucketOwner = val
+				rs.BucketOwnerSet = true
+			}
+		}
+	}
+	if rs.Type == "local" && (rs.BucketOwnerSet || !rs.BucketOwnerRange.Empty()) {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the local record store",
+			Detail:   "The \"bucket_owner\" argument names the AWS account that must own the bucket and has no meaning for record_store \"local\", which never talks to AWS. Remove it.",
+			Subject:  rs.BucketOwnerRange.Ptr(),
+		})
+	}
+
 	if attr, exists := content.Attributes["allow_insecure"]; exists {
 		rs.AllowInsecureRange = attr.Range
 		vals, valDiags := decodeLiteralStringList(attr, "allow_insecure")
@@ -1257,6 +1305,21 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 	}
 
 	return rs, diags
+}
+
+// validAWSAccountID reports whether s is an AWS account ID: exactly twelve
+// decimal digits. Leading zeroes are real account IDs, so this is a string
+// check and never a number one.
+func validAWSAccountID(s string) bool {
+	if len(s) != 12 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // quoteEach renders a vocabulary for a diagnostic: every value in double
