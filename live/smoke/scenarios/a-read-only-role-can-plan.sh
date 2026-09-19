@@ -141,8 +141,12 @@ RO_ESTATE_POLICY="$("$POLICY_RENDERER" "$ESTATE" "$BUCKET" --read-only)" \
   || fail "readonlyplan" "the read-only render for $ESTATE failed"
 RO_EMPTY_POLICY="$("$POLICY_RENDERER" "$EMPTY_ESTATE" "$BUCKET" --read-only)" \
   || fail "readonlyplan" "the read-only render for $EMPTY_ESTATE failed"
+# The second render's statements are renamed. IAM refuses a policy that uses
+# one Sid twice (MalformedPolicyDocument), which the first real run of this
+# scenario met: both renders call their statements ListOwnNamespaces and
+# ReadByPrefix.
 READER_POLICY="$(printf '%s\n%s\n' "$RO_ESTATE_POLICY" "$RO_EMPTY_POLICY" \
-  | jq -s '{Version: "2012-10-17", Statement: (.[0].Statement + (.[1].Statement | map(select(.Effect == "Allow"))))}')" \
+  | jq -s '{Version: "2012-10-17", Statement: (.[0].Statement + (.[1].Statement | map(select(.Effect == "Allow") | .Sid += "OfTheEmptyEstate")))}')" \
   || fail "readonlyplan" "could not merge the two read-only renders"
 # Asserted rather than assumed: the merge must have brought nothing that
 # writes with it, and it must have brought the second estate's LIST.
