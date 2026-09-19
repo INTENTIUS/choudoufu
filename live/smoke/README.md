@@ -231,17 +231,23 @@ showing its own checks would have caught it.
   today's wire savings are small until #692's vouch widening lands. The
   BREAK control drifts the live world and proves the three-way equality
   comparator can fail.
-- **backend-sets-itself-up** - *Claim 4: the live backend sets itself
-  up automatically when configured.* A live block with no storage
-  declared gets a local record store the way stock implies a local state
-  file - a .tofu-records directory appears beside the module at first
-  use, sentinel already written; declaring record_store "ssm" {} is the
-  entire cloud setup, and the store provisions its own sentinel into
-  Parameter Store where any AWS tool can read it; none of stock's
-  bucket/lock-table/IAM/migration ceremony exists to perform. The BREAK
-  control makes only the SSM store unreachable (the provider stays
-  healthy) and proves the run refuses by name instead of planning an
-  empty-looking estate - the #693 failure class, permanently on watch.
+- **backend-sets-itself-up** - *Claim 4: the backend is a bucket with
+  no lock table and no lock: nothing is held, so nothing gets stuck.*
+  **Real AWS, maintainer-run, for now** (the pinned emulator's
+  CloudFormation applies none of a bucket's properties). A live block
+  with no storage declared gets a local record store the way stock
+  implies a local state file - a .tofu-records directory appears beside
+  the module at first use, sentinel already written. The cloud store is
+  a bucket, stood up with `just up` and checked by the binary with
+  `just verify`: the same bucket, versioning and IAM as stock, plus a
+  lifecycle rule and a public-access block stock never listed, minus
+  the lock table. An apply is then killed with SIGKILL mid-flight and
+  the very next run finishes the work, because nothing was held. The
+  teardown admits there is a bucket to take down, and `just down`
+  refuses while it holds record versions. The BREAK control makes only
+  the record store unreachable and proves the run refuses by name
+  instead of planning an empty-looking estate - the #693 failure class,
+  permanently on watch (#1349). Needs jq, just, node and npm.
 - **recovery-is-a-rerun** - *Claim 5: recovery is a re-run, never
   surgery.* An apply that died after its first create call (resource
   made, markers stamped, run gone) recovers by being run again: the plan

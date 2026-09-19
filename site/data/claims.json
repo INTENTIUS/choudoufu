@@ -94,17 +94,18 @@
     {
       "id": 4,
       "slug": "backend-sets-itself-up",
-      "title": "Declaring the backend is the whole setup",
+      "title": "The backend is a bucket with no lock table and no lock: nothing is held, so nothing gets stuck",
       "scenario": "live/smoke/scenarios/backend-sets-itself-up.sh",
       "command": "just smoke backend-sets-itself-up",
-      "minutes": 1,
+      "minutes": 6,
       "needs_go": false,
+      "real_aws": true,
       "theme": "operate",
       "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
       "providers": {
         "aws": {
           "status": "proven",
-          "note": ""
+          "note": "Real AWS and maintainer-run for now, because of one step: it stands the bucket up with the shipped `just up`, and the pinned emulator's CloudFormation reports CREATE_COMPLETE while applying none of an S3 bucket's properties, so the bucket it makes is refused by the bucket contract (claim 29). Run with SMOKE_REAL_AWS=1; it deploys a stack with one bucket and removes it. Last run 2026-09-18, us-east-2."
         },
         "kubernetes": {
           "status": "open",
