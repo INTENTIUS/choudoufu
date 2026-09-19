@@ -1,5 +1,5 @@
 # one-bucket-many-estates
-# CLAIM 35 - One bucket, many estates: a role scoped to one estate cannot read another's records, and a wrong prefix alone does not change that (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 35 - One bucket, many estates: reading a neighbour's records takes two mistakes, not one (REAL AWS, maintainer-run). ~6 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/manyestates"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
