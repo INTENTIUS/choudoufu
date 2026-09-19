@@ -53,7 +53,6 @@ done
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 PASS=1
-CASE=""
 
 log() { printf '%s\n' "$*"; }
 ok() { log "  ok: $*"; }
@@ -110,7 +109,6 @@ JUSTEOF
 
 # sandbox <name>: a case's own bin, logs, work root and stub project.
 sandbox() {
-  CASE="$1"
   SB="$WORK/$1"
   mkdir -p "$SB/bin" "$SB/state" "$SB/project" "$SB/root" "$SB/work"
   write_stubs "$SB/bin"
@@ -174,9 +172,7 @@ run_harness() {
   AWS_LOG="$AWS_LOG" AWS_STATE="$SB/state" JUST_LOG="$JUST_LOG" \
   AWS_FAIL_GLOB="$AWS_FAIL_GLOB" AWS_FAIL_GLOB2="$AWS_FAIL_GLOB2" JUST_FAIL_GLOB="$JUST_FAIL_GLOB" \
   PATH="$SB/bin:$PATH" \
-    bash "$HARNESS" > "$SB/out" 2>&1
-  RC=$?
-  OUT="$(cat "$SB/out")"
+    bash "$HARNESS" > "$SB/out" 2>&1 || true
 }
 
 has() { # <haystack file> <needle> <what it would mean>
