@@ -39,7 +39,7 @@ rest, and `CHOUDOUFU_STATE_CACHE=off` below stops the file being written.
 ## What losing it costs
 
 A read. Delete the file, corrupt it, or let it go stale for a month,
-and the next plan answers identically to a fresh one - the
+and the next plan answers identically to a fresh one. The
 [staleness claim]({{< relref "/docs/claims/staleness-costs-reads" >}})
 runs that experiment on every smoke, with a cache full of dead ids.
 Stale is the expected condition here; the name of the project is
@@ -50,10 +50,10 @@ fermented tofu.
 On a default plan: nothing, on purpose. The read pass is drift
 detection; no cache freshness excuses skipping it. The cache pays
 out on the one opt-in path, `-refresh=false`, where an instance the run
-can vouch for - its marker verified by this run's sweep, or its
-ownership attested by the record store while this run's own listing
-proves it exists - is served from the cache and its wire reads are
-never made. The
+can vouch for is served from the cache and its wire reads are never made.
+Vouching means its marker was verified by this run's sweep, or its ownership
+is attested by the record store while this run's own listing proves it
+exists. The
 [unchanged-is-free claim]({{< relref "/docs/claims/unchanged-is-free" >}})
 measures the saving, and the live block's `reads = "full"` argument
 turns the whole pass off
@@ -63,7 +63,7 @@ turns the whole pass off
 
 The file is a stock-format state file, deliberately. Copy it to
 `terraform.tfstate`, remove the live block, and stock OpenTofu plans,
-converges and destroys with it - the
+converges and destroys with it. The
 [roundtrip claim]({{< relref "/docs/claims/roundtrip" >}})
 walks the whole loop and lets stock do the teardown. A cache you may
 lose without cost is also a state file you may keep without ceremony,
