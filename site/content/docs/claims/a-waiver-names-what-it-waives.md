@@ -45,7 +45,8 @@ As the run prints them:
    refused by that setting's name, and versioning is never among the
    refusals.
 4. `a typo is refused, not ignored` - `["versionning"]` fails at
-   configuration load, naming the word and listing the three valid
+   configuration load, naming the word in what it says rather than only
+   in the line it echoes back, and listing the three valid
    names. Accepted silently it would waive nothing and still read as a
    waiver to whoever reviews the configuration.
 5. `teardown`.
