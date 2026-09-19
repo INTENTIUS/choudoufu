@@ -107,6 +107,9 @@ func TestIAMTemplateHasOneSource(t *testing.T) {
 		"example-prod.json":                         {"prod", iamBucket},
 		"example-prod-with-key-and-dependency.json": {"prod", iamBucket, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
 		"example-prod-with-account.json":            {"prod", iamBucket, "--account", iamAccount},
+		// GitHub issue #1370: the rendering for a role that plans and never
+		// applies.
+		"example-prod-read-only.json": {"prod", iamBucket, "--read-only"},
 	} {
 		want, err := os.ReadFile(filepath.Join(iamExamples, file))
 		if err != nil {
@@ -193,6 +196,10 @@ type iamRender struct {
 
 	account string
 	others  []string
+
+	// readOnly is --read-only (GitHub issue #1370): the rendering for a role
+	// that plans and never applies.
+	readOnly bool
 }
 
 // iamWantedPolicy is the whole document render-policy.sh must print for an
@@ -238,14 +245,28 @@ func iamWantedPolicy(r iamRender) map[string]any {
 		Sid: "ListOwnNamespaces", Effect: "Allow",
 		Action: "s3:ListBucket", Resource: b,
 		Condition: map[string]any{"StringLike": map[string]any{"s3:prefix": listPrefixes}},
-	}, {
-		Sid: "ReadAndDeleteByPrefix", Effect: "Allow",
-		Action: []string{"s3:GetObject", "s3:DeleteObject"}, Resource: objects(own),
-	}, {
-		Sid: "WriteOnlyObjectsTaggedAsThisEstate", Effect: "Allow",
-		Action: []string{"s3:PutObject", "s3:PutObjectTagging"}, Resource: objects(own),
-		Condition: map[string]any{"StringEquals": map[string]any{"s3:RequestObjectTag/tofu-estate": estate}},
 	}}
+	// GitHub issue #1370. A role that plans and never applies reads the three
+	// namespaces and does nothing else to them: no delete, because deleting a
+	// record is what an apply does when a block goes away, and no write,
+	// because the only write a plan ever attempted is the store sentinel and
+	// since #1416 a denial on that write is carried past to the List rather
+	// than ending the run.
+	if r.readOnly {
+		st = append(st, iamWantStatement{
+			Sid: "ReadByPrefix", Effect: "Allow",
+			Action: "s3:GetObject", Resource: objects(own),
+		})
+	} else {
+		st = append(st, iamWantStatement{
+			Sid: "ReadAndDeleteByPrefix", Effect: "Allow",
+			Action: []string{"s3:GetObject", "s3:DeleteObject"}, Resource: objects(own),
+		}, iamWantStatement{
+			Sid: "WriteOnlyObjectsTaggedAsThisEstate", Effect: "Allow",
+			Action: []string{"s3:PutObject", "s3:PutObjectTagging"}, Resource: objects(own),
+			Condition: map[string]any{"StringEquals": map[string]any{"s3:RequestObjectTag/tofu-estate": estate}},
+		})
+	}
 	if len(theirs) > 0 {
 		st = append(st, iamWantStatement{
 			Sid: "ReadDeclaredDependenciesOutputs", Effect: "Allow",
@@ -279,24 +300,44 @@ func iamWantedPolicy(r iamRender) map[string]any {
 	}
 	// Measured on real AWS (#1381): without this, a role whose prefix was
 	// widened by mistake relabels a neighbour's object and then reads it.
+	//
+	// The relabel Deny is in the read-only rendering too, although that
+	// rendering allows none of the four actions it names. Same rule as the
+	// three read actions no Allow grants: a Deny written for the actions of
+	// the day stops covering the boundary the moment somebody widens the
+	// Allow list.
 	st = append(st, iamWantStatement{
 		Sid: "DenyRelabellingAnotherEstatesObjects", Effect: "Deny",
 		Action:   []string{"s3:PutObjectTagging", "s3:DeleteObjectTagging", "s3:PutObjectVersionTagging", "s3:DeleteObjectVersionTagging"},
 		Resource: b + "/*", Condition: foreignTag(estate),
-	}, iamWantStatement{
-		Sid: "ReadTheBucketsAssertedSettings", Effect: "Allow",
-		Action:   []string{"s3:GetBucketVersioning", "s3:GetLifecycleConfiguration", "s3:GetBucketPublicAccessBlock"},
-		Resource: b,
 	})
+	// The bucket contract is read on an estate's first contact with its store
+	// and before an apply, and a read-only run is neither (#1370). Granting
+	// the three reads to a role that makes neither call would be granting
+	// what nothing uses.
+	if !r.readOnly {
+		st = append(st, iamWantStatement{
+			Sid: "ReadTheBucketsAssertedSettings", Effect: "Allow",
+			Action:   []string{"s3:GetBucketVersioning", "s3:GetLifecycleConfiguration", "s3:GetBucketPublicAccessBlock"},
+			Resource: b,
+		})
+	}
 	if kms != "" {
 		// #1381: the grant is for S3 asking the key on this role's behalf,
 		// and kms:ViaService is what says so. No encryption-context
 		// condition: S3 sets that context to the bucket ARN with Bucket Keys
 		// on and to the object ARN with them off, and a wrong literal denies
 		// every write.
+		//
+		// A reader gets kms:Decrypt alone (#1370): kms:GenerateDataKey is
+		// what S3 asks for on a PUT, and this role makes none.
+		kmsActions := []string{"kms:Decrypt", "kms:GenerateDataKey"}
+		if r.readOnly {
+			kmsActions = []string{"kms:Decrypt"}
+		}
 		st = append(st, iamWantStatement{
 			Sid: "UseTheBucketsKey", Effect: "Allow",
-			Action: []string{"kms:Decrypt", "kms:GenerateDataKey"}, Resource: kms,
+			Action: kmsActions, Resource: kms,
 			Condition: map[string]any{"StringEquals": map[string]any{"kms:ViaService": r.viaService}},
 		})
 	}
@@ -384,6 +425,18 @@ func TestIAMTemplateIsExactlyThisPolicy(t *testing.T) {
 		// delimiter, and neither spelling is a mistake.
 		{"--key-prefix with a trailing slash", []string{"prod", iamBucket, "--key-prefix", "team/prod/"},
 			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, keyPrefix: "team/prod/"})},
+		// GitHub issue #1370. The rendering for a role that plans and never
+		// applies, and the same rendering under every other flag, because a
+		// plan role in GovCloud, under a key, under a key_prefix or with a
+		// declared dependency is the ordinary case and not a special one.
+		{"--read-only", []string{"prod", iamBucket, "--read-only"},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, readOnly: true})},
+		{"--read-only --kms", []string{"prod", iamBucket, "--read-only", "--kms", iamKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, readOnly: true, kms: iamKMSKey, viaService: iamKMSViaService})},
+		{"--read-only with everything", []string{"prod", iamBucket, "--read-only", "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network", "--key-prefix", "team/prod"},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, readOnly: true, account: iamAccount, kms: iamKMSKey, viaService: iamKMSViaService, others: []string{"network"}, keyPrefix: "team/prod/"})},
+		{"--read-only --partition aws-cn", []string{"prod", iamCNBucket, "--read-only", "--partition", "aws-cn", "--kms", iamCNKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamCNBucket, readOnly: true, partition: "aws-cn", kms: iamCNKMSKey, viaService: "s3.cn-north-1.amazonaws.com.cn"})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wantRaw, err := json.Marshal(tc.want)
@@ -411,17 +464,28 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 	// accident, and the read-and-delete assertion did have to be taught the
 	// difference between its own condition and the pin.
 	t.Run("no --account", func(t *testing.T) {
-		iamMeasuredShape(t, "", "prod", iamBucket, "--reads-outputs-of", "network")
+		iamMeasuredShape(t, "", false, "prod", iamBucket, "--reads-outputs-of", "network")
 	})
 	t.Run("--account", func(t *testing.T) {
-		iamMeasuredShape(t, iamAccount, "prod", iamBucket, "--account", iamAccount, "--reads-outputs-of", "network")
+		iamMeasuredShape(t, iamAccount, false, "prod", iamBucket, "--account", iamAccount, "--reads-outputs-of", "network")
+	})
+	// GitHub issue #1370. Every assertion below holds for the read-only
+	// rendering too, and the ones that cannot (there is no write statement to
+	// find) say so rather than being skipped.
+	t.Run("--read-only", func(t *testing.T) {
+		iamMeasuredShape(t, "", true, "prod", iamBucket, "--read-only", "--reads-outputs-of", "network")
+	})
+	t.Run("--read-only --account", func(t *testing.T) {
+		iamMeasuredShape(t, iamAccount, true, "prod", iamBucket, "--read-only", "--account", iamAccount, "--reads-outputs-of", "network")
 	})
 }
 
 // iamMeasuredShape is TestIAMTemplateKeepsTheMeasuredShape's body for one
 // render. account is what every Allow must pin as aws:ResourceAccount, or ""
-// when the render pinned nothing.
-func iamMeasuredShape(t *testing.T, account string, args ...string) {
+// when the render pinned nothing; readOnly says whether the render carried
+// --read-only, which changes which statements must be there and which must
+// not (#1370).
+func iamMeasuredShape(t *testing.T, account string, readOnly bool, args ...string) {
 	t.Helper()
 	var doc struct{ Statement []iamStatement }
 	if err := json.Unmarshal(renderIAMPolicy(t, args...), &doc); err != nil {
@@ -449,6 +513,16 @@ func iamMeasuredShape(t *testing.T, account string, args ...string) {
 		"DenyReadingOtherTagsUnderDeclaredOutputs": {b + "/tofu-outputs/network/*"},
 		"DenyRelabellingAnotherEstatesObjects":     {b + "/*"},
 		"ReadTheBucketsAssertedSettings":           {b},
+	}
+	// GitHub issue #1370. The read-only rendering reads the same three
+	// namespaces under one statement, and the two it replaces plus the
+	// bucket-configuration reads must be gone: a role that plans never
+	// writes, never deletes and never asserts the bucket contract.
+	if readOnly {
+		delete(wantResource, "ReadAndDeleteByPrefix")
+		delete(wantResource, "WriteOnlyObjectsTaggedAsThisEstate")
+		delete(wantResource, "ReadTheBucketsAssertedSettings")
+		wantResource["ReadByPrefix"] = own
 	}
 	// The read Deny covers the whole bucket EXCEPT the declared dependency's
 	// outputs, where a second Deny accepts that estate's tag. So it is pinned
@@ -565,6 +639,14 @@ func iamMeasuredShape(t *testing.T, account string, args ...string) {
 		if has(acts, "s3:GetObject") && has(acts, "s3:DeleteObject") && st.Effect == "Allow" && len(otherConditions) != 0 {
 			t.Errorf("%s: the read-and-delete allow carries a condition besides the owner pin (%v); it has to be scoped by prefix alone", st.Sid, otherConditions)
 		}
+		// The read-only rendering's one read statement, held to the same
+		// rule for the same measured reason (#1370): a read conditioned on
+		// the existing tag is denied for every object the tag is not in the
+		// request context for, so it is scoped by prefix and the tag does
+		// its work as a Deny.
+		if st.Sid == "ReadByPrefix" && len(otherConditions) != 0 {
+			t.Errorf("%s: the read allow carries a condition besides the owner pin (%v); it has to be scoped by prefix alone", st.Sid, otherConditions)
+		}
 		if has(acts, "s3:PutObject") && st.Effect == "Allow" {
 			sawWrite = true
 			if !has(acts, "s3:PutObjectTagging") {
@@ -623,15 +705,175 @@ func iamMeasuredShape(t *testing.T, account string, args ...string) {
 	if !sawList {
 		t.Error("no s3:ListBucket statement: besides listing, it is what makes a key that does not exist answer 404 rather than AccessDenied")
 	}
-	if !sawWrite || !sawDeny {
-		t.Errorf("write statement present: %v, deny statement present: %v", sawWrite, sawDeny)
+	switch {
+	case readOnly && sawWrite:
+		t.Error("the --read-only rendering allows s3:PutObject; a role that plans writes no record, and the one write a plan attempts is the store sentinel, which is denied and survived rather than granted (#1370)")
+	case !readOnly && !sawWrite:
+		t.Error("no write statement in the full rendering")
 	}
-	if account != "" && sawPin < 5 {
-		t.Errorf("only %d statement(s) pin the account; this render has more Allow statements than that, so something is not being read", sawPin)
+	if !sawDeny {
+		t.Error("no deny statement: the cross-estate boundary is the Deny, and it is in both renderings")
+	}
+	// Five Allow statements in the full rendering with a declared dependency,
+	// three in the read-only one. Counted rather than assumed, so a render
+	// that lost a statement does not pass by having fewer of them to pin.
+	wantPins := 5
+	if readOnly {
+		wantPins = 3
+	}
+	if account != "" && sawPin < wantPins {
+		t.Errorf("only %d statement(s) pin the account; this render has %d Allow statements, so something is not being read", sawPin, wantPins)
 	}
 	for sid := range wantResource {
 		if !seen[sid] {
 			t.Errorf("%s is missing from the rendered policy", sid)
+		}
+	}
+}
+
+// iamWritingActions are the actions that change something in the bucket: a
+// record, its tags, or a version of it. GitHub issue #1370's whole point is
+// that a role which plans has none of them.
+//
+// It is written out here rather than derived from the full rendering, so
+// this test states what a write is instead of repeating whatever the
+// renderer happens to grant today.
+var iamWritingActions = []string{
+	"s3:PutObject", "s3:PutObjectTagging", "s3:PutObjectVersionTagging",
+	"s3:DeleteObject", "s3:DeleteObjectVersion", "s3:DeleteObjectTagging",
+	"s3:DeleteObjectVersionTagging", "s3:AbortMultipartUpload",
+	"s3:PutBucketVersioning", "s3:PutLifecycleConfiguration", "s3:PutBucketPublicAccessBlock",
+	"kms:GenerateDataKey", "kms:GenerateDataKeyWithoutPlaintext", "kms:Encrypt", "kms:ReEncryptTo",
+}
+
+// iamAllowedActions is every action a rendering ALLOWS, across all of its
+// Allow statements.
+//
+// Allow statements alone, because a Deny grants nothing: both renderings
+// deny four tagging actions on another estate's objects, and the read-only
+// one allows none of the four. That Deny is there for the reason the full
+// rendering denies three read actions it never allows either - a Deny
+// written for the actions of the day stops covering the boundary the moment
+// somebody widens the Allow list - so reading it as a grant would report the
+// stricter policy as the looser one.
+func iamAllowedActions(t *testing.T, raw []byte) map[string]bool {
+	t.Helper()
+	var doc struct{ Statement []iamStatement }
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, raw)
+	}
+	out := map[string]bool{}
+	for _, st := range doc.Statement {
+		if st.Effect != "Allow" {
+			continue
+		}
+		for _, a := range st.actions() {
+			out[a] = true
+		}
+	}
+	if len(out) == 0 {
+		t.Fatalf("the rendering allows nothing at all, so a test that it allows no write proves nothing:\n%s", raw)
+	}
+	return out
+}
+
+// TestIAMReadOnlyRenderingAllowsNoWrite is GitHub issue #1370's acceptance in
+// one line: --read-only grants nothing that writes, tags or deletes.
+//
+// The control below is the same render without the flag, and it exists
+// because a renderer that printed an empty policy, or one whose --read-only
+// silently rendered nothing at all, would pass the first half on its own.
+func TestIAMReadOnlyRenderingAllowsNoWrite(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"no other flags", []string{"prod", iamBucket}},
+		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey}},
+		{"--account and a dependency", []string{"prod", iamBucket, "--account", iamAccount, "--reads-outputs-of", "network"}},
+		{"--key-prefix", []string{"prod", iamBucket, "--key-prefix", "team/prod"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			readOnly := iamAllowedActions(t, renderIAMPolicy(t, append(append([]string{}, tc.args...), "--read-only")...))
+			for _, a := range iamWritingActions {
+				if readOnly[a] {
+					t.Errorf("the --read-only rendering allows %s; a role that plans changes nothing in the bucket", a)
+				}
+			}
+			// And it still reads: a policy that allowed nothing would pass
+			// every line above.
+			if !readOnly["s3:GetObject"] || !readOnly["s3:ListBucket"] {
+				t.Errorf("the --read-only rendering does not allow both s3:GetObject and s3:ListBucket, so it cannot plan at all: %v", readOnly)
+			}
+
+			// The control. The same render without the flag has to allow the
+			// writes, or the assertion above is measuring a list of actions
+			// nothing ever grants.
+			full := iamAllowedActions(t, renderIAMPolicy(t, tc.args...))
+			for _, a := range []string{"s3:PutObject", "s3:PutObjectTagging", "s3:DeleteObject"} {
+				if !full[a] {
+					t.Errorf("the full rendering does not allow %s, so the --read-only assertions above are not measuring the difference between the two", a)
+				}
+			}
+			// The key half of the same control (#1370): S3 asks for
+			// kms:GenerateDataKey on a PUT, so a writer needs it and a
+			// reader does not.
+			if strings.Contains(strings.Join(tc.args, " "), "--kms") {
+				if !full["kms:GenerateDataKey"] {
+					t.Error("the full rendering with --kms does not allow kms:GenerateDataKey, which is what S3 asks for on every PUT")
+				}
+				if !readOnly["kms:Decrypt"] {
+					t.Error("the --read-only rendering with --kms does not allow kms:Decrypt, so it cannot read an encrypted record")
+				}
+			}
+		})
+	}
+}
+
+// TestIAMReadOnlyRenderingKeepsTheBoundaryDenies: the read-only rendering is
+// the full one with grants taken away and nothing else. Every Deny the full
+// rendering carries is in it, unchanged, because the cross-estate boundary
+// does not depend on what the role may write. A "read-only" policy that
+// dropped a Deny would be the looser of the two while reading as the safer.
+func TestIAMReadOnlyRenderingKeepsTheBoundaryDenies(t *testing.T) {
+	denies := func(args ...string) map[string]string {
+		t.Helper()
+		var doc struct{ Statement []iamStatement }
+		if err := json.Unmarshal(renderIAMPolicy(t, args...), &doc); err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]string{}
+		for _, st := range doc.Statement {
+			if st.Effect != "Deny" {
+				continue
+			}
+			raw, err := json.Marshal(st)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out[st.Sid] = string(raw)
+		}
+		return out
+	}
+	base := []string{"prod", iamBucket, "--reads-outputs-of", "network", "--kms", iamKMSKey}
+	full := denies(base...)
+	readOnly := denies(append(append([]string{}, base...), "--read-only")...)
+	if len(full) != 3 {
+		t.Fatalf("the full rendering has %d Deny statement(s), and this render has three (the read Deny, the dependency read Deny and the relabel Deny): %v", len(full), full)
+	}
+	for sid, want := range full {
+		got, ok := readOnly[sid]
+		if !ok {
+			t.Errorf("the --read-only rendering has no %s; the cross-estate boundary is the same whether or not the role may write", sid)
+			continue
+		}
+		if got != want {
+			t.Errorf("%s differs between the two renderings.\nfull:\n  %s\nread-only:\n  %s", sid, want, got)
+		}
+	}
+	for sid := range readOnly {
+		if _, ok := full[sid]; !ok {
+			t.Errorf("the --read-only rendering carries a Deny the full one does not, %s; say here why the two differ", sid)
 		}
 	}
 }
@@ -1051,9 +1293,23 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 		{"prod", iamBucket, "--key-prefix", "tofu-records/prod"},
 		{"prod", iamBucket, "--key-prefix", "one-segment"},
 		{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
+		{"prod", iamBucket, "--read-only"},
+		{"prod", iamBucket, "--read-only", "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network", "--key-prefix", "team/prod"},
 	} {
 		if out, err := exec.Command("bash", append([]string{iamRenderer}, good...)...).CombinedOutput(); err != nil {
 			t.Errorf("render-policy.sh refused %v: %v\n%s", good, err, out)
+		}
+	}
+	// GitHub issue #1370. --read-only takes no value, so a word after it is
+	// a mistake and not an argument to it; a renderer that swallowed one
+	// would ignore whatever the caller meant to pass.
+	for _, bad := range [][]string{
+		{"prod", iamBucket, "--read-only", "true"},
+		{"prod", iamBucket, "--read-only=true"},
+		{"prod", iamBucket, "--readonly"},
+	} {
+		if out, err := exec.Command("bash", append([]string{iamRenderer}, bad...)...).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh accepted %v:\n%s", bad, out)
 		}
 	}
 }
