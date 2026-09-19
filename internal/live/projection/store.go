@@ -282,8 +282,8 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 //
 // It is a prefix of the KEY, not of the backend's own namespace - the
 // backends are built with no prefix of their own (see backendKeyPrefix),
-// so a record's SSM parameter name is "/" + this + "/..." and its S3
-// object key is this + "/...", each carrying the configured prefix once.
+// so a record's S3 object key is this + "/...", carrying the configured
+// prefix once.
 func RecordStoreKeyPrefix(rs *configs.LiveRecordStore, estate string) string {
 	return recordStoreKeyPrefix(rs, estate)
 }
