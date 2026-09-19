@@ -319,7 +319,7 @@ func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
 			t.Errorf("claim %d (%s): real_aws is true in %s and no line in the scenario matches any of the ways this test knows to reach an account, so the ordering check below would prove nothing; either the row is wrong or smokeTouchesAWS is out of date", c.ID, name, smokeClaimsPath)
 		}
 		if refusalAt < 0 {
-			t.Errorf("claim %d (%s): real_aws is true in %s and no executable line tests %s; a refusal inside a comment refuses nothing", c.ID, name, smokeClaimsPath, smokeRefusal)
+			t.Errorf("claim %d (%s): real_aws is true in %s and no executable line tests exactly %s; a refusal sitting in a comment, or one whose default is not 0, is not one", c.ID, name, smokeClaimsPath, smokeRefusal)
 		} else {
 			if !wired {
 				t.Errorf("claim %d (%s): line %d tests %s and does not follow it with `|| fail`, so the scenario runs on regardless", c.ID, name, refusalAt+1, smokeRefusal)
