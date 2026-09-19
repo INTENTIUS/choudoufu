@@ -35,22 +35,17 @@ same bar beside the Kubernetes claims.
 
 A row is measured by running its crossing script, so it is evidence about
 the script as it stood that day. When the script changes afterwards and
-nobody re-runs the estate, the row keeps its old verdicts while the table
-reads as if they described the script in the tree
+nobody re-runs the estate, the row keeps its old verdicts
 ([#1264](https://github.com/INTENTIUS/choudoufu/issues/1264)). The same is
 true of `live/e2e/lib/`, the protocol library every crossing script sources
-([#1292](https://github.com/INTENTIUS/choudoufu/issues/1292)) - it belongs
-to no single estate, so a change to it moves what every row measures at
-once. Both are compared, and each affected estate's own page says which of
-the two moved. What is deliberately not compared is the emulator pin and
-the oracle versions, whose values each row already records and which are
-already checked against the current pin by value further down its page, and
-the product code in `internal/`, which almost every commit touches. The
-sentence above counts the rows in that state; `go run ./tools/gauntlet
-check` recomputes the same answer from the checkout, and is the copy that
-cannot lag. It is deliberately not a build failure: re-running an estate can
-take half an hour, so the drift is shown and left for a maintainer to
-schedule.
+([#1292](https://github.com/INTENTIUS/choudoufu/issues/1292)): a change to
+it moves what every row measures at once. Both are compared, and each
+affected estate's own page says which of the two moved.
+
+The sentence above counts the rows in that state, and `go run
+./tools/gauntlet check` recomputes the same answer from the checkout. The
+drift does not fail the build, because re-running an estate can take half
+an hour. It is shown and left for a maintainer to schedule.
 
 The behaviors-proven line above counts how many of the
 {{< gauntlet-board "stage-count" >}} stages below have a FAST tier-1 fixture

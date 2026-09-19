@@ -13,7 +13,7 @@ time, until each carries its own ownership record. Nothing does this
 automatically, and the failure mode is quiet.
 
 {{% hint warning %}}
-Turning on live markers does not bind resources you already manage. A resource
+Turning on the live backend does not bind resources you already manage. A resource
 with no marker is not yours yet, so the first plan reads it as absent and
 proposes a second one beside it. Applying that plan succeeds, and creates the
 duplicate.
@@ -43,7 +43,7 @@ So deleting the file takes [the bulk path](#moving-a-large-estate-in-one-go)
 with it, leaving the plan-based loop and its `count`/`for_each` blind spot as
 the only way through.
 
-Keeping it costs nothing while you decide. Marker mode does not read a state
+Keeping it costs nothing while you decide. The live backend does not read a state
 file, refuse one, or mention one, so a `terraform.tfstate` sitting beside a
 live configuration changes no behaviour at all:
 [What you set up by hand]({{< relref "/docs/use/setup#deleting-the-state-file-is-not-enforced" >}})
@@ -236,27 +236,25 @@ instead.
      --tags 'Key=tofu-estate,Value=my-estate' 'Key=tofu-address,Value=aws_vpc.pool:0'
    ```
 
-   Two tags are enough even for a `count` instance. `tofu-slot` binds a
-   `count` instance where it is present, but a hand-written pair without it
-   still binds on `tofu-address`, and the next plan proposes adding the slot
-   as an ordinary in-place tags update. Writing the pair and letting the plan
-   fill in the slot is correct.
+   Two tags are enough even for a `count` instance. A hand-written pair
+   without `tofu-slot` still binds on `tofu-address`, and the next plan
+   proposes adding the slot as an ordinary in-place tags update.
+
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
 6. **Turn the live block on.** This is the migration's end state: with
    the block in the configuration, the ordinary `choudoufu plan` and
    `apply` run the live backend, and `live-plan` retires. Do it before
-   any plain plan or apply - without the block those are stock mode
-   (the fallback), and stock mode with no state file proposes
-   rebuilding the whole estate. A stock-mode plan that would create
-   marker-stamped resources from an empty state now warns and names
-   this exact situation.
-7. **Delete the state file, if you want it gone.** Not before here, and not
-   required at all. Nothing reads or refuses the file itself, and nothing
-   checks that you removed it, so this is housekeeping rather than a
-   migration step. What IS refused is different and comes later: a run
-   without the live block whose plan would strip this estate's markers -
-   see [Leaving, and the guard](#leaving-and-the-guard-that-makes-it-deliberate).
+   any plain plan or apply. Without the block those are stock mode, and
+   stock mode with no state file proposes rebuilding the whole estate.
+   A stock-mode plan that would create marker-stamped resources from an
+   empty state warns and names this situation.
+7. **Delete the state file, if you want it gone.** This is optional
+   housekeeping, and it comes last. Nothing reads or refuses the file
+   itself, and nothing checks that you removed it. What is refused is a
+   later run without the live block whose plan would strip this estate's
+   markers: see
+   [Leaving, and the guard](#leaving-and-the-guard-that-makes-it-deliberate).
 
 There is no `choudoufu adopt` command and no need for one. Two tags is the
 whole contract (`live/MARKERS.md`), so any tool that writes two tags can adopt

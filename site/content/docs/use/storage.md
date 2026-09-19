@@ -8,7 +8,7 @@ weight: 8
 | What | Where it lives | Who writes it | Losing it costs |
 |---|---|---|---|
 | Ownership markers | On the resource: two tags on AWS, one label on Kubernetes | The apply | The resource goes invisible and the next plan proposes a duplicate |
-| Records | The record store, one record per managed instance | choudoufu | For a resource with a live twin, a slower or noisier plan. For one with no twin, the resource |
+| Records | The record store, one record per managed instance | choudoufu | For most resources, a slower or noisier plan. For a record-backed one, the resource |
 | Receipts | Ordinary resources you declare | You | Nothing structural. It is your data, in your configuration |
 | The cache | `.terraform/choudoufu-cache.tfstate`, on the machine that ran | choudoufu | A read |
 
@@ -44,7 +44,7 @@ stock implies a local state file.
 Use a bucket or a cluster for anything more than one operator shares. The
 local store is for one person or a demo. It is also what a CI runner gets if
 the estate declares nothing, and there it is empty on every run: an ordinary
-resource still binds by its marker, and a resource with no twin is proposed
+resource still binds by its marker, and a record-backed resource is proposed
 for create again.
 
 ### Opening a store
@@ -63,14 +63,14 @@ A store that refused stops every command: a bucket that fails
 [its three settings]({{< relref "/docs/use/bucket-contract" >}}), a listing
 that does not return what was just written, a KMS key that refused the run.
 For `plan`, `apply` and `live-import`, a store that could not be reached
-stops the run too. `live-plan` and `live-mv` go on without records and say so
-in a warning titled `The record store was not read`. That warning matters
-for two kinds of resource. One with no twin is known only by its record, so
-it may appear as something to create when it already exists. A
-`kubernetes_manifest` needs its record to tell a label the configuration
-dropped from one somebody added by hand, so without it a removed label is not
-planned for removal, and the output can read "No changes" while the live
-object keeps it.
+stops the run too.
+
+`live-plan` and `live-mv` go on without records and say so in a warning
+titled `The record store was not read`. A record-backed resource is known
+only by its record, so it may appear as something to create when it already
+exists. A `kubernetes_manifest` needs its record to see that the
+configuration dropped a label, so without it the output can read
+"No changes" while the live object keeps the label.
 
 ## The local store
 
@@ -149,11 +149,11 @@ no other.
 The bucket is versioned. A deleted record becomes a delete marker with the
 record underneath as a noncurrent version, until the bucket's lifecycle rule
 expires it. That window is the recovery path for a record deleted by mistake,
-and the only one a resource with no twin has.
+and the only one a record-backed resource has.
 [Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) uses it.
 
-`choudoufu destroy` destroys the resources and deletes the records of those
-with no twin. It leaves a few small objects under the estate's prefixes: the
+`choudoufu destroy` destroys the resources and deletes the records of the
+record-backed ones. It leaves a few small objects under the estate's prefixes: the
 sentinel, the hint, the outputs, and a tombstone per destroyed instance.
 Removing them is yours to do, and `examples/record-store-bucket`'s `just down`
 refuses to delete a bucket that still holds any.
@@ -187,7 +187,7 @@ record store on purpose: its job is to be readable with a plain cloud CLI by som
 access and no `choudoufu` binary, and a record is tool-internal JSON in a store few people may read. A
 `key_prefix` starting with `tofu-receipts` is a configuration error, and
 `terraform_data`'s `triggers_replace` is not a substitute.
-[Effects]({{< relref "/docs/model/effects" >}}) and `live/RECEIPTS.md` have
+[Receipts]({{< relref "/docs/use/record-an-effect" >}}) and `live/RECEIPTS.md` have
 the pattern and the lint rules. An SSM parameter at
 `/tofu-receipts/<estate>/<effect>` is one supported home for a receipt, and
 nothing requires it.

@@ -8,31 +8,26 @@ claim: count-is-a-fungible-set
 
 A `count` block declares a set, and stock tools treat it as a list:
 instance 2 is whatever sits at index 2. Shrinking the count renumbers
-the tail and rebuilds it. Where the members are genuinely interchangeable
-- nothing in the configuration says which live resource is which -
-choudoufu names each one with a `tofu-slot` marker instead, a stable id
-minted once and never reused. The lint boundary admits `count.index` in an
-identity-bearing argument only where it can prove every instance renders a
-distinct value, and a block that does name its members that way needs no
-slot: the configuration already says which is which. For the fungible kind,
-the index is where a member sits today; the slot is what it is. So a pool
-of three scales to two by removing exactly one member and rebuilding
-nothing, and the survivors keep their live ids. Strip the slot from one
-member where no local record names it, and the set has two rules for
-naming its members, so the run refuses rather than guess.
+the tail and rebuilds it.
+
+Some `count` blocks have interchangeable
+members, where nothing in the configuration says which live resource is
+which. choudoufu names each of those with a `tofu-slot` marker, a stable id
+minted once and never reused. A block whose members the configuration names
+through `count.index` needs no slot and gets none. For the fungible kind, the
+index is where a member sits today, and the slot is what it is. So a pool of three scales
+to two by removing exactly one member and rebuilding nothing, and the
+survivors keep their live ids. Strip the slot from one member where no
+local record names it, and the run refuses.
 
 The other kind of `count` block is the one whose members the
-configuration itself names - a log group whose `name` is built from
-`count.index`. There, the live resource that is instance k is the one the
-configuration names, nothing is left for a slot to decide, and none is
-written: those members carry `tofu-estate` and `tofu-address` and the
-index in the address is what says which instance each one is. A reader
-never has to consult a configuration to tell the two kinds apart, because
-it can read the set: slots present, bind by slot; slots absent, bind by
-`tofu-address`. That correct absence is what an operator reported as a
-bug in issue #969, and the reason it read as one is that no claim step
-had ever read the tag set back off a member of the second kind. Step 5
-does, on both kinds at once.
+configuration itself names, such as a log group whose `name` is built
+from `count.index`. Those members get no slot. They carry `tofu-estate`
+and `tofu-address`, and the index in the address says which instance
+each one is. A reader tells the two kinds apart from the tag set alone:
+slots present, bind by slot; slots absent, bind by `tofu-address`. Issue
+#969 reported that absence as a bug, and step 5 reads the tags back on
+both kinds at once.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
@@ -63,20 +58,15 @@ The steps as they print:
 4. `the middle survivor is the same live object` - the id from step 2 is
    still allocated. Its seat moved and its identity did not.
 5. `both kinds of count instance, read back with the plain AWS CLI` - two
-   `count` blocks of one type, `aws_cloudwatch_log_group`, differing in
-   exactly one property: one names its members (`name =
-   "/svc/${count.index}"`), the other leaves the name to the provider
-   (`name_prefix`). Every tag is read back off the live log groups with
-   the plain AWS CLI, no choudoufu in the read, and compared as a whole
-   key set. The named pair carries exactly `purpose`, `tofu-address` and
-   `tofu-estate`, with the estate and the address asserted by value and
-   no `tofu-slot`; the `name_prefix` pair carries exactly `tofu-address`,
-   `tofu-estate` and `tofu-slot`, with the slots `0` and `1` read off the
-   live groups. Then the next plan is empty, so the first pair bound by
-   its addresses and the second by its slots. One type, one
-   `list-tags-for-resource` call, one apply: a slot coming back missing
-   on one pair cannot be a broken query when the identical query answers
-   on the pair beside it.
+   `count` blocks of one type, `aws_cloudwatch_log_group`: one names its
+   members (`name = "/svc/${count.index}"`), the other leaves the name to
+   the provider (`name_prefix`). Every tag is read back off the live log
+   groups with the plain AWS CLI and compared as a whole key set. The
+   named pair carries exactly `purpose`, `tofu-address` and
+   `tofu-estate`. The `name_prefix` pair carries exactly `tofu-address`,
+   `tofu-estate` and `tofu-slot`, with the slots `0` and `1`. Then the
+   next plan is empty, so the first pair bound by its addresses and the
+   second by its slots.
 6. `teardown` - the pool is destroyed.
 
 This claim carries two `BREAK` controls, because step 5 asserts a

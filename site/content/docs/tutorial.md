@@ -6,11 +6,11 @@ weight: 3
 # Tutorial: see markers work
 
 The run below stands up a real VPC, subnet and security group, plus an S3
-bucket and a log group, inside a local AWS emulator. choudoufu builds them
-and deletes its own state file, then rebuilds its bookkeeping from two tags
-read straight off the live resources. It then drifts three of them out of
-band and corrects exactly what drifted. The whole thing takes about two
-minutes, and every claim in this walkthrough is checked by the same run.
+bucket and a log group, inside a local AWS emulator. Every resource is created
+with two tags that say who owns it. The run then deletes the state file and
+plans again from those tags alone, drifts three resources out of band, and
+corrects exactly what drifted. It takes about two minutes, and every claim in
+this walkthrough is checked by the same run.
 
 ## Before you start
 
@@ -58,23 +58,26 @@ abbreviated rather than something to match against.
 
 ## Walk through what just happened
 
-Notice that step 2, `standup`, is the least interesting thing OpenTofu does:
-plain `init` and `apply` against a plain local state file, no markers
-anywhere yet. That's the baseline every later step gets compared against.
+Step 2, `standup`, is a plain `init` and `apply` with a plain local state
+file. The one thing to notice is in the fixture: every resource declares two
+tags, `tofu-estate` and `tofu-address`, so the apply writes them onto the live
+resources as it creates them. Those tags are the markers. This fixture spells
+them out so you can see them. In your own estate you write no tags: one
+`estate.chdf.hcl` file makes choudoufu add them on every create.
 
-Step 3 is the handover, and it's almost anticlimactic: the script deletes
-`terraform.tfstate` in front of you, and nothing else changes, not the
-configuration, not the resources sitting in the emulator. That deletion is
-the entire migration to marker mode. From here on the state file stops
-being the record of what you own: choudoufu still keeps one, a disposable
-cache at `choudoufu-cache.tfstate` that it is allowed to find stale or
-missing, and it rebuilds what it needs to know by reading two tags,
-`tofu-estate` and `tofu-address`, straight off the live resources.
+Step 3 deletes `terraform.tfstate` in front of you, and nothing else changes.
+That is safe here only because the markers are already on every resource.
+On an account whose resources carry no markers, deleting the state file first
+is the wrong order, and
+[Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) has the right
+one. From here on the state file is not the record of what you own. choudoufu
+still keeps one as a cache it may find stale or missing, and it rebuilds what
+it needs by reading the two tags off the live resources.
 
 Steps 4 and 5 ask for a plan right after the handover, once with a
-`-target`, once for the whole estate. Both come back empty. The output
-should read this as proof, not assertion: an empty plan means every resource
-choudoufu just "forgot" was found again, correctly, by its tags alone.
+`-target`, once for the whole estate. Both come back empty. An empty plan
+means every resource whose state was just deleted was found again, correctly,
+by its tags alone.
 
 Then the run tests what the tags are for. Step 6 changes one attribute on
 each of several resource types using the AWS CLI directly, behind
@@ -91,11 +94,6 @@ By step 14, the run turns to what choudoufu refuses. Every fixture under
 and the step confirms each one is rejected, by name, for the reason its own
 fixture claims and no other.
 
-You have just watched choudoufu build a real, emulated AWS estate, hand its
-own bookkeeping over to tags on the live resources, survive three kinds of
-drift and a removal without losing track of anything, and refuse the
-constructs it isn't ready for, all without touching a credential.
-
 ## Next
 
 - [Start a new estate]({{< relref "/docs/use/start" >}}) does this against
@@ -103,7 +101,6 @@ constructs it isn't ready for, all without touching a credential.
 - [Migrate an existing estate]({{< relref "/docs/use/migrate" >}}) covers
   resources AWS already holds that choudoufu should take over instead of
   creating fresh.
-- [The model]({{< relref "/docs/model" >}}) explains why two tags are enough
-  to recover identity.
+- [What it is]({{< relref "/docs/model" >}}) explains why two tags are enough.
 - Every step, flag and environment knob this harness has is catalogued in
   [`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md).
