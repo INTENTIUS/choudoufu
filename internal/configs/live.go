@@ -1071,7 +1071,7 @@ const SummaryRecordStoreRetired = "Retired record_store backend"
 // was on this backend when it was retired.
 func recordStoreRetiredDetail(label string) string {
 	return fmt.Sprintf("record_store %q is retired: AWS Systems Manager Parameter Store is no longer supported as a record store. "+
-		"Standard parameters cap at 10,000 per account and region, a quota that is your account's and is shared with everything else in it, and past that every parameter is billed monthly on the advanced tier. "+
+		"Standard parameters cap at 10,000 per account and region, a quota that is your account's and is shared with everything else in it, and going past it means putting parameters on the advanced tier, where each one is billed monthly. "+
 		"It also has no general conditional write, only create-if-absent, where the record store's consistency rests on every write being conditional.\n\n"+
 		"Declare record_store \"s3\" with a bucket instead. examples/record-store-bucket stands a correct bucket up with \"just up\", \"choudoufu live-bucket\" says whether an existing one is correct, and its iam directory renders the policy an estate's role needs.\n\n"+
 		"Records already in Parameter Store are not migrated, and no migration command exists, because no estate was on this backend when it was retired. "+
