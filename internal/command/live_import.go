@@ -188,6 +188,9 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))
 			return nil, closer, diags
 		}
+		// #1340, #1376: a waiver is announced on every path that opens the
+		// store, and a migration is the run that fills it.
+		diags = diags.Append(bucketWaiverWarnings(recordStoreCfg))
 		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))
 		// GitHub issue #349: the same underlying store again, its own
 		// namespace rather than a member of the envelope - an output names
