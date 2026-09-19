@@ -65,7 +65,7 @@ stronger than any encryption of the store, because there is nothing in the
 store to decrypt. It costs two things. Those types cannot be in the estate:
 generate the secret somewhere that is built to hold one, and pass a
 reference. And an argument that is neither returned by the API nor remembered
-cannot be compared, so a plan cannot tell you it changed.
+has no prior value, so every plan shows it as a change.
 [Reference]({{< relref "/docs/use/reference" >}}) covers the setting and the
 environment pin that stops a configuration relaxing it.
 
