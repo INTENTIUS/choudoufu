@@ -70,6 +70,9 @@ between two plans, and checking them costs three reads and three permissions.
 - Whenever you ask: `choudoufu live-bucket -bucket <name>` reports all three
   and exits non-zero on a failure. It reports the bucket, so a waiver in some
   estate's configuration never changes its answer.
+  Named with `-bucket` alone it credits only a lifecycle rule with no filter,
+  which is the answer that holds for every estate sharing the bucket, and the
+  report says so. `-estate <name>` checks as that estate's runs would.
 
 A setting the role cannot read is refused the same as one that failed,
 because a bucket nobody could check is not a bucket anyone checked. The three
