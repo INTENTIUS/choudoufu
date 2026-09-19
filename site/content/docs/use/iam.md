@@ -196,8 +196,13 @@ measures all of this on real AWS.
 
 ## Reading another estate's outputs
 
-A declared dependency on another estate's outputs is the one place a role
-sees two estates, and the policy has to grant it back explicitly:
+No choudoufu run reads another estate's objects. An estate reads a value from
+another one off the live resource, with a data source
+([Reading a value from another estate]({{< relref "/docs/use/cross-estate" >}})),
+and needs nothing extra on the bucket for it. This flag is for a reader you
+write yourself, such as a script or a dashboard that shows one estate's
+outputs from a role scoped to another. The isolation above denies that read,
+and the policy has to grant it back explicitly:
 
 ```
 render-policy.sh prod <bucket> --reads-outputs-of network
@@ -206,9 +211,9 @@ render-policy.sh prod <bucket> --reads-outputs-of network
 That changes three statements, which is why it is a flag and not an edit:
 the list prefixes gain `tofu-outputs/network/*`, a statement allows
 `s3:GetObject` there, and the deny accepts `network`'s tag beside
-`prod`'s. Add the dependency to the configuration and not to the policy
-and the run fails with `AccessDenied`.
+`prod`'s.
 
-What crosses is everything in the other estate's outputs. An output
-marked sensitive is readable by the depending estate like any other. A
-declared dependency is a declared disclosure.
+What the grant exposes is everything the other estate wrote under
+`tofu-outputs/`: its root output values. An output marked `sensitive` is
+never written there, and neither is one whose value is not wholly known, so
+neither can be read this way. The other estate's records stay denied.

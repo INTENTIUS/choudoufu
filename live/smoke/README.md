@@ -559,7 +559,7 @@ showing its own checks would have caught it.
   prefix deliberately widened it is still refused the read, by the tag;
   the same widened role overwriting and deleting a neighbour's object is
   shown allowed, because nothing but the prefix defends that; and a
-  declared dependency opens the other estate's outputs and nothing else.
+  `--reads-outputs-of` grant opens the other estate's outputs and nothing else.
   The BREAK control widens the prefix and removes the tag's Deny, and
   the read must then succeed (#1343). Needs jq.
 - **objects-carry-the-estate-tag** - *Claim 36: every record store

@@ -5,18 +5,22 @@ weight: 8
 
 # Where things are stored
 
-choudoufu writes in three places. Two can both end up as SSM parameters, which
-is why they get confused. They do different jobs and have different owners.
+choudoufu writes in three places. They do different jobs and have different
+owners.
 
 | What | Where it lives | Who reads it | Losing it costs |
 |---|---|---|---|
 | Ownership markers | Two tags on the resource itself | choudoufu, and you, with any cloud tool | The resource goes invisible and the next plan proposes a duplicate |
-| Micro-state records | A local directory beside the module unless you declare a `record_store` on SSM or S3 | choudoufu, and anyone with read access to wherever you put it | Churn, since the effect re-runs or its value regenerates |
+| Micro-state records | A local directory beside the module, or an S3 bucket you name with `record_store "s3"` | choudoufu, and anyone with read access to wherever you put it | Churn, since the effect re-runs or its value regenerates. For a value other resources are named after, more than churn |
 | Receipts | Ordinary resources *you* declare, by convention SSM parameters | You, your reviewers, your incident responder | Nothing structural. It is your data, in your configuration |
 
 The first is the product. The second is plumbing that is there by default and
-that you point somewhere else when a team needs to share it. The third you
-write yourself, and choudoufu only lints it.
+that you point at a bucket when a team needs to share it. The third you write
+yourself, and choudoufu only lints it.
+
+There is a fourth file, the [cache]({{< relref "/docs/model/cache" >}}), and it
+is not on this list on purpose. It is on the client, it is never consulted for
+ownership, and losing it costs a read.
 
 ## Ownership markers
 
@@ -53,26 +57,26 @@ a `.tofu-records` directory beside the module, the way stock OpenTofu implies
 a local state file.
 
 Gitignore that directory before the first apply. No tool generates the line
-for you, and [what the store may contain](#what-the-store-may-contain-and-who-can-read-it)
-below is why it matters.
+for you, and [Secrets]({{< relref "/docs/use/secrets" >}}) is why it matters.
 
 ```
 # .gitignore
 .tofu-records/
 ```
 
-This repository carries exactly that line for its own runs, at `.gitignore`.
 The store creates its directories `0700` and its files `0600`, which keeps
 other users on the machine out and does nothing whatsoever about `git add`.
 
-Declare a `record_store` when you want the records somewhere a team shares,
-or somewhere that survives the working copy.
+Declare a bucket when you want the records somewhere a team shares, or
+somewhere that survives the working copy.
 
 ```hcl
 # estate.chdf.hcl
 estate = "my-estate"
 
-record_store "ssm" {}
+record_store "s3" {
+  bucket = "my-records-bucket"
+}
 ```
 
 The same block goes inside `live` for the in-`terraform` form. The label picks
@@ -81,19 +85,105 @@ the backend.
 | Backend | Where it writes | Arguments |
 |---|---|---|
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
-| `ssm` | SSM Parameter Store, under a prefix derived from the estate name | `key_prefix`, `region`, `tier` |
-| `s3` | An S3 bucket you already own | `bucket` (required), `key_prefix`, `region` |
+| `s3` | An S3 bucket you already own | `bucket` (required), `key_prefix`, `region`, `allow_insecure` |
 
-Three things to know first, and then the one that decides where the store
-should live.
+`record_store "ssm"` was a third and is retired. A configuration that still
+declares it is refused with the reasons and this replacement. That is about
+Parameter Store as a place for records. Receipts, below, are ordinary SSM
+parameters you declare and are untouched.
 
-**You are not meant to read it**: the payload is a self-describing ctyjson
-envelope for this fork's own code. Not an operator-facing artifact, and its
-format is not a contract.
+## The bucket
 
-**Writes are conditional.** A record is written only if it still carries the
-version the writer read. A losing writer gets a named failure rather than a
-blocking wait or a silent overwrite.
+One bucket serves any number of estates. choudoufu never creates it and never
+configures it. [What you set up by hand]({{< relref "/docs/use/setup" >}}) has
+the creating, and
+[the three settings]({{< relref "/docs/use/bucket-contract" >}}) has what it
+must have.
+
+### Layout
+
+An estate writes under three prefixes and nowhere else.
+
+| Prefix | What is there | How many objects |
+|---|---|---|
+| `tofu-records/<estate>/` | One object per managed resource instance, at `<type>/<encoded address>`, plus `.store-sentinel` | As many as the estate has instances |
+| `tofu-hints/<estate>/` | `guided`, the hint guided discovery uses to look where resources were last found | One |
+| `tofu-outputs/<estate>/` | The value each root output settled on at the last apply, so a plan can render a change as a change | One per root output, never a `sensitive` one |
+
+Every prefix ends in `/`, and that character is doing real work. S3 matches a
+prefix as a plain string, so `tofu-records/prod` is also a prefix of
+`tofu-records/prod-eu/...`. With the delimiter, an estate called `prod` and
+one called `prod-eu` share no keys, no listing and no bulk read
+([claim 28]({{< relref "/docs/claims/a-name-prefix-shares-no-keys" >}})). The
+[IAM policy]({{< relref "/docs/use/iam" >}}) carries the same delimiter, and
+for a list, a write and a delete it is the whole defence between estates.
+
+A `key_prefix` override moves the first of the three. It may not begin with
+any of the reserved roots, so a record can never land where a hint, an output
+or a receipt lives.
+
+### What is in an object
+
+A record is a JSON envelope for this fork's own code, and there are two kinds.
+
+| `kind` | Written for | Holds | Losing it costs |
+|---|---|---|---|
+| `object` | A record-backed resource, one with no cloud twin to carry a marker: `null_resource`, `terraform_data`, `random_*`, `time_*`, `tls_*` | The whole value: its attributes, the provider's `private` blob, and which attributes were sensitive | The resource itself. The record is the only copy |
+| `identity` | Every other managed instance, ordinary taggable cloud resources included | What a read of the live resource cannot give back: an import identity, argument values the provider's read never returns, and whether a create-time provisioner ran | A slower or noisier plan. Ownership is the resource's two tags and does not depend on it |
+
+The `kind` field inside the envelope, and never the key's spelling, decides
+whether a reader may treat a record with no configuration behind it as
+something to propose destroying. Only an `object` record is.
+
+The second row is where a taggable resource's secret can end up in the bucket:
+an argument such as a database password is one the API never returns, so under
+the default `strict { secrets = "store" }` it is remembered here, the way a
+state file remembers it. A write-only argument is never recorded under either
+setting. [Secrets]({{< relref "/docs/use/secrets" >}}) has the rest.
+
+You are not meant to read it, and its format is not a contract. The sentinel
+is the exception: its payload is a sentence saying what it is for.
+
+### The tags on every object
+
+Every object is written with the estate's own marker, in the same request as
+the object itself, so there is no moment at which it exists untagged.
+
+| Tag | On | Value |
+|---|---|---|
+| `tofu-estate` | Every object | The estate's name |
+| `tofu-address` | Records | The resource instance's address, in the marker form every managed resource carries |
+
+They are for authorization and provenance. The published IAM policy requires
+the tag on a write and denies a read of an object tagged as another estate's,
+so reaching a neighbour's records takes a wrong prefix *and* a wrong tag
+([claim 35]({{< relref "/docs/claims/one-bucket-many-estates" >}})). They are
+not how anything is found: objects are found by listing a known prefix, and
+the Resource Groups Tagging API does not index S3 objects.
+[Claim 36]({{< relref "/docs/claims/objects-carry-the-estate-tag" >}}) reads
+every object's tags back and shows the tag is load-bearing.
+
+### How it is read and written
+
+**One listing, then parallel reads.** A run reads its whole records namespace
+up front: one paginated `ListObjectsV2`, then a `GetObject` per key, eight at
+a time unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The result
+is complete or the run fails. A read that errors partway never reaches the
+plan as a smaller estate
+([claim 31]({{< relref "/docs/claims/a-bulk-read-is-complete-or-it-fails" >}})).
+Every read is scoped to one estate, so adding an estate to the bucket slows no
+other.
+
+**Every write is conditional.** A create is `PutObject` with
+`If-None-Match: *`, and an update or a delete carries `If-Match` with the
+version the writer read. A losing writer gets a named conflict and changes
+nothing. [Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the
+cases. Nothing is locked.
+
+**A store proves itself before a plan trusts it.** At first use it writes
+`.store-sentinel` and reads it back through the same listing a plan uses. A
+store that cannot answer refuses by name. It never reads as an empty estate,
+which would have the next plan propose rebuilding everything.
 
 **Losing a record cannot produce a wrong marker.** An identity-bearing
 argument is evaluated over `var`, `local`, `path`, `terraform` and `tofu`
@@ -109,94 +199,26 @@ a name no live object has. [Recover an
 estate]({{< relref "/docs/use/recover-an-estate" >}}) has what this looks like
 in a plan and what to do about it.
 
-### What the store may contain, and who can read it
+### Deleted records, versions, and what cleans up
 
-Read this before picking a backend. It is the thing that decides who ends up
-able to read your estate's generated values.
+A destroyed instance's record is deleted. In a versioned bucket that writes a
+delete marker, and the record stays underneath as a noncurrent version until
+the bucket's lifecycle rule expires it. That window is the recovery path for a
+record destroyed by mistake, and it is the only one a record-backed resource
+has. [The three settings]({{< relref "/docs/use/bucket-contract" >}}) covers
+choosing it.
 
-**The record store may hold any value the state file would have held,
-including secrets, unless you set `strict { secrets = "refuse" }`.** The
-default is `strict { secrets = "store" }`, which keeps what a stock state file
-keeps: `random_password`, `random_bytes` and the `tls_*` types are admitted
-and their generated values are recorded in clear.
+`choudoufu destroy` destroys the resources and deletes their records. It does
+not remove the sentinel or the hint, and it cannot remove noncurrent versions.
+The lifecycle rule takes care of the versions. The rest is a few small objects
+under the estate's prefixes, and removing them is yours to do.
+`examples/record-store-bucket`'s `just down` refuses to delete a bucket that
+still holds any version of a record.
 
-That much is the ordinary bargain of a state-bearing tool. A
-`terraform.tfstate` has always held the same values in the same form, and
-nothing here makes the exposure larger. What is different is where the store
-sits and who already holds a key to that place.
+### Who can read it
 
-| Backend | Where the value lands | Who can read it |
-|---|---|---|
-| `local` | A file under `.tofu-records`, mode `0600` inside a `0700` directory | Anyone who can read the working copy. Nothing gitignores it for you, so a commit publishes it to everyone with the repository |
-| `ssm` | A Parameter Store parameter, `Type: String`, no KMS key | Anyone holding `ssm:GetParameter` on the path. The payload is base64-encoded, which is an encoding rather than a protection, and no decryption step stands in the way |
-| `s3` | An object in your bucket, written with no `ServerSideEncryption` argument, so the bucket's own default encryption is what applies | Anyone holding `s3:GetObject` on the prefix |
-
-`local` puts the values in a working copy that is yours to protect, and the
-protection is a `.gitignore` line. `ssm` and `s3` put them in a live AWS
-account, under that account's access controls rather than yours, and the
-residue outlives the estate that wrote it, which is the next section.
-
-### How many records a backend can hold
-
-`local` and `s3` have no practical ceiling: a local store is bounded by the
-filesystem, and an S3 bucket has no object-count limit.
-
-`ssm` does, and it is a hard one. SSM Parameter Store allows **10,000 standard
-parameters per account per region** - Service Quotas `L-C3B871CB`, listed
-`Adjustable: False`, so a support request cannot raise it. One record is one
-parameter, and the ceiling counts every parameter in the account and region,
-including ones choudoufu never wrote. An estate of ten thousand resources does
-not fit, and no amount of retrying changes that.
-
-A plan checks this before it writes anything. An estate with more records than
-the tier allows is refused by name, with the count, the ceiling and the tier in
-the message. An estate above nine tenths of the ceiling gets a warning instead,
-because whether it fits depends on what else is already in the account, and the
-plan does not spend a full `DescribeParameters` sweep finding that out.
-
-The `tier` argument is how you raise it.
-
-```hcl
-record_store "ssm" {
-  tier = "intelligent_tiering"
-}
-```
-
-| `tier` | Records | Value size | Cost |
-|---|---|---|---|
-| unset (the default) | Whatever the account's own default-tier configuration allows, 10,000 unless it has been changed | 4KB | None |
-| `"standard"` | 10,000 | 4KB | None |
-| `"advanced"` | 100,000 | 8KB | Billed per parameter per month |
-| `"intelligent_tiering"` | 100,000 | 8KB where needed | Billed only for the parameters past 10,000 |
-
-Unset is not the same as `"standard"`. It sends no tier at all, so the
-account's own default-tier setting decides - which is what every run before
-this argument existed did. Setting `"standard"` pins the tier against an
-account default of advanced or intelligent tiering.
-
-Two things to know before choosing `"advanced"`: it bills every parameter,
-including the first one, and an advanced parameter cannot be reverted to a
-standard one, because the revert would truncate an 8KB value to 4KB.
-`"intelligent_tiering"` reaches the same ceiling and charges only for what
-crosses 10,000, which is usually the one you want.
-
-An estate too large for even the advanced tier has no SSM answer. Use `s3`.
-
-### Nothing cleans the store up
-
-`choudoufu destroy` destroys the resources and leaves records behind. A
-two-resource estate destroyed down to nothing left its guided hint and one
-resource's record still in the store.
-
-On `local` that is a directory to delete. On `ssm` and `s3` it is residue in a
-live account, and removing it is yours to do.
-
-`strict { secrets = "refuse" }` is the other setting, and it is the principle
-this design exists for: those types are refused rather than recorded, so
-nothing the run keeps holds key material. That is a stronger answer than
-encrypting the store, because there is nothing in the store to decrypt. The
-[`strict` block]({{< relref "/docs/use/reference" >}}) covers both settings and
-the environment pin that stops a configuration relaxing this on its own.
+Anyone with `s3:GetObject` on the prefix, secrets included.
+[Secrets]({{< relref "/docs/use/secrets" >}}) starts there.
 
 ## Receipts
 
@@ -239,55 +261,16 @@ Receipts are for external effects. Keep them apart.
 
 ## Choosing a record store backend
 
-**`s3` is how an estate is meant to be run**, and the argument is consistency
-rather than capacity. An S3 record write is a real compare-and-swap the server
-enforces, through `If-Match` and `If-None-Match` on the object's ETag, which is
-what makes "a losing writer gets a named failure" true for every write rather
-than only for the first one.
+**A bucket is how an estate is meant to be run.** An S3 record write is a real
+compare-and-swap the server enforces, which is what makes "a losing writer
+gets a named failure" true for every write. It has no object-count ceiling, it
+is shared, and it sits under IAM.
 
-You create and configure the bucket. choudoufu only reads and writes keys in
-it. It has to exist before the first plan, not the first apply, and it cannot
-be a bucket the same estate declares. Its default encryption and its bucket
-policy are the ones that apply, since the write sets neither. Keep versioning
-on: it is what turns a deleted record store from an incident into an undo, and
-[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) explains what
-the alternative costs.
+`local` for a single operator or a demo, where a directory beside the module
+is fine and nothing else needs to read it. Gitignore `.tofu-records/`. It is
+also what a CI runner gets if the estate declares nothing, and there it is
+empty on every run: correct, since every instance falls back to its marker
+tags, and no use for a record-backed resource.
 
-`local` for a single operator or a demo, where a directory beside the module is
-fine and nothing else needs to read it. Gitignore `.tofu-records/`.
-
-**`ssm` is on its way out as a record store.** It still works and is still
-documented here, and [#1244](https://github.com/INTENTIUS/choudoufu/issues/1244)
-carries the decision and the migration question for estates already on it. The
-reason is worth stating plainly, because it is not the one people expect.
-
-Parameter Store's 10,000-parameter standard quota is **account-wide and shared
-with everything else in the account** - your application configuration, your
-pipelines, anything else that writes a parameter - and it is listed
-`Adjustable: False`. So the failure is not "a large estate runs out". An
-account already near the limit cannot host even a small estate, on day one.
-
-And choudoufu cannot see that coming. The capacity check compares the estate's
-record count against the full quota, as though the whole budget belonged to
-this tool. A 500-record estate going into an account that already holds 9,800
-parameters clears the refusal, clears the warning band, and then fails partway
-through with a half-written store against live resources. Reading the real
-remaining budget would cost a full `DescribeParameters` sweep on every plan and
-be stale the moment it returned. A store whose capacity belongs to the customer
-and cannot be measured is the wrong place for the record of what an estate owns.
-
-Keeping *secrets* in Parameter Store is a different question from keeping
-*records* there, and retiring the second does not retire the first. §3 of
-[#1244](https://github.com/INTENTIUS/choudoufu/issues/1244) proposes records in
-S3 with `sensitive_attributes` and `private` alone written to SSM as
-`SecureString` under a KMS key, the S3 record carrying a reference rather than
-the value. That is a proposal. Nothing implements it today.
-
-The `ssm` store writes `Type: String` parameters and does not choose a KMS key.
-That default is deliberate and the reasoning is written down, along with what
-`SecureString` would buy and cost, in
-[the record-store parameter type ruling](https://github.com/INTENTIUS/choudoufu/issues/600).
-
-[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what each
-backend needs to exist before the first plan, and the failure mode when it
-does not.
+[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket
+needs to exist before the first plan, and the failure mode when it does not.
