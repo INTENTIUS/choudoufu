@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -282,6 +283,350 @@ func TestEveryGoTierSelftestIsActuallyExecd(t *testing.T) {
 				st.where, needle, st.script, st.proves)
 		}
 	}
+}
+
+// ── issue #1380: no selftest may execute terralith-scale.sh ────────────
+//
+// live/live-cert/terralith-scale.sh deploys real, paid infrastructure when
+// it is run with TARGET=aws and a real credential chain. Since #1364 its own
+// comments say it must never be tested by executing it: a refusal that fails
+// to fire does not print a red line, it lets the run carry on into a cold
+// deploy. That has happened twice - #1346 from a mutation test of the record
+// store selection, and again on 2026-09-18 from a mutation test of a
+// selftest that ran the script.
+//
+// Two selftests still executed it when #1380 was filed
+// (selftest-record-store-s3.sh case 7 and selftest-hold-resume.sh case 3),
+// each with a cold-deploy marker reading TARGET=aws, each relying on three
+// PATH stubs and on an early `exit 0` inside the script to stay harmless,
+// and neither scrubbing the caller's ambient AWS credentials. The fix is the
+// one case 6c already used: extract the marked region and run THAT, so the
+// text being executed physically ends at the end of the block and cannot
+// fall through into a deploy however it is mutated.
+//
+// This is the guard that keeps the next author from writing the same line
+// again. It is a tripwire on the spellings a person would plausibly reach
+// for, not a bash parser: literal paths, the TERRALITH_SCALE_SH override,
+// and any variable holding either of those - including one that holds a
+// whole-file copy, which is how the two selftests obtained their `$SRC`.
+
+// harnessScript is the paid harness. No selftest may execute it.
+const harnessScript = "terralith-scale.sh"
+
+// harnessOverrideVar is the documented way to point a selftest at a
+// different revision of the harness, so a variable holding it holds the
+// harness.
+const harnessOverrideVar = "TERRALITH_SCALE_SH"
+
+// isolationSignature is the one accepted escape, the wrapper from #1380's
+// own instructions: `env -i` with a blank environment, invalid keys, the
+// metadata service off and every endpoint pointed at a closed port. A
+// command carrying all three of these reaches no account even if every
+// other guard in the file has been removed. Nothing needs it today - both
+// cases extract instead - and it is here so that a case that genuinely
+// cannot be expressed as a block has a way to say so out loud.
+var isolationSignature = []string{
+	"env -i",
+	"AWS_ACCESS_KEY_ID=invalid",
+	"AWS_ENDPOINT_URL=http://127.0.0.1:9",
+}
+
+// interpreters are the tokens that make the argument after them a script to
+// run rather than a file to read.
+var interpreters = map[string]bool{
+	"bash": true, "sh": true, "zsh": true, "ksh": true, "dash": true,
+	"source": true, ".": true,
+}
+
+// commandPrefixes are wrappers that precede the real command.
+var commandPrefixes = map[string]bool{
+	"env": true, "command": true, "exec": true, "sudo": true,
+	"nohup": true, "time": true, "timeout": true, "builtin": true,
+}
+
+// shLine is one logical shell line: backslash continuations joined, with
+// the physical lines kept so a finding can name the line a human would look
+// at rather than the line the command started on.
+type shLine struct {
+	text  string
+	start int
+	lines []string
+	nums  []int
+}
+
+// joinShellContinuations turns physical lines into logical ones.
+func joinShellContinuations(src string) []shLine {
+	var out []shLine
+	var cur *shLine
+	for i, raw := range strings.Split(src, "\n") {
+		if cur == nil {
+			out = append(out, shLine{start: i + 1})
+			cur = &out[len(out)-1]
+		}
+		cur.lines = append(cur.lines, raw)
+		cur.nums = append(cur.nums, i+1)
+		trimmed := strings.TrimRight(raw, " \t")
+		if strings.HasSuffix(trimmed, "\\") {
+			cur.text += strings.TrimSuffix(trimmed, "\\") + " "
+			continue
+		}
+		cur.text += raw
+		cur = nil
+	}
+	return out
+}
+
+// unquote strips the quoting a shell word carries, so `"$SRC"` and `$SRC`
+// are the same token to everything below.
+func shUnquote(tok string) string {
+	return strings.Trim(tok, `"'`)
+}
+
+var leadingVarRe = regexp.MustCompile(`^\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
+var assignRe = regexp.MustCompile(`^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$`)
+
+// leadingVar returns the variable a word starts with, if any: `$SRC`,
+// `"${SRC}"` and `"$SRC"` all give SRC.
+func leadingVar(tok string) string {
+	m := leadingVarRe.FindStringSubmatch(shUnquote(tok))
+	if m == nil {
+		return ""
+	}
+	return m[1]
+}
+
+// namesHarness says whether a word is the harness by its literal path.
+func namesHarness(tok string) bool {
+	return strings.Contains(shUnquote(tok), harnessScript)
+}
+
+// runnableWord says whether a word could be a command by itself: it has a
+// directory in it, or it is a variable. The bare name cannot be, since
+// live/live-cert is not on anyone's PATH - and requiring this is what keeps
+// prose out of the findings. Without it, the failure message in
+// selftest-record-store-s3.sh that explains what `terralith-scale.sh
+// teardown <dir>` does on a pre-#1145 revision was reported as a third
+// offence, which would have taught the next reader to distrust the guard.
+func runnableWord(tok string) bool {
+	bare := shUnquote(tok)
+	return strings.Contains(bare, "/") || strings.HasPrefix(bare, "$")
+}
+
+// harnessVars collects the variables in one selftest that hold the harness:
+// the ones assigned a value naming it (SRC_ARG="${TERRALITH_SCALE_SH:-.../
+// terralith-scale.sh}"), the override variable itself, and the ones holding
+// a whole-file COPY of one of those - `cat "$SRC_ARG" > "$SRC"` is how both
+// offending selftests materialize the harness, and a guard that missed it
+// would be defeated by running the copy.
+//
+// Extraction is deliberately NOT propagation: `sed -n '/>>> marker/,/<<<
+// marker/p' "$SRC"` yields a block that ends where the block ends, which is
+// the fix this guard exists to keep. A whole-file copy yields the harness.
+func harnessVars(lines []shLine) map[string]bool {
+	tainted := map[string]bool{harnessOverrideVar: true}
+	for changed := true; changed; {
+		changed = false
+		for _, ln := range lines {
+			body := strings.TrimSpace(ln.text)
+			if strings.HasPrefix(body, "#") {
+				continue
+			}
+			for _, seg := range shellSegments(ln.text) {
+				seg = strings.TrimSpace(seg)
+				if m := assignRe.FindStringSubmatch(seg); m != nil {
+					if strings.Contains(m[2], harnessScript) || strings.Contains(m[2], harnessOverrideVar) {
+						if !tainted[m[1]] {
+							tainted[m[1]] = true
+							changed = true
+						}
+					}
+					continue
+				}
+				// A whole-file copy: `cat "$SRC_ARG" > "$SRC"`, `cp
+				// "$SRC" "$COPY"`. The source has to be the harness and
+				// the destination is then the harness too.
+				fields := strings.Fields(seg)
+				if len(fields) < 2 {
+					continue
+				}
+				cmd := fields[0]
+				if cmd != "cat" && cmd != "cp" && cmd != "install" && cmd != "tee" {
+					continue
+				}
+				readsHarness := false
+				for _, f := range fields[1:] {
+					if namesHarness(f) || tainted[leadingVar(f)] {
+						readsHarness = true
+					}
+				}
+				if !readsHarness {
+					continue
+				}
+				for i, f := range fields[1:] {
+					dst := ""
+					switch {
+					case strings.HasPrefix(f, ">"):
+						if f != ">" && f != ">>" {
+							dst = strings.TrimLeft(f, ">")
+						} else if i+2 < len(fields) {
+							dst = fields[i+2]
+						}
+					case cmd == "cp" && i == len(fields)-2:
+						dst = f
+					}
+					if v := leadingVar(dst); v != "" && !tainted[v] {
+						tainted[v] = true
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	return tainted
+}
+
+// shellSegments cuts a logical line into the commands it contains, so the
+// `bash ...` inside `X="$(PATH=... bash ...)"` is looked at on its own.
+// Crude by design: a stray split inside a quoted string yields a segment
+// that matches nothing.
+func shellSegments(text string) []string {
+	replaced := strings.NewReplacer("$(", ";", "`", ";", "&&", ";", "||", ";").Replace(text)
+	return strings.FieldsFunc(replaced, func(r rune) bool {
+		return r == ';' || r == '|' || r == '&' || r == '(' || r == ')'
+	})
+}
+
+// executesHarness reports the word a segment would run, if that word is the
+// harness. It skips the leading environment assignments and wrappers (`env
+// -i A=b`, `command`, `timeout 30`), then looks at the command: an
+// interpreter runs its first non-flag argument, anything else runs itself.
+func executesHarness(seg string, tainted map[string]bool) (string, bool) {
+	fields := strings.Fields(seg)
+	i := 0
+	for i < len(fields) {
+		f := fields[i]
+		switch {
+		case assignRe.MatchString(f) && !strings.HasPrefix(f, "$"):
+			i++
+		case strings.HasPrefix(f, "-"):
+			if f == "-u" || f == "-S" {
+				i++
+			}
+			i++
+		case commandPrefixes[f]:
+			if f == "timeout" && i+1 < len(fields) && regexp.MustCompile(`^[0-9]+[smhd]?$`).MatchString(shUnquote(fields[i+1])) {
+				i++
+			}
+			i++
+		default:
+			goto found
+		}
+	}
+found:
+	if i >= len(fields) {
+		return "", false
+	}
+	cmd := shUnquote(fields[i])
+	if interpreters[cmd] {
+		for _, arg := range fields[i+1:] {
+			if strings.HasPrefix(arg, "-") {
+				continue
+			}
+			if namesHarness(arg) || tainted[leadingVar(arg)] {
+				return arg, true
+			}
+		}
+		return "", false
+	}
+	if !runnableWord(fields[i]) {
+		return "", false
+	}
+	if namesHarness(fields[i]) || tainted[leadingVar(fields[i])] {
+		return fields[i], true
+	}
+	return "", false
+}
+
+// TestNoSelftestExecutesTheScaleHarness is issue #1380's guard. See the
+// block comment above it for why executing that script at all is the
+// hazard.
+//
+// Proven red on the two files as #1380 found them: it named
+// selftest-record-store-s3.sh line 701 and selftest-hold-resume.sh line 354,
+// each with the command it objected to. Re-armed afterwards by putting
+// `bash "$SHIPPED"` (a copy made with `cat`) back into one of them, which it
+// also caught - the point of tracking the copy rather than the literal path.
+func TestNoSelftestExecutesTheScaleHarness(t *testing.T) {
+	scripts, err := filepath.Glob(filepath.Join(liveCertSelftestDir, "selftest-*.sh"))
+	if err != nil {
+		t.Fatalf("globbing %s/selftest-*.sh: %v", liveCertSelftestDir, err)
+	}
+	if len(scripts) == 0 {
+		t.Fatalf("no %s/selftest-*.sh found at all; this guard is scanning nothing", liveCertSelftestDir)
+	}
+
+	for _, path := range scripts {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+		lines := joinShellContinuations(string(data))
+		tainted := harnessVars(lines)
+
+		for _, ln := range lines {
+			if strings.HasPrefix(strings.TrimSpace(ln.text), "#") {
+				continue
+			}
+			for _, seg := range shellSegments(ln.text) {
+				word, bad := executesHarness(seg, tainted)
+				if !bad {
+					continue
+				}
+				if isIsolated(ln.text) {
+					continue
+				}
+				t.Errorf("live/%s:%d runs the harness through %s:\n    %s\n"+
+					"No selftest may execute live/live-cert/%s. It deploys real, paid infrastructure when the "+
+					"cold-deploy marker or the environment says TARGET=aws, and a guard inside it that fails to "+
+					"fire does not print a red line - it lets the run continue into a cold deploy. That is #1346 "+
+					"and the 2026-09-18 incident behind #1380.\n"+
+					"Extract the region you need between its marker comments and run that instead, the way case 6c "+
+					"of selftest-record-store-s3.sh runs the record store selection and the way both teardown-only "+
+					"cases now run the dispatch:\n"+
+					"    sed -n '/^# >>> teardown-only dispatch part 1$/,/^# <<< teardown-only dispatch part 2$/p'\n"+
+					"The extracted text ends where the block ends, so no mutation of it can reach a deploy. If a "+
+					"case genuinely needs more of the script than any block, wrap the command in %v and say in a "+
+					"comment why extraction was not enough.",
+					path, harnessLineNo(ln, word), word, strings.TrimSpace(seg), harnessScript, isolationSignature)
+			}
+		}
+	}
+}
+
+// harnessLineNo picks the physical line a reader should open: the one
+// carrying the offending word, or the start of the logical line.
+func harnessLineNo(ln shLine, word string) int {
+	bare := shUnquote(word)
+	for i, l := range ln.lines {
+		if strings.Contains(l, bare) {
+			return ln.nums[i]
+		}
+	}
+	return ln.start
+}
+
+// isIsolated says whether a command carries the whole isolation signature.
+// All three parts, because each one alone is defeated by an ambient
+// setting: `env -i` without the invalid keys still inherits a credentials
+// file through HOME, and invalid keys without the closed endpoint still
+// resolve a real endpoint to talk to.
+func isIsolated(text string) bool {
+	for _, part := range isolationSignature {
+		if !strings.Contains(text, part) {
+			return false
+		}
+	}
+	return true
 }
 
 // killSelftestJobName is the ci.yml job that runs live/live-cert/selftest-kill.sh.
