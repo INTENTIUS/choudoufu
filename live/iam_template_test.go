@@ -15,6 +15,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
 const (
@@ -23,6 +26,19 @@ const (
 	iamDocsPage = "../site/content/docs/use/iam.md"
 	iamBucket   = "choudoufu-records-111122223333-us-east-2"
 	iamKMSKey   = "arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"
+	// The kms:ViaService value the grant on iamKMSKey must carry (GitHub
+	// issue #1381): the S3 endpoint in the key's own region, so the key is
+	// usable through S3 and not directly. Written out rather than built from
+	// iamKMSKey, so this test says what the endpoint is instead of repeating
+	// the renderer's rule for making one.
+	iamKMSViaService = "s3.us-east-2.amazonaws.com"
+	// The other two partitions. GovCloud shares the ".amazonaws.com" service
+	// principal suffix; China does not, and that is the whole reason the
+	// suffix is a case and not a constant.
+	iamGovBucket = "choudoufu-records-111122223333-us-gov-west-1"
+	iamGovKMSKey = "arn:aws-us-gov:kms:us-gov-west-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"
+	iamCNBucket  = "choudoufu-records-111122223333-cn-north-1"
+	iamCNKMSKey  = "arn:aws-cn:kms:cn-north-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"
 	// The account that must own the bucket (GitHub issue #1381). The same
 	// twelve digits the bucket name above embeds, which is the ordinary case:
 	// the project derives the name from the account it is standing the bucket
@@ -153,6 +169,32 @@ type iamWantStatement struct {
 	Condition   map[string]any `json:"Condition,omitempty"`
 }
 
+// iamRender is one invocation of render-policy.sh, as [iamWantedPolicy] reads
+// it. The zero value of each optional field is what the renderer does with
+// the flag absent: the commercial partition, the default records namespace,
+// no key, no owner pin, no declared dependency.
+type iamRender struct {
+	estate string
+	bucket string
+
+	// partition is --partition, "" meaning the renderer's default "aws".
+	partition string
+
+	// keyPrefix is --key-prefix ALREADY carrying its trailing delimiter,
+	// "" meaning the default "tofu-records/<estate>/".
+	keyPrefix string
+
+	// kms is --kms, and viaService is the kms:ViaService value the grant on
+	// it must require. viaService is written out rather than derived from
+	// kms, so this test states the endpoint instead of repeating whatever
+	// rule the renderer used to build it (#1381).
+	kms        string
+	viaService string
+
+	account string
+	others  []string
+}
+
 // iamWantedPolicy is the whole document render-policy.sh must print for an
 // estate, a bucket, an optional key and a list of estates whose outputs it
 // reads. It is written out here rather than read from a committed example,
@@ -161,10 +203,21 @@ type iamWantStatement struct {
 // each time re-rendered the examples as TestIAMTemplateHasOneSource's own
 // message instructs - after which everything was green. An example file can
 // be re-rendered; this cannot.
-func iamWantedPolicy(estate, bucket, kms, account string, others ...string) map[string]any {
-	b := "arn:aws:s3:::" + bucket
-	// Each prefix ends in "/", so "prod" is not also "prod-eu" (#1335).
-	own := []string{"tofu-records/" + estate + "/", "tofu-hints/" + estate + "/", "tofu-outputs/" + estate + "/"}
+func iamWantedPolicy(r iamRender) map[string]any {
+	estate, bucket, kms, account, others := r.estate, r.bucket, r.kms, r.account, r.others
+	partition := r.partition
+	if partition == "" {
+		partition = "aws"
+	}
+	b := "arn:" + partition + ":s3:::" + bucket
+	// Each prefix ends in "/", so "prod" is not also "prod-eu" (#1335). The
+	// three are projection.BucketNamespaces in order, and --key-prefix moves
+	// the first of them and neither of the other two.
+	records := "tofu-records/" + estate + "/"
+	if r.keyPrefix != "" {
+		records = r.keyPrefix
+	}
+	own := []string{records, "tofu-hints/" + estate + "/", "tofu-outputs/" + estate + "/"}
 	var theirs []string
 	for _, o := range others {
 		theirs = append(theirs, "tofu-outputs/"+o+"/")
@@ -236,9 +289,15 @@ func iamWantedPolicy(estate, bucket, kms, account string, others ...string) map[
 		Resource: b,
 	})
 	if kms != "" {
+		// #1381: the grant is for S3 asking the key on this role's behalf,
+		// and kms:ViaService is what says so. No encryption-context
+		// condition: S3 sets that context to the bucket ARN with Bucket Keys
+		// on and to the object ARN with them off, and a wrong literal denies
+		// every write.
 		st = append(st, iamWantStatement{
 			Sid: "UseTheBucketsKey", Effect: "Allow",
 			Action: []string{"kms:Decrypt", "kms:GenerateDataKey"}, Resource: kms,
+			Condition: map[string]any{"StringEquals": map[string]any{"kms:ViaService": r.viaService}},
 		})
 	}
 	// GitHub issue #1381: with an account, every Allow also requires
@@ -296,11 +355,35 @@ func TestIAMTemplateIsExactlyThisPolicy(t *testing.T) {
 		args []string
 		want map[string]any
 	}{
-		{"no flags", []string{"prod", iamBucket}, iamWantedPolicy("prod", iamBucket, "", "")},
-		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey}, iamWantedPolicy("prod", iamBucket, iamKMSKey, "")},
-		{"--reads-outputs-of", []string{"prod", iamBucket, "--reads-outputs-of", "network"}, iamWantedPolicy("prod", iamBucket, "", "", "network")},
-		{"--account", []string{"prod", iamBucket, "--account", iamAccount}, iamWantedPolicy("prod", iamBucket, "", iamAccount)},
-		{"--account with everything", []string{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"}, iamWantedPolicy("prod", iamBucket, iamKMSKey, iamAccount, "network")},
+		{"no flags", []string{"prod", iamBucket},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket})},
+		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, kms: iamKMSKey, viaService: iamKMSViaService})},
+		{"--reads-outputs-of", []string{"prod", iamBucket, "--reads-outputs-of", "network"},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, others: []string{"network"}})},
+		{"--account", []string{"prod", iamBucket, "--account", iamAccount},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, account: iamAccount})},
+		{"--account with everything", []string{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, kms: iamKMSKey, viaService: iamKMSViaService, account: iamAccount, others: []string{"network"}})},
+		// GitHub issue #1381. The partition was the literal "aws", so an
+		// estate in GovCloud or in China got a policy over resources in the
+		// commercial partition, which match nothing.
+		{"--partition aws-us-gov", []string{"prod", iamGovBucket, "--partition", "aws-us-gov", "--kms", iamGovKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamGovBucket, partition: "aws-us-gov", kms: iamGovKMSKey, viaService: "s3.us-gov-west-1.amazonaws.com"})},
+		// The China partition is the one whose service principal is not
+		// ".amazonaws.com".
+		{"--partition aws-cn", []string{"prod", iamCNBucket, "--partition", "aws-cn", "--kms", iamCNKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamCNBucket, partition: "aws-cn", kms: iamCNKMSKey, viaService: "s3.cn-north-1.amazonaws.com.cn"})},
+		// GitHub issue #1381. An estate whose record_store sets key_prefix
+		// writes its records somewhere else, and the renderer could not
+		// express that at all, so its first run was denied.
+		{"--key-prefix", []string{"prod", iamBucket, "--key-prefix", "team/prod"},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, keyPrefix: "team/prod/"})},
+		// Written without the trailing delimiter above and with it here:
+		// staterecord.NamespacePrefix gives both spellings the same one
+		// delimiter, and neither spelling is a mistake.
+		{"--key-prefix with a trailing slash", []string{"prod", iamBucket, "--key-prefix", "team/prod/"},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, keyPrefix: "team/prod/"})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wantRaw, err := json.Marshal(tc.want)
@@ -385,9 +468,16 @@ func iamMeasuredShape(t *testing.T, account string, args ...string) {
 	// boundary for a read. The relabel Deny is what makes the tag worth
 	// trusting: measured on real AWS, without it a role whose prefix was
 	// widened by mistake retags a neighbour's object and then reads it.
+	//
+	// The last three of the read actions are granted by no Allow this
+	// renderer writes (#1381). They are denied anyway, so that a role
+	// somebody later widens with one of them still cannot use it on another
+	// estate's object: a Deny written for the actions of the day is a Deny
+	// that stops covering the boundary the moment the Allow list grows.
+	reads := []string{"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging", "s3:GetObjectVersionTagging", "s3:GetObjectAcl", "s3:GetObjectVersionAcl"}
 	wantDenied := map[string][]string{
-		"DenyReadingAnotherEstatesObjects":         {"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"},
-		"DenyReadingOtherTagsUnderDeclaredOutputs": {"s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"},
+		"DenyReadingAnotherEstatesObjects":         reads,
+		"DenyReadingOtherTagsUnderDeclaredOutputs": reads,
 		"DenyRelabellingAnotherEstatesObjects":     {"s3:PutObjectTagging", "s3:DeleteObjectTagging"},
 	}
 	seen := map[string]bool{}
@@ -570,10 +660,17 @@ const iamKeyStatementRenderer = "../examples/record-store-bucket/iam/render-key-
 // the same two render-policy.sh --kms grants the role, since either half
 // without the other is a refusal.
 func TestKMSKeyStatementIsWhatTheRunNeeds(t *testing.T) {
-	args := []string{"arn:aws:iam::111122223333:role/prod-estate", "arn:aws:iam::111122223333:role/records-operator"}
-	got, err := exec.Command("bash", append([]string{iamKeyStatementRenderer}, args...)...).CombinedOutput()
+	principals := []string{"arn:aws:iam::111122223333:role/prod-estate", "arn:aws:iam::111122223333:role/records-operator"}
+	args := append([]string{"--key", iamKMSKey}, principals...)
+	// Stdout alone, for renderIAMPolicy's reason: a render without --key
+	// writes a warning to stderr (#1381) and CombinedOutput would put it
+	// inside the JSON compared against the committed example.
+	cmd := exec.Command("bash", append([]string{iamKeyStatementRenderer}, args...)...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	got, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("render-key-statement.sh: %v\n%s", err, got)
+		t.Fatalf("render-key-statement.sh: %v\n%s", err, stderr.String())
 	}
 	want, err := os.ReadFile(filepath.Join(iamExamples, "example-key-statement.json"))
 	if err != nil {
@@ -587,12 +684,30 @@ func TestKMSKeyStatementIsWhatTheRunNeeds(t *testing.T) {
 		Effect    string
 		Principal struct{ AWS []string }
 		Action    []string
+		Condition map[string]map[string]any
 	}
 	if err := json.Unmarshal(got, &st); err != nil {
 		t.Fatalf("the statement is not JSON: %v\n%s", err, got)
 	}
-	if st.Effect != "Allow" || strings.Join(st.Principal.AWS, " ") != strings.Join(args, " ") {
+	if st.Effect != "Allow" || strings.Join(st.Principal.AWS, " ") != strings.Join(principals, " ") {
 		t.Errorf("effect %q, principals %v", st.Effect, st.Principal.AWS)
+	}
+	// GitHub issue #1381. Without kms:ViaService the two actions are usable
+	// directly, by every principal named, against any ciphertext made under
+	// the key. With it they are usable only where S3 is the one asking.
+	if via := st.Condition["StringEquals"]["kms:ViaService"]; via != iamKMSViaService {
+		t.Errorf("the key statement requires kms:ViaService = %v, want %q", via, iamKMSViaService)
+	}
+	// And no encryption-context condition, deliberately: S3 sets that
+	// context to the bucket ARN with S3 Bucket Keys on and to the object ARN
+	// with them off, so a literal here is wrong for half of the buckets a
+	// key serves and a wrong one denies every write, the first one included.
+	for op, keys := range st.Condition {
+		for key := range keys {
+			if strings.HasPrefix(key, "kms:EncryptionContext:") {
+				t.Errorf("the key statement conditions on %s (%s); with S3 Bucket Keys on that context is the bucket ARN and with them off it is the object ARN, so a guess denies every write", key, op)
+			}
+		}
 	}
 
 	var rolePolicy struct{ Statement []iamStatement }
@@ -618,13 +733,241 @@ func TestKMSKeyStatementIsWhatTheRunNeeds(t *testing.T) {
 // TestKMSKeyStatementNamesPrincipals: the account root or a wildcard as the
 // principal hands the key to every IAM policy in the account.
 func TestKMSKeyStatementNamesPrincipals(t *testing.T) {
-	for _, bad := range []string{"arn:aws:iam::111122223333:root", "*", "arn:aws:iam::111122223333:role/*", "111122223333", "arn:aws:sts::111122223333:assumed-role/x/y", ""} {
+	for _, bad := range []string{
+		"arn:aws:iam::111122223333:root", "*", "arn:aws:iam::111122223333:role/*", "111122223333",
+		"arn:aws:sts::111122223333:assumed-role/x/y", "",
+		// GitHub issue #1381, both by name: the partition was matched as
+		// "aws[a-z-]*", and the role path and name as one run of characters
+		// that included "/", so an empty segment passed.
+		"arn:awsevil:iam::111122223333:role/prod-estate",
+		"arn:aws:iam::111122223333:role//",
+		"arn:aws:iam::111122223333:role/",
+		"arn:aws:iam::111122223333:role/a//b",
+		"arn:aws:iam::11112222333:role/prod-estate",
+		"arn:aws:iam::1111222233334:role/prod-estate",
+		"arn:aws:iam::111122223333:group/admins",
+		"arn:aws:iam::111122223333:role/has space",
+	} {
 		if out, err := exec.Command("bash", iamKeyStatementRenderer, bad).CombinedOutput(); err == nil {
 			t.Errorf("render-key-statement.sh accepted %q:\n%s", bad, out)
 		}
 	}
 	if out, err := exec.Command("bash", iamKeyStatementRenderer).CombinedOutput(); err == nil {
 		t.Errorf("render-key-statement.sh printed a statement naming nobody:\n%s", out)
+	}
+	// One key lives in one partition, so principals from two of them cannot
+	// all be using it. Rendered anyway, the statement reviews correctly and
+	// refuses half of the principals it names.
+	if out, err := exec.Command("bash", iamKeyStatementRenderer,
+		"arn:aws:iam::111122223333:role/prod-estate",
+		"arn:aws-cn:iam::111122223333:role/prod-estate").CombinedOutput(); err == nil {
+		t.Errorf("render-key-statement.sh named principals in two partitions:\n%s", out)
+	}
+	for _, bad := range []string{"*", "garbage", "arn:awsevil:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab", "arn:aws:kms:us-east-2:111122223333:alias/mine", iamGovKMSKey} {
+		if out, err := exec.Command("bash", iamKeyStatementRenderer, "--key", bad, "arn:aws:iam::111122223333:role/prod-estate").CombinedOutput(); err == nil {
+			t.Errorf("render-key-statement.sh accepted --key %q beside a commercial-partition role:\n%s", bad, out)
+		}
+	}
+	// The controls. A renderer that refuses everything passes every line
+	// above, and two of these are the GovCloud and China shapes that #1381
+	// found refused-by-accident or accepted-by-accident.
+	for _, good := range [][]string{
+		{"arn:aws:iam::111122223333:role/prod-estate"},
+		{"--key", iamKMSKey, "arn:aws:iam::111122223333:role/prod-estate"},
+		{"arn:aws:iam::111122223333:user/records-operator"},
+		{"arn:aws:iam::111122223333:role/team/prod-estate"},
+		{"arn:aws:iam::111122223333:role/with+plus=and,dots.and@at_and-dash"},
+		{"--key", iamGovKMSKey, "arn:aws-us-gov:iam::111122223333:role/prod-estate"},
+		{"--key", iamCNKMSKey, "arn:aws-cn:iam::111122223333:role/prod-estate"},
+	} {
+		if out, err := exec.Command("bash", append([]string{iamKeyStatementRenderer}, good...)...).CombinedOutput(); err != nil {
+			t.Errorf("render-key-statement.sh refused %v: %v\n%s", good, err, out)
+		}
+	}
+}
+
+// TestKMSKeyStatementViaServiceFollowsThePartition: the service principal
+// suffix is ".amazonaws.com.cn" in China and ".amazonaws.com" everywhere
+// else, and the region is the key's own. A ViaService value that names the
+// wrong endpoint denies every use of the key, which is what makes this worth
+// pinning rather than reading off the rendered statement.
+func TestKMSKeyStatementViaServiceFollowsThePartition(t *testing.T) {
+	for _, tc := range []struct{ key, principal, want string }{
+		{iamKMSKey, "arn:aws:iam::111122223333:role/prod-estate", "s3.us-east-2.amazonaws.com"},
+		{iamGovKMSKey, "arn:aws-us-gov:iam::111122223333:role/prod-estate", "s3.us-gov-west-1.amazonaws.com"},
+		{iamCNKMSKey, "arn:aws-cn:iam::111122223333:role/prod-estate", "s3.cn-north-1.amazonaws.com.cn"},
+	} {
+		cmd := exec.Command("bash", iamKeyStatementRenderer, "--key", tc.key, tc.principal)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("render-key-statement.sh --key %s: %v\n%s", tc.key, err, stderr.String())
+		}
+		var st struct {
+			Condition map[string]map[string]any
+		}
+		if err := json.Unmarshal(out, &st); err != nil {
+			t.Fatalf("not JSON: %v\n%s", err, out)
+		}
+		if got := st.Condition["StringEquals"]["kms:ViaService"]; got != tc.want {
+			t.Errorf("--key %s renders kms:ViaService = %v, want %q", tc.key, got, tc.want)
+		}
+	}
+	// And the flag is optional, so every invocation written before it keeps
+	// working. The render says on stderr what it left out, the way a render
+	// without --account does, and stdout stays JSON on its own.
+	cmd := exec.Command("bash", iamKeyStatementRenderer, "arn:aws:iam::111122223333:role/prod-estate")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("render-key-statement.sh with no --key: %v\n%s", err, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "--key") || !strings.Contains(stderr.String(), "kms:ViaService") {
+		t.Errorf("a render with no --key said this on stderr:\n%s", stderr.String())
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Errorf("stdout is not JSON on its own, so the warning leaked into the statement: %v\n%s", err, out)
+	}
+	if _, ok := doc["Condition"]; ok {
+		t.Errorf("a render with no --key carries a Condition it has no region to build: %s", out)
+	}
+}
+
+// TestIAMRendererWritesOnePartition: every ARN in a rendered policy is in the
+// partition that was asked for. Until GitHub issue #1381 the renderer wrote
+// the literal "arn:aws:", so an estate in GovCloud or in China received a
+// policy naming resources in the commercial partition. Such a policy is valid
+// JSON, attaches without complaint and grants the role nothing at all.
+func TestIAMRendererWritesOnePartition(t *testing.T) {
+	for _, tc := range []struct {
+		partition string
+		bucket    string
+		key       string
+	}{
+		{"aws", iamBucket, iamKMSKey},
+		{"aws-us-gov", iamGovBucket, iamGovKMSKey},
+		{"aws-cn", iamCNBucket, iamCNKMSKey},
+	} {
+		t.Run(tc.partition, func(t *testing.T) {
+			raw := renderIAMPolicy(t, "prod", tc.bucket, "--partition", tc.partition,
+				"--kms", tc.key, "--account", iamAccount, "--reads-outputs-of", "network")
+			// Every "arn:..." in the whole document, wherever it sits: a
+			// Resource, a NotResource, or a field added later. Reading the
+			// statements field by field would miss the one that was added
+			// after this test was written, which is the case it exists for.
+			arns := regexp.MustCompile(`arn:[a-z0-9-]*:`).FindAllString(string(raw), -1)
+			if len(arns) < 8 {
+				t.Fatalf("only %d ARN(s) in the rendered policy; this render has more than that, so something is not being read:\n%s", len(arns), raw)
+			}
+			for _, a := range arns {
+				if a != "arn:"+tc.partition+":" {
+					t.Errorf("--partition %s rendered an ARN beginning %q; a policy in the wrong partition matches nothing and denies everything", tc.partition, a)
+				}
+			}
+		})
+	}
+}
+
+// TestIAMRendererKeyPrefixIsWhatTheStoreWritesUnder ties the renderer's
+// object ARNs to the namespaces the store really uses, so the two cannot
+// drift. projection.BucketNamespaces is the one definition of what an estate
+// writes under - its records (which key_prefix moves), its hint and its root
+// outputs (which it does not) - and a renderer that disagreed with it by one
+// namespace would produce a policy that reviews correctly and denies the
+// estate its own keys. GitHub issue #1381.
+func TestIAMRendererKeyPrefixIsWhatTheStoreWritesUnder(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		estate    string
+		keyPrefix string
+	}{
+		{"no key_prefix", "prod", ""},
+		{"a key_prefix", "prod", "team/prod"},
+		{"a key_prefix with a trailing slash", "prod", "team/prod/"},
+		{"a one-segment key_prefix", "prod", "records"},
+		{"a key_prefix under the records root", "prod", "tofu-records/prod"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rs := &configs.LiveRecordStore{Type: "s3", Bucket: iamBucket}
+			if tc.keyPrefix != "" {
+				rs.KeyPrefix = tc.keyPrefix
+				rs.KeyPrefixSet = true
+			}
+			var want []string
+			for _, ns := range projection.BucketNamespaces(rs, tc.estate) {
+				want = append(want, "arn:aws:s3:::"+iamBucket+"/"+ns+"*")
+			}
+
+			args := []string{tc.estate, iamBucket}
+			if tc.keyPrefix != "" {
+				args = append(args, "--key-prefix", tc.keyPrefix)
+			}
+			var doc struct{ Statement []iamStatement }
+			if err := json.Unmarshal(renderIAMPolicy(t, args...), &doc); err != nil {
+				t.Fatal(err)
+			}
+			// Both statements that name objects, and the list prefixes,
+			// because an estate needs all three over the same namespaces:
+			// read and delete, write, and the LIST that makes a missing key
+			// answer 404.
+			seen := 0
+			for _, st := range doc.Statement {
+				switch st.Sid {
+				case "ReadAndDeleteByPrefix", "WriteOnlyObjectsTaggedAsThisEstate":
+					seen++
+					if got := anyStrings(st.Resource); strings.Join(got, "\n") != strings.Join(want, "\n") {
+						t.Errorf("%s names\n  %v\nand projection.BucketNamespaces says the store writes under\n  %v", st.Sid, got, want)
+					}
+				case "ListOwnNamespaces":
+					seen++
+					var wantPrefixes []string
+					for _, ns := range projection.BucketNamespaces(rs, tc.estate) {
+						wantPrefixes = append(wantPrefixes, ns+"*")
+					}
+					if got := anyStrings(st.Condition["StringLike"]["s3:prefix"]); strings.Join(got, "\n") != strings.Join(wantPrefixes, "\n") {
+						t.Errorf("%s lists\n  %v\nwant\n  %v", st.Sid, got, wantPrefixes)
+					}
+				}
+			}
+			if seen != 3 {
+				t.Errorf("found %d of the three statements that name the estate's namespaces", seen)
+			}
+		})
+	}
+}
+
+// TestIAMRenderersHoldNoApostropheInTheirJqProgram is a trap that has cost
+// real time twice. Both renderers hold their jq program inside single quotes,
+// so one apostrophe in a jq comment ends the quoting and breaks the script
+// for EVERY input - after which a test that asserts a bad argument is refused
+// passes, because everything is refused.
+//
+// This reads the file rather than the rendered output on purpose: a run that
+// proves a good input still renders proves the quoting is intact today, and
+// this says why it is intact, at the one place an editor would break it.
+func TestIAMRenderersHoldNoApostropheInTheirJqProgram(t *testing.T) {
+	for script, opener := range map[string]string{
+		iamRenderer:             "--argjson others \"$others_json\" '",
+		iamKeyStatementRenderer: "jq -s --arg via \"$via_service\" '",
+	} {
+		src, err := os.ReadFile(script)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := strings.Index(string(src), opener)
+		if i < 0 {
+			t.Fatalf("%s no longer opens its jq program with %q, so this test is reading nothing; find the new opener and put it here", script, opener)
+		}
+		program := string(src)[i+len(opener):]
+		if n := strings.Count(program, "'"); n != 1 {
+			t.Errorf("%s: the jq program holds %d single quotes, want exactly the one that closes it. An apostrophe in a jq comment ends the quoting and breaks the script for every input.", script, n)
+		}
+		if !strings.HasSuffix(strings.TrimRight(program, "\n"), "'") {
+			t.Errorf("%s: the jq program does not end at the closing quote; what follows it is %q", script, strings.TrimRight(program, "\n"))
+		}
 	}
 }
 
@@ -639,9 +982,42 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 			t.Errorf("render-policy.sh accepted the bucket %q:\n%s", bad, out)
 		}
 	}
-	for _, bad := range []string{"*", "garbage", "arn:aws:kms:us-east-2:111122223333:key/*", "arn:aws:kms:us-east-2:111122223333:alias/mine", "arn:aws:s3:::a-bucket"} {
+	// "arn:awsevil:..." is #1381's own example: the partition was matched as
+	// "aws[a-z-]*", so a partition that does not exist reached a Resource.
+	for _, bad := range []string{"*", "garbage", "arn:aws:kms:us-east-2:111122223333:key/*", "arn:aws:kms:us-east-2:111122223333:alias/mine", "arn:aws:s3:::a-bucket", "arn:awsevil:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"} {
 		if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--kms", bad).CombinedOutput(); err == nil {
 			t.Errorf("render-policy.sh accepted --kms %q:\n%s", bad, out)
+		}
+	}
+	// GitHub issue #1381. The partition names the whole of AWS a policy
+	// applies to, there are exactly three, and none of them is guessable
+	// from the bucket name, so anything else is a typo that would render
+	// ARNs matching nothing.
+	for _, bad := range []string{"*", "", "AWS", "aws-gov", "awsevil", "aws-us-gov-west-1", "arn:aws"} {
+		if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--partition", bad).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh accepted --partition %q:\n%s", bad, out)
+		}
+	}
+	// A key and the bucket that uses it are in one partition. Rendering the
+	// two apart produces a policy that is valid, reviews correctly, and
+	// grants the role nothing at all.
+	for _, tc := range [][]string{
+		{"prod", iamBucket, "--kms", iamGovKMSKey},
+		{"prod", iamGovBucket, "--partition", "aws-us-gov", "--kms", iamKMSKey},
+		{"prod", iamCNBucket, "--partition", "aws-cn", "--kms", iamGovKMSKey},
+	} {
+		if out, err := exec.Command("bash", append([]string{iamRenderer}, tc...)...).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh rendered a key and a bucket in two partitions: %v\n%s", tc, out)
+		}
+	}
+	// GitHub issue #1381. --key-prefix goes into a Resource ARN and into an
+	// s3:prefix condition as it stands, and for a list, a write and a delete
+	// that prefix is the whole defence - the same reason the bucket and the
+	// estate name are checked. An empty segment survives
+	// staterecord.NamespacePrefix and would be in every key.
+	for _, bad := range []string{"*", "", "/", "/tofu-records/prod", "team//prod", "team/*", "../prod", "team/../../prod", "${aws:username}", "team prod", "team/prod/*"} {
+		if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--key-prefix", bad).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh accepted --key-prefix %q:\n%s", bad, out)
 		}
 	}
 	// GitHub issue #1381. --account goes into an aws:ResourceAccount
@@ -665,9 +1041,15 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 		{"prod", iamBucket},
 		{"prod", "my.dotted.bucket-name"},
 		{"prod", iamBucket, "--kms", iamKMSKey},
-		{"prod", iamBucket, "--kms", "arn:aws-us-gov:kms:us-gov-west-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"},
+		{"prod", iamGovBucket, "--partition", "aws-us-gov", "--kms", iamGovKMSKey},
+		{"prod", iamCNBucket, "--partition", "aws-cn", "--kms", iamCNKMSKey},
+		{"prod", iamBucket, "--partition", "aws"},
 		{"prod", iamBucket, "--account", iamAccount},
 		{"prod", iamBucket, "--account", "000000000001"},
+		{"prod", iamBucket, "--key-prefix", "team/prod"},
+		{"prod", iamBucket, "--key-prefix", "team/prod/"},
+		{"prod", iamBucket, "--key-prefix", "tofu-records/prod"},
+		{"prod", iamBucket, "--key-prefix", "one-segment"},
 		{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
 	} {
 		if out, err := exec.Command("bash", append([]string{iamRenderer}, good...)...).CombinedOutput(); err != nil {

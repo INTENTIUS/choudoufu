@@ -802,7 +802,7 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		// [impliedRecordStore].
 		s.RecordStore = impliedRecordStore(declRange)
 	case 1:
-		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
+		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0], s.Estate)
 		diags = append(diags, rsDiags...)
 		s.RecordStore = rs
 	default:
@@ -812,7 +812,7 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 			Detail:   "A live block may have at most one record_store block.",
 			Subject:  recordStoreBlocks[1].DefRange.Ptr(),
 		})
-		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
+		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0], s.Estate)
 		diags = append(diags, rsDiags...)
 		s.RecordStore = rs
 	}
@@ -1082,7 +1082,13 @@ func recordStoreRetiredDetail(label string) string {
 // decodeRecordStoreBlock decodes a live block's nested "record_store" block:
 // which backend (the block's label) and that backend's own arguments. See
 // [LiveRecordStore].
-func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics) {
+//
+// estate is the name the surrounding live block gives this estate, or "" when
+// it names none and the name is derived from the tofu-estate tags instead.
+// Only [validateRecordStoreKeyPrefix] reads it, and only to decide whether a
+// key_prefix under "tofu-records/" is this estate's own namespace or another
+// one's (GitHub issue #1381).
+func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, hcl.Diagnostics) {
 	rs := &LiveRecordStore{DeclRange: block.DefRange}
 
 	label := block.Labels[0]
@@ -1178,7 +1184,7 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 		val, valDiags := decodeLiteralString(attr, "key_prefix")
 		diags = append(diags, valDiags...)
 		if !valDiags.HasErrors() {
-			if detail := validateRecordStoreKeyPrefix(val); detail != "" {
+			if detail := validateRecordStoreKeyPrefix(val, estate); detail != "" {
 				diags = append(diags, &hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  "Invalid record_store key_prefix",
@@ -1617,14 +1623,39 @@ func validateRecordStorePath(raw string) string {
 // "tofu-located", "tofu-residue", "tofu-provisioned" or "tofu-outputs" is
 // refused, whether or not it carries a leading or trailing slash.
 //
-// A leading slash is refused in its own right as well, after those six, so
+// The records' own root, "tofu-records", is the seventh and is not reserved:
+// "tofu-records/<this estate>" is the default written out by hand and is no
+// mistake at all. What it may not name is ANOTHER estate's records. Estate A
+// with key_prefix = "tofu-records/b" writes its records to exactly the keys
+// estate b writes its own to, because recordStoreKeyPrefix uses the override
+// verbatim while b uses RecordKeyPrefix("b"), and the two strings are equal.
+// Each run then reads the other one's inventory as its own, and a record with
+// no configuration behind it is proposed for destruction. GitHub issue #1381
+// measured that this was accepted. estate is the name the live block gives, or
+// "" when it gives none; see [decodeRecordStoreBlock].
+//
+// A leading slash is refused in its own right as well, after all of those, so
 // that the argument is named here rather than at the first run's first write.
-func validateRecordStoreKeyPrefix(raw string) string {
+func validateRecordStoreKeyPrefix(raw, estate string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
 		return "The \"key_prefix\" argument was set to an empty (or all-slashes) string. Give it a real prefix, or omit the argument entirely to use the default derived from the estate name."
 	}
-	first, _, _ := strings.Cut(norm, "/")
+	first, rest, _ := strings.Cut(norm, "/")
+	if first == "tofu-records" {
+		// The whole root. Every estate's records live one segment under it,
+		// so this estate would write into, and list, all of them.
+		if rest == "" {
+			return "The \"key_prefix\" argument was set to the \"tofu-records\" root itself. Every estate's records live one segment under that root, so this estate would write into and list all of them, and a record with no configuration behind it is proposed for destruction. Name this estate's own namespace (\"tofu-records/<this estate>\"), or omit the argument entirely to get it by default."
+		}
+		owner, _, _ := strings.Cut(rest, "/")
+		switch {
+		case estate == "":
+			return fmt.Sprintf("The \"key_prefix\" argument was set to %q, which is inside the namespace the records of the estate named %q live in, and this configuration does not say which estate it owns, so nothing here can tell whether that is this estate or another one. Set the \"estate\" argument to the name this configuration owns, or give \"key_prefix\" a prefix outside \"tofu-records/\".", raw, owner)
+		case owner != estate:
+			return fmt.Sprintf("The \"key_prefix\" argument was set to %q, and the estate this configuration owns is %q. That prefix is the namespace estate %q writes its own records to, so both estates would write to one set of keys and each would read the other's records as its own inventory - and a record with no configuration behind it is proposed for destruction. Name this estate (\"tofu-records/%s\"), or give \"key_prefix\" a prefix outside \"tofu-records/\".", raw, estate, owner, estate)
+		}
+	}
 	if first == "tofu-receipts" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-receipts\" segment: that namespace belongs to the receipts pattern (live/RECEIPTS.md), and a record store's keys must stay disjoint from it so a record can never be mistaken for, or collide with, a receipt."
 	}

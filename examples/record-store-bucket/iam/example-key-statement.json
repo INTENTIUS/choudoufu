@@ -11,5 +11,10 @@
     "kms:Decrypt",
     "kms:GenerateDataKey"
   ],
-  "Resource": "*"
+  "Resource": "*",
+  "Condition": {
+    "StringEquals": {
+      "kms:ViaService": "s3.us-east-2.amazonaws.com"
+    }
+  }
 }
