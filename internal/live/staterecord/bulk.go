@@ -266,8 +266,9 @@ feed:
 // failure is an error that names the key.
 func (s *S3Store) getForBulk(ctx context.Context, key string) (rec Record, exists bool, err error) {
 	res, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(s.objectKey(key)),
+		Bucket:              aws.String(s.bucket),
+		Key:                 aws.String(s.objectKey(key)),
+		ExpectedBucketOwner: s.expectedOwner(),
 	})
 	if err != nil {
 		if missingKey(err) {
@@ -281,6 +282,11 @@ func (s *S3Store) getForBulk(ctx context.Context, key string) (rec Record, exist
 		}
 		if unusable := asKMSKeyUnusable(err); unusable != nil {
 			return Record{}, false, fmt.Errorf("getting %q: %w", key, unusable)
+		}
+		// After the two KMS cases, the same order s3OpError uses: a KMS
+		// refusal has a remedy naming the bucket's owner does not.
+		if foreign := asBucketOwnerMismatch(s.bucket, s.expectedBucketOwner, err); foreign != nil {
+			return Record{}, false, fmt.Errorf("getting %q: %w", key, foreign)
 		}
 		return Record{}, false, fmt.Errorf("getting %q: %w", key, err)
 	}

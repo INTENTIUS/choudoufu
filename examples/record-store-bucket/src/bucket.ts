@@ -105,6 +105,24 @@ export const recordsBucket = new Bucket({
         NoncurrentVersionExpiration: new Bucket_NoncurrentVersionExpiration({
           NoncurrentDays: noncurrentDays,
         }),
+
+        // The last trace of a deleted record is a delete marker with nothing
+        // left under it, once the noncurrent versions below it have expired.
+        // Without this, those markers accumulate forever, every one of them
+        // counts as a version, and `just down` refuses a bucket whose records
+        // are all long gone (GitHub issue #1382).
+        //
+        // Two things make this safe to set here and not elsewhere. S3 rejects
+        // a rule that combines ExpiredObjectDeleteMarker with an expiry by
+        // days or date, or with tag filters, and this rule has none of those:
+        // only the noncurrent expiry and the multipart abort. And choudoufu's
+        // own bucket contract reads it correctly:
+        // internal/live/staterecord/bucketcontract.go's
+        // `expiresCurrentObjects` looks at Expiration.Days and
+        // Expiration.Date, so a marker cleanup is not read as a rule that
+        // deletes records, and `just verify` still passes.
+        ExpiredObjectDeleteMarker: true,
+
         AbortIncompleteMultipartUpload: new Bucket_AbortIncompleteMultipartUpload({
           DaysAfterInitiation: 7,
         }),
@@ -113,7 +131,22 @@ export const recordsBucket = new Bucket({
   }),
 
   BucketEncryption: encryption,
-});
+},
+// The bucket outlives its stack. A record is the only copy of an estate's
+// identity for a record-backed resource, and without Retain a rollback, a
+// stack rename, a `delete-stack` typed at the wrong terminal or a property
+// change CloudFormation decides to do by replacement all take the records
+// with them. With it, the worst a stack operation can do is orphan the
+// bucket, which loses nothing.
+//
+// UpdateReplacePolicy as well as DeletionPolicy, and the second one is the
+// one that would otherwise be missed: DeletionPolicy covers deleting the
+// stack, UpdateReplacePolicy covers CloudFormation replacing the resource
+// during an update, which is what a BucketName change is.
+//
+// `just down` prints what this means, because the recipe's final line used to
+// say the bucket was gone and it no longer is.
+{ DeletionPolicy: "Retain", UpdateReplacePolicy: "Retain" });
 
 /**
  * Statements that only make sense with a customer managed key.

@@ -267,6 +267,7 @@ HEOF
   has "$AWS_LOG" "s3api delete-objects" "the object version was deleted"
   has "$JUST_LOG" "down" "just down was attempted"
   has "$SB/out" "COULD NOT REMOVE stack" "the failed just down named the stack"
+  has "$AWS_LOG" "s3api delete-bucket" "the retained bucket was still deleted, although just down failed"
   has "$AWS_LOG" "kms put-key-policy" "the borrowed key's policy was restored after it"
   has "$AWS_LOG" "--policy file://" "the restore read the policy from the file on disk, not a shell variable"
   has "$SB/out" "restored the key's original policy" "the restore reported success"
@@ -354,11 +355,41 @@ stack_up_case() { # <name> <scenario> <teardown fn> <start regex> <what the tear
 if wanted claim4-tears-down-a-failed-deploy; then
   stack_up_case claim4-tears-down-a-failed-deploy backend-sets-itself-up.sh auto_teardown '^cmd "just up '
   has "$AWS_LOG" "cloudformation" "the stack teardown ran, so STACK_UP was set BEFORE just up"
+  has "$AWS_LOG" "s3api delete-bucket" "the bucket the stack retains was deleted after it"
+  has "$SB/out" "removed the retained bucket" "the bucket removal reported success"
 fi
 
 if wanted claim37-tears-down-a-failed-deploy; then
   stack_up_case claim37-tears-down-a-failed-deploy the-recommended-secure-configuration.sh secure_teardown '^cmd ".*just up '
   has "$JUST_LOG" "down" "just down ran, so STACK_UP was set BEFORE just up"
+  has "$AWS_LOG" "s3api delete-bucket" "the bucket the stack retains was deleted after it"
+  has "$SB/out" "removed the retained bucket" "the bucket removal reported success"
+fi
+
+# ── case: the stack RETAINS its bucket (#1382) ──────────────────────────
+# examples/record-store-bucket's bucket carries DeletionPolicy Retain, so a
+# deleted stack leaves the bucket in the account. A teardown that stops at
+# the stack leaks one bucket per run and says it did not.
+if wanted claim4-says-so-when-the-retained-bucket-stays; then
+  sandbox claim4-says-so-when-the-retained-bucket-stays
+  log "  a retained bucket that cannot be deleted is named, and the trap carries on"
+  AWS_FAIL_GLOB='s3api delete-bucket*'
+  prologue
+  {
+    echo 'BUCKET="chdf-smoke-selftest-$SUFFIX"'
+    echo 'REAL_ROLES=(); REAL_BUCKETS=()'
+    echo 'STACK_UP=1'
+    extract_func "$SMOKE_SRC/scenarios/backend-sets-itself-up.sh" auto_teardown
+    grep -m1 "trap .*auto_teardown" "$SMOKE_SRC/scenarios/backend-sets-itself-up.sh"
+    echo 'echo SCENARIO-RAN'
+    echo 'BOOM="$(false)"'
+    echo 'echo NOT-REACHED'
+  } >> "$HARNESS"
+  run_harness
+  has "$AWS_LOG" "s3api delete-bucket" "the deletion was attempted"
+  has "$SB/out" "COULD NOT REMOVE the retained bucket" "the failed deletion named the bucket"
+  hasnt "$SB/out" "removed stack and bucket" "nothing claims the bucket went with the stack"
+  has "$SB/out" "CLEANUP-RAN" "the trap reached its last step"
 fi
 
 # ── case: a missing stack and a missing bucket are tolerated ────────────

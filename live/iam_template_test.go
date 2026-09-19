@@ -23,6 +23,11 @@ const (
 	iamDocsPage = "../site/content/docs/use/iam.md"
 	iamBucket   = "choudoufu-records-111122223333-us-east-2"
 	iamKMSKey   = "arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"
+	// The account that must own the bucket (GitHub issue #1381). The same
+	// twelve digits the bucket name above embeds, which is the ordinary case:
+	// the project derives the name from the account it is standing the bucket
+	// up in, and that is exactly why the name alone defends nothing.
+	iamAccount = "111122223333"
 )
 
 func renderIAMPolicy(t *testing.T, args ...string) []byte {
@@ -32,11 +37,49 @@ func renderIAMPolicy(t *testing.T, args ...string) []byte {
 			t.Fatalf("%s is not on PATH; this runs the real renderer and must not be skipped (a skipping guard is permanently green)", bin)
 		}
 	}
-	out, err := exec.Command("bash", append([]string{iamRenderer}, args...)...).CombinedOutput()
+	// Stdout alone. A render without --account writes a warning to stderr
+	// (#1381), and CombinedOutput would put that warning inside the JSON that
+	// TestIAMTemplateHasOneSource compares byte for byte against the
+	// documentation page.
+	cmd := exec.Command("bash", append([]string{iamRenderer}, args...)...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("render-policy.sh %v: %v\n%s", args, err, out)
+		t.Fatalf("render-policy.sh %v: %v\n%s", args, err, stderr.String())
 	}
 	return out
+}
+
+// TestIAMRendererWarnsWithoutAnAccount: the pin is optional, so every
+// invocation written before it keeps working, and a render that leaves the
+// bucket owner unpinned says so. It says it on stderr, because stdout is the
+// policy and the documentation page is compared to it byte for byte.
+func TestIAMRendererWarnsWithoutAnAccount(t *testing.T) {
+	run := func(args ...string) (stdout, stderr string) {
+		t.Helper()
+		cmd := exec.Command("bash", append([]string{iamRenderer}, args...)...)
+		var outBuf, errBuf bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &outBuf, &errBuf
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("render-policy.sh %v: %v\n%s", args, err, errBuf.String())
+		}
+		return outBuf.String(), errBuf.String()
+	}
+
+	stdout, stderr := run("prod", iamBucket)
+	if !strings.Contains(stderr, "--account") || !strings.Contains(stderr, "bucket name is global") {
+		t.Errorf("a render with no --account said this on stderr:\n%s", stderr)
+	}
+	var doc any
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Errorf("stdout is not JSON on its own, so the warning leaked into the policy: %v\n%s", err, stdout)
+	}
+
+	_, stderr = run("prod", iamBucket, "--account", iamAccount)
+	if stderr != "" {
+		t.Errorf("a render WITH --account still wrote to stderr:\n%s", stderr)
+	}
 }
 
 // TestIAMTemplateHasOneSource is GitHub issue #1342's last acceptance item:
@@ -47,6 +90,7 @@ func TestIAMTemplateHasOneSource(t *testing.T) {
 	for file, args := range map[string][]string{
 		"example-prod.json":                         {"prod", iamBucket},
 		"example-prod-with-key-and-dependency.json": {"prod", iamBucket, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
+		"example-prod-with-account.json":            {"prod", iamBucket, "--account", iamAccount},
 	} {
 		want, err := os.ReadFile(filepath.Join(iamExamples, file))
 		if err != nil {
@@ -117,7 +161,7 @@ type iamWantStatement struct {
 // each time re-rendered the examples as TestIAMTemplateHasOneSource's own
 // message instructs - after which everything was green. An example file can
 // be re-rendered; this cannot.
-func iamWantedPolicy(estate, bucket, kms string, others ...string) map[string]any {
+func iamWantedPolicy(estate, bucket, kms, account string, others ...string) map[string]any {
 	b := "arn:aws:s3:::" + bucket
 	// Each prefix ends in "/", so "prod" is not also "prod-eu" (#1335).
 	own := []string{"tofu-records/" + estate + "/", "tofu-hints/" + estate + "/", "tofu-outputs/" + estate + "/"}
@@ -197,6 +241,32 @@ func iamWantedPolicy(estate, bucket, kms string, others ...string) map[string]an
 			Action: []string{"kms:Decrypt", "kms:GenerateDataKey"}, Resource: kms,
 		})
 	}
+	// GitHub issue #1381: with an account, every Allow also requires
+	// aws:ResourceAccount, MERGED into the StringEquals it already had. IAM
+	// takes one StringEquals object per statement, so a second one would
+	// replace the first and the write statement would stop requiring the tag.
+	// No Deny gets it: a Deny that stopped applying once the account was
+	// wrong would stop applying in the case it exists for.
+	if account != "" {
+		for i := range st {
+			if st[i].Effect != "Allow" {
+				continue
+			}
+			cond := map[string]any{}
+			for op, v := range st[i].Condition {
+				cond[op] = v
+			}
+			eq := map[string]any{}
+			if existing, ok := cond["StringEquals"].(map[string]any); ok {
+				for k, v := range existing {
+					eq[k] = v
+				}
+			}
+			eq["aws:ResourceAccount"] = account
+			cond["StringEquals"] = eq
+			st[i].Condition = cond
+		}
+	}
 	return map[string]any{"Version": "2012-10-17", "Statement": st}
 }
 
@@ -226,9 +296,11 @@ func TestIAMTemplateIsExactlyThisPolicy(t *testing.T) {
 		args []string
 		want map[string]any
 	}{
-		{"no flags", []string{"prod", iamBucket}, iamWantedPolicy("prod", iamBucket, "")},
-		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey}, iamWantedPolicy("prod", iamBucket, iamKMSKey)},
-		{"--reads-outputs-of", []string{"prod", iamBucket, "--reads-outputs-of", "network"}, iamWantedPolicy("prod", iamBucket, "", "network")},
+		{"no flags", []string{"prod", iamBucket}, iamWantedPolicy("prod", iamBucket, "", "")},
+		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey}, iamWantedPolicy("prod", iamBucket, iamKMSKey, "")},
+		{"--reads-outputs-of", []string{"prod", iamBucket, "--reads-outputs-of", "network"}, iamWantedPolicy("prod", iamBucket, "", "", "network")},
+		{"--account", []string{"prod", iamBucket, "--account", iamAccount}, iamWantedPolicy("prod", iamBucket, "", iamAccount)},
+		{"--account with everything", []string{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"}, iamWantedPolicy("prod", iamBucket, iamKMSKey, iamAccount, "network")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wantRaw, err := json.Marshal(tc.want)
@@ -250,8 +322,26 @@ func TestIAMTemplateIsExactlyThisPolicy(t *testing.T) {
 // have been copied from, and each one bricks an estate while reviewing
 // correctly.
 func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
+	// Run twice. The second render is #1381's owner pin, and every assertion
+	// below has to hold with it on: adding a condition to eight Allow
+	// statements is exactly the kind of change that quietens a shape test by
+	// accident, and the read-and-delete assertion did have to be taught the
+	// difference between its own condition and the pin.
+	t.Run("no --account", func(t *testing.T) {
+		iamMeasuredShape(t, "", "prod", iamBucket, "--reads-outputs-of", "network")
+	})
+	t.Run("--account", func(t *testing.T) {
+		iamMeasuredShape(t, iamAccount, "prod", iamBucket, "--account", iamAccount, "--reads-outputs-of", "network")
+	})
+}
+
+// iamMeasuredShape is TestIAMTemplateKeepsTheMeasuredShape's body for one
+// render. account is what every Allow must pin as aws:ResourceAccount, or ""
+// when the render pinned nothing.
+func iamMeasuredShape(t *testing.T, account string, args ...string) {
+	t.Helper()
 	var doc struct{ Statement []iamStatement }
-	if err := json.Unmarshal(renderIAMPolicy(t, "prod", iamBucket, "--reads-outputs-of", "network"), &doc); err != nil {
+	if err := json.Unmarshal(renderIAMPolicy(t, args...), &doc); err != nil {
 		t.Fatal(err)
 	}
 	has := func(list []string, want string) bool {
@@ -303,9 +393,52 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 	seen := map[string]bool{}
 
 	var sawList, sawWrite, sawDeny bool
+	var sawPin int
 	for _, st := range doc.Statement {
 		acts := st.actions()
 		seen[st.Sid] = true
+
+		// #1381. The pin goes on every Allow and on no Deny, and it is merged
+		// into the condition a statement already had rather than replacing
+		// it: IAM takes one StringEquals object per statement.
+		pinned, _ := st.Condition["StringEquals"]["aws:ResourceAccount"].(string)
+		elsewhere := ""
+		for op, keys := range st.Condition {
+			for key := range keys {
+				if key == "aws:ResourceAccount" && op != "StringEquals" {
+					elsewhere = op
+				}
+			}
+		}
+		if elsewhere != "" {
+			t.Errorf("%s carries aws:ResourceAccount under %s; only a StringEquals pins an account", st.Sid, elsewhere)
+		}
+		switch {
+		case account == "":
+			if pinned != "" {
+				t.Errorf("%s pins aws:ResourceAccount = %s with no --account given; an unasked-for account would refuse every correct bucket in any other account", st.Sid, pinned)
+			}
+		case st.Effect == "Allow":
+			if pinned != account {
+				t.Errorf("%s allows with aws:ResourceAccount = %q, want %q: an Allow without it matches a bucket of this name in any account, and the records hold secrets", st.Sid, pinned, account)
+			}
+			sawPin++
+		default:
+			if pinned != "" {
+				t.Errorf("%s is a Deny that requires aws:ResourceAccount: it would stop applying the moment the account is wrong, which is the case it exists for", st.Sid)
+			}
+		}
+
+		// Everything a statement conditions on BESIDES the owner pin. The
+		// read-and-delete assertion below is about this, not about the pin.
+		otherConditions := map[string]bool{}
+		for op, keys := range st.Condition {
+			for key := range keys {
+				if key != "aws:ResourceAccount" {
+					otherConditions[op+"/"+key] = true
+				}
+			}
+		}
 		want, known := wantResource[st.Sid]
 		wantNot, knownNot := wantNotResource[st.Sid]
 		switch {
@@ -339,8 +472,8 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 				}
 			}
 		}
-		if has(acts, "s3:GetObject") && has(acts, "s3:DeleteObject") && st.Effect == "Allow" && len(st.Condition) != 0 {
-			t.Errorf("%s: the read-and-delete allow carries a condition; it has to be scoped by prefix alone", st.Sid)
+		if has(acts, "s3:GetObject") && has(acts, "s3:DeleteObject") && st.Effect == "Allow" && len(otherConditions) != 0 {
+			t.Errorf("%s: the read-and-delete allow carries a condition besides the owner pin (%v); it has to be scoped by prefix alone", st.Sid, otherConditions)
 		}
 		if has(acts, "s3:PutObject") && st.Effect == "Allow" {
 			sawWrite = true
@@ -349,6 +482,13 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 			}
 			if st.Condition["StringEquals"]["s3:RequestObjectTag/tofu-estate"] != "prod" {
 				t.Errorf("%s does not require s3:RequestObjectTag/tofu-estate = prod", st.Sid)
+			}
+			// The merge, stated as a fact rather than implied by the line
+			// above: both keys under the one StringEquals. A second
+			// StringEquals object would have replaced this one and the tag
+			// requirement would be gone, with the policy still valid JSON.
+			if account != "" && len(st.Condition["StringEquals"]) != 2 {
+				t.Errorf("%s has %d key(s) under StringEquals, want the request tag and the account together: %v", st.Sid, len(st.Condition["StringEquals"]), st.Condition["StringEquals"])
 			}
 		}
 		if has(acts, "s3:ListBucket") {
@@ -395,6 +535,9 @@ func TestIAMTemplateKeepsTheMeasuredShape(t *testing.T) {
 	}
 	if !sawWrite || !sawDeny {
 		t.Errorf("write statement present: %v, deny statement present: %v", sawWrite, sawDeny)
+	}
+	if account != "" && sawPin < 5 {
+		t.Errorf("only %d statement(s) pin the account; this render has more Allow statements than that, so something is not being read", sawPin)
 	}
 	for sid := range wantResource {
 		if !seen[sid] {
@@ -501,6 +644,16 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 			t.Errorf("render-policy.sh accepted --kms %q:\n%s", bad, out)
 		}
 	}
+	// GitHub issue #1381. --account goes into an aws:ResourceAccount
+	// condition, which IAM compares as a literal string: an account with
+	// dashes, an ARN around it, a wildcard or eleven digits matches no
+	// request at all, so the policy would refuse the estate its own bucket
+	// with a valid-looking condition nobody re-reads.
+	for _, bad := range []string{"*", "", "1234-5678-9012", "11112222333", "1111222233334", "arn:aws:iam::111122223333:root", "111122223333 ", "abcdefghijkl", "${aws:PrincipalAccount}"} {
+		if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--account", bad).CombinedOutput(); err == nil {
+			t.Errorf("render-policy.sh accepted --account %q:\n%s", bad, out)
+		}
+	}
 	// An estate that declares a dependency on itself would get its own
 	// outputs listed twice and a second Deny over its own prefix.
 	if out, err := exec.Command("bash", iamRenderer, "prod", iamBucket, "--reads-outputs-of", "prod").CombinedOutput(); err == nil {
@@ -513,6 +666,9 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 		{"prod", "my.dotted.bucket-name"},
 		{"prod", iamBucket, "--kms", iamKMSKey},
 		{"prod", iamBucket, "--kms", "arn:aws-us-gov:kms:us-gov-west-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"},
+		{"prod", iamBucket, "--account", iamAccount},
+		{"prod", iamBucket, "--account", "000000000001"},
+		{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
 	} {
 		if out, err := exec.Command("bash", append([]string{iamRenderer}, good...)...).CombinedOutput(); err != nil {
 			t.Errorf("render-policy.sh refused %v: %v\n%s", good, err, out)

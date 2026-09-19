@@ -53,7 +53,10 @@ secure_teardown() {
     else
       echo "  no bucket $BUCKET to empty"
     fi
-    ( cd "$PROJECT" && RECORD_KMS_KEY_ARN="$KEY_ARN" just down "$BUCKET" >/dev/null 2>&1 ) && echo "  removed stack and bucket $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
+    ( cd "$PROJECT" && RECORD_KMS_KEY_ARN="$KEY_ARN" just down "$BUCKET" >/dev/null 2>&1 ) && echo "  removed stack $BUCKET" || echo "  COULD NOT REMOVE stack $BUCKET - remove it by hand" >&2
+    # `just down` deletes the stack and the stack retains its bucket (#1382),
+    # so the bucket is a step of its own, attempted whatever `down` said.
+    remove_retained_bucket "$BUCKET"
   fi
   # A BORROWED key. Its policy was replaced by this run and belongs to
   # whoever lent it, so the copy on disk outlives the work root on purpose.

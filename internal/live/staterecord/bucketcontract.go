@@ -135,7 +135,7 @@ func (s *S3Store) CheckBucketContract(ctx context.Context, namespaces []string) 
 	for _, ns := range namespaces {
 		objectNamespaces = append(objectNamespaces, s.objectKey(ns))
 	}
-	return CheckBucketContract(ctx, s.client, s.bucket, objectNamespaces)
+	return CheckBucketContract(ctx, s.client, s.bucket, s.expectedBucketOwner, objectNamespaces)
 }
 
 // CheckBucketContract reads the three settings of bucket and reports one
@@ -149,25 +149,30 @@ func (s *S3Store) CheckBucketContract(ctx context.Context, namespaces []string) 
 // covers the records but not the outputs leaves the outputs growing. With
 // none given, only a rule with no prefix filter counts.
 //
+// expectedOwner is the account that must own the bucket, as twelve digits, or
+// "" for no check. Set, each of the three reads carries it as
+// ExpectedBucketOwner, so a bucket of this name in some other account is
+// refused rather than reported on. See bucketowner.go.
+//
 // The error return is for a failure that is not about the bucket's settings
 // at all - a cancelled context, an unreachable endpoint. A denied read is NOT
 // an error: it is a finding with Unreadable set.
-func CheckBucketContract(ctx context.Context, api BucketContractAPI, bucket string, namespaces []string) ([]BucketFinding, error) {
+func CheckBucketContract(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string, namespaces []string) ([]BucketFinding, error) {
 	findings := make([]BucketFinding, 0, len(BucketSettings))
 
-	v, err := checkVersioning(ctx, api, bucket)
+	v, err := checkVersioning(ctx, api, bucket, expectedOwner)
 	if err != nil {
 		return nil, err
 	}
 	findings = append(findings, v)
 
-	l, err := checkLifecycle(ctx, api, bucket, namespaces)
+	l, err := checkLifecycle(ctx, api, bucket, expectedOwner, namespaces)
 	if err != nil {
 		return nil, err
 	}
 	findings = append(findings, l)
 
-	p, err := checkPublicAccessBlock(ctx, api, bucket)
+	p, err := checkPublicAccessBlock(ctx, api, bucket, expectedOwner)
 	if err != nil {
 		return nil, err
 	}
@@ -176,11 +181,14 @@ func CheckBucketContract(ctx context.Context, api BucketContractAPI, bucket stri
 	return findings, nil
 }
 
-func checkVersioning(ctx context.Context, api BucketContractAPI, bucket string) (BucketFinding, error) {
+func checkVersioning(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string) (BucketFinding, error) {
 	f := BucketFinding{Setting: BucketVersioning}
-	out, err := api.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{Bucket: aws.String(bucket)})
+	out, err := api.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{
+		Bucket:              aws.String(bucket),
+		ExpectedBucketOwner: expectedOwnerPtr(expectedOwner),
+	})
 	if err != nil {
-		return settingReadFailure(f, "s3:GetBucketVersioning", err)
+		return settingReadFailure(f, "s3:GetBucketVersioning", expectedOwner, err)
 	}
 	switch out.Status {
 	case s3types.BucketVersioningStatusEnabled:
@@ -196,15 +204,18 @@ func checkVersioning(ctx context.Context, api BucketContractAPI, bucket string) 
 	return f, nil
 }
 
-func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket string, namespaces []string) (BucketFinding, error) {
+func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string, namespaces []string) (BucketFinding, error) {
 	f := BucketFinding{Setting: BucketLifecycle}
-	out, err := api.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{Bucket: aws.String(bucket)})
+	out, err := api.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{
+		Bucket:              aws.String(bucket),
+		ExpectedBucketOwner: expectedOwnerPtr(expectedOwner),
+	})
 	if err != nil {
 		if apiErrorCode(err) == "NoSuchLifecycleConfiguration" {
 			f.Found = "the bucket has no lifecycle configuration"
 			return f, nil
 		}
-		return settingReadFailure(f, "s3:GetLifecycleConfiguration", err)
+		return settingReadFailure(f, "s3:GetLifecycleConfiguration", expectedOwner, err)
 	}
 
 	// First, the thing that outranks everything else this assertion checks:
@@ -398,15 +409,18 @@ func ruleMayReach(rule s3types.LifecycleRule, namespaces []string) bool {
 	return false
 }
 
-func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket string) (BucketFinding, error) {
+func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string) (BucketFinding, error) {
 	f := BucketFinding{Setting: BucketPublicAccessBlock}
-	out, err := api.GetPublicAccessBlock(ctx, &s3.GetPublicAccessBlockInput{Bucket: aws.String(bucket)})
+	out, err := api.GetPublicAccessBlock(ctx, &s3.GetPublicAccessBlockInput{
+		Bucket:              aws.String(bucket),
+		ExpectedBucketOwner: expectedOwnerPtr(expectedOwner),
+	})
 	if err != nil {
 		if apiErrorCode(err) == "NoSuchPublicAccessBlockConfiguration" {
 			f.Found = "the bucket has no public-access block configuration"
 			return f, nil
 		}
-		return settingReadFailure(f, "s3:GetBucketPublicAccessBlock", err)
+		return settingReadFailure(f, "s3:GetBucketPublicAccessBlock", expectedOwner, err)
 	}
 	cfg := out.PublicAccessBlockConfiguration
 	if cfg == nil {
@@ -439,10 +453,17 @@ func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket s
 // settingReadFailure sorts a failed read into a finding (the read was
 // denied, so the setting is unreadable) or an error (the read never
 // happened, so nothing is known about the bucket at all).
-func settingReadFailure(f BucketFinding, permission string, err error) (BucketFinding, error) {
+func settingReadFailure(f BucketFinding, permission, expectedOwner string, err error) (BucketFinding, error) {
 	if accessDenied(err) {
 		f.Unreadable = true
 		f.Found = permission + " was denied"
+		if expectedOwner != "" {
+			// This read carried ExpectedBucketOwner, so a bucket owned by
+			// another account is refused with the very same 403 the missing
+			// permission gets, and an operator granted the permission twice
+			// before looking anywhere else. GitHub issue #1381.
+			f.Found += fmt.Sprintf(", which is also what S3 answers when the bucket is owned by an account other than %s", expectedOwner)
+		}
 		return f, nil
 	}
 	return f, fmt.Errorf("staterecord: s3: reading the bucket's %s setting: %w", f.Setting, err)

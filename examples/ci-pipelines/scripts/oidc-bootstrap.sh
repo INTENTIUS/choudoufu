@@ -204,7 +204,7 @@ echo "name_prefix:  $NAME_PREFIX  (from $TF_MAIN)"
 echo "log group:    $LOG_GROUP_ARN  (tag ops also granted on $LOG_GROUP_ARN_BASE)"
 echo "iam role:     $IAM_ROLE_ARN"
 echo "estate:       $ESTATE  (from $ESTATE_FILE)"
-echo "record store: s3://$RECORD_BUCKET  (from $ESTATE_FILE)"
+echo "record store: s3://$RECORD_BUCKET  (from $ESTATE_FILE, owner pinned to $ACCOUNT_ID)"
 echo "subject(s):   ${SUBJECT_PATTERNS[*]}"
 [ "$DRY_RUN" = "1" ] && echo "MODE:         dry-run - printing every command, running none"
 echo
@@ -226,9 +226,15 @@ echo
 
 # ------------------------------------------------ the bucket (read only)
 
-log "confirming the record store bucket exists (never created here)"
-if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" > /dev/null 2>&1; then
-  echo "  s3://$RECORD_BUCKET does not exist, or these credentials cannot see it." >&2
+# --expected-bucket-owner is the point of this read, not a decoration
+# (GitHub issue #1381). A bucket name is global and this one embeds the
+# account id in plain sight, so if the real bucket is ever deleted anyone can
+# create the name in their own account. With the flag, head-bucket answers 403
+# for a bucket owned by anyone but $ACCOUNT_ID, and this script stops instead
+# of writing an apply-role policy against a stranger's bucket.
+log "confirming the record store bucket exists in $ACCOUNT_ID (never created here)"
+if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" --expected-bucket-owner "$ACCOUNT_ID" > /dev/null 2>&1; then
+  echo "  s3://$RECORD_BUCKET does not exist in account $ACCOUNT_ID, or these credentials cannot see it." >&2
   echo "  $ESTATE_FILE names it as the estate's record store, and the apply role's" >&2
   echo "  policy below is written against it. Stand it up first:" >&2
   echo "    cd examples/record-store-bucket && AWS_REGION=$REGION just up $RECORD_BUCKET && just verify $RECORD_BUCKET" >&2
@@ -392,8 +398,14 @@ JSON
 # statement in it was measured to be needed by an estate's life (smoke claim
 # 37 reconciles the two), and leaving one out here would be this script
 # having an opinion the renderer's tests do not know about.
+# --account is the policy half of #1381: every Allow the renderer emits also
+# requires aws:ResourceAccount = $ACCOUNT_ID, so none of these statements
+# reaches a bucket of this name anywhere else. The store half is the estate
+# sidecar's bucket_owner, which is NOT set yet: the generated workflows pin a
+# released binary that does not know the argument and would refuse the whole
+# configuration. It goes in with the pin bump after the next release.
 record_store_statements() {
-  "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" | jq -c '.Statement[]' | paste -sd, -
+  "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" --account "$ACCOUNT_ID" | jq -c '.Statement[]' | paste -sd, -
 }
 
 # Every logs: action here (CreateLogGroup, DeleteLogGroup, PutRetentionPolicy)

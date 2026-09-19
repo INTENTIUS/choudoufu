@@ -7,7 +7,7 @@ correct, and takes it down again.
 ```
 just up        # create or update the bucket; prints RECORD_STORE_BUCKET
 just verify    # is this bucket correct? asks the choudoufu binary
-just down      # tear it down; refuses while any record version is present
+just down      # delete the stack; refuses while the bucket holds anything
 ```
 
 Then point an estate at it:
@@ -59,6 +59,15 @@ long. For the record-backed slice it is the only answer to "how long do
 we have to notice that a record was destroyed by mistake". Pick it
 deliberately.
 
+The rule this project ships also sets `ExpiredObjectDeleteMarker`, which
+removes a delete marker once nothing is left under it. That is not one
+of the three settings and choudoufu does not ask for it. Without it the
+markers left by every deleted record stay in the bucket forever, and
+each one is a version, so `just down` would refuse a bucket whose
+records are long gone. S3 rejects a rule that combines it with an
+expiry by days or date, or with tag filters; this rule has none of
+those.
+
 **Public-access block is on, all four settings.** Records hold secret
 material, protected by the bucket's encryption at rest and by IAM.
 
@@ -98,22 +107,42 @@ whether each is hiding a real failure.
 
 | variable | default | what it is |
 |---|---|---|
-| bucket name (argument, or `RECORD_BUCKET`) | `choudoufu-records-<account>-<region>` | Globally unique, so derived from the account rather than guessed. Any name works. |
+| bucket name (an argument to any recipe) | `choudoufu-records-<account>-<region>` | Globally unique, so derived from the account rather than guessed. Any name works. |
 | `RECORD_NONCURRENT_DAYS` | `30` | The recovery window, above. |
 | `RECORD_KMS_KEY_ARN` | unset | A customer managed key **you** own. |
 | `AWS_REGION` | `us-east-2` | Where the bucket and its stack live. |
 
-`just up` is safe to run again. When you do not pass
-`RECORD_NONCURRENT_DAYS` and the bucket already exists, it builds with
-the window the live bucket has now, so a window somebody changed since is
-not reset to 30.
+The bucket name is an argument, not an environment variable: `just up
+my-bucket`, `just verify my-bucket`. `RECORD_BUCKET` is what the chant
+project under `src/` reads, and the recipes set it for you; it matters
+only if you run `npx chant build` yourself.
+
+`just up` is safe to run again, and it reads two things off the live
+bucket rather than assuming them.
+
+The recovery window: when you do not pass `RECORD_NONCURRENT_DAYS` and
+the bucket already exists, `up` builds with the window the bucket has
+now, so a window somebody changed since is not reset to 30. If that read
+fails for any reason other than the bucket or its lifecycle
+configuration being absent, `up` stops and shows the error. A throttle
+or an AccessDenied is not a bucket without a window.
+
+The key: if the bucket's default encryption names a KMS key and
+`RECORD_KMS_KEY_ARN` is unset or names a different one, `up` refuses
+instead of rebuilding the bucket as SSE-S3 and dropping the two Deny
+statements. It prints the key it found and what to do about it. There is
+no flag for the downgrade, on purpose: change the bucket's encryption
+yourself first, then run `up` again.
 
 ### The key is yours
 
 With `RECORD_KMS_KEY_ARN` set, the bucket's default encryption becomes
 SSE-KMS under that key with bucket keys on, the bucket policy refuses a
 put that asks for a different algorithm or a different key, and `verify`
-tests that policy with three writes under `_verify/`.
+tests that policy under `_verify/`: a put that asks for AES256, which
+has to be refused, a put with no encryption header, which has to be
+accepted, and a head of what that second put wrote, to see which key it
+landed under.
 
 This project never creates the key. A key minted by `up` would be a key
 `down` could delete, and deleting it makes every record in the bucket
@@ -151,21 +180,52 @@ access through IAM, and that policy has one source, `iam/render-policy.sh`:
 just policy prod                                   # for this project's bucket
 just policy prod "" --reads-outputs-of network     # with a declared dependency
 just policy prod my-bucket --kms arn:aws:kms:...   # with your own key
+just policy prod "" --account 111122223333         # pin the bucket's owner
 ```
+
+`--account` adds `aws:ResourceAccount` to every `Allow`, so the policy
+reaches a bucket of that name in that account and nowhere else. A bucket
+name is global and a free name can be taken by anyone, so without it the
+policy grants its estate a bucket of the right name in a stranger's
+account. Rendering without the flag prints a warning saying so. The other
+half is `bucket_owner` in the estate's `record_store` block, which puts
+`ExpectedBucketOwner` on every request the run makes.
 
 The documentation's IAM page shows the same output and says why each
 statement is there. Read it before editing the result: two statements
-look like they could be tightened, and tightening either one leaves an
-estate that can create records and never update or delete them.
+look like they could be tightened, and both were measured against AWS.
+Conditioning `ReadAndDeleteByPrefix` on the object's existing tag leaves
+an estate that can create records and can never update or delete one.
+Writing `WriteOnlyObjectsTaggedAsThisEstate` with `s3:ExistingObjectTag`
+instead of `s3:RequestObjectTag` denies the first write into every new
+estate. `site/content/docs/use/iam.md` has both in full, under "What each
+statement is for".
 
 ## `just down`
 
-It removes what `up` created and nothing else: the stack, and `verify`'s
-own probe objects. It refuses while **any version** of anything under
-`tofu-*` exists, current or not, because a deleted record's recovery copy
-lives only here. Destroy the estates first, or empty those prefixes
-yourself on purpose. If you stored anything else in the bucket,
-CloudFormation refuses a non-empty bucket and says so.
+It removes the stack, and `verify`'s own probe objects under `_verify/`.
+
+It refuses while the bucket holds **any object version**, current or not,
+anywhere outside `_verify/`. Any version, because a deleted record's
+recovery copy lives only here. Anywhere, because an estate with a
+`key_prefix` override writes its records somewhere other than `tofu-*`,
+and a count under `tofu-` alone read that bucket as empty. The refusal
+names what it found, by prefix, and the command that empties each one.
+
+A `choudoufu destroy` is not enough to satisfy it. A destroyed estate
+leaves its sentinel, its hint, every `tofu-outputs/` object and a
+tombstone envelope per record, all as current objects that no lifecycle
+rule here removes. Emptying those prefixes is a deliberate step, and
+then the versions and delete markers it creates age out on the bucket's
+own recovery window.
+
+The bucket outlives the stack. It carries `DeletionPolicy` and
+`UpdateReplacePolicy` `Retain`, so no stack operation can delete it: not
+a `delete-stack`, not a rollback, not a replacement during an update. So
+`down` deletes the stack and leaves an empty bucket behind, says so, and
+prints the two commands that remove it. Until you run them, `just up`
+under the same name cannot recreate the stack, and the bucket has no
+bucket policy, since the policy is a stack resource and goes with it.
 
 ## The governed path
 
