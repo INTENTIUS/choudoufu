@@ -49,10 +49,13 @@ As the run prints them:
    allowed. A wrong prefix is enough to destroy a neighbour's records.
    The policy renderer refuses anything that is not an estate name for
    this reason.
-5. `a declared dependency` - reading `b`'s outputs is denied until the
+5. `another estate's outputs are readable only with the statement that grants it` - reading `b`'s outputs is denied until the
    policy is rendered with `--reads-outputs-of smoke-b`, and allowed
-   after. `b`'s records stay denied. Everything in the outputs crosses,
-   sensitive values included.
+   after. `b`'s records stay denied. What the grant exposes is what `b`
+   wrote under `tofu-outputs/`, and an output marked `sensitive` is never
+   written there. No choudoufu run makes this read; the grant is for a
+   reader you write yourself
+   ([Reading a value from another estate]({{< relref "/docs/use/cross-estate" >}})).
 
 The `BREAK=1` run widens the prefix and also removes the tag's `Deny`.
 The read of `b`'s record then succeeds. If it were still denied,

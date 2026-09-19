@@ -8,8 +8,8 @@ weight: 2
 An evaluation asks this early: before any of this works, what has to exist
 that choudoufu will not create?
 
-The short answer is credentials, a region, and - on one of the three record
-store backends - a bucket. Everything else is a line of configuration, a tag
+The short answer is credentials, a region, and, for any estate that is shared,
+a bucket. Everything else is a line of configuration, a tag
 write you run on purpose, or something the first run creates for you.
 
 Every row below was stood up from an empty directory against the pinned
@@ -25,14 +25,14 @@ that covers and, more usefully, what it does not.
 | Provider configuration | A `provider "aws"` block, or nothing | Optional |
 | Estate declaration | `estate.chdf.hcl`, or `live { estate = "..." }` | A config edit |
 | Record store, `local` | `.tofu-records` beside the module | The first apply |
-| Record store, `ssm` | Parameter Store paths | The first apply. Nothing pre-created |
-| Record store, `s3` | A bucket you already own | **You, before the first plan** |
+| Record store, `s3` | A bucket you already own, with three settings on it | **You, before the first plan** |
 | Markers on resources choudoufu creates | Two tags, stamped on create | The apply |
 | Markers on resources that already exist | Two tags | A tag write you run |
 | IAM policy | Provider permissions plus this fork's own | **You** |
 
 Two of those rows are genuinely out of band on every path: credentials and
-IAM. A third, the `s3` bucket, applies only if you choose that backend.
+IAM. A third, the bucket, applies to any estate more than one person or one
+CI job runs, which is most of them.
 
 ## Before the first plan
 
@@ -126,63 +126,86 @@ the deletion.
 
 Every estate has one, and declaring no `record_store` gets you a local one.
 [Where things are stored]({{< relref "/docs/use/storage" >}}) covers what it
-holds and how to choose a backend. This page answers only the setup question:
-what has to exist before the first plan.
+holds and how it is laid out. This page answers only the setup question: what
+has to exist before the first plan.
 
 | Backend | What must exist first | Created by |
 |---|---|---|
 | `local` | Nothing | The first apply, as `.tofu-records` beside the module |
-| `ssm` | **Nothing** | The first apply, as Parameter Store paths |
-| `s3` | The bucket | You |
+| `s3` | The bucket, with versioning, a lifecycle rule that expires noncurrent versions, and public-access block | You |
 
-### `ssm` needs no bootstrap, and that is the point
+### This is stock's bootstrap, minus the lock table
 
-Stock Terraform's S3 backend has the chicken-and-egg every team hits once: the
-bucket that holds state has to exist before the backend can create anything,
-so it gets its own bootstrap configuration with its own state, and that
-configuration's state has to live somewhere too.
+Stock's S3 backend has a day one: create a bucket, turn on versioning, create
+a lock table, write IAM for both. Three of those four are here too. What is
+gone is the lock table, and with it the lock, because every write to the store
+is one conditional request that holds nothing
+([claim 4]({{< relref "/docs/claims/backend-sets-itself-up" >}})).
 
-`record_store "ssm" {}` has no equivalent step. Parameter Store is ambient in
-every AWS account, with nothing to provision, so the first apply writes its
-parameters into an account that has never used the service.
+It is a swap and not a subtraction. This bucket also wants a lifecycle rule
+and a public-access block, which stock's list never mentioned. What changes is
+the kind of thing that can go wrong: a lock table is in the path of every
+apply and can strand one, and these two are set once and are in the path of
+none.
 
-Stood up against an account with zero parameters, an apply of three resources
-produced four parameters and needed no preparation of any kind:
+An earlier version of this page recommended `record_store "ssm" {}` because
+Parameter Store is ambient and needs no bootstrap. That backend is retired,
+and the convenience went with it. Nothing about an estate is zero-setup except
+the local store.
+
+### Creating the bucket
+
+`examples/record-store-bucket` is a runnable project that makes a correct one
+with CloudFormation, so that nothing on the path needs a state file to create
+the bucket that exists so you would not need state files.
 
 ```
-/tofu-records/<estate>/tofu-hints/<estate>/guided
-/tofu-records/<estate>/tofu-records/<estate>/null_resource/<encoded address>
-/tofu-records/<estate>/tofu-records/<estate>/random_pet/<encoded address>
-/tofu-records/<estate>/tofu-records/<estate>/aws_vpc/<encoded address>
+cd examples/record-store-bucket
+npm install
+just up                    # or: just up <bucket-name>
+just verify
 ```
 
-No path had to be created, and no KMS key or parameter tier was chosen. The
-parameters come back as `Type: String` with a null `KeyId`.
+`just up` prints the bucket name to put in the `record_store` block, and how
+many days a record destroyed by mistake stays recoverable. `RECORD_NONCURRENT_DAYS`
+sets that window; thirty is the default, and running `up` again keeps whatever
+the bucket already has. `RECORD_KMS_KEY_ARN` puts the bucket under a customer
+managed key of yours
+([Encryption at rest]({{< relref "/docs/use/encryption" >}})). `just down`
+refuses while the bucket holds any version of a record.
 
-Two bounds on that, since the emulator is not a quota authority. Real
-Parameter Store applies a default per-account parameter limit and a Standard
-tier value ceiling, and an estate large enough to reach either would meet a
-real bootstrap decision that this run cannot show you. Neither was exercised.
+`just verify` does not re-implement anything. It asks the choudoufu binary:
 
-### `s3` is the one backend with a prerequisite
+```
+choudoufu live-bucket -bucket <name>
+```
 
-You create and configure the bucket. choudoufu reads and writes keys in it and
-never creates it.
+which is also how you check a bucket made any other way. The project is a
+convenience and what makes a bucket correct is stated independently of it, in
+[the three settings]({{< relref "/docs/use/bucket-contract" >}}). Terraform,
+the console or an organization's own bucket module all do.
+
+Then write the estate's role its policy:
+[IAM for the record store bucket]({{< relref "/docs/use/iam" >}}).
+
+### What happens when the bucket is wrong or missing
 
 If the bucket is absent, the **plan** fails, not just the apply:
 
 ```
-Error: Cannot list the record store
-
-Listing the record store to find untaggable resources whose configuration
-block was removed failed: staterecord: s3: listing "tofu-records/<estate>":
-operation error S3: ListObjectsV2, https response error StatusCode: 404,
-… NoSuchBucket: The specified bucket does not exist..
+Error: Cannot open the record store
+... NoSuchBucket: The specified bucket does not exist
 ```
 
-Failing at plan time is the good outcome. Nothing partial happens first.
+If it exists and fails one of the three settings, an estate's first run
+against it is refused by name, whatever command that run is, and leaves
+nothing behind. After that the settings are checked before every apply and
+not on a plan.
 
-### The `s3` bootstrap cycle is refused, but not diagnosed
+Failing before anything is written is the good outcome. Nothing partial
+happens first.
+
+### The bucket cannot be declared by the estate that uses it
 
 Declaring the record store's own bucket inside the estate that uses it does
 not work, and stock's chicken-and-egg comes back in full: the plan aborts
@@ -192,20 +215,14 @@ its own store.
 The failure is loud but unexplained: the error is the same `NoSuchBucket`
 text as a typo'd bucket name, with nothing naming the cycle. If you see that
 error and the bucket is one your own configuration declares, this is why.
-
-Create the bucket outside the estate, the way a stock bootstrap configuration
-would. `ssm` has no such cycle, and it used to be the advice here; it is not
-any more, for a reason that has nothing to do with the bootstrap - see
-[choosing a record store backend]({{< relref "/docs/use/storage#choosing-a-record-store-backend" >}}).
+Create the bucket outside the estate.
 
 ### The store holds secrets by default
 
-One thing to know before choosing a backend, because it decides who ends up
-able to read your estate's generated values: the default is `strict { secrets
-= "store" }`, which keeps what a stock state file keeps, in clear.
-[Where things are stored]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
-has the per-backend version of who can read it, and what `strict { secrets =
-"refuse" }` changes.
+The default is `strict { secrets = "store" }`, which keeps what a stock state
+file keeps, in clear, readable by anyone with `s3:GetObject` on the prefix.
+[Secrets]({{< relref "/docs/use/secrets" >}}) has who that is and the ways
+out.
 
 ## Markers are a command, not configuration
 
@@ -238,12 +255,15 @@ The actions are catalogued in
 per stage and per record store backend. Two things about them are easier to
 measure than to read.
 
-**A plan writes nothing.** Every AWS call a plan made against a two-resource
-estate with an `ssm` record store was a read - not one create, put, delete or
-tag action appeared, on the record store or anywhere else. A prospect can run
-a plan against a real account with a read-only role and see the real answer
-before granting any write permission. The record store is included in that:
-against a Parameter Store with zero parameters, a first plan created none.
+**A plan changes no resource, and writes one object.** No create, update,
+delete or tag action on a cloud resource appears in a plan. The record store
+is the exception to "read-only": every run that opens a bucket store sends a
+conditional `PutObject` for the store's sentinel. The first run creates it,
+and every later one is answered `412` and writes nothing. So a plan against a
+bucket needs `s3:PutObject` on the estate's prefix, and a strictly read-only
+role can plan only an estate on the local store. The published policy is one
+policy for an estate's role and has no read-only rendering. This paragraph is
+read from the code: no claim runs a plan under a read-only role.
 
 **A plan reads widely.** The estate-wide sweep is what finds resources whose
 configuration block was deleted, and its width comes from the admission
@@ -316,15 +336,15 @@ elsewhere:
   under-scoped policy produces. The permission tables in
   [Reference]({{< relref "/docs/use/reference#permissions-a-run-needs" >}}) are
   the authority on the actions; nothing here tested a policy that refuses one.
-- **Parameter Store quotas and tiers** went unexercised. No estate here
-  approached the per-account parameter limit or the Standard tier value
-  ceiling.
 - **Scale** stayed small. These estates were two to five resources.
   Migration cost is linear in resources stamped;
   [Migrate an existing estate]({{< relref "/docs/use/migrate#moving-a-large-estate-in-one-go" >}})
   carries the measured rate and its bounds.
-- **The `s3` backend's own durability settings** were not exercised.
-  Versioning and lifecycle rules on the record bucket are yours to configure.
+- **The bucket sections were measured separately, on real AWS.** The emulator
+  does not evaluate the IAM conditions the policy uses, and its CloudFormation
+  applies none of a bucket's properties, so the project, the policy and the
+  key arrangement were run against an account:
+  [claims 34 to 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}}).
 - **A real account** settles anything the emulator answers differently from
   AWS.
   [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md)

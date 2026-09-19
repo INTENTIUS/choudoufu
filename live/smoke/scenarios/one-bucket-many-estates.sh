@@ -112,14 +112,14 @@ awsl s3api put-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy-2 --bo
 must_allow "a DELETES an object tagged as b's" smoke-estate-a delete-object --bucket "$BUCKET" --key tofu-records/smoke-b/decoy-2
 proof "a wrong prefix is enough to destroy a neighbour's records. Reading takes two mistakes; writing and deleting take one. The renderer refuses anything that is not an estate name for this reason."
 
-step "5. a declared dependency is the one read that crosses, and only with its statement"
+step "5. another estate's outputs are readable only with the statement that grants it"
 role_with_policy smoke-estate-a "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || fail "manyestates" "could not restore estate a's policy"
 must_deny "a reads b's outputs, no dependency declared" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
 role_with_policy smoke-estate-a "$("$POLICY_RENDERER" smoke-a "$BUCKET" --reads-outputs-of smoke-b)" "$BUCKET" || fail "manyestates" "could not install the dependency policy"
 cmd "render-policy.sh smoke-a $BUCKET --reads-outputs-of smoke-b"
 must_allow "a reads b's outputs, dependency declared" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
 must_deny "a reads b's RECORDS, dependency declared" smoke-estate-a get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
-proof "outputs and nothing else. Everything in them crosses, sensitive values included: a declared dependency is a declared disclosure."
+proof "outputs and nothing else. What is there to read is what the other estate wrote: its root output values, never one marked sensitive. No choudoufu run makes this read; the grant is for a reader you write yourself."
 
 step "6. teardown"
 role_with_policy smoke-estate-a "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || true

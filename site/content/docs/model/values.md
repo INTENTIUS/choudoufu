@@ -57,8 +57,8 @@ default is `strict { secrets = "store" }`, which keeps what a stock state file
 keeps: `random_password`, `random_bytes` and the `tls_*` types are admitted
 and their generated values are recorded in clear. That is the thing to weigh
 when picking a backend, because it decides who ends up able to read them:
-[what the store may contain]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
-has the per-backend answer.
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has the
+answer for the local store and for a bucket.
 
 ## What the store actually holds
 

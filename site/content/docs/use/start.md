@@ -58,8 +58,8 @@ Add `.tofu-records/` to your `.gitignore` before the first apply. Nothing
 writes that line for you, and the directory holds whatever the state file
 would have held, generated secrets included, unless you set
 `strict { secrets = "refuse" }`.
-[Where things are stored]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
-has the per-backend version of that.
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has who can
+read it, for the local store and for a bucket.
 
 The same content can live as a `live` block inside `terraform`.
 
