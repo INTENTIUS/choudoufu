@@ -202,7 +202,16 @@ func (s *S3Store) GetAll(ctx context.Context, keyPrefix string) (map[string]Reco
 //   - The first failure wins and cancels the rest. Later failures are the
 //     cancellation's own echoes and would hide the call that actually broke.
 //   - An early stop with no failure is still an error.
+//
+// workers below 1 is clamped to 1 here rather than trusted to the caller.
+// [S3Store.GetAll] does clamp, but a zero reaching this function starts no
+// worker at all, so the feed blocks on its first send and the call never
+// returns - a hang, not a failure, and the next caller to forget is the one
+// who finds out. GitHub issue #1383.
 func boundedFanOut(ctx context.Context, n, workers int, do func(ctx context.Context, i int) error) error {
+	if workers < 1 {
+		workers = 1
+	}
 	fanCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -250,19 +259,28 @@ feed:
 }
 
 // getForBulk is one key's GetObject for [S3Store.GetAll]. exists is false,
-// with no error, only for a 404: the key was deleted between the LIST and
-// this GET. Every other failure is an error that names the key.
+// with no error, only for a 404 that named the key: it was deleted between
+// the LIST and this GET. A 404 that named the bucket is a failure like any
+// other, because dropping the key would turn a bucket that went away into a
+// short map, which is the one thing a bulk read may not produce. Every other
+// failure is an error that names the key.
 func (s *S3Store) getForBulk(ctx context.Context, key string) (rec Record, exists bool, err error) {
 	res, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s.objectKey(key)),
 	})
 	if err != nil {
-		if code, ok := httpStatus(err); ok && code == http.StatusNotFound {
+		if missingKey(err) {
 			return Record{}, false, nil
+		}
+		if status, ok := httpStatus(err); ok && status == http.StatusNotFound {
+			return Record{}, false, fmt.Errorf("getting %q: %s: %w", key, s.notTheKey(err), err)
 		}
 		if denied := asKMSDenied(err); denied != nil {
 			return Record{}, false, fmt.Errorf("getting %q: %w", key, denied)
+		}
+		if unusable := asKMSKeyUnusable(err); unusable != nil {
+			return Record{}, false, fmt.Errorf("getting %q: %w", key, unusable)
 		}
 		return Record{}, false, fmt.Errorf("getting %q: %w", key, err)
 	}

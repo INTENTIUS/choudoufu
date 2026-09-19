@@ -20,7 +20,7 @@ import (
 //
 // GitHub issue #1335 is why it exists. The claim that one estate never asks
 // the bucket for a neighbour's keys is a claim about requests, and before
-// this the record store's S3 and SSM traffic left no trace at all in a debug
+// this the record store's S3 traffic left no trace at all in a debug
 // capture: the emulator does not log requests either, so there was no wire to
 // read and the claim could only have been inferred from a plan that happened
 // to look right. It is the same gap #682 closed for the tag sweep.

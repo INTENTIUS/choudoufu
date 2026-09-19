@@ -46,6 +46,20 @@ import (
 // one request whatever this says.
 const recordReadParallelismEnvVar = "TOFU_LIVE_RECORD_READ_PARALLELISM"
 
+// maxRecordReadParallelism is the ceiling on that variable.
+//
+// 256 is a bound on the damage a typo can do rather than a tuned number, the
+// same spirit as the default. The value opens that many GetObject calls at
+// once against one bucket, so a stray 1000000 is not a fast read, it is one
+// goroutine and one socket per record in the estate, which reaches the
+// process's file-descriptor limit and S3's own request-rate ceiling before it
+// reaches the end of the namespace. 256 is far above any bound an operator
+// working around a throttled account or a slow link would reach for, and far
+// below where a mistyped value stops being recoverable. An estate that really
+// needs more than this needs a conversation, not an environment variable.
+// GitHub issue #1383.
+const maxRecordReadParallelism = 256
+
 // recordStoreOpenOptions is what every caller of [projection.NewRecordStore]
 // passes, so the four of them cannot come to read the environment
 // differently. An invalid value is an error for the caller to report the way
@@ -62,6 +76,9 @@ func recordStoreOpenOptions() ([]projection.RecordStoreOption, error) {
 	}
 	if n < 1 {
 		return nil, fmt.Errorf("%s must be at least 1, not %d: 1 is the sequential read, and unsetting it takes the default of %d", recordReadParallelismEnvVar, n, staterecord.DefaultS3GetAllParallelism)
+	}
+	if n > maxRecordReadParallelism {
+		return nil, fmt.Errorf("%s must be at most %d, not %d: the value is how many GetObject calls run against one bucket at once, and past that a run spends its file descriptors and S3's request rate rather than reading any faster. Unset it to take the default of %d", recordReadParallelismEnvVar, maxRecordReadParallelism, n, staterecord.DefaultS3GetAllParallelism)
 	}
 	return []projection.RecordStoreOption{projection.WithBulkReadParallelism(n)}, nil
 }
