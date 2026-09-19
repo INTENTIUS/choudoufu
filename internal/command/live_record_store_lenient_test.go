@@ -65,6 +65,20 @@ func TestLivePlanAndLiveMvStopOnARefusalAndGoOnLoudlyAfterAnOutage(t *testing.T)
 		}
 	})
 
+	t.Run("an unusable KMS key stops the command, under its own summary", func(t *testing.T) {
+		unusable := fmt.Errorf("opening: %w", &staterecord.KMSKeyUnusableError{Code: "KMS.DisabledException", Err: errors.New("KMS.DisabledException")})
+		store, diags := openRecordStoreAsOneMoreSource(ctx, openerReturning(nil, unusable), rs, nil, "prod", "live-plan")
+		if store != nil {
+			t.Error("the command went on with a store whose key is disabled")
+		}
+		if got := summaries(diags, tfdiags.Error); len(got) != 1 || got[0] != "The record store bucket's KMS key cannot be used" {
+			t.Errorf("error summaries = %q", got)
+		}
+		if got := summaries(diags, tfdiags.Warning); len(got) != 0 {
+			t.Errorf("a refusal was also reported as an outage: %q", got)
+		}
+	})
+
 	t.Run("an outage is a warning a person sees, and the command goes on", func(t *testing.T) {
 		store, diags := openRecordStoreAsOneMoreSource(ctx, openerReturning(nil, errors.New("connection refused")), rs, nil, "prod", "live-plan")
 		if store != nil || diags.HasErrors() {
