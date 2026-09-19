@@ -63,7 +63,8 @@ bucket with a deleting rule beside it.
 Not on every plan. The settings are facts about the bucket that do not change
 between two plans, and checking them costs three reads and three permissions.
 
-- An estate's **first contact** with a bucket, whatever the command is. The
+- An estate's **first contact** with a bucket, whatever the command is
+  (`live-plan` and `live-mv` included, since #1376). The
   run that writes the store's sentinel is the first, and it is the one moment
   a wrong bucket costs nothing to walk away from. A refusal takes the sentinel
   back out, so the next run is a first contact again.
@@ -103,8 +104,8 @@ What you give up, per name, in the words the run itself prints:
 | `lifecycle` | Nothing is known to expire noncurrent versions: the bucket may keep every version of every record forever, and nobody has chosen how long a record destroyed by mistake stays recoverable. It does not waive a rule that deletes records |
 | `public_access_block` | Nothing is known to stop a bucket policy or an ACL from publishing the records, which hold secret material |
 
-A waiver is loud on every run, plan included, and names the setting and its
-cost each time. When the bucket does fail the waived setting, an apply also
+A waiver is loud on every run that opens the store, `plan`, `live-plan` and
+`live-mv` included, and names the setting and its cost each time. When the bucket does fail the waived setting, an apply also
 says the assertion would have refused it. When the bucket passes, `live-bucket`
 says the waiver is hiding nothing and can be removed. An unknown name, a
 repeated name, a boolean, and `allow_insecure` on a store that is not a bucket

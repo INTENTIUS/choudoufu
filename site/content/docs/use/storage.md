@@ -181,9 +181,21 @@ nothing. [Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the
 cases. Nothing is locked.
 
 **A store proves itself before a plan trusts it.** At first use it writes
-`.store-sentinel` and reads it back through the same listing a plan uses. A
-store that cannot answer refuses by name. It never reads as an empty estate,
-which would have the next plan propose rebuilding everything.
+`.store-sentinel` and reads it back through the same listing a plan uses. For
+`plan`, `apply` and `live-import`, a store that cannot answer stops the run by
+name. It never reads as an empty estate, which would have the next plan
+propose rebuilding everything.
+
+`live-plan` and `live-mv` treat the store as one more source, so they draw a
+line the others do not need. A store that **refused** stops them too: a bucket
+that fails its three settings on first contact, a listing that does not return
+what was just written, a KMS key that refused the run. A store that could not
+be **reached**, or that IAM would not let the role into, does not stop them.
+They go on without records and say so in a warning titled
+`The record store was not read`, which also says what that does to the output:
+a record-backed resource is known only by its record, so it may appear as
+something to create when it already exists. Before #1376 both kinds were a
+line in the debug log.
 
 **Losing a record cannot produce a wrong marker.** An identity-bearing
 argument is evaluated over `var`, `local`, `path`, `terraform` and `tofu`
