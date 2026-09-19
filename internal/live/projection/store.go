@@ -73,6 +73,14 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 // is another, and so is a KMS key that refused the run (that one is
 // recognised by its own type, [staterecord.KMSDeniedError]).
 //
+// A store with no sentinel that this run's identity may not provision is a
+// refusal too (GitHub issue #1370). The bucket was reached and answered,
+// and it will hold no sentinel on the next attempt either; what settles it
+// is a person running the estate once under an identity that may write. It
+// is kept out of the "reader tolerated" path deliberately - see
+// [provisionStoreSentinel] - because the store an unprivileged run cannot
+// provision reads exactly like an empty estate, which is #693.
+//
 // A key that cannot be used at all is a refusal too, by the same rule
 // ([staterecord.KMSKeyUnusableError], GitHub issue #1383): the bucket was
 // reached and answered, and a key that is disabled, pending deletion or gone
@@ -167,19 +175,59 @@ func SentinelKey(prefix string) string {
 // now it is a loud, named refusal before any plan is built.
 //
 // createdVersion is the sentinel's version when THIS call created it and ""
-// when it was already there: the one signal this package has that a run is
-// an estate's first contact with its store. See [assertBucketOnFirstContact].
+// when it was already there OR when this run may not write it at all: the
+// one signal this package has that a run is an estate's first contact with
+// its store. See [assertBucketOnFirstContact].
+//
+// # A run that may read the store and not write it
+//
+// GitHub issue #1370. A plan changes no resource, and a CI plan job is
+// often given an identity that may read the estate's records and nothing
+// more - an AWS role with s3:GetObject and s3:ListBucket and no
+// s3:PutObject, or a record_store "local" directory mounted read-only. The
+// write above is the only thing such a run ever asks the store to do, and
+// it used to end the run: a denial is not a version conflict, so the
+// handshake reported it and `plan` stopped with "Cannot open the record
+// store".
+//
+// A denial is now carried past the write and answered by the SAME List the
+// handshake already makes. If the sentinel is there, an earlier run with
+// write access proved this store's write, read and List paths, which is
+// everything #693 asks for, and nothing about this run being unable to
+// repeat the proof makes the store less sound. The run goes on, read-only
+// in effect. createdVersion stays "", so the run is not treated as a first
+// contact: it did not create the sentinel, and asserting the bucket
+// contract off another run's sentinel would check the bucket on every
+// read-only plan, which is exactly what the ruling on #1339 decided against.
+//
+// If the sentinel is NOT there, the run is refused by name. A store with no
+// sentinel and an identity that cannot provision one is indistinguishable
+// from an empty one from here, and reading an unprovisioned store as an
+// empty estate is #693's failure whole: the plan proposes creating an
+// estate that already exists. That refusal is a [StoreRefusal] and not an
+// outage, under #1376's rule - no retry gets past it, and it is settled by
+// a person running the estate once under an identity that may write.
 func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix string) (createdVersion string, err error) {
 	key := SentinelKey(prefix)
+	var writeDenied error
 	createdVersion, err = store.PutIfAbsent(ctx, key, []byte(sentinelPayload))
 	if err != nil {
 		var conflict *staterecord.VersionConflictError
-		if !errors.As(err, &conflict) {
+		switch {
+		case errors.As(err, &conflict):
+			// Already provisioned by an earlier run or a racing one - the
+			// conflict is the success case here.
+			createdVersion = ""
+		case staterecord.IsAccessDenied(err):
+			// #1370. Whether this is survivable depends on the List below,
+			// so the denial is kept rather than returned: it is the whole
+			// of what the refusal has to say if the sentinel turns out to
+			// be missing. A KMS refusal is not one of these - see
+			// [staterecord.IsAccessDenied] - and still returns here.
+			createdVersion, writeDenied = "", err
+		default:
 			return "", fmt.Errorf("record_store: provisioning the sentinel at %q: %w", key, err)
 		}
-		// Already provisioned by an earlier run or a racing one - the
-		// conflict is the success case here.
-		createdVersion = ""
 	}
 	listPrefix := staterecord.NamespacePrefix(prefix)
 	keys, err := store.List(ctx, listPrefix)
@@ -187,6 +235,9 @@ func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix
 		return "", fmt.Errorf("record_store: reading the sentinel back through List: %w", err)
 	}
 	if !slices.Contains(keys, key) {
+		if writeDenied != nil {
+			return "", &StoreRefusal{Err: fmt.Errorf("record_store: this store holds no sentinel at %q and this run's identity may not write one, so nothing here can tell an estate that has never been recorded from one whose records this run cannot see; refusing rather than planning against a store that would read as an empty estate and propose creating everything in it again (issue #693). A run whose role has write access to the record store - an ordinary plan or apply under the estate's full role - provisions the sentinel once, and a read-only role can plan against the store from then on (issue #1370). What the store said about the write: %w", key, writeDenied)}
+		}
 		return "", &StoreRefusal{Err: fmt.Errorf("record_store: the store accepted the sentinel write at %q but List(%q) does not return it, so this store's List is broken and every record in it is invisible to a plan; refusing rather than planning against an estate that would read as empty (issue #693)", key, listPrefix)}
 	}
 	return createdVersion, nil

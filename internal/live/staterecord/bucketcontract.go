@@ -454,7 +454,7 @@ func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket, 
 // denied, so the setting is unreadable) or an error (the read never
 // happened, so nothing is known about the bucket at all).
 func settingReadFailure(f BucketFinding, permission, expectedOwner string, err error) (BucketFinding, error) {
-	if deniedRequest(err) {
+	if accessDenied(err) {
 		f.Unreadable = true
 		f.Found = permission + " was denied"
 		if expectedOwner != "" {
