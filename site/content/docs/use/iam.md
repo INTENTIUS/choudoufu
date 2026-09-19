@@ -201,6 +201,50 @@ An object with no `tofu-estate` tag at all is readable by any role whose
 prefix reaches it. choudoufu tags every object it writes, so an untagged
 object under an estate's prefix was put there by something else.
 
+## Pinning the account that owns the bucket
+
+```
+render-policy.sh prod <bucket> --account 111122223333
+```
+
+adds `"aws:ResourceAccount": "111122223333"` as a `StringEquals` condition
+to every `Allow` in the policy, merged into whatever condition that
+statement already had. No `Deny` gets it: a `Deny` that stopped applying
+once the account was wrong would stop applying in the case it is there
+for.
+
+A bucket name is global. Nothing about a name says which account the
+bucket is in, and a name nobody holds can be created by anyone. So a
+policy that names the bucket only by name grants its estate the right to
+read and write a bucket of that name wherever it turns up. If the real
+bucket is ever deleted, someone who knows the name can create it in their
+own account, admit this role with a bucket policy, turn on the three
+settings choudoufu asserts, and take delivery of the next apply. Records
+hold secret material.
+
+With the condition, every statement here matches a bucket in that one
+account and nothing else. A render without the flag says so on stderr and
+still prints the policy, so nothing that already calls the script breaks.
+
+The other half is in the configuration:
+
+```
+record_store "s3" {
+  bucket       = "my-records-bucket"
+  bucket_owner = "111122223333"
+}
+```
+
+which puts `ExpectedBucketOwner` on every S3 request the run makes, so S3
+itself refuses a bucket owned by anyone else. Either half alone leaves a
+gap. The policy binds a role; the argument binds a run, including one
+whose credentials came from somewhere this policy does not cover.
+
+S3 answers an owner mismatch with `403 AccessDenied`, which is exactly
+what an IAM denial looks like, so choudoufu cannot tell you which it was.
+It says the bucket may be owned by an account other than the expected
+one, names both, and leaves the conclusion to you.
+
 ## A bucket encrypted with your own key
 
 ```

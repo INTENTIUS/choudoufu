@@ -151,7 +151,16 @@ access through IAM, and that policy has one source, `iam/render-policy.sh`:
 just policy prod                                   # for this project's bucket
 just policy prod "" --reads-outputs-of network     # with a declared dependency
 just policy prod my-bucket --kms arn:aws:kms:...   # with your own key
+just policy prod "" --account 111122223333         # pin the bucket's owner
 ```
+
+`--account` adds `aws:ResourceAccount` to every `Allow`, so the policy
+reaches a bucket of that name in that account and nowhere else. A bucket
+name is global and a free name can be taken by anyone, so without it the
+policy grants its estate a bucket of the right name in a stranger's
+account. Rendering without the flag prints a warning saying so. The other
+half is `bucket_owner` in the estate's `record_store` block, which puts
+`ExpectedBucketOwner` on every request the run makes.
 
 The documentation's IAM page shows the same output and says why each
 statement is there. Read it before editing the result: two statements
