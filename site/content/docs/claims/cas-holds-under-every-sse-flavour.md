@@ -20,7 +20,7 @@ a customer managed key, and DSSE-KMS.
 The reason it should is that the ETag is opaque here. Under SSE-KMS an
 ETag stops being the MD5 of the content, but it is still a valid entity
 tag for `If-Match`, and the store hands back what S3 gave it, untouched.
-That is an argument. This claim is the measurement.
+This claim measures it.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. You need AWS credentials

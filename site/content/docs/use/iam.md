@@ -151,8 +151,6 @@ the waiver for that is `allow_insecure`, with its cost.
 
 ## What this does and does not defend
 
-There are two defences and they are not equal.
-
 For reading another estate's objects there are two, and both have to
 fail. The prefix scope has to be wrong, and the object has to carry the
 wrong tag or none. A role scoped by mistake to `tofu-records/*` still
@@ -175,7 +173,7 @@ The rendered policy is for running an estate, and it cannot recover a deleted
 record. Recovery removes a delete marker, which takes `s3:ListBucketVersions`
 on the bucket and `s3:DeleteObjectVersion` on the estate's prefixes, and
 reading a noncurrent version takes `s3:GetObjectVersion`. Give those to the
-person who recovers, not to the estate's role.
+person who recovers and leave them off the estate's role.
 [Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) has the
 procedure.
 

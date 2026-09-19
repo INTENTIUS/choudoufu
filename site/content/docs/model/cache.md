@@ -8,29 +8,21 @@ weight: 8
 Every live-block run keeps an ordinary state file as a cache:
 `choudoufu-cache.tfstate`, under the `.terraform` directory stock
 already gitignores. It is written at the end of each run and read at
-the start of the next, and everything about it follows from one rule -
-it is never consulted for ownership. Identity lives on the resources;
+the start of the next, and everything about it follows from one rule:
+it is never consulted for ownership. Identity lives on the resources, and
 the cache only remembers attributes.
 
 ## It is on the client, and it is not part of the backend
 
 The cache is a file on the machine that ran the plan. It is not in the record
-store bucket, no other machine sees it, and nothing about it is shared between
-two people or two CI jobs. The backend is the marker tags and the record
-store. The cache is a developer convenience that sits beside them.
+store, no other machine sees it, and nothing about it is shared between two
+people or two CI jobs. The backend is the markers and the record store.
 
-Three conclusions follow, and each is one people get wrong when they picture
-the cache in the bucket:
-
-- **It cannot be contended.** Two runs never write the same cache, so it has no
-  bearing on locking, and the record store stays one object per record with
-  no shared blob for concurrent runs to rewrite.
-- **A cold client needs nothing.** A fresh checkout, a new laptop or a new
-  runner plans correctly with no cache at all.
-- **CI running cold is correct.** A pipeline whose runner is thrown away after
-  every job starts without a cache every time. That is how it is meant to
-  work, and restoring `.terraform/choudoufu-cache.tfstate` from a CI cache to
-  "fix" it buys nothing on a default plan, as the next section says.
+So two runs never write the same cache, and it has no bearing on concurrency.
+A fresh checkout, a new laptop or a new runner plans correctly with no cache
+at all. A pipeline whose runner is thrown away after every job starts cold
+every time, which is how it is meant to work, and restoring the file from a CI
+cache buys nothing on a default plan, as the section after next says.
 
 ## It holds what a state file holds, secrets included
 
