@@ -916,7 +916,9 @@
           "note": "A Kubernetes estate's plan job opens the record store with the process's own AWS credentials, never with the cluster identity, so the role it needs is the same read-only rendering this claim measures. TestNoRecordStoreBackendIsKubernetes pins that there is no cluster-backed record store to state a different claim about."
         }
       },
-      "evidence": [],
+      "evidence": [
+        "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json"
+      ],
       "substrate": "aws"
     }
   ]
