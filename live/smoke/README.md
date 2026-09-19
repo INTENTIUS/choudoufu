@@ -565,6 +565,19 @@ showing its own checks would have caught it.
   naming the record instead of planning around it. The BREAK control
   rebuilds choudoufu so the store sends no tags, and the published
   policy must deny its first write (#1337). Needs jq and Go.
+- **the-recommended-secure-configuration** - *Claim 37: the
+  recommended secure configuration works end to end, including
+  recovering a deleted record.* **Real AWS, maintainer-run.** The bucket
+  is stood up with `just up` from `examples/record-store-bucket` under a
+  customer managed key whose key policy names who may use it, and the
+  estate's role carries the rendered `--kms` policy, unedited. The role
+  runs an estate's life, a record destroyed by mistake is recovered from
+  its noncurrent version by the operator (the role is refused the same
+  act), the S3 actions in the request log are reconciled with the
+  policy's grants in both directions, and `just down` refuses while
+  versions remain. The BREAK control takes the role out of the key
+  policy, and the run must be refused naming the key and its policy
+  (#1345). Needs jq, just, node and npm.
 
 ## Knobs
 

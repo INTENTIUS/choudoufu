@@ -857,6 +857,30 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 37,
+      "slug": "the-recommended-secure-configuration",
+      "title": "The recommended secure configuration works end to end, including recovering a deleted record",
+      "scenario": "live/smoke/scenarios/the-recommended-secure-configuration.sh",
+      "command": "just smoke the-recommended-secure-configuration",
+      "minutes": 10,
+      "needs_go": false,
+      "real_aws": true,
+      "theme": "operate",
+      "break_mode": "BREAK=1 takes the estate role out of the KMS key policy and passes only when the run is refused naming the key, the action and the key policy, not as a bare AccessDenied on PutObject",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "Real AWS and maintainer-run, not CI: the claim is about a customer managed key policy, a CloudFormation stack and IAM evaluated together, and the pinned emulator evaluates none of the three the way AWS does. Run with SMOKE_REAL_AWS=1; it deploys a stack, creates an IAM role and a KMS key (or borrows SMOKE_KMS_KEY_ARN and restores its policy) and removes them. Last run 2026-09-18, us-east-2."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The claim is about the record store bucket, its key and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }
