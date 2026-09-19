@@ -29,6 +29,10 @@ SCRIPT_PATH="${1:-$HERE/oidc-bootstrap.sh}"
 [ -f "$SCRIPT_PATH" ] || { echo "no such script: $SCRIPT_PATH" >&2; exit 2; }
 
 REPO="INTENTIUS/choudoufu"
+# The account oidc-bootstrap.sh works in. Read here as a literal, the way the
+# estate and the bucket are: a value taken from the script under test proves
+# only that the script agrees with itself.
+EXPECT_ACCOUNT="354867293429"
 PLAIN_SUBJECT="repo:${REPO}:*"
 IMMUTABLE_PREFIX="repo:INTENTIUS@259705176/choudoufu@1332291567"
 IMMUTABLE_SUBJECT="${IMMUTABLE_PREFIX}:*"
@@ -45,8 +49,14 @@ mkdir -p "$STUBDIR"
 # `run()` and, in --dry-run, is only ever printed - the stub errors loudly
 # if it is ever invoked, since that would mean --dry-run stopped being
 # dry.
-cat > "$STUBDIR/aws" <<'AWSEOF'
-#!/usr/bin/env bash
+{
+  echo '#!/usr/bin/env bash'
+  # The log path is baked in rather than inherited, so the stub records even
+  # when oidc-bootstrap.sh is sourced from a subshell with a trimmed
+  # environment.
+  echo "AWS_CALL_LOG=\"$WORK/aws-calls.log\""
+  cat <<'AWSEOF'
+printf '%s\n' "$*" >> "$AWS_CALL_LOG"
 case "$1 $2" in
   "iam list-open-id-connect-providers")
     echo '{"OpenIDConnectProviderList":[{"Arn":"arn:aws:iam::354867293429:oidc-provider/token.actions.githubusercontent.com"}]}'
@@ -64,7 +74,9 @@ case "$1 $2" in
     ;;
 esac
 AWSEOF
+} > "$STUBDIR/aws"
 chmod +x "$STUBDIR/aws"
+: > "$WORK/aws-calls.log"
 
 # gh stub: the only unconditional call is the oidc customization read.
 # `gh variable set` is behind run() and must never actually execute either.
@@ -270,7 +282,11 @@ else
     echo "FAIL: $SIDECAR does not name an estate and a record_store \"s3\" bucket" >&2
     FAILURES=$((FAILURES + 1))
   else
-    WANT="$("$RENDERER" "$WANT_ESTATE" "$WANT_BUCKET" | jq -cS '.Statement')"
+    # Rendered WITH --account, because that is what oidc-bootstrap.sh does
+    # (#1381). Rendering without it here would make this comparison fail the
+    # moment the bootstrap pins the account, which is the opposite of what
+    # this case is for.
+    WANT="$("$RENDERER" "$WANT_ESTATE" "$WANT_BUCKET" --account "$EXPECT_ACCOUNT" 2>/dev/null | jq -cS '.Statement')"
     SIDS="$(jq -c '[.[].Sid]' <<< "$WANT")"
     if [ "$(jq 'length' <<< "$SIDS")" -lt 5 ]; then
       echo "FAIL: the renderer printed fewer than five statements, so the comparisons below would prove little: $SIDS" >&2
@@ -330,6 +346,48 @@ else
       FAILURES=$((FAILURES + 1))
     fi
   done
+fi
+
+echo "== case: the bucket owner is pinned, on the head-bucket and in the policy (#1381) =="
+# A bucket name is global, and this one embeds the account id in plain sight,
+# so if the real bucket is ever deleted anyone can create the name in their
+# own account, admit the apply role with a bucket policy, satisfy the three
+# asserted settings, and receive the next apply's records. The records hold
+# secrets. Two things stop it and this case holds both:
+#   - the head-bucket that decides whether to proceed carries
+#     --expected-bucket-owner, so a bucket owned by anyone else answers 403
+#     and the bootstrap stops;
+#   - every Allow the apply policy carries requires aws:ResourceAccount, so
+#     the role reaches no bucket outside the account even if it is pointed at
+#     one.
+# The literal below is tied to the bucket name, which is derived from the same
+# account, so the two cannot drift apart silently.
+case "$EXPECT_BUCKET" in
+  *"$EXPECT_ACCOUNT"*) ;;
+  *)
+    echo "FAIL: EXPECT_ACCOUNT ($EXPECT_ACCOUNT) is not the account in EXPECT_BUCKET ($EXPECT_BUCKET)" >&2
+    FAILURES=$((FAILURES + 1))
+    ;;
+esac
+HEAD_CALLS="$(grep -c '^s3api head-bucket' "$WORK/aws-calls.log" || true)"
+echo "  head-bucket calls: $HEAD_CALLS, first: $(grep -m1 '^s3api head-bucket' "$WORK/aws-calls.log" || echo '<none>')"
+if [ "$HEAD_CALLS" = "0" ]; then
+  echo "FAIL: oidc-bootstrap.sh made no head-bucket call at all, so there is nothing to pin" >&2
+  FAILURES=$((FAILURES + 1))
+else
+  UNPINNED="$(grep '^s3api head-bucket' "$WORK/aws-calls.log" | grep -vc -- "--expected-bucket-owner $EXPECT_ACCOUNT" || true)"
+  if [ "$UNPINNED" != "0" ]; then
+    echo "FAIL: $UNPINNED head-bucket call(s) carried no --expected-bucket-owner $EXPECT_ACCOUNT." >&2
+    echo "  Without it head-bucket succeeds against a bucket of this name in any account," >&2
+    echo "  and this script then writes the apply role's policy against that bucket." >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+fi
+ACCOUNTLESS="$(jq -c '[.Statement[] | select(.Effect == "Allow") | select([.Action] | flatten | map(select(type == "string" and startswith("s3:"))) | length > 0) | select(.Condition.StringEquals["aws:ResourceAccount"] != "'"$EXPECT_ACCOUNT"'") | .Sid]' "$WORK/recordstore.apply.json")"
+echo "  apply policy s3: Allow statements without aws:ResourceAccount: $ACCOUNTLESS"
+if [ "$(jq 'length' <<< "$ACCOUNTLESS")" != "0" ]; then
+  echo "FAIL: the apply policy has s3: Allow statement(s) that do not require aws:ResourceAccount = $EXPECT_ACCOUNT: $ACCOUNTLESS" >&2
+  FAILURES=$((FAILURES + 1))
 fi
 
 echo "== case: the CloudWatch Logs tag actions are granted on both log-group ARN forms (#807) =="
@@ -412,7 +470,7 @@ fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket, and the CloudWatch Logs tag actions are granted on both log-group ARN forms."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket, the bucket owner is pinned on the head-bucket and on every s3: Allow, and the CloudWatch Logs tag actions are granted on both log-group ARN forms."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."
