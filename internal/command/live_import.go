@@ -7,7 +7,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/mitchellh/cli"
@@ -210,9 +209,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, args.Estate, ".", storeOpts...)
 		}
 		if storeErr != nil {
-			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
-				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,
-			)))
+			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))
 			return nil, closer, diags
 		}
 		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))

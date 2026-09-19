@@ -165,7 +165,7 @@ func (s *S3Store) Get(ctx context.Context, key string) ([]byte, string, bool, er
 		if code, ok := httpStatus(err); ok && code == http.StatusNotFound {
 			return nil, "", false, nil
 		}
-		return nil, "", false, fmt.Errorf("staterecord: s3: getting %q: %w", key, err)
+		return nil, "", false, s3OpError("getting", key, err)
 	}
 	defer func() { _ = out.Body.Close() }()
 	payload, err := io.ReadAll(out.Body)
@@ -244,7 +244,7 @@ func (s *S3Store) PutIfVersion(ctx context.Context, key string, payload []byte, 
 		if ok && code == http.StatusNotFound && expectedVersion != "" {
 			return "", s.conflictError(ctx, key, expectedVersion)
 		}
-		return "", fmt.Errorf("staterecord: s3: writing %q: %w", key, err)
+		return "", s3OpError("writing", key, err)
 	}
 	return aws.ToString(out.ETag), nil
 }
@@ -277,7 +277,7 @@ func (s *S3Store) Delete(ctx context.Context, key string, expectedVersion string
 		if code, ok := httpStatus(err); ok && (code == http.StatusPreconditionFailed || code == http.StatusNotFound) {
 			return s.conflictError(ctx, key, expectedVersion)
 		}
-		return fmt.Errorf("staterecord: s3: deleting %q: %w", key, err)
+		return s3OpError("deleting", key, err)
 	}
 	return nil
 }
@@ -302,7 +302,7 @@ func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) 
 			ContinuationToken: token,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("staterecord: s3: listing %q: %w", keyPrefix, err)
+			return nil, s3OpError("listing", keyPrefix, err)
 		}
 		for _, obj := range out.Contents {
 			keys = append(keys, s.keyFromObjectKey(aws.ToString(obj.Key)))

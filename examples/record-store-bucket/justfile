@@ -133,6 +133,12 @@ policy estate bucket="" *flags="":
     b="{{bucket}}"; [ -n "$b" ] || b=$(just _bucket)
     ./iam/render-policy.sh "{{estate}}" "$b" {{flags}}
 
+# The statement your key's KEY POLICY needs, naming who may use the key: the
+# estate roles, and whoever would recover a deleted record. One statement,
+# to add to a policy that is otherwise yours.
+key-statement +principals:
+    ./iam/render-key-statement.sh {{principals}}
+
 # A broken Op should fail here rather than the first time somebody reaches
 # for the approval gate.
 

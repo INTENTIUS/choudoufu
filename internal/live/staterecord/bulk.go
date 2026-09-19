@@ -304,6 +304,9 @@ func (s *S3Store) getForBulk(ctx context.Context, key string) (rec Record, exist
 		if code, ok := httpStatus(err); ok && code == http.StatusNotFound {
 			return Record{}, false, nil
 		}
+		if denied := asKMSDenied(err); denied != nil {
+			return Record{}, false, fmt.Errorf("getting %q: %w", key, denied)
+		}
 		return Record{}, false, fmt.Errorf("getting %q: %w", key, err)
 	}
 	payload, readErr := io.ReadAll(res.Body)

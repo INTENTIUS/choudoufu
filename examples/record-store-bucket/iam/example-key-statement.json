@@ -1,0 +1,15 @@
+{
+  "Sid": "RecordStoreBucketUsers",
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": [
+      "arn:aws:iam::111122223333:role/prod-estate",
+      "arn:aws:iam::111122223333:role/records-operator"
+    ]
+  },
+  "Action": [
+    "kms:Decrypt",
+    "kms:GenerateDataKey"
+  ],
+  "Resource": "*"
+}
