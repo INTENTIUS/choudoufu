@@ -43,9 +43,14 @@ if [ "${BREAK:-0}" = "1" ]; then
   python3 - "$SRC" "$SMOKE_WORK/break/s3.go" <<'PYEOF'
 import sys
 src = open(sys.argv[1]).read()
-old = '\tif tagging := encodeObjectTagging(s.baseTags, ObjectTags(ctx)); tagging != "" {\n'
+# The argument order is whatever S3Store.PutIfVersion has today. It was
+# swapped once (#1383, base tags win) and this patch, which spelled the
+# arguments out, went stale without anyone noticing, because nothing runs a
+# real-AWS BREAK arm but a person. live/smoke_break_patches_test.go now runs
+# this block on every gate.
+old = '); tagging != "" {\n\t\tinput.Tagging = aws.String(tagging)\n'
 assert src.count(old) == 1, "the break patch no longer matches S3Store.PutIfVersion"
-open(sys.argv[2], "w").write(src.replace(old, '\tif tagging := encodeObjectTagging(s.baseTags, ObjectTags(ctx)); false && tagging != "" {\n'))
+open(sys.argv[2], "w").write(src.replace(old, '); false && tagging != "" {\n\t\tinput.Tagging = aws.String(tagging)\n'))
 PYEOF
   [ -s "$SMOKE_WORK/break/s3.go" ] || fail "objecttags" "the break patch did not apply, so this arm would pass by testing the real binary"
   printf '{"Replace":{"%s":"%s"}}\n' "$SRC" "$SMOKE_WORK/break/s3.go" > "$SMOKE_WORK/break/overlay.json"
