@@ -130,9 +130,18 @@ every configuration check passed and the bucket was unusable.
 ## Access is not granted here
 
 The bucket policy grants nobody anything. An estate's role gets its
-access through IAM, and that policy is published once, in the
-documentation: a prefix scope plus both object-tag condition keys. A
-second copy here would be a second thing to keep correct.
+access through IAM, and that policy has one source, `iam/render-policy.sh`:
+
+```
+just policy prod                                   # for this project's bucket
+just policy prod "" --reads-outputs-of network     # with a declared dependency
+just policy prod my-bucket --kms arn:aws:kms:...   # with your own key
+```
+
+The documentation's IAM page shows the same output and says why each
+statement is there. Read it before editing the result: two statements
+look like they could be tightened, and tightening either one leaves an
+estate that can create records and never update or delete them.
 
 ## `just down`
 
