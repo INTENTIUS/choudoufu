@@ -108,14 +108,14 @@ var liveCertSelftests = []liveCertSelftest{
 		proves:   "#1032 - LIVECERT_HOLD / LIVECERT_RESUME / teardown-only, so one real-AWS stage costs minutes instead of a full deploy-and-destroy cycle",
 		runner:   runsHere,
 		bound:    60 * time.Second,
-		measured: "0.6s. Three cases over extracted functions and one teardown-only dispatch that exits before `0. tools`; no sleep, poll or wait anywhere in it.",
+		measured: "0.7s. Three cases over extracted code: two functions and, since #1380, the teardown-only dispatch's own marked span; no sleep, poll or wait anywhere in it.",
 	},
 	{
 		script:   "selftest-record-store-s3.sh",
 		proves:   "#1145 - RECORD_STORE_BACKEND=s3 took the local-disk else in both branches, so teardown printed VERIFIED EMPTY over a store it never listed",
 		runner:   runsHere,
 		bound:    120 * time.Second,
-		measured: "1.6s. Stub `aws` over two text files by default; LIVECERT_SELFTEST_ENDPOINT swaps in the real CLI against a real S3. Neither mode polls.",
+		measured: "3.3s. Stub `aws` over two text files by default; LIVECERT_SELFTEST_ENDPOINT swaps in the real CLI against a real S3 (with test/test forced since #1380). Neither mode polls.",
 	},
 	{
 		script:   "selftest-index-wait.sh",
