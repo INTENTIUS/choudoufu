@@ -94,7 +94,7 @@ resource "aws_vpc" "main" {
 
 # The bucket name is already the identity, so this needs no discovery pass.
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-e2e-block-data"
+  bucket = "my-estate-data"
 }
 ```
 

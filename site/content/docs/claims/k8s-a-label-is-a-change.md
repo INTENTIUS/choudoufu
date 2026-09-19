@@ -103,7 +103,7 @@ a different question from an edited key. "This configuration used to
 declare `squad`" is not in the configuration - the key is gone from it -
 and it is not on the object either, which holds the label and no memory of
 who asked for it. Stock reads it out of its last-applied manifest. A
-stateless run has to record it, so
+run with no state file has to record it, so
 [#1211](https://github.com/INTENTIUS/choudoufu/issues/1211) writes the
 label and annotation keys each apply declared into the estate's own
 residue record - the same record that already carries this type's
@@ -135,7 +135,7 @@ nothing either.
 Step 7's difference is forced, not chosen. "The configuration was edited"
 and "the live object drifted" are the same observation - configuration
 differs from live - unless you have a last-applied value to tell them
-apart. A state file has one; a stateless run does not. So making step 3
+apart. A state file has one, and a run without a state file does not. So making step 3
 visible necessarily makes step 7 visible. It is the direction #1177 asks
 for: an out-of-band `kubectl label` on a declared key is exactly the mover
 a saved plan's staleness check has to be able to see, and stock's cannot.

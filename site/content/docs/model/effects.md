@@ -15,8 +15,10 @@ A receipt is how you make it visible.
 
 ## What a receipt is
 
-An ordinary resource you declare, by convention an SSM parameter at
-`/tofu-receipts/<estate>/<effect>` holding a hash of the effect's input.
+An ordinary resource you declare, holding a hash of the effect's input. On
+AWS an SSM parameter at `/tofu-receipts/<estate>/<effect>` is a supported
+choice. Nothing requires SSM, and any resource whose value a reviewer can read
+with the platform's own CLI does the job.
 
 A receipt is not a record, and the two do not share a home. A record is
 written by choudoufu into the record store, a bucket or a local directory, and
@@ -65,9 +67,8 @@ Enforced rather than advised. A `key_prefix` whose first segment is
 `tofu-receipts` is a configuration error, so a record can never land in the
 receipts namespace.
 
-Visibility is why. A receipt is AWS-native so its value stays readable with a
-plain `aws ssm get-parameter`, by someone with read-only IAM and no `choudoufu`
-binary. A record-store payload is tool-internal by
+Visibility is why. A receipt is platform-native so its value stays readable with a
+plain CLI call, by someone with read-only access and no `choudoufu` binary. A record-store payload is tool-internal by
 design. Moving a receipt onto it would trade a one-line CLI call for
 choudoufu's own JSON envelope, which is strictly worse for the one artifact
 whose job is being legible to someone not running the tool.

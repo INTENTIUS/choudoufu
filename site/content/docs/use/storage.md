@@ -5,70 +5,20 @@ weight: 8
 
 # Where things are stored
 
-choudoufu writes in three places. They do different jobs and have different
-owners.
-
-| What | Where it lives | Who reads it | Losing it costs |
+| What | Where it lives | Who writes it | Losing it costs |
 |---|---|---|---|
-| Ownership markers | Two tags on the resource itself | choudoufu, and you, with any cloud tool | The resource goes invisible and the next plan proposes a duplicate |
-| Micro-state records | A local directory beside the module, or an S3 bucket you name with `record_store "s3"` | choudoufu, and anyone with read access to wherever you put it | Churn, since the effect re-runs or its value regenerates. For a value other resources are named after, more than churn |
-| Receipts | Ordinary resources *you* declare, by convention SSM parameters | You, your reviewers, your incident responder | Nothing structural. It is your data, in your configuration |
+| Ownership markers | On the resource: two tags on AWS, one label on Kubernetes | The apply | The resource goes invisible and the next plan proposes a duplicate |
+| Records | The record store, one record per managed instance | choudoufu | For a resource with a live twin, a slower or noisier plan. For one with no twin, the resource |
+| Receipts | Ordinary resources you declare | You | Nothing structural. It is your data, in your configuration |
+| The cache | `.terraform/choudoufu-cache.tfstate`, on the machine that ran | choudoufu | A read |
 
-The first is the product. The second is plumbing that is there by default and
-that you point at a bucket when a team needs to share it. The third you write
-yourself, and choudoufu only lints it.
-
-There is a fourth file, the [cache]({{< relref "/docs/model/cache" >}}), and it
-is not on this list on purpose. It is on the client, it is never consulted for
-ownership, and losing it costs a read.
-
-## Ownership markers
-
-Two tags, `tofu-estate` and `tofu-address`, written onto each resource as it is
-created. Prior state is a projection of them, allowed to go stale, and it
-is cached: every live-mode run writes `choudoufu-cache.tfstate` under the
-data dir (`.terraform`, or `TF_DATA_DIR`), and the next plan serves an
-instance from that cache only when the estate sweep has verified its
-marker in the same run. The cache is never consulted for ownership, so
-losing it - or its being arbitrarily stale - costs one slower run and
-nothing else, which a guard proves by requiring a fresh, a stale and a
-missing cache to plan byte-identically
-([#685](https://github.com/INTENTIUS/choudoufu/issues/685)).
-`CHOUDOUFU_STATE_CACHE` overrides the path; the literal value `off`
-disables persistence.
-
-Only these are authoritative about *what you own*, and they live on your
-resources in your account rather than anywhere choudoufu keeps.
-`live/MARKERS.md` is the normative spec and the surface external tooling can
-rely on.
-
-An estate of ordinary cloud resources needs markers and nothing more; the
-rest of this page is optional.
+Only the markers say what you own. `live/MARKERS.md` is their spec, and the
+surface other tooling can rely on. [Records]({{< relref "/docs/model/values" >}})
+says what a record is and why there are two kinds, and
+[the cache]({{< relref "/docs/model/cache" >}}) has its own page. This page is
+where each thing physically is.
 
 ## The record store
-
-Some resources have no cloud twin. Nothing in AWS knows a `null_resource` ran
-a script, a `time_static` captured a timestamp, or a `random_pet` generated a
-name, so no marker can recover them.
-
-Those persist as **micro-state**, one small record each. Every estate has a
-store for them: a `live` block that names no `record_store` gets a local one,
-a `.tofu-records` directory beside the module, the way stock OpenTofu implies
-a local state file.
-
-Gitignore that directory before the first apply. No tool generates the line
-for you, and [Secrets]({{< relref "/docs/use/secrets" >}}) is why it matters.
-
-```
-# .gitignore
-.tofu-records/
-```
-
-The store creates its directories `0700` and its files `0600`, which keeps
-other users on the machine out and does nothing whatsoever about `git add`.
-
-Declare a bucket when you want the records somewhere a team shares, or
-somewhere that survives the working copy.
 
 ```hcl
 # estate.chdf.hcl
@@ -85,20 +35,68 @@ the backend.
 | Backend | Where it writes | Arguments |
 |---|---|---|
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
-| `s3` | An S3 bucket you already own | `bucket` (required), `key_prefix`, `region`, `allow_insecure` |
+| `s3` | A bucket you already own | `bucket` (required), `key_prefix`, `region`, `allow_insecure` |
+| `kubernetes` | Secrets in a namespace you already own | `namespace` (required), and the connection arguments of stock's `kubernetes` backend |
 
-`record_store "ssm"` was a third and is retired. A configuration that still
-declares it is refused with the reasons and this replacement. That is about
-Parameter Store as a place for records. Receipts, below, are ordinary SSM
-parameters you declare and are untouched.
+A `live` block that declares no `record_store` gets the local one, the way
+stock implies a local state file.
+
+Use a bucket or a cluster for anything more than one operator shares. The
+local store is for one person or a demo. It is also what a CI runner gets if
+the estate declares nothing, and there it is empty on every run: an ordinary
+resource still binds by its marker, and a resource with no twin is proposed
+for create again.
+
+### Opening a store
+
+A store proves itself before a plan trusts it. The first run writes
+`.store-sentinel` and reads it back through the same listing a plan uses. A
+store that accepts the write and does not list it is refused by name. It
+never reads as an empty estate, which would have the next plan propose
+rebuilding everything.
+
+A role that may read the store and not write it can plan. Once the sentinel
+exists, a run that cannot write it reads it back and carries on. A store with
+no sentinel, opened by a role that cannot write one, is refused by name.
+
+A store that refused stops every command: a bucket that fails
+[its three settings]({{< relref "/docs/use/bucket-contract" >}}), a listing
+that does not return what was just written, a KMS key that refused the run.
+For `plan`, `apply` and `live-import`, a store that could not be reached
+stops the run too. `live-plan` and `live-mv` go on without records and say so
+in a warning titled `The record store was not read`. That warning matters
+for two kinds of resource. One with no twin is known only by its record, so
+it may appear as something to create when it already exists. A
+`kubernetes_manifest` needs its record to tell a label the configuration
+dropped from one somebody added by hand, so without it a removed label is not
+planned for removal, and the output can read "No changes" while the live
+object keeps it.
+
+## The local store
+
+One file per record under `.tofu-records`, created at the first run, with
+directories `0700` and files `0600`. That keeps other users on the machine
+out and does nothing about `git add`, and records hold
+[secrets]({{< relref "/docs/use/secrets" >}}). Gitignore the directory, or
+whatever `path` names, before the first run.
+
+```
+# .gitignore
+.tofu-records/
+```
+
+A write takes a `<file>.lock` sidecar for the length of one file operation,
+which is how a plain directory gets a conditional write. A lock older than
+thirty seconds is broken by the next writer, so a killed run cannot wedge
+the store.
 
 ## The bucket
 
 One bucket serves any number of estates. choudoufu never creates it and never
 configures it. [What you set up by hand]({{< relref "/docs/use/setup" >}}) has
-the creating, and
-[the three settings]({{< relref "/docs/use/bucket-contract" >}}) has what it
-must have.
+the creating, [the three settings]({{< relref "/docs/use/bucket-contract" >}})
+has what it must have, and [IAM]({{< relref "/docs/use/iam" >}}) has the
+policy for an estate's role.
 
 ### Layout
 
@@ -106,65 +104,72 @@ An estate writes under three prefixes and nowhere else.
 
 | Prefix | What is there | How many objects |
 |---|---|---|
-| `tofu-records/<estate>/` | One object per managed resource instance, at `<type>/<encoded address>`, plus `.store-sentinel` | As many as the estate has instances |
-| `tofu-hints/<estate>/` | `guided`, the hint guided discovery uses to look where resources were last found | One |
+| `tofu-records/<estate>/` | One object per managed instance, at `<type>/<encoded address>`, plus `.store-sentinel` | As many as the estate has instances, plus one |
+| `tofu-hints/<estate>/` | `guided`, where guided discovery last found things | One |
 | `tofu-outputs/<estate>/` | The value each root output settled on at the last apply, so a plan can render a change as a change | One per root output, never a `sensitive` one |
 
-Every prefix ends in `/`, and that character is doing real work. S3 matches a
-prefix as a plain string, so `tofu-records/prod` is also a prefix of
-`tofu-records/prod-eu/...`. With the delimiter, an estate called `prod` and
-one called `prod-eu` share no keys, no listing and no bulk read
-([claim 28]({{< relref "/docs/claims/a-name-prefix-shares-no-keys" >}})). The
-[IAM policy]({{< relref "/docs/use/iam" >}}) carries the same delimiter, and
-for a list, a write and a delete it is the whole defence between estates.
+Every prefix ends in `/`. S3 matches a prefix as a plain string, so
+`tofu-records/prod` is also a prefix of `tofu-records/prod-eu/...`. With the
+delimiter, an estate called `prod` and one called `prod-eu` share no keys, no
+listing and no bulk read
+([claim 28]({{< relref "/docs/claims/a-name-prefix-shares-no-keys" >}})).
 
 A `key_prefix` override moves the first of the three. It may not begin with
-any of the reserved roots, so a record can never land where a hint, an output
-or a receipt lives.
+any reserved root, so a record cannot land where a hint, an output or a
+receipt lives.
 
-### What is in an object
+### Tags
 
-A record is a JSON envelope for this fork's own code, and there are two kinds.
+Every object is written with `tofu-estate`, and a record also with
+`tofu-address`, in the same request as the object, so it never exists
+untagged. The tags are for authorization and provenance. The published policy
+requires the tag on a write, denies a read of an object tagged as another
+estate's, and denies relabelling one
+([claim 35]({{< relref "/docs/claims/one-bucket-many-estates" >}}),
+[claim 36]({{< relref "/docs/claims/objects-carry-the-estate-tag" >}})).
+Nothing is found by tag: objects are found by listing a known prefix.
 
-| `kind` | Written for | Holds | Losing it costs |
-|---|---|---|---|
-| `object` | A record-backed resource, one with no cloud twin to carry a marker: `null_resource`, `terraform_data`, `random_*`, `time_*`, `tls_*` | The whole value: its attributes, the provider's `private` blob, and which attributes were sensitive | The resource itself. The record is the only copy |
-| `identity` | Every other managed instance, ordinary taggable cloud resources included | What a read of the live resource cannot give back: an import identity, argument values the provider's read never returns, and whether a create-time provisioner ran | A slower or noisier plan. Ownership is the resource's two tags and does not depend on it |
+### Requests
 
-The `kind` field inside the envelope, and never the key's spelling, decides
-whether a reader may treat a record with no configuration behind it as
-something to propose destroying. Only an `object` record is.
+| When | What is sent |
+|---|---|
+| Opening the store, every run | A conditional `PutObject` of the sentinel, which writes only the first time and is skipped by a role that cannot write. After the first run it is answered `412`, and one `GetObject` of the sentinel follows. Then one `ListObjectsV2` |
+| Reading the estate, every run | `ceil(N/1000)` `ListObjectsV2`, then a `GetObject` per key including the sentinel, eight in flight unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The read is complete or the run fails ([claim 31]({{< relref "/docs/claims/a-bulk-read-is-complete-or-it-fails" >}})) |
+| The hint and the outputs, every run | One `GetObject` each |
+| An apply, per record that changed | A `GetObject`, then a conditional `PutObject` or `DeleteObject` |
 
-The second row is where a taggable resource's secret can end up in the bucket:
-an argument such as a database password is one the API never returns, so under
-the default `strict { secrets = "store" }` it is remembered here, the way a
-state file remembers it. A write-only argument is never recorded under either
-setting. [Secrets]({{< relref "/docs/use/secrets" >}}) has the rest.
+A create is `If-None-Match: *`, and an update or a delete carries `If-Match`
+with the version the writer read. Nothing is locked.
+[Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the races.
+Every read is scoped to one estate, so adding an estate to the bucket slows
+no other.
 
-You are not meant to read it, and its format is not a contract. The sentinel
-is the exception: its payload is a sentence saying what it is for.
+### Deleted records and versions
 
-### The tags on every object
+The bucket is versioned. A deleted record becomes a delete marker with the
+record underneath as a noncurrent version, until the bucket's lifecycle rule
+expires it. That window is the recovery path for a record deleted by mistake,
+and the only one a resource with no twin has.
+[Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) uses it.
 
-Every object is written with the estate's own marker, in the same request as
-the object itself, so there is no moment at which it exists untagged.
+`choudoufu destroy` destroys the resources and deletes the records of those
+with no twin. It leaves a few small objects under the estate's prefixes: the
+sentinel, the hint, the outputs, and a tombstone per destroyed instance.
+Removing them is yours to do, and `examples/record-store-bucket`'s `just down`
+refuses to delete a bucket that still holds any.
 
-| Tag | On | Value |
-|---|---|---|
-| `tofu-estate` | Every object | The estate's name |
-| `tofu-address` | Records | The resource instance's address, in the marker form every managed resource carries |
+## The cluster
 
-They are for authorization and provenance. The published IAM policy requires
-the tag on a write and denies a read of an object tagged as another estate's,
-so reaching a neighbour's records takes a wrong prefix *and* a wrong tag
-([claim 35]({{< relref "/docs/claims/one-bucket-many-estates" >}})). They are
-not how anything is found: objects are found by listing a known prefix, and
-the Resource Groups Tagging API does not index S3 objects.
-[Claim 36]({{< relref "/docs/claims/objects-carry-the-estate-tag" >}}) reads
-every object's tags back and shows the tag is load-bearing.
+`record_store "kubernetes"` keeps the same records as Secrets, for an estate
+that has no AWS account to put a bucket in.
 
-### How it is read and written
+Each record is one Secret in the namespace you name, labelled
+`tofu-estate=<estate>` and with the record's key in an annotation. A write is
+a create, or an update or delete carrying the `resourceVersion` the writer
+read, so the API server decides a race in one step and nothing is held. There
+is no Lease. A record larger than a Secret may hold is refused by name.
 
+<<<<<<< HEAD
 **One listing, then parallel reads.** A run reads its whole records namespace
 up front: one paginated `ListObjectsV2`, then a `GetObject` per key, eight at
 a time unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The result
@@ -249,60 +254,27 @@ refusing until those prefixes are emptied and the window has passed.
 
 Anyone with `s3:GetObject` on the prefix, secrets included.
 [Secrets]({{< relref "/docs/use/secrets" >}}) starts there.
+=======
+RBAC cannot condition on a label, so what keeps one estate out of another's
+records is the namespace. Give each estate its own, and bind the estate's
+role to Secrets in that namespace alone. Writes carry the estate label, so
+[the admission policy]({{< relref "/kubernetes/gate" >}}) fences them the way
+it fences every other object of the estate.
+>>>>>>> origin/main
 
 ## Receipts
 
-A receipt records whether an external effect ran, and with what input.
+A receipt records whether an external effect ran, and with what input. It is
+an ordinary resource you declare, holding a hash, so it goes through plan and
+apply and its diff tells a reviewer that this apply triggers something
+outside the resources being managed.
 
-It is not choudoufu storage but an ordinary resource you declare, by
-convention an SSM parameter at `/tofu-receipts/<estate>/<effect>` holding a
-hash. A receipt goes through the ordinary plan and apply cycle, and its diff
-appearing in a plan tells a reviewer or a CI gate that this apply will
-trigger something outside the resources being managed.
-
-choudoufu does not write receipts but lints them: the value must be a hash
-or constant and never a `SecureString`; nothing may reference a receipt's
-attributes; and inputs must name secrets by pointer rather than by value.
-
-`live/RECEIPTS.md` has the pattern and the reasoning behind each guard.
-
-## Why receipts are not record-store entries
-
-Enforced rather than advised. A `key_prefix` whose first segment is
-`tofu-receipts` is a configuration error, so a record can never land in the
-receipts namespace.
-
-Visibility is why. A receipt is AWS-native so its value stays readable with a
-plain `aws ssm get-parameter`, by someone with read-only IAM and no `choudoufu`
-binary. A record is the opposite on both counts: its payload is tool-internal
-by design, and it sits in a bucket whose read access you hand to almost nobody,
-because records hold secrets. Moving a receipt there would trade
-`aws ssm get-parameter` for an object in a bucket a reviewer was rightly not
-given, in choudoufu's internal JSON envelope. That is strictly worse for the
-one artifact whose job is being legible to someone not running the tool.
-
-**The tempting mistake**, now `terraform_data` is record-backed, is using its
-`triggers_replace` as a pseudo-receipt. Do not. It hides the fingerprint in the
-tool's own store instead of a declared resource, and collapses a receipt into
-"did an input change", with no existence flavour, no hash flavour, and no
-naming convention the lint rules recognise.
-
-`terraform_data` is for the graph - ordering an apply, feeding
-`replace_triggered_by`, standing in for a resource that does nothing.
-Receipts are for external effects. Keep them apart.
-
-## Choosing a record store backend
-
-**A bucket is how an estate is meant to be run.** An S3 record write is a real
-compare-and-swap the server enforces, which is what makes "a losing writer
-gets a named failure" true for every write. It has no object-count ceiling, it
-is shared, and it sits under IAM.
-
-`local` for a single operator or a demo, where a directory beside the module
-is fine and nothing else needs to read it. Gitignore `.tofu-records/`. It is
-also what a CI runner gets if the estate declares nothing, and there it is
-empty on every run: correct, since every instance falls back to its marker
-tags, and no use for a record-backed resource.
-
-[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket
-needs to exist before the first plan, and the failure mode when it does not.
+choudoufu lints receipts and does not write them. A receipt stays out of the
+record store on purpose: its job is to be readable with a plain cloud CLI by someone with read-only
+access and no `choudoufu` binary, and a record is tool-internal JSON in a store few people may read. A
+`key_prefix` starting with `tofu-receipts` is a configuration error, and
+`terraform_data`'s `triggers_replace` is not a substitute.
+[Effects]({{< relref "/docs/model/effects" >}}) and `live/RECEIPTS.md` have
+the pattern and the lint rules. An SSM parameter at
+`/tofu-receipts/<estate>/<effect>` is one supported home for a receipt, and
+nothing requires it.

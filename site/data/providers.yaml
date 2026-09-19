@@ -4,7 +4,7 @@
 # platform whose status is not not-planned to have a hub with the five slots.
 keys:
   identity: Where a resource's identity lives
-  values: Where values the platform cannot hold go
+  values: Where the record of each managed instance goes
   effects: How an effect with nothing to read back is recorded
   cache: What the state file is
   gate: What fences a write
@@ -18,8 +18,8 @@ providers:
     status_label: "Every headline stage passes on every core estate against the pinned emulator, and two estates have run on a real account."
     cells:
       identity: "Two resource tags, `tofu-estate` and `tofu-address`, written on the create call. About half the provider's types have no tag surface; those derive their identity from configuration or hold it in the record store."
-      values: "A record store you declare or get by default: Parameter Store, S3, or a local directory, one record per instance under your IAM."
-      effects: "A receipt: an ordinary resource, by convention an SSM parameter holding a hash of the effect's input, that appears in your plan."
+      values: "`record_store \"s3\"`: one object per managed instance in a bucket you own, each tagged with the estate, written conditionally with no lock, under your IAM. An estate that declares nothing gets a local directory."
+      effects: "A receipt: an ordinary resource, for example an SSM parameter, holding a hash of the effect's input, that appears in your plan."
       cache: "`choudoufu-cache.tfstate` under the data dir. Never consulted for ownership; when it and the live system disagree, live wins; losing it costs a read."
       gate: "IAM conditions on `aws:ResourceTag/tofu-estate` and `aws:RequestTag/tofu-estate`. They fence reads and writes, per resource, and bind the credential rather than the binary."
       inventory: "`aws resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=<estate>`"
@@ -31,7 +31,7 @@ providers:
     status_label: "Every object-metadata type plans, carries the estate label, is swept for orphans, and is fenced by one admission policy that reads it; the gauntlet runs its stages on a kind cluster in a lane of its own, where the first estate clears every applicable stage, migration from a stock state included (#1073)."
     cells:
       identity: "One label, `tofu-estate`, written on the create; the object is re-bound through group, kind, namespace and name. A label value is capped at 63 characters and cannot carry a config address, so the address stays off the object. `generateName` is refused."
-      values: "Not yet designed."
+      values: "`record_store \"kubernetes\"`: one Secret per managed instance in a namespace you own, each labelled with the estate, written conditionally on `resourceVersion` with no lock, under your RBAC. No AWS account is involved."
       effects: "Not yet designed."
       cache: "The same file and the same three rules."
       gate: "One `ValidatingAdmissionPolicy` (`live/kubernetes/estate-boundary.yaml`) whose CEL reads the label off `oldObject` and `object` and asks the authorizer whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`; the grant is a ClusterRole. It fences create, update and delete only, never list or get, not subresources, and it is a cluster-wide object a cluster admin installs. Until it is installed the label is advisory."

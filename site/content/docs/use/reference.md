@@ -166,13 +166,11 @@ replaced it. Guided discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
-One label picks the backend, `"local"` or `"s3"`. `"ssm"` is retired and is
-refused with the reason and the replacement. The block stores the
-values of logical resources such as `null_resource`, `terraform_data`, `time_*`
-and `random_*`. Declaring the block is not what admits those types: every
-estate has a store, and one that names no `record_store` gets an implied local
-one, so a logical resource is admitted with no `record_store` block present.
-Declare it to choose where the records go. Writes are conditional rather than
+One label picks the backend: `"local"`, `"s3"` or `"kubernetes"`. The store
+holds one record per managed instance
+([Records]({{< relref "/docs/model/values" >}})). Every estate has one: a
+`live` block that names no `record_store` gets an implied local store.
+Declare the block to choose where the records go. Writes are conditional rather than
 locked. [Storage]({{< relref "/docs/use/storage" >}}) has the bucket's layout
 and the choice between the two, and
 [What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket
@@ -216,7 +214,7 @@ Turning a toggle on is the setup step.
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
 | `marker_repair` | `"repair"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. "repair" writes the declared value over it, as the plan's ordinary in-place tags update. "never" leaves it silently, for an estate where something else owns the tags, and only once a markers "record" selection gives the resource an identity source that is not the marker. |
-| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" keeps none of it: a secret-generating type is refused outright, and a sensitive settable argument is never recorded. |
+| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. |
 | `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. "refuse" reports it, by name, and names both remedies: "choudoufu live-import" from a stock state that already holds it, or this toggle. "create" selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
 | `provider_change` | `"refuse"`, `"recreate"` | `"refuse"` | What a run does when a resource block names a different provider configuration than the one whose account or region still holds a live object carrying this estate's marker for that block's address - a region or account change. "refuse" reports the object, by name, with the provider configuration that found it and the one its address now belongs to, and names both remedies: destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own behavior - plan the create under the new configuration - and warns, by name, that the old one's object is abandoned and nothing will find it again. |
 <!-- toggles-gen:end strict-toggles -->
