@@ -556,6 +556,15 @@ showing its own checks would have caught it.
   declared dependency opens the other estate's outputs and nothing else.
   The BREAK control widens the prefix and removes the tag's Deny, and
   the read must then succeed (#1343). Needs jq.
+- **objects-carry-the-estate-tag** - *Claim 36: every record store
+  object carries its estate's tag, and the tag is load-bearing.* **Real
+  AWS, maintainer-run.** An estate applies as its scoped role and every
+  object is read back tagged, records with the marker form of their
+  address. One record is retagged out of band as another estate's under
+  this estate's own prefix: the role is denied it, and the plan fails
+  naming the record instead of planning around it. The BREAK control
+  rebuilds choudoufu so the store sends no tags, and the published
+  policy must deny its first write (#1337). Needs jq and Go.
 
 ## Knobs
 

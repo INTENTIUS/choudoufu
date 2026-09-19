@@ -833,6 +833,30 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 36,
+      "slug": "objects-carry-the-estate-tag",
+      "title": "Every record store object carries its estate's tag, and the tag is load-bearing",
+      "scenario": "live/smoke/scenarios/objects-carry-the-estate-tag.sh",
+      "command": "just smoke objects-carry-the-estate-tag",
+      "minutes": 5,
+      "needs_go": false,
+      "real_aws": true,
+      "theme": "operate",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the S3 store sends no tags (go build -overlay, needs Go) and passes only when the published policy then denies its first write",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "Real AWS and maintainer-run, not CI: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so a claim that a tag is load-bearing could not fail there. Run with SMOKE_REAL_AWS=1; it creates a bucket and an IAM role and removes them. Last run 2026-09-18, us-east-2."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }
