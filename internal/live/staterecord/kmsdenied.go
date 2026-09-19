@@ -95,16 +95,20 @@ func asKMSDenied(err error) *KMSDeniedError {
 func (e *KMSDeniedError) Unwrap() error { return e.Err }
 
 func (e *KMSDeniedError) Error() string {
-	key := "The bucket's KMS key"
+	return fmt.Sprintf("%s %s S3 reports this as AccessDenied on its own operation, and the bucket and the S3 permissions may be entirely correct. (%v)",
+		e.Headline(), e.Remedy(), e.Err)
+}
+
+// Headline is the one sentence of what happened: which key refused what to whom.
+func (e *KMSDeniedError) Headline() string {
+	key, who := "The bucket's KMS key", "this run's credentials"
 	if e.KeyARN != "" {
 		key += " " + e.KeyARN
 	}
-	who := "this run's credentials"
 	if e.Principal != "" {
 		who = e.Principal
 	}
-	return fmt.Sprintf("%s refused %s to %s. %s S3 reports this as AccessDenied on its own operation, and the bucket and the S3 permissions may be entirely correct. (%v)",
-		key, e.Action, who, e.Remedy(), e.Err)
+	return fmt.Sprintf("%s refused %s to %s.", key, e.Action, who)
 }
 
 // Remedy says where to look, which depends on the policy AWS blamed.
