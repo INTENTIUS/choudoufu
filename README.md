@@ -22,8 +22,8 @@ estate](https://intentius.io/choudoufu/docs/use/start/) if it does not.
 
 Three things have to survive between runs, and each lives somewhere AWS
 already has. Which real resource an address refers to is a tag on the
-resource. Values AWS has nowhere to put go in a `record_store`, backed by
-Parameter Store, S3, or a local directory. Effects that leave nothing behind
+resource. Values AWS has nowhere to put go in a `record_store`: an S3 bucket
+you own, or a local directory. Effects that leave nothing behind
 to read back get a receipt, which tracks their staleness.
 
 **Tag-based IAM scoping is a feature AWS already has.** What it needs is tags

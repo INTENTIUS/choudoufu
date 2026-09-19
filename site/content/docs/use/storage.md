@@ -244,10 +244,12 @@ receipts namespace.
 
 Visibility is why. A receipt is AWS-native so its value stays readable with a
 plain `aws ssm get-parameter`, by someone with read-only IAM and no `choudoufu`
-binary. A record-store payload is tool-internal by
-design. Moving a receipt onto it would trade `aws ssm get-parameter` for
-choudoufu's internal JSON envelope, strictly worse for the one artifact whose
-job is being legible to someone not running the tool.
+binary. A record is the opposite on both counts: its payload is tool-internal
+by design, and it sits in a bucket whose read access you hand to almost nobody,
+because records hold secrets. Moving a receipt there would trade
+`aws ssm get-parameter` for an object in a bucket a reviewer was rightly not
+given, in choudoufu's internal JSON envelope. That is strictly worse for the
+one artifact whose job is being legible to someone not running the tool.
 
 **The tempting mistake**, now `terraform_data` is record-backed, is using its
 `triggers_replace` as a pseudo-receipt. Do not. It hides the fingerprint in the
