@@ -138,8 +138,9 @@ var Toggles = []Toggle{
 		SafeValue: string(Refuse),
 		Values:    []string{string(Store), string(Refuse)},
 		Meaning: `What a run does with the secret material a configuration generates or sets. "store" keeps ` +
-			`it the way stock OpenTofu keeps it. "refuse" keeps none of it: a secret-generating type is ` +
-			`refused outright, and a sensitive settable argument is never recorded.`,
+			`it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is ` +
+			`refused outright, and a sensitive settable argument is left out of its record. It does not ` +
+			`reach the cache file, or a terraform_data or null_resource the configuration hands a secret.`,
 	},
 	{
 		Name:    "no_source_create",

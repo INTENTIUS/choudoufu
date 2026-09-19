@@ -1,34 +1,58 @@
 ---
-title: "How to record an effect the cloud cannot report"
+title: "Receipts: make an external effect show up in a plan"
 weight: 8
+aliases: ["/docs/model/effects/", "/how-it-works/effects/"]
 ---
 
-# How to record an effect the cloud cannot report
+# Receipts: make an external effect show up in a plan
 
-Nothing in the live system records that a database migration, a script, or a
-one-shot API call happened, so no marker reads back.
+A migration that ran, a cache that was invalidated, a notification that was
+sent: none leaves anything in the platform to read back, so no plan can tell
+you whether it already happened. A receipt makes it visible. It is optional,
+and most estates have none.
 
-`null_resource`, `terraform_data`, `time_*` and `random_*` work as soon as the
-configuration has a `live` block. It needs no `record_store` block: an estate
-that names none gets an implied local store, a `.tofu-records` directory beside
-the module. That includes the secret-generating `random_*`, admitted on the
-same terms under the default `strict { secrets = "store" }` and recorded in
-clear, which is the reason to read [Secrets in the record
-store]({{< relref "/docs/use/secrets" >}}) before sharing one.
+![The plan shows a receipt diff for an effect that is otherwise invisible](diagram-effects.svg)
 
-Declare a `record_store` to put the records somewhere a team can share instead:
+## What a receipt is
 
-```hcl
-# estate.chdf.hcl
-estate = "my-estate"
+An ordinary resource you declare, holding a hash of the effect's input. It
+goes through plan and apply like anything else, and its diff tells a reviewer
+or a CI gate that this apply triggers something outside the resources being
+managed. On AWS an SSM parameter at `/tofu-receipts/<estate>/<effect>` is a
+supported choice. Nothing requires SSM: any resource whose value a reviewer
+can read with the platform's own CLI does the job.
 
-record_store "s3" {
-  bucket = "my-records-bucket"
-}
-```
+## choudoufu never runs the effect
 
-The label picks the backend, `local` or `s3`.
-[Where things are stored]({{< relref "/docs/use/storage" >}}) has "Choosing a
-record store backend" for which one to pick, what a bucket holds, and why a
-receipt must not go in there. Those resources then run the stock provider
-lifecycle exactly as upstream.
+`plan` and `apply` touch the receipt and nothing else. The effect runs in the
+layer above, a CI step or a runbook, which sees the proposed receipt change,
+runs the real effect, and lets apply write the new value once it succeeded.
+If the tool ran the effect, the diff would stop being a preview and become the
+thing happening mid-plan, which is a provisioner.
+
+A provisioner runs when its resource is created and never again, and no plan
+shows that it is about to run. A receipt's diff is the standing answer to
+"have this effect's inputs changed since it last ran", asked on every plan.
+
+The semantics are at-least-once. If the effect runs and the process dies
+before the receipt is written, the next plan proposes the same change and the
+effect runs again. An unconfirmed effect stays visible as a pending diff.
+
+## The rules, which are linted
+
+The value is a hash or a constant and never a `SecureString`. Nothing may
+reference a receipt's attributes. Inputs name secrets by pointer and never by
+value.
+
+A receipt does not go in the record store. Its job is to be readable by
+someone with read-only access and no `choudoufu` binary, and a record is
+tool-internal JSON in a store few people may read. A `key_prefix` starting
+with `tofu-receipts` is a configuration error.
+
+`terraform_data`'s `triggers_replace` is not a substitute. It hides the
+fingerprint in the tool's own store and tells a reviewer nothing.
+`terraform_data` is for the dependency graph, and receipts are for external
+effects.
+
+[`live/RECEIPTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md)
+has the pattern and the reasoning behind each guard.

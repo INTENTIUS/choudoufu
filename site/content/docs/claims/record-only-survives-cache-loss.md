@@ -25,24 +25,16 @@ time. Once the object exists, the record this apply writes is the only
 copy of that pairing.
 
 This is a different resource than the one issue #746 and PR #851
-measured. That PR's own re-measurement, against a real hashicorp/aws
-6.59.0 provider schema, named 27 admitted types that are markerless,
-unlistable and carry a *wire-identity* composite (a provider-native
-`identity_schema`, several attributes, no documented separator) - and of
-those, only three actually reach the located-fallback bind PR #851 fixed
-(`aws_datazone_glossary_term`, `aws_opensearchserverless_security_config`,
-`aws_redshift_namespace_registration`); the other 24 are already diverted
-to the record-located class earlier, through a different door. None of
-the three is implemented by the pinned floci image (probed directly:
-`datazone`, `opensearchserverless` and `redshift-serverless` are absent
-from its service list, and `redshift register-namespace` itself answers
-`UnknownOperationException`). The other 24 all carry a ratified,
-hand-written identity-table row whose components are literals or
-references this fork's own static evaluator can fold from configuration
-alone - measured directly against this same pinned image, every one of
-them survives losing its record exactly because configuration alone
-rebuilds the same identity, record or no record. Neither population,
-today, can demonstrate this claim on the emulator.
+measured. That PR's re-measurement, against a real hashicorp/aws 6.59.0
+provider schema, named 27 admitted types that are markerless, unlistable
+and carry a *wire-identity* composite. Only three of them reach the
+located-fallback bind PR #851 fixed (`aws_datazone_glossary_term`,
+`aws_opensearchserverless_security_config`,
+`aws_redshift_namespace_registration`), and the pinned floci image
+implements none of the three. The other 24 carry a hand-written
+identity-table row that configuration alone can rebuild, so they survive
+losing their record anyway. Neither population can demonstrate this
+claim on the emulator today.
 
 `aws_iam_group_policy` reaches the identical recovery mechanism
 (`identity.ClassRecordLocated`, `projection.materializeLocated`) through

@@ -82,23 +82,16 @@ of two halves:
   one), what needs a marker but has no live resource to offer, and what
   another estate holds.
 
-Warnings are compacted rather than dropped: each is printed as one line, its
-summary with a count when the same summary recurs. A heading says how many
-there were and that the same command without `-adoption-only` shows them in
-full. Errors are never touched. This is most of what the mode removes -
-against `live/e2e/estate-block` plus an IAM role and its inline policy on the
-pinned emulator at commit `e1dec69cef` (2026-08-30, #587), a plain plan was
-926 lines, of which 470 were the bodies of 36 "Incomplete sweep for
-undeclared resources" warnings, one per provider type the emulator could not
-list. The adoption-only run of the same estate was 53 lines. **Stale on the
-warning count specifically**: `09d180f921` landed one day later and stopped
-an ordinary plan from enumerating the whole admission table, so a plan run
-today against an estate with its own evidence to narrow by prints far fewer
-of these warnings than it did when this was captured; `-adoption-only` still
-forces the full sweep regardless (see [what a plan
-costs]({{< relref "/docs/model/plan-cost#when-the-native-leg-is-narrowed-and-when-it-is-not" >}})),
-so the *shape* this paragraph describes still holds, but the exact line
-counts have not been re-measured since.
+Warnings are compacted: each is printed as one line, its summary with a
+count when the same summary recurs. A heading says how many there were and
+that the same command without `-adoption-only` shows them in full. Errors
+are never touched. Against `live/e2e/estate-block` plus an IAM role and its
+inline policy on the pinned emulator at commit `e1dec69cef` (2026-08-30,
+#587), a plain plan was 926 lines and the adoption-only run of the same
+estate was 53 lines. **Stale**: since `09d180f921` an ordinary plan prints
+fewer sweep warnings, and the line counts have not been re-measured (see
+[what a plan
+costs]({{< relref "/docs/model/plan-cost#when-the-native-leg-is-narrowed-and-when-it-is-not" >}})).
 
 The mode changes what is printed, and since `09d180f921` it also changes what
 is done. The live reads and the plan are the same, and every verdict in the
@@ -110,9 +103,7 @@ not. On the 79-instance terralith that is 710 API calls against 157, about
 4.5x. It is also the flag a migrating operator is told to reach for, which is
 correct, because during a migration the account-wide question is the point.
 
-**An earlier version of this page said the mode "costs the same time as an
-ordinary plan".** That was true when written and stopped being true at
-`09d180f921`. Budget for the wider run.
+Budget for the wider run.
 [What a plan costs]({{< relref "/docs/model/plan-cost" >}}) has the split, the
 conditions under which an ordinary plan narrows, and
 `TOFU_LIVE_COLLECT_UNCLAIMED` for asking or declining the question
@@ -121,16 +112,15 @@ independently of this flag.
 It needs a `live` block; a state-backed plan refuses it.
 
 Identity resolution and marker stamping run through the plan-node seam
-(GitHub issue #388) by default: the record, then the marker index, then the
-provider's identity schema over the plan's own evaluated configuration,
-resolved at the same graph node stock plans a resource at. `CHOUDOUFU_NODE_RESOLVE=0`
-in the environment that runs a plan or apply opts back out to the older
-pre-walk static evaluator and HCL-rewriting stamp, which choudoufu still
-ships and still runs the full estate suite against; that path is scheduled
-for retirement, not removed, so the variable exists for an estate the node
-path does not yet handle, not as a supported long-term choice.
-This is a build-migration switch, not a per-estate setting, so it belongs in
-the environment that invokes the binary, never in a `live` block.
+(GitHub issue #388) by default. It tries the record, then the marker index,
+then the provider's identity schema over the plan's own evaluated
+configuration, at the same graph node where stock plans a resource.
+`CHOUDOUFU_NODE_RESOLVE=0` in the environment that runs a plan or apply
+opts back out to the older pre-walk static evaluator and HCL-rewriting
+stamp. That path still ships and is scheduled for retirement, so the
+variable exists for an estate the node path does not yet handle. It is a
+build-migration switch and belongs in the environment that invokes the
+binary, never in a `live` block.
 
 ## The live configuration
 
@@ -166,13 +156,11 @@ replaced it. Guided discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
-One label picks the backend, `"local"` or `"s3"`. `"ssm"` is retired and is
-refused with the reason and the replacement. The block stores the
-values of logical resources such as `null_resource`, `terraform_data`, `time_*`
-and `random_*`. Declaring the block is not what admits those types: every
-estate has a store, and one that names no `record_store` gets an implied local
-one, so a logical resource is admitted with no `record_store` block present.
-Declare it to choose where the records go. Writes are conditional rather than
+One label picks the backend: `"local"`, `"s3"` or `"kubernetes"`. The store
+holds one record per managed instance
+([Records]({{< relref "/docs/model/values" >}})). Every estate has one: a
+`live` block that names no `record_store` gets an implied local store.
+Declare the block to choose where the records go. Writes are conditional rather than
 locked. [Storage]({{< relref "/docs/use/storage" >}}) has the bucket's layout
 and the choice between the two, and
 [What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket
@@ -216,7 +204,7 @@ Turning a toggle on is the setup step.
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
 | `marker_repair` | `"repair"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. "repair" writes the declared value over it, as the plan's ordinary in-place tags update. "never" leaves it silently, for an estate where something else owns the tags, and only once a markers "record" selection gives the resource an identity source that is not the marker. |
-| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" keeps none of it: a secret-generating type is refused outright, and a sensitive settable argument is never recorded. |
+| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. |
 | `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. "refuse" reports it, by name, and names both remedies: "choudoufu live-import" from a stock state that already holds it, or this toggle. "create" selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
 | `provider_change` | `"refuse"`, `"recreate"` | `"refuse"` | What a run does when a resource block names a different provider configuration than the one whose account or region still holds a live object carrying this estate's marker for that block's address - a region or account change. "refuse" reports the object, by name, with the provider configuration that found it and the one its address now belongs to, and names both remedies: destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own behavior - plan the create under the new configuration - and warns, by name, that the old one's object is abandoned and nothing will find it again. |
 <!-- toggles-gen:end strict-toggles -->
@@ -226,22 +214,19 @@ whatever the setting says: the safety rule has no converse permitting an
 unmarked create, and a create writes a marker that is new rather than one
 that disagrees with anything.
 
-The table's `marker_repair` values leave out `"report"` on purpose: it is
-still valid `strict { marker_repair = ... }` grammar (this fork's decoder
-parses it and refuses it with a "not implemented yet" detail, rather than
-a generic typo message), but no build gives it a mechanism, and unlike
-`"never"` it has no path to one - not even the conditional one a `markers
-"record"` selection gives `"never"`. Declaring it as a usable setting
-would be the same false "you are fine" HANDOFF.md warns against, so this
-page does not. `"never"` on its own (no selection) is refused for the
-reason in the `strict-marker-repair` entry in
-[`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-marker-repair):
-marker repair is not a switch anywhere. Markers are repaired by the plan's
-ordinary tags diff, and suppressing that per key is what
-`lifecycle { ignore_changes }` does - which is refused: a resource whose
-identity is only its marker and whose marker write is discarded can never be
-found again. `"never"` therefore needs a resource to have somewhere
-else to hold its identity, which is the next block.
+The table's `marker_repair` values leave out `"report"`. It is still valid
+`strict { marker_repair = ... }` grammar, and this fork's decoder parses it
+and refuses it with a "not implemented yet" detail, but no build gives it a
+mechanism.
+
+`"never"` on its own, with no selection, is refused for the reason in the
+`strict-marker-repair` entry in
+[`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-marker-repair).
+Markers are repaired by the plan's ordinary tags diff, and suppressing that
+per key is what `lifecycle { ignore_changes }` does, which is refused: a
+resource whose identity is only its marker and whose marker write is
+discarded can never be found again. `"never"` therefore needs a resource to
+have somewhere else to hold its identity, which is the next block.
 
 #### Pinning `secrets` and `no_source_create` from the environment
 
@@ -271,12 +256,12 @@ configuration that generates a password runs here with a `live` block added
 and nothing else. What a state file would hold, the estate's record store
 holds - namespaced per estate, under IAM, written with compare-and-swap,
 with the sensitivity marks travelling beside the value. Like every other
-logical type, a secret-generating one needs no `record_store` block: an estate
+record-backed type, a secret-generating one needs no `record_store` block: an estate
 that declares none gets the implied local store.
 
 `"refuse"` is the principle, and it is two refusals rather than one:
 
-- a **secret-generating logical type** (`random_password`, `tls_private_key`,
+- a **secret-generating record-backed type** (`random_password`, `tls_private_key`,
   `local_sensitive_file` and their measured siblings) is refused at lint,
   naming the setting. It is refused again at the two other layers that could
   write such a record without lint having run: identity resolution, and

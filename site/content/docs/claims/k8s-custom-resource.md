@@ -21,17 +21,14 @@ with nothing stored anywhere re-binds the object. This is the first unit
 of [#1079](https://github.com/INTENTIUS/choudoufu/issues/1079).
 
 The second unit is the label. The plan writes the one `tofu-estate`
-label into `manifest.metadata.labels` on create, the same label every
-built-in type carries in its metadata block, merged with whatever labels
-the manifest declares (a manifest that names another estate is refused as
-a marker conflict, word for word the refusal a tags map gets). kubectl
-reads it back in step 2. The provider's `computed_fields` default names
-`metadata.labels`, so a label the API server or a controller adds never
-churns the plan; the same default means a label stripped out of band is
-taken as the field's new truth, so the projection carries the live object's
-own answer for that one key into the prior state it builds. The plan then
-sees an object carrying no marker for this estate and refuses it by name,
-which is what the label `BREAK=1` control measures.
+label into `manifest.metadata.labels` on create, merged with whatever
+labels the manifest declares. A manifest that names another estate is
+refused as a marker conflict. kubectl reads the label back in step 2.
+The provider's `computed_fields` default names `metadata.labels`, so a
+label stripped out of band would be taken as the field's new truth. The
+projection therefore carries the live object's own answer for that one
+key into the prior state it builds, and the plan refuses the unmarked
+object by name. The label `BREAK=1` control measures that.
 
 The third unit is the sweep. It lists every kind the cluster serves with
 list and delete verbs, CRDs included, selected on the estate label; a kind
@@ -43,40 +40,33 @@ listed object meet on the kind and the natural key, so a ConfigMap
 declared through `kubernetes_manifest` is never an orphan of the built-in
 type.
 
-The fourth unit is the refusal by name. The provider reads a custom kind's
-schema from the cluster when it plans, so a block whose apiVersion and
-kind the cluster does not serve fails at plan time with the provider's
-own error. `choudoufu plan` asks the cluster first, at its first contact
-with it (the same API discovery the sweep uses), and refuses such a block
-by name: the address, the kind, the apiVersion, and the
-CustomResourceDefinition whose group, kind and served version would have
-to be installed. The plan exits non-zero with nothing planned, the same
-outcome the provider's error gives, with the cause stated instead of
-found. `live-check` is offline and cannot ask a cluster, so it does not
-raise this; a cluster that cannot answer the question is a warning, never
-a refusal. Step 1 plans before the CRD exists and requires exactly that
-refusal.
+The fourth unit is the refusal by name. A block whose apiVersion and
+kind the cluster does not serve would fail at plan time with the
+provider's own error. `choudoufu plan` asks the cluster first, through
+the same API discovery the sweep uses, and refuses such a block by name:
+the address, the kind, the apiVersion, and the CustomResourceDefinition
+that would have to be installed. The plan exits non-zero with nothing
+planned. `live-check` is offline and does not raise this, and a cluster
+that cannot answer is a warning. Step 1 plans before the CRD exists and
+requires exactly that refusal.
 
 The fifth unit is the server's own verdict
 ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081), item 3).
-Once the plan exists, every planned create or update of a
-`kubernetes_manifest` instance is the API object itself, the `tofu-estate`
-label already inside it, and the plan sends exactly that object to the
-API server with `dryRun=All`: the server validates it against the kind's
-schema, applies its defaults and runs every admission policy, the estate
-boundary's included, and persists nothing. `kubectl --dry-run=server` is
-the same request. AWS has no equivalent. The answer prints above the
-plan, one line per object, and a rejection refuses the plan by name in
-the server's words: the plan exits non-zero, nothing is rendered and
-nothing is applied, on `plan` and on `apply` alike. Two bounds are
-stated rather than hidden. An object whose namespace this same plan
-creates is reported, not submitted, because the server would answer 404
-for the apply's order rather than for the object; step 3 shows that line
-and applies the namespace first. And a built-in type's block
-(`kubernetes_namespace`, `kubernetes_config_map` and the rest) is never
-submitted: the mapping from its block shape to the API object is the
-provider's own, and this tool does not reproduce it. `live-check` is
-offline and does not ask; a server that cannot answer is a warning.
+Every planned create or update of a `kubernetes_manifest` instance is
+sent to the API server with `dryRun=All`, the `tofu-estate` label
+already inside it. The server validates the object against the kind's
+schema, applies its defaults, runs every admission policy, and persists
+nothing. `kubectl --dry-run=server` is the same request. The answer
+prints above the plan, one line per object, and a rejection refuses the
+plan by name in the server's words, on `plan` and on `apply` alike.
+
+Two kinds of object are not submitted. An object whose namespace this
+same plan creates is reported only, because the server would answer 404;
+step 3 shows that line and applies the namespace first. A built-in
+type's block (`kubernetes_namespace`, `kubernetes_config_map` and the
+rest) is never submitted, because the mapping from its block shape to
+the API object is the provider's own. `live-check` is offline and does
+not ask, and a server that cannot answer is a warning.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
@@ -149,42 +139,34 @@ The steps, in the order they print:
 Steps 11 and 12 are what
 [#1109](https://github.com/INTENTIUS/choudoufu/issues/1109) closed. Before
 it, the summary line read `1 newly stamped ... 1 skipped` and the CronTab
-carried no label: the manifest shape was not a live-import carrier, so a
-migrated custom resource was bound by its natural key, counted as
-migrated, and left outside the boundary - the sweep did not list it, the
-admission policy did not fence it, and the report said nothing, because
-untaggable is a legitimate outcome for a type that has nowhere to carry a
-marker. The label goes on as one API merge patch under the caller's own
-credential, not through the provider: `kubernetes_manifest` has no
-metadata block, so a labels-only write through the provider would be a
-re-apply of the whole manifest rebuilt from a state file that may be days
-stale.
+carried no label. A migrated custom resource was bound by its natural
+key, counted as migrated, and left outside the boundary: the sweep did
+not list it and the admission policy did not fence it. The label goes on
+as one API merge patch under the caller's own credential. `kubernetes_manifest`
+has no metadata block, so a labels-only write through the provider would
+re-apply the whole manifest from a state file that may be days stale.
 
 The `BREAK=1` run has five controls, all after step 5, and it exits
-there - steps 6 to 12 are the main run only. First it writes
-`spec.replicas = 0` into the manifest; the CRD bounds the field at
-minimum 1, a rule the provider does not check and the server does, so
-the replan must be refused by name (`Kubernetes API server rejected the
-planned object`), quoting the server's own `spec.replicas in body should
-be greater than or equal to 1`, with no plan produced and nothing
-written; the edit is then reverted. Then it strips the `tofu-estate`
-label with kubectl; the replan must propose updating
-`kubernetes_manifest.crontab` in place and the apply must put the label
-back. Then it strips the label again and removes the block; the replan
-must not list the object at all, because an object with no label is
-nobody's. Then it deletes the CronTab; the replan must propose creating
-it. If any plan read the other way, the label, the natural key or the
-dry run was scenery.
+there. Steps 6 to 12 are the main run only. First it writes
+`spec.replicas = 0` into the manifest. The CRD bounds the field at
+minimum 1, a rule only the server checks, so the replan must be refused
+by name (`Kubernetes API server rejected the planned object`), quoting
+the server's own `spec.replicas in body should be greater than or equal
+to 1`, with no plan produced and nothing written.
+
+Then it strips the `tofu-estate` label with kubectl, and the replan must
+refuse the CronTab by name and leave the label off until an operator
+writes it back. Then it strips the label again and removes the block,
+and the replan must not list the object at all, because an object with
+no label is nobody's. Then it deletes the CronTab, and the replan must
+propose creating it.
 
 The fifth control is the one the migration's own safety rests on. It
-stands up step 11's fixture itself - a CronTab stock made, with a state
-file behind it - and then runs the adoption against it. A `MutatingAdmissionPolicy` is installed that rewrites
-`spec.image` on every update to a CronTab. The label patch names one key
-under `metadata.labels` and can reach nothing else - but the server can,
-and "the request is small" is an assertion rather than a check. So the
-patch is sent first with `dryRun=All`, and the object the server says it
-would store is compared with the object it holds; the migration must
-refuse by name (`would also change spec.image`), count the resource as
-failed, and leave the object with no label and its original image. With the policy
-removed the same command goes through in the main run, so the refusal is
-the dry run's and not the tool's dislike of the type.
+stands up step 11's fixture itself, a CronTab stock made with a state
+file behind it, and installs a `MutatingAdmissionPolicy` that rewrites
+`spec.image` on every update to a CronTab. The label patch is sent first
+with `dryRun=All`, and the object the server says it would store is
+compared with the object it holds. The migration must refuse by name
+(`would also change spec.image`), count the resource as failed, and
+leave the object with no label and its original image. With the policy
+removed the same command goes through in the main run.

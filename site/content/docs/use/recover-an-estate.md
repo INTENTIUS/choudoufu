@@ -42,9 +42,10 @@ resources that have no cloud object at all, and for a narrow slice of AWS
 types it holds the only copy of an identity. That is the rest of this page.
 Where those records are kept changes how likely you are to get them back and
 changes nothing about the inventory below. [Where things are
-stored]({{< relref "/docs/use/storage#choosing-a-record-store-backend" >}}) has
-the backend argument; the short version is that an `s3` bucket with versioning
-on is the one configuration where a deleted record store has an undo.
+stored]({{< relref "/docs/use/storage" >}}) has
+the backends. A bucket is the one store where a deleted record has an undo:
+the store refuses a bucket without versioning, so every deleted record is
+still there as a noncurrent version until the lifecycle rule expires it.
 
 ## "Cannot carry a marker" is not the same as "needs a record"
 
@@ -213,8 +214,11 @@ ownership record and they are the thing that still works.
 
 **2. Restore the record store if you can.** choudoufu reads and writes keys and
 keeps no second copy, so whether a restore exists is a property of the backend
-and of the durability you put under it. On `s3` with versioning on, the deleted
-objects have noncurrent versions and this is the whole recovery. Check before
+and of the durability you put under it. On `s3` the deleted objects have noncurrent
+versions, because the store refuses a bucket without versioning, and this is
+the whole recovery. It takes `s3:ListBucketVersions` and
+`s3:DeleteObjectVersion`, which the estate's own role does not have
+([IAM]({{< relref "/docs/use/iam#what-a-recovery-needs" >}})). Check before
 doing anything else: restoring is strictly better than every option below it,
 and it makes the rest of this page moot.
 

@@ -49,11 +49,9 @@ estate does not rewrite its records, so they age, and such a rule deletes
 them on a timer. The next plan then reads an estate with those resources
 missing and proposes creating what already exists. This refusal has its own
 headline, `The record store bucket's lifecycle deletes records`, and it is
-the one finding `allow_insecure` does not cover, because the waiver's cost is
-that a setting goes unasserted and this is a setting that was read and is
-destructive. A rule that only removes expired delete markers is fine. A
-deleting rule filtered by tag or size is refused too, since records have tags
-and sizes and nothing shows the filter misses them.
+the one finding `allow_insecure` does not cover. A rule that only removes
+expired delete markers is fine. A deleting rule filtered by tag or size is
+refused too, since nothing shows the filter misses the records.
 
 Until #1377 the check looked only for the noncurrent expiry and passed a
 bucket with a deleting rule beside it.
@@ -107,7 +105,9 @@ What you give up, per name, in the words the run itself prints:
 A waiver is loud on every run that opens the store, `plan`, `live-plan` and
 `live-mv` included, and names the setting and its cost each time. When the bucket does fail the waived setting, an apply also
 says the assertion would have refused it. When the bucket passes, `live-bucket`
-says the waiver is hiding nothing and can be removed. An unknown name, a
+says the waiver is hiding nothing and can be removed. It reports on waivers
+only when run in the estate's directory with no `-bucket` flag, because a
+bucket named on the command line has no configuration to read a waiver from. An unknown name, a
 repeated name, a boolean, and `allow_insecure` on a store that is not a bucket
 are all configuration errors.
 [Claim 30]({{< relref "/docs/claims/a-waiver-names-what-it-waives" >}})
