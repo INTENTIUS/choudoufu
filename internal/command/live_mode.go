@@ -741,6 +741,12 @@ type statelessRunner struct {
 	// [projection.RecordStore]'s envelope.
 	rawStore staterecord.Store
 
+	// recordStoreCfg and recordEstate are what [statelessRunner.BeforeApply]
+	// needs to assert the bucket contract (#1339) against the same store,
+	// bucket and namespaces this run opened. Nil / "" with no record_store.
+	recordStoreCfg *configs.LiveRecordStore
+	recordEstate   string
+
 	// envelopeVersions is GitHub issue #364's merge of what used to be
 	// three separate fields (locatedVersions, residueVersions,
 	// provisionedVersions) for GitHub issues #270, #275 and #353: the
@@ -953,6 +959,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 			return nil, diags
 		}
 		r.rawStore = store
+		r.recordStoreCfg = recordStoreCfg
+		r.recordEstate = estate
 		recordKeyPrefix := projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
 		// GitHub issue #364: one store now, for the record-backed
 		// (kind=object), record-located (issue #270), residue (issue #275)

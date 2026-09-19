@@ -470,6 +470,19 @@ showing its own checks would have caught it.
   -overlay, needs Go, refuses a release binary) and passes only when
   the wire shows smoke-prod fetching smoke-prod-eu's record (#1335).
 
+- **a-wrong-bucket-is-refused** - *Claim 29: a record store bucket that
+  cannot keep its records is refused by name before anything is
+  applied.* A correct bucket costs an apply nothing; then four arms each
+  break one setting with the AWS CLI - versioning suspended, no
+  lifecycle, a lifecycle that exists and expires nothing, no
+  public-access block - and each apply must fail naming the setting and
+  the bucket, with the record store's object versions unchanged. A plan
+  against the drifted bucket goes through, because the assertions do not
+  run on every plan, and the step says what that costs. A brand-new
+  estate's first plan is refused twice running and leaves nothing under
+  its prefix. The BREAK control runs an arm with nothing corrupted and
+  requires the refusal check to find nothing (#1339).
+
 ## Knobs
 
 | Variable | Effect |

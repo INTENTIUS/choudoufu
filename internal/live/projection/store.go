@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -69,8 +70,14 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 	// The provisioning handshake, under the trip counter so its two
 	// backend calls are counted honestly and above the run cache so the
 	// List it verifies is the backend's own, never a snapshot's.
-	if err := provisionStoreSentinel(ctx, counted, recordStoreKeyPrefix(rs, estate)); err != nil {
+	createdVersion, err := provisionStoreSentinel(ctx, counted, recordStoreKeyPrefix(rs, estate))
+	if err != nil {
 		return nil, err
+	}
+	if createdVersion != "" {
+		if err := assertBucketOnFirstContact(ctx, counted, rs, estate, createdVersion); err != nil {
+			return nil, err
+		}
 	}
 	// The estate's records, loaded once and in bulk the way stock loads its
 	// state file - see [staterecord.RunCache] for what makes it safe. The
@@ -108,25 +115,31 @@ func SentinelKey(prefix string) string {
 // silently returns nothing used to read as an empty estate and surface as
 // a plan proposing to re-create live resources (#688's terralith run);
 // now it is a loud, named refusal before any plan is built.
-func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix string) error {
+//
+// createdVersion is the sentinel's version when THIS call created it and ""
+// when it was already there: the one signal this package has that a run is
+// an estate's first contact with its store. See [assertBucketOnFirstContact].
+func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix string) (createdVersion string, err error) {
 	key := SentinelKey(prefix)
-	if _, err := store.PutIfAbsent(ctx, key, []byte(sentinelPayload)); err != nil {
+	createdVersion, err = store.PutIfAbsent(ctx, key, []byte(sentinelPayload))
+	if err != nil {
 		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			return fmt.Errorf("record_store: provisioning the sentinel at %q: %w", key, err)
+			return "", fmt.Errorf("record_store: provisioning the sentinel at %q: %w", key, err)
 		}
 		// Already provisioned by an earlier run or a racing one - the
 		// conflict is the success case here.
+		createdVersion = ""
 	}
 	listPrefix := staterecord.NamespacePrefix(prefix)
 	keys, err := store.List(ctx, listPrefix)
 	if err != nil {
-		return fmt.Errorf("record_store: reading the sentinel back through List: %w", err)
+		return "", fmt.Errorf("record_store: reading the sentinel back through List: %w", err)
 	}
 	if !slices.Contains(keys, key) {
-		return fmt.Errorf("record_store: the store accepted the sentinel write at %q but List(%q) does not return it, so this store's List is broken and every record in it is invisible to a plan; refusing rather than planning against an estate that would read as empty (issue #693)", key, listPrefix)
+		return "", fmt.Errorf("record_store: the store accepted the sentinel write at %q but List(%q) does not return it, so this store's List is broken and every record in it is invisible to a plan; refusing rather than planning against an estate that would read as empty (issue #693)", key, listPrefix)
 	}
-	return nil
+	return createdVersion, nil
 }
 
 // backendKeyPrefix is what the "ssm" and "s3" backends' own KeyPrefix is
@@ -254,4 +267,84 @@ func loadAWSConfig(ctx context.Context, region string, rt *configs.LiveRetry) (a
 		opts = append(opts, awsconfig.WithRegion(region))
 	}
 	return awsconfig.LoadDefaultConfig(ctx, opts...)
+}
+
+// BucketNamespaces is every key namespace one estate writes under in its
+// record store: its records (or the key_prefix override), its hint and its
+// root outputs. It is what the bucket contract's lifecycle assertion has to
+// cover - see [staterecord.CheckBucketContract].
+func BucketNamespaces(rs *configs.LiveRecordStore, estate string) []string {
+	return []string{recordStoreKeyPrefix(rs, estate), HintKeyPrefix(estate), RootOutputKeyPrefix(estate)}
+}
+
+// BucketContractFindings reads the bucket contract for the store a live
+// block's record_store built, for one estate. ok is false when the store is
+// not in a bucket and there is nothing to assert.
+//
+// It reports the bucket and knows nothing about waivers: whether a run may
+// proceed past a finding is the caller's question (#1340), and the runnable
+// project's verify (#1341) wants the bucket's true state whatever the
+// configuration waives.
+func BucketContractFindings(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string) (findings []staterecord.BucketFinding, ok bool, err error) {
+	checker, ok := staterecord.AsBucketContractChecker(store)
+	if !ok {
+		return nil, false, nil
+	}
+	findings, err = checker.CheckBucketContract(ctx, BucketNamespaces(rs, estate))
+	return findings, true, err
+}
+
+// assertBucketOnFirstContact is one of the two places the bucket contract is
+// asserted (GitHub issue #1339); internal/command's BeforeApply is the other,
+// and an ordinary plan is deliberately neither.
+//
+// The ruling on #1339 is that the assertions do not run on every plan: they
+// are facts about the bucket, which do not change between two plans, and
+// three configuration reads on every plan is a cost and a permission
+// requirement paid for nothing. But an estate's FIRST run against a bucket is
+// the one moment a wrong bucket costs nothing to walk away from - no record
+// has been written yet - so that run asserts, whatever command it is. The
+// sentinel this run just created is the evidence that it is the first.
+//
+// A refusal takes the sentinel back out, so that the next run is a first
+// contact again and refuses again until the bucket is fixed. Leaving it
+// behind would make the second plan proceed against the bucket the first one
+// refused.
+func assertBucketOnFirstContact(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate, sentinelVersion string) error {
+	findings, ok, err := BucketContractFindings(ctx, store, rs, estate)
+	if !ok {
+		return nil
+	}
+	var refusal error
+	if err != nil {
+		refusal = err
+	} else if msg := BucketContractRefusalText(rs.Bucket, findings); msg != "" {
+		refusal = errors.New(msg)
+	}
+	if refusal == nil {
+		return nil
+	}
+	if delErr := store.Delete(ctx, SentinelKey(recordStoreKeyPrefix(rs, estate)), sentinelVersion); delErr != nil {
+		return fmt.Errorf("%w\n\n(The store sentinel this run created could not be removed again: %s. The next plan will not repeat this check; the next apply will.)", refusal, delErr)
+	}
+	return refusal
+}
+
+// BucketContractRefusalText renders every failed finding as one message,
+// each under its own headline, or "" when all passed.
+func BucketContractRefusalText(bucket string, findings []staterecord.BucketFinding) string {
+	var b strings.Builder
+	for _, f := range findings {
+		summary, detail := staterecord.BucketContractRefusal(bucket, f)
+		if summary == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(summary)
+		b.WriteString(". ")
+		b.WriteString(detail)
+	}
+	return b.String()
 }

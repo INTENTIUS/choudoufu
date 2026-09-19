@@ -401,6 +401,18 @@ func (b *Local) opApply(
 		}
 	}
 
+	// GitHub issue #1339: the last point before anything in the cloud
+	// changes, reached by both branches above. A refusal here leaves the
+	// estate exactly as the plan found it.
+	if b.Stateless != nil {
+		beforeDiags := b.Stateless.BeforeApply(ctx)
+		diags = diags.Append(beforeDiags)
+		if beforeDiags.HasErrors() {
+			op.ReportResult(runningOp, diags)
+			return
+		}
+	}
+
 	// GitHub issue #908: read the plan's replace set HERE, while the plan
 	// still has its changes. lr.Core.Apply below drains an applied change
 	// out of plan.Changes as each instance finishes (writeChange with a nil

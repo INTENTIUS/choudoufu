@@ -159,6 +159,16 @@ type StatelessRun interface {
 	// case for every estate with no Kubernetes provider.
 	AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics
 
+	// BeforeApply runs once a plan has been approved and before the first
+	// change is applied, on the plan opApply made itself and on a saved plan
+	// alike. It is where the run asserts whatever it must be able to rely on
+	// for the whole apply and could not afford to ask on every plan - today
+	// the record store bucket's contract (GitHub issue #1339): an apply is
+	// the run that writes records, so it is the run that must not start
+	// against a bucket that cannot keep them. Error diagnostics abort the
+	// operation with nothing applied. A plan-only operation never calls it.
+	BeforeApply(ctx context.Context) tfdiags.Diagnostics
+
 	// AfterApply runs whatever this run still owes the live system once a
 	// real apply has finished changing it, and reports what it did as
 	// diagnostics rather than by returning state: whatever it touches was

@@ -668,6 +668,29 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 29,
+      "slug": "a-wrong-bucket-is-refused",
+      "title": "A record store bucket that cannot keep its records is refused by name before anything is applied",
+      "scenario": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
+      "command": "just smoke a-wrong-bucket-is-refused",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 runs the first refusal arm with nothing corrupted and passes only when the check for a refusal by name finds none; the scenario's own four arms are the corruptions, one per setting plus a lifecycle that exists and expires nothing",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }
