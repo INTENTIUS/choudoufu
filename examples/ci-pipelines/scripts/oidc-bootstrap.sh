@@ -31,7 +31,12 @@
 #   scripts/oidc-bootstrap.sh --dry-run           # print every command, run none
 #   scripts/oidc-bootstrap.sh                     # do it for real
 #   scripts/oidc-bootstrap.sh --region us-west-2   # a region other than the
-#                                                   # terraform default
+#                                                   # terraform default. The
+#                                                   # record store bucket has
+#                                                   # to be in it; this script
+#                                                   # reads the bucket's real
+#                                                   # region and stops if it
+#                                                   # is not.
 #
 # Needs: aws (with an identity that can create IAM roles and read
 # repository variables' account), gh (authenticated against
@@ -68,7 +73,7 @@ while [ $# -gt 0 ]; do
     --region) REGION="$2"; shift ;;
     --region=*) REGION="${1#--region=}" ;;
     -h|--help)
-      sed -n '2,30p' "$0"
+      sed -n '2,35p' "$0"
       exit 0
       ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
@@ -146,7 +151,10 @@ ESTATE="$(sed -nE 's/^estate[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$ESTATE_
 RECORD_BUCKET="$(sed -nE 's/^[[:space:]]*bucket[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$ESTATE_FILE")"
 [ -n "$ESTATE" ]        || { echo "could not read the estate name out of $ESTATE_FILE" >&2; exit 1; }
 [ -n "$RECORD_BUCKET" ] || { echo "could not read record_store \"s3\"'s bucket out of $ESTATE_FILE" >&2; exit 1; }
-POLICY_RENDERER="$EXAMPLE_DIR/../record-store-bucket/iam/render-policy.sh"
+# Overridable only so that selftest-oidc-bootstrap.sh can point it at a
+# renderer that fails and watch this script stop. Nothing else sets it, and a
+# path that is not executable is refused on the next line either way.
+POLICY_RENDERER="${POLICY_RENDERER:-$EXAMPLE_DIR/../record-store-bucket/iam/render-policy.sh}"
 [ -x "$POLICY_RENDERER" ] || { echo "no policy renderer at $POLICY_RENDERER" >&2; exit 1; }
 
 PLAN_ROLE="choudoufu-ci-pipelines-plan"
@@ -204,7 +212,7 @@ echo "name_prefix:  $NAME_PREFIX  (from $TF_MAIN)"
 echo "log group:    $LOG_GROUP_ARN  (tag ops also granted on $LOG_GROUP_ARN_BASE)"
 echo "iam role:     $IAM_ROLE_ARN"
 echo "estate:       $ESTATE  (from $ESTATE_FILE)"
-echo "record store: s3://$RECORD_BUCKET  (from $ESTATE_FILE)"
+echo "record store: s3://$RECORD_BUCKET  (from $ESTATE_FILE, owner pinned to $ACCOUNT_ID)"
 echo "subject(s):   ${SUBJECT_PATTERNS[*]}"
 [ "$DRY_RUN" = "1" ] && echo "MODE:         dry-run - printing every command, running none"
 echo
@@ -226,9 +234,15 @@ echo
 
 # ------------------------------------------------ the bucket (read only)
 
-log "confirming the record store bucket exists (never created here)"
-if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" > /dev/null 2>&1; then
-  echo "  s3://$RECORD_BUCKET does not exist, or these credentials cannot see it." >&2
+# --expected-bucket-owner is the point of this read, not a decoration
+# (GitHub issue #1381). A bucket name is global and this one embeds the
+# account id in plain sight, so if the real bucket is ever deleted anyone can
+# create the name in their own account. With the flag, head-bucket answers 403
+# for a bucket owned by anyone but $ACCOUNT_ID, and this script stops instead
+# of writing an apply-role policy against a stranger's bucket.
+log "confirming the record store bucket exists in $ACCOUNT_ID (never created here)"
+if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" --expected-bucket-owner "$ACCOUNT_ID" > /dev/null 2>&1; then
+  echo "  s3://$RECORD_BUCKET does not exist in account $ACCOUNT_ID, or these credentials cannot see it." >&2
   echo "  $ESTATE_FILE names it as the estate's record store, and the apply role's" >&2
   echo "  policy below is written against it. Stand it up first:" >&2
   echo "    cd examples/record-store-bucket && AWS_REGION=$REGION just up $RECORD_BUCKET && just verify $RECORD_BUCKET" >&2
@@ -236,7 +250,125 @@ if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" > /dev/null 2>&1; then
   exit 1
 fi
 echo "  found: s3://$RECORD_BUCKET"
+
+# The region this script is about to publish as the AWS_REGION repository
+# variable has to be the region the record store bucket is actually in
+# (GitHub issue #1381). --region takes whatever it is given, and until now
+# nothing compared the two: a bootstrap run with --region us-west-2 against a
+# bucket in us-east-1 wrote a variable that sends every generated workflow to
+# the wrong endpoint. S3 answers a cross-region request with a redirect, and
+# the AWS SDK for Go does not follow it, so the run does not quietly work -
+# it fails on its first record call with an error about the endpoint and
+# nothing about this variable.
+#
+# us-east-1 is the one region get-bucket-location does not name: its
+# LocationConstraint is null, which the CLI prints as "None" for
+# --output text and as "null" for --output json. Both mean us-east-1.
+if ! LOCATION_CONSTRAINT="$(aws s3api get-bucket-location --bucket "$RECORD_BUCKET" \
+    --expected-bucket-owner "$ACCOUNT_ID" --output text --query LocationConstraint 2>&1)"; then
+  echo "  could not read the region of s3://$RECORD_BUCKET. The AWS_REGION variable this" >&2
+  echo "  script sets has to match it, and guessing it is how a pipeline ends up pointed" >&2
+  echo "  at the wrong endpoint. aws s3api get-bucket-location said:" >&2
+  printf '    %s\n' "$LOCATION_CONSTRAINT" >&2
+  exit 1
+fi
+case "$LOCATION_CONSTRAINT" in
+  ""|None|null) BUCKET_REGION="us-east-1" ;;
+  *)            BUCKET_REGION="$LOCATION_CONSTRAINT" ;;
+esac
+if [ "$BUCKET_REGION" != "$REGION" ]; then
+  echo "  s3://$RECORD_BUCKET is in $BUCKET_REGION, and this run would set the AWS_REGION" >&2
+  echo "  repository variable to $REGION. Every workflow this example generates reads that" >&2
+  echo "  variable, and the AWS SDK for Go does not follow the redirect S3 answers a" >&2
+  echo "  cross-region request with, so the first record call of the first run fails with" >&2
+  echo "  an error about the endpoint and nothing about this. Re-run with --region" >&2
+  echo "  $BUCKET_REGION, or point $ESTATE_FILE at a bucket in $REGION." >&2
+  exit 1
+fi
+echo "  region:  $BUCKET_REGION (from get-bucket-location, and the same as AWS_REGION)"
 echo
+
+# ------------------------------------------- the record store policy (rendered)
+
+# Rendered here, at the top level, and once. It used to be rendered inside a
+# command substitution nested in the heredoc that builds the apply policy,
+# where a failing renderer could only ever kill that subshell: the bootstrap
+# carried on with an empty statement list, and what stopped it - when anything
+# did - was jq failing to parse the result, which says nothing about the
+# renderer. GitHub issue #1381. The exit status and the output are both
+# checked, and the message names the renderer.
+#
+# --account is the policy half of #1381: every Allow the renderer emits also
+# requires aws:ResourceAccount = $ACCOUNT_ID, so none of these statements
+# reaches a bucket of this name anywhere else. The store half is the estate
+# sidecar's bucket_owner, which is NOT set yet: the generated workflows pin a
+# released binary that does not know the argument and would refuse the whole
+# configuration. It goes in with the pin bump after the next release.
+# render_record_store_statements <out-file> <role-words> [extra renderer flags...]
+# prints the rendered policy's statements, comma-joined for the heredoc lists
+# below, and stops the whole bootstrap if the renderer said anything but a
+# whole policy. role-words names the roles the statements are for, so a
+# refusal says which of the two renders failed.
+render_record_store_statements() {
+  local out="$1" who="$2"; shift 2
+  local err="$out.err" statements
+  local for_what="estate \"$ESTATE\" and bucket \"$RECORD_BUCKET\""
+  [ $# -eq 0 ] || for_what="$for_what, rendered with $*"
+  if ! "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" --account "$ACCOUNT_ID" "$@" \
+      > "$out" 2> "$err"; then
+    echo "$POLICY_RENDERER exited non-zero for $for_what." >&2
+    echo "  That script is the single source of the $who record store policy and" >&2
+    echo "  there is no second copy here to fall back on, so this stops rather than writing" >&2
+    echo "  a role policy with no record store statements in it. It said:" >&2
+    sed 's/^/    /' "$err" >&2
+    exit 1
+  fi
+  if ! statements="$(jq -c '.Statement[]' "$out" | paste -sd, -)"; then
+    echo "$POLICY_RENDERER printed something that is not a policy document for $for_what." >&2
+    echo "  First 200 characters of what it printed:" >&2
+    head -c 200 "$out" | sed 's/^/    /' >&2
+    exit 1
+  fi
+  if [ -z "$statements" ]; then
+    echo "$POLICY_RENDERER printed a policy with no statements in it for $for_what." >&2
+    echo "  The $who record store policy would then grant no access to the record store" >&2
+    echo "  at all, and the first run under it would fail on its first record call." >&2
+    exit 1
+  fi
+  printf '%s\n' "$statements"
+}
+
+RECORD_STORE_STATEMENTS="$(render_record_store_statements "$WORKDIR/record-store-policy.json" "apply role's")"
+
+# The plan and adopt roles get the READ-ONLY rendering (GitHub issue #1370).
+# Until now they got no record store access at all, and a `live-plan` job that
+# assumed the plan role would have failed on its first record call; the
+# real-AWS smoke never caught it because it assumes the apply role for every
+# job.
+#
+# Read-only rather than the full policy, because neither role writes a record:
+#
+#   - `live-plan` opens the store as one more source and only reads from it
+#     (internal/command/live_plan.go:646). Records are written after a
+#     successful apply and nowhere else (internal/live/projection/writeback.go,
+#     WriteBack), and the guided-discovery hint the same way, after an apply
+#     persists its final state (internal/live/projection/manager.go:216).
+#   - the adopt Op (examples/ci-pipelines/src/live-adopt.op.ts) is four
+#     phases: `live-check`, `live-plan` in adoption-only mode, the gate, and
+#     the marker writes. The adoption ledger is a filtered view of what the
+#     plan already decided and recomputes nothing
+#     (internal/command/live_adoption.go:54), and what adoption WRITES is two
+#     tags on the live resource, which is why every row carries
+#     CanCarryMarker (live_adoption.go:118). Those are the per-service
+#     tagging calls WriteTheMarker already grants. Not one of them touches
+#     the bucket. `live-import` does write records, and it is deliberately
+#     not this Op and not a job.
+#
+# So both roles get a policy that can read the estate's records and cannot
+# change them. The sentinel write each run sends is denied and survived
+# (#1416); a store that has never been written is still refused by name,
+# which is what an apply run settles once.
+RECORD_STORE_READ_STATEMENTS="$(render_record_store_statements "$WORKDIR/record-store-read-policy.json" "plan and adopt roles'" --read-only)"
 
 # --------------------------------------------------------------- trust policy
 
@@ -392,8 +524,19 @@ JSON
 # statement in it was measured to be needed by an estate's life (smoke claim
 # 37 reconciles the two), and leaving one out here would be this script
 # having an opinion the renderer's tests do not know about.
+#
+# It only reprints what was rendered and checked further up. Running the
+# renderer from here, inside the command substitution the heredoc below puts
+# this call in, is what let a failure pass unnoticed (#1381).
 record_store_statements() {
-  "$POLICY_RENDERER" "$ESTATE" "$RECORD_BUCKET" | jq -c '.Statement[]' | paste -sd, -
+  printf '%s\n' "$RECORD_STORE_STATEMENTS"
+}
+
+# record_store_read_statements - the same for the read-only rendering, which
+# is what the plan and adopt roles carry (#1370). Same rule: it only reprints
+# what was rendered and checked further up.
+record_store_read_statements() {
+  printf '%s\n' "$RECORD_STORE_READ_STATEMENTS"
 }
 
 # Every logs: action here (CreateLogGroup, DeleteLogGroup, PutRetentionPolicy)
@@ -426,6 +569,8 @@ PLAN_POLICY="$WORKDIR/plan-policy.json"
 {
   echo '{ "Version": "2012-10-17", "Statement": ['
   describe_read_statements
+  echo ','
+  record_store_read_statements
   echo '] }'
 } | jq . > "$PLAN_POLICY"
 
@@ -435,6 +580,8 @@ ADOPT_POLICY="$WORKDIR/adopt-policy.json"
   describe_read_statements
   echo ','
   write_marker_statement
+  echo ','
+  record_store_read_statements
   echo '] }'
 } | jq . > "$ADOPT_POLICY"
 

@@ -32,16 +32,21 @@ As the run prints them:
    emulator, one record each, and singles one record out. Twelve is the
    fixture's size, chosen to be more than the eight GETs that run at
    once.
-2. `the proxy, and a control plan through it` - a small proxy sits in
-   front of S3 because nothing else can fail one GET out of a fan-out:
-   the emulator has no fault injection and nothing in the cloud can be
-   corrupted into a 500. With nothing armed, the plan through it is
-   empty and the proxy saw every record's GET. A proxy that changed the
-   answer by itself would stop the scenario here.
+2. `the proxy, a control plan through it, and how wide the fan-out is` -
+   a small proxy sits in front of S3 because nothing else can fail one
+   GET out of a fan-out: the emulator has no fault injection and nothing
+   in the cloud can be corrupted into a 500. With nothing failing, the
+   plan through it is empty and the proxy saw every record's GET. A
+   proxy that changed the answer by itself would stop the scenario here.
+   The proxy also counts record GETs in flight and keeps the high-water
+   mark, which is where "eight at a time" is measured: more than one in
+   flight by default, and exactly one when the same plan runs with
+   `TOFU_LIVE_RECORD_READ_PARALLELISM=1`.
 3. `one GET fails once, mid-fanout` - one record's GET is answered 500,
-   once. No resource is proposed for creation. The bulk read fails as a
-   whole, the run reads its records one at a time instead, and the plan
-   is the true one.
+   once. No resource is proposed for creation, and the plan the run
+   produces is required to be the true one: empty if the run exits zero,
+   and a refusal naming the record if it does not. The bulk read fails
+   as a whole and the run reads its records one at a time instead.
 4. `the same GET fails every time` - there is no true plan to be had, so
    the run refuses and names the record. An unreadable record is not an
    absent one.

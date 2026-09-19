@@ -31,7 +31,7 @@ func lifecycleFinding(t *testing.T, rules []s3types.LifecycleRule) BucketFinding
 	t.Helper()
 	b := correctBucket()
 	b.rules = rules
-	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", estateNamespaces)
+	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", "", estateNamespaces)
 	if err != nil {
 		t.Fatalf("CheckBucketContract: %v", err)
 	}
