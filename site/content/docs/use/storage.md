@@ -169,98 +169,11 @@ a create, or an update or delete carrying the `resourceVersion` the writer
 read, so the API server decides a race in one step and nothing is held. There
 is no Lease. A record larger than a Secret may hold is refused by name.
 
-<<<<<<< HEAD
-**One listing, then parallel reads.** A run reads its whole records namespace
-up front: one paginated `ListObjectsV2`, then a `GetObject` per key, eight at
-a time unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The result
-is complete or the run fails. A read that errors partway never reaches the
-plan as a smaller estate
-([claim 31]({{< relref "/docs/claims/a-bulk-read-is-complete-or-it-fails" >}})).
-Every read is scoped to one estate, so adding an estate to the bucket slows no
-other.
-
-**Every write is conditional.** A create is `PutObject` with
-`If-None-Match: *`, and an update or a delete carries `If-Match` with the
-version the writer read. A losing writer gets a named conflict and changes
-nothing. [Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the
-cases. Nothing is locked.
-
-**A store proves itself before a plan trusts it.** At first use it writes
-`.store-sentinel` and reads it back through the same listing a plan uses. For
-`plan`, `apply` and `live-import`, a store that cannot answer stops the run by
-name. It never reads as an empty estate, which would have the next plan
-propose rebuilding everything.
-
-`live-plan` and `live-mv` treat the store as one more source, so they draw a
-line the others do not need. A store that **refused** stops them too: a bucket
-that fails its three settings on first contact, a listing that does not return
-what was just written, a KMS key that refused the run. A store that could not
-be **reached**, or that IAM would not let the role into, does not stop them.
-They go on without records and say so in a warning titled
-`The record store was not read`, which also says what that does to the output:
-a record-backed resource is known only by its record, so it may appear as
-something to create when it already exists. A `kubernetes_manifest` is affected
-the other way: its record is how a plan tells a label the configuration dropped
-from one somebody added by hand, so without it a removed label is not planned
-for removal and the output can read "No changes" while the live object keeps
-it. Before #1376 both kinds were a line in the debug log.
-
-**Losing a record cannot produce a wrong marker.** An identity-bearing
-argument is evaluated over `var`, `local`, `path`, `terraform` and `tofu`
-alone, so a record's value is never folded into a marker. Where an identity
-cannot be rendered the instance is omitted with a named reason and the plan
-proposes a create; nothing is bound to the wrong object.
-
-**It can still cost you more than churn.** A record-backed value may be a
-*component* of another resource's identity - `name =
-"svc-${random_pet.suffix.id}"` is the ordinary shape - and losing that record
-regenerates the pet, so everything named after it is proposed for create under
-a name no live object has. [Recover an
-estate]({{< relref "/docs/use/recover-an-estate" >}}) has what this looks like
-in a plan and what to do about it.
-
-### Deleted records, versions, and what cleans up
-
-A destroyed instance's record is deleted. In a versioned bucket that writes a
-delete marker, and the record stays underneath as a noncurrent version until
-the bucket's lifecycle rule expires it. That window is the recovery path for a
-record destroyed by mistake, and it is the only one a record-backed resource
-has. [The three settings]({{< relref "/docs/use/bucket-contract" >}}) covers
-choosing it.
-
-`choudoufu destroy` empties less than it sounds like it does. It destroys the
-resources and deletes their records, and what stays behind in the bucket is:
-
-- a tombstone envelope for each identity record, which is a current object
-- every `tofu-outputs/<estate>/` object, unchanged and current
-- the estate's sentinel and its hint
-- the noncurrent versions of everything above, and the delete markers over
-  what was deleted
-
-Only the last line expires. No lifecycle rule here removes a current object,
-deliberately: a rule that expired one would delete an identity for a resource
-that still exists, and choudoufu refuses a bucket configured that way. So
-after a destroy the estate's prefixes still hold objects, and emptying them is
-a deliberate step somebody takes with `aws s3 rm --recursive`.
-
-The rule the example ships also sets `ExpiredObjectDeleteMarker`, which clears
-a delete marker once the versions under it have expired. Without it the
-markers stay forever, and each one counts as a version.
-`examples/record-store-bucket`'s `just down` refuses to delete a bucket that
-holds any object version outside its own `_verify/` probes, so it goes on
-refusing until those prefixes are emptied and the window has passed.
-
-### Who can read it
-
-Anyone with `s3:GetObject` on the prefix, secrets included.
-[Secrets]({{< relref "/docs/use/secrets" >}}) starts there.
-=======
 RBAC cannot condition on a label, so what keeps one estate out of another's
 records is the namespace. Give each estate its own, and bind the estate's
 role to Secrets in that namespace alone. Writes carry the estate label, so
 [the admission policy]({{< relref "/kubernetes/gate" >}}) fences them the way
 it fences every other object of the estate.
->>>>>>> origin/main
 
 ## Receipts
 
