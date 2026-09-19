@@ -38,9 +38,9 @@ trap 'rm -rf "$WORK"' EXIT
 STUBDIR="$WORK/bin"
 mkdir -p "$STUBDIR"
 
-# aws stub: the only two calls oidc-bootstrap.sh makes unconditionally
-# (i.e. not behind its --dry-run "run()" wrapper) are the provider lookup
-# and, per role, a get-role existence check. Everything that would mutate
+# aws stub: the only calls oidc-bootstrap.sh makes unconditionally (i.e. not
+# behind its --dry-run "run()" wrapper) are the provider lookup, the record
+# store bucket's head-bucket and, per role, a get-role existence check. Everything that would mutate
 # AWS (create-role, put-role-policy, update-assume-role-policy) is behind
 # `run()` and, in --dry-run, is only ever printed - the stub errors loudly
 # if it is ever invoked, since that would mean --dry-run stopped being
@@ -51,6 +51,9 @@ case "$1 $2" in
   "iam list-open-id-connect-providers")
     echo '{"OpenIDConnectProviderList":[{"Arn":"arn:aws:iam::354867293429:oidc-provider/token.actions.githubusercontent.com"}]}'
     exit 0
+    ;;
+  "s3api head-bucket")
+    exit 0 # the record store bucket exists; the script only reads it
     ;;
   "iam get-role")
     exit 1 # not found -> script takes the create-role branch, still under run()
@@ -210,29 +213,28 @@ else
   done
 fi
 
-echo "== case: the record store's GetParametersByPath is scoped to the path ARN, not the leaf (#807) =="
-# issue #807's run 34636502021: live-plan failed with `ssm:GetParametersByPath`
-# denied on "arn:...:parameter/tofu-records" - the account-wide record
-# namespace root, not this estate's own leaf pattern. internal/live/staterecord/ssm.go's
-# List and GetAll both authorize that call against the ENCLOSING FOLDER of
-# the keyPrefix they are asked for, never against the leaf parameter name,
-# so a policy that only grants the leaf ARN (the shape every other SSM
-# record-store action uses) refuses it no matter how the leaf pattern is
-# widened. Prove APPLY_POLICY's TheRecordStorePathListing statement grants
-# GetParametersByPath on both the bare path ARN and its "/*" child, and
-# that TheRecordStore (the leaf statement) does NOT also claim
-# GetParametersByPath - if it did, the leaf-scoped policy would look
-# sufficient by itself and this exact bug would still ship silently.
+echo "== case: the apply role's record store policy is the renderer's, for the sidecar's estate and bucket (#1346) =="
+# Until GitHub issue #1346 the record store was Parameter Store and this case
+# pinned two hand-derived ssm: statements. The store is a bucket now, and its
+# policy has one source: examples/record-store-bucket/iam/render-policy.sh,
+# measured against real AWS in #1342. So what is pinned here is that the
+# bootstrap did not grow a second copy:
+#   - the apply policy carries the renderer's statements, every one, equal to
+#     what the renderer prints for the estate and bucket the SIDECAR names
+#     (read here independently of the script under test);
+#   - the plan and adopt policies carry none of them;
+#   - no policy grants an ssm: action any more;
+#   - each policy fits IAM's 10,240-character inline limit, which the
+#     rendered statements brought the apply policy closer to.
 write_gh_stub '{"use_default":true,"use_immutable_subject":false,"sub_claim_prefix":null}'
 runner="$WORK/run-recordstore.sh"
 cat > "$runner" <<RUNEOF
 #!/usr/bin/env bash
 set -euo pipefail
 source "$SCRIPT_PATH" --dry-run >"$WORK/recordstore.out" 2>"$WORK/recordstore.err"
-jq -c '.Statement[] | select(.Sid=="TheRecordStorePathListing")' "\$APPLY_POLICY" > "$WORK/recordstore.pathlisting.json" || true
-jq -c '.Statement[] | select(.Sid=="TheRecordStore")'            "\$APPLY_POLICY" > "$WORK/recordstore.leaf.json"        || true
-echo "\$SSM_RECORD_PATH_ARN" > "$WORK/recordstore.patharn"
-echo "\$SSM_RESOURCE_ARN"    > "$WORK/recordstore.leafarn"
+cp "\$PLAN_POLICY"  "$WORK/recordstore.plan.json"
+cp "\$ADOPT_POLICY" "$WORK/recordstore.adopt.json"
+cp "\$APPLY_POLICY" "$WORK/recordstore.apply.json"
 RUNEOF
 chmod +x "$runner"
 if ! PATH="$STUBDIR:$PATH" bash "$runner"; then
@@ -240,36 +242,49 @@ if ! PATH="$STUBDIR:$PATH" bash "$runner"; then
   cat "$WORK/recordstore.err" >&2 2>/dev/null || true
   FAILURES=$((FAILURES + 1))
 else
-  PATH_ARN="$(cat "$WORK/recordstore.patharn")"
-  LEAF_ARN="$(cat "$WORK/recordstore.leafarn")"
-  PATHLISTING_STMT="$(cat "$WORK/recordstore.pathlisting.json" 2>/dev/null || true)"
-  LEAF_STMT="$(cat "$WORK/recordstore.leaf.json" 2>/dev/null || true)"
-  echo "  TheRecordStorePathListing: ${PATHLISTING_STMT:-<absent>}"
-  echo "  TheRecordStore:            ${LEAF_STMT:-<absent>}"
-
-  if [ -z "$PATHLISTING_STMT" ]; then
-    echo "FAIL: APPLY_POLICY carries no Sid==\"TheRecordStorePathListing\" statement" >&2
+  SIDECAR="$(dirname "$SCRIPT_PATH")/../terraform/estate.chdf.hcl"
+  RENDERER="$(dirname "$SCRIPT_PATH")/../../record-store-bucket/iam/render-policy.sh"
+  WANT_ESTATE="$(sed -nE 's/^estate[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$SIDECAR")"
+  WANT_BUCKET="$(sed -nE 's/^[[:space:]]*bucket[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$SIDECAR")"
+  echo "  sidecar: estate=$WANT_ESTATE bucket=$WANT_BUCKET"
+  if [ -z "$WANT_ESTATE" ] || [ -z "$WANT_BUCKET" ]; then
+    echo "FAIL: $SIDECAR does not name an estate and a record_store \"s3\" bucket" >&2
     FAILURES=$((FAILURES + 1))
   else
-    if ! echo "$PATHLISTING_STMT" | jq -e --arg arn "$PATH_ARN" \
-        '.Effect == "Allow" and (.Action == "ssm:GetParametersByPath" or (.Action | type == "array" and index("ssm:GetParametersByPath") != null)) and (.Resource | type == "array") and (.Resource | index($arn) != null) and (.Resource | index($arn + "/*") != null)' \
-        > /dev/null 2>&1; then
-      echo "FAIL: TheRecordStorePathListing does not grant ssm:GetParametersByPath on both $PATH_ARN and $PATH_ARN/*: $PATHLISTING_STMT" >&2
+    WANT="$("$RENDERER" "$WANT_ESTATE" "$WANT_BUCKET" | jq -cS '.Statement')"
+    SIDS="$(jq -c '[.[].Sid]' <<< "$WANT")"
+    if [ "$(jq 'length' <<< "$SIDS")" -lt 5 ]; then
+      echo "FAIL: the renderer printed fewer than five statements, so the comparisons below would prove little: $SIDS" >&2
       FAILURES=$((FAILURES + 1))
     fi
-  fi
-
-  if [ -z "$LEAF_STMT" ]; then
-    echo "FAIL: APPLY_POLICY carries no Sid==\"TheRecordStore\" statement" >&2
-    FAILURES=$((FAILURES + 1))
-  else
-    if ! echo "$LEAF_STMT" | jq -e --arg arn "$LEAF_ARN" \
-        '.Effect == "Allow" and (.Action | index("ssm:GetParametersByPath")) == null and .Resource == $arn' \
-        > /dev/null 2>&1; then
-      echo "FAIL: TheRecordStore should grant the leaf ARN $LEAF_ARN with no ssm:GetParametersByPath in its actions: $LEAF_STMT" >&2
+    GOT="$(jq -cS --argjson sids "$SIDS" '[.Statement[] | select(.Sid as $s | $sids | index($s))]' "$WORK/recordstore.apply.json")"
+    echo "  rendered Sids: $SIDS"
+    if [ "$GOT" != "$WANT" ]; then
+      echo "FAIL: the apply policy's record store statements are not the renderer's output for $WANT_ESTATE / $WANT_BUCKET." >&2
+      echo "  want: $WANT" >&2
+      echo "  got:  $GOT" >&2
       FAILURES=$((FAILURES + 1))
     fi
+    for role in plan adopt; do
+      n="$(jq --argjson sids "$SIDS" '[.Statement[] | select(.Sid as $s | $sids | index($s))] | length' "$WORK/recordstore.$role.json")"
+      if [ "$n" != "0" ]; then
+        echo "FAIL: the $role policy carries $n record store statement(s); only the apply role writes records" >&2
+        FAILURES=$((FAILURES + 1))
+      fi
+    done
   fi
+  for role in plan adopt apply; do
+    if jq -e '[.Statement[].Action | if type == "array" then .[] else . end | select(startswith("ssm:"))] | length > 0' "$WORK/recordstore.$role.json" > /dev/null; then
+      echo "FAIL: the $role policy still grants an ssm: action. Parameter Store is retired as a record store (#1346) and this estate manages no parameter." >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+    size="$(jq -c . "$WORK/recordstore.$role.json" | tr -d '[:space:]' | wc -c | tr -d ' ')"
+    echo "  $role policy: $size characters (IAM's inline limit is 10240)"
+    if [ "$size" -gt 10240 ]; then
+      echo "FAIL: the $role policy is $size characters, over IAM's 10,240 inline limit; put-role-policy would refuse it" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  done
 fi
 
 echo "== case: the CloudWatch Logs tag actions are granted on both log-group ARN forms (#807) =="
@@ -352,7 +367,7 @@ fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
-  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the record store's GetParametersByPath is scoped to the path ARN rather than the leaf, and the CloudWatch Logs tag actions are granted on both log-group ARN forms."
+  echo "PASS: $SCRIPT_PATH's trust policy carries both subject forms under an immutable subject and only the plain form otherwise, all three policies carry the DiscoverTheAccount statement, the apply role's record store policy is the renderer's output for the sidecar's estate and bucket, and the CloudWatch Logs tag actions are granted on both log-group ARN forms."
   exit 0
 else
   echo "FAIL: $FAILURES assertion(s) failed against $SCRIPT_PATH."
