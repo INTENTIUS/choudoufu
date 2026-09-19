@@ -17,7 +17,7 @@ else in the repository would notice if that advice stopped working.
 This claim builds the recommended stack from what ships, with no
 hand-written substitutes: the bucket comes from
 `examples/record-store-bucket` with `just up`, and the role's policy is
-the output of `render-policy.sh --kms`, unedited, plus one statement the
+the output of `render-policy.sh --kms --account`, unedited, plus one statement the
 harness adds over a single marker key so it can tell when IAM has
 propagated. The live policy is read back and compared to a fresh render
 with that one statement dropped.
@@ -42,7 +42,9 @@ As the run prints them:
    administers the key, and `kms:Decrypt` and `kms:GenerateDataKey` go to
    two named principals: the estate's role and the operator. Usage is
    not delegated to IAM wholesale, because writing that list yourself is
-   the reason to have a customer managed key.
+   the reason to have a customer managed key. The statement is rendered
+   with `--key`, so it carries `kms:ViaService` and the key is usable
+   only through S3 in its own region.
 2. `the bucket, from the project that ships` - `just up` with
    `RECORD_KMS_KEY_ARN`, then `just verify`, which asks the choudoufu
    binary about the three asserted settings and then probes the key
@@ -51,7 +53,16 @@ As the run prints them:
    anything is measured under it.
 4. `an estate's life, as that role` - create, update under `If-Match`,
    and a replan from the records alone. A record is read back with
-   `head-object` to show it is encrypted under the key.
+   `head-object` to show it is encrypted under the key. The configuration
+   sets `bucket_owner` to this account and the policy requires
+   `aws:ResourceAccount` on every `Allow`, so the whole life runs with
+   the owner pinned from both sides. The run prints the next part as
+   step 4b, `the same bucket name, expected in another account`:
+   `bucket_owner` is moved one digit off. The plan stops on its first request and says
+   the bucket may be owned by an account other than the one it expected,
+   naming both. With the right owner back the same plan is empty. One
+   account cannot stage a stranger's bucket, so the pin is moved and the
+   bucket is not. S3 answers the two cases the same way.
 5. `a record destroyed by mistake, and brought back` - an instance is
    removed from the configuration and applied. Its record is gone from a
    listing, and a delete marker sits over the earlier versions. The
