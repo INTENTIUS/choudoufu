@@ -51,7 +51,7 @@ configurations side by side with stock OpenTofu:
 |---|---|
 | [The claims]({{< relref "/docs/claims" >}}) | Runnable scenarios, one per claim, each with an arm that breaks it on purpose. `just smoke import` runs one in about two minutes |
 | [How close AWS is]({{< relref "/docs/progress" >}}) | Every stage and every estate behind the two bars above |
-| [What you pay, and when]({{< relref "/docs/what-you-pay" >}}) | The measured cost of a plan, and what is still unmeasured |
+| [What a plan costs]({{< relref "/docs/model/plan-cost" >}}) | The measured cost of a plan, with links to every figure behind it |
 | [Resource tier lookup]({{< relref "/docs/use/resource-tiers" >}}) | Every provider resource type, and what recovers its identity |
 | [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) | Every construct that is refused, the rule that refuses it, and the remedy |
 

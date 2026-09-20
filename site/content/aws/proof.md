@@ -3,7 +3,7 @@ title: "Proof"
 weight: 5
 description: "Which claims hold on AWS, how many real estates clear every stage, what a plan costs against stock, and how to run any of it yourself."
 deeper:
-  - "[What you pay, and when]({{< relref \"/docs/what-you-pay\" >}}): every figure with its fixture, commit and whether it came from the emulator or a real account."
+  - "[What a plan costs]({{< relref \"/docs/model/plan-cost\" >}}): the short answer, with links to every figure, its fixture and its commit."
   - "[What a plan costs]({{< relref \"/docs/model/plan-cost\" >}}): the sweep and the read pass, measured separately."
   - "[The claims]({{< relref \"/docs/claims\" >}}): each one a scenario, with its steps, its `BREAK=1` inversion, and where a real account confirmed it."
   - "[How close AWS is]({{< relref \"/docs/progress\" >}}): every stage, every estate, every run's commit and emulator pin."

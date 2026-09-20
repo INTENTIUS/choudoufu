@@ -21,8 +21,8 @@ import (
 // things that only prose ties together: live/gauntlet.json's own `estates`
 // row for terralith-scale and its `live_cert` rows (per-run commit, date,
 // emulator digest, oracle versions, per-stage verdicts and DETAIL STRINGS,
-// duration), site/content/docs/model/plan-cost.md's hand-copied sweep/
-// read-pass split per instance count, and site/content/docs/what-you-pay.md's
+// duration), live/costs/plan-cost.md's hand-copied sweep/
+// read-pass split per instance count, and live/costs/what-you-pay.md's
 // hand-copied real-AWS API-call pairs. None of the three is machine-readable
 // as a "measurement" - a reader (chant-bench's ingest, or anyone else) has to
 // parse English to get a number out.
@@ -155,7 +155,7 @@ type ScaleArtifact struct {
 // Superseding was the behaviour before it was a rule. UpsertScaleRecord has
 // always replaced a row sharing an incoming row's (Estate, Target, Scale),
 // so a scale-50 row measured on 2026-09-15 took the place of the 2026-09-11
-// one, in a file whose figures site/content/docs/what-you-pay.md quotes by
+// one, in a file whose figures live/costs/what-you-pay.md quotes by
 // path. Nothing said that was the rule, and nothing said what the replaced
 // row had been. It is now three rules, in order:
 //
@@ -286,7 +286,7 @@ type ScaleRecord struct {
 	// read pass (#622's question), with the stock oracle's count beside
 	// choudoufu's when the same run measured both. This is a REAL cost: it
 	// is what `-adoption-only`, an audit, or a rebuild-from-markers pays,
-	// every time, on purpose (see site/content/docs/model/plan-cost.md's
+	// every time, on purpose (see live/costs/plan-cost.md's
 	// "When the native leg is narrowed, and when it is not"). It is NOT
 	// what an ordinary plan of an already-adopted estate costs - that
 	// number is PlanCalls, above - and a reader who wants "the plan's

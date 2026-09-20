@@ -55,7 +55,7 @@
 // GetInstanceProfile and ListInstanceProfileTags are both per-object, and
 // no filter narrows either to a tag value. #1037 and #1039 made the native
 // sweep flat in estate size and that flatness is a published claim
-// (site/content/docs/model/plan-cost.md); this leg does not preserve it for
+// (live/costs/plan-cost.md); this leg does not preserve it for
 // the types it covers, and the call sites in internal/live/discovery are
 // gated so that it runs only where the run has already established, on this
 // target, that nothing else can answer. The gate is

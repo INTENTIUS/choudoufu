@@ -475,7 +475,7 @@ One record per (estate, target, scale) is a stated rule, in three parts
    commit, date and outcome of the row it replaced, so a citation that
    followed a figure which has since moved still leads somewhere. A
    scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one this
-   way, and `site/content/docs/what-you-pay.md` quotes that file by path.
+   way, and `live/costs/what-you-pay.md` quotes that file by path.
 3. A refusal never replaces a measurement. The runner refuses the write
    and names the row it protected; nothing is written. Dropping a measured
    row is a reviewed change, not a side effect of a later run that

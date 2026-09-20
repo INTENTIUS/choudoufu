@@ -117,7 +117,7 @@ the [declaration-carried tier]({{< relref "/docs/use/resource-tiers" >}})
 names.
 
 They are not a rounding error. On the same generated terralith [what a plan
-costs]({{< relref "/docs/model/plan-cost#the-measured-split-on-a-migrated-estate" >}})
+costs](https://github.com/INTENTIUS/choudoufu/blob/main/live/costs/plan-cost.md#the-measured-split-on-a-migrated-estate)
 counts at commit `cfd0dc58d4`, shaped like an estate that had grown
 organically, the untaggable share of *instances* at its three sizes was 41 of
 79 (52%), 164 of 301 (54%) and 410 of 745 (55%), all three made up entirely of

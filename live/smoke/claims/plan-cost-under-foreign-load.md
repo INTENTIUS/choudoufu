@@ -137,7 +137,7 @@ never reach.
 
 **Provider call counts hold at parity with stock, or under it, at that
 scale.** The same real account, both sides planning a no-change estate -
-[what you pay, and when](https://intentius.io/choudoufu/docs/what-you-pay/#planning-an-estate-straight-after-adoption)'s
+[what you pay, and when](../../costs/what-you-pay.md#planning-an-estate-straight-after-adoption)'s
 "same comparison on real AWS" table:
 
 | Resources | stock | choudoufu | Difference | Commit |
@@ -174,13 +174,13 @@ account did not have.
 
 **What this claim does not say.** It says nothing about incremental plan
 time within one already-adopted state; the day-2 call counts on
-[what you pay, and when](https://intentius.io/choudoufu/docs/what-you-pay/#planning-an-estate-straight-after-adoption)
-and [what a plan costs](https://intentius.io/choudoufu/docs/model/plan-cost/#the-measured-split-on-a-migrated-estate)
+[what you pay, and when](../../costs/what-you-pay.md#planning-an-estate-straight-after-adoption)
+and [what a plan costs](../../costs/plan-cost.md#the-measured-split-on-a-migrated-estate)
 are their own, separately measured figures, and this claim does not restate
 them as if they were part of it. And the seconds comparison - how long a
 plan takes on the wall clock, never how many requests it issues - stays
 exactly where
-[what you pay, and when](https://intentius.io/choudoufu/docs/what-you-pay/#wall-clock-withdrawn-because-the-comparison-was-not-like-for-like)
+[what you pay, and when](../../costs/what-you-pay.md#wall-clock-withdrawn-because-the-comparison-was-not-like-for-like)
 leaves it: withdrawn, because the sessions that produced one compared a
 cached plan against an uncached one. This claim will not restate a number
 its own source page has already taken back; re-measure it there; this page

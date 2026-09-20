@@ -15,7 +15,7 @@ import (
 // proof - "a test that fails when audit_calls is present but a leg is
 // missing" - tampered and restored; see this worker's own report for the
 // quoted RED output. The numbers are the 79-instance row's own re-measure
-// from site/content/docs/model/plan-cost.md ("tagging 1, native 512,
+// from live/costs/plan-cost.md ("tagging 1, native 512,
 // configuration scan 26, boundary 9, post-sweep 0 - sweep 548, total 696"
 // and "the read pass ... 148" against "stock ... 150"): DiscoverCalls is
 // tagging+native+config-scan+boundary (1+512+26+9=548), PostSweepCalls is 0,
