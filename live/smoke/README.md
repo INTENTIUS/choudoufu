@@ -39,7 +39,7 @@ just smoke k8s-the-label-is-the-boundary # one admission policy on the label fen
 just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest, carries the label and is swept by it (#1079)
 just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run says destroyed, the object stays, and every plan proposes it again until it is gone (#1110)
 just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-closed webhook refuses an approved write, a mutating policy rewrites a declared field, and one that strips tofu-estate leaves an object the estate cannot claim (#1110)
-just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory over a shared record store removes the same label (#1177, #1394; needs Docker and the AWS CLI as well as kind)
+just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory removes the same label over records shared as Secrets and as bucket objects (#1177, #1394; the bucket half needs Docker and the AWS CLI as well as kind)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -146,24 +146,32 @@ configuration does not declare and requires `No changes.` - without it
 every plan the scenario requires would read the same if choudoufu simply
 planned on any difference at all.
 
-Step 8 is #1394, and it is the only scenario here that needs both
-substrates at once: the kind cluster for the objects, the pinned floci
-emulator for the bucket the estate's records live in. Everything above it
-runs on the implied local store, where the record a removal reads is a file
-beside the module, so the removal works for whoever holds that directory
-and for nobody else. Step 8 puts the records in a bucket, applies from one
-working directory and deletes the label from a second that never applied
-anything, and requires the second to propose the removal, write it and
-settle. It also reads what no Kubernetes claim had read before: the record
-object's `tofu-estate` and `tofu-address` tags for a `kubernetes_manifest`
-address, and the conditional-write header on each record PUT, through
-`s3proxy.py`. Sub-step 8b holds B's write at the proxy, deletes the object
-underneath it and requires the refusal (#1344's case, which the emulator
-answers 404 exactly as real S3 does). Its own `BREAK=1` control runs the
-same two directories on `record_store "local"` and requires the second to
-propose nothing. The step refuses rather than skips when Docker or the AWS
-CLI is missing, and `.github/workflows/k8s-smoke.yml` checks for both
-before the matrix runs.
+Steps 8 and 9 are #1394. Everything above them runs on the implied local
+store, where the record a removal reads is a file beside the module, so the
+removal works for whoever holds that directory and for nobody else. Each of
+the two applies from one working directory and deletes the label from a
+second that never applied anything, and requires the second to propose the
+removal, write it and settle - over a store the two share. Step 8 is
+`record_store "kubernetes"` (#1392), records as Secrets in the cluster the
+claim already runs on; it names no namespace, so what is used is what the
+estate name derives, and the step creates it, because the records namespace
+is the read boundary and nothing in this fork creates one. Step 9 is
+`record_store "s3"` on the pinned floci emulator, which makes this the one
+scenario here needing both substrates at once.
+
+Both read what no Kubernetes claim had read before. On the cluster store:
+the record Secret's `tofu-estate` label, its `tofu-address` and record-key
+annotations, and its `resourceVersion` moving across the second directory's
+write, with a `kubectl replace` of the copy from before that write refused
+as a conflict. On the bucket: the object's `tofu-estate` and `tofu-address`
+tags and the conditional-write header on each record PUT, through
+`s3proxy.py`. Sub-step 9b holds the second directory's write at the proxy,
+deletes the object underneath it and requires the refusal (#1344's case,
+which the emulator answers 404 exactly as real S3 does). One `BREAK=1`
+control covers both: the same two directories on `record_store "local"`,
+where the second must propose nothing. Step 9 refuses rather than skips
+when Docker or the AWS CLI is missing, and
+`.github/workflows/k8s-smoke.yml` checks for both before the matrix runs.
 
 `k8s-the-server-gets-the-last-word` is claim 26 (#1110's second fault):
 three things admission can do to a write the plan already approved. A real

@@ -1,5 +1,5 @@
 # k8s-a-label-is-a-change
-# CLAIM 27 - An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, stock's own answer for the same edit alongside it, an annotation added and then changed does the same, a label or an annotation DELETED from the configuration is removed from the object and the estate then settles, a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing, and a second working directory holding no record of its own removes the same label when the estate keeps its records in a shared store. ~8 min.
+# CLAIM 27 - An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, stock's own answer for the same edit alongside it, an annotation added and then changed does the same, a label or an annotation DELETED from the configuration is removed from the object and the estate then settles, a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing, and a second working directory holding no record of its own removes the same label when the estate shares its records, as Secrets in the cluster or as objects in a bucket. ~10 min.
 #
 # GitHub issue #1177, and the one place a stateless run pays for having no
 # last-applied value.
@@ -70,17 +70,27 @@
 # difference stays measured rather than worked around. It is deliberately
 # last: it leaves the object drifted on purpose.
 #
-# Step 8 is GitHub issue #1394, and it is step 6 asked on behalf of the
-# second operator. Everything above it runs on the implied local store,
-# where the record step 6 reads is a file beside the module, so the removal
-# works for whoever holds that directory and nobody else. Step 8 puts the
-# estate's records in a bucket on the pinned floci emulator and runs the
-# same removal from a second working directory that never applied anything
-# and carries nothing of the first's. It needs both substrates at once: the
-# kind cluster for the objects, floci for the bucket. It also reads what
-# had never been read for a Kubernetes address - the record object's
-# tofu-estate and tofu-address tags, and the conditional-write header on
-# the PUT that lands - off the wire through live/smoke/s3proxy.py.
+# Steps 8 and 9 are GitHub issue #1394, and they are step 6 asked on behalf
+# of the second operator. Everything above them runs on the implied local
+# store, where the record step 6 reads is a file beside the module, so the
+# removal works for whoever holds that directory and nobody else. Each of
+# the two runs the same removal from a second working directory that never
+# applied anything and carries nothing of the first's, over a store the two
+# directories share: step 8 over record_store "kubernetes" (#1392), which
+# keeps the records as Secrets in the cluster the claim already runs on,
+# and step 9 over record_store "s3" on the pinned floci emulator, which is
+# what a Kubernetes estate had before that store existed. Step 9 is why
+# this claim needs both substrates at once and why claims.json carries
+# needs_floci for it.
+#
+# Both read what had never been read for a Kubernetes address: what the
+# record itself carries - the estate marker, the address, the record key -
+# and whether the write that landed was conditional. On the cluster store
+# that is resourceVersion, shown by the version moving across B's write and
+# by a write carrying the version from before it being refused; on the
+# bucket it is If-None-Match and If-Match, read off the wire through
+# live/smoke/s3proxy.py. Step 9b is #1344's case, an update whose object
+# was deleted underneath it.
 #
 # BREAK=1 runs the identical kubectl command against a key the
 # configuration does NOT declare - same object, same --overwrite, one key
@@ -88,8 +98,9 @@
 # that control every plan in this scenario would read the same if
 # choudoufu simply planned on any difference between the configuration and
 # the live object, and the whole of step 5 would be scenery. It then runs
-# step 8's own control: the same two directories on record_store "local",
-# where the second one has no record to read and must propose nothing.
+# one control for steps 8 and 9 together: the same two directories on
+# record_store "local", where the second one has no record to read and must
+# propose nothing.
 
 SCEN="k8s-a-label-is-a-change"
 
@@ -167,7 +178,7 @@ cluster_up
 
 kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 
-# --- step 8, the shared record store (GitHub issue #1394) -----------------
+# --- steps 8 and 9, a SHARED record store (GitHub issue #1394) ------------
 #
 # Steps 1 to 7 run on the implied local store, where the record that says
 # which metadata keys this estate declared is a file beside the module. Step
@@ -178,29 +189,36 @@ kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 # a fresh clone - gets the quiet answer.
 #
 # No Kubernetes claim measured a shared store before this. Claims 21 to 27
-# were all local and claims 28 to 37, the bucket backend's, are all AWS. The
-# path a Kubernetes estate writes its records to a shared store by - a
-# tagged PutObject and an If-Match update, for a kubernetes_manifest
-# address - had never been run.
+# were all local, and claims 28 to 38, the bucket backend's, are all AWS.
+# The path a Kubernetes estate writes its records to a shared store by had
+# never been run for a kubernetes_manifest address.
 #
-# So: one estate, one bucket on floci, two working directories on the same
-# kind cluster. A applies the labels. B never applied anything and carries
-# nothing of A's, deletes one label from its configuration, and plans. What
-# B proposes comes from the shared record or from nothing at all.
+# The same two working directories run it twice, on the two stores a
+# Kubernetes estate can actually share. A applies both labels. B has never
+# applied anything and carries nothing of A's; it deletes one label from its
+# configuration and plans. What B proposes comes from the shared record or
+# from nothing at all.
+#
+#   step 8, record_store "kubernetes": records as Secrets in this cluster
+#           (#1392, claim 39). It is first because it needs nothing but the
+#           cluster the claim already runs on.
+#   step 9, record_store "s3": records as objects in a bucket on the pinned
+#           floci emulator. It needs both substrates at once, which is why
+#           claims.json carries needs_floci for this claim.
+#
+# Each reads the record object's own metadata, which no Kubernetes claim had
+# read before: the estate marker and the address on the record, and whether
+# the write that landed was conditional. Step 9b is #1344's case, an update
+# whose object has been deleted underneath it.
 #
 # The BREAK arm is the identical pair of directories on record_store
 # "local": A's record is a file under A, B cannot see it, and B proposes
-# nothing. That is not a hypothetical failure - it is what a Kubernetes
-# estate on the implied store gives the second directory today.
-SH_NS="smoke-label-shared"
-SH_ESTATE="smoke-label-shared"
-SH_BUCKET="smoke-label-shared-records"
-SH_RECORD_PATH="tofu-records/$SH_ESTATE/kubernetes_manifest/"
+# nothing. It is one control for both steps, because what it takes away -
+# the sharing - is the one thing they have in common. It is not a
+# hypothetical failure: it is what a Kubernetes estate on the implied store
+# gives its second directory today.
 SH_WORK="$SMOKE_WORK/shared"
 SH_PROXY_PID=""
-SH_S3_BODY="    record_store \"s3\" {
-      bucket = \"$SH_BUCKET\"
-    }"
 
 # shared_config <dir> <squad: yes|no>. SH_LIVE_BODY is the live block's
 # body, which is where the record store under test is named. The two
@@ -264,7 +282,7 @@ TF
 
 # sh_run <dir> <chdf args...> - one command in one of the two directories,
 # with the record store's endpoint pointed at the proxy when there is one,
-# so every object write this step makes is on the proxy's log.
+# so every object write step 9 makes is on the proxy's log.
 sh_run() {
   local dir="$1"; shift
   (
@@ -294,10 +312,10 @@ sh_record_bucket() {
     || fail "$SCEN" "could not set the public-access block on the record bucket"
 }
 
-# sh_cm_record_key finds the record object for kubernetes_manifest.cm by the
-# tofu-address tag ON THE OBJECT, never by decoding a key. If the tags are
+# sh_cm_record_key finds the record OBJECT for kubernetes_manifest.cm by the
+# tofu-address tag on the object, never by decoding a key. If the tags are
 # not there this prints nothing and the caller fails, which is the point:
-# the tags are half of what this step measures.
+# the tags are half of what step 9 measures.
 sh_cm_record_key() {
   local key addr
   for key in $(awsl s3api list-objects-v2 --bucket "$SH_BUCKET" --prefix "$SH_RECORD_PATH" --query 'Contents[].Key' --output text | tr '\t' '\n' | grep -v '^None$'); do
@@ -307,25 +325,81 @@ sh_cm_record_key() {
   return 0
 }
 
-shared_store_step() {
-  local store_kind="$1"
-  local A="$SH_WORK/a" B="$SH_WORK/b"
-  mkdir -p "$SH_WORK"
+# sh_cm_record_secret is the same lookup for the cluster store: the record
+# SECRET for kubernetes_manifest.cm, found by the estate label the store
+# writes and the address annotation, never by recomputing the name's hash.
+sh_cm_record_secret() {
+  local name
+  for name in $(kc get secrets -n "$SH_RECORDS_NS" -l "tofu-estate=$SH_ESTATE" -o name 2>/dev/null | sed 's|^secret/||'); do
+    if kc get secret "$name" -n "$SH_RECORDS_NS" -o jsonpath='{.metadata.annotations}' 2>/dev/null \
+      | grep -q '"tofu-address":"kubernetes_manifest.cm"'; then
+      echo "$name"; return 0
+    fi
+  done
+  return 0
+}
 
-  if [ "$store_kind" = "s3" ]; then
-    step "8. the same removal from a SECOND directory, over a shared record store"
+sh_secret_version() { kc get secret "$SH_CM_SECRET" -n "$SH_RECORDS_NS" -o jsonpath='{.metadata.resourceVersion}'; }
+
+# shared_store_step <kubernetes|s3|local>. One body, three stores: the only
+# thing that changes between the two real arms and the control is the
+# record_store block, which is the point.
+shared_store_step() {
+  local store_kind="$1" A B
+  case "$store_kind" in
+    # A store per estate name, so the three arms never meet: each brings up
+    # its own namespace and its own objects on the one cluster.
+    kubernetes) SH_ESTATE="smoke-label-cluster" ;;
+    s3)         SH_ESTATE="smoke-label-shared" ;;
+    local)      SH_ESTATE="smoke-label-local" ;;
+    *) fail "$SCEN" "shared_store_step: no such record store: $store_kind" ;;
+  esac
+  SH_NS="$SH_ESTATE"
+  SH_BUCKET="$SH_ESTATE-records"
+  SH_RECORD_PATH="tofu-records/$SH_ESTATE/kubernetes_manifest/"
+  # What projection.KubernetesRecordNamespace derives when the block names no
+  # namespace. The step never spells it into the configuration, so a change
+  # to that derivation shows up here.
+  SH_RECORDS_NS="tofu-records-$SH_ESTATE"
+  A="$SH_WORK/$store_kind/a"; B="$SH_WORK/$store_kind/b"
+  mkdir -p "$SH_WORK/$store_kind"
+
+  case "$store_kind" in
+  kubernetes)
+    step "8. the same removal from a SECOND directory, over records in the cluster"
     explain \
       "Step 6's removal reads the estate's residue record, and on the" \
       "implied local store that record is a file beside the module. Every" \
       "operator who is not holding that directory has no record, and a" \
-      "missing one proposes removing nothing. So the shared store is not" \
-      "an extra here: it is what makes step 6 true for a second person." \
-      "One estate, one bucket on the emulator, two directories on this" \
-      "cluster. A applies both labels. B has never applied anything and" \
-      "carries no cache and no file of A's; it deletes one label from its" \
-      "configuration and plans. The tags on the record object and the" \
-      "precondition on the write that lands are read off the wire, because" \
-      "no Kubernetes claim had run that path before (#1394)."
+      "missing one proposes removing nothing. So a shared store is not an" \
+      "extra here: it is what makes step 6 true for a second person." \
+      "record_store \"kubernetes\" (#1392) keeps the records as Secrets in" \
+      "the cluster this estate already runs on, which is the arrangement a" \
+      "Kubernetes team can have without an AWS account. Two working" \
+      "directories, one estate, one cluster: A applies both labels, B has" \
+      "never applied anything and carries no cache and no file of A's, and" \
+      "B deletes one label from its configuration and plans."
+    cmd "kubectl create namespace $SH_RECORDS_NS   # the store never creates it"
+    explain \
+      "The records namespace is the read boundary (claim 39 step 4), so" \
+      "creating one is an operator's act and not a side effect of a first" \
+      "write. Nothing in this fork creates it. The block below names no" \
+      "namespace at all, so what is used is what the estate name derives:" \
+      "tofu-records-<estate>."
+    kc create namespace "$SH_RECORDS_NS" >/dev/null \
+      || fail "$SCEN" "could not create the records namespace $SH_RECORDS_NS"
+    SH_LIVE_BODY='    record_store "kubernetes" {}'
+    ;;
+  s3)
+    step "9. the same removal again, over records in a bucket"
+    explain \
+      "The other store a Kubernetes estate can share, and the one it had" \
+      "before #1392: the records are objects in a bucket, here the pinned" \
+      "floci emulator. Everything else is step 8 exactly - same two" \
+      "directories, same label deleted from B - so what changes is the" \
+      "store and nothing else. This is the step that makes the claim need" \
+      "both substrates at once, and it does not skip when the emulator is" \
+      "absent."
     command -v aws >/dev/null 2>&1 \
       || fail "$SCEN" "the AWS CLI is not installed. This step reads the record object's tags with it and does not skip: a shared record store is the path #1394 says has never been measured for a Kubernetes address, and a run that quietly left it out would print PASS having measured nothing."
     docker info >/dev/null 2>&1 \
@@ -343,20 +417,25 @@ shared_store_step() {
     for _ in $(seq 1 50); do [ -s "$SH_WORK/proxy.port" ] && break; sleep 0.1; done
     [ -s "$SH_WORK/proxy.port" ] || fail "$SCEN" "the record store proxy never started"
     SH_PROXY_URL="http://localhost:$(cat "$SH_WORK/proxy.port")"
-    SH_LIVE_BODY="$SH_S3_BODY"
-  else
+    SH_LIVE_BODY="    record_store \"s3\" {
+      bucket = \"$SH_BUCKET\"
+    }"
+    ;;
+  local)
     step "BREAK control 2 - the same two directories on record_store \"local\": B holds no record and must propose nothing"
     explain \
-      "You asked for proof that step 8 can fail. Everything about it is" \
-      "kept - the same estate, the same two directories, the same label" \
-      "deleted from B's configuration - and one thing is changed: the" \
-      "record store is the local one, so A's record is a file under A and" \
-      "B cannot see it. B must then propose nothing. Without this control" \
-      "step 8 would read the same if B's plan proposed the removal from" \
-      "something it could work out locally, and the shared store would be" \
-      "scenery."
+      "You asked for proof that steps 8 and 9 can fail. Everything about" \
+      "them is kept - the same two directories, the same label deleted" \
+      "from B's configuration - and one thing is changed: the record store" \
+      "is the local one, so A's record is a file under A and B cannot see" \
+      "it. B must then propose nothing. Without this control both steps" \
+      "would read the same if B's plan proposed the removal from something" \
+      "it could work out locally, and the sharing would be scenery. One" \
+      "control for both, because the sharing is the one thing they have in" \
+      "common."
     SH_LIVE_BODY='    record_store "local" {}'
-  fi
+    ;;
+  esac
 
   cmd "choudoufu apply -auto-approve   # directory A: tier=one and squad=blue, estate $SH_ESTATE"
   shared_config "$A" yes
@@ -372,6 +451,28 @@ shared_store_step() {
   grep -q '"squad":"blue"' <<< "$SH_LABELS_A" \
     || fail "$SCEN" "directory A's second declared label is not on the object, so there is nothing for B to remove: $SH_LABELS_A"
 
+  # What A's write left in the store, read from the store and not inferred.
+  if [ "$store_kind" = "kubernetes" ]; then
+    SH_CM_SECRET="$(sh_cm_record_secret)"
+    [ -n "$SH_CM_SECRET" ] \
+      || fail "$SCEN" "no Secret in $SH_RECORDS_NS carries tofu-estate=$SH_ESTATE and a tofu-address annotation naming kubernetes_manifest.cm, so this estate's Kubernetes record is either not in the cluster or not marked: $(kc get secrets -n "$SH_RECORDS_NS" -o name | tr '\n' ' ')"
+    cmd "kubectl get secret <the cm record> -n $SH_RECORDS_NS -o jsonpath='{.metadata.labels}' and '{.metadata.annotations}'"
+    echo "$SH_CM_SECRET" | evidence
+    SH_SEC_LABELS="$(kc get secret "$SH_CM_SECRET" -n "$SH_RECORDS_NS" -o jsonpath='{.metadata.labels}')"
+    SH_SEC_ANN="$(kc get secret "$SH_CM_SECRET" -n "$SH_RECORDS_NS" -o jsonpath='{.metadata.annotations}')"
+    echo "$SH_SEC_LABELS" | evidence
+    echo "$SH_SEC_ANN" | evidence
+    grep -q "^tofu-record-" <<< "$SH_CM_SECRET" \
+      || fail "$SCEN" "the record Secret is not named tofu-record-<hash>: $SH_CM_SECRET"
+    grep -q "\"tofu-estate\":\"$SH_ESTATE\"" <<< "$SH_SEC_LABELS" \
+      || fail "$SCEN" "the record Secret for a kubernetes_manifest address carries no tofu-estate label naming this estate, so live/kubernetes/estate-boundary.yaml does not fence it: $SH_SEC_LABELS"
+    grep -q '"tofu-address":"kubernetes_manifest.cm"' <<< "$SH_SEC_ANN" \
+      || fail "$SCEN" "the record Secret carries no tofu-address annotation naming the address it records: $SH_SEC_ANN"
+    grep -q "\"choudoufu.intentius.io/record-key\":\"$SH_RECORD_PATH" <<< "$SH_SEC_ANN" \
+      || fail "$SCEN" "the record Secret's record-key annotation does not hold a key under $SH_RECORD_PATH, so the Secret's name is the only thing saying which record it is: $SH_SEC_ANN"
+    SH_RV_BEFORE="$(sh_secret_version)"
+    kc get secret "$SH_CM_SECRET" -n "$SH_RECORDS_NS" -o json > "$SH_WORK/$store_kind/stale.json"
+  fi
   if [ "$store_kind" = "s3" ]; then
     SH_CM_KEY="$(sh_cm_record_key)"
     [ -n "$SH_CM_KEY" ] \
@@ -409,16 +510,16 @@ shared_store_step() {
     || fail "$SCEN" "directory B's plan after deleting the label failed: $(tail -20 <<< "$SH_PLAN_B")"
   { grep -E 'squad|^Plan:|^No changes' <<< "$SH_PLAN_B" | head -3 || true; } | evidence
 
-  if [ "$store_kind" != "s3" ]; then
+  if [ "$store_kind" = "local" ]; then
     [ -d "$A/.tofu-records" ] \
       || fail "$SCEN" "directory A wrote no local record directory, so this control would pass with nothing recorded anywhere and prove nothing about where B reads from"
     echo "A's records: $(find "$A/.tofu-records" -type f | wc -l | tr -d ' ') file(s) under $A/.tofu-records; B's: $(find "$B/.tofu-records" -type f 2>/dev/null | wc -l | tr -d ' ')" | evidence
     grep -q 'No changes.' <<< "$SH_PLAN_B" \
-      || fail "$SCEN" "on the local store directory B proposed the removal anyway, so step 8's plan is not evidence that B read the shared record: $(grep -E '^Plan:|squad' <<< "$SH_PLAN_B" | head -3)"
+      || fail "$SCEN" "on the local store directory B proposed the removal anyway, so steps 8 and 9 are not evidence that B read a shared record: $(grep -E '^Plan:|squad' <<< "$SH_PLAN_B" | head -3)"
     grep -q '"squad":"blue"' <<< "$(kc get configmap shared-config -n "$SH_NS" -o jsonpath='{.metadata.labels}')" \
       || fail "$SCEN" "the label B was supposed to leave alone is gone from the object"
     sh_run "$A" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 || true
-    proof "caught. With A's record in a file only A can see, the second directory deletes the same label from the same configuration and plans \"No changes.\" - the removal is silently not proposed. That is what step 8 measures the shared store fixing, and it is what every Kubernetes estate on the implied store gives its second operator today."
+    proof "caught. With A's record in a file only A can see, the second directory deletes the same label from the same configuration and plans \"No changes.\" - the removal is silently not proposed. That is what steps 8 and 9 measure a shared store fixing, and it is what every Kubernetes estate on the implied store gives its second operator today."
     return 0
   fi
 
@@ -440,11 +541,37 @@ shared_store_step() {
   grep -q "\"tofu-estate\":\"$SH_ESTATE\"" <<< "$SH_AFTER" \
     || fail "$SCEN" "the removal took the estate's own marker with it: $SH_AFTER"
 
-  cmd "grep PUT <the cm record> proxy.log   # what the write that landed carried"
-  SH_UPDATE="$(grep -E "${SH_PUT_RE}20[0-9] if-match: " "$SH_WORK/proxy.log" | tail -1 || true)"
-  { grep -E "$SH_PUT_RE" "$SH_WORK/proxy.log" || true; } | evidence
-  [ -n "$SH_UPDATE" ] \
-    || fail "$SCEN" "B's write of the Kubernetes record was not a conditional update that succeeded; a store that overwrote unconditionally would look the same to the apply: $(grep -E "$SH_PUT_RE" "$SH_WORK/proxy.log" || echo '<no PUT to that key at all>')"
+  # Whether the write that landed was CONDITIONAL. An apply that succeeded
+  # looks the same either way, and a store that overwrote whatever it found
+  # would pass every assertion above.
+  if [ "$store_kind" = "kubernetes" ]; then
+    cmd "kubectl get secret <the cm record> -o jsonpath='{.metadata.resourceVersion}'   # before and after B's apply"
+    SH_RV_AFTER="$(sh_secret_version)"
+    echo "resourceVersion before B's apply: $SH_RV_BEFORE   after: $SH_RV_AFTER" | evidence
+    [ -n "$SH_RV_BEFORE" ] && [ -n "$SH_RV_AFTER" ] && [ "$SH_RV_BEFORE" != "$SH_RV_AFTER" ] \
+      || fail "$SCEN" "the record Secret's resourceVersion did not move across B's apply ($SH_RV_BEFORE -> $SH_RV_AFTER), so B did not write the record it read and the removal above came from somewhere else"
+    cmd "kubectl replace -f <the record Secret AS IT WAS BEFORE>   # a write carrying the stale version"
+    explain \
+      "resourceVersion is what this store conditions a write on, which is" \
+      "the API server's own optimistic concurrency and not something the" \
+      "store implements (claim 39 step 1 runs the Store suite's" \
+      "stale-version case against this same cluster). The copy taken" \
+      "before B's apply still carries the old version, so replacing it now" \
+      "is exactly the write B would have made had it not re-read - and the" \
+      "server has to refuse it."
+    if SH_STALE="$(kc replace -f "$SH_WORK/$store_kind/stale.json" 2>&1)"; then
+      fail "$SCEN" "a write carrying the record Secret's PREVIOUS resourceVersion was accepted, so a version is not what a write to this store is conditional on and B could have clobbered a concurrent writer: $SH_STALE"
+    fi
+    { head -2 <<< "$SH_STALE" || true; } | evidence
+    grep -qiE 'conflict|has been modified' <<< "$SH_STALE" \
+      || fail "$SCEN" "the stale write failed for some reason other than a version conflict, so this measured nothing about the conditional: $SH_STALE"
+  else
+    cmd "grep PUT <the cm record> proxy.log   # what the write that landed carried"
+    SH_UPDATE="$(grep -E "${SH_PUT_RE}20[0-9] if-match: " "$SH_WORK/proxy.log" | tail -1 || true)"
+    { grep -E "$SH_PUT_RE" "$SH_WORK/proxy.log" || true; } | evidence
+    [ -n "$SH_UPDATE" ] \
+      || fail "$SCEN" "B's write of the Kubernetes record was not a conditional update that succeeded; a store that overwrote unconditionally would look the same to the apply: $(grep -E "$SH_PUT_RE" "$SH_WORK/proxy.log" || echo '<no PUT to that key at all>')"
+  fi
 
   cmd "choudoufu plan   # from B, twice: the estate has to SETTLE"
   SH_REPLAN1="$(sh_run "$B" plan -input=false -no-color 2>&1)" \
@@ -465,10 +592,17 @@ shared_store_step() {
   grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy\.' <<< "$SH_REPLAN_A" \
     || fail "$SCEN" "directory A, which still declares squad, does not propose putting it back after B removed it; the two directories are not sharing one estate: $(grep -E '^Plan:|No changes' <<< "$SH_REPLAN_A" | head -2)"
 
-  sh_1344_case
+  if [ "$store_kind" = "s3" ]; then
+    sh_1344_case
+  fi
   sh_run "$B" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 || true
   kc delete namespace "$SH_NS" --wait=false >/dev/null 2>&1 || true
-  proof "one estate, one bucket, two directories: the directory that never applied anything proposed the removal the first one's record made possible, applied it, and settled on two replans, while the directory that still declares the label proposed putting it back. The record object for a kubernetes_manifest address carries tofu-estate and tofu-address, its create was an If-None-Match and the update that landed was an If-Match, all read off the wire."
+  [ "$store_kind" = "kubernetes" ] && { kc delete namespace "$SH_RECORDS_NS" --wait=false >/dev/null 2>&1 || true; }
+  if [ "$store_kind" = "kubernetes" ]; then
+    proof "one estate, one cluster, two directories and no bucket: the directory that never applied anything proposed the removal the first one's record made possible, applied it, and settled on two replans, while the directory that still declares the label proposed putting it back. The record is a Secret in $SH_RECORDS_NS, the namespace the estate name derives, carrying this estate's tofu-estate label, the address's own tofu-address annotation and the record key; its resourceVersion moved across B's write, and a write carrying the version from before it is refused."
+  else
+    proof "one estate, one bucket, two directories: the same removal again with the records in a bucket instead of the cluster. The record object for a kubernetes_manifest address carries tofu-estate and tofu-address, its create was an If-None-Match and the update that landed was an If-Match, all read off the wire."
+  fi
 }
 
 # sh_1344_case manufactures #1344's shape for a Kubernetes address: an
@@ -480,7 +614,7 @@ shared_store_step() {
 # emulator actually answered is printed, so the difference from real S3
 # stays measured instead of assumed.
 sh_1344_case() {
-  step "8b. the update whose record is GONE (#1344), for a Kubernetes address"
+  step "9b. the update whose record is GONE (#1344), for a Kubernetes address"
   explain \
     "A conditional update carries the version it read. If the object has" \
     "been deleted in between there is no version to match, and the store" \
@@ -491,17 +625,19 @@ sh_1344_case() {
   rm -f "$SH_WORK/held" "$SH_WORK/release"
   : > "$SH_WORK/proxy.log"
   echo "$SH_CM_KEY" > "$SH_WORK/hold"
-  SH_LIVE_BODY="$SH_S3_BODY
+  SH_LIVE_BODY="    record_store \"s3\" {
+      bucket = \"$SH_BUCKET\"
+    }
 
     retry {
       max_attempts = 1
     }"
-  shared_config "$B" yes
+  shared_config "$SH_WORK/s3/b" yes
   # `&& rc=0 || rc=$?`, never `; echo $?`: this scenario runs under set -e
   # and the apply under test is expected to fail, which would end the
   # subshell before the exit code was written.
   rm -f "$SH_WORK/b1344.rc"
-  ( { sh_run "$B" apply -auto-approve -input=false -no-color > "$SH_WORK/b1344.out" 2>&1 && rc=0 || rc=$?; echo "$rc" > "$SH_WORK/b1344.rc"; } ) &
+  ( { sh_run "$SH_WORK/s3/b" apply -auto-approve -input=false -no-color > "$SH_WORK/b1344.out" 2>&1 && rc=0 || rc=$?; echo "$rc" > "$SH_WORK/b1344.rc"; } ) &
   local pid=$!
   # The proxy releases a held PUT only after every PUT listed before it has
   # been judged, so listing more turns than the writer can take is free and
@@ -581,10 +717,10 @@ if [ "${BREAK:-0}" = "1" ]; then
     || fail "$SCEN" "BREAK: the decoy label is not on the object, so the control wrote nothing and proves nothing"
   ( cd "$SMOKE_WORK/live" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   proof "caught. The same command against a key the configuration does not declare leaves the plan empty and the label on the object, so every plan the main arm requires is about declared keys and the server's own additions are still the server's."
-  # Step 8's own control. It is a different assertion from the one above -
-  # that the removal a second directory proposes comes from the SHARED
-  # record and from nowhere else - so it gets its own arm rather than
-  # riding on this one.
+  # The control for steps 8 and 9. It is a different assertion from the one
+  # above - that the removal a second directory proposes comes from the
+  # SHARED record and from nowhere else - so it gets its own arm rather
+  # than riding on this one.
   shared_store_step local
   exit 0
 fi
@@ -871,10 +1007,12 @@ grep -qE 'tier +=.*"zzz".*->.*"two"' <<< "$PLAN7" \
   || fail "$SCEN" "choudoufu plans something, but not the label restore: $(grep -E 'will be|tier' <<< "$PLAN7" | head -5)"
 proof "stock says \"No changes.\" and choudoufu proposes restoring the declared label. That difference is the price of having no last-applied value and it is recorded in live/LIMITATIONS.md, not hidden: a saved plan's staleness check can see an out-of-band kubectl label here, and stock's cannot."
 
-# Step 8 runs after step 7 because step 7 leaves its object drifted on
-# purpose. It uses its own estate, namespace and objects on the same
-# cluster, so nothing above it is disturbed and nothing above it is what it
-# measures.
+# Steps 8 and 9 run after step 7 because step 7 leaves its object drifted
+# on purpose. Each uses its own estate, namespace and objects on the same
+# cluster, so nothing above them is disturbed and nothing above them is what
+# they measure. The cluster store comes first: it needs nothing the claim
+# does not already have.
+shared_store_step kubernetes
 shared_store_step s3
 
 ( cd "$SMOKE_WORK/live" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
@@ -892,11 +1030,13 @@ echo "  prior this fork rebuilds on each run carries the server's value for"
 echo "  the keys the configuration names plus the keys its own record says"
 echo "  it used to name, and nothing else - which is what a state file's"
 echo "  last-applied manifest says, except for a declared key someone moved"
-echo "  by hand. Then the same removal from a SECOND working directory over"
-echo "  a record store the two share, which is the only way the removal is"
-echo "  true for anyone but the operator who applied it: the record object"
-echo "  for a kubernetes_manifest address carrying this estate's tofu-estate"
-echo "  and the address's own tofu-address, created with an If-None-Match"
-echo "  and updated with an If-Match read off the wire, and the same update"
-echo "  refused by name when the object it named had been deleted underneath"
-echo "  it."
+echo "  by hand. Then the same removal twice more from a SECOND working"
+echo "  directory, over the two stores two directories can share, which is"
+echo "  the only way the removal is true for anyone but the operator who"
+echo "  applied it: as a Secret in the cluster, carrying the estate label,"
+echo "  the address annotation and the record key, whose resourceVersion"
+echo "  moved across that directory's write and refuses a write still"
+echo "  carrying the version from before it; and as an object in a bucket,"
+echo "  carrying tofu-estate and tofu-address, created with an If-None-Match"
+echo "  and updated with an If-Match read off the wire, refused by name when"
+echo "  the object it named had been deleted underneath it."

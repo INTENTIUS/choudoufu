@@ -16,15 +16,15 @@ For `kubernetes_manifest` that was not true here until
 invisible to the plan and the apply wrote nothing: no refusal to look up,
 no warning, just `No changes.` over a configuration that had changed.
 
-This claim needs two substrates. Steps 1 to 7 run on a kind cluster. Step 8
-also needs the pinned floci emulator, because the record store it measures
-the removal over is a bucket: Docker and the AWS CLI on top of kind and
-kubectl. The step does not skip when they are missing, it refuses.
+This claim needs two substrates. Steps 1 to 8 run on a kind cluster alone.
+Step 9 also needs the pinned floci emulator, because the record store it
+measures the removal over is a bucket: Docker and the AWS CLI on top of kind
+and kubectl. It does not skip when they are missing, it refuses.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm kind and kubectl are
 installed, terraform (the stock oracle this scenario compares against),
-Docker (`docker info`) and the AWS CLI (`aws --version`) - step 8 keeps the
+Docker (`docker info`) and the AWS CLI (`aws --version`) - step 9 keeps the
 estate's records in a bucket on the emulator. If Go is not installed,
 export CHOUDOUFU_VERSION=<latest tag from
 https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
@@ -35,8 +35,8 @@ Explain each step's verdict line to me as it prints. Then run
 BREAK=1 just smoke k8s-a-label-is-a-change and report both "caught" lines:
 the first control runs the identical kubectl command against a key the
 configuration never declared, and the plan must stay empty; the second
-runs step 8's two working directories on the local record store, where the
-second directory has no record to read and must propose nothing.
+runs steps 8 and 9's two working directories on the local record store,
+where the second directory has no record to read and must propose nothing.
 ```
 
 The steps, in the order they print:
@@ -68,37 +68,69 @@ The steps, in the order they print:
    `No changes.`; choudoufu proposes restoring it. Both answers are
    printed side by side. It runs after the rest because it leaves the
    object drifted on purpose.
-8. `the same removal from a SECOND directory, over a shared record store` -
+8. `the same removal from a SECOND directory, over records in the cluster` -
    step 6 asked on behalf of anyone but the operator who applied it. Its
    own estate, namespace and objects on the same cluster, with the records
-   in a bucket on the emulator. A applies `tier` and `squad`; B has never
-   applied anything, holds no cache and no file of A's, deletes `squad`
-   from its configuration and plans the removal, applies it, and is quiet
-   on two replans, while A - which still declares `squad` - proposes
-   putting it back. Sub-step 8b deletes the record object underneath B's
+   as Secrets in `tofu-records-smoke-label-cluster`. A applies `tier` and
+   `squad`; B has never applied anything, holds no cache and no file of
+   A's, deletes `squad` from its configuration and plans the removal,
+   applies it, and is quiet on two replans, while A - which still declares
+   `squad` - proposes putting it back.
+9. `the same removal again, over records in a bucket` - step 8 with one
+   thing changed, the store. The records are objects in a bucket on the
+   emulator. Sub-step 9b deletes the record object underneath B's
    conditional write and requires the write to be refused by name.
 
-## Step 8: the removal only works for one person until the store is shared
+## Steps 8 and 9: the removal only works for one person until the store is shared
 
 The record step 6 reads lives wherever `record_store` says. Left implied it
 is a file beside the module, so a second checkout, a CI runner or a fresh
 clone has no record at all, and
 `internal/live/projection/residue.go` answers a missing or unreadable one by
 proposing no removal, with at most a warning
-(`SummaryResidueUnreadable`). That is the quiet degradation the claim page
-describes above, and it is correct - but it means the removal is true for
+(`SummaryResidueUnreadable`). That is the quiet degradation this page
+describes below, and it is correct - but it means the removal is true for
 one directory and silently absent everywhere else.
 
 [#1394](https://github.com/INTENTIUS/choudoufu/issues/1394) found that no
 Kubernetes claim had ever run against a shared store: claims 21 to 27 were
-all on the implied local one, and the bucket backend's claims (28 to 37)
-are all AWS. So the path a Kubernetes estate writes a record by had not
-been measured at all. Step 8 measures it, and prints what it reads rather
-than asserting it:
+all on the implied local one, and the bucket backend's claims are all AWS.
+So the path a Kubernetes estate writes a record by had not been measured at
+all. The same two working directories now run it twice, once on each store
+two directories can actually share, and each prints what it reads rather
+than asserting it.
 
-- the record object for a `kubernetes_manifest` address carries
-  `tofu-estate = smoke-label-shared` and `tofu-address =
-  kubernetes_manifest.cm`, read back with `aws s3api get-object-tagging`;
+Step 8 is `record_store "kubernetes"`
+([#1392](https://github.com/INTENTIUS/choudoufu/issues/1392), claim 39),
+which is what a Kubernetes team can have without an AWS account. It is
+first because it needs nothing the claim does not already have. The block
+names no namespace, so the one used is what the estate name derives, and
+the step creates it: the records namespace is the read boundary, so making
+one is an operator's act and nothing in this fork does it. What the record
+carries:
+
+```text
+tofu-record-af1e2258ffc03e91dcbe738006a330284ad7998983b052c6aa82f88d8e675658
+{"app.kubernetes.io/managed-by":"choudoufu","choudoufu.intentius.io/record-namespace":"tofu-records","tofu-estate":"smoke-label-cluster"}
+{"choudoufu.intentius.io/record-key":"tofu-records/smoke-label-cluster/kubernetes_manifest/a3ViZXJuZXRlc19tYW5pZmVzdC5jbQ","encoding":"gzip","tofu-address":"kubernetes_manifest.cm"}
+```
+
+The `tofu-estate` label is what `live/kubernetes/estate-boundary.yaml`
+fences on, so the record is inside the estate's own fence; the address is an
+annotation because a label value stops at 63 characters and an address does
+not. That the write B landed was *conditional* is the API server's own
+optimistic concurrency: the Secret's `resourceVersion` moves across B's
+apply (842 to 895 on the run above), and a `kubectl replace` of the copy
+taken before it - carrying the version B would have carried had it not
+re-read - is refused with `the object has been modified`. Claim 39 step 1
+runs the store's own stale-version case against the same cluster.
+
+Step 9 is `record_store "s3"`, the store a Kubernetes estate had before
+that, with everything else identical:
+
+- the record object carries `tofu-estate = smoke-label-shared` and
+  `tofu-address = kubernetes_manifest.cm`, read back with
+  `aws s3api get-object-tagging`;
 - A's write of that record was `if-none-match: *` and the write B's apply
   landed was `if-match: "<the version B read>"`, both read off the wire
   through `live/smoke/s3proxy.py`, because a write that succeeded looks the
@@ -110,9 +142,10 @@ than asserting it:
   the run reports a named record store write conflict instead of creating
   the record afresh.
 
-The `BREAK=1` control is the same two directories with one thing changed,
-`record_store "local"`. A's record is then a file under A, B cannot see it,
-and B's plan reads `No changes.` for the same deleted label.
+One `BREAK=1` control covers both, because what it takes away is the one
+thing they have in common. The same two directories with `record_store
+"local"`: A's record is then a file under A, B cannot see it, and B's plan
+reads `No changes.` for the same deleted label.
 
 ## Why it was broken, and it was not the diff
 
