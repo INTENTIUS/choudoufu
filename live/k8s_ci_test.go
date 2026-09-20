@@ -76,6 +76,56 @@ func TestKubernetesSmokesRunInCIWithTheirControls(t *testing.T) {
 	}
 }
 
+// TestKubernetesSmokesGetTheEmulatorToolsTheyNeed: a Kubernetes scenario
+// that starts the pinned floci emulator needs Docker and the AWS CLI on the
+// runner as well as kind, and k8s-smoke.yml has to check for them. Claim 27
+// gained such a step in #1394 - its label removal measured from a second
+// working directory, over a record store the two share - and a runner
+// without the AWS CLI would have failed it halfway through, or, worse, a
+// scenario written to skip the step there would have reported the same PASS
+// as one that ran it.
+//
+// Proving it red: delete the "aws --version" line from the workflow, or the
+// stack_up call from k8s-a-label-is-a-change.sh. Both were run on
+// 2026-09-19.
+func TestKubernetesSmokesGetTheEmulatorToolsTheyNeed(t *testing.T) {
+	wf, err := os.ReadFile(k8sSmokeWorkflow)
+	if err != nil {
+		t.Fatalf("read %s: %v", k8sSmokeWorkflow, err)
+	}
+	entries, err := os.ReadDir(filepath.Join("smoke", "scenarios"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var needEmulator []string
+	for _, e := range entries {
+		name := strings.TrimSuffix(e.Name(), ".sh")
+		if !strings.HasPrefix(name, k8sScenarioPrefix) || !strings.HasSuffix(e.Name(), ".sh") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join("smoke", "scenarios", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range smokeExecutableLines(string(raw)) {
+			if line != "" && smokeStackUp.MatchString(line) {
+				needEmulator = append(needEmulator, name)
+				break
+			}
+		}
+	}
+	if len(needEmulator) == 0 {
+		// Never a skip: a guard that disables itself when the thing it
+		// guards disappears is one nobody notices going green.
+		t.Fatalf("no k8s-* scenario starts the emulator any more, so this guard is checking nothing; claim 27's shared-record-store step (#1394) is where it came from")
+	}
+	for _, want := range []string{"docker info", "aws --version"} {
+		if !strings.Contains(string(wf), want) {
+			t.Errorf("%v start the floci emulator, and k8s-smoke.yml never checks for %q; the job would fail inside a scenario, or a scenario written to skip the step there would report the same PASS as one that ran it", needEmulator, want)
+		}
+	}
+}
+
 func TestKubernetesLaneRunsNightly(t *testing.T) {
 	wf, err := os.ReadFile(gauntletWorkflow)
 	if err != nil {
