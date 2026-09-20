@@ -92,8 +92,8 @@ func check(t *testing.T, cs kubernetes.Interface, opts ClusterContractOptions) [
 		if f.Setting != ClusterSettings[i] {
 			t.Fatalf("finding %d is %q, want %q: the order findings are reported in is part of the report", i, f.Setting, ClusterSettings[i])
 		}
-		if f.OK && f.NotChecked {
-			t.Fatalf("finding %q is both OK and NotChecked; a question that was not answered is never a pass", f.Setting)
+		if f.OK && (f.NotChecked || f.Warning) {
+			t.Fatalf("finding %q is OK and also NotChecked or a Warning; a question that was not answered, and a concern, are neither of them a pass", f.Setting)
 		}
 		if f.Found == "" {
 			t.Fatalf("finding %q says nothing about what was found", f.Setting)
@@ -236,12 +236,37 @@ func TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords(t *testing.T
 		if !strings.Contains(f.Found, "was not established here") {
 			t.Errorf("the finding does not say the namespace's existence was not established: %s", f.Found)
 		}
+		if !strings.Contains(f.Found, "allowed: get, list, create, update, delete") {
+			t.Errorf("the finding lost the verb review because the namespace probe was denied: %s", f.Found)
+		}
+	})
+
+	// The case that measured nothing until it was found on kind: an
+	// identity missing verbs AND unable to get the namespace was told only
+	// about the namespace, so the refusal never said which verb to grant.
+	t.Run("probe forbidden and verbs missing", func(t *testing.T) {
+		cs := forbid(withReviews(fake.NewClientset(), func(ns, verb string) bool {
+			return verb == "get" || verb == "list"
+		}), "get", "namespaces")
+		f := findingFor(t, check(t, cs, ClusterContractOptions{}), ClusterNamespaceAccess)
+		if f.OK {
+			t.Fatal("an identity with no create, update or delete passed the apply question")
+		}
+		for _, verb := range []string{"create", "update", "delete"} {
+			if !strings.Contains(f.Found, verb) {
+				t.Errorf("the finding does not name the missing verb %q: %s", verb, f.Found)
+			}
+		}
 	})
 }
 
-// TestClusterContractReadIsolationRefusesAClusterWideReader is assertion 2's
-// minimum, and the one that needs no permission to ask.
-func TestClusterContractReadIsolationRefusesAClusterWideReader(t *testing.T) {
+// TestClusterContractReadIsolationSeesAClusterWideReader is assertion 2's
+// minimum, and the one that needs no permission to ask: either verb
+// cluster-wide is seen and said, by name.
+//
+// Whether it refuses or warns is the next two tests' subject, and depends on
+// whether another estate's records are there to be read.
+func TestClusterContractReadIsolationSeesAClusterWideReader(t *testing.T) {
 	for _, verb := range []string{"get", "list"} {
 		t.Run(verb+" everywhere", func(t *testing.T) {
 			cs := withReviews(fake.NewClientset(), func(ns, v string) bool {
@@ -253,6 +278,9 @@ func TestClusterContractReadIsolationRefusesAClusterWideReader(t *testing.T) {
 			}
 			if !strings.Contains(f.Found, "EVERY namespace") {
 				t.Errorf("the finding does not say the read reaches every namespace: %s", f.Found)
+			}
+			if !strings.Contains(f.Found, verb) {
+				t.Errorf("the finding does not name the verb it found: %s", f.Found)
 			}
 		})
 	}
@@ -509,30 +537,125 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 func TestSplitWaivedCluster(t *testing.T) {
 	findings := []ClusterFinding{
 		{Setting: ClusterNamespaceAccess, OK: true},
-		{Setting: ClusterReadIsolation},
+		{Setting: ClusterReadIsolation, Warning: true},
 		{Setting: ClusterEncryptionAtRest, NotChecked: true},
 		{Setting: ClusterEstateBoundary},
 	}
 
-	refused, waived := SplitWaivedCluster(findings, []string{"encryption_at_rest"})
+	refused, warned, waived := SplitWaivedCluster(findings, []string{"encryption_at_rest"})
 	if len(waived) != 1 || waived[0].Setting != ClusterEncryptionAtRest {
 		t.Fatalf("waived = %v, want the one setting named", waived)
 	}
-	if len(refused) != 2 {
-		t.Fatalf("refused = %v, want the two failing settings the waiver does not name", refused)
+	if len(warned) != 1 || warned[0].Setting != ClusterReadIsolation {
+		t.Fatalf("warned = %v, want the one warning finding", warned)
+	}
+	if len(refused) != 1 || refused[0].Setting != ClusterEstateBoundary {
+		t.Fatalf("refused = %v, want only the failing setting the waiver does not name", refused)
 	}
 	for _, f := range refused {
-		if f.Setting == ClusterEncryptionAtRest {
-			t.Error("a waived setting reached the refused list")
-		}
-		if f.OK {
-			t.Error("a passing finding reached the refused list")
+		if f.OK || f.Warning || f.NotChecked {
+			t.Errorf("%q is not a refusal and reached the refused list", f.Setting)
 		}
 	}
 
-	refused, waived = SplitWaivedCluster(findings, nil)
-	if len(refused) != 3 || len(waived) != 0 {
-		t.Fatalf("with no waiver: refused=%d waived=%d, want 3 and 0", len(refused), len(waived))
+	// A waiver silences a warning as well as a refusal.
+	refused, warned, waived = SplitWaivedCluster(findings, []string{"read_isolation"})
+	if len(warned) != 1 || len(waived) != 1 || len(refused) != 1 {
+		t.Fatalf("waiving the warning: refused=%d warned=%d waived=%d, want 1, 1 and 1", len(refused), len(warned), len(waived))
+	}
+
+	refused, warned, waived = SplitWaivedCluster(findings, nil)
+	if len(refused) != 1 || len(warned) != 2 || len(waived) != 0 {
+		t.Fatalf("with no waiver: refused=%d warned=%d waived=%d, want 1, 2 and 0", len(refused), len(warned), len(waived))
+	}
+}
+
+// TestAScopedIdentityIsWarnedAndNotRefused is the whole reason a run treats
+// NotChecked differently from a failure. The Role the docs recommend holds
+// Secrets in one namespace and nothing else, so it cannot list kube-system's
+// Pods and cannot get a ValidatingAdmissionPolicy. If those two refused, the
+// intended arrangement would carry two waivers from its first day - a gate
+// satisfied by a line in the configuration, which protects nothing.
+func TestAScopedIdentityIsWarnedAndNotRefused(t *testing.T) {
+	cs := forbid(forbid(forbid(withReviews(fake.NewClientset(), func(ns, verb string) bool {
+		return ns == contractNamespace
+	}), "list", "pods"), "get", "validatingadmissionpolicies"), "list", "namespaces")
+
+	findings := check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true})
+	refused, warned, _ := SplitWaivedCluster(findings, nil)
+	if len(refused) != 0 {
+		t.Fatalf("the recommended arrangement was refused: %v", refused)
+	}
+	if len(warned) != 2 {
+		t.Fatalf("warned about %d properties, want the two it cannot read: %v", len(warned), warned)
+	}
+	for _, f := range warned {
+		if !f.NotChecked {
+			t.Errorf("%q warned for some reason other than not being readable: %s", f.Setting, f.Found)
+		}
+		_, detail := ClusterContractRefusal(contractNamespace, f)
+		if !strings.Contains(detail, "this is not a pass") {
+			t.Errorf("%q's warning lets the reader take it for a pass: %q", f.Setting, detail)
+		}
+		if !strings.Contains(detail, "live-cluster") {
+			t.Errorf("%q's warning does not say who can answer the question: %q", f.Setting, detail)
+		}
+	}
+
+	// The same two properties, READ and wrong, still refuse: a fact somebody
+	// can act on is not a warning.
+	wrong := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp", "--advertise-address=10.0.0.1")),
+		func(ns, verb string) bool { return ns == contractNamespace })
+	refused, _, _ = SplitWaivedCluster(check(t, wrong, ClusterContractOptions{NamespaceKnownToExist: true}), nil)
+	if len(refused) != 2 {
+		t.Fatalf("a cluster with no encryption and no boundary policy raised %d refusals, want 2: %v", len(refused), refused)
+	}
+}
+
+// TestClusterContractReadIsolationWarnsWithoutRefusingTheFirstEstate is the
+// split #1393 asks for: a warning as the floor for a cluster-wide reader, and
+// a refusal where another estate's records namespace is known.
+//
+// The refusing half has its own test above. This is the half that must NOT
+// refuse: a cluster-admin standing up the first estate on a fresh cluster can
+// read every namespace and has exposed nothing, because there is nothing else
+// there to read.
+func TestClusterContractReadIsolationWarnsWithoutRefusingTheFirstEstate(t *testing.T) {
+	cs := withReviews(fake.NewClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: contractNamespace}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}},
+	), func(ns, verb string) bool { return true })
+	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
+
+	if f.OK {
+		t.Fatal("a cluster-wide reader passed read isolation outright; the capability is real and has to be said")
+	}
+	if !f.Warning {
+		t.Fatalf("the first estate on a cluster was REFUSED for a capability that has exposed nothing: %s", f.Found)
+	}
+	if !strings.Contains(f.Found, "nothing is exposed yet") {
+		t.Errorf("the warning does not say why it is not a refusal: %s", f.Found)
+	}
+	summary, detail := ClusterContractRefusal(contractNamespace, f)
+	if !strings.Contains(summary, "weaker than it should be") {
+		t.Errorf("a warning is headlined as a failure: %q", summary)
+	}
+	if !strings.Contains(detail, "The run goes on") {
+		t.Errorf("the warning does not say the run goes on: %q", detail)
+	}
+
+	// The same identity, once a second estate's records namespace exists:
+	// now it is a breach and refuses.
+	cs2 := withReviews(fake.NewClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: contractNamespace}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tofu-records-bob"}},
+	), func(ns, verb string) bool { return true })
+	f2 := findingFor(t, check(t, cs2, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
+	if f2.OK || f2.Warning {
+		t.Fatalf("an identity that can read an existing second estate's records only warned: %s", f2.Found)
+	}
+	if !strings.Contains(f2.Found, "tofu-records-bob") {
+		t.Errorf("the refusal does not name the namespace it can read: %s", f2.Found)
 	}
 }
 
@@ -553,18 +676,25 @@ func TestClusterWaiverCostNamesTheCost(t *testing.T) {
 // go and find out what it was for.
 func TestClusterContractRefusalSaysWhatToDo(t *testing.T) {
 	for _, setting := range ClusterSettings {
-		for _, notChecked := range []bool{false, true} {
-			f := ClusterFinding{Setting: setting, NotChecked: notChecked, Found: "something"}
+		for _, shape := range []struct {
+			name       string
+			notChecked bool
+			warning    bool
+		}{{"failed", false, false}, {"not checked", true, false}, {"warning", false, true}} {
+			f := ClusterFinding{Setting: setting, NotChecked: shape.notChecked, Warning: shape.warning, Found: "something"}
 			summary, detail := ClusterContractRefusal(contractNamespace, f)
 			if summary == "" || detail == "" {
-				t.Errorf("%q (notChecked=%v) has no refusal text", setting, notChecked)
+				t.Errorf("%q (%s) has no text", setting, shape.name)
 				continue
 			}
 			if len(detail) < 200 {
-				t.Errorf("%q (notChecked=%v) refusal says too little: %q", setting, notChecked, detail)
+				t.Errorf("%q (%s) says too little: %q", setting, shape.name, detail)
 			}
-			if notChecked && !strings.Contains(detail, "allow_insecure") {
+			if shape.notChecked && !strings.Contains(detail, "allow_insecure") {
 				t.Errorf("%q could not be checked and the refusal does not say how to acknowledge it: %q", setting, detail)
+			}
+			if shape.warning && !strings.Contains(detail, "The run goes on") {
+				t.Errorf("%q is a warning and the text does not say the run goes on: %q", setting, detail)
 			}
 		}
 	}

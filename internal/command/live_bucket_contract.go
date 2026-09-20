@@ -89,7 +89,17 @@ func (r *statelessRunner) beforeApplyCluster(ctx context.Context) tfdiags.Diagno
 			fmt.Sprintf("Before applying, the cluster this estate keeps its records in is checked for the properties those records depend on, and that check could not be made: %s. Nothing has been applied.", err),
 		))
 	}
-	refused, waivedFailing := staterecord.SplitWaivedCluster(findings, r.recordStoreCfg.AllowInsecure)
+	refused, warned, waivedFailing := staterecord.SplitWaivedCluster(findings, r.recordStoreCfg.AllowInsecure)
+	for _, f := range warned {
+		// A concern, not a refusal: see staterecord.ClusterFinding.Warning.
+		// It lands here rather than at first contact because it has to be
+		// said on EVERY apply, not only the estate's first.
+		summary, detail := staterecord.ClusterContractRefusal(namespace, f)
+		if summary == "" {
+			continue
+		}
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, summary, detail))
+	}
 	for _, f := range waivedFailing {
 		// The every-run warning (recordStoreWaiverWarnings) is made from the
 		// configuration alone and cannot know whether the waiver is hiding

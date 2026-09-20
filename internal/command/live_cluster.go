@@ -56,6 +56,11 @@ type liveClusterReport struct {
 	Namespace string `json:"namespace"`
 	Estate    string `json:"estate"`
 	Correct   bool   `json:"correct"`
+	// Warnings counts the findings that are a concern and not a refusal. A
+	// run proceeds past every one of them, so they do not change Correct,
+	// and the verdict line names the count rather than letting a green
+	// swallow them.
+	Warnings int `json:"warnings"`
 	// CheckedAs is "apply" or "plan": which run's verbs the namespace_access
 	// assertion required. The two can disagree, so the report says which
 	// question it answered.
@@ -162,14 +167,24 @@ func buildLiveClusterReport(namespace, estate, checkedAs string, findings []stat
 	for _, f := range findings {
 		verdict := "ok"
 		switch {
+		case f.Warning:
+			verdict = "warn"
 		case f.NotChecked:
 			verdict = "not_checked"
 		case !f.OK:
 			verdict = "fail"
 		}
 		if !f.OK {
-			report.Correct = false
 			failing[f.Setting] = true
+			// A warning is a concern and not a failure: a run proceeds past
+			// it, so a report that called the cluster NOT correct for one
+			// would disagree with every apply. It is printed, counted, and
+			// named in the verdict line.
+			if f.Warning {
+				report.Warnings++
+			} else {
+				report.Correct = false
+			}
 		}
 		report.Settings = append(report.Settings, liveClusterSettingLine{
 			Setting: string(f.Setting), Verdict: verdict, Found: f.Found, Verbs: f.Verbs,
@@ -215,7 +230,19 @@ func renderLiveClusterReport(r liveClusterReport) string {
 	if r.Correct {
 		fmt.Fprintf(&b, "records namespace %s: correct", r.Namespace)
 	} else {
-		fmt.Fprintf(&b, "records namespace %s: NOT correct (a NOT_CHECKED property is not a pass)", r.Namespace)
+		fmt.Fprintf(&b, "records namespace %s: NOT correct", r.Namespace)
+		for _, s := range r.Settings {
+			if s.Verdict == "not_checked" {
+				// Said only when one of them IS not checked, so the sentence
+				// is never explaining a verdict that came from somewhere
+				// else.
+				b.WriteString(" (a NOT_CHECKED property is not a pass)")
+				break
+			}
+		}
+	}
+	if r.Warnings > 0 {
+		fmt.Fprintf(&b, ", with %d warning(s) a run proceeds past", r.Warnings)
 	}
 	return b.String()
 }

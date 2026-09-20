@@ -72,7 +72,9 @@ func assertClusterOnFirstContact(ctx context.Context, store staterecord.Store, r
 		// #1340: a waiver reaches only the settings it names. The warning a
 		// waived run owes is internal/command's, which sees every run and
 		// not just the first.
-		refused, _ := staterecord.SplitWaivedCluster(findings, rs.AllowInsecure)
+		// The warnings are internal/command's, which sees every apply; a
+		// first contact has no channel for one and must not refuse on it.
+		refused, _, _ := staterecord.SplitWaivedCluster(findings, rs.AllowInsecure)
 		if msg := ClusterContractRefusalText(RecordNamespace(rs, estate), refused); msg != "" {
 			refusal = &StoreRefusal{Err: errors.New(msg)}
 		}

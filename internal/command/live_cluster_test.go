@@ -103,6 +103,41 @@ func TestLiveClusterNotCheckedIsNotAPass(t *testing.T) {
 	}
 }
 
+// TestLiveClusterWarningsAreCountedAndNotSwallowed is the third verdict. A
+// warning is a concern a run proceeds past, so calling the cluster NOT
+// correct for one would make this report disagree with every apply; letting
+// a plain "correct" swallow it would hide the thing someone ran the report
+// for. It prints, it counts, and the verdict line names the count.
+func TestLiveClusterWarningsAreCountedAndNotSwallowed(t *testing.T) {
+	findings := clusterFindings()
+	findings[1] = staterecord.ClusterFinding{
+		Setting: staterecord.ClusterReadIsolation, Warning: true,
+		Found: "this identity may get and list secrets in EVERY namespace, and this cluster holds no other tofu-records-* namespace today, so nothing is exposed yet",
+	}
+	r := buildLiveClusterReport(clusterNS, "alice", "apply", findings, nil)
+	if !r.Correct {
+		t.Error("a warning made the cluster NOT correct; a run proceeds past it, so the report would disagree with every apply")
+	}
+	if r.Warnings != 1 {
+		t.Errorf("Warnings = %d, want 1", r.Warnings)
+	}
+	if r.Settings[1].Verdict != "warn" {
+		t.Errorf("verdict %q, want warn", r.Settings[1].Verdict)
+	}
+	text := renderLiveClusterReport(r)
+	if !strings.Contains(text, "WARN") {
+		t.Errorf("the table does not print the verdict:\n%s", text)
+	}
+	if !strings.Contains(text, "with 1 warning(s) a run proceeds past") {
+		t.Errorf("the verdict line swallows the warning:\n%s", text)
+	}
+
+	// A clean cluster's verdict line says nothing about warnings.
+	if clean := renderLiveClusterReport(buildLiveClusterReport(clusterNS, "alice", "apply", clusterFindings(), nil)); strings.Contains(clean, "warning") {
+		t.Errorf("a cluster with no warnings mentions warnings:\n%s", clean)
+	}
+}
+
 // TestLiveClusterReportsEveryVerbItReviewed is what makes the report usable
 // for the question an operator actually has: which verb is missing. The
 // namespace_access line carries all five, with the authorizer's answer and

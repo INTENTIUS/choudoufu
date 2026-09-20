@@ -150,6 +150,22 @@ type ClusterFinding struct {
 	// in allow_insecure instead.
 	NotChecked bool
 
+	// Warning is true for a finding that is a concern and not a refusal: it
+	// is said out loud on every apply and the run goes on. It is never true
+	// together with OK, because it is not a pass either.
+	//
+	// One finding uses it, and the reason is the difference between a
+	// capability and a breach. An identity that may list Secrets
+	// cluster-wide on a cluster where no other estate keeps records has
+	// exposed nothing yet, and refusing it would refuse every cluster-admin
+	// running the first estate on a fresh cluster - a gate everyone routes
+	// around on their first day, which this repository has learned protects
+	// nothing (#1102). An identity that may read a records namespace that
+	// EXISTS and belongs to another estate is a breach, and that refuses.
+	// GitHub issue #1393 asks for a warning as the floor and the refusal
+	// where the other namespace is known, which is exactly this split.
+	Warning bool
+
 	// Found says what the cluster actually has, in one clause, for the
 	// refusal to quote.
 	Found string
@@ -335,6 +351,17 @@ func checkNamespaceAccess(ctx context.Context, cs kubernetes.Interface, opts Clu
 		}
 	}
 
+	// What the verbs came to, said the same way whatever the namespace probe
+	// below turns out to be: a finding that dropped the verb summary because
+	// the namespace could not be read would leave an operator with a
+	// refusal that does not say which verb is missing. That is what the
+	// first version of this function did.
+	verbs := verbSummary(f.Verbs, required)
+	if len(missing) > 0 {
+		verbs = fmt.Sprintf("this identity may not %s secrets in namespace %q (%s)",
+			strings.Join(missing, ", "), opts.Namespace, verbs)
+	}
+
 	// The namespace's existence. A caller that has already used the
 	// namespace says so and nothing is re-probed; see
 	// [ClusterContractOptions.NamespaceKnownToExist].
@@ -352,24 +379,16 @@ func checkNamespaceAccess(ctx context.Context, cs kubernetes.Interface, opts Clu
 			// on namespaces. Whether the namespace is there is then settled
 			// by the store's first use of it, which is where the refusal
 			// lives, so this is reported and not asserted.
-			f.Found = fmt.Sprintf("this identity may not get namespace %q, so whether it exists was not established here; the store refuses an absent one by name on its first write", opts.Namespace)
-			if len(missing) == 0 {
-				f.OK = true
-				f.Found = verbSummary(f.Verbs, required) + "; " + f.Found
-			}
+			f.Found = verbs + fmt.Sprintf("; this identity may not get namespace %q, so whether it exists was not established here, and the store refuses an absent one by name on its first write", opts.Namespace)
+			f.OK = len(missing) == 0
 			return f, nil
 		default:
 			return f, fmt.Errorf("staterecord: kubernetes: reading namespace %q: %w", opts.Namespace, err)
 		}
 	}
 
-	if len(missing) > 0 {
-		f.Found = fmt.Sprintf("this identity may not %s secrets in namespace %q (%s)",
-			strings.Join(missing, ", "), opts.Namespace, verbSummary(f.Verbs, required))
-		return f, nil
-	}
-	f.OK = true
-	f.Found = verbSummary(f.Verbs, required)
+	f.Found = verbs
+	f.OK = len(missing) == 0
 	return f, nil
 }
 
@@ -398,20 +417,24 @@ func joinOrNone(s []string) string {
 // checkReadIsolation is assertion 2. The namespace is the read boundary, so
 // the question is whether this identity can read Secrets outside it.
 //
-// The assertion itself is the cluster-wide review: may this identity get or
-// list Secrets in EVERY namespace. That one is answerable by any identity,
-// because a SelfSubjectAccessReview needs no permission, so it is the part
-// that carries the verdict.
+// # What refuses and what only warns
 //
-// Enumerating other estates' records namespaces is the second half, and it is
-// evidence rather than assertion: it needs list on namespaces, which the
+// The refusal is a records namespace that EXISTS, belongs to another estate,
+// and is readable by this identity. That is the boundary being absent, and
+// what makes it findable without cluster-wide permission is that the other
+// estate's namespace is asked about by name.
+//
+// Being able to get or list Secrets cluster-wide, on a cluster where no other
+// estate keeps records, is a capability and not yet a breach, and it is the
+// ordinary state of every cluster-admin standing up the first estate. So it
+// warns: loud on every apply, never a refusal. GitHub issue #1393 asks for a
+// warning as the floor here and the refusal where the other namespace is
+// known, and a gate that refused every first estate would be a gate everyone
+// waives on their first day (#1102).
+//
+// Enumerating the other namespaces needs list on namespaces, which the
 // recommended Role does not carry. When it cannot be done the finding says so
-// in as many words - "other estates' records namespaces could not be
-// enumerated" - rather than reporting a pass it did not earn. When it CAN be
-// done and a foreign records namespace turns out to be readable, that fails
-// the finding, because it is the boundary being absent in the one way the
-// cluster-wide review does not see (a RoleBinding in someone else's
-// namespace).
+// in as many words rather than implying both questions were asked.
 func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (ClusterFinding, error) {
 	f := ClusterFinding{Setting: ClusterReadIsolation}
 
@@ -425,19 +448,14 @@ func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts Clust
 			wide = append(wide, verb)
 		}
 	}
+	wideClause := ""
 	if len(wide) > 0 {
-		f.Found = fmt.Sprintf("this identity may %s secrets in EVERY namespace, so the records namespace fences nothing: every other estate's records in this cluster are readable by this run", strings.Join(wide, " and "))
-		return f, nil
+		wideClause = fmt.Sprintf("this identity may %s secrets in EVERY namespace, so the records namespace fences nothing against it", strings.Join(wide, " and "))
 	}
 
 	foreign, enumerated, err := foreignRecordNamespaces(ctx, cs, opts.Namespace)
 	if err != nil {
 		return f, err
-	}
-	if !enumerated {
-		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q; other estates' records namespaces could not be enumerated, because listing namespaces is not permitted here, so whether a RoleBinding elsewhere reaches one was not checked", opts.Namespace)
-		f.OK = true
-		return f, nil
 	}
 
 	var readable []string
@@ -462,15 +480,30 @@ func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts Clust
 	}
 	if len(readable) > 0 {
 		f.Found = fmt.Sprintf("this identity may read Secrets in another estate's records namespace: %s", strings.Join(readable, ", "))
+		if wideClause != "" {
+			f.Found += "; " + wideClause
+		}
 		return f, nil
 	}
-	f.OK = true
+
 	switch {
+	case !enumerated && wideClause != "":
+		f.Warning = true
+		f.Found = wideClause + ", and other estates' records namespaces could not be enumerated here (listing namespaces is not permitted), so whether any exist was not checked"
+	case !enumerated:
+		f.OK = true
+		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q; other estates' records namespaces could not be enumerated, because listing namespaces is not permitted here, so whether a RoleBinding elsewhere reaches one was not checked", opts.Namespace)
+	case wideClause != "":
+		f.Warning = true
+		f.Found = wideClause + fmt.Sprintf(", and this cluster holds no other %s* namespace today, so nothing is exposed yet; the first estate that joins this cluster will be", KubernetesRecordNamespacePrefix)
 	case reviewed == 0:
+		f.OK = true
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and this cluster holds no other %s* namespace to check", opts.Namespace, KubernetesRecordNamespacePrefix)
 	case truncated:
+		f.OK = true
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in the first %d of %d other %s* namespaces", opts.Namespace, reviewed, len(foreign), KubernetesRecordNamespacePrefix)
 	default:
+		f.OK = true
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in all %d other %s* namespace(s)", opts.Namespace, reviewed, KubernetesRecordNamespacePrefix)
 	}
 	return f, nil
@@ -694,9 +727,14 @@ func ClusterContractRefusal(namespace string, f ClusterFinding) (summary, detail
 		why = "The record Secrets carry the estate's tofu-estate label, and that policy is what stops an identity bound to another estate from writing them. Without it in force, any identity with write access to this namespace can overwrite or delete another estate's records, and a record can be the only copy of what it says."
 		fix = "Install it, as a cluster admin: `kubectl apply -f live/kubernetes/estate-boundary.yaml`. It is one policy and one binding, cluster-wide, and it is the same object every other Kubernetes estate check in this repository uses."
 	}
+	if f.Warning {
+		summary = fmt.Sprintf("The record store cluster's %s is weaker than it should be", f.Setting)
+		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nThe run goes on, because nothing is exposed by this yet. %s", namespace, f.Found, why, fix)
+		return summary, detail
+	}
 	if f.NotChecked {
 		summary = fmt.Sprintf("The record store cluster's %s could not be checked", f.Setting)
-		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nA property nobody could check is refused the same as one that failed, because the records depend on it either way. %s\n\nIf this cluster cannot answer the question at all, name %q in the record_store block's allow_insecure list. That waives this assertion, says so on every run, and records in the configuration which risk was accepted.", namespace, f.Found, why, fix, f.Setting)
+		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nThe run goes on and this is not a pass: nothing here says the property holds, and this says so on every run for as long as it cannot be read. %s\n\nTo stop hearing it, name %q in the record_store block's allow_insecure list, which records in the configuration which risk was accepted. `choudoufu live-cluster`, run by an identity that can read what this one cannot, answers the question properly and exits non-zero until it does.", namespace, f.Found, why, fix, f.Setting)
 		return summary, detail
 	}
 	summary = fmt.Sprintf("The record store cluster fails its %s assertion", f.Setting)
@@ -722,15 +760,39 @@ func ClusterWaiverCost(setting ClusterSetting) string {
 	return "that assertion is not made"
 }
 
-// SplitWaivedCluster sorts the findings that did not pass into the ones the
-// run must refuse on and the ones waived names, leaving passing findings out
-// of both. A waiver reaches exactly the settings it names.
+// SplitWaivedCluster sorts the findings that did not pass into the ones a RUN
+// must refuse on, the ones it must WARN about, and the ones waived names,
+// leaving passing findings out of all three. A waiver reaches exactly the
+// settings it names, and silences a warning as well as a refusal.
 //
-// A NotChecked finding is waived by the same name as a failing one. From the
-// caller's side they are one refusal - the run cannot rely on the property -
-// and an operator on a managed control plane has no other way past
-// encryption_at_rest.
-func SplitWaivedCluster(findings []ClusterFinding, waived []string) (refused, waivedFailing []ClusterFinding) {
+// # Why a NotChecked finding warns a run and fails a report
+//
+// The two callers are asking different questions and the answer differs.
+//
+// `choudoufu live-cluster` asks "is this cluster correct". A property nobody
+// could read is not a pass there: the report prints NOT_CHECKED, calls the
+// cluster NOT correct and exits non-zero, so the operator who ran it on
+// purpose goes and gets the answer from outside the cluster. That is what
+// GitHub issue #1393 asks of the report, and internal/command's
+// live_cluster.go does not go through this function.
+//
+// A RUN asks "may I proceed". There, a refusal on NotChecked would refuse
+// every correctly scoped identity, because scoped is exactly what makes the
+// two cluster-wide reads impossible: the Role the docs recommend holds
+// Secrets in one namespace and cannot list kube-system's Pods or get a
+// ValidatingAdmissionPolicy. Every CI job in the intended arrangement would
+// then carry allow_insecure = ["encryption_at_rest", "estate_boundary"] from
+// its first day - a gate satisfied by a line in the configuration, which this
+// repository has paid to learn protects nothing (#1102). So it warns: by
+// name, with its cost, on every apply, which is #1340's whole standard for a
+// thing a run proceeds past.
+//
+// What still refuses is a property that WAS read and is wrong. A cluster
+// whose API server carries no --encryption-provider-config, an estate
+// boundary policy that is absent or does not deny, a records namespace of
+// another estate this identity can read: each of those is a fact somebody can
+// act on, and each of them refuses.
+func SplitWaivedCluster(findings []ClusterFinding, waived []string) (refused, warned, waivedFailing []ClusterFinding) {
 	for _, f := range findings {
 		if f.OK {
 			continue
@@ -742,11 +804,14 @@ func SplitWaivedCluster(findings []ClusterFinding, waived []string) (refused, wa
 				break
 			}
 		}
-		if isWaived {
+		switch {
+		case isWaived:
 			waivedFailing = append(waivedFailing, f)
-		} else {
+		case f.Warning, f.NotChecked:
+			warned = append(warned, f)
+		default:
 			refused = append(refused, f)
 		}
 	}
-	return refused, waivedFailing
+	return refused, warned, waivedFailing
 }
