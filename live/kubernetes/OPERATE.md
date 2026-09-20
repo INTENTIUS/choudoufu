@@ -53,8 +53,23 @@ conditionally on `resourceVersion` with no Lease. Give each estate its own
 namespace, because RBAC cannot condition on a label and the namespace is what
 keeps one estate out of another's records.
 [Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#the-cluster) has
-the rest. A plan job needs `get` and `list` on those Secrets and nothing
-more.
+the rest.
+
+A plan job needs `get` and `list` on those Secrets and nothing more, once the
+estate has been applied at least once by an identity that may write. That
+first run leaves a sentinel record behind, and a plan reads it rather than
+writing one. Before it, a plan-only identity is refused by name, because a
+store with no sentinel is indistinguishable from an empty estate. An apply
+needs `create`, `update` and `delete` as well.
+
+Before it writes a record, the store checks the namespace, this identity's
+access to Secrets in it, whether another estate's records are readable, whether
+Secrets are encrypted at rest, and whether the estate boundary policy is in
+force. It asks once, on the estate's first contact with the store, and again
+before every apply. `choudoufu live-cluster` asks the same four on demand and
+writes nothing; `-plan-identity` asks what a plan job needs instead of what an
+apply needs. Two of the four are not readable by a scoped Role, and a run says
+so on every run rather than calling them a pass.
 
 ## Two runs at once
 
