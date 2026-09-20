@@ -581,16 +581,23 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	// AWS-only state under a 64-character estate is untouched by this,
 	// because no entry in it carries a marker as a label.
 	if labelCarriers > 0 && !markers.ValidLabelValue(req.Estate) {
-		instances := fmt.Sprintf("%d resource instances", labelCarriers)
+		// Written out twice rather than assembled from a count and a
+		// plural "s": the sentence disagrees with itself in four places at
+		// once ("instances ... carry their ... these objects ... every one
+		// of them"), and one object is the ordinary case for a small
+		// estate.
+		detail := fmt.Sprintf(
+			"%d resource instances in this state carry their ownership marker as a Kubernetes label, and the estate name %q cannot be written as one: %s. An estate name may be up to 128 characters, so this name is legal for an AWS estate and not for these objects. Nothing was ratified and nothing was written; -approve would have failed on every one of them. Migrate them under a name that is a legal label value.",
+			labelCarriers, req.Estate, labelValueProblem(req.Estate))
 		if labelCarriers == 1 {
-			instances = "1 resource instance"
+			detail = fmt.Sprintf(
+				"1 resource instance in this state carries its ownership marker as a Kubernetes label, and the estate name %q cannot be written as one: %s. An estate name may be up to 128 characters, so this name is legal for an AWS estate and not for this object. Nothing was ratified and nothing was written; -approve would have failed on it. Migrate it under a name that is a legal label value.",
+				req.Estate, labelValueProblem(req.Estate))
 		}
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Estate name cannot be written as a Kubernetes label",
-			fmt.Sprintf(
-				"%s in this state carry their ownership marker as a Kubernetes label, and the estate name %q cannot be written as one: %s. An estate name may be up to 128 characters, so this name is legal for an AWS estate and not for these objects. Nothing was ratified and nothing was written; -approve would have failed on every one of them. Migrate them under a name that is a legal label value.",
-				instances, req.Estate, labelValueProblem(req.Estate)),
+			detail,
 		))
 	}
 

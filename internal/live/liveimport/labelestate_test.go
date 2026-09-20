@@ -72,8 +72,15 @@ func TestRatify_LongEstateRefusedOnceForALabelSurfaceState(t *testing.T) {
 		// Which rule it broke, and the limit that broke it.
 		"64 characters long",
 		"capped at 63",
-		// How many objects it affects.
-		"1 resource instance",
+		// How many objects it affects, with the verb and the pronoun that
+		// go with one of them: the plural arm of this sentence reads "1
+		// resource instance in this state carry their ownership marker",
+		// which is why the two are written out separately.
+		"1 resource instance in this state carries its ownership marker",
+		// And the rest of the sentence, which agrees three more times.
+		"not for this object",
+		"would have failed on it",
+		"Migrate it under",
 	} {
 		if !strings.Contains(desc.Summary+" "+desc.Detail, want) {
 			t.Errorf("the refusal does not contain %q:\n%s\n%s", want, desc.Summary, desc.Detail)
@@ -161,7 +168,7 @@ func TestRatify_LongEstateRefusalCountsTheObjects(t *testing.T) {
 	if rat != nil || len(errs) != 1 {
 		t.Fatalf("want exactly one refusal and no ratification, got rat=%v and %d errors", rat != nil, len(errs))
 	}
-	if detail := errs[0].Description().Detail; !strings.Contains(detail, "2 resource instances") {
+	if detail := errs[0].Description().Detail; !strings.Contains(detail, "2 resource instances in this state carry their ownership marker") {
 		t.Errorf("the refusal does not count both objects:\n%s", detail)
 	}
 }
