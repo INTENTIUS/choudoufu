@@ -133,7 +133,7 @@ func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.Li
 		return nil, err
 	}
 	if createdVersion != "" {
-		if err := assertBucketOnFirstContact(ctx, counted, rs, estate, createdVersion); err != nil {
+		if err := assertStoreOnFirstContact(ctx, counted, rs, estate, createdVersion); err != nil {
 			return nil, err
 		}
 	}
@@ -418,6 +418,21 @@ func BucketContractFindings(ctx context.Context, store staterecord.Store, rs *co
 	}
 	findings, err = checker.CheckBucketContract(ctx, BucketNamespaces(rs, estate))
 	return findings, true, err
+}
+
+// assertStoreOnFirstContact runs whichever contract this store has. Exactly
+// one of them applies: a bucket store has the bucket contract (#1339), a
+// cluster store has the cluster contract (#1393), and a local store has
+// neither, which is not a store that failed.
+//
+// Both are asserted on first contact and again in internal/command's
+// BeforeApply, and an ordinary plan is deliberately neither. See
+// [assertBucketOnFirstContact] for the ruling and what it gives up.
+func assertStoreOnFirstContact(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate, sentinelVersion string) error {
+	if err := assertBucketOnFirstContact(ctx, store, rs, estate, sentinelVersion); err != nil {
+		return err
+	}
+	return assertClusterOnFirstContact(ctx, store, rs, estate, sentinelVersion)
 }
 
 // assertBucketOnFirstContact is one of the two places the bucket contract is

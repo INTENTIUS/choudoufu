@@ -45,6 +45,7 @@ func (r *statelessRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
 	if r.rawStore == nil || r.recordStoreCfg == nil {
 		return diags
 	}
+	diags = diags.Append(r.beforeApplyCluster(ctx))
 	findings, ok, err := projection.BucketContractFindings(ctx, r.rawStore, r.recordStoreCfg, r.recordEstate)
 	if !ok {
 		return diags
@@ -67,23 +68,76 @@ func (r *statelessRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
 	return diags.Append(bucketContractDiagnostics(r.recordStoreCfg.Bucket, refused))
 }
 
+// beforeApplyCluster is the cluster contract's half of BeforeApply (GitHub
+// issue #1393), on every apply for the reason the bucket's half runs on every
+// apply: an apply is the only run that writes records, and six reads are
+// nothing beside the writes it is about to make. It is also what catches
+// drift - an estate boundary policy somebody uninstalled last week is refused
+// by the next apply, before that apply's first write.
+//
+// All five of the store's verbs are required here. An apply writes records,
+// so a plan-only identity is not what this run has.
+func (r *statelessRunner) beforeApplyCluster(ctx context.Context) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	findings, ok, err := projection.ClusterContractFindings(ctx, r.rawStore, staterecord.KubernetesRecordVerbs)
+	if !ok {
+		return diags
+	}
+	namespace := projection.RecordNamespace(r.recordStoreCfg, r.recordEstate)
+	if err != nil {
+		return diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot check the record store cluster",
+			fmt.Sprintf("Before applying, the cluster this estate keeps its records in is checked for the properties those records depend on, and that check could not be made: %s. Nothing has been applied.", err),
+		))
+	}
+	refused, waivedFailing := staterecord.SplitWaivedCluster(findings, r.recordStoreCfg.AllowInsecure)
+	for _, f := range waivedFailing {
+		// The every-run warning (recordStoreWaiverWarnings) is made from the
+		// configuration alone and cannot know whether the waiver is hiding
+		// anything. This run just read the cluster, so it can.
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+			fmt.Sprintf("The waived %s assertion would have refused this apply", f.Setting),
+			fmt.Sprintf("Namespace %q: %s. The apply proceeds because allow_insecure names %q.", namespace, f.Found, f.Setting),
+		))
+	}
+	for _, f := range refused {
+		summary, detail := staterecord.ClusterContractRefusal(namespace, f)
+		if summary == "" {
+			continue
+		}
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail+"\n\nNothing has been applied."))
+	}
+	return diags
+}
+
 // bucketWaiverWarnings is one warning per waived assertion, made from the
 // configuration alone so that it costs no request and lands on a plan as
 // well as an apply. GitHub issue #1340: a waiver is loud on EVERY run, not
 // only the one it was first set on. A waiver that goes quiet after the first
-// apply is indistinguishable from a bucket that passes, and a flag nobody is
+// apply is indistinguishable from a store that passes, and a flag nobody is
 // reminded of is a flag nobody revisits.
+//
+// Both remote backends get one, with their own names and their own costs: the
+// bucket's three settings (#1339) and the cluster's four (#1393).
 func bucketWaiverWarnings(rs *configs.LiveRecordStore) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if rs == nil {
 		return diags
 	}
 	for _, name := range rs.AllowInsecure {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
-			fmt.Sprintf("The record store bucket's %s assertion is waived", name),
-			fmt.Sprintf("record_store \"s3\" names %q in allow_insecure for bucket %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
-				name, rs.Bucket, staterecord.BucketWaiverCost(staterecord.BucketSetting(name))),
-		))
+		switch rs.Type {
+		case "kubernetes":
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+				fmt.Sprintf("The record store cluster's %s assertion is waived", name),
+				fmt.Sprintf("record_store \"kubernetes\" names %q in allow_insecure, so %s. This warning repeats on every run for as long as the waiver is configured.",
+					name, staterecord.ClusterWaiverCost(staterecord.ClusterSetting(name))),
+			))
+		default:
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+				fmt.Sprintf("The record store bucket's %s assertion is waived", name),
+				fmt.Sprintf("record_store \"s3\" names %q in allow_insecure for bucket %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
+					name, rs.Bucket, staterecord.BucketWaiverCost(staterecord.BucketSetting(name))),
+			))
+		}
 	}
 	return diags
 }
