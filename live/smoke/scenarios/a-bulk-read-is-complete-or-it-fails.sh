@@ -50,13 +50,28 @@ explain \
 
 # The binary under test. BREAK=1 swaps in one whose fan-out drops a failed
 # GET's key and carries on, which is the defect.
+#
+# The corruption takes TWO edits, not one, and it did not always. Until
+# GitHub issue #1355 the fan-out's own swallowed failure was enough on its
+# own: a key with no record fetched for it was simply left out of the map
+# that was built at the end, so swallowing the failure produced the short
+# map directly. #1355 made a key with no record fetched for it a refusal in
+# its own right, so with only the first edit the broken binary still fails
+# the read - for the second reason rather than the first - and the plan it
+# produces is true. A control that no longer reaches the thing it controls
+# for is not a control, so the second edit puts the omission back.
 RUN_BIN="$TOFU"
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - a fan-out that drops a failed key must be caught at the plan"
   explain \
-    "The corruption is in the binary: the fan-out swallows a failed call" \
-    "instead of failing the read. It is built with go build -overlay, so" \
-    "the source tree is never touched, and it needs this checkout and Go."
+    "The corruption is in the binary, in two edits that together are the" \
+    "bulk read as it stood before issue #1355: the fan-out swallows a" \
+    "failed call instead of failing the read, AND the map it builds at the" \
+    "end leaves out every key it never fetched a record for, rather than" \
+    "refusing over them. Either edit alone leaves a binary that still" \
+    "fails the read, which would test nothing. It is built with" \
+    "go build -overlay, so the source tree is never touched, and it needs" \
+    "this checkout and Go."
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "bulkread" "BREAK=1 rebuilds choudoufu from this checkout; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
   command -v go >/dev/null 2>&1 || fail "bulkread" "BREAK=1 needs Go to build the broken binary"
@@ -65,9 +80,37 @@ if [ "${BREAK:-0}" = "1" ]; then
   python3 - "$SRC" "$SMOKE_WORK/break/bulk.go" <<'PYEOF'
 import sys
 src = open(sys.argv[1]).read()
-old = "\t\t\t\t\tfailOnce.Do(func() {\n\t\t\t\t\t\tfailure = err\n\t\t\t\t\t\tcancel()\n\t\t\t\t\t})\n"
-assert src.count(old) == 1, "the break patch no longer matches boundedFanOut"
-open(sys.argv[2], "w").write(src.replace(old, "\t\t\t\t\tfailOnce.Do(func() {})\n"))
+
+# Edit 1: the fan-out swallows the failure instead of recording it.
+swallow = "\t\t\t\t\tfailOnce.Do(func() {\n\t\t\t\t\t\tfailure = err\n\t\t\t\t\t\tcancel()\n\t\t\t\t\t})\n"
+assert src.count(swallow) == 1, "the break patch no longer matches boundedFanOut"
+src = src.replace(swallow, "\t\t\t\t\tfailOnce.Do(func() {})\n")
+
+# Edit 2: the map leaves out the keys nothing was fetched for, instead of
+# refusing over them (issue #1355). Without this the swallowed failure above
+# is caught here instead, and the broken binary produces a true plan.
+refuse = """\tvar vanished []string
+\tfor i, rec := range found {
+\t\tif rec == nil {
+\t\t\tvanished = append(vanished, keys[i])
+\t\t}
+\t}
+\tif len(vanished) > 0 {
+"""
+start = src.index(refuse)
+end = src.index("\treturn out, nil\n}", start) + len("\treturn out, nil\n}")
+src = src[:start] + """\tout := make(map[string]Record, len(keys))
+\tfor i, rec := range found {
+\t\tif rec != nil {
+\t\t\tout[keys[i]] = *rec
+\t\t}
+\t}
+\treturn out, nil
+}""" + src[end:]
+assert "namesVanished(vanished)" not in src.split("func (s *S3Store) GetAll")[1].split("\nfunc ")[0], \
+    "the break patch left S3Store.GetAll still refusing over an unfetched key"
+
+open(sys.argv[2], "w").write(src)
 PYEOF
   [ -s "$SMOKE_WORK/break/bulk.go" ] || fail "bulkread" "the break patch did not apply to $SRC, so this arm would pass by testing the real binary"
   printf '{"Replace":{"%s":"%s"}}\n' "$SRC" "$SMOKE_WORK/break/bulk.go" > "$SMOKE_WORK/break/overlay.json"

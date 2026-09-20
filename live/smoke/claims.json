@@ -728,7 +728,7 @@
       "minutes": 2,
       "needs_go": true,
       "theme": "operate",
-      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the fan-out drops a failed GET's key (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the plan is caught proposing to create a resource that exists",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the bulk read is the one that stood before issue #1355 - the fan-out swallows a failed GET and the map it builds leaves that key out (go build -overlay, so it needs Go and cannot break a release binary) - and passes only when the plan is caught proposing to create a resource that exists",
       "providers": {
         "aws": {
           "status": "proven",
