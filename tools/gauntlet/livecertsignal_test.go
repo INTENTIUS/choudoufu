@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -221,7 +222,9 @@ func TestSignalledLiveCertForwardsToTheGroupAndWaitsForTheTrap(t *testing.T) {
 	select {
 	case got = <-done:
 	case <-time.After(90 * time.Second):
-		t.Fatalf("RunLiveCert never returned after the SIGTERM; the supervisor's own grace period should have bounded this")
+		t.Errorf("RunLiveCert never returned after the SIGTERM")
+		t.Fatalf("diagnostics at the moment of the timeout:\n%s\n%s",
+			processGroupTable(bashPid), goroutineDump())
 	}
 	if got.err != nil {
 		t.Fatalf("RunLiveCert: %v", got.err)
@@ -643,6 +646,13 @@ func runSignalledStub(t *testing.T, estate string, opts stubOpts) (root string, 
 	return root, ch, trapFile, bashPid, grandPid
 }
 
+// awaitStub is awaitOutcome with the script's process group known, since the
+// script leads its own group and its pid is therefore its pgid.
+func awaitStub(t *testing.T, ch <-chan liveCertOutcome, bound time.Duration, bashPid int) liveCertOutcome {
+	t.Helper()
+	return awaitOutcomeOf(t, ch, bound, bashPid)
+}
+
 // absorbStraySignals keeps a signal this test sends to itself from killing
 // the test binary when RunLiveCert is not the one that ends up handling it.
 //
@@ -688,13 +698,78 @@ func (o liveCertOutcome) must(t *testing.T) liveCertOutcome {
 
 func awaitOutcome(t *testing.T, ch <-chan liveCertOutcome, bound time.Duration) liveCertOutcome {
 	t.Helper()
+	return awaitOutcomeOf(t, ch, bound, 0)
+}
+
+// awaitOutcomeOf waits for the run and, if it does not come back, prints what
+// a reader needs to tell the three candidate causes apart before failing.
+//
+// "RunLiveCert never returned within 1m30s" on its own is not actionable: it
+// says a wait did not end and nothing about which side wedged. The gate on
+// main hit exactly that (2026-09-20) and the only way to find out what had
+// happened was to reproduce it. Everything below is the state that was
+// missing, captured at the moment the test gives up:
+//
+//   - the process table for the script's own process group, which
+//     distinguishes "the script is gone and this process is stuck" from
+//     "the script is sitting in a sleep nothing signalled", including each
+//     process's STAT and elapsed time;
+//   - every goroutine's stack, which says whether cmd.Wait is blocked on the
+//     process or on copying its output, and whether the supervisor loop is
+//     still running.
+//
+// pgid may be 0 when the caller has not learned it yet.
+func awaitOutcomeOf(t *testing.T, ch <-chan liveCertOutcome, bound time.Duration, pgid int) liveCertOutcome {
+	t.Helper()
 	select {
 	case got := <-ch:
 		return got
 	case <-time.After(bound):
-		t.Fatalf("RunLiveCert never returned within %s", bound)
+		t.Errorf("RunLiveCert never returned within %s", bound)
+		t.Fatalf("diagnostics at the moment of the timeout:\n%s\n%s",
+			processGroupTable(pgid), goroutineDump())
 	}
 	return liveCertOutcome{}
+}
+
+// processGroupTable prints every process in pgid, and says so plainly when
+// there are none - an empty group means the script is gone and whatever is
+// still waiting is on this side.
+func processGroupTable(pgid int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "=== processes in the script's process group (pgid %d) ===\n", pgid)
+	if pgid == 0 {
+		b.WriteString("  (the test had not learned the pgid yet)\n")
+		return b.String()
+	}
+	out, err := exec.Command("ps", "-eo", "pid,ppid,pgid,stat,etime,command").CombinedOutput() //nolint:gosec // fixed arguments
+	if err != nil {
+		fmt.Fprintf(&b, "  (ps failed: %v)\n", err)
+		return b.String()
+	}
+	lines := strings.Split(string(out), "\n")
+	found := 0
+	for i, line := range lines {
+		f := strings.Fields(line)
+		if i == 0 || (len(f) > 2 && f[2] == strconv.Itoa(pgid)) {
+			fmt.Fprintf(&b, "  %s\n", strings.TrimRight(line, " "))
+			if i > 0 {
+				found++
+			}
+		}
+	}
+	if found == 0 {
+		b.WriteString("  (none: every process in the group has exited, so the wait that did not end is on the Go side)\n")
+	}
+	return b.String()
+}
+
+// goroutineDump is every goroutine's stack, which is what says whether
+// cmd.Wait is blocked on the process itself or on the copy of its output.
+func goroutineDump() string {
+	buf := make([]byte, 1<<20)
+	n := runtime.Stack(buf, true)
+	return "=== all goroutine stacks ===\n" + string(buf[:n])
 }
 
 // TestNoDefaultBoundKillsATeardown is the policy, stated as a test.
@@ -723,7 +798,7 @@ func TestNoDefaultBoundKillsATeardown(t *testing.T) {
 	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
 		t.Fatalf("SIGTERM: %v", err)
 	}
-	got := awaitOutcome(t, ch, 90*time.Second).must(t)
+	got := awaitStub(t, ch, 90*time.Second, bashPid).must(t)
 
 	if _, err := os.Stat(trapFile); err != nil {
 		t.Errorf("the teardown did not finish (%v): something killed it, and nothing is supposed to", err)
@@ -770,7 +845,7 @@ func TestRepeatSignalsDoNotKillARunningTeardown(t *testing.T) {
 			t.Fatalf("sending %v: %v", sig, err)
 		}
 	}
-	got := awaitOutcome(t, ch, 90*time.Second).must(t)
+	got := awaitStub(t, ch, 90*time.Second, bashPid).must(t)
 
 	if _, err := os.Stat(trapFile); err != nil {
 		t.Errorf("the teardown was killed by a repeat signal (%v).\n"+
@@ -827,7 +902,7 @@ func TestSigpipeIsNotAStopRequest(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	got := awaitOutcome(t, ch, 60*time.Second).must(t)
+	got := awaitStub(t, ch, 60*time.Second, bashPid).must(t)
 
 	if got.r.State != RunStateFinished {
 		t.Errorf("state is %q, want %q: SIGPIPE is not a stop request, and a dead stdout must not stop a certification", got.r.State, RunStateFinished)
@@ -859,7 +934,7 @@ func TestOptInBoundStillKills(t *testing.T) {
 	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
 		t.Fatalf("SIGTERM: %v", err)
 	}
-	got := awaitOutcome(t, ch, 90*time.Second).must(t)
+	got := awaitStub(t, ch, 90*time.Second, bashPid).must(t)
 
 	if _, err := os.Stat(trapFile); err == nil {
 		t.Errorf("the 30s teardown finished under a 1s bound, so the bound did nothing and this test proves nothing")
@@ -895,7 +970,7 @@ func TestTheWaitIsNotSilent(t *testing.T) {
 	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
 		t.Fatalf("SIGTERM: %v", err)
 	}
-	awaitOutcome(t, ch, 90*time.Second).must(t)
+	awaitStub(t, ch, 90*time.Second, bashPid).must(t)
 
 	log := runLogText(t, root, "waitlineestate")
 	n := strings.Count(log, "still waiting for teardown")
@@ -905,5 +980,174 @@ func TestTheWaitIsNotSilent(t *testing.T) {
 	}
 	if !strings.Contains(log, fmt.Sprintf("pgid %d", bashPid)) {
 		t.Errorf("the waiting line does not name the process group, which is what a human needs to act on it")
+	}
+}
+
+// deferredTrapStub writes a stub whose trap is NOT armed when the first
+// SIGTERM arrives, which is the shape the fork race produces.
+//
+// The race itself is a timing accident and cannot be asked for: a signal to
+// a process group reaches the processes in it at that instant, and a command
+// bash forks microseconds later misses it while bash holds the trap pending
+// until that command finishes. Measured with a probe that spin-waits for the
+// script to reach a foreground `sleep` and then signals the group, the trap
+// was lost 19 times in 200 runs on an idle machine.
+//
+// This stub reproduces the CONSEQUENCE deterministically - a first SIGTERM
+// that does nothing - by ignoring TERM outright for its first couple of
+// seconds and arming the real trap afterwards. What the supervisor has to do
+// about it is identical either way: keep asking until the script answers.
+func deferredTrapStub(t *testing.T, root, estate string, ignoreSeconds int) (readyFile, pidFile, trapFile string) {
+	t.Helper()
+	dir := filepath.Join(root, "live", "live-cert")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	work := t.TempDir()
+	readyFile = filepath.Join(work, "ready")
+	pidFile = filepath.Join(work, "pids")
+	trapFile = filepath.Join(work, "trap-finished")
+
+	body := "#!/usr/bin/env bash\n" +
+		"set -uo pipefail\n" +
+		"echo \"GAUNTLET protocol=1\"\n" +
+		"printf 'bash=%s grand=%s\\n' \"$$\" \"$$\" > " + shQuote(pidFile) + "\n" +
+		"teardown() {\n" +
+		"  echo \"=== TEARDOWN (target=floci run=deferred) ===\"\n" +
+		"  echo \"  VERIFIED EMPTY by listing: nothing matching this run remains\"\n" +
+		"  touch " + shQuote(trapFile) + "\n" +
+		"  echo \"GAUNTLET stage=cold_deploy verdict=fail duration_s=1 detail=stopped by a signal\"\n" +
+		"}\n" +
+		// The window. A SIGTERM arriving here is discarded by the
+		// kernel, exactly as one arriving before a foreground child
+		// exists is discarded by that child.
+		"trap '' TERM INT\n" +
+		"touch " + shQuote(readyFile) + "\n" +
+		"sleep " + strconv.Itoa(ignoreSeconds) + "\n" +
+		"trap 'teardown; trap - EXIT; exit 130' INT TERM\n" +
+		"trap teardown EXIT\n" +
+		"sleep 120\n"
+
+	if err := os.WriteFile(filepath.Join(dir, estate+".sh"), []byte(body), 0o755); err != nil { //nolint:gosec // a fake script in a test's own temp dir
+		t.Fatal(err)
+	}
+	return readyFile, pidFile, trapFile
+}
+
+// TestTheStopRequestIsRepeatedUntilTheTrapAnswers is the fix for the gate
+// failure on main (2026-09-20): "RunLiveCert never returned within 1m30s".
+//
+// One kill to a process group is not a reliable way to reach a bash script,
+// and when it misses, the teardown does not start until whatever foreground
+// command bash forked next has finished - at scale, a `terraform plan` is
+// thirteen minutes of an estate the operator already asked to tear down.
+// With no default bound, which is deliberate, that is thirteen minutes of
+// "still waiting for teardown" and nothing happening.
+//
+// So the supervisor keeps asking until the script's own output says its trap
+// is running, and stops asking the moment it does - re-sending after that
+// would land on whatever destroy the teardown has forked, which is the thing
+// this file exists to protect.
+func TestTheStopRequestIsRepeatedUntilTheTrapAnswers(t *testing.T) {
+	absorbStraySignals(t)
+	t.Setenv(LiveCertSignalGraceEnv, "")
+	root := tempCheckout(t)
+	ready, pidFile, trapFile := deferredTrapStub(t, root, "deferredestate", 3)
+
+	ch := make(chan liveCertOutcome, 1)
+	go func() {
+		r, res, exit, err := RunLiveCert(root, "deferredestate", "floci", "us-east-1", 5, 0)
+		ch <- liveCertOutcome{r, res, exit, err}
+	}()
+	waitForFile(t, ready, 30*time.Second)
+	waitForFile(t, pidFile, 30*time.Second)
+	bashPid, _ := readStubPids(t, pidFile)
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatalf("SIGTERM: %v", err)
+	}
+	got := awaitStub(t, ch, 60*time.Second, bashPid).must(t)
+
+	if _, err := os.Stat(trapFile); err != nil {
+		t.Errorf("the teardown never ran (%v).\n"+
+			"The first SIGTERM was discarded, and nothing asked again - so the script sat in its 120s "+
+			"foreground sleep with the stop request lost. That is the gate failure on main, and at scale it "+
+			"is an estate still billing while the log says the run was signalled (#1324).", err)
+	}
+	if got.r.State != RunStateSignalledTornDown {
+		t.Errorf("state is %q, want %q", got.r.State, RunStateSignalledTornDown)
+	}
+	rec, err := ReadLiveCertRun(root, "deferredestate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.TrapResends < 1 {
+		t.Errorf("the record says %d re-send(s); the first signal was discarded by design here, so reaching teardown took at least one more", rec.TrapResends)
+	}
+	if alive(bashPid) {
+		t.Errorf("pid %d survived", bashPid)
+	}
+}
+
+// TestNoResendOnceTheTrapHasAnswered is the other half, and the one that
+// matters for spend: once teardown is running, another SIGTERM to the group
+// lands on whatever destroy it has forked.
+//
+// The ordinary stub answers immediately, so a re-send here would be a bug.
+// Its teardown is long enough to span several re-send intervals, so a
+// supervisor that kept asking would be caught.
+func TestNoResendOnceTheTrapHasAnswered(t *testing.T) {
+	absorbStraySignals(t)
+	t.Setenv(LiveCertSignalGraceEnv, "")
+	root, ch, trapFile, bashPid, _ := runSignalledStub(t, "noresendestate", stubOpts{runSeconds: 120, teardownSeconds: 6})
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatalf("SIGTERM: %v", err)
+	}
+	awaitStub(t, ch, 90*time.Second, bashPid).must(t)
+
+	if _, err := os.Stat(trapFile); err != nil {
+		t.Fatalf("the teardown did not finish: %v", err)
+	}
+	rec, err := ReadLiveCertRun(root, "noresendestate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.TrapResends != 0 {
+		t.Errorf("the supervisor re-sent SIGTERM %d time(s) to a group whose trap had already answered.\n"+
+			"Its teardown ran for 6s across %s intervals, so those signals landed on a teardown in progress - "+
+			"which is exactly what must never happen (#1324).", rec.TrapResends, liveCertResendEvery)
+	}
+}
+
+// TestTrapWatcherReadsTheScriptsOwnFirstLine pins what counts as the trap
+// answering, including a needle split across two writes.
+func TestTrapWatcherReadsTheScriptsOwnFirstLine(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		writes []string
+		want   bool
+	}{
+		{"nothing", []string{"GAUNTLET protocol=1\n"}, false},
+		{"ordinary apply output", []string{"aws_iam_role.x: Creation complete after 0s\n"}, false},
+		{"the teardown banner", []string{"=== TEARDOWN (target=aws run=x) ===\n"}, true},
+		{"on_signal's own line", []string{"=== caught TERM - forwarding to in-flight child (pid 9) ===\n"}, true},
+		{"split across two writes", []string{"=== TEAR", "DOWN (target=aws run=x) ===\n"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var sink strings.Builder
+			w := newTrapWatcher(&sink)
+			for _, chunk := range tc.writes {
+				if _, err := w.Write([]byte(chunk)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := w.Started(); got != tc.want {
+				t.Errorf("Started() = %v, want %v", got, tc.want)
+			}
+			if sink.String() != strings.Join(tc.writes, "") {
+				t.Errorf("the watcher changed the output it passed through: %q", sink.String())
+			}
+		})
 	}
 }
