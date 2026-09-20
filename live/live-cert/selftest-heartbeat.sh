@@ -219,12 +219,19 @@ fi
 # lines and silently rewrite a stage's measured wall time.
 log ""
 log "=== 5. heartbeat lines are not GAUNTLET lines ==="
-if grep -q '^HEARTBEAT ' "$WORK/case1.out" && ! grep -q '^GAUNTLET ' "$WORK/case1.out"; then
-  log "  the heartbeat speaks its own prefix; ParseProtocol ignores it and no stage's duration_s moves"
-else
+if ! grep -q '^HEARTBEAT ' "$WORK/case1.out"; then
+  # Distinguished from the GAUNTLET case on purpose. Reporting "a
+  # heartbeat line carries the protocol prefix" when there were no
+  # heartbeat lines at all sends the reader after the wrong defect, and a
+  # failure message is only worth anything the first time it appears.
+  log "FAIL: case 1 produced no heartbeat lines, so this case had nothing to inspect (see case 1's own failure above)"
+  pass=0
+elif grep -q '^GAUNTLET ' "$WORK/case1.out"; then
   log "FAIL: a heartbeat line carries the GAUNTLET protocol prefix, which would rewrite a stage's duration_s:"
   grep '^GAUNTLET ' "$WORK/case1.out" | sed 's/^/    /'
   pass=0
+else
+  log "  the heartbeat speaks its own prefix; ParseProtocol ignores it and no stage's duration_s moves"
 fi
 
 log ""
