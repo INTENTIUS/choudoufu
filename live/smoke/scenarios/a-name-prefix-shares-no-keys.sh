@@ -145,8 +145,9 @@ proof "$OWN_LISTS LIST request(s), every one under a prefix ending in a slash, a
 
 step "4. smoke-prod tears itself down; its neighbour does not notice"
 cmd "choudoufu apply -destroy -auto-approve   # in smoke-prod"
-( cd "$SMOKE_WORK/prod" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "nameprefix" "smoke-prod's teardown failed"
+D_OUT="$(cd "$SMOKE_WORK/prod" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
+  || fail "nameprefix" "smoke-prod's teardown failed: $D_OUT"
+destroyed_exactly nameprefix 1 "$D_OUT"
 EU_AFTER="$(list_keys "tofu-records/smoke-prod-eu/")"
 [ "$EU_BEFORE" = "$EU_AFTER" ] \
   || fail "nameprefix" "smoke-prod-eu's keys changed across smoke-prod's teardown. before: $EU_BEFORE after: $EU_AFTER"
@@ -156,8 +157,9 @@ grep -E 'No changes\.' <<< "$EU_PLAN" | head -1 | evidence
 grep -q "No changes." <<< "$EU_PLAN" || fail "nameprefix" "smoke-prod-eu's plan was not empty after its neighbour's teardown: $EU_PLAN"
 proof "smoke-prod is gone, and every key smoke-prod-eu had is still there and still plans empty."
 
-( cd "$SMOKE_WORK/prod-eu" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "nameprefix" "smoke-prod-eu's teardown failed"
+EU_D_OUT="$(cd "$SMOKE_WORK/prod-eu" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
+  || fail "nameprefix" "smoke-prod-eu's teardown failed: $EU_D_OUT"
+destroyed_exactly nameprefix 1 "$EU_D_OUT"
 
 echo "  What you watched: two estates sharing one bucket, the S3 API showing"
 echo "  that a prefix without its slash names both of them, and one estate's"

@@ -182,7 +182,7 @@ step "6. teardown"
 role_with_policy "$ROLE_A" "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || true
 for e in a b; do
   D_OUT="$(cd "$SMOKE_WORK/$e" && as_role "$(role_of "$e")" chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "manyestates" "estate $e's teardown failed: $D_OUT"
-  grep -q "2 destroyed" <<< "$D_OUT" || fail "manyestates" "estate $e's teardown did not destroy both instances: $D_OUT"
+  destroyed_exactly manyestates 2 "$D_OUT"
 done
 proof "both estates gone, each by its own role."
 

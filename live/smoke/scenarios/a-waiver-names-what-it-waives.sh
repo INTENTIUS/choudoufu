@@ -195,7 +195,8 @@ proof "refused at configuration load, naming the word it did not recognize in wh
 
 step "5. teardown"
 write_estate "$SMOKE_WORK/est" smoke-waived v2 '["versioning"]'
-run "$SMOKE_WORK/est" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "waiver" "teardown failed"
+D_OUT="$(run "$SMOKE_WORK/est" apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "waiver" "teardown failed: $D_OUT"
+destroyed_exactly waiver 1 "$D_OUT"
 proof "gone."
 
 echo "  What you watched: a waiver let one named assertion go, said so with"

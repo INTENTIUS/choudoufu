@@ -62,11 +62,18 @@ var (
 //
 // The exclusions are [LocalStore.List]'s exactly: a lockfile is not a
 // record, and a temp file is a write in progress that no reader may observe.
+//
+// A file the walk saw and the read no longer finds fails the whole bulk read,
+// for [S3Store.GetAll]'s reason (GitHub issue #1355): the walk and the read
+// disagreeing about what is in the directory means what came back is not a
+// snapshot of it, and a snapshot short by one key is how an instance drops
+// out of prior state with nothing said.
 func (s *LocalStore) GetAll(_ context.Context, keyPrefix string) (map[string]Record, error) {
 	if err := validateKeyPrefix(keyPrefix); err != nil {
 		return nil, err
 	}
 	out := map[string]Record{}
+	var vanished []string
 	err := filepath.WalkDir(s.dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -90,8 +97,9 @@ func (s *LocalStore) GetAll(_ context.Context, keyPrefix string) (map[string]Rec
 			return err
 		}
 		if !exists {
-			// Removed between the walk and the read: absent is the right
-			// answer, and leaving it out of the map is how absence is said.
+			// Removed between the walk and the read. Collected rather than
+			// skipped: see this method's doc comment.
+			vanished = append(vanished, key)
 			return nil
 		}
 		out[key] = Record{Payload: payload, Version: version}
@@ -99,6 +107,9 @@ func (s *LocalStore) GetAll(_ context.Context, keyPrefix string) (map[string]Rec
 	})
 	if err != nil {
 		return nil, fmt.Errorf("staterecord: local: reading everything under %q: %w", keyPrefix, err)
+	}
+	if len(vanished) > 0 {
+		return nil, fmt.Errorf("staterecord: local: reading everything under %q: %s, so the walk and the reads that follow it disagree about what this namespace holds; refused rather than returned short (GitHub issue #1355)", keyPrefix, namesVanished(vanished))
 	}
 	return out, nil
 }
@@ -146,9 +157,31 @@ const DefaultS3GetAllParallelism = 8
 // that stopped the feed with no GET in flight would otherwise leave no error
 // at all and a short map behind it.
 //
-// One omission is legitimate and is kept: a key that 404s between the LIST
-// and its GET was deleted in between, and leaving it out of the map is the
-// correct way to say so. That is a different thing from a GET that failed.
+// # A key the LIST named and the GET did not find
+//
+// This used to be the one omission that was kept: the key was read as
+// deleted between the LIST and its GET, and left out of the map as the
+// correct way to say so. GitHub issue #1355 is why it is not kept any more.
+//
+// The omission is correct about the store and wrong about the run. What
+// consumes this map is [RunCache], which holds it for the whole read phase
+// and answers every later question about a key inside the namespace from it
+// WITHOUT going back to the store. So one 404 in one GET does not cost one
+// stale answer; it makes "there is no record for this instance" the run's
+// settled position, and for an instance whose record IS its whole state that
+// is prior state with an instance missing from it. On an ordinary plan that
+// proposes a create for something that exists. On `apply -destroy` it
+// proposes nothing at all, and the run prints a success with one fewer
+// instance destroyed than the estate has - #1355's shape exactly, with no
+// error and no warning anywhere in the output.
+//
+// So the key is fetched a SECOND time before its absence is believed, and if
+// the second GET does not find it either, the whole bulk read fails and names
+// it. Two reads of one store that disagree is not a snapshot, whichever of
+// them is right. [RunCache.ensureLoaded] treats that failure the way it
+// treats any other - it loads no snapshot and every read goes to the store
+// per key - so a record that really was deleted still reads as absent, but by
+// a read taken now rather than by an omission from a torn snapshot.
 func (s *S3Store) GetAll(ctx context.Context, keyPrefix string) (map[string]Record, error) {
 	keys, err := s.List(ctx, keyPrefix)
 	if err != nil {
@@ -163,13 +196,23 @@ func (s *S3Store) GetAll(ctx context.Context, keyPrefix string) (map[string]Reco
 		workers = len(keys)
 	}
 
-	// found[i] is keys[i]'s record, nil when it 404ed. Indexed, so no two
-	// workers ever write the same memory and nothing here needs a lock.
+	// found[i] is keys[i]'s record, nil when both GETs 404ed. Indexed, so no
+	// two workers ever write the same memory and nothing here needs a lock.
 	found := make([]*Record, len(keys))
 	err = boundedFanOut(ctx, len(keys), workers, func(ctx context.Context, i int) error {
 		rec, exists, getErr := s.getForBulk(ctx, keys[i])
 		if getErr != nil {
 			return getErr
+		}
+		if !exists {
+			// Asked once more before the absence is believed. See this
+			// function's own doc comment: a spurious or transient 404 for a
+			// key nobody deleted is otherwise the run's settled answer for
+			// that instance.
+			rec, exists, getErr = s.getForBulk(ctx, keys[i])
+			if getErr != nil {
+				return getErr
+			}
 		}
 		if exists {
 			found[i] = &rec
@@ -180,13 +223,36 @@ func (s *S3Store) GetAll(ctx context.Context, keyPrefix string) (map[string]Reco
 		return nil, fmt.Errorf("staterecord: s3: reading everything under %q: %w", keyPrefix, err)
 	}
 
-	out := make(map[string]Record, len(keys))
+	var vanished []string
 	for i, rec := range found {
-		if rec != nil {
-			out[keys[i]] = *rec
+		if rec == nil {
+			vanished = append(vanished, keys[i])
 		}
 	}
+	if len(vanished) > 0 {
+		return nil, fmt.Errorf("staterecord: s3: reading everything under %q: %s, twice over: the listing and the reads that follow it disagree about what this namespace holds, so what came back is not a snapshot of it and is refused rather than returned short (GitHub issue #1355)", keyPrefix, namesVanished(vanished))
+	}
+
+	out := make(map[string]Record, len(keys))
+	for i, rec := range found {
+		out[keys[i]] = *rec
+	}
 	return out, nil
+}
+
+// namesVanished is the clause naming the keys a listing returned and the
+// reads could not find. Every key is named up to a handful of them, because
+// the operator's next move is to look one up; past that the count is what
+// carries, and a hundred names in a diagnostic hide the sentence around them.
+func namesVanished(keys []string) string {
+	const show = 5
+	if len(keys) == 1 {
+		return fmt.Sprintf("the listing named %q and no record was there", keys[0])
+	}
+	if len(keys) <= show {
+		return fmt.Sprintf("the listing named %d keys that no record was there for (%s)", len(keys), strings.Join(keys, ", "))
+	}
+	return fmt.Sprintf("the listing named %d keys that no record was there for (%s, and %d more)", len(keys), strings.Join(keys[:show], ", "), len(keys)-show)
 }
 
 // boundedFanOut runs do(ctx, i) for every i in [0, n), at most workers at a

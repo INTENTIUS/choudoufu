@@ -67,6 +67,13 @@ type fakeS3Server struct {
 	// #1383 this store read both as the record's absence.
 	missingBucket bool
 
+	// truncateWithoutToken, when set, makes ListObjectsV2 answer
+	// IsTruncated=true with NO NextContinuationToken, which is what an
+	// S3-compatible store that has the truncation flag and not the token
+	// answers. Real S3 always sends both. Pairs with pageSize, so the page
+	// really is short. GitHub issue #1355.
+	truncateWithoutToken bool
+
 	// putNotFoundAsKey, when set, makes every PutObject answer 404 NoSuchKey
 	// whatever this fake holds. An If-Match put for a key that is gone gets
 	// that answer from the fake's own bookkeeping already (#1344); this
@@ -271,7 +278,7 @@ func (f *fakeS3Server) listObjectsV2(w http.ResponseWriter, r *http.Request) {
 		MaxKeys:     1000,
 		IsTruncated: end < len(keys),
 	}
-	if result.IsTruncated {
+	if result.IsTruncated && !f.truncateWithoutToken {
 		result.NextContinuationToken = strconv.Itoa(end)
 	}
 	for _, key := range page {
