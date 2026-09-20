@@ -59,15 +59,6 @@ A role that may read the store and not write it can plan. Once the sentinel
 exists, a run that cannot write it reads it back and carries on. A store with
 no sentinel, opened by a role that cannot write one, is refused by name.
 
-That holds on a bucket and on a local directory, and not yet on a cluster. The
-tolerance turns on `staterecord.IsAccessDenied`, which reads S3's
-`AccessDenied` and a bare 403 and the local store's `EACCES`; a Kubernetes
-`Forbidden` is neither, so a run whose Role omits `create` on the records
-Secrets is refused at the handshake even with the sentinel sitting there.
-Measured on kind, and it is
-[#1393](https://github.com/INTENTIUS/choudoufu/issues/1393)'s to settle. Until
-then a plan job on a cluster needs `get`, `list` and `create`.
-
 A store that refused stops every command: a bucket that fails
 [its three settings](https://intentius.io/choudoufu/docs/use/bucket/), a listing
 that does not return what was just written, a KMS key that refused the run.
@@ -193,6 +184,66 @@ otherwise read as an estate with no records.
 
 Anyone who can `get secrets` in the records namespace reads every recorded
 value, the same bargain `s3:GetObject` on the bucket makes.
+
+### What the store checks about the cluster
+
+Four things, asked once on an estate's first contact with the store and again
+before every apply, never on an ordinary plan. They are the cluster's version
+of the bucket's three settings.
+
+| Assertion | What it asks | Asked with |
+| --- | --- | --- |
+| `namespace_access` | the records namespace is there, and this identity may do to Secrets in it what this run will ask | one `SelfSubjectAccessReview` per verb, never an attempted write |
+| `read_isolation` | this identity cannot read Secrets in another estate's records namespace | a cluster-wide review, then one per other `tofu-records-*` namespace it can see |
+| `encryption_at_rest` | the API server runs with `--encryption-provider-config` | the API server's own Pod, where that Pod is visible |
+| `estate_boundary` | `estate-boundary.yaml`'s policy and its binding are installed, observed and denying | a get on each |
+
+`choudoufu live-cluster` asks the same four and prints them, with no plan and
+nothing written. Run in a configuration directory it uses that live block's
+namespace; `-namespace=<name>` checks any other. It exits non-zero unless all
+four hold, and `-plan-identity` asks what a plan job's identity needs rather
+than what an apply needs.
+
+A run refuses on a property that was READ and is wrong, and warns on one it
+could not read. The two are different and the difference decides whether
+anyone can act: a cluster whose API server carries no encryption configuration
+is a fact somebody can change, while a Role scoped to one namespace cannot see
+kube-system's Pods or a `ValidatingAdmissionPolicy` at all. Refusing on the
+second would put `allow_insecure` into every correctly scoped CI job on its
+first day. So a run says it by name on every run and never calls it a pass,
+and `live-cluster`, run by someone holding those reads, is what answers it.
+
+`allow_insecure` takes these four names the way it takes the bucket's three.
+A waiver reaches only what it names, silences a refusal or a warning, and says
+what it costs on every run for as long as it is configured.
+
+`read_isolation` is the one assertion about the run rather than the cluster,
+so it has a floor and a refusal. An identity that may read Secrets cluster-wide
+on a cluster holding no other estate's records has exposed nothing yet, and
+warns. One that can read a records namespace belonging to another estate is
+refused, naming it. A cluster-admin applying the second estate on a cluster is
+refused, which is the arrangement this store exists to make unnecessary: bind
+each estate to a Role in its own records namespace.
+
+### What a plan job needs
+
+`get` and `list` on Secrets in the records namespace, and nothing else.
+Measured on kind: such an identity plans to `No changes.` and no record
+Secret's `resourceVersion` moves. Claim 39 step 9 is that measurement.
+
+A plan does send one write. The provisioning sentinel (issue #693) is written
+with a conditional create on every open, and for a plan identity the API server
+refuses it. That refusal is carried past when the sentinel is already there,
+because an earlier writing run proved the store's write, read and list paths
+and nothing about this run being unable to repeat the proof makes the store
+less sound. So the order matters: an estate has to be applied once under an
+identity that may write before a plan-only identity can plan it. Until then
+the plan is refused by name, because a store with no sentinel and an identity
+that cannot provision one reads exactly like an empty estate.
+
+Because a plan identity never creates the sentinel, its runs are never a first
+contact, and the four assertions above never run on one. `choudoufu
+live-cluster -plan-identity` is how that identity asks them on purpose.
 
 ## Receipts
 

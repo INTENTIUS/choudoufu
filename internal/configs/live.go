@@ -404,12 +404,18 @@ type LiveRecordStore struct {
 	BucketOwnerSet   bool
 	BucketOwnerRange hcl.Range
 
-	// AllowInsecure is the "s3" backend's waiver for the bucket contract
-	// (GitHub issue #1340): the names, out of RecordStoreInsecureSettings, of
-	// the assertions this estate proceeds without. It is for a bucket an
-	// operator has reason to run differently, and for a role that cannot
-	// read the bucket's configuration to check it - the same refusal from
-	// the caller's side, so the same answer.
+	// AllowInsecure is the waiver for the store's contract (GitHub issue
+	// #1340): the names, out of RecordStoreInsecureSettingsFor(Type), of the
+	// assertions this estate proceeds without. It is for a store an operator
+	// has reason to run differently, and for an identity that cannot read
+	// what the assertion is about to check it - the same refusal from the
+	// caller's side, so the same answer.
+	//
+	// Both remote backends take it, with their own names: "s3" waives the
+	// bucket contract's three settings (#1339), "kubernetes" waives the
+	// cluster contract's four (#1393). It is one argument and not two
+	// because it is one idea, and because a name that belongs to the other
+	// backend is refused rather than ignored.
 	//
 	// A list and not a boolean, on purpose. A single flag set once in CI and
 	// never revisited is a gate that protects nothing, which this
@@ -760,6 +766,27 @@ var RecordStoreKubernetesSettings = []string{
 // [internal/live/staterecord.BucketSettings] by test, so a fourth assertion
 // cannot be added there without being waivable here, or the other way round.
 var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_access_block"}
+
+// RecordStoreClusterInsecureSettings is every name the "kubernetes" backend's
+// "allow_insecure" argument accepts: the four properties the cluster contract
+// asserts (GitHub issue #1393). Pinned to
+// [internal/live/staterecord.ClusterSettings] by the same test, for the same
+// reason.
+var RecordStoreClusterInsecureSettings = []string{"namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"}
+
+// RecordStoreInsecureSettingsFor is the names "allow_insecure" accepts on a
+// store of this type, and nil for a store with no contract to waive. The
+// "local" backend is that store: a directory has no versioning, no namespace
+// and no admission policy, so there is nothing a waiver could name.
+func RecordStoreInsecureSettingsFor(storeType string) []string {
+	switch storeType {
+	case "s3":
+		return RecordStoreInsecureSettings
+	case "kubernetes":
+		return RecordStoreClusterInsecureSettings
+	}
+	return nil
+}
 
 func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
 	return decodeLiveBody(block.Body, block.DefRange)
@@ -1371,14 +1398,15 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 
 	if attr, exists := content.Attributes["allow_insecure"]; exists {
 		rs.AllowInsecureRange = attr.Range
+		valid := RecordStoreInsecureSettingsFor(rs.Type)
 		vals, valDiags := decodeLiteralStringList(attr, "allow_insecure")
 		diags = append(diags, valDiags...)
-		if !valDiags.HasErrors() {
+		if !valDiags.HasErrors() && valid != nil {
 			ok := true
 			seen := map[string]bool{}
 			for _, name := range vals {
 				switch {
-				case !slices.Contains(RecordStoreInsecureSettings, name):
+				case !slices.Contains(valid, name):
 					// Refused, never ignored: a typo that silently waived
 					// nothing would still READ as a waiver to whoever reviews
 					// the configuration, and a name this build does not know
@@ -1388,8 +1416,8 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 						Severity: hcl.DiagError,
 						Summary:  "Invalid record_store allow_insecure",
 						Detail: fmt.Sprintf(
-							"The \"allow_insecure\" argument names %q, which is not a bucket setting this store asserts. Valid names are %s. Each one waives exactly one assertion and leaves the others in force.",
-							name, strings.Join(quoteEach(RecordStoreInsecureSettings), ", "),
+							"The \"allow_insecure\" argument names %q, which is not something record_store %q asserts. Valid names are %s. Each one waives exactly one assertion and leaves the others in force.",
+							name, rs.Type, strings.Join(quoteEach(valid), ", "),
 						),
 						Subject: attr.Expr.Range().Ptr(),
 					})
@@ -1410,11 +1438,11 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 			}
 		}
 	}
-	if rs.Type != "s3" && (rs.AllowInsecureSet || !rs.AllowInsecureRange.Empty()) {
+	if RecordStoreInsecureSettingsFor(rs.Type) == nil && (rs.AllowInsecureSet || !rs.AllowInsecureRange.Empty()) {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
-			Detail:   fmt.Sprintf("The \"allow_insecure\" argument waives assertions about an S3 bucket's settings and has no meaning for record_store %q, which is not in a bucket. Remove it.", rs.Type),
+			Detail:   fmt.Sprintf("The \"allow_insecure\" argument waives assertions a store makes about where it keeps its records, and record_store %q asserts nothing: a directory has no versioning, no namespace and no admission policy. Remove it.", rs.Type),
 			Subject:  rs.AllowInsecureRange.Ptr(),
 		})
 	}

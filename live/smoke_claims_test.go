@@ -46,19 +46,20 @@ type smokeClaimsFile struct {
 }
 
 type smokeClaim struct {
-	ID        int                               `json:"id"`
-	Slug      string                            `json:"slug"`
-	Title     string                            `json:"title"`
-	Scenario  string                            `json:"scenario"`
-	Command   string                            `json:"command"`
-	Minutes   int                               `json:"minutes"`
-	NeedsGo   bool                              `json:"needs_go"`
-	RealAWS   bool                              `json:"real_aws"`
-	Theme     string                            `json:"theme"`
-	BreakMode string                            `json:"break_mode"`
-	Substrate string                            `json:"substrate"`
-	Providers map[string]smokeClaimProviderCell `json:"providers"`
-	Evidence  []string                          `json:"evidence"`
+	ID         int                               `json:"id"`
+	Slug       string                            `json:"slug"`
+	Title      string                            `json:"title"`
+	Scenario   string                            `json:"scenario"`
+	Command    string                            `json:"command"`
+	Minutes    int                               `json:"minutes"`
+	NeedsGo    bool                              `json:"needs_go"`
+	NeedsFloci bool                              `json:"needs_floci"`
+	RealAWS    bool                              `json:"real_aws"`
+	Theme      string                            `json:"theme"`
+	BreakMode  string                            `json:"break_mode"`
+	Substrate  string                            `json:"substrate"`
+	Providers  map[string]smokeClaimProviderCell `json:"providers"`
+	Evidence   []string                          `json:"evidence"`
 }
 
 type smokeClaimProviderCell struct {
@@ -319,6 +320,57 @@ func TestSmokeClaimsNeedGoExactlyWhenTheyRunIt(t *testing.T) {
 	}
 	if runsGo == 0 {
 		t.Errorf("no claim scenario runs the Go toolchain at all; every BREAK arm that builds a patched binary has gone, or this guard is looking in the wrong place")
+	}
+}
+
+// smokeStackUp is the call that starts the pinned floci emulator.
+var smokeStackUp = regexp.MustCompile(`\bstack_up\b`)
+
+// TestSmokeClaimsNeedFlociExactlyWhenTheySaySo: needs_floci is what the
+// claims table prints as "needs the emulator", and it is for the claim whose
+// scenario runs on one substrate and keeps its records on another. A
+// Kubernetes claim that brings up floci needs Docker and the AWS CLI on top
+// of kind and kubectl, and a reader who has only the second pair finds that
+// out from a failure halfway through a ten-minute run otherwise (#1394).
+//
+// An aws-substrate claim is not asked to carry the flag: there the emulator
+// IS the substrate, which the substrate column already says.
+//
+// Proving it red: set claim 27's needs_floci to false, or delete the
+// stack_up call from its scenario. Both were run on 2026-09-19.
+func TestSmokeClaimsNeedFlociExactlyWhenTheySaySo(t *testing.T) {
+	f := readSmokeClaims(t)
+	withStackUp := 0
+	for _, c := range f.Claims {
+		name := c.Slug + ".sh"
+		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var calls []string
+		for i, line := range smokeExecutableLines(string(raw)) {
+			if line != "" && smokeStackUp.MatchString(line) {
+				calls = append(calls, fmt.Sprintf("line %d: %s", i+1, line))
+			}
+		}
+		if len(calls) > 0 {
+			withStackUp++
+		}
+		if c.Substrate == "aws" {
+			if c.NeedsFloci {
+				t.Errorf("claim %d (%s): needs_floci is true and the substrate is already aws, where the emulator is what the claim runs on; the flag is for a claim that runs on one substrate and keeps its records on another", c.ID, name)
+			}
+			continue
+		}
+		if len(calls) > 0 && !c.NeedsFloci {
+			t.Errorf("claim %d (%s) runs on %s and starts the emulator, and %s says needs_floci is false, so the claims table tells a reader with kind and no Docker that they can run it:\n  %s", c.ID, name, c.Substrate, smokeClaimsPath, strings.Join(calls, "\n  "))
+		}
+		if len(calls) == 0 && c.NeedsFloci {
+			t.Errorf("claim %d (%s): %s says needs_floci is true and no executable line in the scenario calls stack_up", c.ID, name, smokeClaimsPath)
+		}
+	}
+	if withStackUp == 0 {
+		t.Errorf("no claim scenario starts the emulator at all; this guard is looking in the wrong place")
 	}
 }
 

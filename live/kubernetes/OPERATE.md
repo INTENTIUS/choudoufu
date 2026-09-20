@@ -70,36 +70,24 @@ listing reads as an estate with no records. RBAC cannot condition on a label,
 so the namespace is what keeps one estate out of another's records
 ([claim 39](../smoke/claims/k8s-records-in-the-cluster.md)).
 
-The Role that estate's identity needs is `get`, `list`, `create`, `update`
-and `delete` on `secrets` in that namespace and nowhere else. A job that only
-plans needs `get`, `list` and `create`, and not `update` or `delete`. It
-writes nothing: measured on kind, no record Secret's `resourceVersion` moved
-across a plan. `create` is there because opening the store asks the API
-server to create the sentinel, which is already there, and RBAC answers the
-verb before the object's existence comes into it. Taking `create` away stops
-the run at the handshake, not at a record:
-
-```
-Error: Cannot open the record store
-
-The live block's record_store "kubernetes" could not be opened: record_store:
-provisioning the sentinel at "tofu-records/<estate>/.store-sentinel":
-staterecord: kubernetes: creating "tofu-records/<estate>/.store-sentinel" in
-namespace "tofu-records-<estate>": secrets is forbidden: User
-"system:serviceaccount:default:planner" cannot create resource "secrets" in
-API group "" in the namespace "tofu-records-<estate>".
-```
-
-[#1370](https://github.com/INTENTIUS/choudoufu/issues/1370)'s tolerance for a
-run that may read the store and not write it does not reach this store yet. It
-turns on `staterecord.IsAccessDenied`, which knows S3's `AccessDenied` and a
-bare 403 and the local store's `EACCES`, and a Kubernetes `Forbidden` is
-neither, so the denial goes down `provisionStoreSentinel`'s default branch and
-ends the run. [#1393](https://github.com/INTENTIUS/choudoufu/issues/1393) has
-the question; until it is answered, grant the plan job `create`.
 [Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#the-cluster) has
-the rest, including what a `get secrets` in that namespace is worth to
-whoever holds it.
+the rest.
+
+A plan job needs `get` and `list` on those Secrets and nothing more, once the
+estate has been applied at least once by an identity that may write. That
+first run leaves a sentinel record behind, and a plan reads it rather than
+writing one. Before it, a plan-only identity is refused by name, because a
+store with no sentinel is indistinguishable from an empty estate. An apply
+needs `create`, `update` and `delete` as well.
+
+Before it writes a record, the store checks the namespace, this identity's
+access to Secrets in it, whether another estate's records are readable, whether
+Secrets are encrypted at rest, and whether the estate boundary policy is in
+force. It asks once, on the estate's first contact with the store, and again
+before every apply. `choudoufu live-cluster` asks the same four on demand and
+writes nothing; `-plan-identity` asks what a plan job needs instead of what an
+apply needs. Two of the four are not readable by a scoped Role, and a run says
+so on every run rather than calling them a pass.
 
 ## Two runs at once
 

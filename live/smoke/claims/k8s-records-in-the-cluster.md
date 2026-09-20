@@ -44,11 +44,12 @@ root run:
   just smoke k8s-records-in-the-cluster
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke k8s-records-in-the-cluster and explain why the two
+BREAK=1 just smoke k8s-records-in-the-cluster and explain why the three
 refusals become successes.
 ```
 
-The five steps:
+The nine steps. The first five measure the store; the last four measure
+what it checks about the cluster before it writes a record.
 
 1. `the Store contract, against this cluster's own API server` - the
    conformance suite every record store is held to, run against kind. The
@@ -77,10 +78,50 @@ The five steps:
    carrying `tofu-estate` and every record Secret carries one, so the
    policy an estate already installs covers its records.
 
-The `BREAK=1` run takes both fences away and requires what they refused to
-go through: the plan identity is given cluster-wide secret reads and must
-then list the other estate's records, and the admission policy is removed
-and the cross-estate write into a record Secret must then land.
+6. `the cluster contract runs on an estate's first contact with the
+   cluster, and not on every plan` - the four assertions are facts about
+   the cluster, so they are asked once, on the run that created the
+   sentinel. The API server's own `apiserver_request_total` counter for
+   `selfsubjectaccessreviews` is the measurement: it moves on first
+   contact and does not move across the two plans after it. The scoped
+   identity cannot read two of the four, and says so by name on every
+   run rather than reporting them as passes.
+7. `each assertion refuses by name, on this cluster, for its own reason` -
+   `choudoufu live-cluster` asks the same four questions without running
+   a plan and without writing anything. kind supplies two of the
+   failures itself: its API server carries no
+   `--encryption-provider-config`, and a cluster-admin can read every
+   records namespace there is. The binding is removed for a third, and a
+   namespace that does not exist gets the fourth, in the store's own
+   words.
+8. `a Role short one verb is refused at first contact` - the same
+   assertion stopping an apply rather than reporting on a cluster. The
+   Role holds four of the five verbs the store uses, so the sentinel
+   write goes through and the contract then refuses the run by name,
+   naming the missing verb. The sentinel is taken back out, so the next
+   run is refused the same way instead of proceeding.
+9. `a plan identity needs get and list on the record Secrets and nothing
+   more` - [#1370](https://github.com/INTENTIUS/choudoufu/issues/1370)
+   on this store. The plan reads the estate back and proposes nothing,
+   and no record Secret's `resourceVersion` moves. The contract agrees:
+   the same identity passes the plan question and fails the apply
+   question, naming `create`, `update` and `delete`.
+
+The `BREAK=1` run takes the three fences away and requires what they
+refused to go through: the plan identity is given cluster-wide secret
+reads and must then list the other estate's records, the admission policy
+is removed and the cross-estate write into a record Secret must then land,
+and the scoped identity whose first contact step 6 passed is given
+cluster-wide secret reads, after which the same first contact must be
+refused on `read_isolation`.
+
+Two of the four assertions cannot be answered on every cluster. Whether
+Secrets are encrypted at rest is an API server flag, readable where the
+API server's own Pod is and not on a managed control plane; reading the
+estate boundary policy needs cluster-scoped `get`. A run says so on every
+run, by name, and never calls it a pass; `choudoufu live-cluster`, run by
+an identity that holds those reads, answers the question and exits
+non-zero until it can.
 
 Anyone who can `get secrets` in the records namespace reads every recorded
 value, which is the same bargain `s3:GetObject` on the bucket makes for

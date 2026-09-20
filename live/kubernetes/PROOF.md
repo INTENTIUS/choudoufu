@@ -88,6 +88,22 @@ is printed: an out-of-band change to a key the configuration declares
 plans here and does not plan on stock, because without a last-applied
 value an edited configuration and a drifted object look the same.
 
+Its steps 8 and 9 are the only place a Kubernetes claim runs against a
+shared record store
+([#1394](https://github.com/INTENTIUS/choudoufu/issues/1394)). A removed
+label is removed from the estate's record, so on the implied local store
+the removal works for the directory that applied it and is silently absent
+everywhere else. Each step applies from one working directory and removes
+the label from a second that holds nothing of the first's, and requires the
+second to propose the removal, write it and settle: step 8 with the records
+as Secrets in this cluster (`record_store "kubernetes"`, #1392), step 9
+with them as objects in a bucket on the pinned emulator. Both read what the
+record itself carries - the estate marker, the address, the record key -
+and whether the write that landed was conditional, which no Kubernetes
+claim had done before. One control covers both: the same pair of
+directories on `record_store "local"`, where the second has no record and
+must propose nothing.
+
 ## The gauntlet lane
 
 The lane's bars are rendered from `live/gauntlet.json` at

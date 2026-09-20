@@ -5,7 +5,8 @@
 
 It forwards every request to the emulator on localhost:<upstream-port>
 untouched, writes the port it chose to <work-dir>/proxy.port, and logs one
-line per request to <work-dir>/proxy.log ("METHOD path status"). Two control
+line per request to <work-dir>/proxy.log ("METHOD path status", and for a
+PUT the conditional-write header it carried as a fourth field). Two control
 files in <work-dir> change what it does, and a scenario drives it by writing
 them. Nothing in the emulator or in the cloud can be corrupted into either
 behaviour, which is why this exists.
@@ -125,6 +126,24 @@ def stall(path):
         time.sleep(float(parts[1]))
 
 
+def precondition(headers):
+    """The conditional-write header a PUT carried, for its log line.
+
+    Every record store write is one conditional PutObject: If-None-Match: *
+    to create a record, If-Match: <version> to update one. Claim 27's
+    shared-store step (#1394) reads those off the wire instead of inferring
+    them from the fact that the write landed, which is the only way to tell
+    a conditional update from an unconditional overwrite that happened to
+    be uncontended. Only PUT lines carry the field, so the GET and DELETE
+    lines other scenarios grep are unchanged.
+    """
+    for name in ("If-Match", "If-None-Match"):
+        value = headers.get(name)
+        if value:
+            return "%s: %s" % (name.lower(), value)
+    return "no-precondition"
+
+
 def hold(path, body):
     """Blocks until this PUT's turn.
 
@@ -213,7 +232,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(data)
         if counted:
             count_leave()
-        log("%s %s %d" % (self.command, self.path, status))
+        if self.command == "PUT":
+            log("%s %s %d %s" % (self.command, self.path, status, precondition(self.headers)))
+        else:
+            log("%s %s %d" % (self.command, self.path, status))
 
     do_GET = do_PUT = do_DELETE = do_HEAD = do_POST = relay
 

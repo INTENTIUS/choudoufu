@@ -4,7 +4,10 @@
   claims index: one row per claim, the scenario that runs it, its time, and
   one column per provider saying whether the claim is proven there,
   restated, not applicable, or still open. A non-proven cell carries its
-  note as a title and, when the page has room, inline.
+  note as a title and, when the page has room, inline. The "Run it" cell
+  also carries what a reader needs to have installed before the command
+  works: Go, the floci emulator (needs_floci, for a claim that runs on one
+  substrate and keeps its records on another), or a real AWS account.
 
     {{< claims-table >}}              every claim, grouped by theme
     {{< claims-table provider="kubernetes" >}}  only the rows whose status for that provider is not "open"
@@ -26,7 +29,7 @@
 {{- if and $onlyTheme (ne $onlyTheme $row.theme) }}{{ $show = false }}{{ end -}}
 {{- if $onlyProvider }}{{ with index $row.providers $onlyProvider }}{{ if eq .status "open" }}{{ $show = false }}{{ end }}{{ end }}{{ end -}}
 {{- if $show }}
-<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td><a href="https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/{{ $row.slug }}.md">{{ $row.title }}</a></td><td><code>{{ $row.command }}</code>{{ if $row.needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if $row.real_aws }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}</td><td>{{ $row.minutes }}</td>
+<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td><a href="https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/{{ $row.slug }}.md">{{ $row.title }}</a></td><td><code>{{ $row.command }}</code>{{ if $row.needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if $row.needs_floci }} <span class="needs-go">needs the emulator</span>{{ end }}{{ if $row.real_aws }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}</td><td>{{ $row.minutes }}</td>
 {{- range $d.provider_order }}
 {{- $pv := index $row.providers . }}
 <td class="status status-{{ replace $pv.status "/" "-" }}"{{ with $pv.note }} title="{{ . }}"{{ end }}>{{ $pv.status }}</td>

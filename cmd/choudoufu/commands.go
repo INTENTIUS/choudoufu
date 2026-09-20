@@ -331,6 +331,15 @@ func initCommands(
 			}, nil
 		},
 
+		// GitHub issue #1393: the same question about the other remote
+		// store. A cluster property nobody could read is reported as not
+		// checked and is never a pass.
+		"live-cluster": func() (cli.Command, error) {
+			return &command.LiveClusterCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,

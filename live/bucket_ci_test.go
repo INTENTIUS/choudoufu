@@ -27,8 +27,18 @@ import (
 // bucket claim that CI can run. The real-AWS ones of the same epic are
 // excluded by that test on their own, because they start no emulator.
 //
-// Proving it red: add a scenario matching those two conditions with no
-// matrix entry, drop the BREAK step, or remove one of the paths.
+// One more exclusion, from #1394: a scenario whose substrate is not aws
+// runs in the workflow its substrate needs, not here. Claim 27 keeps an
+// estate's records in a bucket on the emulator for one of its steps and
+// spends the rest of its run on a kind cluster, which this workflow does
+// not install. It runs in .github/workflows/k8s-smoke.yml, where
+// live/k8s_ci_test.go requires both its matrix entry and the Docker and AWS
+// CLI preflight that step needs - so the reason this test exists, a claim
+// no job runs, is answered for it there.
+//
+// Proving it red: add an aws-substrate scenario matching those two
+// conditions with no matrix entry, drop the BREAK step, or remove one of
+// the paths.
 
 const bucketSmokeWorkflow = "../.github/workflows/bucket-smoke.yml"
 
@@ -45,6 +55,10 @@ func bucketSmokeScenarios(t *testing.T) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	substrate := map[string]string{}
+	for _, c := range readSmokeClaims(t).Claims {
+		substrate[c.Slug] = c.Substrate
+	}
 	var out []string
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".sh") {
@@ -55,8 +69,14 @@ func bucketSmokeScenarios(t *testing.T) []string {
 			t.Fatal(err)
 		}
 		body := string(raw)
+		name := strings.TrimSuffix(e.Name(), ".sh")
+		// A scenario that also needs another substrate runs in that
+		// substrate's workflow; see the file comment.
+		if s, ok := substrate[name]; ok && s != "aws" {
+			continue
+		}
 		if strings.Contains(body, `record_store "s3"`) && strings.Contains(body, "stack_up") {
-			out = append(out, strings.TrimSuffix(e.Name(), ".sh"))
+			out = append(out, name)
 		}
 	}
 	sort.Strings(out)
