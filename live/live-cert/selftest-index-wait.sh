@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # live/live-cert/selftest-index-wait.sh: proof for issues #1032, #1046, #1049
-# and #1143.
+# and #1143. The clock index_wait reads is stubbed (#1410).
 #
 # terralith-scale.sh used to walk straight from migrate into test_plan with
 # no gap at all. #1046 found that the Resource Groups Tagging API's own
@@ -35,6 +35,17 @@ set -uo pipefail
 # across polls exactly the way a real account's would. The VERIFIED formula
 # is extracted verbatim too, rather than restated here, so the partition is
 # checked against production's own definition of what gets stamped.
+#
+# index_wait's clock is stubbed as well (#1410). The cases used to give it a
+# real bound of a few seconds and a real 1s sleep, which made every one of
+# them a measurement of how fast the machine could fork: under `just ci` the
+# first poll of case C landed at t=4s, the 5s bound tripped after two polls,
+# and a case about convergence logic failed on scheduler latency. The runner
+# now defines `date` and `sleep` as shell functions ahead of the extracted
+# index_wait: `sleep N` moves a clock file forward N seconds and returns at
+# once, and `date +%s` reads that file. Time passes only when index_wait
+# says it is waiting, so "bound 5, poll 1" is six polls (t=0 to t=5) on any
+# machine, and no case spends real time asleep.
 #
 # Cases:
 #   A. index_partition reproduces the three real-AWS ceilings on record
@@ -226,6 +237,19 @@ fi
 # would otherwise hang the package rather than fail it. Found the hard way
 # while proving the red arm of exactly that guard.
 #
+# Since #1410 those seconds are the stub clock's, counted in polls: wait_s
+# divided by poll_s, plus the poll at t=0, is how many polls a case gets. The
+# small wait_s still matters, because it is what keeps a case that stops
+# converging down to a handful of polls. What the stub clock cannot bound is
+# an index_wait that stops sleeping, since then its time never moves, and
+# nothing ever bounded one that stops checking its bound. So the fake `date`
+# counts its own reads and, past CLOCK_READ_CAP, says so on stderr and kills
+# the runner: the case loses its RESULT line and fails on every assertion,
+# within a few seconds. Both were proven red by mutating the extracted source.
+# The cap is far above what any case reads (case C reads the clock 4 times,
+# the 5s bound allows 7).
+CLOCK_READ_CAP=50
+
 # run_case builds a fresh fake `aws` that returns the given sequence of
 # resourcegroupstaggingapi get-resources counts (one per poll, comma
 # separated - e.g. "104,104,900,1655"), runs index_wait() in a minimal
@@ -241,6 +265,14 @@ run_case() {
   printf '%s' "$counts_csv" | tr ',' '\n' > "$seq_file"
   local state_file="$case_dir/next_line"
   printf '1\n' > "$state_file"
+  # The stub clock (#1410): seconds since the epoch as index_wait sees them,
+  # and how many times it has asked. The start is an arbitrary nonzero
+  # instant, so an index_wait that stopped subtracting its own start would
+  # print it as the lag rather than pass by accident on a clock that began
+  # at 0.
+  local clock_file="$case_dir/clock" reads_file="$case_dir/clock_reads"
+  printf '1700000000\n' > "$clock_file"
+  printf '0\n' > "$reads_file"
 
   # Fakes exactly what livecert_rgta_count (lib/live-cert.sh) calls:
   # `aws resourcegroupstaggingapi get-resources --tag-filters
@@ -307,6 +339,37 @@ FAKEEOF
     printf 'INDEX_TARGET_N=0\n'
     printf 'INDEX_CONVERGED=skipped\n'
     printf 'INDEX_NOTE=unset\n'
+    # The stub clock (#1410), as functions rather than as binaries beside the
+    # fake aws: a function reaches exactly the shell index_wait runs in and
+    # nothing else, so the fake aws and the lib's own pipeline keep the real
+    # tools, and `command` is the pass-through for any call that is not the
+    # one index_wait makes. Nothing in lib/live-cert.sh calls date or sleep
+    # today; the pass-through is for the day something does. `date +%s` runs
+    # inside $(...), a subshell, which is why the state is two files and why
+    # the cap kills $$ (the runner) rather than exiting.
+    printf 'CLOCK_FILE=%q\n' "$clock_file"
+    printf 'CLOCK_READS_FILE=%q\n' "$reads_file"
+    printf 'CLOCK_READ_CAP=%q\n' "$CLOCK_READ_CAP"
+    cat <<'CLOCKEOF'
+date() {
+  if [ "$#" -ne 1 ] || [ "$1" != "+%s" ]; then
+    command date "$@"
+    return
+  fi
+  local reads
+  reads=$(( $(cat "$CLOCK_READS_FILE") + 1 ))
+  printf '%s\n' "$reads" > "$CLOCK_READS_FILE"
+  if [ "$reads" -gt "$CLOCK_READ_CAP" ]; then
+    echo "fake date: index_wait read the clock $reads times without returning - either it loops without sleeping, and under the stub clock only sleep moves time, or it never checks its bound (#1410). Killing the runner rather than hanging the package" >&2
+    kill -TERM $$
+    return 1
+  fi
+  cat "$CLOCK_FILE"
+}
+sleep() {
+  printf '%s\n' "$(( $(cat "$CLOCK_FILE") + $1 ))" > "$CLOCK_FILE"
+}
+CLOCKEOF
     printf '%s\n' "$INDEX_WAIT_SRC"
     printf '%s\n' 'index_wait'
     printf '%s\n' 'printf "RESULT rc=%s converged=%s target=%s lag=%s\n" "$?" "$INDEX_CONVERGED" "$INDEX_TARGET_N" "$INDEX_LAG_S"'
@@ -369,6 +432,8 @@ CASE_C_POLLS="$(grep -cE '^  index wait: t=' <<< "$CASE_C_OUT")"
 if [ "$CASE_C_POLLS" != "3" ]; then
   fail_case "case C: expected 3 poll lines (one per scripted count), got $CASE_C_POLLS"
 fi
+# Exact under the stub clock (#1410): three polls are two sleeps of 1s.
+expect_result "$CASE_C_OUT" lag 2 "case C" && log "  confirmed: 3 polls, index_lag=2 - the two sleeps between them and nothing else"
 
 log ""
 log "=== case D: us-east-1 counts the global half - target 1105, not 104 ==="
@@ -388,6 +453,14 @@ else
   log "  confirmed: the roles are still excluded in us-east-1"
 fi
 expect_result "$CASE_D_OUT" target 1105 "case D" && log "  confirmed: index_target=1105"
+# The same shape as case C and the same exposure (#1410). This one was the
+# closer call: the fake aws forks once per ARN, so a 1001-ARN poll takes
+# seconds of real time on a busy machine, all of it charged to the 5s bound.
+CASE_D_POLLS="$(grep -cE '^  index wait: t=' <<< "$CASE_D_OUT")"
+if [ "$CASE_D_POLLS" != "3" ]; then
+  fail_case "case D: expected 3 poll lines (one per scripted count), got $CASE_D_POLLS"
+fi
+expect_result "$CASE_D_OUT" lag 2 "case D" && log "  confirmed: 3 polls, index_lag=2"
 
 log ""
 log "=== case E: a genuine lag - reachable target 104, index stuck at 12, bound trips at 1s ==="
@@ -406,6 +479,15 @@ expect_result "$CASE_E_OUT" rc 0 "case E" \
 expect_result "$CASE_E_OUT" converged no "case E" \
   && log "  confirmed: index_converged=no - a recorded row can no longer be read as a converged measurement"
 expect_result "$CASE_E_OUT" target 104 "case E" && log "  confirmed: index_target=104"
+# Case E's sensitivity ran the other way (#1410): it wants the bound to trip,
+# and a first poll that landed at t=1s would have tripped it after one poll
+# with no sleep ever exercised. Under the stub clock it is the poll at t=0,
+# one sleep, and the poll at t=1 that trips the 1s bound, every time.
+CASE_E_POLLS="$(grep -cE '^  index wait: t=' <<< "$CASE_E_OUT")"
+if [ "$CASE_E_POLLS" != "2" ]; then
+  fail_case "case E: expected 2 poll lines (t=0s, then t=1s tripping the 1s bound), got $CASE_E_POLLS"
+fi
+expect_result "$CASE_E_OUT" lag 1 "case E" && log "  confirmed: 2 polls, index_lag=1 - the bound tripped on the clock, not on the machine"
 if ! grep -qF 'NOTE tag index did NOT converge: 12 of a reachable 104 after 1s' <<< "$CASE_E_OUT"; then
   fail_case "case E: INDEX_NOTE does not say the index failed to converge - this is the clause that stops a pass row reading as a clean one"
 else
