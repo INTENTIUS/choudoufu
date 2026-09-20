@@ -16,18 +16,27 @@ For `kubernetes_manifest` that was not true here until
 invisible to the plan and the apply wrote nothing: no refusal to look up,
 no warning, just `No changes.` over a configuration that had changed.
 
+This claim needs two substrates. Steps 1 to 7 run on a kind cluster. Step 8
+also needs the pinned floci emulator, because the record store it measures
+the removal over is a bucket: Docker and the AWS CLI on top of kind and
+kubectl. The step does not skip when they are missing, it refuses.
+
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm kind and kubectl are
-installed, and terraform (the stock oracle this scenario compares against).
-If Go is not installed, export CHOUDOUFU_VERSION=<latest tag from
+installed, terraform (the stock oracle this scenario compares against),
+Docker (`docker info`) and the AWS CLI (`aws --version`) - step 8 keeps the
+estate's records in a bucket on the emulator. If Go is not installed,
+export CHOUDOUFU_VERSION=<latest tag from
 https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
 
   just smoke k8s-a-label-is-a-change
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke k8s-a-label-is-a-change and report the "caught" line:
-the control runs the identical kubectl command against a key the
-configuration never declared, and the plan must stay empty.
+BREAK=1 just smoke k8s-a-label-is-a-change and report both "caught" lines:
+the first control runs the identical kubectl command against a key the
+configuration never declared, and the plan must stay empty; the second
+runs step 8's two working directories on the local record store, where the
+second directory has no record to read and must propose nothing.
 ```
 
 The steps, in the order they print:
@@ -57,8 +66,53 @@ The steps, in the order they print:
 7. `the one difference from stock` - an out-of-band `kubectl label
    --overwrite` of a key the configuration *declares*. Stock says
    `No changes.`; choudoufu proposes restoring it. Both answers are
-   printed side by side. It runs last because it leaves the object
-   drifted on purpose.
+   printed side by side. It runs after the rest because it leaves the
+   object drifted on purpose.
+8. `the same removal from a SECOND directory, over a shared record store` -
+   step 6 asked on behalf of anyone but the operator who applied it. Its
+   own estate, namespace and objects on the same cluster, with the records
+   in a bucket on the emulator. A applies `tier` and `squad`; B has never
+   applied anything, holds no cache and no file of A's, deletes `squad`
+   from its configuration and plans the removal, applies it, and is quiet
+   on two replans, while A - which still declares `squad` - proposes
+   putting it back. Sub-step 8b deletes the record object underneath B's
+   conditional write and requires the write to be refused by name.
+
+## Step 8: the removal only works for one person until the store is shared
+
+The record step 6 reads lives wherever `record_store` says. Left implied it
+is a file beside the module, so a second checkout, a CI runner or a fresh
+clone has no record at all, and
+`internal/live/projection/residue.go` answers a missing or unreadable one by
+proposing no removal, with at most a warning
+(`SummaryResidueUnreadable`). That is the quiet degradation the claim page
+describes above, and it is correct - but it means the removal is true for
+one directory and silently absent everywhere else.
+
+[#1394](https://github.com/INTENTIUS/choudoufu/issues/1394) found that no
+Kubernetes claim had ever run against a shared store: claims 21 to 27 were
+all on the implied local one, and the bucket backend's claims (28 to 37)
+are all AWS. So the path a Kubernetes estate writes a record by had not
+been measured at all. Step 8 measures it, and prints what it reads rather
+than asserting it:
+
+- the record object for a `kubernetes_manifest` address carries
+  `tofu-estate = smoke-label-shared` and `tofu-address =
+  kubernetes_manifest.cm`, read back with `aws s3api get-object-tagging`;
+- A's write of that record was `if-none-match: *` and the write B's apply
+  landed was `if-match: "<the version B read>"`, both read off the wire
+  through `live/smoke/s3proxy.py`, because a write that succeeded looks the
+  same whether or not it was conditional;
+- and with the object deleted while B's conditional write is held at the
+  proxy, the emulator answers that write `404` - the same answer real S3
+  gives, which is what
+  [#1344](https://github.com/INTENTIUS/choudoufu/issues/1344) found - and
+  the run reports a named record store write conflict instead of creating
+  the record afresh.
+
+The `BREAK=1` control is the same two directories with one thing changed,
+`record_store "local"`. A's record is then a file under A, B cannot see it,
+and B's plan reads `No changes.` for the same deleted label.
 
 ## Why it was broken, and it was not the diff
 

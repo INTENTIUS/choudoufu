@@ -88,6 +88,19 @@ is printed: an out-of-band change to a key the configuration declares
 plans here and does not plan on stock, because without a last-applied
 value an edited configuration and a drifted object look the same.
 
+Its step 8 is the only Kubernetes claim that also needs a shared record
+store ([#1394](https://github.com/INTENTIUS/choudoufu/issues/1394)). A
+removed label is removed from the estate's record, so on the implied local
+store the removal works for the directory that applied it and is silently
+absent everywhere else. The step keeps the records in a bucket on the
+pinned emulator, applies from one working directory and removes the label
+from a second that holds nothing of the first's, and requires the second to
+propose the removal, write it and settle. It also reads the record object's
+`tofu-estate` and `tofu-address` tags and the conditional-write header on
+each record write, which no Kubernetes claim had done before. Its control
+is the same pair of directories on `record_store "local"`, where the second
+has no record and must propose nothing.
+
 ## The gauntlet lane
 
 The lane's bars are rendered from `live/gauntlet.json` at

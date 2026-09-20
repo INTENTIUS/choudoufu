@@ -17,6 +17,15 @@
 # is what live/kubernetes/estate-boundary.yaml needs). live/k8s_ci_test.go
 # holds this file to the scenario directory: every k8s-* scenario under
 # live/smoke/scenarios must be in the matrix below, with its control.
+#
+# Claim 27 needs two substrates at once (#1394): a kind cluster for the
+# objects and the pinned floci emulator for the bucket its records live in,
+# which is the only way its label removal is measured for a second working
+# directory. That means Docker (which kind needs anyway) and the AWS CLI,
+# the way .github/workflows/bucket-smoke.yml provides them. The preflight
+# step below fails the job when either is missing rather than letting the
+# scenario skip its own step: a step that quietly does not run reports the
+# same PASS as one that did.
 name: k8s-smoke
 on:
   pull_request:
@@ -83,6 +92,10 @@ jobs:
           # scenarios never call it.
           terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
+      - name: Docker and the AWS CLI, which the emulator half of claim 27 needs
+        run: |
+          docker info > /dev/null
+          aws --version
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
