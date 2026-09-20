@@ -27,7 +27,8 @@ A dedicated "estate output" surface was considered and declined: outputs
 written to `aws_ssm_parameter`s under an estate namespace, the receipts
 pattern's machinery pointed at outputs instead of effects, read back by an
 ordinary `aws_ssm_parameter` data source. See "Why not outputs-as-receipts"
-below for why.
+below for why. Reading the output values an estate already records is a
+narrower question, answered in "What an output read is for".
 
 ## The pattern
 
@@ -80,10 +81,10 @@ rows, not a resource an API can list. A cache purge changes what a CDN
 serves, not a record OpenTofu can read back. A receipt is memory
 manufactured for a fact the live system cannot answer.
 
-An estate's outputs are the opposite case. A VPC ID, a role ARN, a bucket
-name: every one of these already lives on a real, queryable resource that a
-data source of its own type reads correctly and current, on every plan,
-with no memory at all. Pointing the receipts machinery at outputs would
+Most of an estate's outputs are the opposite case. A VPC ID, a role ARN, a
+bucket name: every one of these already lives on a real, queryable resource
+that a data source of its own type reads correctly and current, on every
+plan, with no memory at all. Pointing the receipts machinery at outputs would
 build memory for a fact the live system already answers, which is
 what `live/LIMITATIONS.md`'s recurring test names: "every banned
 feature exists to maintain or repair the store. That is the test for edge
@@ -132,6 +133,60 @@ sources cost nothing to build, cannot drift from what the producer holds,
 and are already how Terraform practitioners read another workspace's
 resources without a backend. The cheaper option also delivers the stability
 the expensive one promises.
+
+## What an output read is for
+
+Issue #1371 asks what reading another estate's recorded outputs gives that
+a data source does not. The rule above stays. If a live resource holds the
+value, read the live resource. A corpus survey on 2026-09-19 says that
+covers most of what estates pass to each other. It matched 81 cross-estate
+reads to a producer output, loosely, by name. Of those, 39 were one
+attribute a data source returns. Another 32 were lists or built strings a
+consumer can rebuild from tag-filtered data sources.
+
+The other 10 had no live resource behind them, and these are what an output
+read is for. About 25 of the 311 root outputs of deployments in the corpus
+are like this. There are three kinds:
+
+- A value the producer chose. The `cluster-infrastructure` root in
+  govuk-infrastructure outputs the literal `"cluster-services"` as
+  `cluster_services_namespace`. Its `cluster-services` root reads that
+  through `tfe_outputs`.
+- The result of running something. In govuk-aws, `app-publishing-amazonmq`
+  outputs the decoded result of a Lambda invocation.
+- A value held by a system the consumer has no provider for. simpleinfra's
+  `fastly-tls-subscription` outputs a Fastly configuration ID.
+
+Without an output read the consumer copies the value into its own
+configuration, and nothing keeps that copy true.
+
+A second, smaller gain is the grant. A data-source read needs describe
+permission on the producer's service, which often covers every resource of
+that type in the account. The output read needs `s3:GetObject` on one
+producer's `tofu-outputs/` prefix and shows only what that producer
+published. This matters only when the consumer does not already use that
+service.
+
+None of this reopens the objection above, which declined building a mirror
+of live attributes. Every estate already records its root output values
+under `tofu-outputs/<estate>/` for its own plan to read. The only question
+is whether another estate may read them.
+
+Staleness still rules out a value that mirrors a live attribute. The record
+is as of the producer's last apply and does not move when someone changes
+the resource out of band, so those values stay on data sources. A value that
+comes from the producer's configuration can change only when the producer
+applies, so its record is as current as the value can be.
+
+If the read is built, #1371 carries the checklist. The dependency is
+declared in configuration, so that the IAM grant and the declaration name
+the same estate. A missing grant refuses and names the other estate. That
+rules out reusing `ReadRootOutputValues`, which logs and skips every read
+error. What crosses is what is written: root outputs that are non-sensitive
+and wholly known. The consumer's plan says the value is as of the producer's
+last apply.
+
+An output read is never for a value a data source can read.
 
 ## Demonstrated
 
