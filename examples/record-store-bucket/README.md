@@ -198,7 +198,7 @@ Conditioning `ReadAndDeleteByPrefix` on the object's existing tag leaves
 an estate that can create records and can never update or delete one.
 Writing `WriteOnlyObjectsTaggedAsThisEstate` with `s3:ExistingObjectTag`
 instead of `s3:RequestObjectTag` denies the first write into every new
-estate. `site/content/docs/use/iam.md` has both in full, under "What each
+estate. [`iam/README.md`](iam/README.md) has both in full, under "What each
 statement is for".
 
 ## `just down`

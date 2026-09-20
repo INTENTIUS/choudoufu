@@ -119,7 +119,7 @@ just verify
 `just up` prints the bucket name for the `record_store` block and how many
 days a deleted record stays recoverable. `RECORD_NONCURRENT_DAYS` sets that
 window, and `RECORD_KMS_KEY_ARN` puts the bucket under a key of yours
-([Encryption at rest]({{< relref "/docs/use/encryption" >}})).
+([Encryption at rest]({{< relref "/docs/use/bucket" >}})).
 
 `just verify` asks the binary, which is also how you check a bucket made any
 other way:
@@ -128,9 +128,9 @@ other way:
 choudoufu live-bucket -bucket <name>
 ```
 
-[The three settings]({{< relref "/docs/use/bucket-contract" >}}) states what
+[The three settings]({{< relref "/docs/use/bucket" >}}) states what
 makes a bucket correct, independent of the example. Then write the estate's
-role its policy: [IAM for the record store bucket]({{< relref "/docs/use/iam" >}}).
+role its policy: [IAM for the record store bucket]({{< relref "/docs/use/bucket" >}}).
 
 A missing bucket fails the plan, before anything is written:
 
@@ -193,7 +193,7 @@ sentinel and no way to write one reads exactly like an estate with no
 resources in it; run the estate once under a role that may write, and
 read-only plans work from then on. Render the policy for such a role with
 `render-policy.sh <estate> <bucket> --read-only`:
-[IAM for the record store bucket]({{< relref "/docs/use/iam#a-role-that-plans-and-never-applies" >}})
+[IAM for the record store bucket]({{< relref "/docs/use/bucket#a-role-that-plans-and-never-applies" >}})
 says what it leaves out and why, and
 [claim 38]({{< relref "/docs/claims/a-read-only-role-can-plan" >}}) is the
 run on real AWS where such a role plans an established estate, writes

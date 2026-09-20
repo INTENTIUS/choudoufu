@@ -1,12 +1,7 @@
----
-title: "Encryption at rest for the record store"
-weight: 9
----
-
 # Encryption at rest for the record store
 
 choudoufu asserts three things about a record store bucket
-([the three settings]({{< relref "/docs/use/bucket-contract" >}})), and
+([the three settings](CONTRACT.md)), and
 encryption at rest is not one of them. That is a decision, and this page is
 the reasoning.
 
@@ -27,7 +22,7 @@ The record store's consistency rests on conditional writes against an object's
 ETag, and an ETag is computed differently under different encryption: it is
 the MD5 of the content under SSE-S3 and an opaque value under any KMS flavour.
 The store treats it as opaque under all of them.
-[Claim 33]({{< relref "/docs/claims/cas-holds-under-every-sse-flavour" >}})
+[Claim 33](../../live/smoke/claims/cas-holds-under-every-sse-flavour.md)
 runs the store's whole conformance suite against real S3 under each of:
 
 | Flavour | Bucket default |
@@ -45,7 +40,7 @@ conflict.
 ## The recommendation: a customer managed key
 
 This is a recommendation, and it is a measured one:
-[claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
+[claim 37](../../live/smoke/claims/the-recommended-secure-configuration.md)
 stands the whole arrangement up on real AWS and runs an estate's life in it.
 
 A customer managed key is the one flavour where you write the key policy.
@@ -53,7 +48,7 @@ Under SSE-S3 and the AWS managed key, anyone IAM lets read the object can read
 it. Under your own key a reader also needs the key, the key policy says who
 has it, and revoking it cuts access to every record at once without touching
 IAM. Records hold secret material by default
-([Secrets]({{< relref "/docs/use/secrets" >}})), which is the reason to want
+([Secrets](https://intentius.io/choudoufu/docs/use/secrets/)), which is the reason to want
 that second gate.
 
 What it takes:

@@ -31,7 +31,7 @@ deletes every local file and the next plan is `No changes.` Run it with
    Removing the delete marker brings it back, and that takes
    `s3:ListBucketVersions` and `s3:DeleteObjectVersion`, which the estate's
    own role does not have
-   ([IAM]({{< relref "/docs/use/iam#what-a-recovery-needs" >}})). If this
+   ([IAM]({{< relref "/docs/use/bucket#what-a-recovery-needs" >}})). If this
    works, you are done.
 3. Run `choudoufu init`, then `choudoufu plan -adoption-only`. That prints
    which live resource each declared instance binds to, which is what you

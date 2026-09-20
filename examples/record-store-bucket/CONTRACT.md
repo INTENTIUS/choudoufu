@@ -1,8 +1,3 @@
----
-title: "The three things a record store bucket must have"
-weight: 8
----
-
 # The three things a record store bucket must have
 
 choudoufu asserts three settings about the bucket behind `record_store "s3"`
@@ -13,10 +8,10 @@ specific about what a record is.
 |---|---|---|
 | `versioning` | Versioning is `Enabled` | A record can be the only copy of what it says. A record-backed resource carries no marker and cannot be imported under a live block, so in an unversioned bucket an overwrite or a delete is final |
 | `lifecycle` | Enabled rules expire **noncurrent** versions under every key an estate writes, and no enabled rule expires **current** objects there | With versioning on, every apply adds versions. Without this rule the bucket keeps all of them forever, and nobody has chosen how long a record destroyed by mistake stays recoverable |
-| `public_access_block` | All four settings are on | Records hold secret material by default ([Secrets]({{< relref "/docs/use/secrets" >}})). A public bucket policy or ACL would publish them |
+| `public_access_block` | All four settings are on | Records hold secret material by default ([Secrets](https://intentius.io/choudoufu/docs/use/secrets/)). A public bucket policy or ACL would publish them |
 
 Encryption at rest is deliberately not a fourth.
-[Encryption at rest]({{< relref "/docs/use/encryption" >}}) says why.
+[Encryption at rest](ENCRYPTION.md) says why.
 
 ## The lifecycle number is a recovery window
 
@@ -25,7 +20,7 @@ that a record was destroyed or overwritten by mistake. In a versioned bucket
 a delete writes a delete marker and the record survives underneath as a
 noncurrent version until the rule expires it. Removing the delete marker
 brings the record back, and
-[claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})
+[claim 37](../../live/smoke/claims/the-recommended-secure-configuration.md)
 does exactly that on real AWS.
 
 So choose the number as the answer to "how long until we would notice", and
@@ -78,9 +73,9 @@ A setting the role cannot read is refused the same as one that failed,
 because a bucket nobody could check is not a bucket anyone checked. The three
 reads are `s3:GetBucketVersioning`, `s3:GetLifecycleConfiguration` and
 `s3:GetBucketPublicAccessBlock`, and the
-[published policy]({{< relref "/docs/use/iam" >}}) carries them.
+[published policy](iam/README.md) carries them.
 
-[Claim 29]({{< relref "/docs/claims/a-wrong-bucket-is-refused" >}}) measures
+[Claim 29](../../live/smoke/claims/a-wrong-bucket-is-refused.md) measures
 each refusal by name, the first-contact refusal that leaves nothing behind,
 and that a plan against an established estate goes through without asking.
 
@@ -113,7 +108,7 @@ only when run in the estate's directory with no `-bucket` flag, because a
 bucket named on the command line has no configuration to read a waiver from. An unknown name, a
 repeated name, a boolean, and `allow_insecure` on a store that is not a bucket
 are all configuration errors.
-[Claim 30]({{< relref "/docs/claims/a-waiver-names-what-it-waives" >}})
+[Claim 30](../../live/smoke/claims/a-waiver-names-what-it-waives.md)
 measures this.
 
 The legitimate uses are narrow: a role that is not allowed to read a bucket's
@@ -134,5 +129,5 @@ using it. A bucket is correct when:
   uses it as its own store.
 
 `choudoufu live-bucket` is the authority on the first three, for a bucket made
-any way at all. [What you set up by hand]({{< relref "/docs/use/setup" >}})
+any way at all. [What you set up by hand](https://intentius.io/choudoufu/docs/use/setup/)
 walks through creating one.

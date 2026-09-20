@@ -23,7 +23,7 @@ import (
 const (
 	iamRenderer = "../examples/record-store-bucket/iam/render-policy.sh"
 	iamExamples = "../examples/record-store-bucket/iam"
-	iamDocsPage = "../site/content/docs/use/iam.md"
+	iamDocsPage = "../examples/record-store-bucket/iam/README.md"
 	iamBucket   = "choudoufu-records-111122223333-us-east-2"
 	iamKMSKey   = "arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"
 	// The kms:ViaService value the grant on iamKMSKey must carry (GitHub
