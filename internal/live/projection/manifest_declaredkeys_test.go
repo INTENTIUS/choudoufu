@@ -102,7 +102,7 @@ func manifestKeysFinalState(t *testing.T, addr addrs.AbsResourceInstance, val ct
 // keys the apply declared reach the record, and they are the manifest's
 // own, not the live object's.
 //
-// Proven red by deleting the manifestDeclaredKeys call in
+// Proven red by deleting the ManifestDeclaredKeys call in
 // writeBackRecordEnvelopes: found becomes false and every later assertion
 // falls with it.
 func TestWriteBackRecordsTheDeclaredManifestKeys(t *testing.T) {
@@ -150,7 +150,7 @@ func TestWriteBackRecordsTheDeclaredManifestKeys(t *testing.T) {
 // declared - otherwise the next plan re-proposes the removal for ever,
 // which is the churn both rejected designs were rejected for.
 //
-// Proven red twice. Deleting the manifestDeclaredKeys call in
+// Proven red twice. Deleting the ManifestDeclaredKeys call in
 // writeBackRecordEnvelopes makes the first apply record nothing; making
 // the write conditional on setResidue != nil does the same, which is the
 // measurement behind that condition being absent - a kubernetes_manifest
