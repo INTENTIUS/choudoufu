@@ -254,6 +254,10 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 				skipped++
 				continue
 			}
+			if RecordStoreObject(&item) {
+				skipped++
+				continue
+			}
 			o := Object{
 				Kind:      k.Kind,
 				Namespace: item.GetNamespace(),
@@ -276,6 +280,33 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ImportID < items[j].ImportID })
 	return items, skipped, nil
+}
+
+// RecordStoreObject reports that obj is one of the estate's own record
+// Secrets, written by record_store "kubernetes" (GitHub issue #1392).
+//
+// Those objects carry the estate's tofu-estate label, deliberately: it is
+// what live/kubernetes/estate-boundary.yaml fences a write to them with, and
+// what keeps them from being the one thing in the estate whose ownership is
+// not recorded the way everything else's is. But the sweep reads that same
+// label as "this object is in the estate", and an object in the estate that
+// no configuration block declares is an orphan the plan proposes to DESTROY.
+// Measured on kind on 2026-09-19: an ordinary second plan of a Kubernetes
+// estate proposed destroying all five of its own record Secrets, which would
+// have deleted the estate's records as a side effect of planning it.
+//
+// The test is both the managed-by label and the record-key annotation. Either
+// alone is something a user could plausibly put on a Secret of their own;
+// together they are this store's objects and nothing else. The two strings
+// are staterecord's, spelled out here for the same reason staterecord spells
+// tofu-estate out: neither package imports the other, and
+// internal/live/projection's kubernetes_store_test.go pins them equal.
+func RecordStoreObject(obj *unstructured.Unstructured) bool {
+	if obj.GetLabels()["app.kubernetes.io/managed-by"] != "choudoufu" {
+		return false
+	}
+	_, hasKey := obj.GetAnnotations()["choudoufu.intentius.io/record-key"]
+	return hasKey
 }
 
 // Serves implements [Sweeper]: one GET of the group-version's resource

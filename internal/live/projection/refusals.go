@@ -286,6 +286,10 @@ var refusals = []Refusal{
 		What:    "A resource type projection needed to read back has no ImportResourceState implementation at all - a fixed property of the provider's own code (GitHub issue #331), not a transient failure. Admitted for naming and reference purposes only; refused here rather than risk proposing a create for an object this run cannot verify.",
 	},
 	{
+		Summary: "The record store contradicts itself about a record",
+		What:    "Listing the record store names a key, and reading that same key for this plan came back with no record there. Prior state cannot be built from two answers that disagree, and an instance quietly missing from prior state is an instance a destroy never proposes and never reports. GitHub issue #1355.",
+	},
+	{
 		Summary: "Unsupported resource type for the provider",
 		What:    "A resource's type is not one the configured provider serves.",
 	},

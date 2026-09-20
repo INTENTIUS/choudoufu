@@ -332,7 +332,7 @@ explain \
   "s3:DeleteObjectVersion, so a run can never rewrite history."
 write_estate '["keep"]' v2
 M_OUT="$(as_estate mistake apply -auto-approve -input=false -no-color 2>&1)" || fail "secureconfig" "the mistaken apply failed: $M_OUT"
-grep -q "Resources: 0 added, 0 changed, 1 destroyed" <<< "$M_OUT" || fail "secureconfig" "the mistaken apply: $M_OUT"
+destroyed_exactly secureconfig 1 "$M_OUT"
 GONE="$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$RECORD" --query 'length(Contents || `[]`)' --output text)"
 [ "$GONE" = "0" ] || fail "secureconfig" "the record is still listed after its instance was destroyed"
 MARKER="$(aws s3api list-object-versions --bucket "$BUCKET" --prefix "$RECORD" --query 'DeleteMarkers[?IsLatest==`true`].VersionId | [0]' --output text)"
@@ -379,7 +379,7 @@ proof "the S3 actions exercised and the S3 actions granted are the same set. (km
 
 step "7. teardown, and the project refusing to help until it is safe"
 T_OUT="$(as_estate destroy apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "secureconfig" "destroy: $T_OUT"
-grep -q "Resources: 0 added, 0 changed, 2 destroyed" <<< "$T_OUT" || fail "secureconfig" "the destroy did not remove both instances: $T_OUT"
+destroyed_exactly secureconfig 2 "$T_OUT"
 cmd "just down $BUCKET   # the estate is destroyed, its recoverable versions are not"
 DN_OUT="$(cd "$PROJECT" && RECORD_KMS_KEY_ARN="$KEY_ARN" just down "$BUCKET" 2>&1)" && fail "secureconfig" "just down tore the bucket down while it still held recoverable record versions: $DN_OUT"
 grep -q "REFUSING" <<< "$DN_OUT" || fail "secureconfig" "just down failed, but not by refusing: $DN_OUT"

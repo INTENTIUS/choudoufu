@@ -153,7 +153,7 @@ aws s3api put-object-tagging --bucket "$BUCKET" --key "$VICTIM" --tagging 'TagSe
 R_OUT="$(run_as_estate plan -input=false -no-color 2>&1)" || fail "objecttags" "the plan failed after the tag was restored: $R_OUT"
 grep -q "No changes." <<< "$R_OUT" || fail "objecttags" "the plan was not empty after the tag was restored: $R_OUT"
 D_OUT="$(run_as_estate apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "objecttags" "teardown failed: $D_OUT"
-grep -q "Resources: 0 added, 0 changed, 2 destroyed" <<< "$D_OUT" || fail "objecttags" "teardown did not destroy both instances: $D_OUT"
+destroyed_exactly objecttags 2 "$D_OUT"
 proof "plan empty again, and both instances destroyed by the role."
 
 echo "  What you watched: every object the estate wrote carrying its tag, a"

@@ -282,7 +282,7 @@ proof "the killed writer's change never landed - the record still held $PRE_KILL
 step "6. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
 D_OUT="$(cd "$SMOKE_WORK/b" && "$RUN_BIN" apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "writerace" "teardown failed: $D_OUT"
-grep -q "1 destroyed" <<< "$D_OUT" || fail "writerace" "teardown did not destroy the one resource: $D_OUT"
+destroyed_exactly writerace 1 "$D_OUT"
 proof "gone."
 
 echo "  What you watched: two writers raced for one record $ROUNDS times and"

@@ -427,8 +427,23 @@ func (s *S3Store) List(ctx context.Context, keyPrefix string) ([]string, error) 
 		for _, obj := range out.Contents {
 			keys = append(keys, s.keyFromObjectKey(aws.ToString(obj.Key)))
 		}
-		if !aws.ToBool(out.IsTruncated) || aws.ToString(out.NextContinuationToken) == "" {
+		if !aws.ToBool(out.IsTruncated) {
 			break
+		}
+		// A page that says it is truncated and hands back no token to ask
+		// for the rest with. This used to break out of the loop next to the
+		// IsTruncated test and return what it had, with no error: a listing
+		// short by an unknown number of keys, indistinguishable from a
+		// complete one. Every consumer of this listing reads a key's absence
+		// as the record's absence - [S3Store.GetAll] builds the plan-phase
+		// snapshot from exactly these keys, and internal/live/projection's
+		// orphan discovery treats the set as the estate's record-backed
+		// resources - so a short listing is an estate with instances missing
+		// from it and nothing said. GitHub issue #1355. Real S3 always sends
+		// the token with the truncation; an S3-compatible store that does
+		// not is refused here rather than silently believed.
+		if aws.ToString(out.NextContinuationToken) == "" {
+			return nil, fmt.Errorf("staterecord: s3: listing %q: bucket %q answered with a truncated page and no continuation token, so the rest of the listing cannot be asked for and what came back is short by an unknown number of keys; refusing rather than reading it as the whole namespace (GitHub issue #1355)", keyPrefix, s.bucket)
 		}
 		token = out.NextContinuationToken
 	}

@@ -2913,6 +2913,7 @@ func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]
 			continue
 		}
 		if known[addr.String()] {
+			b.refuseListedButReadAsAbsent(addr, key)
 			continue
 		}
 		// GitHub issue #364/#270: a kind=identity key is never delete
@@ -2938,6 +2939,43 @@ func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]
 		}
 		b.materializeRecord(ctx, addr, true)
 	}
+}
+
+// refuseListedButReadAsAbsent is the cross-check GitHub issue #1355 asks for:
+// the store's own listing names a key, and this run's read of that same key
+// said no record is there. Both answers came from one store, and they cannot
+// both be right.
+//
+// It is here because the listing is already in hand - [builder.discoverOrphanedRecords]
+// pays for it on every build - so the check costs a map lookup per key and no
+// call at all.
+//
+// The failure it catches is the quietest one this package has. A declared
+// record-backed instance whose read comes back absent is omitted as
+// [ReasonAbsent], which on an ordinary plan proposes a CREATE (loud enough:
+// the create's own conditional write fails at apply time against the record
+// that is already there) and on `apply -destroy` proposes NOTHING. A destroy
+// plan is built from prior state alone, so an instance missing from prior
+// state is not a destroy that failed; it is a destroy that was never in the
+// plan, and the run prints "Apply complete" with a count one short. #1355 is
+// one of those, on real AWS, with no log kept - which is why the check has to
+// be in the product rather than in a test.
+//
+// An error rather than a warning, for internal/live/projection/store.go's
+// reason (issue #693): a run that cannot get one consistent answer about what
+// the estate holds has nothing to plan against, and planning anyway is how a
+// live object outlives the destroy that reported success.
+func (b *builder) refuseListedButReadAsAbsent(addr addrs.AbsResourceInstance, key string) {
+	o, omitted := b.omitted[addr.String()]
+	if !omitted || o.Reason != ReasonAbsent {
+		return
+	}
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "The record store contradicts itself about a record",
+		fmt.Sprintf(
+			"Listing the record store returns %q, which is %s's own record key, but reading that key for this plan came back with no record there. One read of this store says the record exists and another says it does not, so there is no prior state for %s this run can trust.\n\nNothing is proposed for %s while that is true. On a destroy that would be one fewer resource destroyed than the estate holds, under a line reporting success. Re-run; if it repeats, the store is not answering consistently and the record at %q is what to look at. GitHub issue #1355.",
+			key, addr, addr, addr, key,
+		),
+	))
 }
 
 type materializeStatus int

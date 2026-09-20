@@ -61,6 +61,7 @@ jobs:
           - k8s-a-held-delete-is-not-gone
           - k8s-the-server-gets-the-last-word
           - k8s-a-label-is-a-change
+          - k8s-records-in-the-cluster
     steps:
       - uses: actions/checkout@v7
         with:
