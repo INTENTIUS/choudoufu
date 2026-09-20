@@ -76,7 +76,7 @@ https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
   just smoke k8s-custom-resource
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke k8s-custom-resource and report the five "caught"
+BREAK=1 just smoke k8s-custom-resource and report the six "caught"
 lines: the scenario writes spec.replicas = 0 under a CRD that bounds it
 at minimum 1 and the replan must be refused by name in the server's
 words; strips the tofu-estate label with kubectl and the replan must
@@ -84,10 +84,13 @@ refuse the CronTab by name, then have the server's own dry run refuse the
 create it falls back to because the unowned object still holds the name,
 leaving the label off until an operator writes it back; strips it again
 with the block removed and the replan must not list the object; deletes
-the custom resource and the replan must propose creating it; and installs
+the custom resource and the replan must propose creating it; installs
 a MutatingAdmissionPolicy that rewrites `spec.image` on every update, after
 which the migration must refuse the label write by name rather than send
-it.
+it; and finally migrates the same CronTab cleanly, cuts
+manifest_metadata_keys out of the estate's record, and requires the
+identical label deletion to plan "No changes." with the label still on
+the object.
 ```
 
 The steps, in the order they print:
@@ -130,12 +133,33 @@ The steps, in the order they print:
     stamped, with nothing failed and nothing skipped. kubectl reads
     `tofu-estate=smoke-crd-stock` on the custom resource, and its spec is
     untouched.
-12. `the migrated estate replans empty, and the sweep can now see the
+12. `a label the stock configuration declared, removed after the
+    migration, is removed from the object` - the stock CronTab declares
+    `team = "a"` and `tier = "batch"`. The first plan after the migration
+    is empty. The stock state file is then deleted, which is what the
+    adopt page tells the reader to do next, and `team` is deleted from the
+    configuration: the plan is `0 to add, 1 to change, 0 to destroy` with
+    `- team = "a"` in it, the apply reports one change, and kubectl reads
+    back `tier` and `tofu-estate` and no `team`. The replan is empty.
+13. `the migrated estate replans empty, and the sweep can now see the
     adopted object` - the plan with no state file is empty, and deleting
     the adopted block proposes destroying exactly
     `kubernetes_manifest.orphan_crontab_smoke-crd-stock_adopted-crontab`.
 
-Steps 11 and 12 are what
+Step 12 is [#1391](https://github.com/INTENTIUS/choudoufu/issues/1391).
+Which metadata keys a configuration declared is not on the object, and it
+is not in the configuration once the key is deleted from it. Stock reads
+it out of the last-applied manifest in its state file; a migrated estate
+deletes that file. So `live-import` records the declared key set into the
+estate's own record, from the state's recorded manifest rather than from
+the live read, and
+[#1211](https://github.com/INTENTIUS/choudoufu/issues/1211)'s removal
+analysis - (recorded) minus (currently declared), with `managedFields` as
+a safety rail - reads it from there. Before this the apply write-back was
+the only writer of that set, so a migrated estate had none: the label sat
+on the object for ever with no refusal and no warning to look up.
+
+Steps 11 and 13 are what
 [#1109](https://github.com/INTENTIUS/choudoufu/issues/1109) closed. Before
 it, the summary line read `1 newly stamped ... 1 skipped` and the CronTab
 carried no label. A migrated custom resource was bound by its natural
@@ -145,8 +169,8 @@ as one API merge patch under the caller's own credential. `kubernetes_manifest`
 has no metadata block, so a labels-only write through the provider would
 re-apply the whole manifest from a state file that may be days stale.
 
-The `BREAK=1` run has five controls, all after step 5, and it exits
-there. Steps 6 to 12 are the main run only. First it writes
+The `BREAK=1` run has six controls, all after step 5, and it exits
+there. Steps 6 to 13 are the main run only. First it writes
 `spec.replicas = 0` into the manifest. The CRD bounds the field at
 minimum 1, a rule only the server checks, so the replan must be refused
 by name (`Kubernetes API server rejected the planned object`), quoting
@@ -169,3 +193,12 @@ compared with the object it holds. The migration must refuse by name
 (`would also change spec.image`), count the resource as failed, and
 leave the object with no label and its original image. With the policy
 removed the same command goes through in the main run.
+
+The sixth control is step 12's. With the policy gone the migration lands,
+and then `manifest_metadata_keys` is cut out of the estate's record with
+`jq` - the whole record goes when that was all it held, which is what a
+manifest-shaped instance has and what a build without the migrate-time
+seed leaves behind. The identical label deletion must then plan
+`No changes.` with `team` still on the object. Without that control step
+12's in-place update would read the same if the plan were simply
+comparing the configuration against the live object.

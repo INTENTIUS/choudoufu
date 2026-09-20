@@ -210,7 +210,8 @@ proof "refused twice running, nothing left under its prefix either time, and acc
 
 step "5. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
-( cd "$SMOKE_WORK/est" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "wrongbucket" "teardown failed"
+D_OUT="$(cd "$SMOKE_WORK/est" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "wrongbucket" "teardown failed: $D_OUT"
+destroyed_exactly wrongbucket 1 "$D_OUT"
 proof "gone."
 
 echo "  What you watched: a correct bucket cost nothing, four wrong ones were"

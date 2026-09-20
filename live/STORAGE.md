@@ -31,7 +31,7 @@ the backend.
 |---|---|---|
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
 | `s3` | A bucket you already own | `bucket` (required), `key_prefix`, `region`, `allow_insecure` |
-| `kubernetes` | Secrets in a namespace you already own | `namespace` (required), and the connection arguments of stock's `kubernetes` backend |
+| `kubernetes` | Secrets in a namespace you already own | `namespace` (defaults to `tofu-records-<estate>`), `key_prefix`, and the connection arguments of stock's `kubernetes` backend |
 
 A `live` block that declares no `record_store` gets the local one, the way
 stock implies a local state file.
@@ -165,10 +165,20 @@ read, so the API server decides a race in one step and nothing is held. There
 is no Lease. A record larger than a Secret may hold is refused by name.
 
 RBAC cannot condition on a label, so what keeps one estate out of another's
-records is the namespace. Give each estate its own, and bind the estate's
-role to Secrets in that namespace alone. Writes carry the estate label, so
+records is the namespace. Each estate gets its own by default,
+`tofu-records-<estate>`; bind the estate's role to Secrets in that namespace
+alone. Writes carry the estate label, so
 [the admission policy](https://intentius.io/choudoufu/kubernetes/gate/) fences them the way
 it fences every other object of the estate.
+
+The store does not create the namespace, and a namespace that is not there is
+refused by name with the `kubectl` line that creates it. Creating one and
+granting an identity Secrets in it are two halves of the same cluster-admin
+act, and a list in a namespace that does not exist answers empty, which would
+otherwise read as an estate with no records.
+
+Anyone who can `get secrets` in the records namespace reads every recorded
+value, the same bargain `s3:GetObject` on the bucket makes.
 
 ## Receipts
 

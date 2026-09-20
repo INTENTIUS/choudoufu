@@ -97,7 +97,7 @@ P_OUT="$(cd "$SMOKE_WORK/est" && as_role "$ESTATE_ROLE" chdf plan -input=false -
 grep -q "No changes." <<< "$P_OUT" || fail "firstwrite" "the replan was not empty: $P_OUT"
 cmd "choudoufu apply -destroy -auto-approve   # deletes, under If-Match"
 D_OUT="$(cd "$SMOKE_WORK/est" && as_role "$ESTATE_ROLE" chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "firstwrite" "the destroy failed under the published policy: $D_OUT"
-grep -q "Resources: 0 added, 0 changed, 2 destroyed" <<< "$D_OUT" || fail "firstwrite" "the destroy did not remove both instances: $D_OUT"
+destroyed_exactly firstwrite 2 "$D_OUT"
 LEFT="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-new/terraform_data/ --query 'length(Contents || `[]`)' --output text)"
 [ "$LEFT" = "0" ] || fail "firstwrite" "$LEFT record(s) left after the destroy"
 echo "2 added; 2 changed under If-Match; replan empty; 2 destroyed under If-Match; no record left" | evidence

@@ -361,11 +361,51 @@ it.
 A real run is therefore:
 
 ```
-SCALE=136 go run ./tools/gauntlet live-cert -target aws -region us-east-2 \
+go build -o /tmp/gauntlet ./tools/gauntlet
+SCALE=136 /tmp/gauntlet live-cert -target aws -region us-east-2 \
   -ceiling-usd 15 -timeout-seconds 34000 terralith-scale
 ```
 
-with nothing to unlock first. `-timeout-seconds` is still worth passing at
+with nothing to unlock first. Build it, do not `go run` it (#1324). `go run`
+execs the binary it builds as a child and does not pass a signal on to it:
+measured on go1.26.5, `kill -TERM` on a `go run` pid killed the wrapper
+alone, the compiled binary reparented to init, and the script and its
+`terraform plan` carried on with the teardown trap unrun. The wrapper's exit
+code was 143 and read as "the run ended" while 9,477 resources stayed up.
+Built, the pid `pgrep -f "gauntlet live-cert"` matches is the pid holding the
+work: it forwards the signal to the script's whole process group, waits for
+the trap, and writes what state the run reached. Read that state rather than
+an exit code:
+
+```
+/tmp/gauntlet live-cert-state terralith-scale
+```
+
+It exits non-zero for anything that is not a run that finished against this
+checkout's HEAD, and prints the reason - "signalled, teardown unconfirmed"
+is the one that means go and look at the account.
+
+Stopping a run is one signal, and then waiting. The tool forwards it to the
+script's whole process group and then waits for the teardown trap for as
+long as the trap takes, printing a "still waiting for teardown" line every
+`LIVECERT_HEARTBEAT_S` so the wait is not silent. It never kills a teardown
+on its own, and a second or third signal changes nothing: closing a terminal
+sends SIGHUP and a runner's cancellation sends SIGINT then SIGTERM, and
+neither is a request to abandon an estate. Tearing a scale-128 estate down
+is tens of minutes, so expect to wait. To abandon it anyway, `kill -KILL
+-<pgid>` using the pgid the tool prints, which leaves every resource live
+and billing with no verified-empty listing. `LIVECERT_SIGNAL_GRACE_S=<n>`
+opts into a bound that does the same thing on a timer, and records the run
+unconfirmed.
+
+Prove the harness on floci at scale 1 before any paid scale run (#1324).
+`TARGET=floci SCALE=1 RECORD_STORE_BACKEND=s3` exercises the store path, the
+teardown arm and the signal path in minutes for nothing. Every defect found
+in this area in 2026-09 was size-independent and every one was found by
+spending hours and money at scale 128: the record-store bucket policy
+denying the store's own writes, `s3_prefix_count` returning 1 for an empty
+prefix, and both halves of #1324. Scale 136 confirms a harness already known
+to work; it is not where you find out that it does not. `-timeout-seconds` is still worth passing at
 this size, but no longer because the default would kill the run: it defaults
 to 14400 (four hours) rather than 900, and `live-cert.yml`'s job ceiling is
 a `timeout_minutes` input defaulting to 350 rather than a hard 60. That was
@@ -395,7 +435,7 @@ live, billing estate no later dispatch could reach.
 
 A "heavy run" is `go run ./tools/gauntlet run -set core` or `-set all` (a
 full estate pass, minutes to hours - not a plain `run <name>` against the
-emulator) or `go run ./tools/gauntlet live-cert -target aws` (spends real
+emulator) or `gauntlet live-cert -target aws` (spends real
 account money). The section above is the rule; this one is where a heavy
 run normally happens: GitHub Actions, dispatched by hand, and gated on the
 maintainer's own approval click, a repository-level required reviewer

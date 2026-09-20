@@ -6,29 +6,16 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 )
-
-// commandTimeoutContext bounds a live-cert run at the process level, from
-// Go's side, independent of live/live-cert/run.sh's own `timeout` wrapper -
-// #440's brief asks for the wall-clock ceiling enforced more than one way,
-// not trusted to a single mechanism. ceilingSeconds <= 0 means no Go-side
-// bound (the shell wrapper's `timeout` is still there; this is defense in
-// depth, not the only layer).
-func commandTimeoutContext(ceilingSeconds int) (context.Context, context.CancelFunc) {
-	if ceilingSeconds <= 0 {
-		return context.WithCancel(context.Background())
-	}
-	return context.WithTimeout(context.Background(), time.Duration(ceilingSeconds)*time.Second)
-}
 
 // LiveCertScript is where a real-AWS certification script lives for a given
 // estate, mirroring Estate.ScriptPath's convention for live/e2e/*/run.sh.
@@ -84,6 +71,15 @@ type LiveCertResult struct {
 	ExitCode   int               `json:"exit_code"`
 	Detail     map[string]string `json:"detail,omitempty"`
 	DurationS  float64           `json:"duration_s,omitempty"`
+	// State is what state the run reached (#1324): "finished", or one of
+	// the two signalled states. An exit code cannot express the
+	// difference - a wrapper's 143 and a finished run's 0 are both "the
+	// process is gone" - and only one of them means the estate is down.
+	// PlanLiveCertWrites refuses to write a row at all for a signalled
+	// run, so this field never carries a signalled value into
+	// live/gauntlet.json; it is here so that a row read back out always
+	// says, in its own text, that it came from a run that finished.
+	State LiveCertRunState `json:"state,omitempty"`
 	// Seconds is per-stage wall-clock seconds, the exact same meaning as
 	// LastRun.Seconds (artifact.go) carries for an emulator row: stage id ->
 	// that stage's own duration_s, read off the script's "GAUNTLET
@@ -194,9 +190,27 @@ type LiveCertWrites struct {
 // PlanLiveCertWrites decides what a finished run records. The live_cert half
 // of the answer is RecordsLiveCert's, called rather than restated, so the
 // rule has one definition and the two cannot drift apart.
-func PlanLiveCertWrites(target string, res *ProtocolResult) LiveCertWrites {
+//
+// state is what state the run reached (#1324), and it is checked first,
+// before anything else this function knows about. A signalled run writes
+// NOTHING: not the live_cert row, not the scale row. It stopped partway
+// through with an unknown amount of the estate still standing, and every
+// field either file holds - stage verdicts, resource counts, seconds - is a
+// claim about a run that went all the way through. The stages such a run did
+// speak before the signal are still in its log, which is where evidence that
+// is not a measurement belongs.
+//
+// The parameter is required rather than defaulted because that is the
+// difference between this and an rc file. A caller that has no idea what
+// state its run reached has to say RunStateRunning and be refused, not pass
+// nothing and be believed.
+func PlanLiveCertWrites(target string, res *ProtocolResult, state LiveCertRunState) LiveCertWrites {
 	if target != "aws" {
 		return LiveCertWrites{Why: "target=floci: this is Stage-1 proving evidence only; NOT written to live/gauntlet.json (RunLiveCert never records a floci run)"}
+	}
+	if state != RunStateFinished {
+		return LiveCertWrites{Why: fmt.Sprintf("the run did not finish - %s. Nothing is written to %s or %s: a run stopped partway through measured nothing, and a row saying otherwise is exactly the 143-reads-as-success defect #1324 was filed for. The stages it spoke before it stopped are in its log, and %s/live-cert-<estate>.run.json says what state it reached.",
+			state.Human(), ArtifactPath, ScaleRecordsPath, LogDir)}
 	}
 	w := LiveCertWrites{LiveCertRow: RecordsLiveCert(res), ScaleRecord: true}
 	if w.LiveCertRow {
@@ -278,11 +292,13 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	// live/gauntlet/logs to lock in and writes no log either, so there is
 	// nothing for a second run to truncate - the same condition the log
 	// block below is guarded by, for the same reason.
+	runID := ""
 	if root != "" {
 		lock, lerr := AcquireLiveCertLock(root, estate, target, region)
 		if lerr != nil {
 			return nil, nil, 0, lerr
 		}
+		runID = lock.RunID()
 		fmt.Printf("live-cert %s: holding %s as run %s (pid %d)\n", estate, lock.Path(), lock.RunID(), os.Getpid())
 		defer func() {
 			if rerr := lock.Release(); rerr != nil {
@@ -291,14 +307,55 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		}()
 	}
 
-	ctx, cancel := commandTimeoutContext(ceilingSeconds)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "bash", full)
+	// exec.Command, NOT exec.CommandContext, and the ceiling is enforced
+	// by the supervisor below instead (#1324).
+	//
+	// CommandContext ties cmd.WaitDelay to the context: the delay timer
+	// starts when the context is done, and when it expires Wait KILLS the
+	// process. So the ceiling path was - ceiling fires, cmd.Cancel sends
+	// the group a SIGTERM, the trap starts tearing down, and 30 seconds
+	// later Wait SIGKILLs bash out from under it. Measured with a stub
+	// whose teardown outlasts the delay: the trap never finished and the
+	// run recorded `state="finished"`. That is this issue's defect on the
+	// one path HANDOFF and live-cert.yml both call the safe way to stop a
+	// certification, and 30 seconds is not a number any real teardown fits
+	// in.
+	//
+	// With no context, WaitDelay keeps only its other job, which is the
+	// one worth keeping: its timer also starts when the child has EXITED,
+	// bounding a grandchild that has outlived the script and is holding
+	// the output pipe open. By then there is no teardown left to cut
+	// short.
+	cmd := exec.Command("bash", full) //nolint:gosec // a script path under the checkout, resolved above
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "TARGET="+target, "REGION="+region)
+
+	// Setpgid (#1324): bash leads its own process group, so the script,
+	// the `terraform plan` it is blocked on and its own background jobs
+	// can all be signalled with ONE kill to the negative pgid. Signalling
+	// bash alone is not the same thing - the #1324 process listing has a
+	// `terraform plan` two levels down that nothing had signalled - and
+	// there is no other way to reach a grandchild whose pid this process
+	// never learned.
+	//
+	// The cost of a new process group is that the script no longer
+	// receives a terminal's Ctrl-C directly, since that goes to the
+	// foreground group. That is deliberate: forwarding below is now the
+	// ONLY way a signal reaches the script, which means this process
+	// always knows a stop request happened and always gets to wait for the
+	// teardown it started. The alternative - both of us receiving the
+	// signal independently - is how the harness ends up exiting out from
+	// under a trap that is still running.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// syncWriter (run.go): the exec package copies the child's output on
+	// its own goroutine, and the supervisor below writes its stop-request
+	// lines into the same place from another. A strings.Builder is not
+	// safe for that, and neither is an *os.File's offset.
 	var out strings.Builder
-	cmd.Stdout = &out
-	cmd.Stderr = &out
+	sink := &syncWriter{w: &out}
+	cmd.Stdout = sink
+	cmd.Stderr = sink
 
 	// Keep the script's own output, streamed to a file as it is produced
 	// (issue #578).
@@ -325,63 +382,144 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		logPath := filepath.Join(root, LogDir, "live-cert-"+estate+".log")
 		if logf, err := os.Create(logPath); err == nil { //nolint:gosec // a gitignored path under the checkout, built from the estate name
 			defer func() { _ = logf.Close() }()
-			cmd.Stdout = io.MultiWriter(&out, logf)
-			cmd.Stderr = cmd.Stdout
+			sink = &syncWriter{w: io.MultiWriter(&out, logf)}
+			cmd.Stdout = sink
+			cmd.Stderr = sink
 		}
 	}
 
-	// cmd.Cancel/cmd.WaitDelay: exec.CommandContext's DEFAULT behavior on
-	// context expiry is cmd.Process.Kill() - a bare SIGKILL, immediately,
-	// with no grace period. That is a real safety gap for a live-AWS
-	// script specifically: every estate script's teardown (the destroy +
-	// independent listing + raw-CLI sweep this package's own doc comments
-	// describe as the thing that makes a live-AWS run safe) runs from a
-	// `trap teardown EXIT INT TERM` inside the script - and SIGKILL cannot
-	// be trapped, at all, by design. A run that hits THIS ceiling with the
-	// default behavior leaves whatever the script had created up to that
-	// moment running and billing in the real account with nobody notified,
-	// which is a strictly worse failure than a slow run: it fails silently
-	// where live/live-cert/run.sh's own `timeout --signal=TERM
-	// --kill-after=30` wrapper (this function's OWN doc comment above
-	// calls it "a second, independent enforcement alongside run.sh's own
-	// timeout wrapper", implying the two are equivalent - they are not)
-	// fails loudly, with the script's own trap given a chance to tear down
-	// first. Confirmed the hard way running `gauntlet live-cert -target
-	// aws` directly against the terralith-scale estate (issue #567,
-	// 2026-08-30) at a scale whose four stages alone take longer than this
-	// function's 900s default: the process was SIGKILLed mid-stage, the
-	// script's teardown never ran, and every resource it had created (28
-	// IAM roles, 24 policies, 24 instance profiles, an ECS cluster and its
-	// services, a Route53 zone, a VPC/subnet/security group) was left live
-	// in the account, found and manually swept only because the
-	// independent post-run AWS CLI verification this issue's own brief
-	// requires caught it - the account-level Budgets alarm exists as the
-	// backstop for exactly this case, but reaching it is a near-miss, not
-	// a success. cmd.Cancel below overrides the kill with a SIGTERM (the
-	// SAME signal the script's own trap handles), and cmd.WaitDelay gives
-	// it the SAME 30s grace period run.sh's wrapper does before Go itself
-	// falls back to SIGKILL - the two independent ceilings now agree on
-	// HOW they stop the process, not only decide the process, matching
-	// this file's own claim that they are independent enforcement of the
-	// SAME safety property.
-	cmd.Cancel = func() error {
-		return cmd.Process.Signal(syscall.SIGTERM)
+	// The ceiling still stops a run that outruns it, and it still does so
+	// with a SIGTERM the script's own trap handles rather than an
+	// untrappable kill - the property issue #567 paid for, when a
+	// `gauntlet live-cert -target aws` run was SIGKILLed mid-stage and
+	// left 28 IAM roles, 24 policies, 24 instance profiles, an ECS cluster
+	// and its services, a Route53 zone and a VPC live in a real account.
+	// What changed with #1324 is only WHO enforces it: the supervisor
+	// below, which sends that SIGTERM to the whole process group and then
+	// waits for the trap, instead of exec.CommandContext, which sent it to
+	// bash alone and then killed bash 30 seconds later.
+	//
+	// Bounds only the post-exit case described above; it can no longer
+	// reach a teardown that is still running.
+	cmd.WaitDelay = liveCertWaitDelay
+
+	// The run record (#1324), cleared before the run and stamped as it
+	// goes. Cleared first for scripts/ci-gate.sh's reason: a record left
+	// over from the previous run is worse than no record, because a reader
+	// believes it. root == "" is the in-process test caller, which has no
+	// checkout to write into.
+	rec := LiveCertRun{
+		State: RunStateRunning, Estate: estate, Target: target, Region: region,
+		Commit: commit, Pid: os.Getpid(), RunID: runID,
+		StartedUTC: time.Now().UTC().Format(time.RFC3339),
 	}
-	cmd.WaitDelay = 30 * time.Second
+	writeRec := func() {
+		if root == "" {
+			return
+		}
+		if err := WriteLiveCertRun(root, rec); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
+	if root != "" {
+		if err := ClearLiveCertRun(root, estate); err != nil {
+			return nil, nil, 0, err
+		}
+	}
 
 	start := time.Now()
-	runErr := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return nil, nil, 0, fmt.Errorf("estate %q: %w", estate, err)
+	}
+	// With Setpgid the child IS its own group leader, so its pid is the
+	// pgid. Read once, here, rather than through cmd.Process later: after
+	// Wait returns, cmd.Process.Pid is a pid that may already have been
+	// reused, and signalling a reused pgid is worse than not signalling.
+	pgid := cmd.Process.Pid
+	rec.PGID = pgid
+	writeRec()
+
+	sup := &liveCertSupervisor{}
+	sigc := make(chan os.Signal, 8)
+	// SIGHUP is in this list so that closing a terminal does not kill this
+	// process in the middle of a teardown it is waiting for, and SIGPIPE
+	// so that a write to a dead stdout does not either: a Go program that
+	// has not asked for SIGPIPE dies when a write to fd 1 or 2 gets one,
+	// and `gauntlet live-cert ... | tee` is exactly that shape. The
+	// supervisor drops SIGPIPE and treats the other three as stop
+	// requests.
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGPIPE)
+	done := make(chan struct{})
+	watcher := make(chan struct{})
+	go func() {
+		defer close(watcher)
+		superviseLiveCert(sup, superviseOpts{
+			PGID:    pgid,
+			Sigc:    sigc,
+			Done:    done,
+			Ceiling: time.Duration(ceilingSeconds) * time.Second,
+			Bound:   liveCertSignalBound(),
+			Tick:    liveCertWaitTick(),
+			Say:     sayTo(sink),
+			OnStop: func(signalName string) {
+				// Stamped BEFORE the wait that may never
+				// return: the record on disk has to be true at
+				// the worst moment, which is while the estate
+				// is still coming down and this process could
+				// itself be killed.
+				rec.State = RunStateSignalledUnconfirmed
+				rec.Signal = signalName
+				writeRec()
+			},
+		})
+	}()
+
+	// This is the line #1324 is about: the wait happens AFTER the signal
+	// handler is installed, and nothing above it exits early. A signalled
+	// run blocks here until bash's `trap teardown EXIT INT TERM` has
+	// finished, or until the supervisor's grace period gives up and says
+	// so out loud.
+	runErr := cmd.Wait()
+	close(done)
+	<-watcher
+	signal.Stop(sigc)
+
 	elapsed := time.Since(start).Seconds()
 	exit := 0
 	if runErr != nil {
 		if ee, ok := runErr.(*exec.ExitError); ok {
 			exit = ee.ExitCode()
-		} else if ctx.Err() != nil {
-			exit = -1 // killed by the ceiling, not a normal exit
 		} else {
 			return nil, nil, 0, fmt.Errorf("estate %q: %w", estate, runErr)
 		}
 	}
+	if sup.HitCeiling() {
+		// -1 is what this function has always reported for a run its
+		// own ceiling stopped, and it still means the same thing: not
+		// a normal exit. The script now exits through its own trap, so
+		// without this the trap's exit code would read as an ordinary
+		// one.
+		exit = -1
+	}
+
+	// Teardown's verdict comes from teardown's own line, never from the
+	// exit code and never from this tool's opinion of how the wait ended.
+	confirmed := TeardownConfirmed(out.String())
+	signalled, signalName, escalated := sup.Report()
+	state := sup.State(confirmed)
+	rec.State, rec.Signal, rec.Escalated = state, signalName, escalated
+	rec.RepeatSignals = sup.Repeats()
+	rec.TeardownConfirmed = confirmed
+	rec.ExitCode = exit
+	rec.Note = state.Human()
+	writeRec()
+	if signalled {
+		fmt.Printf("live-cert %s: %s\n", estate, state.Human())
+		if root != "" {
+			fmt.Printf("live-cert %s: run record %s\n", estate, LiveCertRunPath(root, estate))
+		}
+	}
+
 	res, err := ParseProtocol(strings.NewReader(out.String()))
 	if err != nil {
 		return nil, res, exit, fmt.Errorf("estate %q: %w", estate, err)
@@ -391,7 +529,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		Estate: estate, Protocol: ProtocolLiveAWS, Target: target, Region: region,
 		CeilingUSD: ceilingUSD, Stages: res.Stages, Commit: commit,
 		Date: time.Now().UTC().Format(time.RFC3339), ExitCode: exit, Detail: res.Detail,
-		DurationS: roundSeconds(elapsed),
+		DurationS: roundSeconds(elapsed), State: state,
 	}
 	if len(res.Seconds) > 0 {
 		r.Seconds = res.Seconds

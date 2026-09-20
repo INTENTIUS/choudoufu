@@ -561,13 +561,13 @@
     {
       "id": 24,
       "slug": "k8s-custom-resource",
-      "title": "A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, its object is created with tofu-estate in metadata.labels, an object whose block is removed is found by the sweep and proposed for removal, before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install, and every planned create or update is sent to the server with dryRun=All and its acceptance printed above the plan, and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused",
+      "title": "A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name inside its manifest, its object is created with tofu-estate in metadata.labels, an object whose block is removed is found by the sweep and proposed for removal, before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install, and every planned create or update is sent to the server with dryRun=All and its acceptance printed above the plan, and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused and records the metadata keys the stock configuration declared, so that a label removed from the configuration once the state file is deleted is removed from the live object",
       "scenario": "live/smoke/scenarios/k8s-custom-resource.sh",
       "command": "just smoke k8s-custom-resource",
       "minutes": 5,
       "needs_go": false,
       "theme": "adopt",
-      "break_mode": "BREAK=1 writes spec.replicas = 0 under a CRD that bounds it at minimum 1, a rule only the server checks, and requires the replan refused by name with the server's message quoted and no plan produced; strips the tofu-estate label with kubectl and requires the replan to refuse the CronTab by name and the server's dry run to refuse the create it falls back to, leaving the label off until an operator writes it back; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it; and it installs a MutatingAdmissionPolicy that rewrites spec.image on every update, then migrates the stock-made CronTab, requiring live-import to refuse the label write by name (\"would also change spec.image\"), count it as 1 failed, and leave the object's label and spec untouched",
+      "break_mode": "BREAK=1 writes spec.replicas = 0 under a CRD that bounds it at minimum 1, a rule only the server checks, and requires the replan refused by name with the server's message quoted and no plan produced; strips the tofu-estate label with kubectl and requires the replan to refuse the CronTab by name and the server's dry run to refuse the create it falls back to, leaving the label off until an operator writes it back; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it; and it installs a MutatingAdmissionPolicy that rewrites spec.image on every update, then migrates the stock-made CronTab, requiring live-import to refuse the label write by name (\"would also change spec.image\"), count it as 1 failed, and leave the object's label and spec untouched; and it then migrates the same CronTab cleanly and cuts manifest_metadata_keys out of the estate's record - the record a build without the migrate-time seed writes - requiring the identical label deletion to plan \"No changes.\" with the label still on the object",
       "substrate": "kubernetes",
       "providers": {
         "aws": {
@@ -729,7 +729,7 @@
       "minutes": 2,
       "needs_go": true,
       "theme": "operate",
-      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the fan-out drops a failed GET's key (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the plan is caught proposing to create a resource that exists",
+      "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the bulk read is the one that stood before issue #1355 - the fan-out swallows a failed GET and the map it builds leaves that key out (go build -overlay, so it needs Go and cannot break a release binary) - and passes only when the plan is caught proposing to create a resource that exists",
       "providers": {
         "aws": {
           "status": "proven",
@@ -921,6 +921,29 @@
         "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json"
       ],
       "substrate": "aws"
+    },
+    {
+      "id": 39,
+      "slug": "k8s-records-in-the-cluster",
+      "title": "Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, an apply killed with SIGKILL leaves no lock behind, and a role scoped to one records namespace cannot read another estate's records",
+      "scenario": "live/smoke/scenarios/k8s-records-in-the-cluster.sh",
+      "command": "just smoke k8s-records-in-the-cluster",
+      "minutes": 8,
+      "needs_go": true,
+      "theme": "gate",
+      "break_mode": "BREAK=1 takes both fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, and the admission policy is removed and the cross-estate write into a record Secret must then land",
+      "substrate": "kubernetes",
+      "providers": {
+        "aws": {
+          "status": "n/a",
+          "note": "The record store this claim measures is the Kubernetes one. Claims 28 to 38 are the bucket store, which is the AWS shape of the same interface."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "note": ""
+        }
+      },
+      "evidence": []
     }
   ]
 }

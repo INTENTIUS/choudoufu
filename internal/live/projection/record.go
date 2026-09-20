@@ -451,7 +451,7 @@ type residueFields struct {
 	// SET rather than a value - a label's value is on the object and
 	// needs no record, but the fact that the configuration once named
 	// the key is not recoverable from anything the cluster holds. See
-	// [manifestDeclaredKeys] for why it cannot come from
+	// [ManifestDeclaredKeys] for why it cannot come from
 	// metadata.managedFields.
 	//
 	// Absent for every record written before this field existed and for

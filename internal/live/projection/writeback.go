@@ -857,7 +857,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					// it only when something changed would leave the
 					// first apply's set standing for ever and propose
 					// removing a key a later apply had already removed.
-					if keys, ok := manifestDeclaredKeys(obj.Value); ok {
+					if keys, ok := ManifestDeclaredKeys(obj.Value); ok {
 						setManifestKeys = keys
 					}
 					candidates := residueCandidates(schema, obj.Value, secrets)

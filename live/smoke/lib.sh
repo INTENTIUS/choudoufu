@@ -35,6 +35,30 @@ cmd() { echo "  \$ $*"; }
 evidence() { sed 's/^/      /'; }
 proof() { echo; echo "  -> $*"; echo; }
 
+# destroyed_exactly <tag> <n> <output> asserts that a destroy reported
+# exactly n resources destroyed, and prints the destroy's WHOLE output when
+# it did not.
+#
+# GitHub issue #1355 is why it exists and why it is here rather than written
+# out per scenario. One `apply -destroy` of a two-instance record-backed
+# estate on real AWS destroyed one instance and exited 0, and the run that
+# caught it was filtering output through `grep -E "complete|Error"`, so the
+# only surviving evidence was the count line itself and nothing about how the
+# plan got that way. Both halves of that are fixed here: the count is the
+# assertion rather than "Apply complete", and a failure hands the reader
+# every line instead of the one that matched.
+#
+# n is the estate's instance count, spelled out at the call site, because
+# "some resources were destroyed" is exactly the verdict that passed.
+destroyed_exactly() {
+  local tag="$1" n="$2" out="$3"
+  grep -q "Resources: 0 added, 0 changed, $n destroyed" <<< "$out" && return 0
+  echo "--- the destroy's whole output ---" >&2
+  echo "$out" >&2
+  echo "--- end of the destroy's output ---" >&2
+  fail "$tag" "the destroy did not report exactly $n destroyed, which is this estate's instance count. A destroy that reports fewer and exits 0 has left something standing (GitHub issue #1355). The whole output is above."
+}
+
 # resolve_choudoufu answers where the binary under test comes from, in
 # priority order, and reports its provenance for the banner:
 #   CHOUDOUFU_BIN      an explicit binary, used as-is
