@@ -448,6 +448,74 @@ INDEX_PARTITION_DIAG="$(index_partition_is_total "$REGION")" \
 
 log() { printf '%s\n' "$*"; }
 
+# >>> heartbeat block
+# ── heartbeat (issue #1324) ─────────────────────────────────────────────
+#
+# This log is written at stage boundaries only, and the gaps between them
+# are hours. Measured on the scale-128 run #1324 was filed from:
+#
+#   Apply complete! Resources: 9477 added ... in 5633s   <- 1h34m of silence
+#   stock-terraform plan run 1: 811s (empty)             <- 13.5m of silence
+#
+# For 1h34m the file does not grow, so a healthy cold_deploy and a wedged
+# one are byte-identical from outside and the only way to tell them apart is
+# to attach to the process. That is not a theoretical hazard here: a
+# scale-50 run blocked for ~40 minutes at 0% CPU on
+# CreatePolicy/EntityAlreadyExists and was unblocked by a hand SIGTERM,
+# which is why UNTRUSTED_TEARDOWN_TIMEOUT_S exists at all.
+#
+# One line per interval naming the stage and its elapsed seconds is enough.
+# It is not progress and does not try to be - it is evidence the process is
+# alive, which is the one thing the silence takes away.
+#
+# It runs as its own subshell rather than as anything inside a stage. Two
+# reasons: a stage is a straight line of blocking commands with nowhere to
+# put a periodic call, and index_wait in particular must keep reading the
+# clock exactly as often as it does today, because
+# live/live-cert/selftest-index-wait.sh shadows `date` and `sleep` and pins
+# its poll and clock-read counts (#1410).
+LIVECERT_HEARTBEAT_S="${LIVECERT_HEARTBEAT_S:-60}"
+HEARTBEAT_PID=""
+
+# heartbeat_stop is called far more often than heartbeat_start: at every
+# stage end, at the start of the next stage, from fail(), from on_signal()
+# and from teardown(). A heartbeat that outlives its stage would interleave
+# its lines with teardown's, and one that outlives the SCRIPT is worse than
+# noise: a background child holding the stdout pipe open makes the Go side's
+# cmd.Wait() sit out its whole WaitDelay after the script has already
+# exited, turning a finished run into "WaitDelay expired before I/O
+# complete" 30 seconds later.
+heartbeat_stop() {
+  [ -n "$HEARTBEAT_PID" ] || return 0
+  kill "$HEARTBEAT_PID" 2>/dev/null
+  wait "$HEARTBEAT_PID" 2>/dev/null
+  HEARTBEAT_PID=""
+}
+
+# heartbeat_start begins a heartbeat for one stage. LIVECERT_HEARTBEAT_S=0
+# turns it off entirely, which is what the selftests that count lines do.
+heartbeat_start() {
+  heartbeat_stop
+  case "${LIVECERT_HEARTBEAT_S:-0}" in
+    ''|*[!0-9]*) return 0 ;;
+    0) return 0 ;;
+  esac
+  local stage="$1" parent=$$ started
+  started="$(date +%s)"
+  (
+    while :; do
+      sleep "$LIVECERT_HEARTBEAT_S"
+      # Do not outlive the script. If the parent is gone - killed, or
+      # SIGKILLed past its own trap - this subshell exits on its own
+      # rather than printing into a pipe nobody is reading.
+      kill -0 "$parent" 2>/dev/null || exit 0
+      printf 'HEARTBEAT stage=%s elapsed_s=%s\n' "$stage" "$(( $(date +%s) - started ))"
+    done
+  ) &
+  HEARTBEAT_PID=$!
+}
+# <<< heartbeat block
+
 case "$TARGET" in
   floci) ENDPOINT="http://127.0.0.1:${FLOCI_PORT}" ;;
   aws) ENDPOINT="" ;;
@@ -507,6 +575,10 @@ s3_prefix_count() {
 
 teardown() {
   [ "$TEARDOWN_DONE" = "1" ] && return 0
+  # Before the banner, so no heartbeat line lands in the middle of
+  # teardown's own output and nothing is left holding the stdout pipe
+  # after this function returns (#1324).
+  heartbeat_stop
   log "=== TEARDOWN (target=$TARGET run=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
 
   # LIVECERT_HOLD=1 (#1032): the maintainer's own complaint, verbatim -
@@ -682,6 +754,7 @@ EOF
 
 CURRENT_STAGE=""
 fail() {
+  heartbeat_stop
   printf 'FAIL: %s\n' "$*" >&2
   [ -n "$CURRENT_STAGE" ] && gauntlet_stage "$CURRENT_STAGE" fail "$*$HOLD_TAG"
   exit 1
@@ -690,6 +763,7 @@ fail() {
 APPLY_PID=""
 on_signal() {
   local sig="$1"
+  heartbeat_stop
   log "=== caught $sig - forwarding to in-flight child (pid ${APPLY_PID:-none}) and tearing down ==="
   if [ -n "$APPLY_PID" ] && kill -0 "$APPLY_PID" 2>/dev/null; then
     kill -TERM "$APPLY_PID" 2>/dev/null || true
@@ -1464,6 +1538,7 @@ instrumented_plan() {
 # ══════════════════════════════════════════════════════════════════════
 if [ "$RESUMED" = "0" ]; then
 CURRENT_STAGE=cold_deploy
+heartbeat_start cold_deploy
 log "=== 1. terralith-gen -scale $SCALE -prefix $PREFIX -> $COLD_DIR ==="
 generate_estate "$COLD_DIR"
 log "  expect ${EXPECTED} resources (${VERIFIED} taggable/eligible)"
@@ -1567,6 +1642,7 @@ fi
 # migrate: choudoufu live-import -approve against the stock state file.
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
+heartbeat_start migrate
 log "=== 3. migrate: generate the SAME estate into $ADOPTED_DIR (live block + record_store) ==="
 generate_estate "$ADOPTED_DIR"
 {
@@ -1795,6 +1871,7 @@ fi
 # is choudoufu's full estate-wide sweep (#546's O(types) side).
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_plan
+heartbeat_start test_plan
 log "=== 4. test_plan: choudoufu plan must be empty (instrumented) ==="
 PLAN_LOG="$WORK/test_plan.debug.log"
 PLAN_START=$(date +%s)
@@ -1926,6 +2003,7 @@ if [ -n "$TP_FAIL" ]; then
   log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) - PARTIAL ==="
   printf '%s\n' "$API_CALL_REPORT"
   CURRENT_STAGE=test_plan
+  heartbeat_start test_plan
   # index_lag_s (#1046, #1049) rides along on the SAME detail string a
   # refusal already carries, so a row that reads DIRECT_READ_UNRESOLVED
   # also names how long the index had been given to catch up before this
@@ -2046,6 +2124,7 @@ fi
 # test_apply: applying the empty plan is a genuine no-op.
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_apply
+heartbeat_start test_apply
 log "=== 5. test_apply: the empty plan applies as a genuine no-op ==="
 BEFORE_N="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
 NOOP_OUT="$(cd "$ADOPTED_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_RC=$?
@@ -2090,6 +2169,7 @@ else
 fi
 
 CURRENT_STAGE=""
+heartbeat_stop
 gauntlet_end
 log "=== all four stages passed against target=$TARGET scale=$SCALE; teardown runs next via the EXIT trap ==="
 log "=== THROTTLE SUMMARY (target=$TARGET scale=$SCALE) ==="

@@ -102,7 +102,7 @@ func TestARefusalIsStillNeverACertification(t *testing.T) {
 		Spoken:  true,
 		Refusal: &ProtocolRefusal{Reason: "the account's Amazon Linux AMI for this region resolves to nothing"},
 	}
-	w := PlanLiveCertWrites("aws", res)
+	w := PlanLiveCertWrites("aws", res, RunStateFinished)
 	if w.LiveCertRow {
 		t.Errorf("a scale-less refusal would be written to %s's live_cert, replacing a certification with the absence of one (#1151)", ArtifactPath)
 	}
