@@ -136,6 +136,15 @@ var liveCertSelftests = []liveCertSelftest{
 			"What it proves is narrower than its own PASS line says: #1279 - its \"independent verification\" listing is unreachable on any " +
 			"passing run, because the harness removes the emulator container before the driver gets there.",
 	},
+	{
+		script: "selftest-heartbeat.sh",
+		proves: "#1324 - the run log was written at stage boundaries only, so cold_deploy's 5,633s apply left the file unchanged for 1h34m and a wedged stage was byte-identical to a healthy one",
+		runner: runsHere,
+		bound:  90 * time.Second,
+		measured: "14.3s. Extracts the heartbeat block out of terralith-scale.sh and drives it at a 1-second interval; the production default is 60. " +
+			"Its five cases sleep by design - a heartbeat is a thing that happens over time and there is no way to observe one without waiting - " +
+			"and every wait is a fixed small multiple of that interval, plus one bounded poll for the SIGKILL case.",
+	},
 }
 
 // TestLiveCertSelftestRosterIsComplete is the guard that actually closes

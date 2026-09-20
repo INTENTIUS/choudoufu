@@ -120,6 +120,23 @@ jobs:
         # (issue #946): a static binary, no glibc dependency.
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
 
+      # Built, not `go run`, and that is issue #1324 rather than a style
+      # preference. `go run` compiles to a cache path and execs the result as
+      # a CHILD, and it does not pass a signal on to it: measured on
+      # go1.26.5, `kill -TERM` on a `go run` pid killed the wrapper alone,
+      # the compiled binary reparented to init and kept going with its bash
+      # script and that script's `terraform plan` underneath it, trap unrun.
+      # That is how a cancelled scale-128 run left 9,477 billable resources
+      # standing while its rc file said 143.
+      #
+      # When a runner cancels this step it signals the step's process group,
+      # and with `go run` the pid holding the work is not the pid that gets
+      # to hear about it. Building first makes the signalled pid the one
+      # holding the work, which is the only shape where the tool's own
+      # forwarding can reach the teardown trap at all.
+      - name: Build the gauntlet runner
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/gauntlet" ./tools/gauntlet
+
       - name: Run the live-cert certification
         id: livecert
         env:
@@ -141,7 +158,21 @@ jobs:
           # left at its default, minus two minutes so the Go side stops the
           # script and the "Keep the work dir and the log" step still runs.
           # A job GitHub cancels outright uploads nothing.
-          go run ./tools/gauntlet live-cert \
+          #
+          # On cancellation (#1324): the runner signals this step and then
+          # kills it after a short grace period - seconds, not minutes. The
+          # tool now forwards that signal to the script's whole process group
+          # and waits for its teardown trap, and with the build above it is
+          # the tool that gets signalled rather than a `go run` wrapper. What
+          # that grace period CANNOT do is finish the teardown: destroying a
+          # scale-128 estate and verifying it empty by listing is tens of
+          # minutes. So a cancelled run is a run whose teardown starts and is
+          # then killed, and the honest outcome is that its record says
+          # "signalled, teardown unconfirmed" and a human checks the account.
+          # Cancelling is not a way to stop a certification safely; letting
+          # -timeout-seconds stop it is, because that path gives the trap the
+          # whole two minutes this line reserves.
+          "$RUNNER_TEMP/gauntlet" live-cert \
             -target aws \
             -region "${{ vars.AWS_REGION }}" \
             -ceiling-usd "${{ github.event.inputs.ceiling_usd }}" \
@@ -156,6 +187,7 @@ jobs:
           path: |
             live-cert-run.log
             live/gauntlet/logs/live-cert-${{ github.event.inputs.estate }}.log
+            live/gauntlet/logs/live-cert-${{ github.event.inputs.estate }}.run.json
             ${{ runner.temp }}/livecert-work
           if-no-files-found: warn
 
@@ -169,6 +201,16 @@ jobs:
             echo
             echo '```'
             grep '^live-cert ' live-cert-run.log || echo "(no live-cert verdict lines found in the run log - see the uploaded artifact)"
+            echo '```'
+            echo
+            # What state the run reached, read from the record rather than
+            # from an exit code (#1324). `rc=143` from a signalled run is
+            # indistinguishable from success; this line is not.
+            echo "State:"
+            echo
+            echo '```'
+            "$RUNNER_TEMP/gauntlet" live-cert-state "${{ github.event.inputs.estate }}" \
+              || echo "(the run did not finish - read the line above before trusting anything else in this pull request)"
             echo '```'
           } > pr-body.md
 

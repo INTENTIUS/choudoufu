@@ -305,7 +305,7 @@ func TestLiveCertRefusalDoesNotDisplaceARealRun(t *testing.T) {
 	// PlanLiveCertWrites is called rather than restated so a drift between
 	// the plan and RecordsLiveCert shows up here too.
 	apply := func(a *Artifact, r LiveCertResult, res *ProtocolResult) bool {
-		w := PlanLiveCertWrites("aws", res)
+		w := PlanLiveCertWrites("aws", res, RunStateFinished)
 		if w.LiveCertRow {
 			a.SetLiveCertResult(r)
 		}

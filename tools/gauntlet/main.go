@@ -55,6 +55,8 @@ func main() {
 		fatalIf(cmdBehaviors(root, os.Args[2:]))
 	case "live-cert":
 		fatalIf(cmdLiveCert(root, os.Args[2:]))
+	case "live-cert-state":
+		fatalIf(cmdLiveCertState(root, os.Args[2:], os.Stdout))
 	case "add":
 		fatalIf(cmdAdd(root, os.Args[2:]))
 	case "import-legacy":
@@ -102,7 +104,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -510,7 +512,13 @@ func cmdLiveCert(root string, args []string) error {
 			fmt.Printf("live-cert %s: stage=%s verdict=%s\n", estate, id, v)
 		}
 	}
-	fmt.Printf("live-cert %s: target=%s exit=%d clear=%v\n", estate, *target, exit, r.Clear)
+	// state= comes before exit= on purpose (#1324). The exit code was the
+	// only vocabulary this line had, and 143 from a signalled run read
+	// exactly like a run that ended: "rc=143 from the wrapper is
+	// indistinguishable from success" is the issue's own summary of the
+	// defect. Anything grepping `^live-cert ` out of the run log - the
+	// workflow's own pr-body.md step does - now gets the state too.
+	fmt.Printf("live-cert %s: target=%s state=%s exit=%d clear=%v\n", estate, *target, r.State, exit, r.Clear)
 	if res != nil && res.Refusal != nil {
 		fmt.Printf("live-cert %s: REFUSED - %s\n", estate, res.Refusal.Reason)
 		if res.Refusal.Needed != nil {
@@ -518,7 +526,7 @@ func cmdLiveCert(root string, args []string) error {
 		}
 	}
 
-	writes := PlanLiveCertWrites(*target, res)
+	writes := PlanLiveCertWrites(*target, res, r.State)
 	if writes.Why != "" {
 		fmt.Printf("live-cert %s: %s\n", estate, writes.Why)
 	}
