@@ -47,6 +47,29 @@ func labelSurface(block *configschema.Block) bool {
 	return ok
 }
 
+// labelValueProblem names the clause of [markers.ValidLabelValue] that s
+// breaks, for the one refusal Ratify makes when an estate name cannot be
+// written as a label (GitHub issue #1396). [markers.NotALabelValue]
+// recites the whole grammar, which is what a per-object FAILED line wants;
+// this says which part of it was broken, which is what a single refusal
+// about the whole run wants.
+//
+// Length is tested before the grammar because it is the clause an estate
+// name actually hits: [markers.ValidEstateName] already confines a name to
+// lowercase letters, digits and hyphens starting with a letter, so the
+// only grammar clause left to break is a trailing hyphen.
+func labelValueProblem(s string) string {
+	switch {
+	case s == "":
+		return "it is empty, and an empty label value is never a marker"
+	case len(s) > markers.LabelMaxValue:
+		return fmt.Sprintf("it is %d characters long and a Kubernetes label value is capped at %d", len(s), markers.LabelMaxValue)
+	case !markers.ValidLabelValue(s):
+		return "it is outside the API server's label grammar, which allows letters, digits, '-', '_' and '.', and requires the first and last character to be a letter or digit"
+	}
+	return ""
+}
+
 // labelsFromObject reads metadata[0].labels off a live object of a
 // label-surface type. The second return distinguishes "no labels map this
 // pass can read" from "labelled with nothing".
