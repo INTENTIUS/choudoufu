@@ -27,16 +27,15 @@ cache buys nothing on a default plan, as the section after next says.
 ## It holds what a state file holds, secrets included
 
 The file is written unencrypted and nothing scrubs it. Every sensitive
-attribute and every sensitive root output is in it, in clear. For that reason
-an estate that sets `strict { secrets = "refuse" }` gets no cache at all,
+attribute and every sensitive root output is in it, in clear. Treat a working
+directory that has applied the way you would treat one holding
+`terraform.tfstate`, above all in CI, where a cache or artifact step that
+sweeps up `.terraform` carries the values along.
+
+An estate that sets `strict { secrets = "refuse" }` gets no cache at all,
 written or read, unless `CHOUDOUFU_STATE_CACHE` names a path on purpose.
-Everything below about what the cache buys, and about it being the exit,
-applies to such an estate only with that path set. Treat a working directory that has applied the way
-you would treat one holding `terraform.tfstate`. That matters most in CI,
-where a cache or an artifact step that sweeps up `.terraform` carries the
-values to wherever that goes.
 [Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has the
-rest, and `CHOUDOUFU_STATE_CACHE=off` below stops the file being written.
+rest.
 
 ## What losing it costs
 
@@ -63,13 +62,10 @@ turns the whole pass off
 
 ## The cache is also the exit
 
-The file is a stock-format state file, deliberately. Copy it to
-`terraform.tfstate`, remove the live block, and stock OpenTofu plans,
-converges and destroys with it. The
-[roundtrip claim]({{< relref "/docs/claims/roundtrip" >}})
-walks the whole loop and lets stock do the teardown. A cache you may
-lose without cost is also a state file you may keep without ceremony,
-and that symmetry is what makes leaving cheap.
+The file is a stock-format state file on purpose. Copy it to
+`terraform.tfstate`, remove the `live` block, and stock OpenTofu carries on
+with it. The [roundtrip claim]({{< relref "/docs/claims/roundtrip" >}}) walks
+the whole loop.
 
 ## Knobs
 

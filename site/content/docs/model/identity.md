@@ -5,162 +5,57 @@ weight: 2
 
 # Identity
 
-Which real resource a configuration address refers to. AWS already knows this,
-once you tell it.
+Which real resource a block in your configuration refers to. The platform
+already knows, once you tell it.
 
 ![How a plan binds a configuration address to a live resource](diagram-identity.svg)
 
-Two tags, written as the resource is created.
+On AWS the marker is two tags, written as the resource is created.
 
 ```
 tofu-estate  = prod-networking
 tofu-address = aws_vpc.main
 ```
 
-That pair carries the ownership contract for any instance a name can
-identify. Any tool that can write two tags can adopt a resource. Any
-tool that can read them can tell you what an estate contains.
+Any tool that can write two tags can adopt a resource, and any tool that can
+read them can list an estate. A `count` set whose members the configuration
+does not tell apart carries a third tag, `tofu-slot`, so that shrinking the
+set removes one member and rebuilds nothing.
 
-One construct needs a third tag. A `count` address is a position, not a
-name - `aws_eip.pool[1]` says "the second one," and which live resource
-is second changes when the pool scales or reorders - so each member
-also carries `tofu-slot`, a stable identifier assigned once at creation
-and never reused. Slots bind; addresses follow: when slots exist, the
-address tag has no say in which object is which, and the plan rewrites
-addresses around the slots. (Two mechanical footnotes live in
-`live/MARKERS.md`: an address too long for one tag value continues into
-numbered continuation tags, and characters AWS tags cannot carry are
-escaped - both invisible in ordinary use.)
+## Two ways back to a resource
 
-## Where the marker comes from
+Where your configuration names the resource, an S3 bucket or an IAM role, the
+name is already in your code and the tag confirms ownership.
 
-The stamp pass writes `tofu-estate` and `tofu-address` into the resource's own
-`tags` argument, so the plan renders them and the apply sends them like any
-other tag you declared.
+Where AWS assigns the id, a VPC or a subnet, nothing in your code names the
+live object. The tag is the only way back, so the plan lists by tag and reads
+the address off what it finds.
 
-For most types the AWS provider carries tags on the create call itself, which
-means a create that succeeds carries its marker already. Where a service cannot
-tag on create, the provider tags immediately after, and a crash in that window
-leaves a resource nothing can bind to. That case is what
-[adoption]({{< relref "/docs/use/migrate" >}}) exists for.
+That second case is why a name has to be computable before the resource
+exists. [Will my configuration work?]({{< relref "/docs/use/compatibility" >}})
+lists what that allows and what it refuses.
 
-## Recovering an address
+## Resource types with no tags
 
-Two paths, decided by who chose the identity.
+About half the AWS provider's resource types have no `tags` argument, and
+none of them needs one. An `aws_iam_role_policy` is a role name and a policy
+name. An `aws_route53_record` is a zone, a name and a type. Every part comes
+from your configuration or from a parent that carries a marker, so the
+resource is found again on every run with nothing stored.
 
-**The configuration named it.** An S3 bucket, an IAM role, a log group. The
-name is already in your code, so nothing has to go looking. The tag confirms
-ownership rather than establishing it.
-
-**AWS assigned it.** A VPC, a subnet, a security group. Nothing in the
-configuration names the live object, so the tag is the only way back. Discovery
-lists by tag and reads the address off what comes back.
-
-The second path is why identity arguments must be computable before a provider
-runs. The next section states the rule in full.
-
-## The static-evaluability rule
-
-A marker names which configuration address a live resource belongs to, so
-an expansion or an identity has to be settleable before the marker is
-written. What that requires in practice is narrower than it once was, and
-narrower than "written literally in the configuration text" - the
-paragraphs below say exactly which shapes still stop a run.
-
-The rule is also a consequence of the cold path rather than a law of the
-design: the disposable state cache
-([#685](https://github.com/INTENTIUS/choudoufu/issues/685)) now persists
-between runs, and as its vouching widens and the plan-node seam
-([#644](https://github.com/INTENTIUS/choudoufu/issues/644)) lands, the
-shapes this rule refuses shrink to the genuinely cold case: an estate
-encountered with no cache, no record and no marker to read.
-
-This is the rule behind what [Compatibility
-reference]({{< relref "/docs/use/compatibility" >}}) still refuses, and it is
-narrower than "the value is not written in the configuration text". Two
-phases run ahead of resolution and feed it: data sources are read before
-anything resolves, so a `count` or `for_each` over one expands normally, and
-a second pass can answer a reference to a genuinely computed attribute of a
-sibling from what the cloud holds. What stops is an expansion or an identity
-that no phase can settle before a marker has to be written - a module output
-read in a `count` or `for_each`, a `for_each` key that is a parent's live ID,
-or a `count.index` two instances render identically.
-
-`count` on a module call is **not** one of them. It is admitted when the
-count is statically evaluable and the call's own arguments use `count.index`
-only where this fork can prove two instances cannot render the same value -
-the same test one paragraph up. Then every resource inside is addressed by
-the call's instance key, `module.app[0].aws_x.y` binds exactly as soundly as
-`module.app.aws_x.y` does, and the fork stamps that marker for you rather
-than leaving you to write it.
-
-The premise this page used to state, that `count` renumbers every address
-beneath it, is false for the shape OpenTofu actually produces: shrinking a
-`count` retires the highest index and never renumbers a survivor, so an
-integer module-instance key is as stable an address component as a resource's
-own count key.
-
-## Untaggable is not unidentifiable
-
-About half the AWS provider's resource types carry no `tags` argument at all:
-**852 of 1699** at provider 6.59.0, counted from `live/readiness.json`'s
-`facts.taggable` at commit `cfd0dc58d4`. None of them can hold a marker. This
-gets read as a coverage hole, and it is not one.
-
-An untaggable resource's address is composed rather than looked up.
-`aws_iam_role_policy` is a role name and a policy name.
-`aws_iam_role_policy_attachment` is the two things it attaches.
-`aws_route53_record` is a zone, a name and a type. Every part comes from your
-configuration or from a parent that does carry a marker, so the address
-resolves identically on every run with nothing stored anywhere. That is what
-the [declaration-carried tier]({{< relref "/docs/use/resource-tiers" >}})
-names.
-
-They are not a rounding error. On the same generated terralith [what a plan
-costs](https://github.com/INTENTIUS/choudoufu/blob/main/live/costs/plan-cost.md#the-measured-split-on-a-migrated-estate)
-counts at commit `cfd0dc58d4`, shaped like an estate that had grown
-organically, the untaggable share of *instances* at its three sizes was 41 of
-79 (52%), 164 of 301 (54%) and 410 of 745 (55%), all three made up entirely of
-the types named above. A realistic estate is roughly half resources that hold
-a marker and half resources that derive their identity from one.
-
-What untaggability does bound is governance, not identity. An
-`aws:ResourceTag` condition has nothing to match on a resource with no tags,
-so a grant covering those types is wider than its condition says.
+What a missing tag does limit is access control: an IAM condition on the tag
+has nothing to match.
 [Where AWS honours the condition]({{< relref "/docs/use/governance/reach" >}})
-has that limit, and
+has that limit.
+
+## Renaming and stripping
+
+`choudoufu live-mv aws_vpc.old aws_vpc.new` rewrites the tag, and a `moved`
+block works too. Nothing stops someone stripping a marker except your own
+access control. A stripped resource is invisible to the next plan, which
+proposes a second one beside it.
+
+[`live/IDENTITY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/IDENTITY.md)
+has the full rule and the measured counts, and
 [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-has the per-service breakdown. Being identifiable without a tag and being
-governable by one are different properties, and only the second one is
-missing here.
-
-One thing does follow on the identity side, and it is worth stating so this
-section is not read as "nothing changes": a marker proves the resource
-carrying it exists. It says nothing about a child derived from it. Existence
-of an untaggable resource is settled by reading it, never by reading its
-parent's tag.
-
-## Renaming
-
-Rename the block, then rewrite the tag.
-
-```
-choudoufu live-mv aws_vpc.old aws_vpc.new
-```
-
-The tag write is the move. An honourable `moved` block is carried the
-same way: discovery reads the marker under both of its addresses, and
-the ordinary tags diff rewrites it to the new one in place - which is
-what keeps the migration blocks published modules ship working. The
-shapes that cannot be aliased are refused loudly, by the one predicate
-lint and discovery share.
-
-## Stripping a marker
-
-Nothing in choudoufu prevents it. The tags live in your account and your
-account's access controls protect them. A stripped marker hides the resource
-from the next plan, which proposes a replacement beside it.
-
-[`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-is the normative spec. It covers the escaping rule, continuation tags and the
-rename rule, and says which protections were tested rather than assumed.
+is the marker spec.

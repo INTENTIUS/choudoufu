@@ -368,7 +368,7 @@ version, then a `ListObjectsV2` that proves the listing returns it. The hint
 and each root output are a `GetObject` each, outside the bulk read. An apply
 adds a `GetObject` and a conditional write per record that changed, the same
 for the hint, and the same per root output that changed.
-[Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#requests) has
+[Where things are stored](../STORAGE.md#requests) has
 the table.
 
 So what a bucket bills is requests and storage, and there is no count to run

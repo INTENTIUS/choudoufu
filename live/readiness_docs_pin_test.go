@@ -155,7 +155,7 @@ func readinessDocFigures(f readinessFigures) map[string][]int {
 			f.recordCarried,  // the tier
 			f.byElimination,  // the remainder, by elimination
 		},
-		"../site/content/docs/model/identity.md": {
+		"IDENTITY.md": {
 			f.untaggable,
 			f.total,
 		},
