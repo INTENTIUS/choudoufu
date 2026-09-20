@@ -65,14 +65,62 @@
 //     it. That is a requirement of the interface and not a property two
 //     implementations happen to share. See "The store that was retired".
 //
-// # The two implementations
+// # The three implementations
 //
 // [LocalStore] (a directory of files, the zero-configuration default — solo
 // development, tests, air-gapped runs, mirroring plain local state's own
-// "just works" shape) and [S3Store] (S3 conditional writes, for anything
-// more than one operator shares). Both implement the identical [Store]
-// interface; a caller choosing between them is choosing an operational
-// tradeoff, never a different programming model.
+// "just works" shape), [S3Store] (S3 conditional writes, for anything
+// more than one operator shares) and [KubernetesStore] (Secrets in one
+// cluster namespace, resourceVersion as the conditional write, for an estate
+// that runs on Kubernetes and has no AWS account to put a bucket in). All
+// three implement the identical [Store] interface; a caller choosing between
+// them is choosing an operational tradeoff, never a different programming
+// model.
+//
+// # The five things the Kubernetes store had to settle
+//
+// GitHub issue #1392 named five, and each was measured on kind before it was
+// written down. They are here rather than in the type's own doc because each
+// is a decision about the SHAPE of a record on a substrate, which is what a
+// fourth store would have to answer again.
+//
+//  1. A key becomes an object NAME by hashing. The Secret is named
+//     "tofu-record-" and the key's SHA-256; the key itself is in the
+//     choudoufu.intentius.io/record-key annotation, which is where List reads
+//     the keys it returns. A record key carries "/" and base64url runs and
+//     the conformance suite's own chunked key is 500 characters, against the
+//     253 an object name holds, so no encoding fits. An annotation is capped
+//     at 256 KiB in total against the 1,024 bytes of the longest key the S3
+//     store accepts, so the annotation is not close to a limit. A Get whose
+//     object holds a different key is refused ([KeyCollisionError]) rather
+//     than answered.
+//  2. Isolation is the NAMESPACE, one per estate, defaulting to
+//     "tofu-records-<estate>". RBAC has no predicate on a label and admission
+//     is never consulted for a get or a list, so nothing but the namespace
+//     can fence a read. The store does not create it: an absent namespace is
+//     refused by name ([NamespaceMissingError]) with the kubectl line, which
+//     it has to be, because a list in a namespace that does not exist answers
+//     EMPTY and an empty listing reads as an empty estate.
+//  3. The estate is a LABEL and the address is an ANNOTATION. tofu-estate has
+//     to be a label because live/kubernetes/estate-boundary.yaml selects on
+//     it, which is what fences a write to a record object with no policy
+//     added. A label value caps at 63 characters and a resource address does
+//     not (#1016), so the address cannot be one. Same split, same reason, as
+//     the object tags #1337 put on S3 objects.
+//  4. A record over a Secret's one MiB is refused by name
+//     ([RecordTooLargeError]), before the request and measured after
+//     compression, because that is the number the API server measures.
+//  5. Anyone who can "get secrets" in the records namespace reads every
+//     recorded value, which is the same bargain s3:GetObject on the bucket
+//     makes for the other remote store.
+//
+// One consequence outside this package: a record Secret carries the estate's
+// tofu-estate label, and the Kubernetes sweep reads that label as "this
+// object is in the estate". Objects in the estate that no block declares are
+// orphans a plan proposes to DESTROY, so internal/live/kubesweep excludes the
+// store's own objects by name (RecordStoreObject). Measured on kind: without
+// that exclusion an ordinary second plan proposed destroying all five of the
+// estate's own record Secrets.
 //
 // # The store that was retired
 //

@@ -53,6 +53,7 @@ type BulkReader interface {
 var (
 	_ BulkReader = (*LocalStore)(nil)
 	_ BulkReader = (*S3Store)(nil)
+	_ BulkReader = (*KubernetesStore)(nil)
 )
 
 // GetAll reads every record under keyPrefix from the store directory in one
