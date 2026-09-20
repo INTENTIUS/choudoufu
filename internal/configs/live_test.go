@@ -523,6 +523,56 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 	})
 
+	// GitHub issue #1392. The third backend: Secrets in a cluster namespace,
+	// with the connection block spelled the way the stock kubernetes backend
+	// and the hashicorp/kubernetes provider spell it.
+	t.Run("kubernetes", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if rs.Type != "kubernetes" {
+			t.Errorf("Type = %q, want kubernetes", rs.Type)
+		}
+		if got, want := rs.Namespace, "tofu-records-my-estate"; got != want {
+			t.Errorf("Namespace = %q, want %q", got, want)
+		}
+		if !rs.NamespaceSet {
+			t.Error("NamespaceSet is false for a block that names a namespace")
+		}
+		if got, want := rs.Kubernetes.ConfigPath, "/home/ci/.kube/config"; got != want {
+			t.Errorf("ConfigPath = %q, want %q", got, want)
+		}
+		if got, want := rs.Kubernetes.ConfigContext, "prod"; got != want {
+			t.Errorf("ConfigContext = %q, want %q", got, want)
+		}
+		if got, want := rs.Kubernetes.Host, "https://cluster.example:6443"; got != want {
+			t.Errorf("Host = %q, want %q", got, want)
+		}
+		if rs.Kubernetes.Insecure {
+			t.Error("Insecure = true for a block that set it to false")
+		}
+		if rs.Kubernetes.Exec == nil {
+			t.Fatal("the exec block was not decoded")
+		}
+		if got, want := rs.Kubernetes.Exec.Command, "aws"; got != want {
+			t.Errorf("Exec.Command = %q, want %q", got, want)
+		}
+		if got, want := len(rs.Kubernetes.Exec.Args), 4; got != want {
+			t.Errorf("Exec.Args has %d elements, want %d", got, want)
+		}
+		if got, want := rs.Kubernetes.Exec.Env["AWS_PROFILE"], "ci"; got != want {
+			t.Errorf("Exec.Env[AWS_PROFILE] = %q, want %q", got, want)
+		}
+		if rs.BucketSet || rs.RegionSet || rs.BucketOwnerSet || rs.PathSet {
+			t.Errorf("kubernetes record_store carries bucket/region/bucket_owner/path: %+v", rs)
+		}
+	})
+
 	// GitHub issue #1381. A bucket name is global: a name that is free can be
 	// taken by anyone, in any account, so the name alone does not say whose
 	// bucket this is.
@@ -736,6 +786,16 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-bucket-owner-not-an-account.tf", `It must be an AWS account ID: exactly twelve digits`},
 		{"testdata/invalid-files/live-record-store-bucket-owner-too-short.tf", `It must be an AWS account ID: exactly twelve digits`},
 		{"testdata/invalid-files/live-record-store-bucket-owner-on-local.tf", `has no meaning for record_store "local"`},
+		// GitHub issue #1392. The "kubernetes" backend's arguments and the
+		// bucket's are refused on each other's backend, both directions, so a
+		// block that names both is told which one this store does not have
+		// rather than silently ignoring half of what was written.
+		{"testdata/invalid-files/live-record-store-kubernetes-bucket.tf", `has no meaning for record_store "kubernetes"`},
+		{"testdata/invalid-files/live-record-store-kubernetes-region.tf", `has no meaning for record_store "kubernetes"`},
+		{"testdata/invalid-files/live-record-store-namespace-on-s3.tf", `has no meaning for record_store "s3"`},
+		{"testdata/invalid-files/live-record-store-exec-on-local.tf", `has no meaning for record_store "local"`},
+		{"testdata/invalid-files/live-record-store-kubernetes-bad-namespace.tf", `is not a Kubernetes namespace name`},
+		{"testdata/invalid-files/live-record-store-kubernetes-exec-no-command.tf", `An "exec" block requires an "command" argument`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)

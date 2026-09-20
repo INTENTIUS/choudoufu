@@ -315,9 +315,15 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		}
 		return store, nil
 
+	case "kubernetes":
+		// No AWS configuration is loaded on this path and no AWS client is
+		// built: a Kubernetes-only estate reaches its records with the
+		// cluster credential it already has. GitHub issue #1392.
+		return newKubernetesStore(rs, estate)
+
 	default:
 		// internal/configs/live.go's decodeRecordStoreBlock already refuses
-		// anything but "local"/"s3" at config-decode time, so a
+		// anything but "local"/"s3"/"kubernetes" at config-decode time, so a
 		// caller reaching here has a *configs.LiveRecordStore that bypassed
 		// that decoder - an internal inconsistency, not a configuration
 		// mistake an operator could have made.

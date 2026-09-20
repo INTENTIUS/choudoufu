@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Live represents a module's live configuration: a "live" block inside a
@@ -421,6 +422,30 @@ type LiveRecordStore struct {
 	AllowInsecureSet   bool
 	AllowInsecureRange hcl.Range
 
+	// Namespace is the "kubernetes" backend's Kubernetes namespace: where
+	// this estate's record Secrets live. Optional; empty means the default
+	// [internal/live/projection.KubernetesRecordNamespace] derives from the
+	// estate name.
+	//
+	// It is the read isolation boundary and not a tidiness choice. RBAC
+	// cannot condition on a label and admission never sees a get or a list
+	// (live/kubernetes/estate-boundary.yaml says so about itself), so
+	// anything that may read Secrets in this namespace reads every record in
+	// it. The store does not create it: who may create a namespace is a
+	// cluster-admin decision, and a store that made one on the way past
+	// would decide it. An absent namespace is refused by name, with the
+	// kubectl line that creates it.
+	Namespace      string
+	NamespaceSet   bool
+	NamespaceRange hcl.Range
+
+	// Kubernetes is the "kubernetes" backend's connection block: the same
+	// arguments the stock kubernetes backend and the hashicorp/kubernetes
+	// provider take, decoded here and turned into a client by
+	// internal/live/projection through internal/live/kubesweep's own loader,
+	// which is the one copy of that precedence this fork keeps.
+	Kubernetes LiveRecordStoreKubernetes
+
 	// DeclRange is the "record_store" block's own header, or - for the
 	// implied store - the live block's own header, since that is the
 	// nearest thing the author wrote.
@@ -452,6 +477,48 @@ type LiveRecordStore struct {
 	// implied local record store" rather than pointing at a block the author
 	// never wrote, and what a test reads to assert which of the two it got.
 	Implied bool
+}
+
+// LiveRecordStoreKubernetes is the "kubernetes" record store's connection
+// arguments. Every name here is the stock kubernetes backend's own
+// (internal/backend/remote-state/kubernetes) and the hashicorp/kubernetes
+// provider's, so an operator who has written either writes this one.
+//
+// Nothing here is interpreted by this package. internal/live/projection maps
+// it onto [internal/live/kubesweep.Attrs] and that package's RestConfig
+// applies the precedence - in_cluster_config first, then a kubeconfig named
+// by config_path, config_paths or the KUBE_* and KUBECONFIG environment
+// variables, then host, token and the TLS arguments over the top. That loader
+// already existed for the sweep, so this store adds no second copy of it.
+type LiveRecordStoreKubernetes struct {
+	Host                  string
+	Token                 string
+	Insecure              bool
+	InCluster             bool
+	ConfigPath            string
+	ConfigPaths           []string
+	ConfigContext         string
+	ConfigContextAuthInfo string
+	ConfigContextCluster  string
+	ClientCertificate     string
+	ClientKey             string
+	ClusterCACertificate  string
+
+	// Exec is the block's nested "exec" block: a credential plugin speaking
+	// the client.authentication.k8s.io ExecCredential protocol, which is how
+	// every EKS root authenticates (#1114). Nil when none is declared.
+	Exec *LiveRecordStoreExec
+}
+
+// LiveRecordStoreExec is the "exec" block nested in a record_store
+// "kubernetes" block.
+type LiveRecordStoreExec struct {
+	APIVersion string
+	Command    string
+	Args       []string
+	Env        map[string]string
+
+	DeclRange hcl.Range
 }
 
 // impliedRecordStore is the record store a live block that declares no
@@ -642,7 +709,49 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "region"},
 		{Name: "bucket_owner"},
 		{Name: "allow_insecure"},
+
+		// The "kubernetes" backend's connection arguments, spelled the way
+		// the stock kubernetes backend and the hashicorp/kubernetes provider
+		// spell them, per issue #73's "phrased in familiar backend-like
+		// terms" ruling. See [RecordStoreKubernetesSettings].
+		{Name: "namespace"},
+		{Name: "host"},
+		{Name: "token"},
+		{Name: "insecure"},
+		{Name: "in_cluster_config"},
+		{Name: "config_path"},
+		{Name: "config_paths"},
+		{Name: "config_context"},
+		{Name: "config_context_auth_info"},
+		{Name: "config_context_cluster"},
+		{Name: "client_certificate"},
+		{Name: "client_key"},
+		{Name: "cluster_ca_certificate"},
 	},
+	Blocks: []hcl.BlockHeaderSchema{
+		{Type: "exec"},
+	},
+}
+
+var recordStoreExecBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "api_version"},
+		{Name: "command"},
+		{Name: "args"},
+		{Name: "env"},
+	},
+}
+
+// RecordStoreKubernetesSettings is every argument that belongs to the
+// "kubernetes" backend alone: the cluster's namespace and the connection
+// block the stock backend and the provider both declare. Naming one on a
+// "local" or "s3" store is a decode error, the same way "bucket" on a local
+// one is.
+var RecordStoreKubernetesSettings = []string{
+	"namespace", "host", "token", "insecure", "in_cluster_config",
+	"config_path", "config_paths", "config_context",
+	"config_context_auth_info", "config_context_cluster",
+	"client_certificate", "client_key", "cluster_ca_certificate",
 }
 
 // RecordStoreInsecureSettings is every name the "s3" backend's
@@ -1093,7 +1202,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 
 	label := block.Labels[0]
 	switch label {
-	case "local", "s3":
+	case "local", "s3", "kubernetes":
 		rs.Type = label
 		rs.TypeRange = block.LabelRanges[0]
 	case "ssm":
@@ -1119,7 +1228,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 		return rs, hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid record_store backend",
-			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default) and \"s3\" (a bucket, for anything more than one operator shares).", label),
+			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"s3\" (a bucket, for anything more than one operator shares) and \"kubernetes\" (Secrets in a cluster namespace, for an estate that runs on Kubernetes and wants no AWS account).", label),
 			Subject:  block.LabelRanges[0].Ptr(),
 		}}
 	}
@@ -1224,11 +1333,11 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 			}
 		}
 	}
-	if rs.Type == "local" && rs.RegionSet {
+	if rs.Type != "s3" && rs.RegionSet {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
-			Summary:  "Invalid argument for the local record store",
-			Detail:   "The \"region\" argument selects an AWS region and has no meaning for record_store \"local\", which never talks to AWS. Remove it.",
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"region\" argument selects an AWS region and has no meaning for record_store %q, which never talks to AWS. Remove it.", rs.Type),
 			Subject:  rs.RegionRange.Ptr(),
 		})
 	}
@@ -1251,11 +1360,11 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 			}
 		}
 	}
-	if rs.Type == "local" && (rs.BucketOwnerSet || !rs.BucketOwnerRange.Empty()) {
+	if rs.Type != "s3" && (rs.BucketOwnerSet || !rs.BucketOwnerRange.Empty()) {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
-			Summary:  "Invalid argument for the local record store",
-			Detail:   "The \"bucket_owner\" argument names the AWS account that must own the bucket and has no meaning for record_store \"local\", which never talks to AWS. Remove it.",
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"bucket_owner\" argument names the AWS account that must own the bucket and has no meaning for record_store %q, which never talks to AWS. Remove it.", rs.Type),
 			Subject:  rs.BucketOwnerRange.Ptr(),
 		})
 	}
@@ -1310,7 +1419,266 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 		})
 	}
 
+	diags = append(diags, decodeRecordStoreKubernetes(rs, content)...)
+
 	return rs, diags
+}
+
+// decodeRecordStoreKubernetes decodes the "kubernetes" backend's namespace and
+// connection arguments, and refuses each of them on a backend that has no use
+// for one - the same rule "bucket" and "region" already follow from the other
+// direction.
+func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if rs.Type != "kubernetes" {
+		for _, name := range RecordStoreKubernetesSettings {
+			attr, exists := content.Attributes[name]
+			if !exists {
+				continue
+			}
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("The %q argument says how to reach a Kubernetes cluster and has no meaning for record_store %q. Remove it, or declare record_store \"kubernetes\".", name, rs.Type),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		}
+		for _, blk := range content.Blocks.OfType("exec") {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid block for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("An \"exec\" block names a Kubernetes credential plugin and has no meaning for record_store %q. Remove it, or declare record_store \"kubernetes\".", rs.Type),
+				Subject:  blk.DefRange.Ptr(),
+			})
+		}
+		return diags
+	}
+
+	if attr, exists := content.Attributes["path"]; exists {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the kubernetes record store",
+			Detail:   "The \"path\" argument names a local directory and has no meaning for record_store \"kubernetes\", whose records are Secrets in a cluster. Use \"namespace\" to say which Kubernetes namespace they live in.",
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+	}
+	if rs.BucketSet || content.Attributes["bucket"] != nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the kubernetes record store",
+			Detail:   "The \"bucket\" argument names an S3 bucket and has no meaning for record_store \"kubernetes\", whose records are Secrets in a cluster namespace. Remove it.",
+			Subject:  rs.BucketRange.Ptr(),
+		})
+	}
+
+	strs := []struct {
+		name string
+		val  *string
+		rng  *hcl.Range
+		set  *bool
+	}{
+		{"namespace", &rs.Namespace, &rs.NamespaceRange, &rs.NamespaceSet},
+		{"host", &rs.Kubernetes.Host, nil, nil},
+		{"token", &rs.Kubernetes.Token, nil, nil},
+		{"config_path", &rs.Kubernetes.ConfigPath, nil, nil},
+		{"config_context", &rs.Kubernetes.ConfigContext, nil, nil},
+		{"config_context_auth_info", &rs.Kubernetes.ConfigContextAuthInfo, nil, nil},
+		{"config_context_cluster", &rs.Kubernetes.ConfigContextCluster, nil, nil},
+		{"client_certificate", &rs.Kubernetes.ClientCertificate, nil, nil},
+		{"client_key", &rs.Kubernetes.ClientKey, nil, nil},
+		{"cluster_ca_certificate", &rs.Kubernetes.ClusterCACertificate, nil, nil},
+	}
+	for _, f := range strs {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		if f.rng != nil {
+			*f.rng = attr.Range
+		}
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		if val == "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Empty record_store %s", f.name),
+				Detail:   fmt.Sprintf("The %q argument was set to an empty string. Give it a value, or omit the argument entirely.", f.name),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		if f.name == "namespace" {
+			if errs := validation.IsDNS1123Label(val); len(errs) > 0 {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store namespace",
+					Detail: fmt.Sprintf(
+						"The \"namespace\" argument was set to %q, which is not a Kubernetes namespace name: %s.",
+						val, strings.Join(errs, "; "),
+					),
+					Subject: attr.Expr.Range().Ptr(),
+				})
+				continue
+			}
+		}
+		*f.val = val
+		if f.set != nil {
+			*f.set = true
+		}
+	}
+
+	if attr, exists := content.Attributes["config_paths"]; exists {
+		vals, valDiags := decodeLiteralStringList(attr, "config_paths")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			rs.Kubernetes.ConfigPaths = vals
+		}
+	}
+
+	for _, f := range []struct {
+		name string
+		val  *bool
+	}{
+		{"insecure", &rs.Kubernetes.Insecure},
+		{"in_cluster_config", &rs.Kubernetes.InCluster},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		val, valDiags := decodeLiteralBool(attr, f.name)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			*f.val = val
+		}
+	}
+
+	execBlocks := content.Blocks.OfType("exec")
+	if len(execBlocks) > 1 {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate exec block",
+			Detail:   "A record_store \"kubernetes\" block may have at most one exec block.",
+			Subject:  execBlocks[1].DefRange.Ptr(),
+		})
+	}
+	if len(execBlocks) > 0 {
+		exec, execDiags := decodeRecordStoreExecBlock(execBlocks[0])
+		diags = append(diags, execDiags...)
+		if !execDiags.HasErrors() {
+			rs.Kubernetes.Exec = exec
+		}
+	}
+
+	return diags
+}
+
+func decodeRecordStoreExecBlock(block *hcl.Block) (*LiveRecordStoreExec, hcl.Diagnostics) {
+	exec := &LiveRecordStoreExec{DeclRange: block.DefRange}
+	content, diags := block.Body.Content(recordStoreExecBlockSchema)
+
+	for _, f := range []struct {
+		name     string
+		val      *string
+		required bool
+	}{
+		{"api_version", &exec.APIVersion, true},
+		{"command", &exec.Command, true},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			if f.required {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  fmt.Sprintf("Missing exec %s", f.name),
+					Detail:   fmt.Sprintf("An \"exec\" block requires an %q argument, the same way the kubernetes provider's own exec block does.", f.name),
+					Subject:  block.DefRange.Ptr(),
+				})
+			}
+			continue
+		}
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			*f.val = val
+		}
+	}
+
+	if attr, exists := content.Attributes["args"]; exists {
+		vals, valDiags := decodeLiteralStringList(attr, "args")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			exec.Args = vals
+		}
+	}
+	if attr, exists := content.Attributes["env"]; exists {
+		env, valDiags := decodeLiteralStringMap(attr, "env")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			exec.Env = env
+		}
+	}
+
+	return exec, diags
+}
+
+// decodeLiteralBool is [decodeLiteralString]'s rule for a boolean argument.
+func decodeLiteralBool(attr *hcl.Attribute, label string) (bool, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		return false, diags
+	}
+	if val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.Bool {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal true or false.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return false, diags
+	}
+	return val.True(), diags
+}
+
+// decodeLiteralStringMap is [decodeLiteralString]'s rule for a map of strings.
+func decodeLiteralStringMap(attr *hcl.Attribute, label string) (map[string]string, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		return nil, diags
+	}
+	ty := val.Type()
+	if val.IsNull() || !val.IsWhollyKnown() || !(ty.IsObjectType() || ty.IsMapType()) {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal map of strings.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return nil, diags
+	}
+	out := map[string]string{}
+	for it := val.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid %s", label),
+				Detail:   fmt.Sprintf("Every value of the %q argument must be a literal string.", label),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		out[k.AsString()] = v.AsString()
+	}
+	return out, diags
 }
 
 // validAWSAccountID reports whether s is an AWS account ID: exactly twelve

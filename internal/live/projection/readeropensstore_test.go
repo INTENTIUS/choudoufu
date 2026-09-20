@@ -433,27 +433,52 @@ func TestADeniedHintWriteSaysWhoWasDenied(t *testing.T) {
 	}
 }
 
-// TestNoRecordStoreBackendIsKubernetes is the maintainer's scope note on
-// #1370, stated where it can be checked. A Kubernetes estate's plan role is
-// two credentials, not one: the kubernetes provider's (a kubeconfig, or an
-// in-cluster ServiceAccount token) reaches the cluster, and the record
-// store's - the process's AWS credentials for the "s3" backend, or the
-// process's own filesystem user for "local" - reaches the store. Nothing
-// routes the first to the second.
+// TestTheRecordStoreBackendsAreLocalS3AndKubernetes re-states #1370's scope
+// note now that #1392 has added the third backend, and keeps the near-misses
+// refused.
 //
-// So the read-only-plan question for a Kubernetes estate is the AWS or
-// local question above, unchanged: a ServiceAccount bound to get/list/watch
-// says nothing about whether this run may write the sentinel, and binding
-// it more widely would not help.
-func TestNoRecordStoreBackendIsKubernetes(t *testing.T) {
-	for _, typeName := range []string{"kubernetes", "k8s", "configmap", "secret"} {
+// Until #1392 a Kubernetes estate's plan role was two credentials that never
+// met: the kubernetes provider's (a kubeconfig, or an in-cluster
+// ServiceAccount token) reached the cluster, and the record store's - AWS
+// credentials for "s3", the process's filesystem user for "local" - reached
+// the store. The note said so, and this test pinned that no Kubernetes-backed
+// store existed to make it false.
+//
+// record_store "kubernetes" makes it false on purpose: the credential that
+// opens the store is the cluster credential, the same one the provider uses,
+// so a Kubernetes-only estate has one identity and not two. What #1370 asks
+// of it is therefore a Kubernetes question and #1393 answers it - a plan
+// identity that may get and list Secrets in the records namespace and not
+// create them cannot write the sentinel, exactly as a read-only AWS role
+// cannot, and the handshake's answer (issue #693, provisionStoreSentinel) is
+// the same on all three backends.
+//
+// The near-misses stay refused, so a configuration that meant the new backend
+// and spelled it another way is told so rather than silently getting local.
+func TestTheRecordStoreBackendsAreLocalS3AndKubernetes(t *testing.T) {
+	for _, typeName := range []string{"k8s", "configmap", "secret"} {
 		_, err := newRecordStore(context.Background(), &configs.LiveRecordStore{Type: typeName}, nil, "prod", t.TempDir(), recordStoreOptions{})
 		if err == nil {
-			t.Errorf("record_store %q built a store; if a Kubernetes-backed record store is ever added, every statement about which identity opens an estate's store has to be re-derived", typeName)
+			t.Errorf("record_store %q built a store, and it is not one of the three backends this fork has", typeName)
 			continue
 		}
 		if !strings.Contains(err.Error(), "unknown backend") {
 			t.Errorf("record_store %q failed with %v, want the unknown-backend refusal", typeName, err)
 		}
+	}
+
+	// "kubernetes" is a backend now, so it fails for a reason about the
+	// cluster rather than about the name. The environment is emptied of every
+	// kubeconfig variable first, so this says the same thing on a developer's
+	// machine as in CI.
+	for _, name := range []string{"KUBECONFIG", "KUBE_CONFIG_PATH", "KUBE_CONFIG_PATHS"} {
+		t.Setenv(name, "")
+	}
+	_, err := newRecordStore(context.Background(), &configs.LiveRecordStore{Type: "kubernetes"}, nil, "prod", t.TempDir(), recordStoreOptions{})
+	if err == nil {
+		t.Fatal("record_store \"kubernetes\" built a store with no connection configured at all")
+	}
+	if strings.Contains(err.Error(), "unknown backend") {
+		t.Errorf("record_store \"kubernetes\" is refused as an unknown backend: %v", err)
 	}
 }

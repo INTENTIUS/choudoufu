@@ -152,11 +152,12 @@ const (
 	KubernetesManagedByLabel = "app.kubernetes.io/managed-by"
 	KubernetesManagedByValue = "choudoufu"
 
-	// kubernetesEstateLabel is markers.TagEstate. It is spelled out rather
+	// KubernetesEstateLabel is markers.TagEstate. It is spelled out rather
 	// than imported: this package holds no choudoufu concepts (see doc.go),
 	// and internal/live/markers is one. internal/live/projection's
-	// kubernetes_store_test.go pins the two spellings equal.
-	kubernetesEstateLabel = "tofu-estate"
+	// kubernetes_store_test.go pins the two spellings equal, so the store's
+	// Secrets cannot stop carrying the label estate-boundary.yaml fences on.
+	KubernetesEstateLabel = "tofu-estate"
 
 	// kubernetesPayloadKey is the Secret data key the gzipped payload lives
 	// under, and kubernetesEncodingAnnotation says how, both spelled the way
@@ -256,12 +257,12 @@ func NewKubernetesStore(cfg KubernetesConfig) (*KubernetesStore, error) {
 		return nil, fmt.Errorf("staterecord: kubernetes: Namespace must not be empty")
 	}
 	if cfg.Estate == "" {
-		return nil, fmt.Errorf("staterecord: kubernetes: Estate must not be empty: every Secret this store writes carries it as the %s label, which is what live/kubernetes/estate-boundary.yaml fences writes with", kubernetesEstateLabel)
+		return nil, fmt.Errorf("staterecord: kubernetes: Estate must not be empty: every Secret this store writes carries it as the %s label, which is what live/kubernetes/estate-boundary.yaml fences writes with", KubernetesEstateLabel)
 	}
 	if errs := validation.IsValidLabelValue(cfg.Estate); len(errs) > 0 {
 		return nil, fmt.Errorf(
 			"staterecord: kubernetes: estate name %q (%d characters) cannot be a Kubernetes label value, so no Secret this store wrote would carry the %s label and live/kubernetes/estate-boundary.yaml would fence none of its records: %s. Rename the estate, or keep its records in a store with no such limit (record_store \"s3\")",
-			cfg.Estate, len(cfg.Estate), kubernetesEstateLabel, strings.Join(errs, "; "))
+			cfg.Estate, len(cfg.Estate), KubernetesEstateLabel, strings.Join(errs, "; "))
 	}
 	return &KubernetesStore{
 		secrets:      cfg.Secrets,
@@ -325,7 +326,7 @@ func namespaceLabelValue(storeKey string) string {
 
 // baseSelector matches every Secret this store owns in the namespace.
 func (s *KubernetesStore) baseSelector() string {
-	return fmt.Sprintf("%s=%s,%s=%s", KubernetesManagedByLabel, KubernetesManagedByValue, kubernetesEstateLabel, s.estate)
+	return fmt.Sprintf("%s=%s,%s=%s", KubernetesManagedByLabel, KubernetesManagedByValue, KubernetesEstateLabel, s.estate)
 }
 
 // listSelector narrows [KubernetesStore.List]'s LIST by the namespace label
@@ -424,7 +425,7 @@ func (s *KubernetesStore) buildSecret(ctx context.Context, key string, payload [
 		kubernetesEncodingAnnotation:  kubernetesEncodingValue,
 	}
 	for k, v := range ObjectTags(ctx) {
-		if k == kubernetesEstateLabel {
+		if k == KubernetesEstateLabel {
 			continue
 		}
 		annotations[k] = v
@@ -435,7 +436,7 @@ func (s *KubernetesStore) buildSecret(ctx context.Context, key string, payload [
 			Namespace: s.namespace,
 			Labels: map[string]string{
 				KubernetesManagedByLabel: KubernetesManagedByValue,
-				kubernetesEstateLabel:    s.estate,
+				KubernetesEstateLabel:    s.estate,
 				KubernetesNamespaceLabel: namespaceLabelValue(storeKey),
 			},
 			Annotations: annotations,
