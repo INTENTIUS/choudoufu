@@ -6,56 +6,29 @@ bookCollapseSection: true
 
 # How close AWS is
 
-**Core estates clear** and **all estates clear**, read from artifacts the
-test suite writes, are the headline: the answer to whether choudoufu works
-across real-world configurations, which is the question a customer is
-asking. An estate is a real OpenTofu or Terraform configuration, pinned by
-commit, run through every active stage below side by side with stock
-OpenTofu against the pinned emulator. It is clear when every headline stage
-passes - an active stage not marked "no" in the Headline column below. A
-stage marked "tier-1 gated" activates on a fast fixture rather than on
-per-estate sections (#999): an estate that has never run it stays clear,
-but a genuine fail on it still breaks clear.
+An estate is a real OpenTofu or Terraform configuration, pinned by commit,
+run through every stage below side by side with stock OpenTofu. It is clear
+when every headline stage passes.
 
 {{< gauntlet-bars >}}
 
-The two AWS bars count every estate that runs on the emulator. The third
-bar is the `kubernetes` lane ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067)):
-its estates run against a kind cluster, a real API server rather than an
-emulator, and count toward neither AWS bar. A stage that cannot run on
-that substrate reads `n/a` in the estate's row, with the reason on the
-estate's own page, and is neutral for clear; `live/GAUNTLET.md` says
-under each stage how it reads there. The
-[Kubernetes proof page]({{< relref "/kubernetes/proof" >}}) shows the
-same bar beside the Kubernetes claims.
+The two AWS bars count every estate that runs on the emulator. The third is
+the `kubernetes` lane, whose estates run against a real API server on a kind
+cluster and count toward neither AWS bar.
 
 {{< gauntlet-board "banner" >}}
 
 {{< gauntlet-board "script-staleness" >}}
 
-A row is measured by running its crossing script, so it is evidence about
-the script as it stood that day. When the script changes afterwards and
-nobody re-runs the estate, the row keeps its old verdicts
-([#1264](https://github.com/INTENTIUS/choudoufu/issues/1264)). The same is
-true of `live/e2e/lib/`, the protocol library every crossing script sources
-([#1292](https://github.com/INTENTIUS/choudoufu/issues/1292)): a change to
-it moves what every row measures at once. Both are compared, and each
-affected estate's own page says which of the two moved.
+A row is evidence about its crossing script as it stood the day it ran. When
+the script or the shared protocol library changes afterwards, the row keeps
+its old verdicts until someone re-runs the estate. The line above counts the
+rows in that state. It does not fail the build, because a re-run can take
+half an hour.
 
-The sentence above counts the rows in that state, and `go run
-./tools/gauntlet check` recomputes the same answer from the checkout. The
-drift does not fail the build, because re-running an estate can take half
-an hour. It is shown and left for a maintainer to schedule.
-
-The behaviors-proven line above counts how many of the
-{{< gauntlet-board "stage-count" >}} stages below have a FAST tier-1 fixture
-(`live/behaviors.json`) - a small, purpose-built script that runs in minutes
-rather than an estate's own hours - whose representative set (a real `count`
-block, a real `for_each` map, a module-nested case, and, for a stage
-touching identity resolution, one fixture per identity kind) all pass. **A
-stage with no tier-1 fixture is not unproven** - it is proven by the estates
-above, just slowly; this number says only how many stages have a fast
-signal for contributors.
+The behaviors-proven line counts how many of the
+{{< gauntlet-board "stage-count" >}} stages have a fast fixture that runs in
+minutes. A stage without one is still proven by the estates, only slowly.
 
 Every table on this page is rendered from `site/data/gauntlet_board.json`
 and `site/data/gauntlet.json`, both written by `go run ./tools/gauntlet

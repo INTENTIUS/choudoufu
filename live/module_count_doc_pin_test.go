@@ -99,7 +99,7 @@ import (
 // page its author does not own.
 var moduleCountDocs = []string{
 	"MARKERS.md",
-	"../site/content/docs/model/identity.md",
+	"IDENTITY.md",
 	"COMPATIBILITY.md",
 }
 

@@ -13,30 +13,17 @@ estate running, use the path pages.
 
 ## Specifications
 
-| Document | What it settles |
-|---|---|
-| [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md) | The marker tag spec. Key names, the escaping rule, continuation tags, ownership semantics, the rename rule, and what protects the tags. The one surface external tooling can rely on. |
-| [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) | Every construct the mode bounds or rejects, per rule, each with its lint rule and fixture. |
-| [`live/RECEIPTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md) | Recording an effect that leaves nothing in the live system to read back, and the guards on the pattern. |
-| [`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md) | Sharing values between estates with no remote state. |
-
-## Coverage and evidence
+These files in the repository are the authority, and this page summarises them.
 
 | Document | What it settles |
 |---|---|
-| [`live/COVERAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COVERAGE.md) | Which AWS resource types are covered, in layers, and what each layer means. |
-| [`live/SURVEY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SURVEY.md) | How admission is decided per type, the method, and the raw signals behind it. |
-| [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md) | What the pinned AWS emulator can and cannot show. Four questions no emulator-backed run answers at any scale, and where each one's real answer comes from instead. |
-
-## The demo that is also the test suite
-
-[`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md)
-documents the harness, what each step proves, the environment knobs, and each
-exit code.
-
-```
-bash live/e2e/run.sh --expect 5
-```
+| [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md) | The marker spec: key names, escaping, ownership, the rename rule |
+| [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) | Every refusal, with its lint rule and fixture |
+| [`live/RECEIPTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md) | Receipts, and the guards on them |
+| [`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md) | Sharing values between estates |
+| [`live/COVERAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COVERAGE.md), [`live/SURVEY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SURVEY.md) | Which AWS types are covered, and how admission is decided |
+| [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md) | What the pinned emulator can and cannot show |
+| [`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md) | The end-to-end harness: `bash live/e2e/run.sh --expect 5` |
 
 ## Commands
 
@@ -98,23 +85,17 @@ replaced it. Guided discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
-One label picks the backend: `"local"`, `"s3"` or `"kubernetes"`. The store
-holds one record per managed instance
-([Records]({{< relref "/docs/model/values" >}})). Every estate has one: a
-`live` block that names no `record_store` gets an implied local store.
-Declare the block to choose where the records go. Writes are conditional rather than
-locked. [Storage]({{< relref "/docs/use/storage" >}}) has the bucket's layout
-and the choice between the two, and
-[What you set up by hand]({{< relref "/docs/use/setup" >}}) has what a bucket
-needs to exist first.
+One label picks the backend: `"local"`, `"s3"` or `"kubernetes"`. Every
+estate has a store, and a `live` block that names none gets the local one.
+[Where things are stored]({{< relref "/docs/use/storage" >}}) has the rest.
 
 | Argument | Applies to | Meaning |
 |---|---|---|
 | `path` | `local` | Directory for the records, relative to the module. |
 | `bucket` | `s3` | The bucket holding the records. |
-| `key_prefix` | `s3` | Namespace for this estate's records, in place of `tofu-records/<estate>/`. A prefix whose first segment is one of the reserved roots (`tofu-receipts`, `tofu-hints`, `tofu-outputs`, `tofu-located`, `tofu-residue`, `tofu-provisioned`) is a decode error, because those namespaces belong to something else: receipts are ordinary declared resources, and the hint and the root outputs are not records. It moves the records only. The hint and the outputs stay under their own roots. A prefix under `tofu-records/` is a decode error too, unless the segment after it is this estate's own name: `tofu-records/<another estate>` is the exact namespace that estate writes its records to, so both would share one set of keys and each would read the other's records as its own inventory. Deciding that needs the `estate` argument, so a configuration that leaves the name to its tags is refused a `tofu-records/` prefix as well. |
+| `key_prefix` | `s3` | Namespace for this estate's records, in place of `tofu-records/<estate>/`. It may not begin with a reserved root (`tofu-receipts`, `tofu-hints`, `tofu-outputs`, `tofu-located`, `tofu-residue`, `tofu-provisioned`). |
 | `region` | `s3` | Region of the bucket. Unset, the AWS SDK's own default-configuration chain decides. |
-| `bucket_owner` | `s3` | The twelve-digit AWS account that must own the bucket. Every S3 call this estate makes then carries it as `ExpectedBucketOwner`, and a bucket owned by any other account is refused. A bucket name is global, so a name that is free can be taken by anyone: without this, a bucket of the right name in someone else's account receives the records, which hold secret material. Set it whenever the bucket name is written down anywhere others can read. The policy side of the same pin is `--account` on the rendered IAM policy ([IAM for the record store bucket]({{< relref "/docs/use/bucket" >}})). |
+| `bucket_owner` | `s3` | The twelve-digit AWS account that must own the bucket. Every S3 call carries it as `ExpectedBucketOwner`, so a bucket of the same name in another account is refused. |
 | `allow_insecure` | `s3` | A list naming the bucket settings this estate proceeds without: any of `"versioning"`, `"lifecycle"`, `"public_access_block"`. Never a boolean. Each waiver is announced on every run with what it costs. [The three settings]({{< relref "/docs/use/bucket" >}}) has the costs. |
 
 ### `policy` block

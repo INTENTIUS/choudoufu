@@ -19,12 +19,9 @@ resolve one of four ways.
 No race orphans a resource silently. Each case is a clean re-plan or a named
 collision.
 
-Compare a backend whose lock fails or was never configured, where the last
-state write wins and the loser's resource drops silently out of every future
-plan. A lock does not help with a crash mid-apply either: a resource created
-but not yet recorded is orphaned either way. Under markers the tag rode
-the create call itself, so the resource is discoverable and there is nothing to
-unlock or recover.
+A lock does not help with a crash mid-apply: a resource created and not yet
+recorded is orphaned either way. Under markers the tag rode the create call,
+so the resource is found again and there is nothing to unlock.
 
 ## The record store is not locked either
 
@@ -42,26 +39,15 @@ cluster it is the API server comparing `resourceVersion`.
 | An update racing a delete | The loser is told the version it read is not the version the store holds, whether S3 said `412` or, for a key that is gone, `404` |
 
 [Claim 32]({{< relref "/docs/claims/two-writers-one-record" >}}) holds two
-writers at the wire so that both arrive with the same version in hand, and
-requires exactly one winner and one named conflict on every round.
-
-The local store is the one place a lock file appears. A plain directory has no
-conditional write, so a write takes a `<file>.lock` sidecar for the length of
-one file operation, and a sidecar older than thirty seconds is broken by the
-next writer. It is never held across an operation, so a killed run cannot
-strand an apply behind it.
-
-A conditional write is not a lock. A lock is held across operations and can
-be orphaned by a crash. A conditional write succeeds or fails atomically and
-retains nothing, so there is nothing a dead run could leave held.
+writers at the wire so both arrive with the same version, and requires one
+winner and one named conflict every round.
 [Claim 4]({{< relref "/docs/claims/backend-sets-itself-up" >}}) kills an apply
-with `SIGKILL` in mid-flight and the very next run finishes the work.
+with `SIGKILL` and the next run finishes the work.
 
-That is also why `force-unlock` is refused rather than made a no-op. There is
-no lock for it to open, and a command that pretends to open one teaches an
-operator that one exists.
-[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) measures the
-refusal.
+A conditional write succeeds or fails in one step and keeps nothing, so a dead
+run leaves nothing held. That is why `force-unlock` is refused: there is no
+lock for it to open. The local store is the one place a lock file appears, for
+the length of a single file write, and a stale one is broken by the next
+writer.
 
-None of that argues for applying concurrently. Serialize applies in CI, where
-the real mutex has always been.
+Serialize applies in CI anyway, where the real mutex has always been.

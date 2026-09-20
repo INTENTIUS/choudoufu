@@ -51,11 +51,6 @@ PASS: stateless-mode E2E harness reached the end.
 Exit code 0 means every one of those steps checked out. Anything else, and
 the script names the step that didn't on its way out.
 
-The emulator on line 1 is printed in full, digest and all. Yours will be
-whatever `live/floci-image` pins in your checkout - the harness reads that
-file, and `FLOCI_IMAGE` overrides it - so the tail of the digest above is
-abbreviated rather than something to match against.
-
 ## Walk through what just happened
 
 Step 2, `standup`, is a plain `init` and `apply` with a plain local state
