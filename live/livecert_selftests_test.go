@@ -122,7 +122,7 @@ var liveCertSelftests = []liveCertSelftest{
 		proves:   "#1046, #1049, #1143 - index_wait polled for a VERIFIED total the Resource Groups Tagging API can never serve, and three real-AWS runs read the resulting plateau as a slow index",
 		runner:   runsInGoTestFile,
 		where:    "indexwait_partition_test.go",
-		measured: "7.4s. Every case passes index_wait a small bound; #1143's first red arm hung on the production 1800s one, which is where #1267's hazard 2 comes from.",
+		measured: "2.4s since #1410 stubbed the clock index_wait reads, so no case sleeps or depends on machine load (7.4s before, most of it real sleeps). Every case passes index_wait a small bound; #1143's first red arm hung on the production 1800s one, which is where #1267's hazard 2 comes from.",
 	},
 	{
 		script: "selftest-kill.sh",
