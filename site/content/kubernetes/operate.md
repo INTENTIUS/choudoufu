@@ -34,8 +34,15 @@ record_store "kubernetes" {}
 Each record is one Secret in `tofu-records-<estate>`, written conditionally on
 `resourceVersion` with nothing locked. Create that namespace yourself, one per
 estate: the store does not, and RBAC cannot condition on a label. A plan job
-needs `get`, `list` and `create` on those Secrets, because opening the store
-asks to create a sentinel that is already there.
+needs `get` and `list` on those Secrets and nothing more, once an identity
+that may write has applied the estate once.
+
+The first contact also checks the cluster: the records namespace and this
+identity's access, read isolation, encryption at rest, and the estate boundary
+policy. Each failure names its fix and the waiver that accepts it. A stock
+kind cluster fails the last two, so a demo adds
+`allow_insecure = ["encryption_at_rest", "estate_boundary"]` to the
+`record_store` block. `choudoufu live-cluster` prints the report.
 
 ## Two runs at once
 

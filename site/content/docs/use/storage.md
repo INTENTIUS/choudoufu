@@ -61,13 +61,7 @@ else.
 | `tofu-hints/<estate>/` | Where the last sweep found things |
 | `tofu-outputs/<estate>/` | The last value of each root output, never a `sensitive` one |
 
-Every object is tagged with its estate as it is written, and the published
-policy denies reading an object tagged as another estate's. Every write is
-conditional and nothing is locked.
-
-The bucket is versioned, so a deleted record stays as an old version until the
-lifecycle rule expires it. That window is how a record deleted by mistake
-comes back ([Recover an estate]({{< relref "/docs/use/recover-an-estate" >}})).
+Every write is conditional and nothing is locked.
 
 ## The cluster
 
