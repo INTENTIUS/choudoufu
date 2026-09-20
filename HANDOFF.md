@@ -385,6 +385,19 @@ It exits non-zero for anything that is not a run that finished against this
 checkout's HEAD, and prints the reason - "signalled, teardown unconfirmed"
 is the one that means go and look at the account.
 
+Stopping a run is one signal, and then waiting. The tool forwards it to the
+script's whole process group and then waits for the teardown trap for as
+long as the trap takes, printing a "still waiting for teardown" line every
+`LIVECERT_HEARTBEAT_S` so the wait is not silent. It never kills a teardown
+on its own, and a second or third signal changes nothing: closing a terminal
+sends SIGHUP and a runner's cancellation sends SIGINT then SIGTERM, and
+neither is a request to abandon an estate. Tearing a scale-128 estate down
+is tens of minutes, so expect to wait. To abandon it anyway, `kill -KILL
+-<pgid>` using the pgid the tool prints, which leaves every resource live
+and billing with no verified-empty listing. `LIVECERT_SIGNAL_GRACE_S=<n>`
+opts into a bound that does the same thing on a timer, and records the run
+unconfirmed.
+
 Prove the harness on floci at scale 1 before any paid scale run (#1324).
 `TARGET=floci SCALE=1 RECORD_STORE_BACKEND=s3` exercises the store path, the
 teardown arm and the signal path in minutes for nothing. Every defect found

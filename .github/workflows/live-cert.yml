@@ -161,17 +161,26 @@ jobs:
           #
           # On cancellation (#1324): the runner signals this step and then
           # kills it after a short grace period - seconds, not minutes. The
-          # tool now forwards that signal to the script's whole process group
-          # and waits for its teardown trap, and with the build above it is
-          # the tool that gets signalled rather than a `go run` wrapper. What
-          # that grace period CANNOT do is finish the teardown: destroying a
-          # scale-128 estate and verifying it empty by listing is tens of
-          # minutes. So a cancelled run is a run whose teardown starts and is
-          # then killed, and the honest outcome is that its record says
-          # "signalled, teardown unconfirmed" and a human checks the account.
-          # Cancelling is not a way to stop a certification safely; letting
-          # -timeout-seconds stop it is, because that path gives the trap the
-          # whole two minutes this line reserves.
+          # tool forwards that signal to the script's whole process group and
+          # waits for its teardown trap for as long as the trap takes, and
+          # with the build above it is the tool that gets signalled rather
+          # than a `go run` wrapper. The runner sends SIGINT and then
+          # SIGTERM, which the tool treats as ONE stop request: a second
+          # signal is never an instruction to abandon an estate.
+          #
+          # What the grace period CANNOT do is let the teardown finish.
+          # Destroying a scale-128 estate and verifying it empty by listing
+          # is tens of minutes, and the runner kills the process group long
+          # before that. So a cancelled run is a run whose teardown starts
+          # and is then killed from outside, its record says "signalled,
+          # teardown unconfirmed", and a human has to check the account.
+          # Nothing here can change that; only not cancelling can.
+          #
+          # -timeout-seconds is the way to stop a certification safely,
+          # because that path is the tool's own and it waits: the ceiling
+          # fires, the group gets a SIGTERM, and the trap runs to completion
+          # inside the two minutes this line reserves before the job's own
+          # ceiling.
           "$RUNNER_TEMP/gauntlet" live-cert \
             -target aws \
             -region "${{ vars.AWS_REGION }}" \

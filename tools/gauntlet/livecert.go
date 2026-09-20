@@ -6,7 +6,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -17,19 +16,6 @@ import (
 	"syscall"
 	"time"
 )
-
-// commandTimeoutContext bounds a live-cert run at the process level, from
-// Go's side, independent of live/live-cert/run.sh's own `timeout` wrapper -
-// #440's brief asks for the wall-clock ceiling enforced more than one way,
-// not trusted to a single mechanism. ceilingSeconds <= 0 means no Go-side
-// bound (the shell wrapper's `timeout` is still there; this is defense in
-// depth, not the only layer).
-func commandTimeoutContext(ceilingSeconds int) (context.Context, context.CancelFunc) {
-	if ceilingSeconds <= 0 {
-		return context.WithCancel(context.Background())
-	}
-	return context.WithTimeout(context.Background(), time.Duration(ceilingSeconds)*time.Second)
-}
 
 // LiveCertScript is where a real-AWS certification script lives for a given
 // estate, mirroring Estate.ScriptPath's convention for live/e2e/*/run.sh.
@@ -321,9 +307,26 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		}()
 	}
 
-	ctx, cancel := commandTimeoutContext(ceilingSeconds)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "bash", full)
+	// exec.Command, NOT exec.CommandContext, and the ceiling is enforced
+	// by the supervisor below instead (#1324).
+	//
+	// CommandContext ties cmd.WaitDelay to the context: the delay timer
+	// starts when the context is done, and when it expires Wait KILLS the
+	// process. So the ceiling path was - ceiling fires, cmd.Cancel sends
+	// the group a SIGTERM, the trap starts tearing down, and 30 seconds
+	// later Wait SIGKILLs bash out from under it. Measured with a stub
+	// whose teardown outlasts the delay: the trap never finished and the
+	// run recorded `state="finished"`. That is this issue's defect on the
+	// one path HANDOFF and live-cert.yml both call the safe way to stop a
+	// certification, and 30 seconds is not a number any real teardown fits
+	// in.
+	//
+	// With no context, WaitDelay keeps only its other job, which is the
+	// one worth keeping: its timer also starts when the child has EXITED,
+	// bounding a grandchild that has outlived the script and is holding
+	// the output pipe open. By then there is no teardown left to cut
+	// short.
+	cmd := exec.Command("bash", full) //nolint:gosec // a script path under the checkout, resolved above
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "TARGET="+target, "REGION="+region)
 
@@ -385,51 +388,20 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		}
 	}
 
-	// cmd.Cancel/cmd.WaitDelay: exec.CommandContext's DEFAULT behavior on
-	// context expiry is cmd.Process.Kill() - a bare SIGKILL, immediately,
-	// with no grace period. That is a real safety gap for a live-AWS
-	// script specifically: every estate script's teardown (the destroy +
-	// independent listing + raw-CLI sweep this package's own doc comments
-	// describe as the thing that makes a live-AWS run safe) runs from a
-	// `trap teardown EXIT INT TERM` inside the script - and SIGKILL cannot
-	// be trapped, at all, by design. A run that hits THIS ceiling with the
-	// default behavior leaves whatever the script had created up to that
-	// moment running and billing in the real account with nobody notified,
-	// which is a strictly worse failure than a slow run: it fails silently
-	// where live/live-cert/run.sh's own `timeout --signal=TERM
-	// --kill-after=30` wrapper (this function's OWN doc comment above
-	// calls it "a second, independent enforcement alongside run.sh's own
-	// timeout wrapper", implying the two are equivalent - they are not)
-	// fails loudly, with the script's own trap given a chance to tear down
-	// first. Confirmed the hard way running `gauntlet live-cert -target
-	// aws` directly against the terralith-scale estate (issue #567,
-	// 2026-08-30) at a scale whose four stages alone take longer than this
-	// function's 900s default: the process was SIGKILLed mid-stage, the
-	// script's teardown never ran, and every resource it had created (28
-	// IAM roles, 24 policies, 24 instance profiles, an ECS cluster and its
-	// services, a Route53 zone, a VPC/subnet/security group) was left live
-	// in the account, found and manually swept only because the
-	// independent post-run AWS CLI verification this issue's own brief
-	// requires caught it - the account-level Budgets alarm exists as the
-	// backstop for exactly this case, but reaching it is a near-miss, not
-	// a success. cmd.Cancel below overrides the kill with a SIGTERM (the
-	// SAME signal the script's own trap handles), and cmd.WaitDelay gives
-	// it the SAME 30s grace period run.sh's wrapper does before Go itself
-	// falls back to SIGKILL - the two independent ceilings now agree on
-	// HOW they stop the process, not only decide the process, matching
-	// this file's own claim that they are independent enforcement of the
-	// SAME safety property.
-	// The ceiling now signals the GROUP, for the reason Setpgid above
-	// exists: a SIGTERM to bash alone leaves the `terraform plan` it is
-	// waiting on running, and the trap's own destroy then contends with a
-	// live apply.
-	cmd.Cancel = func() error {
-		if err := signalGroup(cmd.Process.Pid, syscall.SIGTERM); err != nil {
-			return cmd.Process.Signal(syscall.SIGTERM)
-		}
-		return nil
-	}
-	cmd.WaitDelay = 30 * time.Second
+	// The ceiling still stops a run that outruns it, and it still does so
+	// with a SIGTERM the script's own trap handles rather than an
+	// untrappable kill - the property issue #567 paid for, when a
+	// `gauntlet live-cert -target aws` run was SIGKILLed mid-stage and
+	// left 28 IAM roles, 24 policies, 24 instance profiles, an ECS cluster
+	// and its services, a Route53 zone and a VPC live in a real account.
+	// What changed with #1324 is only WHO enforces it: the supervisor
+	// below, which sends that SIGTERM to the whole process group and then
+	// waits for the trap, instead of exec.CommandContext, which sent it to
+	// bash alone and then killed bash 30 seconds later.
+	//
+	// Bounds only the post-exit case described above; it can no longer
+	// reach a teardown that is still running.
+	cmd.WaitDelay = liveCertWaitDelay
 
 	// The run record (#1324), cleared before the run and stamped as it
 	// goes. Cleared first for scripts/ci-gate.sh's reason: a record left
@@ -468,20 +440,37 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	writeRec()
 
 	sup := &liveCertSupervisor{}
-	sigc := make(chan os.Signal, 4)
-	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	sigc := make(chan os.Signal, 8)
+	// SIGHUP is in this list so that closing a terminal does not kill this
+	// process in the middle of a teardown it is waiting for, and SIGPIPE
+	// so that a write to a dead stdout does not either: a Go program that
+	// has not asked for SIGPIPE dies when a write to fd 1 or 2 gets one,
+	// and `gauntlet live-cert ... | tee` is exactly that shape. The
+	// supervisor drops SIGPIPE and treats the other three as stop
+	// requests.
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGPIPE)
 	done := make(chan struct{})
 	watcher := make(chan struct{})
 	go func() {
 		defer close(watcher)
-		superviseLiveCert(sup, pgid, sigc, done, liveCertSignalGrace(), sayTo(sink), func(signalName string) {
-			// Stamped BEFORE the wait that may never return: the
-			// record on disk has to be true at the worst moment,
-			// which is while the estate is still coming down and
-			// this process could itself be killed.
-			rec.State = RunStateSignalledUnconfirmed
-			rec.Signal = signalName
-			writeRec()
+		superviseLiveCert(sup, superviseOpts{
+			PGID:    pgid,
+			Sigc:    sigc,
+			Done:    done,
+			Ceiling: time.Duration(ceilingSeconds) * time.Second,
+			Bound:   liveCertSignalBound(),
+			Tick:    liveCertWaitTick(),
+			Say:     sayTo(sink),
+			OnStop: func(signalName string) {
+				// Stamped BEFORE the wait that may never
+				// return: the record on disk has to be true at
+				// the worst moment, which is while the estate
+				// is still coming down and this process could
+				// itself be killed.
+				rec.State = RunStateSignalledUnconfirmed
+				rec.Signal = signalName
+				writeRec()
+			},
 		})
 	}()
 
@@ -500,11 +489,17 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	if runErr != nil {
 		if ee, ok := runErr.(*exec.ExitError); ok {
 			exit = ee.ExitCode()
-		} else if ctx.Err() != nil {
-			exit = -1 // killed by the ceiling, not a normal exit
 		} else {
 			return nil, nil, 0, fmt.Errorf("estate %q: %w", estate, runErr)
 		}
+	}
+	if sup.HitCeiling() {
+		// -1 is what this function has always reported for a run its
+		// own ceiling stopped, and it still means the same thing: not
+		// a normal exit. The script now exits through its own trap, so
+		// without this the trap's exit code would read as an ordinary
+		// one.
+		exit = -1
 	}
 
 	// Teardown's verdict comes from teardown's own line, never from the
@@ -513,6 +508,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	signalled, signalName, escalated := sup.Report()
 	state := sup.State(confirmed)
 	rec.State, rec.Signal, rec.Escalated = state, signalName, escalated
+	rec.RepeatSignals = sup.Repeats()
 	rec.TeardownConfirmed = confirmed
 	rec.ExitCode = exit
 	rec.Note = state.Human()

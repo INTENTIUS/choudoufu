@@ -147,10 +147,17 @@ type LiveCertRun struct {
 	// Signal is what the stop request was: "SIGTERM", "SIGINT", "SIGHUP",
 	// or "orphaned" when the supervisor's own parent went away.
 	Signal string `json:"signal,omitempty"`
-	// Escalated: the grace period expired (or a second signal arrived) and
+	// Escalated: the OPT-IN bound (LIVECERT_SIGNAL_GRACE_S) expired and
 	// the process group was SIGKILLed. A trap cannot run after SIGKILL, so
-	// this always accompanies an unconfirmed teardown.
+	// this always accompanies an unconfirmed teardown. Nothing sets it
+	// unless someone asked for a bound: a repeat signal never does.
 	Escalated bool `json:"escalated,omitempty"`
+	// RepeatSignals is how many further stop requests arrived while the
+	// teardown was already running and were deliberately ignored. It is
+	// recorded because it is the difference between "nobody tried to stop
+	// this twice" and "three signals arrived and the teardown was allowed
+	// to finish anyway", and only the second explains a long wait.
+	RepeatSignals int `json:"repeat_signals,omitempty"`
 	// TeardownConfirmed is teardown's OWN verdict line, read off the
 	// script's output - never this tool's opinion, and never an exit code.
 	TeardownConfirmed bool   `json:"teardown_confirmed"`
@@ -277,29 +284,59 @@ func TeardownConfirmed(output string) bool {
 // slow enough to cost nothing over a four-hour run.
 const liveCertOrphanPoll = 1 * time.Second
 
-// LiveCertSignalGraceEnv bounds how long the supervisor waits for the
-// script's teardown trap after forwarding a stop request.
+// LiveCertSignalGraceEnv is an OPT-IN bound on how long the supervisor waits
+// for the script's teardown trap after forwarding a stop request. Unset, or
+// set to anything that is not a positive integer, there is NO bound: the
+// supervisor waits for as long as the trap takes and never kills a teardown
+// on its own.
 //
-// There has to be a bound. Without one, a trap that hangs - #1048's untrusted
-// destroy step blocked for ~40 minutes at 0% CPU, which is why
-// UNTRUSTED_TEARDOWN_TIMEOUT_S exists - turns a stop request into a process
-// that never comes back, and the operator is back to signalling pids by hand.
-// The default is generous because a real teardown at scale is minutes of
-// destroy plus an independent listing; live/live-cert/run.sh's own `timeout
-// --signal=TERM --kill-after=30` is the same idea with a tighter number,
-// around a script that has not yet been asked to tear down.
+// It shipped the other way round for a few hours and that was this issue's
+// own defect coming back through its fix. A 600-second default sounds
+// generous until it meets the run #1324 was filed from: 39,610 seconds
+// total, 5,633 of them in the cold apply alone. Tearing a scale-128 estate
+// down - destroy, then an independent listing, then a sweep - is far longer
+// than ten minutes, so an operator who stopped that run would have got ten
+// minutes of teardown and then the harness itself SIGKILLing the destroy
+// with thousands of billable resources standing. Before any of this existed
+// the trap at least ran to completion once somebody signalled it by hand.
+// Making the tool worse than the workaround is not a fix.
+//
+// The hang case is real - #1048's untrusted destroy step blocked for ~40
+// minutes at 0% CPU - but it is already owned where it belongs, inside the
+// script: UNTRUSTED_TEARDOWN_TIMEOUT_S bounds that step, and the trusted
+// destroy and the sweep carry their own timeouts. A second bound out here
+// cannot tell a hung teardown from a slow one, and guessing wrong costs an
+// estate. What this side owes the operator instead is to say what it is
+// waiting for, which the "still waiting" line below does, and to say how to
+// abandon the wait by hand, which the repeat-signal line does.
+const LiveCertSignalGraceEnv = "LIVECERT_SIGNAL_GRACE_S"
+
+// liveCertSignalBound reads the opt-in bound. 0 means unbounded, which is
+// the default.
+func liveCertSignalBound() time.Duration {
+	if n, err := strconv.Atoi(os.Getenv(LiveCertSignalGraceEnv)); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return 0
+}
+
+// LiveCertHeartbeatEnv is the interval for the "still waiting for teardown"
+// line, shared with the heartbeat live/live-cert/terralith-scale.sh prints
+// inside a stage so the two sides of the same run tick at the same rate.
+//
+// The wait needs this for the reason the stages did (#1324's second defect):
+// a teardown that takes an hour and says nothing is indistinguishable from a
+// hung one, and an operator who cannot tell will reach for a kill.
 const (
-	LiveCertSignalGraceEnv      = "LIVECERT_SIGNAL_GRACE_S"
-	LiveCertSignalGraceDefaultS = 600
+	LiveCertHeartbeatEnv      = "LIVECERT_HEARTBEAT_S"
+	LiveCertHeartbeatDefaultS = 60
 )
 
-func liveCertSignalGrace() time.Duration {
-	if v := os.Getenv(LiveCertSignalGraceEnv); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return time.Duration(n) * time.Second
-		}
+func liveCertWaitTick() time.Duration {
+	if n, err := strconv.Atoi(os.Getenv(LiveCertHeartbeatEnv)); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
 	}
-	return LiveCertSignalGraceDefaultS * time.Second
+	return LiveCertHeartbeatDefaultS * time.Second
 }
 
 // liveCertSupervisor is the state a stop request leaves behind. Its fields
@@ -309,6 +346,40 @@ type liveCertSupervisor struct {
 	signalled bool
 	signal    string
 	escalated bool
+	// repeats is how many further stop requests arrived while the
+	// teardown was already running. None of them did anything; the count
+	// is here so the record can say so.
+	repeats int
+	// ceiling: the stop request was the -timeout-seconds ceiling rather
+	// than a signal. RunLiveCert reports such a run's exit as -1, which is
+	// what its doc comment has always promised.
+	ceiling bool
+}
+
+func (s *liveCertSupervisor) noteRepeat() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.repeats++
+}
+
+func (s *liveCertSupervisor) noteCeiling() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ceiling = true
+}
+
+// Repeats is how many stop requests arrived and were deliberately ignored.
+func (s *liveCertSupervisor) Repeats() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.repeats
+}
+
+// HitCeiling reports whether the run was stopped by its own ceiling.
+func (s *liveCertSupervisor) HitCeiling() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.ceiling
 }
 
 func (s *liveCertSupervisor) stopRequested(name string) bool {
@@ -360,78 +431,176 @@ func signalGroup(pgid int, sig syscall.Signal) error {
 	return syscall.Kill(-pgid, sig)
 }
 
-// superviseLiveCert watches for a stop request while the script runs, and
-// returns a function the caller runs after cmd.Wait() to shut the watcher
-// down.
+// superviseOpts is what superviseLiveCert needs. A struct rather than eight
+// positional parameters, because most of them are durations and a caller
+// that swapped two of them would compile.
+type superviseOpts struct {
+	// PGID is the script's own process group.
+	PGID int
+	// Sigc carries signals the caller registered with signal.Notify; Done
+	// is closed once cmd.Wait has returned.
+	Sigc <-chan os.Signal
+	Done <-chan struct{}
+	// Ceiling is the -timeout-seconds bound on the RUN. 0 disables it.
+	// It is handled here, as one more kind of stop request, rather than by
+	// exec.CommandContext: see RunLiveCert for why that mattered.
+	Ceiling time.Duration
+	// Bound is the OPT-IN bound on the teardown itself
+	// (LIVECERT_SIGNAL_GRACE_S). 0 means the teardown is never killed.
+	Bound time.Duration
+	// Tick is how often to say that the wait is still going.
+	Tick time.Duration
+	Say  func(string, ...any)
+	// OnStop is called the moment the first stop request is forwarded,
+	// before any waiting, so the run record is stamped "signalled,
+	// teardown unconfirmed" while the estate is still coming down. The
+	// state on disk has to be true at the worst moment, not only at the
+	// end.
+	OnStop func(signal string)
+}
+
+// superviseLiveCert watches for a stop request while the script runs.
 //
-// sigc carries signals the caller has already registered with signal.Notify;
-// done is closed by the caller once the wait has returned. say writes one
-// line to wherever the operator is looking. onStop is called the moment a
-// stop request is forwarded, before any waiting, so the run record can be
-// stamped "signalled, teardown unconfirmed" while the estate is still coming
-// down - the state on disk has to be true at the worst moment, not only at
-// the end.
-func superviseLiveCert(s *liveCertSupervisor, pgid int, sigc <-chan os.Signal, done <-chan struct{}, grace time.Duration, say func(string, ...any), onStop func(signal string)) {
+// The policy, which is the part worth stating plainly: ONE stop request is
+// forwarded to the process group, and then this waits for the trap for as
+// long as the trap takes. It does not kill a teardown. Not on a second
+// signal, not on a third, not after any default interval.
+//
+// The second-signal case is the one that looks harmless and is not. An
+// operator hits Ctrl-C, sees that tearing down 9,477 resources will take an
+// hour, and closes the terminal - SIGHUP arrives, and on any "second signal
+// escalates" rule that SIGHUP kills the destroy. GitHub's own cancellation
+// sends SIGINT and then SIGTERM, which is two signals by itself; so is an
+// orphan detection followed by a real signal. Every one of those is a normal
+// thing to do and none of them is a request to abandon an estate.
+//
+// Abandoning it stays possible and stays explicit: the repeat line prints
+// the exact `kill -KILL -<pgid>` and what it costs, so a human who really
+// does want the teardown dead can have it, by typing it.
+func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 	startPPID := os.Getppid()
-	tick := time.NewTicker(liveCertOrphanPoll)
-	defer tick.Stop()
-	var graceC <-chan time.Time
-	// The ppid stays 1 for the rest of the run, so the orphan check
-	// matches on every tick from here on. It is ONE event and has to fire
-	// once: without this, the second tick arrives a second later, looks
-	// like a second stop request, and escalates to SIGKILL on a teardown
-	// that had barely started. Measured while writing this - the trap got
-	// 1 second of its 2-second teardown and the run recorded
-	// "signalled, teardown unconfirmed" on a fix that was working.
-	//
-	// A second real SIGNAL still escalates, and should: that is an
-	// operator pressing Ctrl-C twice because they are done waiting.
+	poll := time.NewTicker(liveCertOrphanPoll)
+	defer poll.Stop()
+
+	var ceilingC <-chan time.Time
+	if o.Ceiling > 0 {
+		ct := time.NewTimer(o.Ceiling)
+		defer ct.Stop()
+		ceilingC = ct.C
+	}
+	var boundC <-chan time.Time
+	var waitC <-chan time.Time
+	var waitTicker *time.Ticker
+	defer func() {
+		if waitTicker != nil {
+			waitTicker.Stop()
+		}
+	}()
+	var stoppedAt time.Time
 	orphanFired := false
 
-	stop := func(name string, sig syscall.Signal, why string) {
+	// Always SIGTERM to the group, whatever the stop request was.
+	//
+	// Not a simplification - a measurement. POSIX has a shell without job
+	// control set SIGINT and SIGQUIT to SIG_IGN for every command it runs
+	// asynchronously, so a backgrounded child does not hear a SIGINT sent
+	// to its process group. Measured on bash 3.2.57 / darwin, with a
+	// `sleep &` inside a script in its own process group:
+	//
+	//   kill -INT  -<pgid>  ->  the backgrounded child SURVIVED
+	//   kill -TERM -<pgid>  ->  the backgrounded child died
+	//
+	// live/live-cert/terralith-scale.sh backgrounds cold_deploy's stock
+	// apply on purpose ("backgrounded so a signal can interrupt it"), so
+	// forwarding a Ctrl-C as SIGINT would reach the script and not the
+	// terraform apply underneath it. The script's own on_signal covers
+	// that one child by pid, but nothing covers a descendant it does not
+	// know about, and #1324's whole subject is a `terraform plan` nobody
+	// had signalled. Found by the repeat-signal test, which left a
+	// backgrounded grandchild alive after a forwarded SIGINT.
+	//
+	// Nothing is lost by the substitution: the script traps INT and TERM
+	// with the same handler, so its teardown path is identical either way.
+	const forwarded = syscall.SIGTERM
+
+	stop := func(name string, why string) {
 		if !s.stopRequested(name) {
-			// A second stop request means the operator is not waiting
-			// any more. Escalate rather than pretend to.
-			s.escalate()
-			say("live-cert: %s again - the first stop request is still being torn down. Escalating to SIGKILL on process group %d; the teardown trap cannot run after this and the run record stays \"signalled, teardown unconfirmed\".", name, pgid)
-			_ = signalGroup(pgid, syscall.SIGKILL)
+			since := time.Since(stoppedAt).Round(time.Second)
+			s.noteRepeat()
+			o.Say("live-cert: %s, %s after the stop request that is already being torn down. NOT forwarding it again and NOT killing anything - a second signal is not a request to abandon an estate (closing a terminal sends SIGHUP; a runner's cancellation sends SIGINT and then SIGTERM). The teardown is still running and this process is still waiting for it. To abandon it anyway, by hand and on purpose: kill -KILL -%d - that leaves every resource this run created live and billing, with no teardown and no verified-empty listing, and you own finding them.", name, since, o.PGID)
 			return
 		}
-		onStop(name)
-		say("live-cert: %s - %s Forwarding to the script's whole process group (pgid %d) and WAITING for its teardown trap; this process does not exit before the teardown it is responsible for (#1324). Grace: %s, after which the group is SIGKILLed and teardown is recorded UNCONFIRMED.", name, why, pgid, grace)
-		if err := signalGroup(pgid, sig); err != nil {
-			say("live-cert: forwarding %s to process group %d failed: %v - signal the script by hand (`ps -eo pid,ppid,pgid,command`) or the estate stays up.", name, pgid, err)
+		stoppedAt = time.Now()
+		o.OnStop(name)
+		bound := "no bound: this process waits for the trap for as long as it takes, and never kills a teardown itself"
+		if o.Bound > 0 {
+			bound = fmt.Sprintf("%s=%s is set, so the group is SIGKILLed after that and teardown is recorded UNCONFIRMED", LiveCertSignalGraceEnv, o.Bound)
 		}
-		graceC = time.After(grace)
+		o.Say("live-cert: %s - %s Forwarding to the script's whole process group (pgid %d) and WAITING for its teardown trap; this process does not exit before the teardown it is responsible for (#1324). Teardown at scale is tens of minutes: %s.", name, why, o.PGID, bound)
+		if err := signalGroup(o.PGID, forwarded); err != nil {
+			o.Say("live-cert: forwarding %s to process group %d failed: %v - signal the script by hand (`ps -eo pid,ppid,pgid,command`) or the estate stays up.", name, o.PGID, err)
+		}
+		if o.Bound > 0 {
+			bt := time.NewTimer(o.Bound)
+			boundC = bt.C
+		}
+		waitTicker = time.NewTicker(o.Tick)
+		waitC = waitTicker.C
 	}
 
 	for {
 		select {
-		case <-done:
+		case <-o.Done:
 			return
-		case sig, ok := <-sigc:
+		case sig, ok := <-o.Sigc:
 			if !ok {
 				return
 			}
-			sys, isSys := sig.(syscall.Signal)
-			if !isSys {
-				sys = syscall.SIGTERM
+			// SIGPIPE is not a stop request and must never be treated
+			// as one. It is registered at all because a Go program
+			// that has NOT asked for SIGPIPE dies when a write to fd
+			// 1 or 2 gets one - so an operator who closes the
+			// terminal on a `gauntlet live-cert ... | tee` would kill
+			// this process in the middle of the teardown it is
+			// waiting for. Receiving it on this channel is what stops
+			// that; dropping it here is the rest of the answer. The
+			// failed write returns an error to a caller that ignores
+			// it, and the run log is a separate file that keeps
+			// growing.
+			if sys, isSys := sig.(syscall.Signal); isSys && sys == syscall.SIGPIPE {
+				continue
 			}
-			stop(sig.String(), sys, "an operator or a runner asked this run to stop.")
-		case <-tick.C:
+			stop(sig.String(), "an operator or a runner asked this run to stop.")
+		case <-ceilingC:
+			// The -timeout-seconds ceiling, as a stop request like
+			// any other, so it gets the same "wait for the trap"
+			// treatment. HANDOFF and live-cert.yml both call this the
+			// safe way to stop a certification; it has to be that.
+			s.noteCeiling()
+			stop("the run ceiling expired", "the -timeout-seconds ceiling expired.")
+		case <-poll.C:
 			// The orphan case (#1324's own measurement): `go run` was
 			// signalled, died, and this process reparented to init. No
 			// signal ever reached here, so nothing else in this loop
 			// can see it; the ppid transition is the only evidence.
 			if !orphanFired && startPPID != 1 && os.Getppid() == 1 {
 				orphanFired = true
-				stop("orphaned", syscall.SIGTERM, "this process's parent exited and it reparented to init (ppid 1), which is what a signalled `go run` wrapper looks like from in here - `go run` does not pass the signal on to the binary it built (measured, go1.26.5).")
+				stop("orphaned", "this process's parent exited and it reparented to init (ppid 1), which is what a signalled `go run` wrapper looks like from in here - `go run` does not pass the signal on to the binary it built (measured, go1.26.5).")
 			}
-		case <-graceC:
+		case <-waitC:
+			// The wait is not silent. #1324's second defect is that a
+			// long silent stage cannot be told from a hung one, and a
+			// long silent teardown is the same thing at the worst
+			// moment.
+			o.Say("live-cert: still waiting for teardown, %s since the stop request, pgid %d. Nothing here will kill it; `kill -KILL -%d` abandons it by hand and leaves the estate up.",
+				time.Since(stoppedAt).Round(time.Second), o.PGID, o.PGID)
+		case <-boundC:
+			// Only reachable when LIVECERT_SIGNAL_GRACE_S was set on
+			// purpose.
 			s.escalate()
-			say("live-cert: teardown did not finish within %s of the stop request - SIGKILLing process group %d. A trap cannot run after SIGKILL, so this run's teardown is UNCONFIRMED and the estate must be checked by hand.", grace, pgid)
-			_ = signalGroup(pgid, syscall.SIGKILL)
-			graceC = nil
+			o.Say("live-cert: %s=%s expired - SIGKILLing process group %d. A trap cannot run after SIGKILL, so this run's teardown is UNCONFIRMED and the estate must be checked by hand.", LiveCertSignalGraceEnv, o.Bound, o.PGID)
+			_ = signalGroup(o.PGID, syscall.SIGKILL)
+			boundC = nil
 		}
 	}
 }
@@ -505,3 +674,9 @@ func cmdLiveCertState(root string, args []string, stdout io.Writer) error {
 	}
 	return nil
 }
+
+// liveCertWaitDelay is cmd.WaitDelay for the script. A var rather than a
+// constant so a test can lower it: what it bounds is measured in tens of
+// seconds, and a test that had to sit through the real value would be a test
+// nobody runs.
+var liveCertWaitDelay = 30 * time.Second

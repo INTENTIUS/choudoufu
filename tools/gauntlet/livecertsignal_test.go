@@ -6,8 +6,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -178,6 +180,7 @@ func alive(pid int) bool {
 // down again afterwards; it is also the only way to exercise the handler
 // rather than a stand-in for it.
 func TestSignalledLiveCertForwardsToTheGroupAndWaitsForTheTrap(t *testing.T) {
+	absorbStraySignals(t)
 	root := tempCheckout(t)
 	ready, pidFile, trapFile := signalStubScript(t, root, "signalestate", stubOpts{runSeconds: 120, teardownSeconds: 2})
 
@@ -586,5 +589,321 @@ func TestClearLiveCertRunRunsBeforeTheRun(t *testing.T) {
 	}
 	if rec.Commit == "deadbeefdeadbeef" {
 		t.Errorf("the record still carries the previous run's commit: the new run did not clear it first, so a reader can be told about a run that never happened (#1307's stale ci.rc, one file over)")
+	}
+}
+
+// TestCeilingGivesTheTrapAsLongAsItNeeds is the -timeout-seconds path, which
+// HANDOFF and live-cert.yml both now call the safe way to stop a
+// certification. It has to actually be that.
+func TestCeilingGivesTheTrapAsLongAsItNeeds(t *testing.T) {
+	root := tempCheckout(t)
+	// A teardown longer than WaitDelay, which is the whole question.
+	old := liveCertWaitDelay
+	liveCertWaitDelay = 2 * time.Second
+	t.Cleanup(func() { liveCertWaitDelay = old })
+
+	_, pidFile, trapFile := signalStubScript(t, root, "ceilingestate", stubOpts{runSeconds: 120, teardownSeconds: 6})
+	r, _, exit, err := RunLiveCert(root, "ceilingestate", "floci", "us-east-1", 5, 2)
+	if err != nil {
+		t.Fatalf("RunLiveCert: %v", err)
+	}
+	if _, err := os.Stat(trapFile); err != nil {
+		t.Errorf("the ceiling cut the teardown short: the trap never finished (%v).\n"+
+			"exit=%d state=%q. -timeout-seconds is documented as the SAFE way to stop a certification, "+
+			"because it is the path that gives the trap time; a WaitDelay that kills bash partway through a "+
+			"destroy makes it the unsafe one, with the estate still up (#1324).", err, exit, r.State)
+	}
+	bashPid, grandPid := readStubPids(t, pidFile)
+	for _, p := range []int{bashPid, grandPid} {
+		if alive(p) {
+			t.Errorf("pid %d survived the ceiling", p)
+		}
+	}
+	if !r.State.Signalled() {
+		t.Errorf("state after a ceiling stop is %q; a ceiling is a stop request and the run did not finish", r.State)
+	}
+}
+
+// runSignalledStub starts a stub run, waits until it is mid-stage, and hands
+// back a channel carrying the outcome plus the stub's pids. Every test below
+// signals the test process itself, which is how an operator's kill and a
+// runner's cancellation both arrive.
+func runSignalledStub(t *testing.T, estate string, opts stubOpts) (root string, out <-chan liveCertOutcome, trapFile string, bashPid, grandPid int) {
+	t.Helper()
+	root = tempCheckout(t)
+	ready, pidFile, trapFile := signalStubScript(t, root, estate, opts)
+	ch := make(chan liveCertOutcome, 1)
+	go func() {
+		r, res, exit, err := RunLiveCert(root, estate, "floci", "us-east-1", 5, 0)
+		ch <- liveCertOutcome{r, res, exit, err}
+	}()
+	waitForFile(t, ready, 30*time.Second)
+	waitForFile(t, pidFile, 30*time.Second)
+	bashPid, grandPid = readStubPids(t, pidFile)
+	return root, ch, trapFile, bashPid, grandPid
+}
+
+// absorbStraySignals keeps a signal this test sends to itself from killing
+// the test binary when RunLiveCert is not the one that ends up handling it.
+//
+// signal.Notify delivers to every registered channel, so this does not take
+// anything away from the supervisor under test - it only stops the default
+// action. Without it a break arm that makes RunLiveCert return EARLY turns
+// the next signal into "signal: hangup" and the test's own assertion message
+// is never printed, which is the one moment it is worth having.
+func absorbStraySignals(t *testing.T) {
+	t.Helper()
+	sink := make(chan os.Signal, 16)
+	signal.Notify(sink, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGPIPE)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-sink:
+			case <-done:
+				return
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		signal.Stop(sink)
+		close(done)
+	})
+}
+
+type liveCertOutcome struct {
+	r    *LiveCertResult
+	res  *ProtocolResult
+	exit int
+	err  error
+}
+
+func (o liveCertOutcome) must(t *testing.T) liveCertOutcome {
+	t.Helper()
+	if o.err != nil {
+		t.Fatalf("RunLiveCert: %v", o.err)
+	}
+	return o
+}
+
+func awaitOutcome(t *testing.T, ch <-chan liveCertOutcome, bound time.Duration) liveCertOutcome {
+	t.Helper()
+	select {
+	case got := <-ch:
+		return got
+	case <-time.After(bound):
+		t.Fatalf("RunLiveCert never returned within %s", bound)
+	}
+	return liveCertOutcome{}
+}
+
+// TestNoDefaultBoundKillsATeardown is the policy, stated as a test.
+//
+// The first version of this fix shipped a 600-second default after which the
+// supervisor SIGKILLed the process group. That is this issue's own defect
+// coming back through its fix: the run #1324 was filed from took 39,610
+// seconds, 5,633 of them in the cold apply alone, and tearing a scale-128
+// estate down is far longer than ten minutes. An operator stopping that run
+// would have got ten minutes of teardown and then the harness killing its
+// own destroy with thousands of billable resources standing - strictly worse
+// than the hand-signalling workaround it replaced.
+//
+// A 6-second teardown cannot prove a 600-second one is waited for. What it
+// proves is the thing that makes the length irrelevant: no bound is armed at
+// all unless someone asks for one, so nothing here escalates, whatever the
+// teardown costs.
+func TestNoDefaultBoundKillsATeardown(t *testing.T) {
+	absorbStraySignals(t)
+	t.Setenv(LiveCertSignalGraceEnv, "")
+	if b := liveCertSignalBound(); b != 0 {
+		t.Fatalf("with %s unset the bound is %s, want 0 (unbounded): a default bound is a default SIGKILL on a teardown", LiveCertSignalGraceEnv, b)
+	}
+	root, ch, trapFile, bashPid, grandPid := runSignalledStub(t, "unboundedestate", stubOpts{runSeconds: 120, teardownSeconds: 6})
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatalf("SIGTERM: %v", err)
+	}
+	got := awaitOutcome(t, ch, 90*time.Second).must(t)
+
+	if _, err := os.Stat(trapFile); err != nil {
+		t.Errorf("the teardown did not finish (%v): something killed it, and nothing is supposed to", err)
+	}
+	if got.r.State != RunStateSignalledTornDown {
+		t.Errorf("state is %q, want %q: the teardown ran to its own verified-empty verdict", got.r.State, RunStateSignalledTornDown)
+	}
+	rec, err := ReadLiveCertRun(root, "unboundedestate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Escalated {
+		t.Errorf("the record says the group was SIGKILLed. With no bound asked for, nothing may escalate: a teardown at scale is tens of minutes and this process's job is to wait for it")
+	}
+	for _, p := range []int{bashPid, grandPid} {
+		if alive(p) {
+			t.Errorf("pid %d survived", p)
+		}
+	}
+}
+
+// TestRepeatSignalsDoNotKillARunningTeardown is the second half of the same
+// policy, and the case that looks harmless.
+//
+// An operator hits Ctrl-C, sees that tearing down 9,477 resources will take
+// an hour, and closes the terminal. SIGHUP arrives. On any "a second signal
+// escalates" rule, that SIGHUP kills the destroy. GitHub's own cancellation
+// sends SIGINT and then SIGTERM, which is two signals by itself; so is an
+// orphan detection followed by a real signal. None of those is a request to
+// abandon an estate, and the way to abandon one stays available and explicit:
+// the repeat line prints the `kill -KILL -<pgid>` that does it.
+func TestRepeatSignalsDoNotKillARunningTeardown(t *testing.T) {
+	absorbStraySignals(t)
+	t.Setenv(LiveCertSignalGraceEnv, "")
+	root, ch, trapFile, bashPid, grandPid := runSignalledStub(t, "repeatestate", stubOpts{runSeconds: 120, teardownSeconds: 6})
+
+	// The stop request, then the two that must change nothing: a runner's
+	// second signal, and the SIGHUP of a closed terminal.
+	for i, sig := range []syscall.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP} {
+		if i > 0 {
+			time.Sleep(700 * time.Millisecond)
+		}
+		if err := syscall.Kill(os.Getpid(), sig); err != nil {
+			t.Fatalf("sending %v: %v", sig, err)
+		}
+	}
+	got := awaitOutcome(t, ch, 90*time.Second).must(t)
+
+	if _, err := os.Stat(trapFile); err != nil {
+		t.Errorf("the teardown was killed by a repeat signal (%v).\n"+
+			"A second signal is not a request to abandon an estate - closing a terminal sends SIGHUP, and a "+
+			"runner's cancellation sends SIGINT and then SIGTERM. Only an explicit `kill -KILL -<pgid>` may "+
+			"end a teardown (#1324).", err)
+	}
+	if got.r.State != RunStateSignalledTornDown {
+		t.Errorf("state is %q, want %q", got.r.State, RunStateSignalledTornDown)
+	}
+	rec, err := ReadLiveCertRun(root, "repeatestate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Escalated {
+		t.Errorf("the record says the group was SIGKILLed after a repeat signal")
+	}
+	if rec.RepeatSignals < 2 {
+		t.Errorf("the record counted %d repeat signal(s), want at least 2: the count is what explains a long wait to whoever reads this afterwards", rec.RepeatSignals)
+	}
+	// The line that makes abandoning possible has to actually name the
+	// command and the cost, or the policy is just a refusal.
+	log := runLogText(t, root, "repeatestate")
+	for _, want := range []string{
+		fmt.Sprintf("kill -KILL -%d", bashPid),
+		"NOT forwarding it again and NOT killing anything",
+		"live and billing",
+	} {
+		if !strings.Contains(log, want) {
+			t.Errorf("the repeat-signal line does not contain %q.\nLog:\n%s", want, log)
+		}
+	}
+	for _, p := range []int{bashPid, grandPid} {
+		if alive(p) {
+			t.Errorf("pid %d survived", p)
+		}
+	}
+}
+
+// TestSigpipeIsNotAStopRequest covers the operator who closes the terminal on
+// a `gauntlet live-cert ... | tee` while the run is going.
+//
+// A Go program that has NOT asked for SIGPIPE dies when a write to fd 1 or 2
+// gets one. This process asks for it, so it arrives on the signal channel
+// instead - and the supervisor has to drop it there, because treating it as a
+// stop request would turn a dead terminal into a stopped certification.
+func TestSigpipeIsNotAStopRequest(t *testing.T) {
+	absorbStraySignals(t)
+	root, ch, _, bashPid, _ := runSignalledStub(t, "sigpipeestate", stubOpts{runSeconds: 3, teardownSeconds: 0})
+
+	for range 3 {
+		if err := syscall.Kill(os.Getpid(), syscall.SIGPIPE); err != nil {
+			t.Fatalf("SIGPIPE: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	got := awaitOutcome(t, ch, 60*time.Second).must(t)
+
+	if got.r.State != RunStateFinished {
+		t.Errorf("state is %q, want %q: SIGPIPE is not a stop request, and a dead stdout must not stop a certification", got.r.State, RunStateFinished)
+	}
+	rec, err := ReadLiveCertRun(root, "sigpipeestate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Signal != "" {
+		t.Errorf("the record names signal=%q; SIGPIPE must leave no stop request behind", rec.Signal)
+	}
+	if alive(bashPid) {
+		t.Errorf("pid %d survived", bashPid)
+	}
+}
+
+// TestOptInBoundStillKills is the escape hatch, kept because someone running
+// this by hand may genuinely want a bound and should not have to reach for
+// another terminal to get one. It is opt-in precisely so that choosing it is
+// a decision with a name on it.
+func TestOptInBoundStillKills(t *testing.T) {
+	absorbStraySignals(t)
+	t.Setenv(LiveCertSignalGraceEnv, "1")
+	if b := liveCertSignalBound(); b != time.Second {
+		t.Fatalf("%s=1 gives a bound of %s, want 1s", LiveCertSignalGraceEnv, b)
+	}
+	root, ch, trapFile, bashPid, grandPid := runSignalledStub(t, "boundedestate", stubOpts{runSeconds: 120, teardownSeconds: 30})
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatalf("SIGTERM: %v", err)
+	}
+	got := awaitOutcome(t, ch, 90*time.Second).must(t)
+
+	if _, err := os.Stat(trapFile); err == nil {
+		t.Errorf("the 30s teardown finished under a 1s bound, so the bound did nothing and this test proves nothing")
+	}
+	if got.r.State != RunStateSignalledUnconfirmed {
+		t.Errorf("state is %q, want %q: a teardown that was SIGKILLed partway through is exactly the case that must NOT read as confirmed", got.r.State, RunStateSignalledUnconfirmed)
+	}
+	rec, err := ReadLiveCertRun(root, "boundedestate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rec.Escalated {
+		t.Errorf("the record does not say the group was SIGKILLed, so whoever reads it cannot tell why teardown is unconfirmed")
+	}
+	for _, p := range []int{bashPid, grandPid} {
+		if alive(p) {
+			t.Errorf("pid %d survived the SIGKILL of its group", p)
+		}
+	}
+}
+
+// TestTheWaitIsNotSilent is #1324's second defect held against the teardown
+// wait itself. A teardown that takes an hour and says nothing is
+// indistinguishable from a hung one, and an operator who cannot tell will
+// reach for a kill - which is the outcome the whole policy above exists to
+// avoid.
+func TestTheWaitIsNotSilent(t *testing.T) {
+	absorbStraySignals(t)
+	t.Setenv(LiveCertSignalGraceEnv, "")
+	t.Setenv(LiveCertHeartbeatEnv, "1")
+	root, ch, _, bashPid, _ := runSignalledStub(t, "waitlineestate", stubOpts{runSeconds: 120, teardownSeconds: 4})
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatalf("SIGTERM: %v", err)
+	}
+	awaitOutcome(t, ch, 90*time.Second).must(t)
+
+	log := runLogText(t, root, "waitlineestate")
+	n := strings.Count(log, "still waiting for teardown")
+	if n < 2 {
+		t.Errorf("the log carries %d \"still waiting for teardown\" line(s) over a 4s teardown at a 1s interval, want at least 2.\n"+
+			"Without them a long teardown is silent, and a silent wait is what an operator kills (#1324).\nLog:\n%s", n, log)
+	}
+	if !strings.Contains(log, fmt.Sprintf("pgid %d", bashPid)) {
+		t.Errorf("the waiting line does not name the process group, which is what a human needs to act on it")
 	}
 }
