@@ -1,5 +1,5 @@
 # k8s-records-in-the-cluster
-# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, an apply killed with SIGKILL leaves no lock behind, and a role scoped to one records namespace cannot read another estate's records. ~8 min.
+# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~14 min.
 #
 # GitHub issue #1392, under the #1398 ruling. Until this, a Kubernetes-only
 # estate had two choices for its records: "local", which is one machine's
@@ -8,8 +8,10 @@
 # in a namespace, metadata.resourceVersion as the conditional write, and no
 # lock and no Lease.
 #
-# Five steps, each measuring one of the things that would make the store a
-# bad idea if it were not true.
+# Nine steps, each measuring one of the things that would make the store a
+# bad idea if it were not true. Steps 1 to 5 are the store (#1392); steps 6
+# to 9 are what it checks about the cluster before it writes a record
+# (#1393), which is the bucket contract's shape sized for a cluster.
 #
 #   1. The Store contract, against this cluster's own API server. The same
 #      suite internal/live/staterecord holds the local and bucket stores to.
@@ -27,11 +29,26 @@
 #   5. Write isolation with no new policy: live/kubernetes/estate-boundary.yaml
 #      already matches every object carrying tofu-estate, and every record
 #      Secret carries it.
+#   6. The cluster contract runs on an estate's first contact with the store
+#      and not on every plan, measured with the API server's own request
+#      counter. What a scoped identity cannot read it says, by name, and
+#      does not report as a pass.
+#   7. Each of the four assertions made to fail and read back by name with
+#      `choudoufu live-cluster`, which asks the same questions without
+#      running a plan.
+#   8. The same assertion stopping an apply: a Role one verb short of what
+#      the store uses is refused at first contact, and the refusal leaves
+#      the store as it found it.
+#   9. #1370 on this store: an identity with get and list on the record
+#      Secrets plans, writes nothing, and is told by name what it lacks for
+#      an apply.
 #
-# BREAK=1 takes the two fences away and requires what they refused to go
+# BREAK=1 takes the three fences away and requires what they refused to go
 # through: the plan role is given cluster-wide secret reads and must then
-# read Bob's records, and the admission policy is removed and Bob's write
-# into Alice's record Secret must then land.
+# read Bob's records, the admission policy is removed and Bob's write into
+# Alice's record Secret must then land, and the scoped identity step 6's
+# contract passed is widened to read secrets cluster-wide, after which the
+# same first contact must be refused on read_isolation.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-records-in-the-cluster"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -63,6 +80,18 @@ no_aws() (
 
 # versions writes the provider and live block for estate $1 with its record
 # store in namespace $2. No AWS provider appears anywhere in this scenario.
+#
+# The waiver is real and is this cluster's, not a convenience. Steps 2 to 5
+# run as kind's cluster-admin, and three of the cluster contract's four
+# assertions (#1393) are genuinely false for that identity here. A
+# cluster-admin can read every records namespace in the cluster, so there is
+# no read isolation from it. kind's API server carries no
+# --encryption-provider-config, so its Secrets are not encrypted at rest.
+# And the estate boundary policy is not installed until step 5, which is
+# where this scenario measures it properly. Each is named, and each is said
+# out loud on every run below - that is what a waiver costs. Steps 6 to 9
+# measure the same four assertions under the scoped identity the docs
+# recommend, with no waiver at all.
 versions() {
   cat > "$3/versions.tf" <<TFEOF
 terraform {
@@ -72,7 +101,8 @@ terraform {
     estate = "$1"
 
     record_store "kubernetes" {
-      namespace = "$2"
+      namespace      = "$2"
+      allow_insecure = ["read_isolation", "encryption_at_rest", "estate_boundary"]
     }
   }
 
@@ -351,6 +381,254 @@ grep -q 'not bound to that estate' <<< "$WROTE" \
   || fail "k8srec" "the write was refused by something other than the estate boundary policy, whose message says \"not bound to that estate\"; an RBAC refusal here would measure nothing about the boundary: $WROTE"
 proof "the record objects are inside the estate fence the cluster already has, because they carry the same label every other object in the estate carries. No policy was added for the record store."
 
+### The cluster contract (#1393). Steps 1 to 5 measured the store. These
+### measure what the store checks about the cluster before it writes a record.
+
+CAROL_NS="tofu-records-k8srec-carol"
+CAROL="$W/carol"
+CAROL_KC="$W/carol.kubeconfig"
+
+# scoped_identity <serviceaccount> <namespace> <estate> <kubeconfig> <verbs>
+# is the arrangement the docs recommend: a ServiceAccount with a Role on
+# secrets in one records namespace, bound to one estate, and nothing else.
+scoped_identity() {
+  local sa="$1" ns="$2" estate="$3" out="$4" verbs="$5" tok
+  kc create serviceaccount "$sa" -n default >/dev/null || fail "k8srec" "could not create the $sa ServiceAccount"
+  kc create role "$sa-records" -n "$ns" --verb="$verbs" --resource=secrets >/dev/null \
+    || fail "k8srec" "could not create $sa's Role in $ns"
+  kc create rolebinding "$sa-records" -n "$ns" --role="$sa-records" --serviceaccount="default:$sa" >/dev/null \
+    || fail "k8srec" "could not bind $sa's Role"
+  sed -e "s/ESTATE/$estate/g" -e "s/PRINCIPAL_NAMESPACE/default/g" -e "s/PRINCIPAL/$sa/g" \
+    "$ROOT/live/kubernetes/estate-grant.yaml" | kc apply -f - >/dev/null \
+    || fail "k8srec" "could not grant estate $estate to $sa"
+  tok="$(kc create token "$sa" -n default --duration=2h)" || fail "k8srec" "could not mint a token for $sa"
+  cp "$KUBECONFIG" "$out"
+  kubectl --kubeconfig "$out" config set-credentials "$sa" --token="$tok" >/dev/null
+  kubectl --kubeconfig "$out" config set-context --current --user="$sa" >/dev/null
+}
+
+# as_identity <kubeconfig> <command...> runs choudoufu under one identity's
+# kubeconfig. KUBE_CONFIG_PATH is what the provider and the record store's
+# own connection loader read.
+as_identity() (
+  local conf="$1"; shift
+  export KUBECONFIG="$conf" KUBE_CONFIG_PATH="$conf"
+  no_aws "$@"
+)
+
+# ssar_count is the API server's own counter of SelfSubjectAccessReview
+# requests. kind runs no audit log, and this metric is the API server's
+# record of the same thing: one line per handled request, summed over every
+# label combination. It is read as cluster-admin, which the counted runs are
+# not, so reading it cannot move it.
+ssar_count() {
+  kc get --raw /metrics 2>/dev/null \
+    | awk -F' ' '/^apiserver_request_total\{.*resource="selfsubjectaccessreviews"/ {s+=$2} END {printf "%d\n", s}'
+}
+
+step "6. the cluster contract runs on an estate's first contact with the cluster, and not on every plan"
+explain \
+  "Before it writes a record, the store asks four things about the cluster:" \
+  "that this identity can do to Secrets in the records namespace what the" \
+  "store will ask, that it cannot read another estate's records, that" \
+  "Secrets are encrypted at rest, and that the estate boundary policy is" \
+  "in force. The permission questions go to the API server's own authorizer" \
+  "as SelfSubjectAccessReviews - never by attempting a write, because the" \
+  "only thing there is to write in that namespace is a record." \
+  "" \
+  "They are facts about the cluster and do not change between two plans, so" \
+  "they are asked once: on the estate's FIRST contact with the store, which" \
+  "is the one run that created the sentinel. The API server's own request" \
+  "counter is what measures that."
+kc create namespace "$CAROL_NS" >/dev/null || fail "k8srec" "could not create Carol's records namespace"
+mkdir -p "$CAROL"
+scoped_identity carol "$CAROL_NS" k8srec-carol "$CAROL_KC" get,list,create,update,delete
+# No allow_insecure at all: the scoped identity satisfies what it can be
+# asked, and is warned about what it cannot read.
+cat > "$CAROL/versions.tf" <<TFEOF
+terraform {
+  required_version = ">= 1.5.0"
+
+  live {
+    estate = "k8srec-carol"
+
+    record_store "kubernetes" {
+      namespace = "$CAROL_NS"
+    }
+  }
+
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "= 3.2.1"
+    }
+  }
+}
+
+provider "kubernetes" {}
+TFEOF
+cat > "$CAROL/main.tf" <<'TF'
+resource "terraform_data" "carols_value" {
+  input = "carol-only"
+}
+TF
+( cd "$CAROL" && as_identity "$CAROL_KC" chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "Carol's init failed"
+cmd "choudoufu apply   # as a ServiceAccount with secrets in one namespace and nothing else"
+BEFORE="$(ssar_count)"
+C_OUT="$( cd "$CAROL" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )" \
+  || fail "k8srec" "the first contact under the recommended Role was refused: $C_OUT"
+FIRST="$(ssar_count)"
+grep -E 'Apply complete!' <<< "$C_OUT" | head -1 | evidence
+echo "SelfSubjectAccessReviews on first contact: $((FIRST-BEFORE))" | evidence
+[ "$((FIRST-BEFORE))" -gt 0 ] \
+  || fail "k8srec" "first contact asked the authorizer nothing, so the contract did not run and the count below would measure nothing"
+# What a scoped identity cannot read, it says, by name, rather than passing.
+grep -E 'could not be checked' <<< "$C_OUT" | evidence
+for setting in encryption_at_rest estate_boundary; do
+  grep -q "cluster's $setting could not be checked" <<< "$C_OUT" \
+    || fail "k8srec" "a Role that cannot read $setting did not say so: $C_OUT"
+done
+grep -q "not readable from here, not checked" <<< "$C_OUT" \
+  || fail "k8srec" "the warning does not use the words the report uses: $C_OUT"
+cmd "choudoufu plan   # twice more, and the counter must not move"
+for _ in 1 2; do
+  ( cd "$CAROL" && as_identity "$CAROL_KC" chdf plan -input=false -no-color >/dev/null 2>&1 ) \
+    || fail "k8srec" "a plan after first contact failed"
+done
+AFTER="$(ssar_count)"
+echo "SelfSubjectAccessReviews across two further plans: $((AFTER-FIRST))" | evidence
+[ "$((AFTER-FIRST))" -eq 0 ] \
+  || fail "k8srec" "the contract ran again on a plan: $((AFTER-FIRST)) more SelfSubjectAccessReviews across two plans, and it is supposed to run once, on first contact"
+proof "the estate's first contact asked the authorizer $((FIRST-BEFORE)) questions and the two plans after it asked none. The two properties this scoped identity cannot read are warned about by name on every run, and neither is reported as a pass."
+
+step "7. each assertion refuses by name, on this cluster, for its own reason"
+explain \
+  "A check nobody has seen fail is not a check. Each of the four is made" \
+  "to fail here and read back by name, with choudoufu live-cluster, which" \
+  "asks the same four questions without running a plan and without" \
+  "writing anything. kind supplies two of the failures by itself: its API" \
+  "server carries no --encryption-provider-config, and a cluster-admin can" \
+  "read every records namespace there is."
+cmd "choudoufu live-cluster -namespace=$CAROL_NS   # as cluster-admin"
+ADMIN_OUT="$( cd "$ROOT" && no_aws chdf live-cluster -namespace="$CAROL_NS" -no-color 2>&1 )" && ADMIN_RC=0 || ADMIN_RC=$?
+echo "$ADMIN_OUT" | grep -E '^  (read_isolation|encryption_at_rest|estate_boundary|namespace_access)' | evidence
+[ "$ADMIN_RC" != "0" ] || fail "k8srec" "live-cluster exited 0 on a cluster that fails two of its four assertions: $ADMIN_OUT"
+grep -qE '^  read_isolation +FAIL .*another estate.s records namespace: tofu-records-' <<< "$ADMIN_OUT" \
+  || fail "k8srec" "read_isolation did not refuse a cluster-admin who can read the other estates' records namespaces: $ADMIN_OUT"
+grep -qE '^  encryption_at_rest +FAIL .*no --encryption-provider-config' <<< "$ADMIN_OUT" \
+  || fail "k8srec" "encryption_at_rest did not refuse a kind cluster, whose API server carries no encryption configuration: $ADMIN_OUT"
+grep -qE '^  estate_boundary +OK' <<< "$ADMIN_OUT" \
+  || fail "k8srec" "estate_boundary did not pass although step 5 installed the policy and measured it refusing a write: $ADMIN_OUT"
+
+cmd "kubectl delete validatingadmissionpolicybinding choudoufu-estate-boundary   # then ask again"
+kc delete validatingadmissionpolicybinding choudoufu-estate-boundary >/dev/null \
+  || fail "k8srec" "could not remove the binding"
+UNBOUND="$( cd "$ROOT" && no_aws chdf live-cluster -namespace="$CAROL_NS" -no-color 2>&1 )" || true
+echo "$UNBOUND" | grep -E '^  estate_boundary' | evidence
+grep -qE '^  estate_boundary +FAIL .*inert' <<< "$UNBOUND" \
+  || fail "k8srec" "a policy with no binding was not refused; it evaluates nothing and refuses nothing: $UNBOUND"
+kc apply -f "$ROOT/live/kubernetes/estate-boundary.yaml" >/dev/null || fail "k8srec" "could not put the binding back"
+
+cmd "choudoufu live-cluster -namespace=tofu-records-k8srec-nobody   # a namespace that does not exist"
+ABSENT="$( cd "$ROOT" && no_aws chdf live-cluster -namespace=tofu-records-k8srec-nobody -no-color 2>&1 )" || true
+echo "$ABSENT" | grep -E '^  namespace_access' | cut -c1-160 | evidence
+grep -qE '^  namespace_access +FAIL .*does not exist' <<< "$ABSENT" \
+  || fail "k8srec" "an absent records namespace was not refused: $ABSENT"
+grep -q 'kubectl create namespace tofu-records-k8srec-nobody' <<< "$ABSENT" \
+  || fail "k8srec" "the refusal does not carry the kubectl line the store's own NamespaceMissingError carries, so the contract and the store disagree about what to tell an operator: $ABSENT"
+proof "each assertion was made to fail and each refusal named itself: read_isolation named the other estate's namespace, encryption_at_rest named the missing API server flag, estate_boundary named the binding it needs, and an absent namespace came back in the store's own words."
+
+step "8. the fourth refusal is the run's, not just the report's: a Role short one verb is refused at first contact"
+explain \
+  "The report above reads the cluster. This is the same assertion stopping" \
+  "an apply before it writes anything. Dan's Role has four of the five" \
+  "verbs the store uses - no update - so his sentinel write goes through," \
+  "which makes his run a first contact, and the contract then refuses it by" \
+  "name. The sentinel is taken back out on the way, so the next run is a" \
+  "first contact again and refuses again rather than proceeding against a" \
+  "cluster the first run refused."
+DAN_NS="tofu-records-k8srec-dan"
+DAN="$W/dan"
+DAN_KC="$W/dan.kubeconfig"
+kc create namespace "$DAN_NS" >/dev/null || fail "k8srec" "could not create Dan's records namespace"
+mkdir -p "$DAN"
+scoped_identity dan "$DAN_NS" k8srec-dan "$DAN_KC" get,list,create,delete
+sed -e "s/k8srec-carol/k8srec-dan/g" -e "s|$CAROL_NS|$DAN_NS|g" "$CAROL/versions.tf" > "$DAN/versions.tf"
+cp "$CAROL/main.tf" "$DAN/main.tf"
+( cd "$DAN" && as_identity "$DAN_KC" chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "Dan's init failed"
+cmd "choudoufu apply   # as a Role with get, list, create and delete, and no update"
+if D_OUT="$( cd "$DAN" && as_identity "$DAN_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
+  fail "k8srec" "an apply under a Role that cannot update a record Secret was allowed to start: $D_OUT"
+fi
+echo "$D_OUT" | grep -E 'namespace_access|may not update' | head -3 | evidence
+grep -q 'fails its namespace_access assertion' <<< "$D_OUT" \
+  || fail "k8srec" "the refusal does not name the assertion: $D_OUT"
+grep -q 'may not update secrets' <<< "$D_OUT" \
+  || fail "k8srec" "the refusal does not name the verb that is missing, so nobody could act on it: $D_OUT"
+cmd "kubectl get secrets -n $DAN_NS   # the refused first contact left nothing behind"
+LEFT="$(kc get secrets -n "$DAN_NS" -o name 2>&1)"
+echo "secrets in Dan's records namespace after the refusal: ${LEFT:-none}" | evidence
+[ -z "$LEFT" ] || fail "k8srec" "the refused first contact left $LEFT behind; the next run would not be a first contact and would proceed against the cluster this one refused"
+if D2="$( cd "$DAN" && as_identity "$DAN_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
+  fail "k8srec" "the run after a refused first contact was allowed through: $D2"
+fi
+grep -q 'fails its namespace_access assertion' <<< "$D2" \
+  || fail "k8srec" "the second run was refused for a different reason: $D2"
+proof "an apply whose identity is one verb short of what the store uses is refused before it writes a record, by name, naming the verb; and the refusal leaves the store as it found it, so the next run is refused the same way instead of proceeding."
+
+step "9. a plan identity needs get and list on the record Secrets and nothing more"
+explain \
+  "GitHub issue #1370 asked this of the bucket and #1393 asks it of the" \
+  "cluster: a CI plan job is given an identity that may read the estate's" \
+  "records and nothing else. A plan writes no record. The one write on its" \
+  "path is the provisioning sentinel, and once a writing run has left that" \
+  "behind, a denial of it is carried past - the sentinel's presence is the" \
+  "proof issue #693 wanted, and nothing about this run being unable to" \
+  "repeat it makes the store less sound. What is measured is the plan's" \
+  "verdict AND that no record Secret's resourceVersion moved."
+PLAN_KC="$W/carolplan.kubeconfig"
+kc create serviceaccount carolplan -n default >/dev/null || fail "k8srec" "could not create the carolplan ServiceAccount"
+kc create role carol-records-ro -n "$CAROL_NS" --verb=get,list --resource=secrets >/dev/null \
+  || fail "k8srec" "could not create the read-only records Role"
+kc create rolebinding carolplan-records -n "$CAROL_NS" --role=carol-records-ro --serviceaccount=default:carolplan >/dev/null \
+  || fail "k8srec" "could not bind the read-only records Role"
+PLAN_TOK="$(kc create token carolplan -n default --duration=2h)" || fail "k8srec" "could not mint a token for carolplan"
+cp "$KUBECONFIG" "$PLAN_KC"
+kubectl --kubeconfig "$PLAN_KC" config set-credentials carolplan --token="$PLAN_TOK" >/dev/null
+kubectl --kubeconfig "$PLAN_KC" config set-context --current --user=carolplan >/dev/null
+for verb in get list create update delete; do
+  ANS="$(kubectl --kubeconfig "$PLAN_KC" auth can-i "$verb" secrets -n "$CAROL_NS" 2>&1)"
+  case "$verb:$ANS" in
+    get:yes|list:yes|create:no|update:no|delete:no) ;;
+    *) fail "k8srec" "the plan identity answers $ANS to $verb on secrets in $CAROL_NS; it is supposed to hold get and list and nothing else" ;;
+  esac
+done
+kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' > "$W/rv-before"
+cmd "choudoufu plan   # as an identity with get and list on secrets, and no create, update or delete"
+P2="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf plan -input=false -no-color 2>&1 )" \
+  || fail "k8srec" "a plan under a get/list-only identity was refused: $P2"
+grep -E 'No changes' <<< "$P2" | head -1 | evidence
+grep -q 'No changes' <<< "$P2" \
+  || fail "k8srec" "the read-only plan did not read the records back, so it proposed changes: $P2"
+kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' > "$W/rv-after"
+cmd "diff <(resourceVersions before) <(resourceVersions after)"
+if ! diff "$W/rv-before" "$W/rv-after" > "$W/rv-diff" 2>&1; then
+  fail "k8srec" "a record Secret's resourceVersion moved across a plan, so the plan wrote something: $(cat "$W/rv-diff")"
+fi
+echo "every record Secret's resourceVersion is unchanged across the plan" | evidence
+cmd "choudoufu live-cluster -plan-identity   # and without it, the apply question"
+PI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -plan-identity -no-color 2>&1 )" || true
+AI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -no-color 2>&1 )" || true
+echo "$PI" | grep -E '^  namespace_access' | cut -c1-140 | evidence
+echo "$AI" | grep -E '^  namespace_access' | cut -c1-140 | evidence
+grep -qE '^  namespace_access +OK' <<< "$PI" \
+  || fail "k8srec" "the contract refused a plan identity for lacking create, update and delete, which a plan does not use: $PI"
+grep -qE '^  namespace_access +FAIL' <<< "$AI" \
+  || fail "k8srec" "the same identity passed the APPLY question, which needs three verbs it does not hold: $AI"
+grep -q 'may not create, update, delete secrets' <<< "$AI" \
+  || fail "k8srec" "the apply question does not name the three verbs the identity lacks: $AI"
+proof "a plan under an identity holding get and list on the record Secrets and nothing else read the estate back and proposed nothing, and no record Secret's resourceVersion moved. The contract agrees: that identity passes the plan question by name and fails the apply question by name, naming create, update and delete."
+
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - take the two fences away, and what they refused must go through"
   explain \
@@ -395,4 +673,65 @@ if [ "${BREAK:-0}" = "1" ]; then
   kc get secret "$TARGET" -n "$RECORDS_NS" -o jsonpath='{.metadata.annotations.bob}' | grep -q 'was-here' \
     || fail "k8srec" "BREAK: the write reported success and did not land"
   proof "both refusals came from the fences they were attributed to: widening the Role makes the cross-estate read succeed, and removing the policy makes the cross-estate write land."
+
+  step "BREAK control - step 6's contract passed because the identity was scoped; widen it and the same run must be refused"
+  explain \
+    "Step 6's first contact went through under a Role holding secrets in" \
+    "one namespace. What that proves depends on the contract being able to" \
+    "refuse the same run, so here Carol's identity is given cluster-wide" \
+    "secret reads and a second estate's records are already in the" \
+    "cluster. read_isolation must then refuse her, by name. If it does" \
+    "not, step 6 passed because the assertion cannot fail."
+  kc create clusterrolebinding carol-reads-everything --clusterrole=secrets-everywhere --serviceaccount=default:carol >/dev/null \
+    || fail "k8srec" "BREAK: could not widen Carol's reads"
+  # And the ability to SEE the other estates. Cluster-wide secret reads
+  # alone are a capability the contract only warns about, because on a
+  # cluster holding no other estate's records nothing is exposed by them
+  # (#1393). What refuses is another estate's records namespace that exists
+  # and this identity can read, and finding one means listing namespaces.
+  kc create clusterrole namespaces-everywhere --verb=get,list --resource=namespaces >/dev/null \
+    || fail "k8srec" "BREAK: could not create the namespace-listing role"
+  kc create clusterrolebinding carol-sees-everything --clusterrole=namespaces-everywhere --serviceaccount=default:carol >/dev/null \
+    || fail "k8srec" "BREAK: could not let Carol see the other estates"
+  # RBAC takes a moment to reach the authorizer, and the authorizer is what
+  # the contract asks. can-i is the same question from the same identity, so
+  # it is what waits the window out.
+  for _ in $(seq 1 30); do
+    [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list secrets --all-namespaces 2>/dev/null)" = "yes" ] \
+      && [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list namespaces 2>/dev/null)" = "yes" ] && break
+    sleep 1
+  done
+  [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list secrets --all-namespaces 2>/dev/null)" = "yes" ] \
+    || fail "k8srec" "BREAK: Carol's secret reads were never widened, so the refusal below would measure nothing"
+  [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list namespaces 2>/dev/null)" = "yes" ] \
+    || fail "k8srec" "BREAK: Carol still cannot list namespaces, so the other estates' records namespaces are not known to her and the refusal below would measure nothing"
+  # A fresh estate, so the run is a first contact and the contract runs. Its
+  # name is not a prefix of Carol's: the fixture below is written by
+  # substitution, and a name that contains the other one substitutes twice.
+  BROKE_ESTATE="k8srec-wide"
+  BROKE_NS="tofu-records-$BROKE_ESTATE"
+  BROKE="$W/wide"
+  kc create namespace "$BROKE_NS" >/dev/null || fail "k8srec" "BREAK: could not create the second records namespace"
+  kc create role carol-records-wide -n "$BROKE_NS" --verb=get,list,create,update,delete --resource=secrets >/dev/null \
+    || fail "k8srec" "BREAK: could not create Carol's second Role"
+  kc create rolebinding carol-records-wide -n "$BROKE_NS" --role=carol-records-wide --serviceaccount=default:carol >/dev/null \
+    || fail "k8srec" "BREAK: could not bind Carol's second Role"
+  sed -e "s/ESTATE/$BROKE_ESTATE/g" -e "s/PRINCIPAL_NAMESPACE/default/g" -e "s/PRINCIPAL/carol/g" \
+    "$ROOT/live/kubernetes/estate-grant.yaml" | kc apply -f - >/dev/null \
+    || fail "k8srec" "BREAK: could not grant the second estate to Carol"
+  mkdir -p "$BROKE"
+  sed -e "s|$CAROL_NS|$BROKE_NS|g" -e "s/k8srec-carol/$BROKE_ESTATE/g" "$CAROL/versions.tf" > "$BROKE/versions.tf"
+  grep -q "namespace = \"$BROKE_NS\"" "$BROKE/versions.tf" \
+    || fail "k8srec" "BREAK: the widened estate's fixture does not name $BROKE_NS: $(cat "$BROKE/versions.tf")"
+  cp "$CAROL/main.tf" "$BROKE/main.tf"
+  ( cd "$BROKE" && as_identity "$CAROL_KC" chdf init -input=false -no-color >/dev/null ) \
+    || fail "k8srec" "BREAK: the widened identity's init failed"
+  cmd "choudoufu apply   # first contact, identity now reading secrets cluster-wide"
+  if BR="$( cd "$BROKE" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
+    fail "k8srec" "BREAK: an identity that can read every estate's records in this cluster was allowed to open a new store, so step 6's pass was not read_isolation holding: $BR"
+  fi
+  echo "$BR" | grep -E 'read_isolation' | head -2 | evidence
+  grep -q 'fails its read_isolation assertion' <<< "$BR" \
+    || fail "k8srec" "BREAK: the widened identity was refused for some other reason: $BR"
+  proof "step 6's contract can refuse the run it let through: the same estate, the same store, the same command, with cluster-wide secret reads added, is refused by name on read_isolation."
 fi
