@@ -2,7 +2,7 @@
 # Kubernetes claim scenario (21 k8s-greenfield, 22 k8s-no-silent-orphans,
 # 23 k8s-the-label-is-the-boundary, 24 k8s-custom-resource, 25
 # k8s-a-held-delete-is-not-gone, 26 k8s-the-server-gets-the-last-word, 27
-# k8s-a-label-is-a-change)
+# k8s-a-label-is-a-change, 39 k8s-records-in-the-cluster)
 # runs against a kind cluster that
 # live/smoke/lib.sh's cluster_up creates per run, each followed by its
 # BREAK=1 control, so a regression in the label carrier, the sweep, the
@@ -17,6 +17,19 @@
 # is what live/kubernetes/estate-boundary.yaml needs). live/k8s_ci_test.go
 # holds this file to the scenario directory: every k8s-* scenario under
 # live/smoke/scenarios must be in the matrix below, with its control.
+#
+# Claim 27's step 9 needs two substrates at once (#1394): a kind cluster
+# for the objects and the pinned floci emulator for the bucket its records
+# live in, which is how its label removal is measured for a second working
+# directory that shares a bucket rather than the cluster. That means Docker
+# (which kind needs anyway) and the AWS CLI, the way
+# .github/workflows/bucket-smoke.yml provides them. The preflight step below
+# fails the job when either is missing rather than letting the scenario skip
+# its own step: a step that quietly does not run reports the same PASS as
+# one that did. live/k8s_ci_test.go requires the preflight for as long as
+# any k8s-* scenario calls stack_up, and live/bucket_ci_test.go leaves such
+# a scenario to this workflow rather than bucket-smoke.yml, which installs
+# no cluster.
 name: k8s-smoke
 on:
   pull_request:
@@ -84,6 +97,10 @@ jobs:
           # scenarios never call it.
           terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
+      - name: Docker and the AWS CLI, which claim 27's step 9 needs
+        run: |
+          docker info > /dev/null
+          aws --version
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
