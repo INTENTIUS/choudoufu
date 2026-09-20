@@ -163,6 +163,65 @@ func TestTwoForEachKeysDoNotShareOrShadowARecordKey(t *testing.T) {
 	}
 }
 
+// TestAShortStateCacheCannotShortenPriorState rules out #1355's second named
+// suspect. The failing run had a state cache "present and one run old", and a
+// cache holding one of the two instances is what a cache written before the
+// second one existed looks like.
+//
+// It changes nothing. [builder.cacheHit] is in the concrete read path, where
+// it can substitute a provider read's ATTRIBUTES for an instance the estate
+// sweep independently verified; [builder.materializeRecord] never consults
+// it, because a record-backed instance's record IS its state and there is no
+// read to substitute. So a cache missing an instance cannot make prior state
+// miss one. The cache is handed here at its most trusting - CacheServesReads
+// on, which only -refresh=false sets - so the arm is the strongest version of
+// the suspicion, not the weakest.
+func TestAShortStateCacheCannotShortenPriorState(t *testing.T) {
+	ctx := context.Background()
+	cfg := loadConfig(t, writeTwoNullResourceFixture(t))
+	kept := mustAddr(t, `null_resource.trigger["kept"]`)
+	missed := mustAddr(t, `null_resource.trigger["missed"]`)
+
+	const prefix = "tofu-records/test-estate"
+	backing, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("building the local store: %s", err)
+	}
+	seedRecordObject(t, backing, prefix, kept)
+	seedRecordObject(t, backing, prefix, missed)
+
+	// A cache one run old: it knows the first instance and has never seen
+	// the second.
+	stale := states.BuildState(func(ss *states.SyncState) {
+		ss.SetResourceInstanceCurrent(
+			kept,
+			&states.ResourceInstanceObjectSrc{
+				Status:    states.ObjectReady,
+				AttrsJSON: []byte(`{"id":"stale","triggers":{"input":"value"}}`),
+			},
+			nullProvider,
+			addrs.NoKey,
+		)
+	})
+
+	provs := SingleProvider(nullProvider, nullResourceProvider())
+	resolutions := []identity.Resolution{
+		{Addr: kept, Class: identity.ClassRecordBacked},
+		{Addr: missed, Class: identity.ClassRecordBacked},
+	}
+
+	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{
+		RecordStore:      NewRecordEnvelopeStore(backing, prefix),
+		StateCache:       stale,
+		CacheServesReads: true,
+	})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{kept.String(), missed.String()})
+	if res.CacheHits() != 0 {
+		t.Errorf("the cache served %d read(s) for record-backed instances; it is not supposed to be in that path at all", res.CacheHits())
+	}
+}
+
 // writeTwoNullResourceFixture is writeNullResourceFixture's two-instance
 // shape: one resource block, for_each over two keys, which is the estate
 // #1355 was measured on (a `terraform_data` with for_each over two strings).

@@ -235,7 +235,7 @@ TFEOF
   P_OUT="$(cd "$d" && "$RUN_BIN" plan -input=false -no-color 2>&1)" || fail "sseflavours" "[$f] plan: $P_OUT"
   grep -q "No changes." <<< "$P_OUT" || fail "sseflavours" "[$f] the replan from the records alone was not empty: $P_OUT"
   D_OUT="$(cd "$d" && "$RUN_BIN" apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "sseflavours" "[$f] destroy: $D_OUT"
-  grep -q "Resources: 0 added, 0 changed, 2 destroyed" <<< "$D_OUT" || fail "sseflavours" "[$f] the destroy did not remove both instances (#1355): $D_OUT"
+  destroyed_exactly sseflavours 2 "$D_OUT"
   LEFT="$(aws s3api list-objects-v2 --bucket "$b" --prefix tofu-records/smoke-sse/terraform_data/ --query 'length(Contents || `[]`)' --output text)"
   [ "$LEFT" = "0" ] || fail "sseflavours" "[$f] $LEFT record(s) left after the destroy"
   echo "$f: 2 added, 2 changed under If-Match, replan empty, 2 destroyed, no record left" | evidence
