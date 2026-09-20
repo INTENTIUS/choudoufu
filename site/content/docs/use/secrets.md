@@ -29,6 +29,10 @@ give back, and that includes arguments the API never returns, such as a
 database's master password. So an estate with no `random_*` in it can still
 have secrets in its store.
 
+A `kubernetes_secret` is an ordinary resource and the API returns its `data`,
+so its record holds none of it. The value stays in the cluster Secret, and in
+the cache file on the machine that applied.
+
 A write-only argument is never recorded. A root output marked `sensitive` is
 never written.
 
@@ -40,9 +44,6 @@ never written.
 | Anyone with a broad read on the bucket, the account or the cluster | A read-only audit role reads private keys here |
 | Anyone who can assume either | Including CI |
 | Whoever recovers a deleted record | Recovery reads the record |
-
-Old versions of a record are readable the same way until the lifecycle rule
-expires them, so a rotated secret is still in the bucket until then.
 
 ## The cache file holds them too
 
@@ -69,12 +70,7 @@ With `refuse`, generate secrets somewhere built to hold them and pass a
 reference. `CHOUDOUFU_STRICT_PIN=1` in the environment stops a configuration
 relaxing the setting.
 
-## Keeping secret values in SSM
-
-Optional, and nothing requires it. The records stay in the record store, and
-the sensitive values alone go to SSM as `SecureString` under a KMS key, with
-the record holding a reference. It means depending on two services.
-
 [`live/SECRETS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SECRETS.md)
-has the full account, including the two kinds of sensitive argument that stay
-out of a record under either setting.
+has the full account: the measured record of a `kubernetes_secret`, the
+optional arrangement that keeps sensitive values in SSM instead, and the two
+kinds of sensitive argument that stay out of a record under either setting.

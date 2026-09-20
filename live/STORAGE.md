@@ -42,6 +42,11 @@ the estate declares nothing, and there it is empty on every run: an ordinary
 resource still binds by its marker, and a record-backed resource is proposed
 for create again.
 
+An estate that runs only on Kubernetes has no reason to reach for a bucket:
+its shared store is the cluster it already has, and
+[Kubernetes](https://intentius.io/choudoufu/kubernetes/) says which of its resources stop
+working without a record.
+
 ### Opening a store
 
 A store proves itself before a plan trusts it. The first run writes

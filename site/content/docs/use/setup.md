@@ -74,12 +74,11 @@ The store holds secrets by default, readable by anyone who can read the
 store. [Secrets]({{< relref "/docs/use/secrets" >}}) has who that is and the
 ways out.
 
-A bucket is stock's S3 bootstrap without the lock table, since every write to
-the store is one conditional request that holds nothing.
 [Set up a record store bucket]({{< relref "/docs/use/bucket" >}}) has the
-commands and the policy. On a cluster, create one namespace per estate and
-bind the estate's role to Secrets in it and nothing wider
-([Kubernetes]({{< relref "/kubernetes/operate" >}})).
+commands and the policy for a bucket. An estate that runs only on Kubernetes
+needs neither bucket nor AWS account: create one namespace per estate,
+`tofu-records-<estate>` by default, and bind the estate's role to Secrets in
+it and nothing wider ([Kubernetes]({{< relref "/kubernetes" >}})).
 
 ## Markers
 

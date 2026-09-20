@@ -71,11 +71,12 @@ comes back ([Recover an estate]({{< relref "/docs/use/recover-an-estate" >}})).
 
 ## The cluster
 
-`record_store "kubernetes"` keeps each record as one Secret in the namespace
-you name, labelled with the estate. A write carries the `resourceVersion` the
-writer read, so the API server settles a race in one step and nothing is
-held. RBAC cannot condition on a label, so give each estate its own
-namespace.
+A Kubernetes-only estate keeps its records here and needs no AWS account.
+`record_store "kubernetes"` writes each one as a Secret labelled with the
+estate, in `tofu-records-<estate>` or the `namespace` you name, conditional on
+the `resourceVersion` the writer read and with nothing held. Create the
+namespace yourself, one per estate: RBAC cannot condition on a label.
+[Kubernetes]({{< relref "/kubernetes" >}}) has the rest.
 
 [`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)
 has the rest: the exact requests a run sends, what `destroy` leaves behind,

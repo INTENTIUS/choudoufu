@@ -7,3 +7,10 @@ lead: "Every Kubernetes type with object metadata, and every custom resource thr
 
 The research is [#1016](https://github.com/INTENTIUS/choudoufu/issues/1016).
 Everything below cites it or says it is unverified.
+
+Every object in the estate also has a record. One operator can leave them in
+the implied `local` store; a team needs a shared one, either
+`record_store "kubernetes"`, one Secret per record and no AWS account
+anywhere, or `record_store "s3"`.
+[Operate]({{< relref "/kubernetes/operate" >}}) has the block and says which
+resources stop working without a record.
