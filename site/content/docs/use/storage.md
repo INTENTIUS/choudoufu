@@ -61,21 +61,16 @@ else.
 | `tofu-hints/<estate>/` | Where the last sweep found things |
 | `tofu-outputs/<estate>/` | The last value of each root output, never a `sensitive` one |
 
-Every object is tagged with its estate as it is written, and the published
-policy denies reading an object tagged as another estate's. Every write is
-conditional and nothing is locked.
-
-The bucket is versioned, so a deleted record stays as an old version until the
-lifecycle rule expires it. That window is how a record deleted by mistake
-comes back ([Recover an estate]({{< relref "/docs/use/recover-an-estate" >}})).
+Every write is conditional and nothing is locked.
 
 ## The cluster
 
-`record_store "kubernetes"` keeps each record as one Secret in the namespace
-you name, labelled with the estate. A write carries the `resourceVersion` the
-writer read, so the API server settles a race in one step and nothing is
-held. RBAC cannot condition on a label, so give each estate its own
-namespace.
+A Kubernetes-only estate keeps its records here and needs no AWS account
+([Kubernetes]({{< relref "/kubernetes" >}})). `record_store "kubernetes"`
+writes each one as a Secret labelled with the estate, in
+`tofu-records-<estate>` or the `namespace` you name, conditional on the
+`resourceVersion` the writer read and with nothing held. Create the namespace
+yourself, one per estate: RBAC cannot condition on a label.
 
 [`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)
 has the rest: the exact requests a run sends, what `destroy` leaves behind,

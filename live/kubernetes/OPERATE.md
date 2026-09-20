@@ -34,24 +34,42 @@ the type is part of the address the marker carries.
 
 Every managed object has a record, the same as on AWS
 ([Records](https://intentius.io/choudoufu/docs/model/values/)). For most objects it costs
-nothing to lose. Two kinds depend on it: a resource with no live object, such
-as a `random_password` feeding a Secret, and a `kubernetes_manifest`, whose
-record holds the label and annotation keys the configuration last declared.
-Without that record a label removed from the configuration is not planned
-for removal.
+nothing to lose: the object is in the cluster and a read gives it back. Two
+kinds depend on the record.
 
-A team keeps its records in the cluster, and no AWS account is involved:
+A resource with no live object is known only by its record. The `random_*`,
+`tls_*` and `time_*` types are the usual ones, and so is `terraform_data`;
+a `random_password` feeding a Secret's `data` is the shape a Kubernetes
+estate meets first. Lose the record and the next plan proposes creating the
+resource again, with a new value.
+
+A `kubernetes_manifest`'s record holds the label and annotation keys the
+configuration last declared, because the object itself cannot say which of
+its keys came from your configuration and which a controller or a webhook
+added. Without that record a label removed from the configuration is not
+planned for removal
+([claim 27](../smoke/claims/k8s-a-label-is-a-change.md)).
+
+One operator can leave the records in the implied `local` store, on the
+machine that applies. A team needs a store both operators and CI can read,
+and for a Kubernetes-only estate that is the cluster itself, with no AWS
+account anywhere:
 
 ```hcl
-record_store "kubernetes" {
-  namespace = "my-estate-records"
-}
+record_store "kubernetes" {}
 ```
 
-Each record is one Secret in that namespace, labelled `tofu-estate`, written
-conditionally on `resourceVersion` with no Lease. Give each estate its own
-namespace, because RBAC cannot condition on a label and the namespace is what
-keeps one estate out of another's records.
+Each record is one Secret, named `tofu-record-` and the SHA-256 of its key,
+labelled `tofu-estate` with the record's key in an annotation, written
+conditionally on `resourceVersion` with no Lease. It goes in
+`tofu-records-<estate>` unless a `namespace` argument names another. Create
+that namespace yourself, one per estate: the store does not create it, and a
+namespace that is not there is refused by name with the `kubectl` line that
+makes it, because a list in an absent namespace answers empty and an empty
+listing reads as an estate with no records. RBAC cannot condition on a label,
+so the namespace is what keeps one estate out of another's records
+([claim 39](../smoke/claims/k8s-records-in-the-cluster.md)).
+
 [Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#the-cluster) has
 the rest.
 

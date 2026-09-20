@@ -20,19 +20,29 @@ object to another estate is a relabel, through `live-mv -from-estate` or
 ## Records
 
 Every managed object has a record
-([Records]({{< relref "/docs/model/values" >}})). A team keeps them in the
-cluster, and no AWS account is involved:
+([Records]({{< relref "/docs/model/values" >}})). Most cost nothing to lose.
+Two do not: a resource with no live object, such as a `random_password`, and a
+`kubernetes_manifest`, whose record holds the label and annotation keys the
+configuration last declared.
+
+A team keeps the records in the cluster, and no AWS account is involved:
 
 ```hcl
-record_store "kubernetes" {
-  namespace = "my-estate-records"
-}
+record_store "kubernetes" {}
 ```
 
-Each record is one Secret, written conditionally on `resourceVersion` with
-nothing locked. Give each estate its own namespace, because RBAC cannot
-condition on a label. A plan job needs `get` and `list` on those Secrets and
-nothing more.
+Each record is one Secret in `tofu-records-<estate>`, written conditionally on
+`resourceVersion` with nothing locked. Create that namespace yourself, one per
+estate: the store does not, and RBAC cannot condition on a label. A plan job
+needs `get` and `list` on those Secrets and nothing more, once an identity
+that may write has applied the estate once.
+
+The first contact also checks the cluster: the records namespace and this
+identity's access, read isolation, encryption at rest, and the estate boundary
+policy. Each failure names its fix and the waiver that accepts it. A stock
+kind cluster fails the last two, so a demo adds
+`allow_insecure = ["encryption_at_rest", "estate_boundary"]` to the
+`record_store` block. `choudoufu live-cluster` prints the report.
 
 ## Two runs at once
 

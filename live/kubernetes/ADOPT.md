@@ -57,16 +57,26 @@ have stored is compared with the object it holds now. If anything outside
 the labels map moved, as it would under a mutating webhook that rewrites
 the spec, the write is refused by name and nothing is sent.
 
-If the stock state lives in the `kubernetes` backend, it is a Secret named
-`tfstate-<workspace>-<suffix>` with a Lease beside it. `tofu state pull >
-stock.tfstate` gives `live-import` its file. Keep the Secret until you trust
-the migration, since it is the way back to stock, and delete it last.
+If the stock state lives in the `kubernetes` backend, there is no file to
+delete. The state is a Secret named `tfstate-<workspace>-<secret_suffix>`,
+`tfstate-default-<secret_suffix>` on the default workspace, with the Lease
+`lock-tfstate-<workspace>-<secret_suffix>` beside it (the format is
+`internal/backend/remote-state/kubernetes`'s own, `client.go`'s
+`createSecretName`). `tofu state pull > stock.tfstate` gives `live-import`
+its file. Keep the Secret until you trust the migration, since it is the way
+back to stock: point a stock `backend "kubernetes"` at it and the estate runs
+as it did. Delete it last, after the plan has been empty for as long as you
+need it to be.
 
 The migration also carries over what the state knew about a custom resource's
-labels. A `kubernetes_manifest` entry's last-applied label and annotation keys
-go into the estate's record, so a label you remove from the configuration
-after migrating is planned for removal, the way stock would plan it
-([claim 27](../smoke/claims/k8s-a-label-is-a-change.md)).
+labels. `live-import -approve` seeds a `kubernetes_manifest` entry's declared
+label and annotation keys from the stock state into the estate's record
+([#1391](https://github.com/INTENTIUS/choudoufu/issues/1391)), so a label you
+remove from the configuration after migrating is planned for removal, the way
+stock would plan it
+([claim 27](../smoke/claims/k8s-a-label-is-a-change.md)). Nothing the record
+needs is left in the state after that, so the Secret is kept as the way back
+and not because a plan still reads it.
 
 ## The marker
 

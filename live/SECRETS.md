@@ -49,6 +49,42 @@ A write-only argument is never recorded, under either setting.
 Root output values are recorded too, except that an output marked
 `sensitive` is never written. It renders as `(sensitive value)` in a plan the way it always did.
 
+### A Kubernetes Secret
+
+A `kubernetes_secret` or `kubernetes_secret_v1` is an ordinary resource, and
+the part of it that is recorded is none of its data. Measured on a kind
+cluster with the local store and the default `secrets = "store"`, applying a
+Secret with one `data` key writes this 239-byte record and nothing else:
+
+```json
+{
+  "format_version": 2,
+  "address": "kubernetes_secret.app",
+  "kind": "identity",
+  "provider": "provider[\"registry.opentofu.org/hashicorp/kubernetes\"]",
+  "residue": {
+    "attributes": {
+      "wait_for_service_account_token": { "attrType": "bool", "attrValue": true }
+    }
+  }
+}
+```
+
+The value is not there in clear and not there base64-encoded, and neither is
+the `data` key's name. The API server gives a Secret's `data` back on a read,
+so none of it is what a read cannot give back, and what is left as residue is
+`wait_for_service_account_token`, an argument that only ever existed in the
+configuration. Deleting the cache file and planning again against the same
+record answers `No changes.`
+
+So the value is in two places, neither of them the record store. It is in the
+cluster, in the Secret itself, readable by anyone RBAC lets read that
+namespace. And it is in `.terraform/choudoufu-cache.tfstate` on the machine
+that applied, in clear, where a plain `grep` for the value finds it. An estate
+that generates the value instead, `random_password` feeding
+`kubernetes_secret.data`, is the other case: the `random_password` is
+record-backed and its record holds the value whole.
+
 ## Who holds the read
 
 | Who | Why they can read it |
@@ -64,6 +100,16 @@ the store [asserts](https://intentius.io/choudoufu/docs/use/bucket/) stops the
 bucket being published. It does nothing about a principal inside the account,
 and nothing about a bucket policy that names another specific account, since
 a named account is not "public".
+
+On a cluster the same row is `get secrets` in the records namespace: anyone
+holding it reads every value that estate recorded, and `kubectl get secret
+tofu-record-<hash> -o jsonpath='{.data.tfstate}' | base64 -d | gunzip` is the
+whole of the work. RBAC cannot condition on a label and admission is never
+consulted for a get or a list, so nothing narrows that grant below the
+namespace. A ClusterRole granting secrets cluster-wide, which a monitoring
+agent or an operator's own bundle may already carry, reaches every estate's
+records in every namespace. That is why each estate's records get a namespace
+of their own and the Role that reaches it names that namespace alone.
 
 Noncurrent versions are readable the same way, to a caller with
 `s3:GetObjectVersion`, for as long as the lifecycle rule keeps them. A secret

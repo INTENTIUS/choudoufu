@@ -29,11 +29,12 @@ Each object is verified by namespace and name, and the label is written. A
 write that would change anything beyond the labels is refused, and so is an
 object already labelled for another estate. If the state is in the
 `kubernetes` backend, `tofu state pull > stock.tfstate` gives you the file.
-Keep the backend's Secret until you trust the migration.
+The backend's Secret is the way back to stock, so keep it until you trust the
+migration and delete it last.
 
 ## Refused
 
-`generate_name` is refused, because the server would choose the name and
-nothing could find the object again. A namespaced object with no `namespace`
-is refused and not defaulted. Objects a controller made, Pods from a
-Deployment for example, are never adopted or deleted.
+Objects a controller made, Pods from a Deployment for example, are never
+adopted or deleted.
+[Compatibility]({{< relref "/kubernetes/compatibility" >}}) has the rest of
+what is refused by name.
