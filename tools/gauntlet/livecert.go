@@ -353,7 +353,12 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	// lines into the same place from another. A strings.Builder is not
 	// safe for that, and neither is an *os.File's offset.
 	var out strings.Builder
-	sink := &syncWriter{w: &out}
+	// The watcher sits between the script and everything else, so it sees
+	// the trap's own first line the moment it is written (#1324): the
+	// supervisor re-sends SIGTERM to the group until that line appears,
+	// and must never re-send after it.
+	watch := newTrapWatcher(&out)
+	sink := &syncWriter{w: watch}
 	cmd.Stdout = sink
 	cmd.Stderr = sink
 
@@ -382,7 +387,8 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		logPath := filepath.Join(root, LogDir, "live-cert-"+estate+".log")
 		if logf, err := os.Create(logPath); err == nil { //nolint:gosec // a gitignored path under the checkout, built from the estate name
 			defer func() { _ = logf.Close() }()
-			sink = &syncWriter{w: io.MultiWriter(&out, logf)}
+			watch = newTrapWatcher(io.MultiWriter(&out, logf))
+			sink = &syncWriter{w: watch}
 			cmd.Stdout = sink
 			cmd.Stderr = sink
 		}
@@ -454,13 +460,14 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	go func() {
 		defer close(watcher)
 		superviseLiveCert(sup, superviseOpts{
-			PGID:    pgid,
-			Sigc:    sigc,
-			Done:    done,
-			Ceiling: time.Duration(ceilingSeconds) * time.Second,
-			Bound:   liveCertSignalBound(),
-			Tick:    liveCertWaitTick(),
-			Say:     sayTo(sink),
+			PGID:        pgid,
+			Sigc:        sigc,
+			Done:        done,
+			Ceiling:     time.Duration(ceilingSeconds) * time.Second,
+			Bound:       liveCertSignalBound(),
+			Tick:        liveCertWaitTick(),
+			Say:         sayTo(sink),
+			TrapStarted: watch.Started,
 			OnStop: func(signalName string) {
 				// Stamped BEFORE the wait that may never
 				// return: the record on disk has to be true at
@@ -509,6 +516,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	state := sup.State(confirmed)
 	rec.State, rec.Signal, rec.Escalated = state, signalName, escalated
 	rec.RepeatSignals = sup.Repeats()
+	rec.TrapResends = sup.Resends()
 	rec.TeardownConfirmed = confirmed
 	rec.ExitCode = exit
 	rec.Note = state.Human()

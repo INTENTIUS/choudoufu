@@ -388,7 +388,14 @@ is the one that means go and look at the account.
 Stopping a run is one signal, and then waiting. The tool forwards it to the
 script's whole process group and then waits for the teardown trap for as
 long as the trap takes, printing a "still waiting for teardown" line every
-`LIVECERT_HEARTBEAT_S` so the wait is not silent. It never kills a teardown
+`LIVECERT_HEARTBEAT_S` so the wait is not silent. It re-sends SIGTERM to the
+group once a second, up to five times, until the script's own output says
+its trap is running, and stops the moment it does: one kill to a group
+misses a command bash forks in the same instant, and bash then holds the
+trap pending until that command finishes. Measured at 19 losses in 200 runs
+on an idle machine, which at scale would be a `terraform plan`'s worth of
+minutes before teardown started. A `trap_resends` above zero in the run
+record means the first signal was one of those. It never kills a teardown
 on its own, and a second or third signal changes nothing: closing a terminal
 sends SIGHUP and a runner's cancellation sends SIGINT then SIGTERM, and
 neither is a request to abandon an estate. Tearing a scale-128 estate down

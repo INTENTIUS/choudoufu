@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -152,6 +153,12 @@ type LiveCertRun struct {
 	// this always accompanies an unconfirmed teardown. Nothing sets it
 	// unless someone asked for a bound: a repeat signal never does.
 	Escalated bool `json:"escalated,omitempty"`
+	// TrapResends is how many extra SIGTERMs the process group needed
+	// before the script's teardown trap answered. Above zero means the
+	// first signal was lost to the fork race described in
+	// liveCertResendEvery's comment, and the teardown started later than
+	// the stop request says.
+	TrapResends int `json:"trap_resends,omitempty"`
 	// RepeatSignals is how many further stop requests arrived while the
 	// teardown was already running and were deliberately ignored. It is
 	// recorded because it is the difference between "nobody tried to stop
@@ -277,7 +284,101 @@ func TeardownConfirmed(output string) bool {
 	return sawBanner && sawVerified
 }
 
+// ── has the trap started? ───────────────────────────────────────────────
+
+// trapStartNeedles are the first thing each estate script prints once its
+// signal trap is running: on_signal's own line, and teardown's banner (which
+// is also what a script whose trap goes straight to teardown prints first).
+// Seeing either means the trap is RUNNING, which is the one fact the re-send
+// below has to gate on.
+var trapStartNeedles = []string{teardownBanner, "=== caught "}
+
+// trapWatcher wraps the run's output and raises a flag the first time the
+// script says its trap is running. It is a writer rather than a reader of
+// the accumulated buffer because the exec package's copy goroutine owns that
+// buffer; watching the bytes on their way past needs no extra lock and is
+// O(1) per write.
+type trapWatcher struct {
+	w       io.Writer
+	started atomic.Bool
+	// carry is the tail of the previous write, so a needle split across
+	// two writes is still found. bash writes each `log` line with one
+	// write(2), so this is belt and braces rather than the common case.
+	carry []byte
+}
+
+func newTrapWatcher(w io.Writer) *trapWatcher { return &trapWatcher{w: w} }
+
+func (t *trapWatcher) Write(p []byte) (int, error) {
+	if !t.started.Load() {
+		hay := string(append(t.carry, p...))
+		for _, needle := range trapStartNeedles {
+			if strings.Contains(hay, needle) {
+				t.started.Store(true)
+				break
+			}
+		}
+		keep := 0
+		for _, needle := range trapStartNeedles {
+			if len(needle) > keep {
+				keep = len(needle)
+			}
+		}
+		if keep > 0 && len(hay) > keep-1 {
+			t.carry = []byte(hay[len(hay)-(keep-1):])
+		} else {
+			t.carry = []byte(hay)
+		}
+	}
+	return t.w.Write(p)
+}
+
+// Started reports whether the script's trap has announced itself.
+func (t *trapWatcher) Started() bool {
+	if t == nil {
+		return true // no watcher: never re-send
+	}
+	return t.started.Load()
+}
+
 // ── the supervisor ──────────────────────────────────────────────────────
+
+// A signal to a process group reaches the processes that are IN it at that
+// instant, and bash defers a pending trap for as long as a foreground child
+// is running. Put together, those two facts leave a race that loses a
+// teardown outright:
+//
+//	bash: ...checks for pending traps, decides to run the next command...
+//	us:   kill(-pgid, SIGTERM)          <- bash gets it, marks it pending
+//	bash: fork+exec `terraform plan`    <- the new child never saw the signal
+//	bash: waitpid(child)                <- the trap waits for the child
+//
+// The trap then does not start until that command finishes, which for a
+// `terraform plan` at scale is thirteen minutes of an estate the operator
+// has already asked to tear down - and, because this supervisor has no
+// default bound on purpose, thirteen minutes of "still waiting for teardown"
+// with nothing happening.
+//
+// Measured, not theorised: a probe that spin-waits for a script to reach its
+// foreground `sleep` and then signals the group lost the trap 19 times in
+// 200 runs on an IDLE machine. The process table at each of those shows the
+// script alive with a `sleep` child in the same pgid whose elapsed time
+// starts after the kill. It is also what reddened
+// TestRepeatSignalsDoNotKillARunningTeardown on the gate for main
+// (2026-09-20) - one run in about seventy.
+//
+// The fix is to keep asking until the script answers, and the answer is its
+// own first line of trap output. Re-sending is safe ONLY before the trap has
+// started: once teardown is running, a second SIGTERM to the group would
+// land on whatever destroy the trap has forked, which is the thing this
+// whole file exists to protect. So the re-send is gated on trapWatcher, and
+// it is bounded, because a script that has not answered after this many
+// tries is not going to be helped by more signals. The same probe with one
+// re-send after 0.5s: 200 of 200 traps ran promptly.
+const (
+	liveCertResendEvery = 1 * time.Second
+	liveCertResendMax   = 5
+)
 
 // liveCertOrphanPoll is how often the supervisor looks at its own ppid. A
 // second is fast enough that an orphaned run loses a second of spend, and
@@ -350,6 +451,9 @@ type liveCertSupervisor struct {
 	// teardown was already running. None of them did anything; the count
 	// is here so the record can say so.
 	repeats int
+	// resends is how many extra SIGTERMs the group needed before the
+	// script's trap answered.
+	resends int
 	// ceiling: the stop request was the -timeout-seconds ceiling rather
 	// than a signal. RunLiveCert reports such a run's exit as -1, which is
 	// what its doc comment has always promised.
@@ -360,6 +464,21 @@ func (s *liveCertSupervisor) noteRepeat() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.repeats++
+}
+
+func (s *liveCertSupervisor) noteResend() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resends++
+}
+
+// Resends is how many extra SIGTERMs it took before the script's trap
+// answered. Anything above zero means the first one was lost to the fork
+// race, which is worth having on the record.
+func (s *liveCertSupervisor) Resends() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resends
 }
 
 func (s *liveCertSupervisor) noteCeiling() {
@@ -451,6 +570,9 @@ type superviseOpts struct {
 	// Tick is how often to say that the wait is still going.
 	Tick time.Duration
 	Say  func(string, ...any)
+	// TrapStarted reports whether the script's trap has announced itself.
+	// nil means "assume it has", which disables the re-send.
+	TrapStarted func() bool
 	// OnStop is called the moment the first stop request is forwarded,
 	// before any waiting, so the run record is stamped "signalled,
 	// teardown unconfirmed" while the estate is still coming down. The
@@ -490,6 +612,14 @@ func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 	}
 	var boundC <-chan time.Time
 	var waitC <-chan time.Time
+	var resendC <-chan time.Time
+	var resendTicker *time.Ticker
+	resends := 0
+	defer func() {
+		if resendTicker != nil {
+			resendTicker.Stop()
+		}
+	}()
 	var waitTicker *time.Ticker
 	defer func() {
 		if waitTicker != nil {
@@ -546,6 +676,10 @@ func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 		}
 		waitTicker = time.NewTicker(o.Tick)
 		waitC = waitTicker.C
+		if o.TrapStarted != nil {
+			resendTicker = time.NewTicker(liveCertResendEvery)
+			resendC = resendTicker.C
+		}
 	}
 
 	for {
@@ -594,6 +728,35 @@ func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 			// moment.
 			o.Say("live-cert: still waiting for teardown, %s since the stop request, pgid %d. Nothing here will kill it; `kill -KILL -%d` abandons it by hand and leaves the estate up.",
 				time.Since(stoppedAt).Round(time.Second), o.PGID, o.PGID)
+		case <-resendC:
+			// Only until the script says its trap is running. See the
+			// const block above for the race this closes and why
+			// re-sending after that point would be the opposite of
+			// safe.
+			if o.TrapStarted() {
+				resendTicker.Stop()
+				resendC = nil
+				continue
+			}
+			// The run may have ended between the tick firing and
+			// this branch being chosen, and signalling a pgid whose
+			// leader has exited is at best pointless.
+			select {
+			case <-o.Done:
+				return
+			default:
+			}
+			if resends >= liveCertResendMax {
+				resendTicker.Stop()
+				resendC = nil
+				o.Say("live-cert: the script has not started its teardown after %d SIGTERMs to process group %d. Not sending more - something in there is not answering signals, and this process is still waiting rather than killing it. Look at what the group is doing: ps -eo pid,ppid,pgid,stat,etime,command | awk '$3==%d'.", resends, o.PGID, o.PGID)
+				continue
+			}
+			resends++
+			s.noteResend()
+			o.Say("live-cert: the script has not started its teardown %s after the stop request, so re-sending SIGTERM to process group %d (attempt %d of %d). A signal reaches the processes in a group at that instant, and a command forked immediately afterwards misses it while bash holds the trap pending - measured at 19 losses in 200 runs.",
+				time.Since(stoppedAt).Round(time.Second), o.PGID, resends, liveCertResendMax)
+			_ = signalGroup(o.PGID, forwarded)
 		case <-boundC:
 			// Only reachable when LIVECERT_SIGNAL_GRACE_S was set on
 			// purpose.
