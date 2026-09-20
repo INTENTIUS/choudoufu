@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
+
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // accessDenied reports whether err is S3 refusing the request by policy:
@@ -55,6 +57,17 @@ func IsAccessDenied(err error) bool {
 		return false
 	}
 	if accessDenied(err) {
+		return true
+	}
+	// [KubernetesStore] surfaces a refusal as the API server's own 403,
+	// which arrives as a *k8serrors.StatusError with reason Forbidden and
+	// carries none of the smithy shapes accessDenied looks for. Without this
+	// leg the reader tolerance #1370 built for the bucket reached neither
+	// the Kubernetes store nor a plan against it: a CI plan identity with
+	// get and list on the records namespace and no create had its sentinel
+	// write read as an outage and the run stopped. GitHub issue #1393
+	// measured that on kind before this line existed.
+	if k8serrors.IsForbidden(err) {
 		return true
 	}
 	return errors.Is(err, fs.ErrPermission)

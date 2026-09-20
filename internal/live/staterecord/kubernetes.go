@@ -21,6 +21,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -67,6 +68,7 @@ import (
 // kubectl line that creates it.
 type KubernetesStore struct {
 	secrets   corev1client.SecretInterface
+	clientset kubernetes.Interface
 	namespace string
 	keyPrefix string
 	estate    string
@@ -83,6 +85,17 @@ type KubernetesConfig struct {
 	// exec credential plugin - and this package has no opinion on any of
 	// that, the same position [S3Config.Client] takes.
 	Secrets corev1client.SecretInterface
+
+	// Clientset is the same cluster connection, unscoped, and it is used for
+	// exactly one thing: the cluster contract (kubernetescontract.go, GitHub
+	// issue #1393), which asks the API server's own authorizer what this
+	// identity may do and reads the estate boundary policy. No record ever
+	// goes through it.
+	//
+	// Optional. Nil leaves [KubernetesStore.CheckClusterContract] reporting
+	// that it has no client, which is what a caller that built the store
+	// from a bare SecretInterface gets - the conformance suite, for one.
+	Clientset kubernetes.Interface
 
 	// Namespace is the Kubernetes namespace Secrets writes into. It is
 	// carried here for the error text, since a namespaced client does not
@@ -266,6 +279,7 @@ func NewKubernetesStore(cfg KubernetesConfig) (*KubernetesStore, error) {
 	}
 	return &KubernetesStore{
 		secrets:      cfg.Secrets,
+		clientset:    cfg.Clientset,
 		namespace:    cfg.Namespace,
 		keyPrefix:    cfg.KeyPrefix,
 		estate:       cfg.Estate,

@@ -776,10 +776,14 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-tier-is-gone.tf", `An argument named "tier" is not expected here`},
 		// GitHub issue #1340. A typo must not silently waive nothing while
 		// reading as a waiver, and the override is a list, never a boolean.
-		{"testdata/invalid-files/live-record-store-allow-insecure-unknown.tf", `names "versionning", which is not a bucket setting this store asserts`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-unknown.tf", `names "versionning", which is not something record_store "s3" asserts`},
 		{"testdata/invalid-files/live-record-store-allow-insecure-boolean.tf", `must be a literal list of strings`},
 		{"testdata/invalid-files/live-record-store-allow-insecure-twice.tf", `names "versioning" more than once`},
-		{"testdata/invalid-files/live-record-store-allow-insecure-on-local.tf", `has no meaning for record_store "local"`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-on-local.tf", `record_store "local" asserts nothing`},
+		// GitHub issue #1393. Both remote backends take allow_insecure, with
+		// their own names, so a bucket setting named on a cluster store is
+		// refused rather than read as waiving something.
+		{"testdata/invalid-files/live-record-store-allow-insecure-bucket-name-on-kubernetes.tf", `Valid names are "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"`},
 		// GitHub issue #1381. An account ID that is not twelve digits would
 		// go on the wire as ExpectedBucketOwner and be refused by S3 on
 		// every request, with nothing saying the configuration is why.

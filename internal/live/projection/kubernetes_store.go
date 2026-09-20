@@ -91,7 +91,10 @@ func newKubernetesStore(rs *configs.LiveRecordStore, estate string) (staterecord
 		return nil, fmt.Errorf("record_store \"kubernetes\": building a client: %w", err)
 	}
 	store, err := staterecord.NewKubernetesStore(staterecord.KubernetesConfig{
-		Secrets:   clientset.CoreV1().Secrets(ns),
+		Secrets: clientset.CoreV1().Secrets(ns),
+		// The same connection, unscoped, for the cluster contract and
+		// nothing else (#1393). No record goes through it.
+		Clientset: clientset,
 		Namespace: ns,
 		// Empty on purpose, the same as the s3 backend's: the namespace a
 		// record lives under is carried by the KEY. See backendKeyPrefix.
