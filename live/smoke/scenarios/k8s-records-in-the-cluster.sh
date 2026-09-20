@@ -422,8 +422,12 @@ as_identity() (
 # label combination. It is read as cluster-admin, which the counted runs are
 # not, so reading it cannot move it.
 ssar_count() {
-  kc get --raw /metrics 2>/dev/null \
-    | awk -F' ' '/^apiserver_request_total\{.*resource="selfsubjectaccessreviews"/ {s+=$2} END {printf "%d\n", s}'
+  local raw
+  # `|| true` and a separate awk, not one pipeline: this scenario runs under
+  # set -euo pipefail, so a pipeline whose first stage fails ends the run
+  # with no verdict line at all.
+  raw="$(kc get --raw /metrics 2>/dev/null || true)"
+  awk -F' ' '/^apiserver_request_total\{.*resource="selfsubjectaccessreviews"/ {s+=$2} END {printf "%d\n", s}' <<< "$raw"
 }
 
 step "6. the cluster contract runs on an estate's first contact with the cluster, and not on every plan"
@@ -478,12 +482,12 @@ BEFORE="$(ssar_count)"
 C_OUT="$( cd "$CAROL" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the first contact under the recommended Role was refused: $C_OUT"
 FIRST="$(ssar_count)"
-grep -E 'Apply complete!' <<< "$C_OUT" | head -1 | evidence
+{ grep -E 'Apply complete!' <<< "$C_OUT" || true; } | head -1 | evidence
 echo "SelfSubjectAccessReviews on first contact: $((FIRST-BEFORE))" | evidence
 [ "$((FIRST-BEFORE))" -gt 0 ] \
   || fail "k8srec" "first contact asked the authorizer nothing, so the contract did not run and the count below would measure nothing"
 # What a scoped identity cannot read, it says, by name, rather than passing.
-grep -E 'could not be checked' <<< "$C_OUT" | evidence
+{ grep -E 'could not be checked' <<< "$C_OUT" || true; } | evidence
 for setting in encryption_at_rest estate_boundary; do
   grep -q "cluster's $setting could not be checked" <<< "$C_OUT" \
     || fail "k8srec" "a Role that cannot read $setting did not say so: $C_OUT"
@@ -511,7 +515,7 @@ explain \
   "read every records namespace there is."
 cmd "choudoufu live-cluster -namespace=$CAROL_NS   # as cluster-admin"
 ADMIN_OUT="$( cd "$ROOT" && no_aws chdf live-cluster -namespace="$CAROL_NS" -no-color 2>&1 )" && ADMIN_RC=0 || ADMIN_RC=$?
-echo "$ADMIN_OUT" | grep -E '^  (read_isolation|encryption_at_rest|estate_boundary|namespace_access)' | evidence
+{ grep -E '^  (read_isolation|encryption_at_rest|estate_boundary|namespace_access)' <<< "$ADMIN_OUT" || true; } | evidence
 [ "$ADMIN_RC" != "0" ] || fail "k8srec" "live-cluster exited 0 on a cluster that fails two of its four assertions: $ADMIN_OUT"
 grep -qE '^  read_isolation +FAIL .*another estate.s records namespace: tofu-records-' <<< "$ADMIN_OUT" \
   || fail "k8srec" "read_isolation did not refuse a cluster-admin who can read the other estates' records namespaces: $ADMIN_OUT"
@@ -524,14 +528,14 @@ cmd "kubectl delete validatingadmissionpolicybinding choudoufu-estate-boundary  
 kc delete validatingadmissionpolicybinding choudoufu-estate-boundary >/dev/null \
   || fail "k8srec" "could not remove the binding"
 UNBOUND="$( cd "$ROOT" && no_aws chdf live-cluster -namespace="$CAROL_NS" -no-color 2>&1 )" || true
-echo "$UNBOUND" | grep -E '^  estate_boundary' | evidence
+{ grep -E '^  estate_boundary' <<< "$UNBOUND" || true; } | evidence
 grep -qE '^  estate_boundary +FAIL .*inert' <<< "$UNBOUND" \
   || fail "k8srec" "a policy with no binding was not refused; it evaluates nothing and refuses nothing: $UNBOUND"
 kc apply -f "$ROOT/live/kubernetes/estate-boundary.yaml" >/dev/null || fail "k8srec" "could not put the binding back"
 
 cmd "choudoufu live-cluster -namespace=tofu-records-k8srec-nobody   # a namespace that does not exist"
 ABSENT="$( cd "$ROOT" && no_aws chdf live-cluster -namespace=tofu-records-k8srec-nobody -no-color 2>&1 )" || true
-echo "$ABSENT" | grep -E '^  namespace_access' | cut -c1-160 | evidence
+{ grep -E '^  namespace_access' <<< "$ABSENT" || true; } | cut -c1-160 | evidence
 grep -qE '^  namespace_access +FAIL .*does not exist' <<< "$ABSENT" \
   || fail "k8srec" "an absent records namespace was not refused: $ABSENT"
 grep -q 'kubectl create namespace tofu-records-k8srec-nobody' <<< "$ABSENT" \
@@ -560,7 +564,7 @@ cmd "choudoufu apply   # as a Role with get, list, create and delete, and no upd
 if D_OUT="$( cd "$DAN" && as_identity "$DAN_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
   fail "k8srec" "an apply under a Role that cannot update a record Secret was allowed to start: $D_OUT"
 fi
-echo "$D_OUT" | grep -E 'namespace_access|may not update' | head -3 | evidence
+{ grep -E 'namespace_access|may not update' <<< "$D_OUT" || true; } | head -3 | evidence
 grep -q 'fails its namespace_access assertion' <<< "$D_OUT" \
   || fail "k8srec" "the refusal does not name the assertion: $D_OUT"
 grep -q 'may not update secrets' <<< "$D_OUT" \
@@ -597,7 +601,11 @@ cp "$KUBECONFIG" "$PLAN_KC"
 kubectl --kubeconfig "$PLAN_KC" config set-credentials carolplan --token="$PLAN_TOK" >/dev/null
 kubectl --kubeconfig "$PLAN_KC" config set-context --current --user=carolplan >/dev/null
 for verb in get list create update delete; do
-  ANS="$(kubectl --kubeconfig "$PLAN_KC" auth can-i "$verb" secrets -n "$CAROL_NS" 2>&1)"
+  # `|| true` is load-bearing: `kubectl auth can-i` exits 1 when the answer
+  # is "no", and "no" is what three of these five must answer. Without it
+  # this scenario ends here, under set -e, having printed no verdict line at
+  # all - which is what the first run of this step did.
+  ANS="$(kubectl --kubeconfig "$PLAN_KC" auth can-i "$verb" secrets -n "$CAROL_NS" 2>&1 || true)"
   case "$verb:$ANS" in
     get:yes|list:yes|create:no|update:no|delete:no) ;;
     *) fail "k8srec" "the plan identity answers $ANS to $verb on secrets in $CAROL_NS; it is supposed to hold get and list and nothing else" ;;
@@ -607,7 +615,7 @@ kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.m
 cmd "choudoufu plan   # as an identity with get and list on secrets, and no create, update or delete"
 P2="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf plan -input=false -no-color 2>&1 )" \
   || fail "k8srec" "a plan under a get/list-only identity was refused: $P2"
-grep -E 'No changes' <<< "$P2" | head -1 | evidence
+{ grep -E 'No changes' <<< "$P2" || true; } | head -1 | evidence
 grep -q 'No changes' <<< "$P2" \
   || fail "k8srec" "the read-only plan did not read the records back, so it proposed changes: $P2"
 kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' > "$W/rv-after"
@@ -619,8 +627,8 @@ echo "every record Secret's resourceVersion is unchanged across the plan" | evid
 cmd "choudoufu live-cluster -plan-identity   # and without it, the apply question"
 PI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -plan-identity -no-color 2>&1 )" || true
 AI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -no-color 2>&1 )" || true
-echo "$PI" | grep -E '^  namespace_access' | cut -c1-140 | evidence
-echo "$AI" | grep -E '^  namespace_access' | cut -c1-140 | evidence
+{ grep -E '^  namespace_access' <<< "$PI" || true; } | cut -c1-140 | evidence
+{ grep -E '^  namespace_access' <<< "$AI" || true; } | cut -c1-140 | evidence
 grep -qE '^  namespace_access +OK' <<< "$PI" \
   || fail "k8srec" "the contract refused a plan identity for lacking create, update and delete, which a plan does not use: $PI"
 grep -qE '^  namespace_access +FAIL' <<< "$AI" \
@@ -730,7 +738,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   if BR="$( cd "$BROKE" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
     fail "k8srec" "BREAK: an identity that can read every estate's records in this cluster was allowed to open a new store, so step 6's pass was not read_isolation holding: $BR"
   fi
-  echo "$BR" | grep -E 'read_isolation' | head -2 | evidence
+  { grep -E 'read_isolation' <<< "$BR" || true; } | head -2 | evidence
   grep -q 'fails its read_isolation assertion' <<< "$BR" \
     || fail "k8srec" "BREAK: the widened identity was refused for some other reason: $BR"
   proof "step 6's contract can refuse the run it let through: the same estate, the same store, the same command, with cluster-wide secret reads added, is refused by name on read_isolation."

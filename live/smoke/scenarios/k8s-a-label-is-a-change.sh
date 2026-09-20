@@ -469,8 +469,13 @@ shared_store_step() {
       grep -q "cluster's $setting assertion is waived" <<< "$SH_APPLY_A" \
         || fail "$SCEN" "the apply waived $setting and did not say so; a waiver that goes quiet is indistinguishable from a cluster that passes (#1340): $SH_APPLY_A"
     done
-    grep -q 'This warning repeats on every run for as long as the waiver is configured' <<< "$SH_APPLY_A" \
-      || fail "$SCEN" "the waiver warning does not say it repeats: $SH_APPLY_A"
+    # Whitespace-normalised: a diagnostic's detail is wrapped to the
+    # terminal, so any sentence long enough to matter is split across lines
+    # and a plain grep for it finds nothing. That is what the first run of
+    # this assertion did.
+    tr '\n' ' ' <<< "$SH_APPLY_A" | tr -s ' ' \
+      | grep -q 'This warning repeats on every run for as long as the waiver is configured' \
+      || fail "$SCEN" "the waiver warning does not say it repeats, so nothing tells the reader it will not go quiet: $SH_APPLY_A"
   fi
   SH_LABELS_A="$(kc get configmap shared-config -n "$SH_NS" -o jsonpath='{.metadata.labels}')"
   echo "$SH_LABELS_A" | evidence
