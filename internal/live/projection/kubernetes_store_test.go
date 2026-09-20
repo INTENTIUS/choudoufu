@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -26,6 +28,52 @@ func TestKubernetesStoreLabelsWithTheMarker(t *testing.T) {
 	if staterecord.KubernetesEstateLabel != markers.TagEstate {
 		t.Errorf("the Kubernetes record store writes %q and the marker is %q; estate-boundary.yaml fences on the marker, so a record Secret carrying anything else is outside the fence",
 			staterecord.KubernetesEstateLabel, markers.TagEstate)
+	}
+}
+
+// TestTheSweepKnowsTheRecordStoresOwnObjects pins the two strings
+// internal/live/kubesweep tests a record Secret with against the store that
+// writes them. Neither package imports the other, and this is where they meet.
+//
+// It is load-bearing and was measured failing before the exclusion existed: a
+// record Secret carries the estate's tofu-estate label, the sweep reads that
+// label as "in the estate", and an object in the estate that no block declares
+// is an orphan the plan proposes to destroy. On kind on 2026-09-19 an
+// ordinary second plan proposed destroying all five of the estate's own
+// record Secrets.
+func TestTheSweepKnowsTheRecordStoresOwnObjects(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"metadata": map[string]any{
+			"labels": map[string]any{
+				staterecord.KubernetesManagedByLabel: staterecord.KubernetesManagedByValue,
+				staterecord.KubernetesEstateLabel:    "prod",
+			},
+			"annotations": map[string]any{
+				staterecord.KubernetesRecordKeyAnnotation: "tofu-records/prod/aws_thing/a",
+			},
+		},
+	}}
+	if !kubesweep.RecordStoreObject(obj) {
+		t.Fatalf("the sweep does not recognise a record Secret the store wrote; an ordinary plan would propose destroying it as an orphan of the estate")
+	}
+
+	// Neither half alone: a user's own Secret carrying one of the two is not
+	// this store's, and excluding it would hide a real orphan.
+	onlyLabel := &unstructured.Unstructured{Object: map[string]any{
+		"metadata": map[string]any{"labels": map[string]any{
+			staterecord.KubernetesManagedByLabel: staterecord.KubernetesManagedByValue,
+		}},
+	}}
+	if kubesweep.RecordStoreObject(onlyLabel) {
+		t.Error("an object with the managed-by label and no record-key annotation is excluded from the sweep")
+	}
+	onlyAnnotation := &unstructured.Unstructured{Object: map[string]any{
+		"metadata": map[string]any{"annotations": map[string]any{
+			staterecord.KubernetesRecordKeyAnnotation: "tofu-records/prod/aws_thing/a",
+		}},
+	}}
+	if kubesweep.RecordStoreObject(onlyAnnotation) {
+		t.Error("an object with the record-key annotation and no managed-by label is excluded from the sweep")
 	}
 }
 
