@@ -72,7 +72,31 @@ so the namespace is what keeps one estate out of another's records
 
 The Role that estate's identity needs is `get`, `list`, `create`, `update`
 and `delete` on `secrets` in that namespace and nowhere else. A job that only
-plans needs `get` and `list`.
+plans needs `get`, `list` and `create`, and not `update` or `delete`. It
+writes nothing: measured on kind, no record Secret's `resourceVersion` moved
+across a plan. `create` is there because opening the store asks the API
+server to create the sentinel, which is already there, and RBAC answers the
+verb before the object's existence comes into it. Taking `create` away stops
+the run at the handshake, not at a record:
+
+```
+Error: Cannot open the record store
+
+The live block's record_store "kubernetes" could not be opened: record_store:
+provisioning the sentinel at "tofu-records/<estate>/.store-sentinel":
+staterecord: kubernetes: creating "tofu-records/<estate>/.store-sentinel" in
+namespace "tofu-records-<estate>": secrets is forbidden: User
+"system:serviceaccount:default:planner" cannot create resource "secrets" in
+API group "" in the namespace "tofu-records-<estate>".
+```
+
+[#1370](https://github.com/INTENTIUS/choudoufu/issues/1370)'s tolerance for a
+run that may read the store and not write it does not reach this store yet. It
+turns on `staterecord.IsAccessDenied`, which knows S3's `AccessDenied` and a
+bare 403 and the local store's `EACCES`, and a Kubernetes `Forbidden` is
+neither, so the denial goes down `provisionStoreSentinel`'s default branch and
+ends the run. [#1393](https://github.com/INTENTIUS/choudoufu/issues/1393) has
+the question; until it is answered, grant the plan job `create`.
 [Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#the-cluster) has
 the rest, including what a `get secrets` in that namespace is worth to
 whoever holds it.

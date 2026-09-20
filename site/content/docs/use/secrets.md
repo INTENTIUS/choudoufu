@@ -30,8 +30,8 @@ database's master password. So an estate with no `random_*` in it can still
 have secrets in its store.
 
 A `kubernetes_secret` is an ordinary resource and the API returns its `data`,
-so its record holds none of it. The value stays in the cluster Secret, and in
-the cache file on the machine that applied.
+so its record holds none of it. The value stays in the cluster Secret and in
+the cache file.
 
 A write-only argument is never recorded. A root output marked `sensitive` is
 never written.

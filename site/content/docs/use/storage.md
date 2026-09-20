@@ -71,12 +71,12 @@ comes back ([Recover an estate]({{< relref "/docs/use/recover-an-estate" >}})).
 
 ## The cluster
 
-A Kubernetes-only estate keeps its records here and needs no AWS account.
-`record_store "kubernetes"` writes each one as a Secret labelled with the
-estate, in `tofu-records-<estate>` or the `namespace` you name, conditional on
-the `resourceVersion` the writer read and with nothing held. Create the
-namespace yourself, one per estate: RBAC cannot condition on a label.
-[Kubernetes]({{< relref "/kubernetes" >}}) has the rest.
+A Kubernetes-only estate keeps its records here and needs no AWS account
+([Kubernetes]({{< relref "/kubernetes" >}})). `record_store "kubernetes"`
+writes each one as a Secret labelled with the estate, in
+`tofu-records-<estate>` or the `namespace` you name, conditional on the
+`resourceVersion` the writer read and with nothing held. Create the namespace
+yourself, one per estate: RBAC cannot condition on a label.
 
 [`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)
 has the rest: the exact requests a run sends, what `destroy` leaves behind,

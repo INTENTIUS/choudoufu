@@ -93,8 +93,9 @@ ways.
 catalogues the actions per stage and per record store.
 
 A plan changes no resource, and a role that may only read can run one. That
-includes the record store, once some earlier run under a writing role has
-opened it. A bucket no run has opened is refused by name, because an unopened
+includes a bucket or a local record store, once some earlier run under a
+writing role has opened it. A cluster store also wants `create` on its
+Secrets ([Kubernetes]({{< relref "/kubernetes/operate" >}})). A bucket no run has opened is refused by name, because an unopened
 store looks exactly like an empty estate.
 [A role that plans and never applies]({{< relref "/docs/use/bucket#a-role-that-plans-and-never-applies" >}})
 renders the policy, and

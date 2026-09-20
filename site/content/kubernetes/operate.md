@@ -33,9 +33,9 @@ record_store "kubernetes" {}
 
 Each record is one Secret in `tofu-records-<estate>`, written conditionally on
 `resourceVersion` with nothing locked. Create that namespace yourself, one per
-estate: the store does not, and RBAC cannot condition on a label, so the
-namespace is what separates two estates' records. A plan job needs `get` and
-`list` on those Secrets and nothing more.
+estate: the store does not, and RBAC cannot condition on a label. A plan job
+needs `get`, `list` and `create` on those Secrets, because opening the store
+asks to create a sentinel that is already there.
 
 ## Two runs at once
 

@@ -59,6 +59,15 @@ A role that may read the store and not write it can plan. Once the sentinel
 exists, a run that cannot write it reads it back and carries on. A store with
 no sentinel, opened by a role that cannot write one, is refused by name.
 
+That holds on a bucket and on a local directory, and not yet on a cluster. The
+tolerance turns on `staterecord.IsAccessDenied`, which reads S3's
+`AccessDenied` and a bare 403 and the local store's `EACCES`; a Kubernetes
+`Forbidden` is neither, so a run whose Role omits `create` on the records
+Secrets is refused at the handshake even with the sentinel sitting there.
+Measured on kind, and it is
+[#1393](https://github.com/INTENTIUS/choudoufu/issues/1393)'s to settle. Until
+then a plan job on a cluster needs `get`, `list` and `create`.
+
 A store that refused stops every command: a bucket that fails
 [its three settings](https://intentius.io/choudoufu/docs/use/bucket/), a listing
 that does not return what was just written, a KMS key that refused the run.
