@@ -388,7 +388,19 @@ shared_store_step() {
       "tofu-records-<estate>."
     kc create namespace "$SH_RECORDS_NS" >/dev/null \
       || fail "$SCEN" "could not create the records namespace $SH_RECORDS_NS"
-    SH_LIVE_BODY='    record_store "kubernetes" {}'
+    explain \
+      "The two names in allow_insecure are this cluster's, not a" \
+      "convenience. Before the store writes a record it checks four things" \
+      "about the cluster (#1393), and two of them are false here: kind's" \
+      "API server carries no --encryption-provider-config, so its Secrets" \
+      "are not encrypted at rest, and this claim installs no estate" \
+      "boundary policy, because what it is about is a label edit and not" \
+      "the fence. Both are refusals and both are named, and the run says" \
+      "what each one costs, every time. Claim 39 is where the same four" \
+      "assertions are measured properly, one at a time."
+    SH_LIVE_BODY='    record_store "kubernetes" {
+      allow_insecure = ["encryption_at_rest", "estate_boundary"]
+    }'
     ;;
   s3)
     step "9. the same removal again, over records in a bucket"
@@ -446,6 +458,20 @@ shared_store_step() {
   { grep -E 'Apply complete!' <<< "$SH_APPLY_A" || true; } | evidence
   grep -qE 'Resources: 2 added' <<< "$SH_APPLY_A" \
     || fail "$SCEN" "directory A did not create the namespace and the ConfigMap: $(grep -E 'Apply complete' <<< "$SH_APPLY_A")"
+  if [ "$store_kind" = "kubernetes" ]; then
+    # What the waiver costs, said by the run itself. #1340's rule is that a
+    # waiver is loud on EVERY run, and a step that waived two assertions
+    # without showing the warnings would be hiding exactly what the waiver
+    # is supposed to make impossible to forget.
+    cmd "the waiver, as the run reports it"
+    { grep -E "cluster's (encryption_at_rest|estate_boundary) assertion is waived" <<< "$SH_APPLY_A" || true; } | evidence
+    for setting in encryption_at_rest estate_boundary; do
+      grep -q "cluster's $setting assertion is waived" <<< "$SH_APPLY_A" \
+        || fail "$SCEN" "the apply waived $setting and did not say so; a waiver that goes quiet is indistinguishable from a cluster that passes (#1340): $SH_APPLY_A"
+    done
+    grep -q 'This warning repeats on every run for as long as the waiver is configured' <<< "$SH_APPLY_A" \
+      || fail "$SCEN" "the waiver warning does not say it repeats: $SH_APPLY_A"
+  fi
   SH_LABELS_A="$(kc get configmap shared-config -n "$SH_NS" -o jsonpath='{.metadata.labels}')"
   echo "$SH_LABELS_A" | evidence
   grep -q '"squad":"blue"' <<< "$SH_LABELS_A" \

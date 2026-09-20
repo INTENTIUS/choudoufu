@@ -722,10 +722,10 @@ func ClusterContractRefusal(namespace string, f ClusterFinding) (summary, detail
 		fix = fmt.Sprintf("Bind this identity to a Role in %s rather than a ClusterRole, and take away any cluster-wide read of secrets it holds. `kubectl auth can-i list secrets --all-namespaces` under this identity is the same question this check asked.", namespace)
 	case ClusterEncryptionAtRest:
 		why = "A Secret is base64, not encryption. Without an EncryptionConfiguration the API server writes each record's payload into etcd as it came, so anything that reads etcd or an etcd backup reads every record in the estate."
-		fix = "Start the API server with " + encryptionProviderFlag + " and an EncryptionConfiguration covering secrets, then rewrite the existing Secrets so they are stored encrypted (`kubectl get secrets -A -o json | kubectl replace -f -`). On a managed control plane this is the provider's own setting: EKS envelope encryption, GKE application-layer secrets encryption, AKS KMS etcd encryption."
+		fix = "Fix it by starting the API server with " + encryptionProviderFlag + " and an EncryptionConfiguration covering secrets, then rewriting the existing Secrets so they are stored encrypted (`kubectl get secrets -A -o json | kubectl replace -f -`); on a managed control plane it is that provider's own setting instead (EKS envelope encryption, GKE application-layer secrets encryption, AKS KMS etcd encryption), and on kind and minikube there is no flag set at all, which is what this is telling you."
 	case ClusterEstateBoundary:
 		why = "The record Secrets carry the estate's tofu-estate label, and that policy is what stops an identity bound to another estate from writing them. Without it in force, any identity with write access to this namespace can overwrite or delete another estate's records, and a record can be the only copy of what it says."
-		fix = "Install it, as a cluster admin: `kubectl apply -f live/kubernetes/estate-boundary.yaml`. It is one policy and one binding, cluster-wide, and it is the same object every other Kubernetes estate check in this repository uses."
+		fix = "Fix it, as a cluster admin, by installing the policy and its binding with `kubectl apply -f live/kubernetes/estate-boundary.yaml` and then granting this estate to the identity that runs it with live/kubernetes/estate-grant.yaml, which is one ClusterRole and one binding per estate."
 	}
 	if f.Warning {
 		summary = fmt.Sprintf("The record store cluster's %s is weaker than it should be", f.Setting)
@@ -734,12 +734,38 @@ func ClusterContractRefusal(namespace string, f ClusterFinding) (summary, detail
 	}
 	if f.NotChecked {
 		summary = fmt.Sprintf("The record store cluster's %s could not be checked", f.Setting)
-		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nThe run goes on and this is not a pass: nothing here says the property holds, and this says so on every run for as long as it cannot be read. %s\n\nTo stop hearing it, name %q in the record_store block's allow_insecure list, which records in the configuration which risk was accepted. `choudoufu live-cluster`, run by an identity that can read what this one cannot, answers the question properly and exits non-zero until it does.", namespace, f.Found, why, fix, f.Setting)
+		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nThe run goes on and this is not a pass: nothing here says the property holds, and this says so on every run for as long as it cannot be read. %s\n\n%s `choudoufu live-cluster`, run by an identity that can read what this one cannot, answers the question properly and exits non-zero until it does.", namespace, f.Found, why, fix, ClusterWaiverLine(f.Setting))
 		return summary, detail
 	}
 	summary = fmt.Sprintf("The record store cluster fails its %s assertion", f.Setting)
-	detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\n%s", namespace, f.Found, why, fix)
+	detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\n%s\n\n%s", namespace, f.Found, why, fix, ClusterWaiverLine(f.Setting))
 	return summary, detail
+}
+
+// ClusterWaiverLine is the other way out of a refusal, as one sentence
+// carrying the exact line to write. Every refusal ends with it.
+//
+// It is spelled out rather than described because of who reads it: someone
+// following the Kubernetes documentation on kind, who writes
+// `record_store "kubernetes" {}`, applies as cluster-admin and is refused
+// twice - for an API server flag kind does not set and a policy nobody told
+// them to install. Both of those have a real fix and both have a legitimate
+// "not on this cluster, and I know". A refusal that names only the fix
+// leaves that reader with a message they cannot act on, and a refusal that
+// says "waive it" without the line leaves them guessing at the spelling.
+func ClusterWaiverLine(settings ...ClusterSetting) string {
+	return fmt.Sprintf("Or accept it on purpose: put `%s` in this record_store \"kubernetes\" block, which lets every run proceed and makes each run say what the waiver costs.", ClusterWaiverArgument(settings...))
+}
+
+// ClusterWaiverArgument is the argument itself, for a caller writing its own
+// sentence around it - internal/live/projection's closing line when more than
+// one assertion refuses at once.
+func ClusterWaiverArgument(settings ...ClusterSetting) string {
+	quoted := make([]string, 0, len(settings))
+	for _, s := range settings {
+		quoted = append(quoted, `"`+string(s)+`"`)
+	}
+	return fmt.Sprintf("allow_insecure = [%s]", strings.Join(quoted, ", "))
 }
 
 // ClusterWaiverCost says what an estate gives up by waiving setting, as a

@@ -690,8 +690,14 @@ func TestClusterContractRefusalSaysWhatToDo(t *testing.T) {
 			if len(detail) < 200 {
 				t.Errorf("%q (%s) says too little: %q", setting, shape.name, detail)
 			}
-			if shape.notChecked && !strings.Contains(detail, "allow_insecure") {
-				t.Errorf("%q could not be checked and the refusal does not say how to acknowledge it: %q", setting, detail)
+			// Every refusal and every "could not be checked" ends with the
+			// exact line to write. A warning does not: nothing is being
+			// refused, so there is nothing to get past.
+			if !shape.warning {
+				want := `allow_insecure = ["` + string(setting) + `"]`
+				if !strings.Contains(detail, want) {
+					t.Errorf("%q (%s) does not carry the line a reader would write, %s: %q", setting, shape.name, want, detail)
+				}
 			}
 			if shape.warning && !strings.Contains(detail, "The run goes on") {
 				t.Errorf("%q is a warning and the text does not say the run goes on: %q", setting, detail)
@@ -752,5 +758,65 @@ func TestKubernetesStoreCheckClusterContractWithNoClientset(t *testing.T) {
 		t.Fatal("a store with no clientset reported on the cluster anyway")
 	} else if !strings.Contains(err.Error(), "no clientset") {
 		t.Errorf("unhelpful error: %v", err)
+	}
+}
+
+// TestTheTwoRefusalsAPlainKindClusterGives is the first-time reader's case,
+// pinned because it is the one a person actually meets. Someone following the
+// Kubernetes documentation writes `record_store "kubernetes" {}`, applies as
+// cluster-admin on kind, and is refused twice at once: for an API server flag
+// kind does not set, and for a policy nobody has told them to install yet.
+//
+// Each refusal has to carry both ways out - what to change, and the exact
+// allow_insecure line - or the reader is left with a message they cannot act
+// on.
+func TestTheTwoRefusalsAPlainKindClusterGives(t *testing.T) {
+	cs := withReviews(fake.NewClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: contractNamespace}},
+		apiServerPod("kube-apiserver-kind-control-plane", "--advertise-address=172.18.0.2"),
+	), func(ns, verb string) bool { return true })
+
+	findings := check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true})
+	refused, _, _ := SplitWaivedCluster(findings, nil)
+	if len(refused) != 2 {
+		t.Fatalf("a plain kind cluster raised %d refusals, want encryption_at_rest and estate_boundary: %v", len(refused), refused)
+	}
+
+	for _, f := range refused {
+		_, detail := ClusterContractRefusal(contractNamespace, f)
+		var fixWords []string
+		switch f.Setting {
+		case ClusterEncryptionAtRest:
+			fixWords = []string{"Fix it by starting the API server with --encryption-provider-config", "kind and minikube"}
+		case ClusterEstateBoundary:
+			fixWords = []string{"kubectl apply -f live/kubernetes/estate-boundary.yaml", "estate-grant.yaml"}
+		default:
+			t.Fatalf("unexpected refusal on a plain kind cluster: %q", f.Setting)
+		}
+		for _, want := range fixWords {
+			if !strings.Contains(detail, want) {
+				t.Errorf("%q does not tell the reader how to fix it (%q missing): %q", f.Setting, want, detail)
+			}
+		}
+		if !strings.Contains(detail, `allow_insecure = ["`+string(f.Setting)+`"]`) {
+			t.Errorf("%q does not carry the exact waiver line: %q", f.Setting, detail)
+		}
+	}
+}
+
+// TestClusterWaiverLineIsOneLineForSeveralSettings: a reader who follows two
+// refusals' own waiver lines would write allow_insecure twice in one block,
+// which is a duplicate argument and does not parse. The combined line is what
+// internal/live/projection adds when more than one refuses at once.
+func TestClusterWaiverLineIsOneLineForSeveralSettings(t *testing.T) {
+	got := ClusterWaiverArgument(ClusterEncryptionAtRest, ClusterEstateBoundary)
+	if got != `allow_insecure = ["encryption_at_rest", "estate_boundary"]` {
+		t.Errorf("the combined waiver argument is %q, want one allow_insecure with both names", got)
+	}
+	if one := ClusterWaiverArgument(ClusterEstateBoundary); one != `allow_insecure = ["estate_boundary"]` {
+		t.Errorf("the single-setting argument is %q", one)
+	}
+	if !strings.Contains(ClusterWaiverLine(ClusterEstateBoundary), `allow_insecure = ["estate_boundary"]`) {
+		t.Error("the waiver sentence does not carry the argument")
 	}
 }

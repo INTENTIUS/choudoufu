@@ -90,19 +90,32 @@ func assertClusterOnFirstContact(ctx context.Context, store staterecord.Store, r
 
 // ClusterContractRefusalText renders every failed finding as one message,
 // each under its own headline, or "" when all passed.
+//
+// Two or more refusals get one closing line naming them together. A plain
+// kind cluster refuses an estate's first contact twice at once - no
+// --encryption-provider-config and no estate boundary policy - and each
+// refusal's own waiver line names only itself, so a reader following them
+// both would write allow_insecure twice in one block, which is a duplicate
+// argument and does not parse. The closing line is the one they can paste.
 func ClusterContractRefusalText(namespace string, findings []staterecord.ClusterFinding) string {
 	var b strings.Builder
+	var refused []staterecord.ClusterSetting
 	for _, f := range findings {
 		summary, detail := staterecord.ClusterContractRefusal(namespace, f)
 		if summary == "" {
 			continue
 		}
+		refused = append(refused, f.Setting)
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
 		b.WriteString(summary)
 		b.WriteString(". ")
 		b.WriteString(detail)
+	}
+	if len(refused) > 1 {
+		fmt.Fprintf(&b, "\n\nTo accept all %d on purpose, the waiver is one line and not %d: `%s`",
+			len(refused), len(refused), staterecord.ClusterWaiverArgument(refused...))
 	}
 	return b.String()
 }
