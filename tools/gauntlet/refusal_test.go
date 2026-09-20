@@ -141,11 +141,11 @@ func TestPlanLiveCertWritesKeepsARefusalOutOfTheLiveCertRow(t *testing.T) {
 	}
 	silent := &ProtocolResult{}
 
-	if w := PlanLiveCertWrites("aws", spoke); !w.LiveCertRow || !w.ScaleRecord {
+	if w := PlanLiveCertWrites("aws", spoke, RunStateFinished); !w.LiveCertRow || !w.ScaleRecord {
 		t.Errorf("an ordinary measured run must write both rows, got %+v", w)
 	}
 	for name, res := range map[string]*ProtocolResult{"a refusal before any stage": refused, "a refusal after a stage passed": refusedMidRun} {
-		w := PlanLiveCertWrites("aws", res)
+		w := PlanLiveCertWrites("aws", res, RunStateFinished)
 		if w.LiveCertRow {
 			t.Errorf("%s would have written the live_cert row - that row holds one certification per estate, so this replaces scale 50's (#1151)", name)
 		}
@@ -156,10 +156,10 @@ func TestPlanLiveCertWritesKeepsARefusalOutOfTheLiveCertRow(t *testing.T) {
 			t.Errorf("%s: the explanation names no issue: %q", name, w.Why)
 		}
 	}
-	if w := PlanLiveCertWrites("aws", silent); w.LiveCertRow || w.ScaleRecord {
+	if w := PlanLiveCertWrites("aws", silent, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
 		t.Errorf("a run that spoke nothing must write nothing (#1100), got %+v", w)
 	}
-	if w := PlanLiveCertWrites("floci", spoke); w.LiveCertRow || w.ScaleRecord {
+	if w := PlanLiveCertWrites("floci", spoke, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
 		t.Errorf("a floci proving run must write nothing, got %+v", w)
 	}
 	if RecordsLiveCert(refused) {

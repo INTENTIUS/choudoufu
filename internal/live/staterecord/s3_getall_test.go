@@ -92,10 +92,17 @@ func TestS3GetAllIsCompleteOrItFails(t *testing.T) {
 	}
 }
 
-// TestS3GetAllOmitsAKeyDeletedBetweenListAndGet is the one legitimate
-// omission, and the test that tells it apart from the case above: a 404 is
-// "deleted in between", answered by leaving the key out, with no error.
-func TestS3GetAllOmitsAKeyDeletedBetweenListAndGet(t *testing.T) {
+// TestS3GetAllRefusesAKeyThatVanishedBetweenListAndGet is what used to be
+// this file's "one legitimate omission": a key the LIST named whose GET
+// answers 404 was dropped from the map with no error. GitHub issue #1355 is
+// why it is refused instead - see [S3Store.GetAll]'s own doc comment. The
+// map is the run's settled answer for the whole namespace, so a key missing
+// from it is an instance missing from prior state, and on `apply -destroy`
+// that is one fewer resource destroyed under a success line.
+//
+// The refusal has to name the key: "something under this prefix went
+// missing" sends an operator to read a whole bucket.
+func TestS3GetAllRefusesAKeyThatVanishedBetweenListAndGet(t *testing.T) {
 	for _, parallelism := range getAllParallelisms {
 		t.Run(fmt.Sprintf("parallelism=%d", parallelism), func(t *testing.T) {
 			store, fake, keys := s3StoreForGetAll(t, parallelism, 20)
@@ -107,19 +114,48 @@ func TestS3GetAllOmitsAKeyDeletedBetweenListAndGet(t *testing.T) {
 				return 0
 			}
 			got, err := store.GetAll(context.Background(), getAllNamespace)
+			if err == nil {
+				t.Fatalf("GetAll returned %d of %d records and no error: a map short by a key the LIST named reads as an estate with one fewer instance", len(got), len(keys))
+			}
+			if got != nil {
+				t.Errorf("GetAll returned an error AND a map of %d records; a caller that ignores the error has a partial namespace", len(got))
+			}
+			if !strings.Contains(err.Error(), gone) {
+				t.Errorf("the refusal does not name the key that went missing (%q): %v", gone, err)
+			}
+		})
+	}
+}
+
+// TestS3GetAllRereadsBeforeBelievingA404 is the other half of the fix, and
+// the half that makes it more than a refusal: a 404 for a key nobody deleted
+// is asked again, and a second answer that finds the record is the one that
+// counts. Without the re-read this fan-out turns one transient 404 into a
+// failed plan; with it, the plan is the true one and the store was merely
+// asked twice.
+func TestS3GetAllRereadsBeforeBelievingA404(t *testing.T) {
+	for _, parallelism := range getAllParallelisms {
+		t.Run(fmt.Sprintf("parallelism=%d", parallelism), func(t *testing.T) {
+			store, fake, keys := s3StoreForGetAll(t, parallelism, 20)
+			flaky := keys[3]
+			var once atomic.Bool
+			fake.beforeGet = func(path string) int {
+				if strings.HasSuffix(path, flaky) && once.CompareAndSwap(false, true) {
+					return http.StatusNotFound
+				}
+				return 0
+			}
+			got, err := store.GetAll(context.Background(), getAllNamespace)
 			if err != nil {
-				t.Fatalf("a key deleted between the LIST and its GET failed the whole read: %v", err)
+				t.Fatalf("one transient 404 failed the whole read: %v", err)
 			}
-			if _, present := got[gone]; present {
-				t.Errorf("the deleted key %q is in the map", gone)
+			if len(got) != len(keys) {
+				t.Fatalf("got %d records, want %d", len(got), len(keys))
 			}
-			if len(got) != len(keys)-1 {
-				t.Errorf("got %d records, want %d: every key but the deleted one", len(got), len(keys)-1)
+			if !once.Load() {
+				t.Fatal("the injected 404 never fired, so this run measured an ordinary read")
 			}
 			for _, key := range keys {
-				if key == gone {
-					continue
-				}
 				if rec, ok := got[key]; !ok || string(rec.Payload) != key || rec.Version == "" {
 					t.Errorf("record %q is missing, or carries the wrong payload or no version: %+v", key, rec)
 				}

@@ -17,6 +17,8 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // This file is the third carrier live-import can write a marker through
@@ -116,6 +118,57 @@ func manifestFieldManager(obj cty.Value) string {
 		}
 	}
 	return ""
+}
+
+// seedManifestKeys is GitHub issue #1391: the metadata.labels and
+// metadata.annotations keys a migrated manifest-shaped instance's
+// configuration last declared, seeded into the estate's record so that the
+// first key REMOVED after the migration is proposed for removal.
+//
+// Until this existed the apply write-back was the only writer of
+// [projection.residueFields.ManifestMetadataKeys], so an estate that
+// migrated and then deleted its state file - which is what the adopt page
+// tells an operator to do - had no record of what it used to declare at
+// all. A label dropped from the configuration was then quietly kept on the
+// live object for ever, where stock reads its last-applied manifest and
+// removes it. The read side's degradation is deliberate and silent (a
+// missing record proposes removing nothing), so nothing said so.
+//
+// stateObj is the STATE FILE's own recorded object, never the live read.
+// For a stampable instance [Ratify] hands the residue classifier the live
+// read, and this question is not about the live object: it is "what did
+// the last apply DECLARE", which only the state's recorded `manifest`
+// answers. Whether the provider's own ReadResource carries `manifest`
+// through unchanged is not something this has to know.
+//
+// The marker key is added on top, because the write-back's own key set
+// includes it: this fork declares tofu-estate on the configuration's
+// behalf on every plan of a stamped manifest instance, and the migration
+// writes exactly that label by merge patch ([approveManifest]). Seeding it
+// makes the record a migration leaves identical to the one an apply
+// leaves. It can never turn into a proposed removal, because the key the
+// seed adds is the key the stamp puts back into every later plan's prior
+// manifest, and a removal candidate has to be absent from that.
+//
+// nil for anything that is not manifest-shaped, which is the whole of the
+// "a typed kubernetes_* entry gets nothing new" guarantee.
+func seedManifestKeys(schema providers.Schema, stateObj cty.Value) map[string][]string {
+	if schema.Block == nil || !manifestSurface(schema.Block) {
+		return nil
+	}
+	keys, ok := projection.ManifestDeclaredKeys(stateObj)
+	if !ok {
+		return nil
+	}
+	labels := keys[markers.LabelSurfaceAttr]
+	for _, k := range labels {
+		if k == markers.TagEstate {
+			return keys
+		}
+	}
+	keys[markers.LabelSurfaceAttr] = append(labels, markers.TagEstate)
+	sort.Strings(keys[markers.LabelSurfaceAttr])
+	return keys
 }
 
 // approveManifest is [approveOne] for a manifest-shape resource: read the

@@ -122,7 +122,7 @@ var liveCertSelftests = []liveCertSelftest{
 		proves:   "#1046, #1049, #1143 - index_wait polled for a VERIFIED total the Resource Groups Tagging API can never serve, and three real-AWS runs read the resulting plateau as a slow index",
 		runner:   runsInGoTestFile,
 		where:    "indexwait_partition_test.go",
-		measured: "7.4s. Every case passes index_wait a small bound; #1143's first red arm hung on the production 1800s one, which is where #1267's hazard 2 comes from.",
+		measured: "2.4s since #1410 stubbed the clock index_wait reads, so no case sleeps or depends on machine load (7.4s before, most of it real sleeps). Every case passes index_wait a small bound; #1143's first red arm hung on the production 1800s one, which is where #1267's hazard 2 comes from.",
 	},
 	{
 		script: "selftest-kill.sh",
@@ -135,6 +135,15 @@ var liveCertSelftests = []liveCertSelftest{
 			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (240s, watchdog-enforced). " +
 			"What it proves is narrower than its own PASS line says: #1279 - its \"independent verification\" listing is unreachable on any " +
 			"passing run, because the harness removes the emulator container before the driver gets there.",
+	},
+	{
+		script: "selftest-heartbeat.sh",
+		proves: "#1324 - the run log was written at stage boundaries only, so cold_deploy's 5,633s apply left the file unchanged for 1h34m and a wedged stage was byte-identical to a healthy one",
+		runner: runsHere,
+		bound:  90 * time.Second,
+		measured: "14.3s. Extracts the heartbeat block out of terralith-scale.sh and drives it at a 1-second interval; the production default is 60. " +
+			"Its five cases sleep by design - a heartbeat is a thing that happens over time and there is no way to observe one without waiting - " +
+			"and every wait is a fixed small multiple of that interval, plus one bounded poll for the SIGKILL case.",
 	},
 }
 

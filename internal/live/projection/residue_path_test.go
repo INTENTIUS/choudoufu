@@ -531,7 +531,7 @@ func TestRecordResidueForInstanceWritesTheNestedSecretEnvelope(t *testing.T) {
 	applied := listenerApplied()
 	addr := locatedTestAddr(t, "aws_lb_listener", "ex-oidc")
 
-	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, listenerLikeRead(true), cty.NilVal)
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, listenerLikeRead(true), cty.NilVal, nil)
 	if err != nil {
 		t.Fatalf("RecordResidueForInstance: %s", err)
 	}

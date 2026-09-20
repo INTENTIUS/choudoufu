@@ -173,6 +173,16 @@ type residuable struct {
 	// state file is where it is written down.
 	applied cty.Value
 
+	// manifestKeys is GitHub issue #1391's seed: for a manifest-shaped
+	// instance, the metadata.labels and metadata.annotations keys the
+	// STATE's own recorded manifest declares, plus the marker key this
+	// migration writes. nil for every other type. Computed at ratification
+	// because that is where the state's recorded object is in hand -
+	// applied above is the live read for a stampable instance, and this
+	// question is about what the last apply declared. See
+	// [seedManifestKeys].
+	manifestKeys map[string][]string
+
 	identity cty.Value
 	private  []byte
 }
@@ -744,6 +754,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		schema:       schema,
 		typeName:     typeName,
 		applied:      readResp.NewState,
+		manifestKeys: seedManifestKeys(schema, priorVal),
 		identity:     readResp.NewIdentity,
 		private:      readResp.Private,
 		providerAddr: res.ProviderConfig,
@@ -863,6 +874,7 @@ func ratifyUntaggable(entry Entry, provider providers.Interface, schema provider
 		schema:       schema,
 		typeName:     typeName,
 		applied:      applied,
+		manifestKeys: seedManifestKeys(schema, applied),
 		identity:     prior.Identity,
 		private:      prior.Private,
 		providerAddr: providerAddr,

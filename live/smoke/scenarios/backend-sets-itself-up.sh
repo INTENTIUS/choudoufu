@@ -262,11 +262,12 @@ proof "the next run finished the work, first try. Every object in the bucket is 
 
 step "5. teardown - and this time there IS something to deprovision"
 cmd "choudoufu apply -destroy -auto-approve   # in both copies"
-( cd "$SMOKE_WORK/a" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "auto" "copy a teardown failed"
+A_D_OUT="$(cd "$SMOKE_WORK/a" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
+  || fail "auto" "copy a teardown failed: $A_D_OUT"
+destroyed_exactly auto 1 "$A_D_OUT"
 D_OUT="$(cd "$SMOKE_WORK/b" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
   || fail "auto" "copy b teardown failed: $D_OUT"
-grep -q "2 destroyed" <<< "$D_OUT" || fail "auto" "copy b's teardown did not destroy both instances: $D_OUT"
+destroyed_exactly auto 2 "$D_OUT"
 cmd "just down $BUCKET"
 DN_OUT="$(cd "$PROJECT" && just down "$BUCKET" 2>&1)" && fail "auto" "just down removed a bucket that still held recoverable record versions: $DN_OUT"
 grep -q "REFUSING" <<< "$DN_OUT" || fail "auto" "just down failed, but not by refusing: $DN_OUT"
