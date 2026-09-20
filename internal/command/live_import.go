@@ -276,9 +276,12 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
   prints a ratification report. No tag is written on this run.
 
   Rerun with the same two flags plus -approve to stamp this estate's
-  tofu-estate and tofu-address markers onto every resource the report showed
-  as VERIFIED or DRIFTED. Every other status - MISSING, UNTAGGABLE,
-  UNADMITTED_TYPE - is never stamped; the report says why for each one.
+  ownership marker onto every resource the report showed as VERIFIED or
+  DRIFTED. On AWS that marker is two tags, tofu-estate and tofu-address. On
+  Kubernetes it is one label, tofu-estate, and no address: an object is
+  re-bound by its own group, kind, namespace and name, so the address never
+  goes onto it. Every other status - MISSING, UNTAGGABLE, UNADMITTED_TYPE -
+  is never stamped; the report says why for each one.
 
   The state file is opened exactly once, at the start of the run, and is
   never opened again - not to write it, and not to read it a second time,
@@ -298,9 +301,17 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
 
   Only resource types with a row in the live-markers admission table
   (live/LIMITATIONS.md) can be verified or stamped at all, and only those
-  whose provider schema carries a tags argument can carry a marker. Every
-  module is considered, root and child alike, and a stamped tofu-address
-  carries the resource's full module path.
+  whose provider schema offers somewhere to write the marker can carry one:
+  an AWS tags argument, a Kubernetes metadata.labels map, or the manifest a
+  kubernetes_manifest holds, which is labelled by one merge patch against
+  the API server. Every module is considered, root and child alike, and a
+  stamped tofu-address carries the resource's full module path.
+
+  An estate name may be up to 128 characters, but a Kubernetes label value
+  is capped at 63 and has its own character rules. When the state holds any
+  object whose marker is a label, a name that cannot be written as a label
+  value is refused once, by the read-only run, rather than once per object
+  at -approve.
 
 Options:
 
@@ -320,7 +331,8 @@ Options:
                           configuration already runs at, over the same kind
                           of work: one provider plan+apply round trip per
                           resource. Lower it if the account's tagging APIs
-                          push back. No effect without -approve.
+                          or the cluster's API server push back. No effect
+                          without -approve.
 
   -no-color               If specified, output won't contain any color.
 
