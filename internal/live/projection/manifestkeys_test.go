@@ -470,7 +470,7 @@ func TestManifestDeclaredKeysReadsTheAppliedManifest(t *testing.T) {
 			"annotations": liveStringMap(map[string]string{"reviewed": "yes", "scraped": "true"}),
 		},
 	)
-	got, ok := manifestDeclaredKeys(applied)
+	got, ok := ManifestDeclaredKeys(applied)
 	if !ok {
 		t.Fatal("an applied manifest was not recognised")
 	}
@@ -489,7 +489,7 @@ func TestManifestDeclaredKeysReadsTheAppliedManifest(t *testing.T) {
 		map[string]cty.Value{"labels": priorObjectMap(map[string]string{markers.TagEstate: "smoke-crd"})},
 		map[string]cty.Value{"labels": liveStringMap(map[string]string{markers.TagEstate: "smoke-crd"})},
 	)
-	got, ok = manifestDeclaredKeys(none)
+	got, ok = ManifestDeclaredKeys(none)
 	if !ok {
 		t.Fatal("a manifest with no annotations was not recognised")
 	}
@@ -501,10 +501,10 @@ func TestManifestDeclaredKeysReadsTheAppliedManifest(t *testing.T) {
 	// recorded as an empty declaration, which would read as "this
 	// configuration declares no labels" on the next plan and propose
 	// removing every one of them.
-	if _, ok := manifestDeclaredKeys(cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("i-1")})); ok {
+	if _, ok := ManifestDeclaredKeys(cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("i-1")})); ok {
 		t.Error("a non-manifest object produced a declared key set")
 	}
-	if _, ok := manifestDeclaredKeys(cty.NullVal(cty.EmptyObject)); ok {
+	if _, ok := ManifestDeclaredKeys(cty.NullVal(cty.EmptyObject)); ok {
 		t.Error("a null object produced a declared key set")
 	}
 }

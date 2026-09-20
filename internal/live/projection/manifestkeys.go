@@ -345,7 +345,7 @@ func manifestRemovalCandidates(live cty.Value, declared map[string][]string) (ma
 	return out, true
 }
 
-// manifestDeclaredKeys is #1211's WRITE half: the keys an applied
+// ManifestDeclaredKeys is #1211's WRITE half: the keys an applied
 // kubernetes_manifest object's own `manifest` argument declares at
 // metadata.labels and metadata.annotations, in the shape
 // [residueFields.ManifestMetadataKeys] holds.
@@ -357,11 +357,19 @@ func manifestRemovalCandidates(live cty.Value, declared map[string][]string) (ma
 // recorded as declared or the next run would propose removing the marker
 // it just wrote.
 //
+// Exported for GitHub issue #1391's second writer. live-import migrates a
+// manifest-shaped instance out of a stock state file and has to seed the
+// same record from the state's own recorded object, and two writers
+// computing the same key set two ways is how they drift. The migrate
+// caller is internal/live/liveimport's seedManifestKeys, which hands the
+// STATE's object rather than a live read and adds the marker key this
+// migration writes by merge patch.
+//
 // nil (and false) for anything that is not the manifest shape. An object
 // that declares neither map records an empty entry for each, which is a
 // real answer - "this configuration declared no labels" - and is how a
 // removal that empties a map stays visible.
-func manifestDeclaredKeys(v cty.Value) (map[string][]string, bool) {
+func ManifestDeclaredKeys(v cty.Value) (map[string][]string, bool) {
 	if v == cty.NilVal || v.IsNull() || !v.IsKnown() || !v.Type().IsObjectType() {
 		return nil, false
 	}

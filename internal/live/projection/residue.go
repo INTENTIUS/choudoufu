@@ -1148,20 +1148,43 @@ func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
 // ordinary "this type has nothing residue-shaped" or "the provider proved it
 // reads everything from the remote" answer, not a failure.
 //
+// manifestKeys is GitHub issue #1391: the metadata.labels and
+// metadata.annotations keys this instance's migrated configuration last
+// declared, already computed by the caller through [ManifestDeclaredKeys]
+// and nil for every type that is not manifest-shaped. It is a caller's
+// argument and not something this function derives from applied, because
+// the two are different objects here: applied is the LIVE read for a
+// stampable instance, and the key set has to come from the state file's
+// own recorded object - the value the last stock apply sent.
+//
+// It is written even when nothing classifies as residue, which is the
+// ordinary case for kubernetes_manifest: a manifest-shaped instance can
+// have no residue attribute at all and still owe the estate this key set,
+// and returning early on an unclassified instance is exactly how #1391's
+// defect survived #327.
+//
 // Every failure is closed the same way [writeBackResidue] closes one: the
 // caller is expected to turn a non-nil error into a warning, never into a
 // reason to fail the migration over a residue nicety.
-func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error), identityObj cty.Value) (recorded bool, err error) {
+func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error), identityObj cty.Value, manifestKeys map[string][]string) (recorded bool, err error) {
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
-	attrs, ok := classifyResidueAll(schema, applied, secrets, read, identityObj)
-	if !ok {
-		return false, nil
+	var rf *residueFields
+	if attrs, ok := classifyResidueAll(schema, applied, secrets, read, identityObj); ok {
+		rf, err = encodeResidueFields(attrs)
+		if err != nil {
+			return false, fmt.Errorf("encoding residue for %s: %w", addr, err)
+		}
 	}
-	rf, err := encodeResidueFields(attrs)
-	if err != nil {
-		return false, fmt.Errorf("encoding residue for %s: %w", addr, err)
+	if len(manifestKeys) > 0 {
+		if rf == nil {
+			rf = &residueFields{}
+		}
+		rf.ManifestMetadataKeys = manifestKeys
+	}
+	if rf == nil {
+		return false, nil
 	}
 	// Read-before-write rather than a version this call was handed: unlike
 	// the apply write-back path, which already tracked a prior-plan version
