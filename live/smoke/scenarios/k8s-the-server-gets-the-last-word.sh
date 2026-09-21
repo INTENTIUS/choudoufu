@@ -113,7 +113,10 @@ config_block hello
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
+# Every choudoufu call below that runs while a step has a webhook or a
+# policy in the admission chain is chdf_bounded and not chdf (#1457): those
+# are the calls whose answer depends on the API server keeping to a timeout,
+# and one that never returns fails here by name inside CHDF_TIMEOUT_SECS.
 
 # probe_admission runs a throwaway ConfigMap through the whole admission
 # chain and prints the labels the server actually stored, or REJECTED if
@@ -121,9 +124,13 @@ kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 # for the policy it just installed to be live instead of sleeping a guess -
 # a registered webhook or policy takes a second or two to reach the
 # admission plugins and a fixed sleep is how these scenarios flake.
+#
+# A request that times out fails like a refused one and is reported as
+# REJECTED with kubectl's own message, which is why step 1 waits for the
+# webhook's words and not for the bare verdict (#1457).
 probe_admission() {
   local out
-  kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1
+  kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
   if ! out="$(kc create configmap admission-probe -n "$NS" --from-literal=a=b 2>&1)"; then
     echo "REJECTED on create: $out"; return
   fi
@@ -144,20 +151,33 @@ probe_admission() {
 # $2 is not empty, do NOT match $2 - absence is half of what these steps
 # wait for, and no single pattern can say it. $3 describes the state for
 # the failure line.
+#
+# The bound is a deadline on the clock, not a number of tries (#1457). Thirty
+# tries bounded nothing while one try could take for ever, and with a request
+# timeout on every call thirty slow tries would still add up to a quarter of
+# an hour.
+#
+# The probe runs right after a fail-closed webhook or policy goes into the
+# chain, which is when a request is most likely to stall, so every request in
+# here gets a shorter timeout than kc's default. The deletes that tidy the
+# probe away are `|| true` for the same reason: under `set -e` one of them
+# timing out would end the run before the fail line below is printed.
 wait_admission() {
-  local want="$1" absent="$2" what="$3" i out=""
-  for i in $(seq 1 30); do
+  local want="$1" absent="$2" what="$3" out="" deadline
+  local KC_REQUEST_TIMEOUT="${PROBE_REQUEST_TIMEOUT:-10s}"
+  deadline=$(( $(date +%s) + ${ADMISSION_WAIT_SECS:-120} ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
     out="$(probe_admission)"
     if grep -qE "$want" <<< "$out"; then
       if [ -z "$absent" ] || ! grep -qE "$absent" <<< "$out"; then
-        kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1
+        kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
         return 0
       fi
     fi
     sleep 2
   done
-  kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1
-  fail "$SCEN" "admission never reached the state this step needs ($what); the last probe stored: ${out:-<nothing>}"
+  kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
+  fail "$SCEN" "admission did not reach the state this step needs within ${ADMISSION_WAIT_SECS:-120}s ($what); the last probe stored: ${out:-<nothing>}"
 }
 
 # The rejecting webhook: a real ValidatingWebhookConfiguration, fail-closed,
@@ -303,7 +323,7 @@ grep -qE 'Plan: 0 to add, 1 to change, 0 to destroy' <<< "$PLAN_SAVED" \
 [ -f "$SMOKE_WORK/saved.tfplan" ] || fail "$SCEN" "plan -out wrote no artifact"
 kc apply -f "$SMOKE_WORK/validating-webhook.yaml" >/dev/null \
   || fail "$SCEN" "could not install the validating webhook"
-wait_admission 'REJECTED' '' "the fail-closed webhook refusing writes to ConfigMaps in $NS"
+wait_admission 'REJECTED.*failed calling webhook' '' "the fail-closed webhook refusing writes to ConfigMaps in $NS"
 kc get validatingwebhookconfiguration smoke-policy-gate -o jsonpath='{.webhooks[0].name} failurePolicy={.webhooks[0].failurePolicy} endpoint={.webhooks[0].clientConfig.service.name}{"\n"}' | evidence
 proof "a real webhook is in the admission chain, fail-closed, with nothing behind it. The approved plan is on disk and was written before any of this."
 
@@ -316,7 +336,7 @@ explain \
   "the object keeps its marker - a refused write is not a partial one."
 cmd "choudoufu apply saved.tfplan"
 APPLY_RC=0
-APPLY2="$(cd "$SMOKE_WORK" && chdf apply -input=false -no-color saved.tfplan 2>&1)" || APPLY_RC=$?
+APPLY2="$(cd "$SMOKE_WORK" && chdf_bounded apply -input=false -no-color saved.tfplan 2>&1)" || APPLY_RC=$?
 grep -E '^Error: ' <<< "$APPLY2" | head -1 | evidence
 [ "$APPLY_RC" != "0" ] \
   || fail "$SCEN" "the apply exited 0 under a fail-closed webhook; the write cannot have been refused: $APPLY2"
@@ -370,7 +390,7 @@ kc apply -f "$SMOKE_WORK/rewriter.yaml" >/dev/null \
   || fail "$SCEN" "could not install the rewriting policy (it needs a cluster serving admissionregistration.k8s.io/v1 MutatingAdmissionPolicy)"
 wait_admission 'owner=platform-team' '' "the rewriting policy overwriting owner on every write"
 config_block goodbye 'owner = "payments-team"'
-APPLY4="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+APPLY4="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "the apply under the rewriting policy failed: $APPLY4"
 grep -E 'Apply complete!' <<< "$APPLY4" | evidence
 kc get configmap app-config -n "$NS" -o jsonpath='labels={.metadata.labels}{"\n"}' | evidence
@@ -380,7 +400,7 @@ kc get configmap app-config -n "$NS" -o jsonpath='labels={.metadata.labels}{"\n"
   || fail "$SCEN" "the rewriting policy took the marker off; this step is supposed to leave ownership alone"
 rm -f "$SMOKE_WORK/.terraform/choudoufu-cache.tfstate"
 for n in 1 2; do
-  PLAN_D="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+  PLAN_D="$(cd "$SMOKE_WORK" && chdf_bounded plan -input=false -no-color 2>&1)" \
     || fail "$SCEN" "drift plan $n failed: $PLAN_D"
   grep -E '^Plan:' <<< "$PLAN_D" | sed "s/^/plan $n: /" | evidence
   grep -qE 'Plan: 0 to add, 1 to change, 0 to destroy' <<< "$PLAN_D" \
@@ -463,7 +483,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     || fail "$SCEN" "BREAK: could not install the decoy stripper"
   wait_admission 'tofu-estate=probe' 'smoke-decoy' "the decoy stripper removing smoke-decoy and leaving tofu-estate"
   config_block hello 'smoke-decoy = "present"'
-  BAPPLY="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  BAPPLY="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" \
     || fail "$SCEN" "BREAK: apply failed: $BAPPLY"
   grep -E 'Apply complete!' <<< "$BAPPLY" | evidence
   BLABELS="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels}')"
@@ -480,20 +500,20 @@ if [ "${BREAK:-0}" = "1" ]; then
   if grep -q 'Ownership marker was not stored' <<< "$BAPPLY"; then
     fail "$SCEN" "BREAK: the marker landed and the run still said it was not stored, so steps 6 and 7 are asserting scenery: $BAPPLY"
   fi
-  BLS="$(cd "$SMOKE_WORK" && chdf live-ls -estate="$ESTATE" -no-color . 2>&1)" \
+  BLS="$(cd "$SMOKE_WORK" && chdf_bounded live-ls -estate="$ESTATE" -no-color . 2>&1)" \
     || fail "$SCEN" "BREAK: live-ls failed: $BLS"
   grep -E 'carry its marker' <<< "$BLS" | evidence
   grep -q "Estate \"$ESTATE\": 1 resource(s) carry its marker" <<< "$BLS" \
     || fail "$SCEN" "BREAK: live-ls does not list the object as this estate's: $BLS"
   BAPPLY2_RC=0
-  BAPPLY2="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || BAPPLY2_RC=$?
+  BAPPLY2="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" || BAPPLY2_RC=$?
   grep -E 'Apply complete!|^Error: ' <<< "$BAPPLY2" | head -1 | evidence
   [ "$BAPPLY2_RC" = "0" ] \
     || fail "$SCEN" "BREAK: the second apply wedged even with the marker intact: $(grep -E '^Error' <<< "$BAPPLY2" | head -2)"
   if grep -q 'already exists' <<< "$BAPPLY2"; then
     fail "$SCEN" "BREAK: the second apply hit the name collision the main arm measures, with the marker on the object: $BAPPLY2"
   fi
-  ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
+  ( cd "$SMOKE_WORK" && chdf_bounded apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   kc delete -f "$SMOKE_WORK/stripper.yaml" >/dev/null 2>&1 || true
   kc delete namespace "$NS" --wait=false >/dev/null 2>&1 || true
   proof "caught. With the identical policy pointed at a decoy key the decoy is gone, the marker landed, live-ls lists the object as this estate's and the second apply is a no-op - so the wedge the main arm measures is the stripped marker's doing and not a label choudoufu never wrote."
@@ -522,7 +542,7 @@ kc apply -f "$SMOKE_WORK/stripper.yaml" >/dev/null \
   || fail "$SCEN" "could not install the stripping policy"
 wait_admission 'smoke-decoy=present' 'tofu-estate' "the stripping policy removing tofu-estate and leaving every other label"
 config_block hello
-APPLY6="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+APPLY6="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "the apply under the stripping policy failed: $APPLY6"
 grep -E 'Creation complete|Apply complete!|^Warning: Ownership marker was not stored' <<< "$APPLY6" | evidence
 grep -qE 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed' <<< "$APPLY6" \
@@ -566,7 +586,7 @@ explain \
   "object is exactly as it was before the run, and step 8 adopts it in" \
   "one apply once the policy allows the label."
 cmd "choudoufu plan && choudoufu apply -auto-approve && kubectl label ... && (declared_untagged = \"adopt\") choudoufu apply -auto-approve"
-PLAN7="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+PLAN7="$(cd "$SMOKE_WORK" && chdf_bounded plan -input=false -no-color 2>&1)" \
   || fail "$SCEN" "plan after the stripped create failed: $PLAN7"
 grep -E '^Plan:|Live resource outside this estate' <<< "$PLAN7" | head -2 | evidence
 grep -q 'Live resource outside this estate' <<< "$PLAN7" \
@@ -575,13 +595,13 @@ grep -q 'carries no tofu-estate label' <<< "$PLAN7" \
   || fail "$SCEN" "the warning does not name the missing marker: $(grep -A4 'outside this estate' <<< "$PLAN7" | head -6)"
 grep -qE 'Plan: 1 to add, 0 to change, 0 to destroy' <<< "$PLAN7" \
   || fail "$SCEN" "the plan does not fall back to proposing the create: $PLAN7"
-LS7="$(cd "$SMOKE_WORK" && chdf live-ls -estate="$ESTATE" -no-color . 2>&1)" \
+LS7="$(cd "$SMOKE_WORK" && chdf_bounded live-ls -estate="$ESTATE" -no-color . 2>&1)" \
   || fail "$SCEN" "live-ls failed: $LS7"
 grep -E 'carry its marker' <<< "$LS7" | evidence
 grep -q "Estate \"$ESTATE\": 0 resource(s) carry its marker" <<< "$LS7" \
   || fail "$SCEN" "live-ls does not report the estate empty; the marker must have landed after all: $LS7"
 WEDGE_RC=0
-WEDGE="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || WEDGE_RC=$?
+WEDGE="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" || WEDGE_RC=$?
 grep -E '^Error: ' <<< "$WEDGE" | head -1 | evidence
 [ "$WEDGE_RC" != "0" ] \
   || fail "$SCEN" "the second apply exited 0; it was supposed to hit the name the unmarked object holds: $WEDGE"
@@ -606,7 +626,7 @@ RV_BEFORE="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.resour
 declare -a RVS=()
 for n in 1 2; do
   ADOPT_RC=0
-  ADOPT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || ADOPT_RC=$?
+  ADOPT="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" || ADOPT_RC=$?
   grep -E 'Apply complete!|^Error: ' <<< "$ADOPT" | head -1 | sed "s/^/adopt run $n: /" | evidence
   # #1192's second half, and the one an exit code reads. An adopting
   # update whose whole content is the marker, applied against a server

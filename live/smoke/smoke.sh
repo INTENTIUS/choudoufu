@@ -17,6 +17,14 @@
 #   BREAK=1                    corrupt one expected fact mid-scenario and
 #                              require the scenario to CATCH it - proof the
 #                              assertions are load-bearing, never scenery
+#
+# Bounds, for the k8s-* scenarios (issue #1457). Each fails the scenario by
+# name, with the step it was in, and the cluster is still deleted:
+#   SMOKE_TIMEOUT_SECS=600     the whole scenario. Default: twice the claim's
+#                              `minutes` in claims.json, and at least 600
+#   CHDF_TIMEOUT_SECS=300      one choudoufu call made while the step has the
+#                              cluster's admission chain failing or rewriting
+#   KC_REQUEST_TIMEOUT=30s     one kubectl request (kubectl --request-timeout)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -48,11 +56,60 @@ export SMOKE_WORKROOT
 # shellcheck source=lib.sh
 . "$HERE/lib.sh"
 
-cleanup() { stack_down; cluster_down; rm -rf "$SMOKE_WORKROOT"; }
+# The scenario bound (#1457). Nothing between `just smoke <name>` and the API
+# server had a time limit, so one stalled call took the whole CI job timeout
+# and printed nothing. smoke_stall in lib.sh does the reporting and the
+# killing. What is here is the part only the entrypoint can do: keep the
+# stderr this run started with open as fd 9, so a bound that fires inside a
+# `$(... 2>&1)` still prints where an operator reads; exit on the TERM the
+# stall sends; and delete the cluster on the way out as on any other exit.
+SMOKE_SCENARIO="$SCENARIO"
+exec 9>&2
+SMOKE_ERR_FD=9
+WATCHDOG_PID=""
+
+# scenario_bound_secs prints the scenario's bound: SMOKE_TIMEOUT_SECS, or
+# twice the claim's measured minutes with a floor of ten. CI runs these at up
+# to 1.8 times the claims.json figure (kind on a shared runner), so twice is
+# the smallest multiple that does not fail a healthy run, and the floor
+# covers the two-minute claims, where cluster_up alone is most of the time.
+scenario_bound_secs() {
+  if [ -n "${SMOKE_TIMEOUT_SECS:-}" ]; then echo "$SMOKE_TIMEOUT_SECS"; return 0; fi
+  python3 - "$HERE/claims.json" "$SCENARIO" <<'PY'
+import json, sys
+minutes = [c.get("minutes", 0) for c in json.load(open(sys.argv[1]))["claims"]
+           if c.get("scenario", "").endswith("/" + sys.argv[2] + ".sh")]
+print(max(600, 2 * 60 * max(minutes + [0])))
+PY
+}
+
+cleanup() {
+  # errexit off: this is a trap body, and the first command that fails in one
+  # ends it with every later step skipped and nothing printed (#1378).
+  set +e
+  [ -z "$WATCHDOG_PID" ] || smoke_timer_stop "$WATCHDOG_PID"
+  stack_down; cluster_down
+  if [ -d "$SMOKE_WORKROOT/stalled" ]; then rm -rf "$SMOKE_WORKROOT"; exit 124; fi
+  rm -rf "$SMOKE_WORKROOT"
+}
 trap cleanup EXIT
+# 124 is what timeout(1) exits with. A TERM from anywhere else keeps its 143.
+trap 'if [ -d "$SMOKE_WORKROOT/stalled" ]; then exit 124; else exit 143; fi' TERM
 
 resolve_choudoufu
 banner "$SCENARIO"
+
+# Only the k8s-* scenarios are bounded. The real-AWS scenarios tear down in
+# EXIT traps of their own that run before cleanup stops the watchdog, and a
+# bound firing in the middle of one would kill the calls that delete what
+# the run created.
+case "$SCENARIO" in
+  k8s-*)
+    BOUND="$(scenario_bound_secs)"
+    smoke_timer "$BOUND" "no verdict after ${BOUND}s" SMOKE_TIMEOUT_SECS
+    WATCHDOG_PID="$SMOKE_TIMER_PID"
+    ;;
+esac
 
 # shellcheck source=/dev/null
 . "$HERE/scenarios/$SCENARIO.sh"
