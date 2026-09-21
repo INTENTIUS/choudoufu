@@ -342,6 +342,33 @@ func TestKubernetesListRefusesTwoSecretsHoldingOneKey(t *testing.T) {
 	}
 }
 
+// TestMisnamedRecordErrorSendsTheLongCommandToTheDocs pins where the A3
+// refusal stops. Moving a record Secret to the name its key hashes to is a
+// get, an edit of three metadata fields and a create, which is a jq pipeline;
+// a reader meeting it in an error message has to parse it under pressure and
+// may not have jq installed at all. So the message carries the one command
+// that is short and total - delete the copy - and sends the other to
+// live/STORAGE.md, where it can be read beside what it does.
+func TestMisnamedRecordErrorSendsTheLongCommandToTheDocs(t *testing.T) {
+	err := &MisnamedRecordError{
+		Namespace:  fakeRecordNamespace,
+		SecretName: "tofu-record-copied-by-hand",
+		Key:        "tofu-records/alice/aws_thing/one",
+		WantName:   "tofu-record-69111df5",
+	}
+	got := err.Error()
+	if strings.Contains(got, "jq") {
+		t.Errorf("the refusal carries a jq pipeline, which belongs in live/STORAGE.md: %s", got)
+	}
+	if !strings.Contains(got, "live/STORAGE.md") {
+		t.Errorf("the refusal does not say where the command that moves the record is: %s", got)
+	}
+	want := "If it is a copy, delete it with `kubectl -n " + fakeRecordNamespace + " delete secret tofu-record-copied-by-hand`."
+	if !strings.Contains(got, want) {
+		t.Errorf("the refusal does not carry %q: %s", want, got)
+	}
+}
+
 // setLabels replaces a Secret's labels wholesale, which is what a restore that
 // dropped them or a `kubectl label secret NAME key-` leaves behind.
 func setLabels(t *testing.T, cs *fake.Clientset, name string, labels map[string]string) {
