@@ -571,7 +571,10 @@ showing its own checks would have caught it.
   forwarded. The BREAK control rebuilds
   choudoufu with no If-Match on the write (go build -overlay, needs Go,
   refuses a release binary) and passes only when both applies are caught
-  reporting success (#1338). Needs python3.
+  reporting success (#1338). Needs python3. The same claim on the
+  Kubernetes record store is step 10 of `k8s-records-in-the-cluster`,
+  where a RoundTripper parks each writer's first request until both are
+  parked (#1441).
 
 - **cas-holds-under-every-sse-flavour** - *Claim 33: compare-and-swap
   holds under every SSE flavour.* **Real AWS, maintainer-run, not in

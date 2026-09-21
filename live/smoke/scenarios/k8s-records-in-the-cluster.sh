@@ -1,5 +1,5 @@
 # k8s-records-in-the-cluster
-# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~14 min.
+# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~14 min.
 #
 # GitHub issue #1392, under the #1398 ruling. Until this, a Kubernetes-only
 # estate had two choices for its records: "local", which is one machine's
@@ -8,10 +8,13 @@
 # in a namespace, metadata.resourceVersion as the conditional write, and no
 # lock and no Lease.
 #
-# Nine steps, each measuring one of the things that would make the store a
+# Ten steps, each measuring one of the things that would make the store a
 # bad idea if it were not true. Steps 1 to 5 are the store (#1392); steps 6
 # to 9 are what it checks about the cluster before it writes a record
-# (#1393), which is the bucket contract's shape sized for a cluster.
+# (#1393), which is the bucket contract's shape sized for a cluster; step 10
+# is claim 32 on this store (#1441), which needs the cluster steps 1 to 9
+# already stood up and so comes last rather than beside the other store
+# steps.
 #
 #   1. The Store contract, against this cluster's own API server. The same
 #      suite internal/live/staterecord holds the local and bucket stores to.
@@ -42,13 +45,22 @@
 #   9. #1370 on this store: an identity with get and list on the record
 #      Secrets plans, writes nothing, and is told by name what it lacks for
 #      an apply.
+#  10. Claim 32 on this store (#1441): two writers, one record, both holding
+#      one resourceVersion and both parked on the wire until the other has
+#      arrived. Six update-vs-update rounds and six create-vs-create rounds,
+#      each releasing the parked requests in an order this step picks, and
+#      each requiring one winner, one VersionConflictError naming both
+#      versions, and no trace of the loser's payload in the record.
 #
 # BREAK=1 takes the three fences away and requires what they refused to go
 # through: the plan role is given cluster-wide secret reads and must then
 # read Bob's records, the admission policy is removed and Bob's write into
 # Alice's record Secret must then land, and the scoped identity step 6's
 # contract passed is widened to read secrets cluster-wide, after which the
-# same first contact must be refused on read_isolation.
+# same first contact must be refused on read_isolation. It adds a fourth
+# control for step 10: each write becomes the stock backend's read-then-update
+# (client.go:86) and the same twelve rounds must then end with both writes
+# landed and nothing named.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-records-in-the-cluster"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -637,6 +649,83 @@ grep -q 'may not create, update, delete secrets' <<< "$AI" \
   || fail "k8srec" "the apply question does not name the three verbs the identity lacks: $AI"
 proof "a plan under an identity holding get and list on the record Secrets and nothing else read the estate back and proposed nothing, and no record Secret's resourceVersion moved. The contract agrees: that identity passes the plan question by name and fails the apply question by name, naming create, update and delete."
 
+step "10. two writers, one record, held at the wire"
+explain \
+  "Claim 32 on the bucket store holds two PutObjects at a proxy until" \
+  "both have arrived and then requires one winner and one named conflict" \
+  "every round. This is that measurement on this store. Two writers, each" \
+  "with its own connection to this API server, read one record and come" \
+  "away with one resourceVersion. A RoundTripper wrapped around each" \
+  "writer's client parks the first request of its write, unanswered, until" \
+  "BOTH writers are parked, and then lets them through one at a time, each" \
+  "finishing before the next starts." \
+  "" \
+  "Two goroutines calling Update without that would mostly serialise: one" \
+  "write finishes before the other begins, which is a sequence and proves" \
+  "nothing about a race. So every round reports the gap between the two" \
+  "arrivals and how long each request sat on the wire, and a round whose" \
+  "requests were not parked together is counted apart and fails the run." \
+  "" \
+  "Both conditional writes this store has are raced, six rounds each," \
+  "alternating which parked request is released first: two updates" \
+  "carrying one resourceVersion, and two creates of a key that holds no" \
+  "record yet. Every round must land exactly one write, refuse the other" \
+  "with a VersionConflictError naming the version it expected and the" \
+  "version the store holds, and leave the refused writer's payload" \
+  "nowhere in the record, which is read back through a third client that" \
+  "the barrier never touches."
+RACE_NS="tofu-records-k8srec-race"
+kc create namespace "$RACE_NS" >/dev/null || fail "k8srec" "could not create the race records namespace"
+cmd "go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord   # against the kind cluster"
+RACE_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
+  go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && RACE_RC=0 || RACE_RC=$?
+# `awk NR<=3` and not `head -3`: under pipefail a head that closes the pipe
+# early can take the whole evidence pipeline down with it, and an evidence
+# line that kills the run leaves the assertions below unreached.
+{ grep -E 'RACE-ROUND' <<< "$RACE_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | awk 'NR<=3' | evidence
+{ grep -E 'RACE-SUMMARY' <<< "$RACE_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | evidence
+# Anchored at column zero: that is where `go test` writes a test's own
+# result, while everything the test logs is indented. An unanchored
+# --- PASS would also match the subtests, and an unanchored --- SKIP would
+# match a log line quoting one.
+grep -qE '^--- SKIP: TestKubernetesTwoWritersOneRecord ' <<< "$RACE_OUT" \
+  && fail "k8srec" "the two-writer race SKIPPED; a skip is not a pass and this step measured nothing"
+RACE_TOTAL="$(grep -oE 'RACE-SUMMARY case=total .*' <<< "$RACE_OUT" | tail -1 || true)"
+[ -n "$RACE_TOTAL" ] \
+  || fail "k8srec" "the race printed no verdict line at all, so this step measured nothing: $RACE_OUT"
+# The verdict is this line and not the exit code, and every number in it is
+# exact rather than a floor. rounds=overlapped is the part that says the
+# requests really did overlap: a round that timed out at the barrier is
+# counted in rounds and not in overlapped, so overlapped=0, or anything
+# short of 12, reads here as the failure it is.
+grep -q 'mode=conditional-write rounds=12 overlapped=12 conflicts=12 clobbers=0' <<< "$RACE_TOTAL" \
+  || fail "k8srec" "the race's verdict line reads \"$RACE_TOTAL\"; all 12 rounds must overlap on the wire, each must produce one named conflict, and none may end with both writes landed"
+grep -qE '^--- PASS: TestKubernetesTwoWritersOneRecord \(' <<< "$RACE_OUT" \
+  || fail "k8srec" "the race did not pass: $(grep -E 'round [0-9]+\]|^--- FAIL' <<< "$RACE_OUT" | awk 'NR<=6')"
+[ "$RACE_RC" = "0" ] \
+  || fail "k8srec" "the race printed a passing verdict and exited $RACE_RC, so something outside the rounds failed: $(tail -10 <<< "$RACE_OUT")"
+cmd "kubectl get leases,secrets -n $RACE_NS   # after 12 contended writes, nothing lock-shaped"
+# Both listings are captured with their own exit status checked, and the
+# Secret listing has to hold the race's own records. A `kubectl | grep -i
+# lock && fail` reads clean when the kubectl failed, and a listing of a
+# namespace the race never wrote to reads clean for having seen nothing:
+# either way the absence below would be nobody's absence.
+RACE_LEASES="$(kc get leases -n "$RACE_NS" -o name 2>&1)" \
+  || fail "k8srec" "listing Leases in $RACE_NS failed, so whether the race took one was never answered: $RACE_LEASES"
+RACE_SECRETS="$(kc get secrets -n "$RACE_NS" -o name 2>&1)" \
+  || fail "k8srec" "listing Secrets in $RACE_NS failed, so whether the race left anything lock-shaped was never answered: $RACE_SECRETS"
+RACE_RECORDS="$(grep -c '^secret/tofu-record-' <<< "$RACE_SECRETS" || true)"
+echo "record Secrets in the race namespace: $RACE_RECORDS; leases: ${RACE_LEASES:-none}" | evidence
+# Seven: the one record the update rounds contend over, and the six the
+# create rounds each make. The test leaves them there for this listing.
+[ "$RACE_RECORDS" = "7" ] \
+  || fail "k8srec" "the race's twelve rounds left $RACE_RECORDS record Secrets in $RACE_NS and six created keys plus the one the updates contend over is seven; a listing that cannot see the race's own objects cannot say whether one of them is lock-shaped"
+[ -z "$RACE_LEASES" ] \
+  || fail "k8srec" "twelve contended writes left a Lease in the race namespace; this store takes no lock: $RACE_LEASES"
+grep -qi 'lock' <<< "$RACE_SECRETS" \
+  && fail "k8srec" "an object in the race namespace is named like a lock: $RACE_SECRETS"
+proof "twelve rounds, every one of them with both requests parked on the wire at once, and every one settled by the API server's own optimistic concurrency: one write landed, the other came back as a version conflict naming the version it planned against and the version the store now holds, and the refused payload is not in the record. No Lease and nothing lock-shaped was taken to do it."
+
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - take the two fences away, and what they refused must go through"
   explain \
@@ -742,4 +831,39 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -q 'fails its read_isolation assertion' <<< "$BR" \
     || fail "k8srec" "BREAK: the widened identity was refused for some other reason: $BR"
   proof "step 6's contract can refuse the run it let through: the same estate, the same store, the same command, with cluster-wide secret reads added, is refused by name on read_isolation."
+
+  step "BREAK control - a write that reads the record and updates what it read must lose the race step 10 wins"
+  explain \
+    "Step 10 passes because the version a write carries is the one its" \
+    "caller read, and nothing re-reads it inside the call. The stock" \
+    "backend's Put does the opposite: it reads the Secret and updates what" \
+    "came back (internal/backend/remote-state/kubernetes/client.go, line" \
+    "86). This arm runs step 10's rounds again, with each write swapped for" \
+    "that one and every assertion left alone. The writer released second" \
+    "now reads the winner's object, updates it with its own payload and" \
+    "reports success, so both writers \"win\" and the record holds the" \
+    "payload of the one that was judged second." \
+    "" \
+    "The broken write lives in kubernetes_race_live_test.go and is reached" \
+    "only through an environment variable that file reads, so no build of" \
+    "choudoufu contains it. If this arm were to pass, step 10 would be" \
+    "passing for some reason other than the conditional write and would" \
+    "prove nothing."
+  cmd "CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord"
+  BREAK_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
+    go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && BREAK_RC=0 || BREAK_RC=$?
+  { grep -E 'BOTH writers reported success' <<< "$BREAK_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | awk 'NR<=2' | evidence
+  { grep -E 'RACE-SUMMARY case=total' <<< "$BREAK_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | evidence
+  grep -qE '^--- SKIP: TestKubernetesTwoWritersOneRecord ' <<< "$BREAK_OUT" \
+    && fail "k8srec" "BREAK: the race SKIPPED, so this control measured nothing"
+  BREAK_TOTAL="$(grep -oE 'RACE-SUMMARY case=total .*' <<< "$BREAK_OUT" | tail -1 || true)"
+  [ -n "$BREAK_TOTAL" ] \
+    || fail "k8srec" "BREAK: the race printed no verdict line: $BREAK_OUT"
+  grep -q 'mode=read-then-update rounds=12 overlapped=12 conflicts=0 clobbers=12' <<< "$BREAK_TOTAL" \
+    || fail "k8srec" "BREAK: the verdict line reads \"$BREAK_TOTAL\"; with the write reading the record first, all 12 rounds must end with both writes landed and no conflict named at all"
+  grep -q 'BOTH writers reported success' <<< "$BREAK_OUT" \
+    || fail "k8srec" "BREAK: no round reported two winners, so step 10's assertion was never made to fire: $BREAK_OUT"
+  [ "$BREAK_RC" != "0" ] \
+    || fail "k8srec" "BREAK: the read-then-update write PASSED step 10's assertions, so those assertions cannot fail and step 10 proves nothing"
+  proof "caught - twelve rounds, twelve clobbers, no conflict named once. The same rounds and the same assertions that step 10 passes are failed by a write that reads the record and updates what it read, which is what the conditional write exists to prevent."
 fi

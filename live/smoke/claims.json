@@ -759,8 +759,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. Claim 2 is where contention at a platform's own API is measured."
+          "status": "proven",
+          "note": "Claim 39's scenario, step 10 (#1441): two writers with their own connections to a kind cluster read one record Secret, have the first request of each write parked on the wire until both are parked, and are then released one at a time. Twelve rounds, six update-vs-update and six create-vs-create, each landing exactly one write and refusing the other with a VersionConflictError naming the resourceVersion it planned against and the one the store holds, with the refused payload nowhere in the record and no Lease taken. Run it with `just smoke k8s-records-in-the-cluster`; BREAK=1 swaps each write for the stock backend's read-then-update and requires all twelve rounds to end with both writes landed instead."
         }
       },
       "evidence": [],
@@ -925,13 +925,13 @@
     {
       "id": 39,
       "slug": "k8s-records-in-the-cluster",
-      "title": "Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record",
+      "title": "Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record",
       "scenario": "live/smoke/scenarios/k8s-records-in-the-cluster.sh",
       "command": "just smoke k8s-records-in-the-cluster",
       "minutes": 14,
       "needs_go": true,
       "theme": "gate",
-      "break_mode": "BREAK=1 takes the three fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, the admission policy is removed and the cross-estate write into a record Secret must then land, and the scoped identity whose first contact the cluster contract passed is given cluster-wide secret reads, after which the same first contact must be refused on read_isolation",
+      "break_mode": "BREAK=1 takes the three fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, the admission policy is removed and the cross-estate write into a record Secret must then land, and the scoped identity whose first contact the cluster contract passed is given cluster-wide secret reads, after which the same first contact must be refused on read_isolation. A fourth control covers step 10: each racing write becomes the stock backend's read-then-update and all twelve rounds must then end with both writes landed and no conflict named",
       "substrate": "kubernetes",
       "providers": {
         "aws": {

@@ -48,8 +48,9 @@ BREAK=1 just smoke k8s-records-in-the-cluster and explain why the three
 refusals become successes.
 ```
 
-The nine steps. The first five measure the store; the last four measure
-what it checks about the cluster before it writes a record.
+The ten steps. The first five measure the store, the next four measure
+what it checks about the cluster before it writes a record, and the last
+is claim 32 on this store.
 
 1. `the Store contract, against this cluster's own API server` - the
    conformance suite every record store is held to, run against kind. The
@@ -106,6 +107,20 @@ what it checks about the cluster before it writes a record.
    and no record Secret's `resourceVersion` moves. The contract agrees:
    the same identity passes the plan question and fails the apply
    question, naming `create`, `update` and `delete`.
+10. `two writers, one record, held at the wire` -
+    [claim 32](two-writers-one-record.md) on this store, which had only a
+    test running one writer after the other until
+    [#1441](https://github.com/INTENTIUS/choudoufu/issues/1441). Two
+    writers with their own connections to the cluster read one record and
+    come away with one `resourceVersion`. A `RoundTripper` wrapped around
+    each writer's client parks the first request of its write, unanswered,
+    until both are parked, and then lets them through one at a time. Six
+    rounds of two updates and six of two creates, each requiring one
+    winner, one `VersionConflictError` naming both versions, and no trace
+    of the refused writer's payload in the record. Every round reports how
+    far apart the two requests arrived and how long each sat on the wire,
+    and a round whose requests were not parked together is counted apart
+    and fails the run, because a race that did not overlap is a sequence.
 
 The `BREAK=1` run takes the three fences away and requires what they
 refused to go through: the plan identity is given cluster-wide secret
@@ -113,7 +128,12 @@ reads and must then list the other estate's records, the admission policy
 is removed and the cross-estate write into a record Secret must then land,
 and the scoped identity whose first contact step 6 passed is given
 cluster-wide secret reads, after which the same first contact must be
-refused on `read_isolation`.
+refused on `read_isolation`. A fourth control covers step 10: each write
+becomes the stock backend's read-then-update, which is what
+`backend "kubernetes"` does, and the same twelve rounds must then end with
+both writes landed and no conflict named at all. That writer lives in the
+test file and is reached only through an environment variable it reads, so
+no build of choudoufu carries it.
 
 Two of the four assertions cannot be answered on every cluster. Whether
 Secrets are encrypted at rest is an API server flag, readable where the
