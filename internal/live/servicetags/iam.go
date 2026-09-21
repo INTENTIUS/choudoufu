@@ -87,9 +87,9 @@ type IAMAPI interface {
 // the service wired here because it is the one #1134 measured the Resource
 // Groups Tagging API failing to cover and the one the pinned emulator
 // serves a tag-read operation for. Sixteen more types satisfy the Cloud
-// Control arm in services the tagging index does cover, so the gate in
-// internal/live/discovery keeps this leg off for them; if one ever proves
-// otherwise, it gets its own service wired here and its own entry in the
+// Control arm in services the tagging index does cover, and they have no
+// route here, so the leg never runs for them; if the index proves not to
+// cover one, it gets its own service wired here and its own entry in the
 // table, not a general mechanism written in advance of a need.
 // TestDerivedSetBeyondIAMIsNamedNotSilent names those sixteen.
 var IAMRoutes = map[string]iamTagOp{

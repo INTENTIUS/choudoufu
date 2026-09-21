@@ -367,21 +367,38 @@ per candidate object**, not one per type. It is the only part of the sweep
 that does, and it is written down here rather than left in a source comment
 because every other number on this page is a flat one.
 
-It runs for a resource type only when all three of the ordinary marker
-routes have already failed on that run. The type's CloudFormation schema
-carries no `Tags` property, so Cloud Control's `ListResources` and
-`GetResource` can never return a marker for it however the object is tagged.
-The estate's Resource Groups Tagging API index holds no object of the type
-either, so #266's join has nothing to say.
+It runs for one listed object at a time, and only when every ordinary marker
+route has already failed for that object
+([#1162](https://github.com/INTENTIUS/choudoufu/issues/1162) made the gate
+per object; it used to be per type). The object's own listing carried no
+`tofu-estate`: the type's CloudFormation schema has no `Tags` property, so
+Cloud Control's `ListResources` and `GetResource` can never return one, or
+the provider's list call drops tags by design, as `iam:ListRoles` and
+`iam:ListPolicies` do. The estate's Resource Groups Tagging API index did not
+answer for that object either, so #266's join had nothing to say about it.
+An object the index did answer for is never read.
 
-Both are checked per run against what the target answered. A leg selected by
-service name would be wrong about one of two targets:
+The decision is made per run against what the target answered. A leg
+selected by service name would be wrong about one of two targets:
 [#1134](https://github.com/INTENTIUS/choudoufu/issues/1134) measured a real
-account serving `iam:instance-profile` through `GetResources` in `us-east-1`,
-while the pinned emulator serves no IAM at all
-([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152)). On a target
-where the index serves the type, the leg never runs and the sweep is flat
-exactly as the tables above measure it.
+account serving `iam:instance-profile` and `iam:policy` through
+`GetResources` in `us-east-1` and `iam:role` nowhere, while the pinned
+emulator serves no IAM at all
+([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152)).
+
+The per-type gate this replaces kept the leg off entirely on a target whose
+index held any marked object of the type, and the sweep stayed flat there.
+That rested on the index being complete, and
+[#1046](https://github.com/INTENTIUS/choudoufu/issues/1046) measured that it
+is not: the index lagged the marker writes, holding some of an estate's
+objects and not others. Under the per-type gate an unindexed, marked,
+undeclared role was not read, its destroy was not proposed, and because its
+indexed sibling's join had succeeded no gap was filed either. The per-object
+gate reads it. The price is that on a target whose index serves the type the
+leg now runs for every listed object of a covered type the index did not
+answer for, which is the estate's lagging objects plus every object of that
+type in the account that belongs to somebody else. The two cannot be told
+apart without the read.
 
 Where it does run, the bill is the number of live objects of the covered
 types in the account. On `terralith-scale` that is `aws_iam_instance_profile`
@@ -409,6 +426,48 @@ No batch alternative exists to build a flat shape out of.
 "this operation does not return tags, even though they are an attribute of
 the returned object"), `GetInstanceProfile` and `ListInstanceProfileTags` are
 both per-object, and neither takes a tag filter.
+
+#### The native leg's half: roles, policies and users
+
+[#1125](https://github.com/INTENTIUS/choudoufu/issues/1125) wired the same
+read into the native per-type leg for `aws_iam_role`, `aws_iam_policy` and
+`aws_iam_user`, and this page did not gain a row for it then. Those three
+have a provider list resource, so `scanType` enumerates them, and
+`iam:ListRoles`, `iam:ListPolicies` and `iam:ListUsers` return no tags. On
+`terralith-scale` the estate declares `11 x SCALE` roles (`6 x SCALE` named,
+`2 x SCALE` from `count_team`, `SCALE` service execution roles, `2 x SCALE`
+across the two `team_pod` module instances) and `10 x SCALE` policies, and no
+users. The scale-1 figures are confirmed against #1162's own failing plan,
+which listed 11 `aws_iam_role` and 10 `aws_iam_policy`; the larger rows are
+derived from the generator's expansion and have not been run.
+
+| Instances | Live roles | Live policies | Extra `iam:ListRoleTags` + `iam:ListPolicyTags` calls per sweep |
+|---|---|---|---|
+| 79 (scale 1) | 11 | 10 | 21 |
+| 745 (scale 10) | 110 | 100 | 210 |
+| 4005 (scale 80) | 880 | 800 | 1680 |
+
+Unlike the instance-profile row, this one doubles nothing that was already
+there. The native leg paid no per-object marker call for these types before
+#1125, so each of these calls is a new one.
+
+That table is the emulator, where the account holds the estate and nothing
+else. On a real account the multiplier is the account, not the estate.
+`GetResources` never indexes `iam:role` in any region (#1134), so no role is
+ever answered for by the index and every sweep makes one `iam:ListRoleTags`
+per role in the account: the estate's roles, every other team's, and the
+AWS service-linked roles the account has accumulated. For policies the
+population is whatever the provider's list resource returns; whether that
+includes AWS-managed policies or only customer-managed ones was not checked
+for this page. In `us-east-1`, where the index does serve `iam:policy`, the
+per-object gate still reads every listed policy the index did not return for
+this estate, which is every policy that is not this estate's plus any of the
+estate's the index lags on. In other regions it reads all of them. None of
+this has been measured on real AWS: neither the call count on an account
+with a realistic IAM population, nor the wall-clock cost, nor whether IAM's
+request-rate limit throttles a sweep over a few thousand roles. A refused or
+throttled read is not silent. The object keeps the `MARKER_UNREADABLE` gap,
+even when a sibling's marker was read on the same run.
 
 The measured tables above are unaffected and were not re-taken: the
 `plan-budget` estate `TestPlanCallBudgetAgainstFloci` measures is a single
