@@ -353,9 +353,9 @@ type MisnamedRecordError struct {
 
 func (e *MisnamedRecordError) Error() string {
 	return fmt.Sprintf(
-		"staterecord: kubernetes: Secret %q in namespace %q claims the record for key %q in its %s annotation, and that key hashes to Secret %q; the name is what a read looks up, so this object is in every listing and no read, write or delete of that key can reach it. Move it to the name the key hashes to with `kubectl -n %s get secret %s -o json | jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp) | .metadata.name = \"%s\"' | kubectl create -f -` and then `kubectl -n %s delete secret %s`, or delete it if it is a copy someone left behind",
+		"staterecord: kubernetes: Secret %q in namespace %q claims the record for key %q in its %s annotation, and that key hashes to Secret %q; the name is what a read looks up, so this object is in every listing and no read, write or delete of that key can reach it. If it is a copy, delete it with `kubectl -n %s delete secret %s`. If it is the record, live/STORAGE.md has the command that moves it to the name its key hashes to.",
 		e.SecretName, e.Namespace, e.Key, KubernetesRecordKeyAnnotation, e.WantName,
-		e.Namespace, e.SecretName, e.WantName, e.Namespace, e.SecretName)
+		e.Namespace, e.SecretName)
 }
 
 // DuplicateRecordKeyError reports two or more Secrets in the namespace whose
