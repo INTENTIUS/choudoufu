@@ -90,6 +90,10 @@ func VerifyCluster(ctx context.Context, rs *configs.LiveRecordStore, estate, nam
 		// to establish, and an absent one is reported in the store's own
 		// words.
 		NamespaceKnownToExist: false,
+		// The block's own `insecure = true`, so this report carries the
+		// finding a run would refuse on (#1448). With no block there is no
+		// argument to report.
+		InsecureTLS: rs.Kubernetes.Insecure,
 	})
 	return findings, target, err
 }
