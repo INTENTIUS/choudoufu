@@ -129,13 +129,22 @@ func TestClusterContractNamespaceAccessReviewsEveryVerb(t *testing.T) {
 // and the reason the issue names SelfSubjectAccessReview rather than "try it
 // and see". A permission probe that writes has to write something, and in
 // this namespace the only thing there is to write is a record.
+// The read_isolation assertion does LIST record Secrets by their managed-by
+// label, to see whose records are in this namespace (GitHub issue #1448, B2).
+// A list is a read; what this holds is that nothing the contract does can
+// change a Secret.
 func TestClusterContractNamespaceAccessNeverWrites(t *testing.T) {
 	cs := withReviews(fake.NewClientset(), func(ns, verb string) bool { return true })
 	check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true})
 
 	for _, action := range cs.Actions() {
-		if action.GetResource().Resource == "secrets" {
-			t.Errorf("the contract check acted on a Secret (%s %s); it must ask the authorizer, never attempt a write",
+		if action.GetResource().Resource != "secrets" {
+			continue
+		}
+		switch action.GetVerb() {
+		case "get", "list", "watch":
+		default:
+			t.Errorf("the contract check wrote to a Secret (%s %s); it must ask the authorizer, never attempt a write",
 				action.GetVerb(), action.GetResource().Resource)
 		}
 	}
@@ -320,29 +329,49 @@ func TestClusterContractReadIsolationPassesAScopedIdentity(t *testing.T) {
 		t.Fatalf("an identity scoped to its own records namespace failed read isolation: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "all 1 other") {
-		t.Errorf("the finding does not say how many other records namespaces it checked: %s", f.Found)
+		t.Errorf("the finding does not say how many other namespaces it checked: %s", f.Found)
 	}
 }
 
 // TestClusterContractReadIsolationSaysWhatItCouldNotEnumerate is the honesty
-// half. The recommended Role cannot list namespaces, so the second question
-// goes unanswered, and the finding says which one rather than implying both
-// were asked.
+// half, and GitHub issue #1448's B1. The recommended Role cannot list
+// namespaces, so the question "is another estate's records namespace readable
+// from here" is not asked at all. It used to be a PASS in a sentence whose
+// own words were "was not checked".
 func TestClusterContractReadIsolationSaysWhatItCouldNotEnumerate(t *testing.T) {
 	cs := forbid(withReviews(fake.NewClientset(), func(ns, verb string) bool {
 		return ns == contractNamespace
 	}), "list", "namespaces")
 	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
-	if !f.OK() {
-		t.Fatalf("a scoped identity that may not list namespaces failed read isolation: %s", f.Found)
+	if f.OK() {
+		t.Fatalf("an identity that could not ask the question passed read isolation: %s", f.Found)
 	}
-	if !strings.Contains(f.Found, "could not be enumerated") {
+	if f.Outcome != NotChecked {
+		t.Fatalf("the unanswered question came back as outcome %v, want NotChecked: %s", f.Outcome, f.Found)
+	}
+	if !strings.Contains(f.Found, "could not be listed here") {
 		t.Errorf("the finding does not say the second question went unanswered: %s", f.Found)
+	}
+	if !strings.Contains(f.Found, "live-cluster") {
+		t.Errorf("the finding does not say who can answer it: %s", f.Found)
 	}
 }
 
-// apiServerPod is a kube-apiserver static Pod, with or without the flag.
+// apiServerPod is a kube-apiserver static Pod, with or without the flag, as
+// the kubelet publishes one: the mirror annotation and the Node that owns it,
+// both measured on kind v1.36.1. labelledPod below is the same Pod without
+// them, which is anything at all.
 func apiServerPod(name string, argv ...string) *corev1.Pod {
+	pod := labelledPod(name, argv...)
+	pod.Annotations = map[string]string{"kubernetes.io/config.mirror": "c20cabde2f7d94f6524441d8571ee712"}
+	pod.OwnerReferences = []metav1.OwnerReference{{APIVersion: "v1", Kind: "Node", Name: "kind-control-plane"}}
+	return pod
+}
+
+// labelledPod is a Pod in kube-system carrying component=kube-apiserver and
+// nothing else that makes it the API server. Anyone who may create a Pod in
+// kube-system can make one.
+func labelledPod(name string, argv ...string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -362,15 +391,27 @@ func apiServerPod(name string, argv ...string) *corev1.Pod {
 func TestClusterContractEncryptionAtRest(t *testing.T) {
 	allowAll := func(ns, verb string) bool { return true }
 
+	// GitHub issue #1448, B5: the flag's presence is not the answer. It names
+	// a file that is not an API object, and a configuration whose first
+	// provider for secrets is `identity` sets the flag and encrypts nothing.
 	t.Run("the flag is set", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp",
 			"--encryption-provider-config=/etc/kubernetes/enc/enc.yaml")), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if !f.OK() {
-			t.Fatalf("an API server started with the flag failed: %s", f.Found)
+		if f.OK() {
+			t.Fatalf("a flag naming a file nobody here can read was a pass: %s", f.Found)
+		}
+		if f.Outcome != NotChecked {
+			t.Fatalf("outcome %v, want NotChecked: %s", f.Outcome, f.Found)
 		}
 		if !strings.Contains(f.Found, "/etc/kubernetes/enc/enc.yaml") {
 			t.Errorf("the finding does not quote the configuration it read: %s", f.Found)
+		}
+		if !strings.Contains(f.Found, "`identity`") {
+			t.Errorf("the finding does not say what a set flag can still mean: %s", f.Found)
+		}
+		if !strings.Contains(f.Found, "sudo cat /etc/kubernetes/enc/enc.yaml") {
+			t.Errorf("the finding does not carry the command that finishes the question: %s", f.Found)
 		}
 	})
 
@@ -378,8 +419,37 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 		cs := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp",
 			"--encryption-provider-config", "/etc/kubernetes/enc/enc.yaml")), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if !f.OK() {
+		if !strings.Contains(f.Found, "/etc/kubernetes/enc/enc.yaml") {
 			t.Fatalf("the two-argument spelling of the flag was not read: %s", f.Found)
+		}
+	})
+
+	// The hole the old check left open: anyone who may create a Pod in
+	// kube-system could label one component=kube-apiserver and hand the
+	// check whatever flags they liked, and on a managed control plane that
+	// turned NOT CHECKED into a pass.
+	t.Run("a labelled Pod that is not the API server", func(t *testing.T) {
+		cs := withReviews(fake.NewClientset(labelledPod("not-really-the-api-server",
+			"--encryption-provider-config=/etc/kubernetes/enc/enc.yaml")), allowAll)
+		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
+		if f.OK() {
+			t.Fatalf("a Pod carrying the label and neither the mirror annotation nor a Node owner passed the assertion: %s", f.Found)
+		}
+		if f.Outcome != NotChecked {
+			t.Fatalf("outcome %v, want NotChecked: %s", f.Outcome, f.Found)
+		}
+		if !strings.Contains(f.Found, "are not the API server") {
+			t.Errorf("the finding does not say it refused to read the Pod it was shown: %s", f.Found)
+		}
+	})
+
+	// The same Pod, with the flag ABSENT, must not be a refusal either: a
+	// refusal names a fact about the API server, and this Pod is not it.
+	t.Run("a labelled Pod with no flag is not a refusal", func(t *testing.T) {
+		cs := withReviews(fake.NewClientset(labelledPod("not-really-the-api-server", "--advertise-address=10.0.0.1")), allowAll)
+		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
+		if f.Outcome != NotChecked {
+			t.Fatalf("outcome %v, want NotChecked: %s", f.Outcome, f.Found)
 		}
 	})
 
@@ -415,12 +485,22 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 }
 
 // boundaryPolicy is estate-boundary.yaml's policy as the API server serves it
-// once observed.
+// once observed - the SHIPPED one, read out of the file itself.
+//
+// It used to be an empty Spec with the right name, and the test below
+// asserted OK on it, which is exactly what GitHub issue #1448's B4 is about:
+// nothing in policy.Spec was read, so the fixture did not need to carry
+// anything. A fixture that cannot tell a fence from an empty object is not a
+// fixture for a fence.
 func boundaryPolicy() *admissionv1.ValidatingAdmissionPolicy {
-	return &admissionv1.ValidatingAdmissionPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: EstateBoundaryPolicyName, Generation: 1},
-		Status:     admissionv1.ValidatingAdmissionPolicyStatus{ObservedGeneration: 1},
+	shipped, err := shippedEstateBoundaryPolicy()
+	if err != nil {
+		panic(err)
 	}
+	policy := shipped.DeepCopy()
+	policy.Generation = 1
+	policy.Status = admissionv1.ValidatingAdmissionPolicyStatus{ObservedGeneration: 1}
+	return policy
 }
 
 func boundaryBinding(actions ...admissionv1.ValidationAction) *admissionv1.ValidatingAdmissionPolicyBinding {
@@ -456,6 +536,12 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 		}
 		if !strings.Contains(f.Found, "estate-boundary.yaml") {
 			t.Errorf("the finding does not say what to install: %s", f.Found)
+		}
+		// Once, and as an install. An absent policy is not an out-of-date
+		// one, and the upgrade line the CEL comparison adds would be the
+		// same command said twice with two different reasons.
+		if strings.Contains(f.Found, "from an earlier release") {
+			t.Errorf("an absent policy was told to re-apply an earlier release of itself: %s", f.Found)
 		}
 	})
 
@@ -573,8 +659,9 @@ func TestSplitWaivedSortsAClustersFindings(t *testing.T) {
 // TestAScopedIdentityIsWarnedAndNotRefused is the whole reason a run treats
 // NotChecked differently from a failure. The Role the docs recommend holds
 // Secrets in one namespace and nothing else, so it cannot list kube-system's
-// Pods and cannot get a ValidatingAdmissionPolicy. If those two refused, the
-// intended arrangement would carry two waivers from its first day - a gate
+// Pods, cannot get a ValidatingAdmissionPolicy, and cannot list the
+// namespaces the other estates' records are in. If those three refused, the
+// intended arrangement would carry three waivers from its first day - a gate
 // satisfied by a line in the configuration, which protects nothing.
 func TestAScopedIdentityIsWarnedAndNotRefused(t *testing.T) {
 	cs := forbid(forbid(forbid(withReviews(fake.NewClientset(), func(ns, verb string) bool {
@@ -586,8 +673,8 @@ func TestAScopedIdentityIsWarnedAndNotRefused(t *testing.T) {
 	if len(refused) != 0 {
 		t.Fatalf("the recommended arrangement was refused: %v", refused)
 	}
-	if len(warned) != 2 {
-		t.Fatalf("warned about %d properties, want the two it cannot read: %v", len(warned), warned)
+	if len(warned) != 3 {
+		t.Fatalf("warned about %d properties, want the three it cannot read: %v", len(warned), warned)
 	}
 	for _, f := range warned {
 		if f.Outcome != NotChecked {

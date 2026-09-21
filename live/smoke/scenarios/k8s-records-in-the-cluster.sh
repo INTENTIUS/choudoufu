@@ -446,9 +446,10 @@ step "6. the cluster contract runs on an estate's first contact with the cluster
 explain \
   "Before it writes a record, the store asks four things about the cluster:" \
   "that this identity can do to Secrets in the records namespace what the" \
-  "store will ask, that it cannot read another estate's records, that" \
-  "Secrets are encrypted at rest, and that the estate boundary policy is" \
-  "in force. The permission questions go to the API server's own authorizer" \
+  "store will ask, that it cannot read another estate's records, that the" \
+  "API server is started with an encryption configuration, and that the" \
+  "estate boundary policy is in force. The permission questions go to the" \
+  "API server's own authorizer" \
   "as SelfSubjectAccessReviews - never by attempting a write, because the" \
   "only thing there is to write in that namespace is a record." \
   "" \
@@ -500,7 +501,11 @@ echo "SelfSubjectAccessReviews on first contact: $((FIRST-BEFORE))" | evidence
   || fail "k8srec" "first contact asked the authorizer nothing, so the contract did not run and the count below would measure nothing"
 # What a scoped identity cannot read, it says, by name, rather than passing.
 { grep -E 'could not be checked' <<< "$C_OUT" || true; } | evidence
-for setting in encryption_at_rest estate_boundary; do
+# Three, not two, since #1448: a Role scoped to one namespace cannot list the
+# cluster's namespaces either, so whether another estate keeps records in one
+# it can reach is a question it cannot ask, and an unasked question is not a
+# pass.
+for setting in read_isolation encryption_at_rest estate_boundary; do
   grep -q "cluster's $setting could not be checked" <<< "$C_OUT" \
     || fail "k8srec" "a Role that cannot read $setting did not say so: $C_OUT"
 done
@@ -515,7 +520,7 @@ AFTER="$(ssar_count)"
 echo "SelfSubjectAccessReviews across two further plans: $((AFTER-FIRST))" | evidence
 [ "$((AFTER-FIRST))" -eq 0 ] \
   || fail "k8srec" "the contract ran again on a plan: $((AFTER-FIRST)) more SelfSubjectAccessReviews across two plans, and it is supposed to run once, on first contact"
-proof "the estate's first contact asked the authorizer $((FIRST-BEFORE)) questions and the two plans after it asked none. The two properties this scoped identity cannot read are warned about by name on every run, and neither is reported as a pass."
+proof "the estate's first contact asked the authorizer $((FIRST-BEFORE)) questions and the two plans after it asked none. The three properties this scoped identity cannot read - read_isolation, encryption_at_rest and estate_boundary - are warned about by name on every run, and none of them is reported as a pass."
 
 step "7. each assertion refuses by name, on this cluster, for its own reason"
 explain \
@@ -536,6 +541,19 @@ grep -qE '^  encryption_at_rest +FAIL .*no --encryption-provider-config' <<< "$A
 grep -qE '^  estate_boundary +OK' <<< "$ADMIN_OUT" \
   || fail "k8srec" "estate_boundary did not pass although step 5 installed the policy and measured it refusing a write: $ADMIN_OUT"
 
+# The policy being in force is half of estate_boundary. The other half is
+# whether the identity holds `use` on its estate, which is what the policy's
+# own CEL asks the authorizer for (#1448, B6). A report given no estate says
+# it did not ask; named one, it asks, and a cluster-admin holds every estate
+# the way the account root does on AWS.
+grep -q 'no estate was named' <<< "$ADMIN_OUT" \
+  || fail "k8srec" "a report with no estate named did not say that the grant half went unasked: $ADMIN_OUT"
+cmd "choudoufu live-cluster -namespace=$CAROL_NS -estate=k8srec-carol   # name the estate and the grant is asked too"
+GRANTED="$( cd "$ROOT" && no_aws chdf live-cluster -namespace="$CAROL_NS" -estate=k8srec-carol -no-color 2>&1 )" || true
+{ grep -E '^  estate_boundary' <<< "$GRANTED" || true; } | cut -c1-200 | evidence
+grep -qE '^  estate_boundary +OK .*use. on estates.choudoufu.intentius.io/k8srec-carol' <<< "$GRANTED" \
+  || fail "k8srec" "naming the estate did not make the report ask the authorizer for the grant the boundary policy reads: $GRANTED"
+
 cmd "kubectl delete validatingadmissionpolicybinding choudoufu-estate-boundary   # then ask again"
 kc delete validatingadmissionpolicybinding choudoufu-estate-boundary >/dev/null \
   || fail "k8srec" "could not remove the binding"
@@ -552,7 +570,7 @@ grep -qE '^  namespace_access +FAIL .*does not exist' <<< "$ABSENT" \
   || fail "k8srec" "an absent records namespace was not refused: $ABSENT"
 grep -q 'kubectl create namespace tofu-records-k8srec-nobody' <<< "$ABSENT" \
   || fail "k8srec" "the refusal does not carry the kubectl line the store's own NamespaceMissingError carries, so the contract and the store disagree about what to tell an operator: $ABSENT"
-proof "each assertion was made to fail and each refusal named itself: read_isolation named the other estate's namespace, encryption_at_rest named the missing API server flag, estate_boundary named the binding it needs, and an absent namespace came back in the store's own words."
+proof "each assertion was made to fail and each refusal named itself: read_isolation named the other estate's namespace, encryption_at_rest named the missing API server flag, estate_boundary named the binding it needs, and an absent namespace came back in the store's own words. estate_boundary also says which half it asked: with no estate named it says the grant went unasked, and with one it asks the authorizer for the same `use` the policy's CEL reads."
 
 step "8. the fourth refusal is the run's, not just the report's: a Role short one verb is refused at first contact"
 explain \
