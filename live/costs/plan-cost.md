@@ -382,9 +382,10 @@ The decision is made per run against what the target answered. A leg
 selected by service name would be wrong about one of two targets:
 [#1134](https://github.com/INTENTIUS/choudoufu/issues/1134) measured a real
 account serving `iam:instance-profile` and `iam:policy` through
-`GetResources` in `us-east-1` and `iam:role` nowhere, while the pinned
-emulator serves no IAM at all
-([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152)).
+`GetResources` in `us-east-1` and `iam:role` nowhere, while the emulator pin
+of the time served no IAM at all
+([#1152](https://github.com/INTENTIUS/choudoufu/issues/1152), since repinned
+to match that real-AWS measurement).
 
 The per-type gate this replaces kept the leg off entirely on a target whose
 index held any marked object of the type, and the sweep stayed flat there.
@@ -414,6 +415,12 @@ far" with one profile already destroyed by `day2_remove`:
 | 745 (scale 10) | 100 | 100 |
 | 4005 (scale 80) | 800 | 800 |
 
+That table was taken on the emulator pin that indexed no IAM. The current
+pin serves `iam:instance-profile` in `us-east-1`, where this crossing runs,
+so the join answers for every profile and the measured figure today is zero
+(see the run recorded under the next heading). The table still describes any
+target, or region, whose index does not hold the type.
+
 Two things bound that. The type was already paying a per-object call on this
 leg before #1131 existed: Cloud Control sends no `Tags` key for an instance
 profile, so `cloudControlTags` was already refining every listed one with an
@@ -437,15 +444,29 @@ have a provider list resource, so `scanType` enumerates them, and
 `terralith-scale` the estate declares `11 x SCALE` roles (`6 x SCALE` named,
 `2 x SCALE` from `count_team`, `SCALE` service execution roles, `2 x SCALE`
 across the two `team_pod` module instances) and `10 x SCALE` policies, and no
-users. The scale-1 figures are confirmed against #1162's own failing plan,
-which listed 11 `aws_iam_role` and 10 `aws_iam_policy`; the larger rows are
-derived from the generator's expansion and have not been run.
+users. The scale-1 populations are confirmed against #1162's own failing
+plan, which listed 11 `aws_iam_role` and 10 `aws_iam_policy`; the larger rows
+are derived from the generator's expansion and have not been run.
 
-| Instances | Live roles | Live policies | Extra `iam:ListRoleTags` + `iam:ListPolicyTags` calls per sweep |
-|---|---|---|---|
-| 79 (scale 1) | 11 | 10 | 21 |
-| 745 (scale 10) | 110 | 100 | 210 |
-| 4005 (scale 80) | 880 | 800 | 1680 |
+| Instances | Live roles | `iam:ListRoleTags` per sweep | Live policies | `iam:ListPolicyTags` per sweep, where the index does not hold them |
+|---|---|---|---|---|
+| 79 (scale 1) | 11 | 11 | 10 | 10 |
+| 745 (scale 10) | 110 | 110 | 100 | 100 |
+| 4005 (scale 80) | 880 | 880 | 800 | 800 |
+
+The policy column is conditional, and on the current emulator pin it is
+zero. The pin serves `iam:policy` and `iam:instance-profile` through
+`GetResources` in `us-east-1`, as #1134 measured real AWS doing, and writes
+its index synchronously, so in the `terralith-scale` crossing every policy
+and profile is answered by the join and only roles are read. Measured on
+2026-09-21 at scale 1 with core debug logging, across the whole crossing
+script (26 choudoufu invocations that fetched the tag index): 273 successful
+`iam:ListRoleTags`, 0 `iam:ListPolicyTags`, 0 `iam:ListInstanceProfileTags`,
+0 failed reads, 28 index joins, all of them policies. The same script run
+with the binary built from the commit before #1162's gate change gives the
+same five numbers, because on a target whose index is complete for the types
+it serves the per-object and per-type gates make the same decision for every
+object.
 
 Unlike the instance-profile row, this one doubles nothing that was already
 there. The native leg paid no per-object marker call for these types before

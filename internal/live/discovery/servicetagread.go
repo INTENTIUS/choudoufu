@@ -66,8 +66,9 @@ import (
 //
 // The decision is still evidence-scoped rather than service-scoped, which is
 // what the per-type clause was for: #1134 measured GetResources serving
-// iam:instance-profile on a real account in us-east-1 and serving no IAM at
-// all on the pinned emulator, so which objects need the leg differs by
+// iam:instance-profile and iam:policy on a real account in us-east-1 and
+// iam:role nowhere, and the emulator pin of the time serving no IAM at all
+// (#1152, since repinned to match), so which objects need the leg differs by
 // TARGET. Asking the index about each object answers that per run, from the
 // one GetResources call the run already paid for, and an object the index
 // did answer for costs no call.
