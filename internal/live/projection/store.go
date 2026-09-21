@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -112,7 +111,7 @@ func IsStoreRefusal(err error) bool {
 
 // openBuiltStore is everything [NewRecordStore] does to a store once it is
 // built: the trip counter, the provisioning handshake, the first-contact
-// bucket contract, the run cache. It is its own function so that a test can
+// contract, the run cache. It is its own function so that a test can
 // drive exactly the production sequence over a fake store. The first-contact
 // tests used to reimplement this glue, and deleting the first-contact call
 // from NewRecordStore left them green (#1376).
@@ -177,7 +176,7 @@ func SentinelKey(prefix string) string {
 // createdVersion is the sentinel's version when THIS call created it and ""
 // when it was already there OR when this run may not write it at all: the
 // one signal this package has that a run is an estate's first contact with
-// its store. See [assertBucketOnFirstContact].
+// its store. See [assertStoreOnFirstContact].
 //
 // # A run that may read the store and not write it
 //
@@ -403,68 +402,75 @@ func BucketNamespaces(rs *configs.LiveRecordStore, estate string) []string {
 	return []string{recordStoreKeyPrefix(rs, estate), HintKeyPrefix(estate), RootOutputKeyPrefix(estate)}
 }
 
-// BucketContractFindings reads the bucket contract for the store a live
-// block's record_store built, for one estate. ok is false when the store is
-// not in a bucket and there is nothing to assert.
+// ContractFindings reads the contract of whatever store a live block's
+// record_store built, for one estate. checker is nil when the store has no
+// contract - a local store - and that is not a store that failed.
 //
-// It reports the bucket and knows nothing about waivers: whether a run may
+// It reports the store and knows nothing about waivers: whether a run may
 // proceed past a finding is the caller's question (#1340), and the runnable
-// project's verify (#1341) wants the bucket's true state whatever the
+// project's verify (#1341) wants the store's true state whatever the
 // configuration waives.
-func BucketContractFindings(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string) (findings []staterecord.BucketFinding, ok bool, err error) {
-	checker, ok := staterecord.AsBucketContractChecker(store)
-	if !ok {
-		return nil, false, nil
-	}
-	findings, err = checker.CheckBucketContract(ctx, BucketNamespaces(rs, estate))
-	return findings, true, err
-}
-
-// assertStoreOnFirstContact runs whichever contract this store has. Exactly
-// one of them applies: a bucket store has the bucket contract (#1339), a
-// cluster store has the cluster contract (#1393), and a local store has
-// neither, which is not a store that failed.
 //
-// Both are asserted on first contact and again in internal/command's
-// BeforeApply, and an ordinary plan is deliberately neither. See
-// [assertBucketOnFirstContact] for the ruling and what it gives up.
-func assertStoreOnFirstContact(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate, sentinelVersion string) error {
-	if err := assertBucketOnFirstContact(ctx, store, rs, estate, sentinelVersion); err != nil {
-		return err
+// The options carry what every contract might want and each store reads what
+// its own needs. RequiredVerbs is left nil on purpose: every caller of this
+// function reached the store through an apply or a first contact, which is a
+// run that WRITES records, and nil means exactly the verbs such a run asks
+// for. `choudoufu live-cluster -plan-identity` is how a read-only identity
+// asks the narrower question, through [VerifyCluster].
+func ContractFindings(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string) (findings []staterecord.Finding, checker staterecord.ContractChecker, err error) {
+	checker, ok := staterecord.AsContractChecker(store)
+	if !ok {
+		return nil, nil, nil
 	}
-	return assertClusterOnFirstContact(ctx, store, rs, estate, sentinelVersion)
+	findings, err = checker.CheckContract(ctx, staterecord.ContractOptions{Namespaces: BucketNamespaces(rs, estate)})
+	return findings, checker, err
 }
 
-// assertBucketOnFirstContact is one of the two places the bucket contract is
-// asserted (GitHub issue #1339); internal/command's BeforeApply is the other,
-// and an ordinary plan is deliberately neither.
+// assertStoreOnFirstContact runs whichever contract this store has - the
+// bucket's (GitHub issue #1339), the cluster's (#1393), or none at all for a
+// local store. It is one of the two places a contract is asserted;
+// internal/command's BeforeApply is the other, and an ordinary plan is
+// deliberately neither.
 //
 // The ruling on #1339 is that the assertions do not run on every plan: they
-// are facts about the bucket, which do not change between two plans, and
-// three configuration reads on every plan is a cost and a permission
-// requirement paid for nothing. But an estate's FIRST run against a bucket is
-// the one moment a wrong bucket costs nothing to walk away from - no record
-// has been written yet - so that run asserts, whatever command it is. The
-// sentinel this run just created is the evidence that it is the first.
+// are facts about the store, which do not change between two plans, and
+// paying for the reads on every plan is a cost and a permission requirement
+// bought for nothing. But an estate's FIRST run against a store is the one
+// moment a wrong one costs nothing to walk away from - no record has been
+// written yet - so that run asserts, whatever command it is. The sentinel
+// this run just created is the evidence that it is the first.
+//
+// What this gives up, stated rather than hidden: a plan against an estate
+// whose store has drifted proceeds without a word, and the operator learns at
+// apply time, after approving. `choudoufu live-bucket` and `choudoufu
+// live-cluster` are the on-demand answer for anyone who wants it sooner.
+//
+// # Why a read-only plan never reaches here
+//
+// This runs only when THIS run created the sentinel, and creating it needs
+// write access to the store. A plan under a read-only identity gets
+// createdVersion == "" from [provisionStoreSentinel] and never arrives, which
+// is #1370's reader tolerance and the reason the contract cannot refuse such
+// a run for lacking the verbs it never uses.
 //
 // A refusal takes the sentinel back out, so that the next run is a first
-// contact again and refuses again until the bucket is fixed. Leaving it
-// behind would make the second plan proceed against the bucket the first one
-// refused.
-func assertBucketOnFirstContact(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate, sentinelVersion string) error {
-	findings, ok, err := BucketContractFindings(ctx, store, rs, estate)
-	if !ok {
+// contact again and refuses again until the store is fixed. Leaving it behind
+// would make the second plan proceed against the store the first one refused.
+func assertStoreOnFirstContact(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate, sentinelVersion string) error {
+	findings, checker, err := ContractFindings(ctx, store, rs, estate)
+	if checker == nil {
 		return nil
 	}
 	var refusal error
 	if err != nil {
 		refusal = err
 	} else {
-		// #1340: a waiver reaches only the settings it names. The warning a
-		// waived run owes is internal/command's, which sees every run and
-		// not just the first.
-		refused, _ := staterecord.SplitWaived(findings, rs.AllowInsecure)
-		if msg := BucketContractRefusalText(rs.Bucket, refused); msg != "" {
+		// #1340: a waiver reaches only the settings it names. The warnings
+		// are internal/command's, which sees every run and not just the
+		// first; a first contact has no channel for one and must not refuse
+		// on it.
+		refused, _, _ := staterecord.SplitWaived(findings, rs.AllowInsecure)
+		if msg := staterecord.ContractRefusalText(checker, refused); msg != "" {
 			refusal = &StoreRefusal{Err: errors.New(msg)}
 		}
 	}
@@ -475,25 +481,6 @@ func assertBucketOnFirstContact(ctx context.Context, store staterecord.Store, rs
 		return fmt.Errorf("%w\n\n(The store sentinel this run created could not be removed again: %s. The next plan will not repeat this check; the next apply will.)", refusal, delErr)
 	}
 	return refusal
-}
-
-// BucketContractRefusalText renders every failed finding as one message,
-// each under its own headline, or "" when all passed.
-func BucketContractRefusalText(bucket string, findings []staterecord.BucketFinding) string {
-	var b strings.Builder
-	for _, f := range findings {
-		summary, detail := staterecord.BucketContractRefusal(bucket, f)
-		if summary == "" {
-			continue
-		}
-		if b.Len() > 0 {
-			b.WriteString("\n\n")
-		}
-		b.WriteString(summary)
-		b.WriteString(". ")
-		b.WriteString(detail)
-	}
-	return b.String()
 }
 
 // VerifyBucket reads the bucket contract for a bucket named directly, with
@@ -510,7 +497,7 @@ func BucketContractRefusalText(bucket string, findings []staterecord.BucketFindi
 // expectedOwner may be "" as well. With one, the three reads carry it as
 // ExpectedBucketOwner, so this reports on a bucket in that account or on no
 // bucket at all (#1381).
-func VerifyBucket(ctx context.Context, bucket, region, expectedOwner, estate string, rs *configs.LiveRecordStore) ([]staterecord.BucketFinding, error) {
+func VerifyBucket(ctx context.Context, bucket, region, expectedOwner, estate string, rs *configs.LiveRecordStore) ([]staterecord.Finding, error) {
 	awsCfg, err := loadAWSConfig(ctx, region, nil)
 	if err != nil {
 		return nil, err

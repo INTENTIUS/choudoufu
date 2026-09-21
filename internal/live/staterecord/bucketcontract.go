@@ -51,46 +51,18 @@ import (
 // waiver would print green for a bucket with versioning off. Whether a run
 // may PROCEED past a finding is the caller's decision (#1340).
 
-// BucketSetting names one asserted setting. The values are the names an
-// operator writes in configuration (#1340's allow_insecure), so they are
-// part of the configuration language and do not change casually.
-type BucketSetting string
-
+// The bucket's settings are named in the shared vocabulary [Setting], and a
+// finding about one is a [Finding]; see contract.go for what every store's
+// contract has in common and what the outcomes mean.
 const (
-	BucketVersioning        BucketSetting = "versioning"
-	BucketLifecycle         BucketSetting = "lifecycle"
-	BucketPublicAccessBlock BucketSetting = "public_access_block"
+	BucketVersioning        Setting = "versioning"
+	BucketLifecycle         Setting = "lifecycle"
+	BucketPublicAccessBlock Setting = "public_access_block"
 )
 
 // BucketSettings is every asserted setting, in the order findings are
 // reported.
-var BucketSettings = []BucketSetting{BucketVersioning, BucketLifecycle, BucketPublicAccessBlock}
-
-// BucketFinding is what one setting turned out to be.
-type BucketFinding struct {
-	Setting BucketSetting
-
-	// OK is true when the bucket satisfies the assertion.
-	OK bool
-
-	// Unreadable is true when the setting could not be read at all - the
-	// role lacks the Get* permission, typically. It is never true together
-	// with OK. From the caller's side it is the same refusal a wrong setting
-	// gets, because a bucket nobody could check is not a bucket that passed.
-	Unreadable bool
-
-	// DeletesRecords is true for the one lifecycle failure that is not an
-	// absence: an enabled rule that expires CURRENT objects under the store's
-	// keys. It is a different refusal with a different remedy, and it is the
-	// one finding allow_insecure does not reach (see [SplitWaived]). GitHub
-	// issue #1377.
-	DeletesRecords bool
-
-	// Found says what the bucket actually has, in one clause, for the
-	// refusal to quote: "versioning is Suspended", "no lifecycle
-	// configuration", "s3:GetBucketVersioning was denied".
-	Found string
-}
+var BucketSettings = []Setting{BucketVersioning, BucketLifecycle, BucketPublicAccessBlock}
 
 // BucketContractAPI is the three reads the contract needs, and the
 // permissions they cost: s3:GetBucketVersioning,
@@ -102,41 +74,35 @@ type BucketContractAPI interface {
 	GetPublicAccessBlock(ctx context.Context, in *s3.GetPublicAccessBlockInput, optFns ...func(*s3.Options)) (*s3.GetPublicAccessBlockOutput, error)
 }
 
-// BucketContractChecker is implemented by a store that lives in a bucket.
-// The local store does not implement it: a directory has no such settings,
-// and a store with nothing to assert is not a store that failed.
-type BucketContractChecker interface {
-	CheckBucketContract(ctx context.Context, namespaces []string) ([]BucketFinding, error)
-}
-
-// AsBucketContractChecker finds the bucket-backed store under s, looking
-// through this package's own wrappers ([RunCache], [CountingStore]). False
-// means there is nothing to assert - a local store - which is
-// a different answer from a bucket that failed.
-func AsBucketContractChecker(s Store) (BucketContractChecker, bool) {
-	for s != nil {
-		if c, ok := s.(BucketContractChecker); ok {
-			return c, true
-		}
-		u, ok := s.(interface{ Unwrap() Store })
-		if !ok {
-			return nil, false
-		}
-		s = u.Unwrap()
-	}
-	return nil, false
-}
-
-// CheckBucketContract implements [BucketContractChecker]. namespaces are
+// CheckContract implements [ContractChecker]. opts.Namespaces are
 // store-relative, like every key this store is handed; [S3Config.KeyPrefix]
 // is joined ahead of each.
-func (s *S3Store) CheckBucketContract(ctx context.Context, namespaces []string) ([]BucketFinding, error) {
-	objectNamespaces := make([]string, 0, len(namespaces))
-	for _, ns := range namespaces {
+func (s *S3Store) CheckContract(ctx context.Context, opts ContractOptions) ([]Finding, error) {
+	objectNamespaces := make([]string, 0, len(opts.Namespaces))
+	for _, ns := range opts.Namespaces {
 		objectNamespaces = append(objectNamespaces, s.objectKey(ns))
 	}
 	return CheckBucketContract(ctx, s.client, s.bucket, s.expectedBucketOwner, objectNamespaces)
 }
+
+// ContractSubject implements [ContractChecker]: a bucket is named by its
+// name.
+func (s *S3Store) ContractSubject() (label, value string) { return "Bucket", s.bucket }
+
+// ContractRefusal implements [ContractChecker] with this bucket's own words.
+func (s *S3Store) ContractRefusal(f Finding) (summary, detail string) {
+	return BucketContractRefusal(s.bucket, f)
+}
+
+// ContractCheckFailed implements [ContractChecker].
+func (s *S3Store) ContractCheckFailed(err error) (summary, detail string) {
+	return BucketContractCheckFailed(s.bucket, err)
+}
+
+// ContractRefusalClosing implements [ContractChecker]. The bucket needs none:
+// its refusals do not each carry an allow_insecure line of their own, so
+// there is no duplicate argument for a closing line to replace.
+func (s *S3Store) ContractRefusalClosing([]Setting) string { return "" }
 
 // CheckBucketContract reads the three settings of bucket and reports one
 // finding per setting, always all three and always in [BucketSettings]
@@ -156,9 +122,9 @@ func (s *S3Store) CheckBucketContract(ctx context.Context, namespaces []string) 
 //
 // The error return is for a failure that is not about the bucket's settings
 // at all - a cancelled context, an unreachable endpoint. A denied read is NOT
-// an error: it is a finding with Unreadable set.
-func CheckBucketContract(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string, namespaces []string) ([]BucketFinding, error) {
-	findings := make([]BucketFinding, 0, len(BucketSettings))
+// an error: it is a finding whose outcome is [Unreadable].
+func CheckBucketContract(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string, namespaces []string) ([]Finding, error) {
+	findings := make([]Finding, 0, len(BucketSettings))
 
 	v, err := checkVersioning(ctx, api, bucket, expectedOwner)
 	if err != nil {
@@ -181,8 +147,8 @@ func CheckBucketContract(ctx context.Context, api BucketContractAPI, bucket, exp
 	return findings, nil
 }
 
-func checkVersioning(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string) (BucketFinding, error) {
-	f := BucketFinding{Setting: BucketVersioning}
+func checkVersioning(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string) (Finding, error) {
+	f := Finding{Setting: BucketVersioning}
 	out, err := api.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{
 		Bucket:              aws.String(bucket),
 		ExpectedBucketOwner: expectedOwnerPtr(expectedOwner),
@@ -192,7 +158,7 @@ func checkVersioning(ctx context.Context, api BucketContractAPI, bucket, expecte
 	}
 	switch out.Status {
 	case s3types.BucketVersioningStatusEnabled:
-		f.OK = true
+		f.Outcome = Passed
 		f.Found = "versioning is Enabled"
 	case s3types.BucketVersioningStatusSuspended:
 		f.Found = "versioning is Suspended"
@@ -204,8 +170,8 @@ func checkVersioning(ctx context.Context, api BucketContractAPI, bucket, expecte
 	return f, nil
 }
 
-func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string, namespaces []string) (BucketFinding, error) {
-	f := BucketFinding{Setting: BucketLifecycle}
+func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string, namespaces []string) (Finding, error) {
+	f := Finding{Setting: BucketLifecycle}
 	out, err := api.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{
 		Bucket:              aws.String(bucket),
 		ExpectedBucketOwner: expectedOwnerPtr(expectedOwner),
@@ -237,7 +203,7 @@ func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket, expected
 		deleting = append(deleting, fmt.Sprintf("rule %q expires current objects %s, and a record is a current object", ruleID(rule), when))
 	}
 	if len(deleting) > 0 {
-		f.DeletesRecords = true
+		f.Unwaivable = true
 		f.Found = strings.Join(deleting, "; ")
 		return f, nil
 	}
@@ -291,7 +257,7 @@ func checkLifecycle(ctx context.Context, api BucketContractAPI, bucket, expected
 		}
 	}
 	if len(uncovered) == 0 && len(covering) > 0 {
-		f.OK = true
+		f.Outcome = Passed
 		f.Found = strings.Join(used, "; ")
 		return f, nil
 	}
@@ -409,8 +375,8 @@ func ruleMayReach(rule s3types.LifecycleRule, namespaces []string) bool {
 	return false
 }
 
-func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string) (BucketFinding, error) {
-	f := BucketFinding{Setting: BucketPublicAccessBlock}
+func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket, expectedOwner string) (Finding, error) {
+	f := Finding{Setting: BucketPublicAccessBlock}
 	out, err := api.GetPublicAccessBlock(ctx, &s3.GetPublicAccessBlockInput{
 		Bucket:              aws.String(bucket),
 		ExpectedBucketOwner: expectedOwnerPtr(expectedOwner),
@@ -445,7 +411,7 @@ func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket, 
 		f.Found = "public-access block has " + strings.Join(off, ", ") + " off"
 		return f, nil
 	}
-	f.OK = true
+	f.Outcome = Passed
 	f.Found = "all four public-access block settings are on"
 	return f, nil
 }
@@ -453,9 +419,9 @@ func checkPublicAccessBlock(ctx context.Context, api BucketContractAPI, bucket, 
 // settingReadFailure sorts a failed read into a finding (the read was
 // denied, so the setting is unreadable) or an error (the read never
 // happened, so nothing is known about the bucket at all).
-func settingReadFailure(f BucketFinding, permission, expectedOwner string, err error) (BucketFinding, error) {
+func settingReadFailure(f Finding, permission, expectedOwner string, err error) (Finding, error) {
 	if accessDenied(err) {
-		f.Unreadable = true
+		f.Outcome = Unreadable
 		f.Found = permission + " was denied"
 		if expectedOwner != "" {
 			// This read carried ExpectedBucketOwner, so a bucket owned by
@@ -481,8 +447,8 @@ func apiErrorCode(err error) string {
 // finding, in internal/command's statelessCommandRefusals shape: what was
 // refused, then what it protects against and what to do instead. Empty for a
 // finding that passed.
-func BucketContractRefusal(bucket string, f BucketFinding) (summary, detail string) {
-	if f.OK {
+func BucketContractRefusal(bucket string, f Finding) (summary, detail string) {
+	if f.OK() {
 		return "", ""
 	}
 	why, fix := "", ""
@@ -491,7 +457,7 @@ func BucketContractRefusal(bucket string, f BucketFinding) (summary, detail stri
 		why = "A record in this bucket can be the only copy of what it says: a record-backed resource carries no marker and cannot be imported under a live block, so an overwrite or a delete in an unversioned bucket is final."
 		fix = fmt.Sprintf("Enable it: aws s3api put-bucket-versioning --bucket %s --versioning-configuration Status=Enabled", bucket)
 	case BucketLifecycle:
-		if f.DeletesRecords {
+		if f.Unwaivable {
 			summary = "The record store bucket's lifecycle deletes records"
 			detail = fmt.Sprintf("Bucket %q: %s.\n\nThat rule deletes records. An estate that has converged does not rewrite its records, so they age, and once one is expired the next plan reads an estate with that resource missing and proposes creating what already exists. For a record-backed resource the record was the only copy. Versioning keeps an expired record as a noncurrent version for a while, which is a recovery window and not a reason to let it happen.\n\nRemove the Expiration action from that rule, or limit the rule to a prefix outside this store's keys. Only NoncurrentVersionExpiration belongs on a rule that reaches them. The allow_insecure waiver does not cover this: it lets a run proceed without a setting being asserted, and this is a setting that was read and is destructive.", bucket, f.Found)
 			return summary, detail
@@ -502,7 +468,7 @@ func BucketContractRefusal(bucket string, f BucketFinding) (summary, detail stri
 		why = "Records hold secret material, protected only by the bucket's encryption at rest and by IAM. A public bucket policy or ACL would publish them."
 		fix = fmt.Sprintf("Turn all four settings on: aws s3api put-public-access-block --bucket %s --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true", bucket)
 	}
-	if f.Unreadable {
+	if f.Outcome == Unreadable {
 		summary = fmt.Sprintf("The record store bucket's %s setting could not be read", f.Setting)
 		detail = fmt.Sprintf("Bucket %q: %s, so whether the bucket satisfies this setting is unknown, and a bucket nobody could check is refused the same as one that failed.\n\n%s\n\nGrant the role that read permission, or have someone who holds it confirm the setting.", bucket, f.Found, why)
 		return summary, detail
@@ -517,7 +483,7 @@ func BucketContractRefusal(bucket string, f BucketFinding) (summary, detail stri
 // names the setting and its cost in the same sentence, never a generic
 // "running with reduced checks", because a cost the reader has to look up is
 // a cost they have already decided not to read.
-func BucketWaiverCost(setting BucketSetting) string {
+func BucketWaiverCost(setting Setting) string {
 	switch setting {
 	case BucketVersioning:
 		return "an overwritten or deleted record cannot be brought back, and a record can be the only copy of what it says"
@@ -529,39 +495,10 @@ func BucketWaiverCost(setting BucketSetting) string {
 	return "that assertion is not made"
 }
 
-// SplitWaived sorts the findings that did not pass into the ones the run
-// must refuse on and the ones waived names, leaving passing findings out of
-// both. A waiver reaches exactly the settings it names: waiving one leaves a
-// failure of either of the others in refused.
-//
-// An unreadable setting is waived by the same name as a wrong one. From the
-// caller's side they are one refusal - the run cannot rely on the setting -
-// and an operator whose role cannot read the bucket's configuration has no
-// other way to proceed.
-func SplitWaived(findings []BucketFinding, waived []string) (refused, waivedFailing []BucketFinding) {
-	for _, f := range findings {
-		if f.OK {
-			continue
-		}
-		isWaived := false
-		for _, name := range waived {
-			// A rule that deletes records is never waived. The waiver's
-			// stated cost (see [BucketWaiverCost]) is that nothing is KNOWN
-			// to expire noncurrent versions; here something is known, and it
-			// is destructive.
-			if f.DeletesRecords {
-				break
-			}
-			if BucketSetting(name) == f.Setting {
-				isWaived = true
-				break
-			}
-		}
-		if isWaived {
-			waivedFailing = append(waivedFailing, f)
-		} else {
-			refused = append(refused, f)
-		}
-	}
-	return refused, waivedFailing
+// BucketContractCheckFailed is what an apply says when the contract read
+// itself could not be made - not a finding about the bucket, but nothing
+// known about it at all.
+func BucketContractCheckFailed(bucket string, err error) (summary, detail string) {
+	return "Cannot check the record store bucket",
+		fmt.Sprintf("Before applying, the record store bucket %q is checked for the settings its records depend on, and that check could not be made: %s. Nothing has been applied.", bucket, err)
 }

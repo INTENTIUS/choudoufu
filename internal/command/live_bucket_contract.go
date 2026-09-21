@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -15,8 +16,9 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// BeforeApply asserts the record store bucket's contract (GitHub issue
-// #1339) at the last point before an apply changes anything.
+// BeforeApply asserts the record store's contract - the bucket's (GitHub
+// issue #1339), the cluster's (#1393), or none for a local store - at the
+// last point before an apply changes anything.
 //
 // # When the contract is asserted, and why there
 //
@@ -25,18 +27,23 @@ import (
 // these two instead:
 //
 //   - Here, on every apply. An apply is the only run that writes records, so
-//     it is the run an unversioned bucket can hurt, and three configuration
-//     reads are nothing beside the writes it is about to make. It is also
-//     what catches drift: a bucket whose versioning somebody suspended last
-//     week is refused by the next apply, before that apply's first write.
+//     it is the run a store with versioning off or no estate boundary can
+//     hurt, and a handful of configuration reads are nothing beside the
+//     writes it is about to make. It is also what catches drift: a bucket
+//     whose versioning somebody suspended last week, or an admission policy
+//     somebody uninstalled, is refused by the next apply, before that
+//     apply's first write.
 //   - On an estate's first contact with its store, whatever the command
-//     (projection's assertBucketOnFirstContact), because that is the one run
-//     a wrong bucket costs nothing to walk away from.
+//     (projection's assertStoreOnFirstContact), because that is the one run
+//     a wrong store costs nothing to walk away from.
 //
 // What this gives up, stated rather than hidden: a plan against an estate
-// whose bucket has drifted proceeds without a word, and the operator learns
-// at apply time, after approving. The runnable project's verify (#1341) is
-// the on-demand answer for anyone who wants it sooner.
+// whose store has drifted proceeds without a word, and the operator learns
+// at apply time, after approving. `live-bucket` (#1341) and `live-cluster`
+// are the on-demand answer for anyone who wants it sooner.
+//
+// An apply writes records, so this asks for everything a writing run needs;
+// a plan-only identity is not what this run has.
 //
 // A refusal here leaves nothing behind: nothing has been applied, and no
 // record has been written.
@@ -45,78 +52,37 @@ func (r *statelessRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
 	if r.rawStore == nil || r.recordStoreCfg == nil {
 		return diags
 	}
-	diags = diags.Append(r.beforeApplyCluster(ctx))
-	findings, ok, err := projection.BucketContractFindings(ctx, r.rawStore, r.recordStoreCfg, r.recordEstate)
-	if !ok {
+	findings, checker, err := projection.ContractFindings(ctx, r.rawStore, r.recordStoreCfg, r.recordEstate)
+	if checker == nil {
 		return diags
 	}
 	if err != nil {
-		return diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot check the record store bucket",
-			fmt.Sprintf("Before applying, the record store bucket %q is checked for the settings its records depend on, and that check could not be made: %s. Nothing has been applied.", r.recordStoreCfg.Bucket, err),
-		))
+		summary, detail := checker.ContractCheckFailed(err)
+		return diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail))
 	}
-	refused, waivedFailing := staterecord.SplitWaived(findings, r.recordStoreCfg.AllowInsecure)
-	for _, f := range waivedFailing {
-		// The every-run warning (bucketWaiverWarnings) is made from the
-		// configuration alone and cannot know whether the waiver is hiding
-		// anything. This run just read the bucket, so it can.
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
-			fmt.Sprintf("The waived %s assertion would have refused this apply", f.Setting),
-			fmt.Sprintf("Bucket %q: %s. The apply proceeds because allow_insecure names %q.", r.recordStoreCfg.Bucket, f.Found, f.Setting),
-		))
-	}
-	return diags.Append(bucketContractDiagnostics(r.recordStoreCfg.Bucket, refused))
-}
-
-// beforeApplyCluster is the cluster contract's half of BeforeApply (GitHub
-// issue #1393), on every apply for the reason the bucket's half runs on every
-// apply: an apply is the only run that writes records, and six reads are
-// nothing beside the writes it is about to make. It is also what catches
-// drift - an estate boundary policy somebody uninstalled last week is refused
-// by the next apply, before that apply's first write.
-//
-// All five of the store's verbs are required here. An apply writes records,
-// so a plan-only identity is not what this run has.
-func (r *statelessRunner) beforeApplyCluster(ctx context.Context) tfdiags.Diagnostics {
-	var diags tfdiags.Diagnostics
-	findings, ok, err := projection.ClusterContractFindings(ctx, r.rawStore, staterecord.KubernetesRecordVerbs)
-	if !ok {
-		return diags
-	}
-	namespace := projection.RecordNamespace(r.recordStoreCfg, r.recordEstate)
-	if err != nil {
-		return diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot check the record store cluster",
-			fmt.Sprintf("Before applying, the cluster this estate keeps its records in is checked for the properties those records depend on, and that check could not be made: %s. Nothing has been applied.", err),
-		))
-	}
-	refused, warned, waivedFailing := staterecord.SplitWaivedCluster(findings, r.recordStoreCfg.AllowInsecure)
+	label, subject := checker.ContractSubject()
+	refused, warned, waivedFailing := staterecord.SplitWaived(findings, r.recordStoreCfg.AllowInsecure)
 	for _, f := range warned {
-		// A concern, not a refusal: see staterecord.ClusterFinding.Warning.
-		// It lands here rather than at first contact because it has to be
-		// said on EVERY apply, not only the estate's first.
-		summary, detail := staterecord.ClusterContractRefusal(namespace, f)
+		// A concern, not a refusal: see staterecord.Warned and
+		// staterecord.NotChecked. It lands here rather than at first contact
+		// because it has to be said on EVERY apply, not only the estate's
+		// first.
+		summary, detail := checker.ContractRefusal(f)
 		if summary == "" {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, summary, detail))
 	}
 	for _, f := range waivedFailing {
-		// The every-run warning (recordStoreWaiverWarnings) is made from the
+		// The every-run warning (bucketWaiverWarnings) is made from the
 		// configuration alone and cannot know whether the waiver is hiding
-		// anything. This run just read the cluster, so it can.
+		// anything. This run just read the store, so it can.
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
 			fmt.Sprintf("The waived %s assertion would have refused this apply", f.Setting),
-			fmt.Sprintf("Namespace %q: %s. The apply proceeds because allow_insecure names %q.", namespace, f.Found, f.Setting),
+			fmt.Sprintf("%s %q: %s. The apply proceeds because allow_insecure names %q.", label, subject, f.Found, f.Setting),
 		))
 	}
-	for _, f := range refused {
-		summary, detail := staterecord.ClusterContractRefusal(namespace, f)
-		if summary == "" {
-			continue
-		}
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail+"\n\nNothing has been applied."))
-	}
-	return diags
+	return diags.Append(contractDiagnostics(checker, refused))
 }
 
 // bucketWaiverWarnings is one warning per waived assertion, made from the
@@ -139,29 +105,68 @@ func bucketWaiverWarnings(rs *configs.LiveRecordStore) tfdiags.Diagnostics {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
 				fmt.Sprintf("The record store cluster's %s assertion is waived", name),
 				fmt.Sprintf("record_store \"kubernetes\" names %q in allow_insecure, so %s. This warning repeats on every run for as long as the waiver is configured.",
-					name, staterecord.ClusterWaiverCost(staterecord.ClusterSetting(name))),
+					name, staterecord.ClusterWaiverCost(staterecord.Setting(name))),
 			))
 		default:
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
 				fmt.Sprintf("The record store bucket's %s assertion is waived", name),
 				fmt.Sprintf("record_store \"s3\" names %q in allow_insecure for bucket %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
-					name, rs.Bucket, staterecord.BucketWaiverCost(staterecord.BucketSetting(name))),
+					name, rs.Bucket, staterecord.BucketWaiverCost(staterecord.Setting(name))),
 			))
 		}
 	}
 	return diags
 }
 
-// bucketContractDiagnostics turns failed findings into one error diagnostic
-// each, so a bucket with two things wrong says both in one run.
-func bucketContractDiagnostics(bucket string, findings []staterecord.BucketFinding) tfdiags.Diagnostics {
+// contractDiagnostics turns failed findings into one error diagnostic each,
+// so a store with two things wrong says both in one run.
+func contractDiagnostics(checker staterecord.ContractChecker, findings []staterecord.Finding) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	for _, f := range findings {
-		summary, detail := staterecord.BucketContractRefusal(bucket, f)
+		summary, detail := checker.ContractRefusal(f)
 		if summary == "" {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail+"\n\nNothing has been applied."))
 	}
 	return diags
+}
+
+// liveWaiverLine is one configured allow_insecure name, and is shared by
+// live-bucket and live-cluster: the waiver is one idea with one shape
+// whichever store it is written in, and the two reports print it with the
+// same two sentences and their own noun. The verdicts above are not shared,
+// because "unreadable" and "not_checked" are different answers.
+type liveWaiverLine struct {
+	Setting string `json:"setting"`
+	// Hiding is true when the store does fail the waived assertion, so a
+	// run proceeds past something this report calls a failure.
+	Hiding bool `json:"hiding"`
+}
+
+// liveWaiverLines is what the configuration's allow_insecure names, in the
+// order it names them, each with whether it is hiding a failure. rs is nil
+// when the store was named on the command line rather than read from a
+// configuration, and then there is no waiver to report.
+func liveWaiverLines(rs *configs.LiveRecordStore, failing map[staterecord.Setting]bool) []liveWaiverLine {
+	lines := []liveWaiverLine{}
+	if rs == nil {
+		return lines
+	}
+	for _, name := range rs.AllowInsecure {
+		lines = append(lines, liveWaiverLine{Setting: name, Hiding: failing[staterecord.Setting(name)]})
+	}
+	return lines
+}
+
+// renderLiveWaiverLines prints them, naming the store with noun ("bucket",
+// "cluster").
+func renderLiveWaiverLines(b *strings.Builder, lines []liveWaiverLine, noun string) {
+	for _, w := range lines {
+		if w.Hiding {
+			fmt.Fprintf(b, "  waiver: allow_insecure names %q, and the %s DOES fail it. A plan or apply here proceeds past the failure above.\n", w.Setting, noun)
+		} else {
+			fmt.Fprintf(b, "  waiver: allow_insecure names %q. The %s passes it today, so the waiver is hiding nothing and can be removed.\n", w.Setting, noun)
+		}
+	}
 }

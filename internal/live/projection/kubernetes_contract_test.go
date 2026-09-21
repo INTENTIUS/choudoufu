@@ -295,10 +295,10 @@ func TestAPlanWithNoSentinelIsStillRefused(t *testing.T) {
 	}
 }
 
-// TestClusterContractFindingsSeesThroughTheWrappers pins that the contract is
+// TestContractFindingsSeesThroughTheWrappers pins that the contract is
 // reachable from the store openBuiltStore hands back, which is the run cache
 // over the trip counter over the store.
-func TestClusterContractFindingsSeesThroughTheWrappers(t *testing.T) {
+func TestContractFindingsSeesThroughTheWrappers(t *testing.T) {
 	cs := newClusterFake(t)
 	store, err := staterecord.NewKubernetesStore(staterecord.KubernetesConfig{
 		Secrets:   cs.CoreV1().Secrets(contractNamespace),
@@ -314,45 +314,31 @@ func TestClusterContractFindingsSeesThroughTheWrappers(t *testing.T) {
 		t.Fatalf("openBuiltStore: %v", err)
 	}
 
-	findings, ok, err := ClusterContractFindings(context.Background(), opened, staterecord.KubernetesRecordVerbs)
-	if !ok {
+	findings, checker, err := ContractFindings(context.Background(), opened, kubernetesRecordStore(), contractEstate)
+	if checker == nil {
 		t.Fatal("the opened store does not answer the cluster contract")
 	}
 	if err != nil {
-		t.Fatalf("ClusterContractFindings: %v", err)
+		t.Fatalf("ContractFindings: %v", err)
 	}
 	for _, f := range findings {
-		if !f.OK {
+		if !f.OK() {
 			t.Errorf("%s failed on a cluster built to satisfy everything: %s", f.Setting, f.Found)
 		}
 	}
 
-	// A bucket store answers the bucket contract and not this one, and a
-	// local store answers neither.
+	// The namespace a refusal would name is the store's own, not the
+	// caller's: see [staterecord.KubernetesStore.ContractSubject].
+	if label, subject := checker.ContractSubject(); label != "Namespace" || subject != contractNamespace {
+		t.Errorf("the checker names itself (%q, %q), want (\"Namespace\", %q)", label, subject, contractNamespace)
+	}
+
+	// A local store has no contract at all, which is not a store that failed.
 	local, err := staterecord.NewLocalStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewLocalStore: %v", err)
 	}
-	if _, ok, _ := ClusterContractFindings(context.Background(), local, nil); ok {
-		t.Error("a local store claims a cluster contract")
-	}
-}
-
-// TestRecordNamespaceNamesTheStoresOwn pins the one string every cluster
-// refusal has to carry. A refusal that named the wrong namespace would send
-// an operator to look at a namespace that is fine.
-func TestRecordNamespaceNamesTheStoresOwn(t *testing.T) {
-	if got := RecordNamespace(kubernetesRecordStore(), contractEstate); got != contractNamespace {
-		t.Errorf("RecordNamespace = %q, want %q", got, contractNamespace)
-	}
-	derived := &configs.LiveRecordStore{Type: "kubernetes"}
-	if got := RecordNamespace(derived, "alice"); got != "tofu-records-alice" {
-		t.Errorf("a derived namespace is %q, want tofu-records-alice", got)
-	}
-	if got := RecordNamespace(&configs.LiveRecordStore{Type: "s3", Bucket: "b"}, "alice"); got != "" {
-		t.Errorf("a bucket store has a records namespace %q", got)
-	}
-	if got := RecordNamespace(nil, "alice"); got != "" {
-		t.Errorf("no record store at all has a records namespace %q", got)
+	if _, c, _ := ContractFindings(context.Background(), local, nil, contractEstate); c != nil {
+		t.Error("a local store claims a contract")
 	}
 }

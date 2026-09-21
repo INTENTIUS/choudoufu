@@ -68,7 +68,7 @@ type liveClusterReport struct {
 	Settings  []liveClusterSettingLine `json:"settings"`
 	// Waived is what the configuration's allow_insecure names, empty with
 	// -namespace or with no waiver. It never affects Correct.
-	Waived []liveClusterWaiverLine `json:"waived"`
+	Waived []liveWaiverLine `json:"waived"`
 }
 
 type liveClusterSettingLine struct {
@@ -79,13 +79,6 @@ type liveClusterSettingLine struct {
 	// Verbs is the namespace_access review, one entry per verb, and empty
 	// for every other setting.
 	Verbs []staterecord.VerbAccess `json:"verbs,omitempty"`
-}
-
-type liveClusterWaiverLine struct {
-	Setting string `json:"setting"`
-	// Hiding is true when the cluster does fail the waived assertion, so a
-	// run proceeds past something this report calls a failure.
-	Hiding bool `json:"hiding"`
 }
 
 func (c *LiveClusterCommand) Run(rawArgs []string) int {
@@ -158,29 +151,30 @@ func (c *LiveClusterCommand) Run(rawArgs []string) int {
 // from the cluster call so it can be held to the one rule that matters:
 // Correct comes from the findings alone, and a finding that could not be
 // answered is not a pass. rs is nil with -namespace.
-func buildLiveClusterReport(namespace, estate, checkedAs string, findings []staterecord.ClusterFinding, rs *configs.LiveRecordStore) liveClusterReport {
+func buildLiveClusterReport(namespace, estate, checkedAs string, findings []staterecord.Finding, rs *configs.LiveRecordStore) liveClusterReport {
 	report := liveClusterReport{
 		Namespace: namespace, Estate: estate, Correct: true, CheckedAs: checkedAs,
-		Settings: []liveClusterSettingLine{}, Waived: []liveClusterWaiverLine{},
+		Settings: []liveClusterSettingLine{},
 	}
-	failing := map[staterecord.ClusterSetting]bool{}
+	failing := map[staterecord.Setting]bool{}
 	for _, f := range findings {
 		verdict := "ok"
-		switch {
-		case f.Warning:
+		switch f.Outcome {
+		case staterecord.Warned:
 			verdict = "warn"
-		case f.NotChecked:
+		case staterecord.NotChecked:
 			verdict = "not_checked"
-		case !f.OK:
+		case staterecord.Passed:
+		default:
 			verdict = "fail"
 		}
-		if !f.OK {
+		if !f.OK() {
 			failing[f.Setting] = true
 			// A warning is a concern and not a failure: a run proceeds past
 			// it, so a report that called the cluster NOT correct for one
 			// would disagree with every apply. It is printed, counted, and
 			// named in the verdict line.
-			if f.Warning {
+			if f.Outcome == staterecord.Warned {
 				report.Warnings++
 			} else {
 				report.Correct = false
@@ -190,11 +184,7 @@ func buildLiveClusterReport(namespace, estate, checkedAs string, findings []stat
 			Setting: string(f.Setting), Verdict: verdict, Found: f.Found, Verbs: f.Verbs,
 		})
 	}
-	if rs != nil {
-		for _, name := range rs.AllowInsecure {
-			report.Waived = append(report.Waived, liveClusterWaiverLine{Setting: name, Hiding: failing[staterecord.ClusterSetting(name)]})
-		}
-	}
+	report.Waived = liveWaiverLines(rs, failing)
 	return report
 }
 
@@ -214,13 +204,7 @@ func renderLiveClusterReport(r liveClusterReport) string {
 			fmt.Fprintf(&b, "      secrets %-7s %-8s (%s)\n", v.Verb, answer, needed)
 		}
 	}
-	for _, w := range r.Waived {
-		if w.Hiding {
-			fmt.Fprintf(&b, "  waiver: allow_insecure names %q, and the cluster DOES fail it. A plan or apply here proceeds past the failure above.\n", w.Setting)
-		} else {
-			fmt.Fprintf(&b, "  waiver: allow_insecure names %q. The cluster passes it today, so the waiver is hiding nothing and can be removed.\n", w.Setting)
-		}
-	}
+	renderLiveWaiverLines(&b, r.Waived, "cluster")
 	if r.CheckedAs == "plan" {
 		b.WriteString("  checked as a plan identity: secrets get and list are required, create, update and delete are reported and not required. An apply needs all five.\n")
 	} else {

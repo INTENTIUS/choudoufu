@@ -9,15 +9,15 @@ import (
 	"testing"
 )
 
-func settingsOf(fs []BucketFinding) []BucketSetting {
-	var out []BucketSetting
+func settingsOf(fs []Finding) []Setting {
+	var out []Setting
 	for _, f := range fs {
 		out = append(out, f.Setting)
 	}
 	return out
 }
 
-func sameSettings(a, b []BucketSetting) bool {
+func sameSettings(a, b []Setting) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -34,24 +34,27 @@ func sameSettings(a, b []BucketSetting) bool {
 // leaves exactly the other two refused. Run for wrong settings and for
 // unreadable ones, since the same waiver answers both.
 func TestAWaiverReachesOnlyWhatItNames(t *testing.T) {
-	for _, unreadable := range []bool{false, true} {
-		var allFailing []BucketFinding
+	for _, outcome := range []Outcome{Failed, Unreadable} {
+		var allFailing []Finding
 		for _, s := range BucketSettings {
-			allFailing = append(allFailing, BucketFinding{Setting: s, Unreadable: unreadable, Found: "wrong"})
+			allFailing = append(allFailing, Finding{Setting: s, Outcome: outcome, Found: "wrong"})
 		}
 		for i, waived := range BucketSettings {
-			refused, hidden := SplitWaived(allFailing, []string{string(waived)})
-			var wantRefused []BucketSetting
+			refused, warned, hidden := SplitWaived(allFailing, []string{string(waived)})
+			if len(warned) != 0 {
+				t.Errorf("outcome=%v, waiving %q: the bucket warned about %v; a setting it may not read is a refusal here, not something a run proceeds past", outcome, waived, settingsOf(warned))
+			}
+			var wantRefused []Setting
 			for j, s := range BucketSettings {
 				if j != i {
 					wantRefused = append(wantRefused, s)
 				}
 			}
 			if !sameSettings(settingsOf(refused), wantRefused) {
-				t.Errorf("unreadable=%v, waiving %q: refused %v, want %v", unreadable, waived, settingsOf(refused), wantRefused)
+				t.Errorf("outcome=%v, waiving %q: refused %v, want %v", outcome, waived, settingsOf(refused), wantRefused)
 			}
-			if !sameSettings(settingsOf(hidden), []BucketSetting{waived}) {
-				t.Errorf("unreadable=%v, waiving %q: the waiver hid %v, want only %q", unreadable, waived, settingsOf(hidden), waived)
+			if !sameSettings(settingsOf(hidden), []Setting{waived}) {
+				t.Errorf("outcome=%v, waiving %q: the waiver hid %v, want only %q", outcome, waived, settingsOf(hidden), waived)
 			}
 		}
 	}
@@ -59,21 +62,21 @@ func TestAWaiverReachesOnlyWhatItNames(t *testing.T) {
 
 // TestNoWaiverRefusesEverythingAndAPassingBucketNeedsNone pins the two ends.
 func TestNoWaiverRefusesEverythingAndAPassingBucketNeedsNone(t *testing.T) {
-	var failing, passing []BucketFinding
+	var failing, passing []Finding
 	for _, s := range BucketSettings {
-		failing = append(failing, BucketFinding{Setting: s, Found: "wrong"})
-		passing = append(passing, BucketFinding{Setting: s, OK: true})
+		failing = append(failing, Finding{Setting: s, Found: "wrong"})
+		passing = append(passing, Finding{Setting: s, Outcome: Passed})
 	}
-	if refused, hidden := SplitWaived(failing, nil); len(refused) != len(BucketSettings) || len(hidden) != 0 {
+	if refused, _, hidden := SplitWaived(failing, nil); len(refused) != len(BucketSettings) || len(hidden) != 0 {
 		t.Errorf("no waiver: refused %d, hidden %d, want %d and 0", len(refused), len(hidden), len(BucketSettings))
 	}
 	all := []string{"versioning", "lifecycle", "public_access_block"}
-	if refused, hidden := SplitWaived(passing, all); len(refused) != 0 || len(hidden) != 0 {
+	if refused, _, hidden := SplitWaived(passing, all); len(refused) != 0 || len(hidden) != 0 {
 		t.Errorf("a passing bucket under a full waiver: refused %d, hidden %d, want 0 and 0 - a waiver hides a failure, it does not invent one", len(refused), len(hidden))
 	}
 	// A name that is not a setting waives nothing. internal/configs refuses
 	// one at decode time; this is the second stop.
-	if refused, _ := SplitWaived(failing, []string{"versionning"}); len(refused) != len(BucketSettings) {
+	if refused, _, _ := SplitWaived(failing, []string{"versionning"}); len(refused) != len(BucketSettings) {
 		t.Errorf("a misspelt waiver reached %d setting(s)", len(BucketSettings)-len(refused))
 	}
 }
@@ -81,7 +84,7 @@ func TestNoWaiverRefusesEverythingAndAPassingBucketNeedsNone(t *testing.T) {
 // TestEveryWaiverStatesItsOwnCost: a generic cost is the "running with
 // reduced checks" the issue rules out.
 func TestEveryWaiverStatesItsOwnCost(t *testing.T) {
-	seen := map[string]BucketSetting{}
+	seen := map[string]Setting{}
 	for _, s := range BucketSettings {
 		cost := BucketWaiverCost(s)
 		if cost == "" || cost == BucketWaiverCost("not-a-setting") {

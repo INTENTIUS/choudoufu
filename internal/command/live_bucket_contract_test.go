@@ -79,7 +79,7 @@ func TestAClusterWaiverWarnsByNameWithItsCostInTheSameSentence(t *testing.T) {
 		if strings.Contains(desc.Summary, "bucket") {
 			t.Errorf("a cluster waiver warns about a bucket: %q", desc.Summary)
 		}
-		cost := staterecord.ClusterWaiverCost(staterecord.ClusterSetting(name))
+		cost := staterecord.ClusterWaiverCost(staterecord.Setting(name))
 		sentence := ""
 		for _, s := range strings.SplitAfter(desc.Detail, ". ") {
 			if strings.Contains(s, cost) {
@@ -109,7 +109,7 @@ func TestAWaiverWarnsByNameWithItsCostInTheSameSentence(t *testing.T) {
 		if !strings.Contains(desc.Summary, name) {
 			t.Errorf("the headline %q does not name %q", desc.Summary, name)
 		}
-		cost := staterecord.BucketWaiverCost(staterecord.BucketSetting(name))
+		cost := staterecord.BucketWaiverCost(staterecord.Setting(name))
 		sentence := ""
 		for _, s := range strings.SplitAfter(desc.Detail, ". ") {
 			if strings.Contains(s, cost) {

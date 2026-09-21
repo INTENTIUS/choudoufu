@@ -16,23 +16,41 @@ import (
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
+// fakeBucketName is what every bucketBackedStore in this file calls itself,
+// so a refusal it renders names the same bucket the record_store block does.
+const fakeBucketName = "the-bucket"
+
 // bucketBackedStore is a real local store that also answers the bucket
 // contract, so the handshake and the sentinel are the production ones and
-// only the bucket's settings are scripted.
+// only the bucket's settings are scripted. Everything but CheckContract is
+// the bucket's real prose: a test that wrote its own refusal words would pin
+// nothing about the ones an operator reads.
 type bucketBackedStore struct {
 	staterecord.Store
-	findings   []staterecord.BucketFinding
+	findings   []staterecord.Finding
 	checkErr   error
 	deleteErr  error
 	checks     int
 	namespaces []string
 }
 
-func (s *bucketBackedStore) CheckBucketContract(_ context.Context, namespaces []string) ([]staterecord.BucketFinding, error) {
+func (s *bucketBackedStore) CheckContract(_ context.Context, opts staterecord.ContractOptions) ([]staterecord.Finding, error) {
 	s.checks++
-	s.namespaces = namespaces
+	s.namespaces = opts.Namespaces
 	return s.findings, s.checkErr
 }
+
+func (s *bucketBackedStore) ContractSubject() (string, string) { return "Bucket", fakeBucketName }
+
+func (s *bucketBackedStore) ContractRefusal(f staterecord.Finding) (string, string) {
+	return staterecord.BucketContractRefusal(fakeBucketName, f)
+}
+
+func (s *bucketBackedStore) ContractCheckFailed(err error) (string, string) {
+	return staterecord.BucketContractCheckFailed(fakeBucketName, err)
+}
+
+func (s *bucketBackedStore) ContractRefusalClosing([]staterecord.Setting) string { return "" }
 
 func (s *bucketBackedStore) Delete(ctx context.Context, key, expectedVersion string) error {
 	if s.deleteErr != nil {
@@ -41,10 +59,10 @@ func (s *bucketBackedStore) Delete(ctx context.Context, key, expectedVersion str
 	return s.Store.Delete(ctx, key, expectedVersion)
 }
 
-func passing() []staterecord.BucketFinding {
-	var out []staterecord.BucketFinding
+func passing() []staterecord.Finding {
+	var out []staterecord.Finding
 	for _, setting := range staterecord.BucketSettings {
-		out = append(out, staterecord.BucketFinding{Setting: setting, OK: true, Found: "fine"})
+		out = append(out, staterecord.Finding{Setting: setting, Outcome: staterecord.Passed, Found: "fine"})
 	}
 	return out
 }
@@ -67,7 +85,7 @@ func TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed(t *testing.T) {
 	const estate = "prod"
 	rs := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket"}
 	bad := passing()
-	bad[0] = staterecord.BucketFinding{Setting: staterecord.BucketVersioning, Found: "versioning has never been enabled"}
+	bad[0] = staterecord.Finding{Setting: staterecord.BucketVersioning, Found: "versioning has never been enabled"}
 	store := &bucketBackedStore{Store: localHintStore(t), findings: bad}
 
 	for run := 1; run <= 2; run++ {
@@ -111,9 +129,9 @@ func TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed(t *testing.T) {
 // TestAStoreWithNoBucketHasNothingToAssert: the local store is not in a
 // bucket, and that is not a failure.
 func TestAStoreWithNoBucketHasNothingToAssert(t *testing.T) {
-	findings, ok, err := BucketContractFindings(context.Background(), staterecord.NewRunCache(localHintStore(t), RecordKeyPrefix("prod")), nil, "prod")
-	if err != nil || ok || findings != nil {
-		t.Errorf("BucketContractFindings over a local store = (%v, %v, %v), want (nil, false, nil)", findings, ok, err)
+	findings, checker, err := ContractFindings(context.Background(), staterecord.NewRunCache(localHintStore(t), RecordKeyPrefix("prod")), nil, "prod")
+	if err != nil || checker != nil || findings != nil {
+		t.Errorf("ContractFindings over a local store = (%v, %v, %v), want (nil, nil, nil)", findings, checker, err)
 	}
 }
 
@@ -124,21 +142,21 @@ func TestAStoreWithNoBucketHasNothingToAssert(t *testing.T) {
 func TestTheBucketIsFoundThroughTheProductionWrappers(t *testing.T) {
 	inner := &bucketBackedStore{Store: localHintStore(t), findings: passing()}
 	wrapped := staterecord.NewRunCache(staterecord.NewCountingStore(inner, nil), RecordKeyPrefix("prod"))
-	_, ok, err := BucketContractFindings(context.Background(), wrapped, &configs.LiveRecordStore{Type: "s3", Bucket: "b"}, "prod")
+	_, checker, err := ContractFindings(context.Background(), wrapped, &configs.LiveRecordStore{Type: "s3", Bucket: "b"}, "prod")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ok || inner.checks != 1 {
-		t.Errorf("the bucket under the wrappers was not reached: ok=%v checks=%d", ok, inner.checks)
+	if checker == nil || inner.checks != 1 {
+		t.Errorf("the bucket under the wrappers was not reached: checker=%v checks=%d", checker, inner.checks)
 	}
 }
 
 // failing returns a full set of findings with setting failed.
-func failingSetting(setting staterecord.BucketSetting, found string) []staterecord.BucketFinding {
+func failingSetting(setting staterecord.Setting, found string) []staterecord.Finding {
 	out := passing()
 	for i := range out {
 		if out[i].Setting == setting {
-			out[i] = staterecord.BucketFinding{Setting: setting, Found: found}
+			out[i] = staterecord.Finding{Setting: setting, Found: found}
 		}
 	}
 	return out

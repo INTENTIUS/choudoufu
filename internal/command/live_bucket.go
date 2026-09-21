@@ -52,7 +52,7 @@ type liveBucketReport struct {
 	Settings        []liveBucketSettingLine `json:"settings"`
 	// Waived is what the configuration's allow_insecure names, empty with
 	// -bucket or with no waiver. It never affects Correct.
-	Waived []liveBucketWaiverLine `json:"waived"`
+	Waived []liveWaiverLine `json:"waived"`
 }
 
 type liveBucketSettingLine struct {
@@ -60,13 +60,6 @@ type liveBucketSettingLine struct {
 	// Verdict is "ok", "fail" or "unreadable".
 	Verdict string `json:"verdict"`
 	Found   string `json:"found"`
-}
-
-type liveBucketWaiverLine struct {
-	Setting string `json:"setting"`
-	// Hiding is true when the bucket does fail the waived assertion, so a
-	// run proceeds past something this report calls a failure.
-	Hiding bool `json:"hiding"`
 }
 
 func (c *LiveBucketCommand) Run(rawArgs []string) int {
@@ -141,28 +134,24 @@ func (c *LiveBucketCommand) Run(rawArgs []string) int {
 // from the AWS call so it can be held to the one rule that matters: Correct
 // comes from the findings alone. rs is nil with -bucket. estate is what the
 // findings were checked as and is only reported, never judged.
-func buildLiveBucketReport(bucket, estate string, findings []staterecord.BucketFinding, rs *configs.LiveRecordStore) liveBucketReport {
-	report := liveBucketReport{Bucket: bucket, Correct: true, CheckedAsEstate: estate, Settings: []liveBucketSettingLine{}, Waived: []liveBucketWaiverLine{}}
-	failing := map[staterecord.BucketSetting]bool{}
+func buildLiveBucketReport(bucket, estate string, findings []staterecord.Finding, rs *configs.LiveRecordStore) liveBucketReport {
+	report := liveBucketReport{Bucket: bucket, Correct: true, CheckedAsEstate: estate, Settings: []liveBucketSettingLine{}}
+	failing := map[staterecord.Setting]bool{}
 	for _, f := range findings {
 		verdict := "ok"
 		switch {
-		case f.Unreadable:
+		case f.Outcome == staterecord.Unreadable:
 			verdict = "unreadable"
-		case !f.OK:
+		case !f.OK():
 			verdict = "fail"
 		}
-		if !f.OK {
+		if !f.OK() {
 			report.Correct = false
 			failing[f.Setting] = true
 		}
 		report.Settings = append(report.Settings, liveBucketSettingLine{Setting: string(f.Setting), Verdict: verdict, Found: f.Found})
 	}
-	if rs != nil {
-		for _, name := range rs.AllowInsecure {
-			report.Waived = append(report.Waived, liveBucketWaiverLine{Setting: name, Hiding: failing[staterecord.BucketSetting(name)]})
-		}
-	}
+	report.Waived = liveWaiverLines(rs, failing)
 	return report
 }
 
@@ -171,13 +160,7 @@ func renderLiveBucketReport(r liveBucketReport) string {
 	for _, s := range r.Settings {
 		fmt.Fprintf(&b, "  %-22s %-11s %s\n", s.Setting, strings.ToUpper(s.Verdict), s.Found)
 	}
-	for _, w := range r.Waived {
-		if w.Hiding {
-			fmt.Fprintf(&b, "  waiver: allow_insecure names %q, and the bucket DOES fail it. A plan or apply here proceeds past the failure above.\n", w.Setting)
-		} else {
-			fmt.Fprintf(&b, "  waiver: allow_insecure names %q. The bucket passes it today, so the waiver is hiding nothing and can be removed.\n", w.Setting)
-		}
-	}
+	renderLiveWaiverLines(&b, r.Waived, "bucket")
 	if r.CheckedAsEstate == "" {
 		b.WriteString("  checked with no estate: only a lifecycle rule with no filter is credited, which is the answer that holds for every estate sharing this bucket. A run also credits rules that reach its own estate's namespaces. -estate=<name> checks as that estate's runs would.\n")
 	} else {

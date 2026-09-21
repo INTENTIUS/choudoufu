@@ -14,13 +14,13 @@ import (
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
-func bucketFindings(failing ...staterecord.BucketSetting) []staterecord.BucketFinding {
-	var out []staterecord.BucketFinding
+func bucketFindings(failing ...staterecord.Setting) []staterecord.Finding {
+	var out []staterecord.Finding
 	for _, s := range staterecord.BucketSettings {
-		f := staterecord.BucketFinding{Setting: s, OK: true, Found: "fine"}
+		f := staterecord.Finding{Setting: s, Outcome: staterecord.Passed, Found: "fine"}
 		for _, bad := range failing {
 			if bad == s {
-				f = staterecord.BucketFinding{Setting: s, Found: "wrong"}
+				f = staterecord.Finding{Setting: s, Found: "wrong"}
 			}
 		}
 		out = append(out, f)
@@ -73,7 +73,7 @@ func TestLiveBucketReportsTheBucketNotTheConfiguration(t *testing.T) {
 // verdict, and it fails the bucket.
 func TestLiveBucketUnreadableIsNotAPass(t *testing.T) {
 	findings := bucketFindings()
-	findings[2] = staterecord.BucketFinding{Setting: staterecord.BucketPublicAccessBlock, Unreadable: true, Found: "s3:GetBucketPublicAccessBlock was denied"}
+	findings[2] = staterecord.Finding{Setting: staterecord.BucketPublicAccessBlock, Outcome: staterecord.Unreadable, Found: "s3:GetBucketPublicAccessBlock was denied"}
 	r := buildLiveBucketReport("b", "e", findings, nil)
 	if r.Correct || r.Settings[2].Verdict != "unreadable" {
 		t.Errorf("an unreadable setting: correct=%v verdict=%q, want false and unreadable", r.Correct, r.Settings[2].Verdict)

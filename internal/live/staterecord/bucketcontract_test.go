@@ -120,7 +120,7 @@ func TestBucketContract(t *testing.T) {
 		name   string
 		break_ func(*fakeBucket)
 		// failing is the one setting expected to fail, "" when all pass.
-		failing    BucketSetting
+		failing    Setting
 		unreadable bool
 		found      string
 	}{
@@ -166,21 +166,21 @@ func TestBucketContract(t *testing.T) {
 					t.Errorf("finding %d is %q, want %q", i, f.Setting, BucketSettings[i])
 				}
 				wantOK := f.Setting != tc.failing
-				if f.OK != wantOK {
-					t.Errorf("%s: OK = %v, want %v (found: %s)", f.Setting, f.OK, wantOK, f.Found)
+				if f.OK() != wantOK {
+					t.Errorf("%s: OK = %v, want %v (found: %s)", f.Setting, f.OK(), wantOK, f.Found)
 				}
-				if f.OK && f.Unreadable {
+				if f.OK() && f.Outcome == Unreadable {
 					t.Errorf("%s is both OK and Unreadable", f.Setting)
 				}
 				summary, detail := BucketContractRefusal("the-bucket", f)
-				if f.OK {
+				if f.OK() {
 					if summary != "" || detail != "" {
 						t.Errorf("%s passed and still produced a refusal: %q", f.Setting, summary)
 					}
 					continue
 				}
-				if f.Unreadable != tc.unreadable {
-					t.Errorf("%s: Unreadable = %v, want %v", f.Setting, f.Unreadable, tc.unreadable)
+				if (f.Outcome == Unreadable) != tc.unreadable {
+					t.Errorf("%s: Unreadable = %v, want %v", f.Setting, f.Outcome == Unreadable, tc.unreadable)
 				}
 				if !strings.Contains(f.Found, tc.found) {
 					t.Errorf("%s: Found = %q, want it to contain %q", f.Setting, f.Found, tc.found)
@@ -225,7 +225,7 @@ func TestBucketContractWithNoNamespacesTrustsOnlyAnUnfilteredRule(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if findings[1].OK {
+	if findings[1].OK() {
 		t.Errorf("a prefix-filtered rule passed with no namespaces to check it against: %s", findings[1].Found)
 	}
 	b.rules = []s3types.LifecycleRule{expiresNoncurrent("whole-bucket", 30)}
@@ -233,7 +233,7 @@ func TestBucketContractWithNoNamespacesTrustsOnlyAnUnfilteredRule(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !findings[1].OK {
+	if !findings[1].OK() {
 		t.Errorf("an unfiltered rule was refused: %s", findings[1].Found)
 	}
 }

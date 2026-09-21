@@ -65,7 +65,7 @@ func forbid(cs *fake.Clientset, verb, resource string) *fake.Clientset {
 
 const contractNamespace = "tofu-records-alice"
 
-func findingFor(t *testing.T, findings []ClusterFinding, setting ClusterSetting) ClusterFinding {
+func findingFor(t *testing.T, findings []Finding, setting Setting) Finding {
 	t.Helper()
 	for _, f := range findings {
 		if f.Setting == setting {
@@ -73,10 +73,10 @@ func findingFor(t *testing.T, findings []ClusterFinding, setting ClusterSetting)
 		}
 	}
 	t.Fatalf("no finding for %q in %v", setting, findings)
-	return ClusterFinding{}
+	return Finding{}
 }
 
-func check(t *testing.T, cs kubernetes.Interface, opts ClusterContractOptions) []ClusterFinding {
+func check(t *testing.T, cs kubernetes.Interface, opts ClusterContractOptions) []Finding {
 	t.Helper()
 	if opts.Namespace == "" {
 		opts.Namespace = contractNamespace
@@ -92,7 +92,7 @@ func check(t *testing.T, cs kubernetes.Interface, opts ClusterContractOptions) [
 		if f.Setting != ClusterSettings[i] {
 			t.Fatalf("finding %d is %q, want %q: the order findings are reported in is part of the report", i, f.Setting, ClusterSettings[i])
 		}
-		if f.OK && (f.NotChecked || f.Warning) {
+		if f.OK() && ((f.Outcome == NotChecked) || f.Outcome == Warned) {
 			t.Fatalf("finding %q is OK and also NotChecked or a Warning; a question that was not answered, and a concern, are neither of them a pass", f.Setting)
 		}
 		if f.Found == "" {
@@ -109,7 +109,7 @@ func TestClusterContractNamespaceAccessReviewsEveryVerb(t *testing.T) {
 	cs := withReviews(fake.NewClientset(), func(ns, verb string) bool { return ns == contractNamespace })
 	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterNamespaceAccess)
 
-	if !f.OK {
+	if !f.OK() {
 		t.Fatalf("an identity allowed every verb failed the assertion: %s", f.Found)
 	}
 	if len(f.Verbs) != len(KubernetesRecordVerbs) {
@@ -149,7 +149,7 @@ func TestClusterContractNamespaceAccessNamesTheVerbsItLacks(t *testing.T) {
 	}
 	f := findingFor(t, check(t, withReviews(fake.NewClientset(), readOnly), ClusterContractOptions{NamespaceKnownToExist: true}), ClusterNamespaceAccess)
 
-	if f.OK {
+	if f.OK() {
 		t.Fatal("an identity with no create, update or delete passed the assertion")
 	}
 	for _, verb := range []string{"create", "update", "delete"} {
@@ -177,7 +177,7 @@ func TestClusterContractPlanOnlyIdentityIsNotRefusedForWriteVerbs(t *testing.T) 
 		RequiredVerbs:         KubernetesPlanVerbs,
 	}), ClusterNamespaceAccess)
 
-	if !f.OK {
+	if !f.OK() {
 		t.Fatalf("a plan-only identity was refused for lacking create, update and delete: %s", f.Found)
 	}
 	for _, v := range f.Verbs {
@@ -205,7 +205,7 @@ func TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords(t *testing.T
 	t.Run("probed and absent", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{}), ClusterNamespaceAccess)
-		if f.OK {
+		if f.OK() {
 			t.Fatal("a missing records namespace passed the assertion")
 		}
 		want := "create it with `kubectl create namespace " + contractNamespace + "`"
@@ -217,7 +217,7 @@ func TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords(t *testing.T
 	t.Run("known to exist, not probed", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterNamespaceAccess)
-		if !f.OK {
+		if !f.OK() {
 			t.Fatalf("a namespace the caller has already used was reported as a problem: %s", f.Found)
 		}
 		for _, action := range cs.Actions() {
@@ -230,7 +230,7 @@ func TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords(t *testing.T
 	t.Run("probe forbidden", func(t *testing.T) {
 		cs := forbid(withReviews(fake.NewClientset(), allowAll), "get", "namespaces")
 		f := findingFor(t, check(t, cs, ClusterContractOptions{}), ClusterNamespaceAccess)
-		if !f.OK {
+		if !f.OK() {
 			t.Fatalf("an identity that may do everything to Secrets was refused for not being able to get the namespace: %s", f.Found)
 		}
 		if !strings.Contains(f.Found, "was not established here") {
@@ -249,7 +249,7 @@ func TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords(t *testing.T
 			return verb == "get" || verb == "list"
 		}), "get", "namespaces")
 		f := findingFor(t, check(t, cs, ClusterContractOptions{}), ClusterNamespaceAccess)
-		if f.OK {
+		if f.OK() {
 			t.Fatal("an identity with no create, update or delete passed the apply question")
 		}
 		for _, verb := range []string{"create", "update", "delete"} {
@@ -273,7 +273,7 @@ func TestClusterContractReadIsolationSeesAClusterWideReader(t *testing.T) {
 				return ns == contractNamespace || v == verb
 			})
 			f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
-			if f.OK {
+			if f.OK() {
 				t.Fatalf("an identity that may %s secrets in every namespace passed read isolation: %s", verb, f.Found)
 			}
 			if !strings.Contains(f.Found, "EVERY namespace") {
@@ -299,7 +299,7 @@ func TestClusterContractReadIsolationRefusesAReadableForeignNamespace(t *testing
 		return ns == contractNamespace || ns == "tofu-records-bob"
 	})
 	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
-	if f.OK {
+	if f.OK() {
 		t.Fatalf("an identity that may read Bob's records passed read isolation: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "tofu-records-bob") {
@@ -316,7 +316,7 @@ func TestClusterContractReadIsolationPassesAScopedIdentity(t *testing.T) {
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tofu-records-bob"}},
 	), func(ns, verb string) bool { return ns == contractNamespace })
 	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
-	if !f.OK {
+	if !f.OK() {
 		t.Fatalf("an identity scoped to its own records namespace failed read isolation: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "all 1 other") {
@@ -333,7 +333,7 @@ func TestClusterContractReadIsolationSaysWhatItCouldNotEnumerate(t *testing.T) {
 		return ns == contractNamespace
 	}), "list", "namespaces")
 	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
-	if !f.OK {
+	if !f.OK() {
 		t.Fatalf("a scoped identity that may not list namespaces failed read isolation: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "could not be enumerated") {
@@ -366,7 +366,7 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 		cs := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp",
 			"--encryption-provider-config=/etc/kubernetes/enc/enc.yaml")), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if !f.OK {
+		if !f.OK() {
 			t.Fatalf("an API server started with the flag failed: %s", f.Found)
 		}
 		if !strings.Contains(f.Found, "/etc/kubernetes/enc/enc.yaml") {
@@ -378,7 +378,7 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 		cs := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp",
 			"--encryption-provider-config", "/etc/kubernetes/enc/enc.yaml")), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if !f.OK {
+		if !f.OK() {
 			t.Fatalf("the two-argument spelling of the flag was not read: %s", f.Found)
 		}
 	})
@@ -386,8 +386,8 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 	t.Run("the flag is absent", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp", "--advertise-address=10.0.0.1")), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if f.OK || f.NotChecked {
-			t.Fatalf("an API server with no encryption configuration was not a failure: OK=%v NotChecked=%v %s", f.OK, f.NotChecked, f.Found)
+		if f.OK() || f.Outcome == NotChecked {
+			t.Fatalf("an API server with no encryption configuration was not a failure: OK=%v NotChecked=%v %s", f.OK(), f.Outcome == NotChecked, f.Found)
 		}
 		if !strings.Contains(f.Found, "not encrypted") {
 			t.Errorf("the finding does not say the records are unencrypted: %s", f.Found)
@@ -397,8 +397,8 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 	t.Run("no API server Pod is visible", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if !f.NotChecked || f.OK {
-			t.Fatalf("a managed control plane was not reported as not checked: OK=%v NotChecked=%v", f.OK, f.NotChecked)
+		if f.Outcome != NotChecked || f.OK() {
+			t.Fatalf("a managed control plane was not reported as not checked: OK=%v NotChecked=%v", f.OK(), f.Outcome == NotChecked)
 		}
 		if !strings.Contains(f.Found, "not readable from here, not checked") {
 			t.Errorf("the finding does not use the words the report prints: %s", f.Found)
@@ -408,8 +408,8 @@ func TestClusterContractEncryptionAtRest(t *testing.T) {
 	t.Run("listing the Pod is forbidden", func(t *testing.T) {
 		cs := forbid(withReviews(fake.NewClientset(), allowAll), "list", "pods")
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEncryptionAtRest)
-		if !f.NotChecked || f.OK {
-			t.Fatalf("a denied read was treated as something other than not checked: OK=%v NotChecked=%v", f.OK, f.NotChecked)
+		if f.Outcome != NotChecked || f.OK() {
+			t.Fatalf("a denied read was treated as something other than not checked: OK=%v NotChecked=%v", f.OK(), f.Outcome == NotChecked)
 		}
 	})
 }
@@ -443,7 +443,7 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 	t.Run("installed and denying", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(boundaryPolicy(), boundaryBinding(admissionv1.Deny)), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if !f.OK {
+		if !f.OK() {
 			t.Fatalf("an installed, observed, denying policy failed: %s", f.Found)
 		}
 	})
@@ -451,8 +451,8 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 	t.Run("not installed", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if f.OK || f.NotChecked {
-			t.Fatalf("an absent policy was not a failure: OK=%v NotChecked=%v", f.OK, f.NotChecked)
+		if f.OK() || f.Outcome == NotChecked {
+			t.Fatalf("an absent policy was not a failure: OK=%v NotChecked=%v", f.OK(), f.Outcome == NotChecked)
 		}
 		if !strings.Contains(f.Found, "estate-boundary.yaml") {
 			t.Errorf("the finding does not say what to install: %s", f.Found)
@@ -462,7 +462,7 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 	t.Run("no binding", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(boundaryPolicy()), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if f.OK {
+		if f.OK() {
 			t.Fatal("a policy with no binding passed; it evaluates nothing")
 		}
 		if !strings.Contains(f.Found, "inert") {
@@ -473,7 +473,7 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 	t.Run("the binding warns instead of denying", func(t *testing.T) {
 		cs := withReviews(fake.NewClientset(boundaryPolicy(), boundaryBinding(admissionv1.Warn, admissionv1.Audit)), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if f.OK {
+		if f.OK() {
 			t.Fatal("a binding whose validationActions are Warn and Audit passed; a cross-estate write is logged and then allowed")
 		}
 		if !strings.Contains(f.Found, "Deny") {
@@ -487,7 +487,7 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 		policy.Status.ObservedGeneration = 1
 		cs := withReviews(fake.NewClientset(policy, boundaryBinding(admissionv1.Deny)), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if f.OK {
+		if f.OK() {
 			t.Fatal("a policy the API server has not observed passed; it is installed and not yet in force")
 		}
 		if !strings.Contains(f.Found, "not yet in force") {
@@ -502,7 +502,7 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 		}
 		cs := withReviews(fake.NewClientset(policy, boundaryBinding(admissionv1.Deny)), allowAll)
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if f.OK {
+		if f.OK() {
 			t.Fatal("a policy whose CEL the server warned about passed")
 		}
 		if !strings.Contains(f.Found, "no such key: labels") {
@@ -513,8 +513,8 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 	t.Run("reading the policy is forbidden", func(t *testing.T) {
 		cs := forbid(withReviews(fake.NewClientset(), allowAll), "get", "validatingadmissionpolicies")
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if !f.NotChecked || f.OK {
-			t.Fatalf("a denied read was not reported as not checked: OK=%v NotChecked=%v", f.OK, f.NotChecked)
+		if f.Outcome != NotChecked || f.OK() {
+			t.Fatalf("a denied read was not reported as not checked: OK=%v NotChecked=%v", f.OK(), f.Outcome == NotChecked)
 		}
 		if !strings.Contains(f.Found, "not readable from here, not checked") {
 			t.Errorf("the finding does not use the words the report prints: %s", f.Found)
@@ -524,25 +524,25 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 	t.Run("reading the binding is forbidden", func(t *testing.T) {
 		cs := forbid(withReviews(fake.NewClientset(boundaryPolicy()), allowAll), "get", "validatingadmissionpolicybindings")
 		f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterEstateBoundary)
-		if !f.NotChecked || f.OK {
-			t.Fatalf("a denied read of the binding was not reported as not checked: OK=%v NotChecked=%v", f.OK, f.NotChecked)
+		if f.Outcome != NotChecked || f.OK() {
+			t.Fatalf("a denied read of the binding was not reported as not checked: OK=%v NotChecked=%v", f.OK(), f.Outcome == NotChecked)
 		}
 	})
 }
 
-// TestSplitWaivedCluster is #1340's rule on this contract: a waiver reaches
-// exactly the settings it names, and a question that could not be answered is
-// waived by the same name as one that failed - from the caller's side they
-// are one refusal.
-func TestSplitWaivedCluster(t *testing.T) {
-	findings := []ClusterFinding{
-		{Setting: ClusterNamespaceAccess, OK: true},
-		{Setting: ClusterReadIsolation, Warning: true},
-		{Setting: ClusterEncryptionAtRest, NotChecked: true},
+// TestSplitWaivedSortsAClustersFindings is #1340's rule on this contract: a
+// waiver reaches exactly the settings it names, and a question that could not
+// be answered is waived by the same name as one that failed - from the
+// caller's side they are one refusal.
+func TestSplitWaivedSortsAClustersFindings(t *testing.T) {
+	findings := []Finding{
+		{Setting: ClusterNamespaceAccess, Outcome: Passed},
+		{Setting: ClusterReadIsolation, Outcome: Warned},
+		{Setting: ClusterEncryptionAtRest, Outcome: NotChecked},
 		{Setting: ClusterEstateBoundary},
 	}
 
-	refused, warned, waived := SplitWaivedCluster(findings, []string{"encryption_at_rest"})
+	refused, warned, waived := SplitWaived(findings, []string{"encryption_at_rest"})
 	if len(waived) != 1 || waived[0].Setting != ClusterEncryptionAtRest {
 		t.Fatalf("waived = %v, want the one setting named", waived)
 	}
@@ -553,18 +553,18 @@ func TestSplitWaivedCluster(t *testing.T) {
 		t.Fatalf("refused = %v, want only the failing setting the waiver does not name", refused)
 	}
 	for _, f := range refused {
-		if f.OK || f.Warning || f.NotChecked {
+		if f.OK() || f.Outcome == Warned || f.Outcome == NotChecked {
 			t.Errorf("%q is not a refusal and reached the refused list", f.Setting)
 		}
 	}
 
 	// A waiver silences a warning as well as a refusal.
-	refused, warned, waived = SplitWaivedCluster(findings, []string{"read_isolation"})
+	refused, warned, waived = SplitWaived(findings, []string{"read_isolation"})
 	if len(warned) != 1 || len(waived) != 1 || len(refused) != 1 {
 		t.Fatalf("waiving the warning: refused=%d warned=%d waived=%d, want 1, 1 and 1", len(refused), len(warned), len(waived))
 	}
 
-	refused, warned, waived = SplitWaivedCluster(findings, nil)
+	refused, warned, waived = SplitWaived(findings, nil)
 	if len(refused) != 1 || len(warned) != 2 || len(waived) != 0 {
 		t.Fatalf("with no waiver: refused=%d warned=%d waived=%d, want 1, 2 and 0", len(refused), len(warned), len(waived))
 	}
@@ -582,7 +582,7 @@ func TestAScopedIdentityIsWarnedAndNotRefused(t *testing.T) {
 	}), "list", "pods"), "get", "validatingadmissionpolicies"), "list", "namespaces")
 
 	findings := check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true})
-	refused, warned, _ := SplitWaivedCluster(findings, nil)
+	refused, warned, _ := SplitWaived(findings, nil)
 	if len(refused) != 0 {
 		t.Fatalf("the recommended arrangement was refused: %v", refused)
 	}
@@ -590,7 +590,7 @@ func TestAScopedIdentityIsWarnedAndNotRefused(t *testing.T) {
 		t.Fatalf("warned about %d properties, want the two it cannot read: %v", len(warned), warned)
 	}
 	for _, f := range warned {
-		if !f.NotChecked {
+		if f.Outcome != NotChecked {
 			t.Errorf("%q warned for some reason other than not being readable: %s", f.Setting, f.Found)
 		}
 		_, detail := ClusterContractRefusal(contractNamespace, f)
@@ -606,7 +606,7 @@ func TestAScopedIdentityIsWarnedAndNotRefused(t *testing.T) {
 	// can act on is not a warning.
 	wrong := withReviews(fake.NewClientset(apiServerPod("kube-apiserver-cp", "--advertise-address=10.0.0.1")),
 		func(ns, verb string) bool { return ns == contractNamespace })
-	refused, _, _ = SplitWaivedCluster(check(t, wrong, ClusterContractOptions{NamespaceKnownToExist: true}), nil)
+	refused, _, _ = SplitWaived(check(t, wrong, ClusterContractOptions{NamespaceKnownToExist: true}), nil)
 	if len(refused) != 2 {
 		t.Fatalf("a cluster with no encryption and no boundary policy raised %d refusals, want 2: %v", len(refused), refused)
 	}
@@ -627,10 +627,10 @@ func TestClusterContractReadIsolationWarnsWithoutRefusingTheFirstEstate(t *testi
 	), func(ns, verb string) bool { return true })
 	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
 
-	if f.OK {
+	if f.OK() {
 		t.Fatal("a cluster-wide reader passed read isolation outright; the capability is real and has to be said")
 	}
-	if !f.Warning {
+	if f.Outcome != Warned {
 		t.Fatalf("the first estate on a cluster was REFUSED for a capability that has exposed nothing: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "nothing is exposed yet") {
@@ -651,7 +651,7 @@ func TestClusterContractReadIsolationWarnsWithoutRefusingTheFirstEstate(t *testi
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "tofu-records-bob"}},
 	), func(ns, verb string) bool { return true })
 	f2 := findingFor(t, check(t, cs2, ClusterContractOptions{NamespaceKnownToExist: true}), ClusterReadIsolation)
-	if f2.OK || f2.Warning {
+	if f2.OK() || f2.Outcome == Warned {
 		t.Fatalf("an identity that can read an existing second estate's records only warned: %s", f2.Found)
 	}
 	if !strings.Contains(f2.Found, "tofu-records-bob") {
@@ -677,11 +677,11 @@ func TestClusterWaiverCostNamesTheCost(t *testing.T) {
 func TestClusterContractRefusalSaysWhatToDo(t *testing.T) {
 	for _, setting := range ClusterSettings {
 		for _, shape := range []struct {
-			name       string
-			notChecked bool
-			warning    bool
-		}{{"failed", false, false}, {"not checked", true, false}, {"warning", false, true}} {
-			f := ClusterFinding{Setting: setting, NotChecked: shape.notChecked, Warning: shape.warning, Found: "something"}
+			name    string
+			outcome Outcome
+			warning bool
+		}{{"failed", Failed, false}, {"not checked", NotChecked, false}, {"warning", Warned, true}} {
+			f := Finding{Setting: setting, Outcome: shape.outcome, Found: "something"}
 			summary, detail := ClusterContractRefusal(contractNamespace, f)
 			if summary == "" || detail == "" {
 				t.Errorf("%q (%s) has no text", setting, shape.name)
@@ -704,7 +704,7 @@ func TestClusterContractRefusalSaysWhatToDo(t *testing.T) {
 			}
 		}
 	}
-	if s, _ := ClusterContractRefusal(contractNamespace, ClusterFinding{Setting: ClusterReadIsolation, OK: true}); s != "" {
+	if s, _ := ClusterContractRefusal(contractNamespace, Finding{Setting: ClusterReadIsolation, Outcome: Passed}); s != "" {
 		t.Errorf("a passing finding produced a refusal: %q", s)
 	}
 }
@@ -729,22 +729,22 @@ func TestKubernetesStoreCheckClusterContractUsesItsOwnNamespace(t *testing.T) {
 		t.Fatalf("CheckClusterContract: %v", err)
 	}
 	f := findingFor(t, findings, ClusterNamespaceAccess)
-	if !f.OK {
+	if !f.OK() {
 		t.Fatalf("the store checked a namespace other than its own: %s", f.Found)
 	}
 
-	checker, ok := AsClusterContractChecker(NewRunCache(store, ""))
+	checker, ok := AsContractChecker(NewRunCache(store, ""))
 	if !ok {
-		t.Fatal("AsClusterContractChecker does not see through the run cache")
+		t.Fatal("AsContractChecker does not see through the run cache")
 	}
 	if checker == nil {
-		t.Fatal("AsClusterContractChecker returned a nil checker")
+		t.Fatal("AsContractChecker returned a nil checker")
 	}
 	local, err := NewLocalStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewLocalStore: %v", err)
 	}
-	if _, ok := AsClusterContractChecker(local); ok {
+	if _, ok := AsContractChecker(local); ok {
 		t.Error("the local store claims a cluster contract; a store with nothing to assert is not a store that failed")
 	}
 }
@@ -777,7 +777,7 @@ func TestTheTwoRefusalsAPlainKindClusterGives(t *testing.T) {
 	), func(ns, verb string) bool { return true })
 
 	findings := check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true})
-	refused, _, _ := SplitWaivedCluster(findings, nil)
+	refused, _, _ := SplitWaived(findings, nil)
 	if len(refused) != 2 {
 		t.Fatalf("a plain kind cluster raised %d refusals, want encryption_at_rest and estate_boundary: %v", len(refused), refused)
 	}
