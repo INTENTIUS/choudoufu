@@ -202,10 +202,13 @@ smoke_descendants() { # <pid> [skip]
 #
 # macOS ships no timeout(1) and CI is Linux, so this is sleep, ps and kill.
 #
-#   smoke_stall <what ran out> <the variable that sets that bound>
+# The verdict reads `FAIL [<scenario>]: <before> in step "<step>" <after>`,
+# so each bound words its own sentence around the step.
+#
+#   smoke_stall <before> <after>
 smoke_stall() {
   set +e
-  local what="$1" knob="$2" me pids p left i main_cmd c
+  local before="$1" after="$2" me pids p left i main_cmd c
   local grace="${SMOKE_KILL_GRACE_SECS:-5}"
   mkdir "$SMOKE_WORKROOT/stalled" 2>/dev/null || return 0
   # The scenario shell stops the watchdog on its way out. This pass has to
@@ -223,7 +226,7 @@ smoke_stall() {
       if [ -z "$c" ] || [ "$c" = "$main_cmd" ]; then continue; fi
       echo "  still running: $(printf '%s' "$c" | cut -c1-400)"
     done
-    echo "FAIL [${SMOKE_SCENARIO:-smoke}]: $what, in step \"$(cat "$SMOKE_WORKROOT/step" 2>/dev/null || echo '?')\". The scenario was killed. $knob=<seconds> sets this bound."
+    echo "FAIL [${SMOKE_SCENARIO:-smoke}]: $before in step \"$(cat "$SMOKE_WORKROOT/step" 2>/dev/null || echo '?')\" $after"
   } >&"${SMOKE_ERR_FD:-2}"
   kill -TERM "$$" 2>/dev/null
   # shellcheck disable=SC2086  # a list of pids, split on purpose
@@ -244,7 +247,7 @@ smoke_stall() {
 # sets SMOKE_TIMER_PID. Its own output goes to the stderr smoke.sh started
 # with and never to a pipe the caller is capturing: a `$(...)` does not
 # return while anything still holds its write end.
-smoke_timer() { # <secs> <what> <knob>
+smoke_timer() { # <secs> <before> <after>, the two halves of smoke_stall's verdict
   (
     sleep "$1" >/dev/null 2>&1 &
     nap=$!
@@ -272,7 +275,8 @@ smoke_timer_stop() { # <pid>
 CHDF_TIMEOUT_SECS="${CHDF_TIMEOUT_SECS:-300}"
 chdf_bounded() {
   local rc=0 timer
-  smoke_timer "$CHDF_TIMEOUT_SECS" "choudoufu $1 did not return within ${CHDF_TIMEOUT_SECS}s" CHDF_TIMEOUT_SECS
+  smoke_timer "$CHDF_TIMEOUT_SECS" "choudoufu $1 stalled" \
+    "and was killed after ${CHDF_TIMEOUT_SECS}s. Raise the bound with CHDF_TIMEOUT_SECS=<seconds>."
   timer="$SMOKE_TIMER_PID"
   chdf "$@" || rc=$?
   smoke_timer_stop "$timer"

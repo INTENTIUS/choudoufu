@@ -177,7 +177,7 @@ wait_admission() {
     sleep 2
   done
   kc delete configmap admission-probe -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
-  fail "$SCEN" "admission did not reach the state this step needs within ${ADMISSION_WAIT_SECS:-120}s ($what); the last probe stored: ${out:-<nothing>}"
+  fail "$SCEN" "admission was not in the state this step needs after ${ADMISSION_WAIT_SECS:-120}s ($what); last probe: ${out:-<nothing>}"
 }
 
 # The rejecting webhook: a real ValidatingWebhookConfiguration, fail-closed,

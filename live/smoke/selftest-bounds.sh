@@ -214,19 +214,19 @@ stubs_all_gone() {
   echo "$left"; return 1
 }
 
-# check_stall_verdict <scenario> <what the FAIL line must say> <step>: the
+# check_stall_verdict <scenario> <the whole FAIL line, word for word>: the
 # properties every bound owes, read off one finished run.
 check_stall_verdict() {
-  local scenario="$1" what="$2" stepname="$3" n left
+  local scenario="$1" line="$2" n left
   if [ "$HUNG" = "1" ]; then
     bad "the run was still going after ${ELAPSED}s and this script killed it: nothing bounded the stall"
     return 0
   fi
   ok "the run ended by itself after ${ELAPSED}s, inside this case's limit"
-  if grep -qE "^FAIL \[$scenario\]: .*$what.*in step \"$stepname\"" "$OUT"; then
+  if grep -qFx -- "$line" "$OUT"; then
     ok "the verdict names the scenario, what ran out and the step: $(grep -E '^FAIL \[' "$OUT" | head -1)"
   else
-    bad "no 'FAIL [$scenario]: ...$what... in step \"$stepname\"' line in the output"
+    bad "the output has no line reading exactly: $line"
   fi
   n="$(grep -cE '^FAIL \[' "$OUT")"
   if [ "$n" = "1" ]; then ok "exactly one FAIL line: the killed call's own failure did not print a second verdict"
@@ -253,7 +253,7 @@ if wanted watchdog-kubectl; then
   sandbox watchdog-kubectl
   run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
     SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
-  check_stall_verdict k8s-selftest-stall "no verdict after 10s" "2. the step that stalls"
+  check_stall_verdict k8s-selftest-stall 'FAIL [k8s-selftest-stall]: stalled in step "2. the step that stalls" and killed after 10s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>.'
   if grep -q 'still running: .*kubectl.*create namespace stall' "$OUT"; then ok "the stalled command is named above the verdict"
   else bad "the output does not name the command that was still running"; fi
   [ "$PASS" = "1" ] || show_out
@@ -264,7 +264,7 @@ if wanted watchdog-kubectl-ignores-term; then
   sandbox watchdog-kubectl-ignores-term
   run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
     KUBECTL_IGNORE_TERM=1 SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
-  check_stall_verdict k8s-selftest-stall "no verdict after 10s" "2. the step that stalls"
+  check_stall_verdict k8s-selftest-stall 'FAIL [k8s-selftest-stall]: stalled in step "2. the step that stalls" and killed after 10s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>.'
   [ "$PASS" = "1" ] || show_out
 fi
 
@@ -273,7 +273,7 @@ if wanted chdf-bound; then
   sandbox chdf-bound
   run_smoke k8s-selftest-stall 15 SELFTEST_STALL=choudoufu CHDF_STALL_GLOB='apply*' \
     CHDF_TIMEOUT_SECS=3 SMOKE_TIMEOUT_SECS=300 SMOKE_KILL_GRACE_SECS=2
-  check_stall_verdict k8s-selftest-stall "choudoufu apply did not return within 3s" "2. the step that stalls"
+  check_stall_verdict k8s-selftest-stall 'FAIL [k8s-selftest-stall]: choudoufu apply stalled in step "2. the step that stalls" and was killed after 3s. Raise the bound with CHDF_TIMEOUT_SECS=<seconds>.'
   [ "$PASS" = "1" ] || show_out
 fi
 
@@ -291,10 +291,10 @@ if wanted last-word-wait; then
     bad "the run was still going after ${ELAPSED}s and this script killed it: a probe request never came back, so kc carries no --request-timeout"
   else
     ok "the run ended by itself after ${ELAPSED}s"
-    if grep -qE '^FAIL \[k8s-the-server-gets-the-last-word\]: admission did not reach the state this step needs within 4s' "$OUT"; then
+    if grep -qE '^FAIL \[k8s-the-server-gets-the-last-word\]: admission was not in the state this step needs after 4s \(.*\); last probe: ' "$OUT"; then
       ok "wait_admission failed by name inside its deadline: $(grep -E '^FAIL \[' "$OUT" | head -1 | cut -c1-150)..."
     else
-      bad "no 'admission did not reach the state this step needs within 4s' verdict"
+      bad "no 'admission was not in the state this step needs after 4s (...); last probe: ...' verdict"
     fi
     if grep -q '=== 2\. ' "$OUT"; then bad "step 2 started: a request that timed out was read as the webhook's refusal"
     else ok "a request that timed out was not read as the webhook's refusal; step 2 never started"; fi

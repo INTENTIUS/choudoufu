@@ -69,8 +69,8 @@ what any cluster answers. Needs `kind` and `kubectl` on PATH.
 Every `k8s-*` scenario runs inside bounds (#1457), because a call to an API
 server can stall for ever and one did, for 35 minutes of a CI job that left
 no log. `smoke.sh` gives the scenario a time limit. When it runs out the run
-prints `FAIL [<scenario>]: no verdict after <n>s, in step "<step>"`, names
-the commands that were still running, kills them, deletes the cluster as on
+prints `FAIL [<scenario>]: stalled in step "<step>" and killed after <n>s.`,
+names the commands that were still running, kills them, deletes the cluster as on
 any other exit, and exits 124. Scenarios call kubectl through `kc`, or
 `kc_as <kubeconfig>` for another identity, and both pass
 `--request-timeout`. `kubectl config`, which edits a local file, is the
@@ -684,9 +684,9 @@ showing its own checks would have caught it.
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
-| `SMOKE_TIMEOUT_SECS=600` | `k8s-*` scenarios: the time limit on the whole scenario. Default: twice the claim's `minutes` in `claims.json`, and at least 600 |
-| `CHDF_TIMEOUT_SECS=300` | `k8s-*` scenarios: the limit on one choudoufu call made through `chdf_bounded` |
-| `KC_REQUEST_TIMEOUT=30s` | `k8s-*` scenarios: kubectl's `--request-timeout` on every `kc` and `kc_as` call |
+| `SMOKE_TIMEOUT_SECS=600` | seconds before a k8s-* scenario with no verdict is killed (default max(600, 2 x claims.json minutes)) |
+| `CHDF_TIMEOUT_SECS=300` | one choudoufu call made behind a failing or rewriting admission chain |
+| `KC_REQUEST_TIMEOUT=30s` | one kubectl request |
 | `FOREIGN_SCALE=50` | plan-cost-under-foreign-load: how large the foreign terralith beside the estate is, in `tools/terralith-gen` scale (74N + 5 resources; default 1) |
 | `OWNED_SCALE=50` | plan-cost-under-foreign-load: how large the estate under test is, same units (default 1) |
 

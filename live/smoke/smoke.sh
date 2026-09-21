@@ -20,11 +20,12 @@
 #
 # Bounds, for the k8s-* scenarios (issue #1457). Each fails the scenario by
 # name, with the step it was in, and the cluster is still deleted:
-#   SMOKE_TIMEOUT_SECS=600     the whole scenario. Default: twice the claim's
-#                              `minutes` in claims.json, and at least 600
-#   CHDF_TIMEOUT_SECS=300      one choudoufu call made while the step has the
-#                              cluster's admission chain failing or rewriting
-#   KC_REQUEST_TIMEOUT=30s     one kubectl request (kubectl --request-timeout)
+#   SMOKE_TIMEOUT_SECS=600     seconds before a k8s-* scenario with no verdict
+#                              is killed (default max(600, 2 x claims.json
+#                              minutes))
+#   CHDF_TIMEOUT_SECS=300      one choudoufu call made behind a failing or
+#                              rewriting admission chain
+#   KC_REQUEST_TIMEOUT=30s     one kubectl request
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -106,7 +107,8 @@ banner "$SCENARIO"
 case "$SCENARIO" in
   k8s-*)
     BOUND="$(scenario_bound_secs)"
-    smoke_timer "$BOUND" "no verdict after ${BOUND}s" SMOKE_TIMEOUT_SECS
+    smoke_timer "$BOUND" "stalled" \
+      "and killed after ${BOUND}s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>."
     WATCHDOG_PID="$SMOKE_TIMER_PID"
     ;;
 esac
