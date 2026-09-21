@@ -309,6 +309,10 @@ Usage: choudoufu [global options] live-cluster [options]
   configured waiver is named separately, with whether it is hiding a
   failure.
 
+  A record_store "kubernetes" block that sets insecure = true adds a fifth
+  line, tls_verification, which fails: the API server's certificate is not
+  verified. Remove the argument and name the cluster's CA to clear it.
+
   Two of the four cannot be read on every distribution. Encryption at rest
   is an API server flag, readable only where the API server's own Pod is
   (kind, kubeadm) and never on a managed control plane; the estate boundary

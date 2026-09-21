@@ -155,3 +155,14 @@ func TestBeforeApplyRefusesInsecureAndSaysSoWhenWaived(t *testing.T) {
 		}
 	})
 }
+
+// TestLiveClusterHelpNamesTheFifthLine keeps the help honest about its own
+// count: it says "all four", and a block that sets insecure prints five.
+func TestLiveClusterHelpNamesTheFifthLine(t *testing.T) {
+	help := (&LiveClusterCommand{}).Help()
+	for _, want := range []string{"insecure = true", "tls_verification"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("the help does not mention %q:\n%s", want, help)
+		}
+	}
+}
