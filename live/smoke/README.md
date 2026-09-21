@@ -551,10 +551,19 @@ showing its own checks would have caught it.
   TOFU_LIVE_RECORD_READ_PARALLELISM=1, which is where "eight at a time"
   is measured; one GET failed once leaves the plan true, empty on a zero
   exit and a refusal naming the record otherwise; the same GET failed
-  every time makes the run refuse and name the record. The BREAK
+  every time makes the run refuse and name the record. Then a second
+  estate of two, #1355's own, with one record's GET answered 404 on the
+  bulk read and the per-key read while the listing still names it: plan,
+  plan -destroy and apply -destroy each refuse with "The record store
+  contradicts itself about a record", naming the address and the key,
+  and the bucket's versions are unchanged (#1430). The BREAK
   control rebuilds choudoufu so a failed GET drops its key (go build
   -overlay, needs Go, refuses a release binary) and passes only when the
   plan is caught proposing to create a resource that exists (#1336).
+  `BREAK_CROSSCHECK=1` is the 404 step's own control: choudoufu rebuilt
+  without the plan-time cross-check, passing only when apply -destroy is
+  caught reporting 1 destroyed of two and exiting 0 with the record
+  still in the bucket, which is #1355's output, manufactured.
   Needs python3.
 
 - **two-writers-one-record** - *Claim 32: two writers, one record: the
@@ -667,6 +676,7 @@ showing its own checks would have caught it.
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
+| `BREAK_CROSSCHECK=1` | a-bulk-read-is-complete-or-it-fails's second control: choudoufu rebuilt without the plan-time cross-check between the store's listing and a record read as absent; passes only when a destroy is caught reporting 1 destroyed of two (#1355's output) |
 | `FOREIGN_SCALE=50` | plan-cost-under-foreign-load: how large the foreign terralith beside the estate is, in `tools/terralith-gen` scale (74N + 5 resources; default 1) |
 | `OWNED_SCALE=50` | plan-cost-under-foreign-load: how large the estate under test is, same units (default 1) |
 
