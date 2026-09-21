@@ -46,6 +46,18 @@ func recordStoreOpenDiag(storeType string, err error) tfdiags.Diagnostic {
 			unusable.Headline(), unusable.Remedy(), storeType, unusable.Err,
 		))
 	}
+	// A fourth summary, for the same reason (GitHub issue #1448 section C).
+	// The remedy is one RBAC grant and none of it is about the store, so a
+	// headline that sends the reader to the record store sends them to an
+	// object that is fine. The error names the policy, the estate, the
+	// identity as the API server reported it, and the grant line, so it is
+	// rendered once and nothing is appended.
+	var admission *staterecord.AdmissionDeniedError
+	if errors.As(err, &admission) {
+		return tfdiags.Sourceless(tfdiags.Error, projection.AdmissionRefusalSummary(admission), fmt.Sprintf(
+			"The live block's record_store %q could not be opened: %s.", storeType, admission,
+		))
+	}
 	return tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
 		"The live block's record_store %q could not be opened: %s.", storeType, err,
 	))

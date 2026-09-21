@@ -1113,6 +1113,24 @@ func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err erro
 			verb, addr, displayVersion(vErr.ExpectedVersion), displayVersion(vErr.ActualVersion),
 		)))
 	}
+	// GitHub issue #1448 section C. A write the estate boundary policy
+	// refused is the fence doing its job, and "Cannot persist a record"
+	// sends the reader to the store, where nothing is wrong. The refusal
+	// already names the policy, the estate and the grant line, so only the
+	// headline changes here; the unwritten-record ledger
+	// ([RecordStore.noteWriteFailure]) sees the same error it always did.
+	//
+	// Two calls rather than one with a variable: internal/live/refusalscan
+	// resolves a summary only as a literal or a Summary-prefixed constant,
+	// and a summary it cannot read is a refusal the registry cannot cover.
+	var admission *staterecord.AdmissionDeniedError
+	if errors.As(err, &admission) {
+		denied := fmt.Sprintf("%s the persisted record for %s failed: %s.", verb, addr, admission)
+		if admission.Policy != "" {
+			return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, SummaryEstateBoundaryRefusedTheWrite, denied))
+		}
+		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, SummaryAdmissionRefusedTheWrite, denied))
+	}
 	detail := fmt.Sprintf("%s the persisted record for %s failed: %s.", verb, addr, err)
 	// GitHub issue #1148: a throttling failure that names only an attempt
 	// count makes a reader translate it against a quota model they may not
@@ -1121,6 +1139,27 @@ func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err erro
 		detail += " " + advice
 	}
 	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot persist a record", detail))
+}
+
+// SummaryEstateBoundaryRefusedTheWrite and SummaryAdmissionRefusedTheWrite
+// are the headlines for a record write the cluster's admission stage refused
+// (GitHub issue #1448 section C). They are constants rather than literals at
+// the call site because internal/command raises the same two when the STORE
+// could not be opened for the same reason, and one refusal an operator can
+// hit should not have two spellings. See
+// [staterecord.AdmissionDeniedError] for what tells the two apart.
+const (
+	SummaryEstateBoundaryRefusedTheWrite = "The estate boundary policy refused this run's record write"
+	SummaryAdmissionRefusedTheWrite      = "An admission policy refused this run's record write"
+)
+
+// AdmissionRefusalSummary is which of the two above fits err, for a caller
+// outside this package that has to raise the same diagnostic.
+func AdmissionRefusalSummary(err *staterecord.AdmissionDeniedError) string {
+	if err != nil && err.Policy != "" {
+		return SummaryEstateBoundaryRefusedTheWrite
+	}
+	return SummaryAdmissionRefusedTheWrite
 }
 
 // displayVersion renders staterecord's "" (no record) sentinel as an

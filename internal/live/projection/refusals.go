@@ -50,6 +50,10 @@ func (r Refusal) DocsRef() string {
 // refusals is the registry. Keep it sorted by Summary.
 var refusals = []Refusal{
 	{
+		Summary: SummaryAdmissionRefusedTheWrite,
+		What:    "An admission policy on the records cluster refused a record write the API server's own authorizer allows, and this fork does not know which policy it is. Every record this run writes meets the same policy, so the run stops rather than leaving half an estate recorded (GitHub issue #1448).",
+	},
+	{
 		Summary: "Argument values could not be recorded",
 		What:    "An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.",
 	},
@@ -284,6 +288,10 @@ var refusals = []Refusal{
 	{
 		Summary: "Resource type has no classic Importer",
 		What:    "A resource type projection needed to read back has no ImportResourceState implementation at all - a fixed property of the provider's own code (GitHub issue #331), not a transient failure. Admitted for naming and reference purposes only; refused here rather than risk proposing a create for an object this run cannot verify.",
+	},
+	{
+		Summary: SummaryEstateBoundaryRefusedTheWrite,
+		What:    "live/kubernetes/estate-boundary.yaml refused a record write because this run's identity holds no \"use\" grant on its estate. The refusal carries the estate-grant.yaml line that fixes it. It is raised when the store is opened, so a plan stops as well as an apply (GitHub issue #1448).",
 	},
 	{
 		Summary: "The record store contradicts itself about a record",
