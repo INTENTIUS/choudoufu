@@ -96,6 +96,69 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 		assertBoundRows(t, out, want)
 	})
 
+	// GitHub issue #1014: the first plan after an apply. Nothing lags here.
+	// The VPC is marked, readable AND listed, so the estate-wide sweep can
+	// see it, which is what the pinned emulator serves one second after an
+	// apply ("tag index for estate ... holds 7 resources"). The apply also
+	// left an identity record, and that record is what decides the path:
+	// [statelessRecordBackedNeedsDiscoveryAddrs] (edge 3 of #388's
+	// plan-node seam, on by default) takes every needs-discovery address
+	// with a record OUT of the sweep's binding demand, so the sweep never
+	// rewrites the resolution to a concrete one and r.ImportID stays "".
+	// GitHub issue #364's record-first read then materializes the instance
+	// at the recorded id, verifying the marker on the object it reads.
+	//
+	// That is the ordinary shape of every marker-governed instance an
+	// apply has written a record for, on every run, and not the tag-lag
+	// corner the subtest above models. v0.14.0 and v0.15.0 built the row
+	// from r.ImportID and so published such a row with source "marker" and
+	// no identity at all; #967's [projection.Result.BoundIdentity] is what
+	// fills it. This subtest exists so that the listed shape is pinned by
+	// value too: with the row's identity read back off the resolution it
+	// fails, which also proves the sweep did not bind the instance here.
+	t.Run("marker, listed, first plan after an apply", func(t *testing.T) {
+		td := t.TempDir()
+		testCopyDir(t, testFixturePath("live-block-record-store"), td)
+		t.Chdir(td)
+
+		const estate = "stateless-unit"
+		cloud := newStatelessTestCloud()
+		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", estate, "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		})
+		cloud.putMarked("aws_vpc", "vpc-0a1b2c3d", estate, "aws_vpc.main", map[string]string{
+			"id": "vpc-0a1b2c3d", "cidr_block": "10.42.0.0/16",
+		})
+		cloud.list("aws_vpc", "vpc-0a1b2c3d", "the estate's VPC",
+			map[string]string{"tofu-estate": estate, "tofu-address": "aws_vpc.main"},
+			map[string]string{"cidr_block": "10.42.0.0/16"})
+		// What the apply wrote.
+		seedIdentityRecord(t, td, estate, "aws_vpc.main", "vpc-0a1b2c3d")
+
+		c, done := newLiveBlockPlanCommand(t, cloud)
+		code := c.Run([]string{"-no-color", "-json"})
+		out := done(t)
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
+		}
+
+		assertBoundRows(t, out, []views.LivePlanBound{
+			{
+				Addr:           "aws_s3_bucket.data",
+				TypeName:       "aws_s3_bucket",
+				Identity:       "tofu-stateless-unit-data",
+				IdentityValues: map[string]string{"bucket": "tofu-stateless-unit-data"},
+				Source:         views.LivePlanBoundDerived,
+			},
+			{
+				Addr:     "aws_vpc.main",
+				TypeName: "aws_vpc",
+				Identity: "vpc-0a1b2c3d",
+				Source:   views.LivePlanBoundMarker,
+			},
+		})
+	})
+
 	t.Run("record", func(t *testing.T) {
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-plan-markers-record"), td)
