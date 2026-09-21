@@ -1224,7 +1224,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		r.view.Policy(statelessPolicyReport(nil, disco, reconcile))
+		r.view.Policy(statelessPolicyReport(nil, disco, reconcile, nil))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
@@ -1409,7 +1409,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		return nil, diags
 	}
 
-	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile))
+	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
 	// applyOrphanPolicy withheld from the sweep because a non-default verb

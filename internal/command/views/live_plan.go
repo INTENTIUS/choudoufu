@@ -341,8 +341,11 @@ type StatelessPolicyWithheld struct {
 	Withheld    string
 }
 
-// StatelessUntagged is one resource block a declared_tagged = "untag" verb
-// released a tag key from - stamp.Untagged, in this package's own shape.
+// StatelessUntagged is one resource instance a declared_tagged = "untag"
+// verb released a tag key from - projection.UntagRelease, in this package's
+// own shape. Per instance, not per block: the node writer decides each
+// instance on its own, so a count or for_each block can have some instances
+// here and some not (GitHub issue #1002).
 type StatelessUntagged struct {
 	Addr         string
 	Key          string
@@ -1469,7 +1472,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 
 	if len(rep.Untagged) > 0 {
 		colored("\n[reset][bold]Policy untag: %d resource %s releasing a tag[reset]\n\n",
-			len(rep.Untagged), noun(len(rep.Untagged), "block", "blocks"))
+			len(rep.Untagged), noun(len(rep.Untagged), "instance", "instances"))
 		wrapped(statelessUntaggedIntro, 0)
 		out("\n")
 		for _, u := range rep.Untagged {

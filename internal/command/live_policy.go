@@ -220,23 +220,29 @@ func statelessPolicyTagKey(pol *policy.Policy) string {
 // the projection's declared-quadrant outcomes, discovery's withheld
 // undeclared_tagged orphans, and the scoped reconciliation pass's roster.
 //
-// A fourth source used to feed it: internal/live/stamp's report of which
-// tag keys a declared_tagged = "untag" verb had made it withhold, which
-// reached [views.StatelessPolicyReport.Untagged]. That suppression lived
-// only in the HCL-rewriting stamp, and it stopped happening on 2026-08-25
-// when CHOUDOUFU_NODE_RESOLVE defaulted on and the node-path writer took
-// over with no equivalent of stamp.Request.PolicyUntag; GitHub issue #644
-// deleted the unreachable implementation. GitHub issue #949 ported the
-// suppression itself to [projection.NodeResolver.PolicyUntag]
-// (nodeResolverUntagMap, populated in live_mode.go/live_plan.go) - a
-// governed instance's key is genuinely left out of what a plan writes
-// again - but did not restore this specific report section: the view's
-// Untagged list still renders empty, because nothing downstream of
-// AdjustConfigValue collects which instances it actually released a key
-// for the way stamp.Result.Untagged used to. That is a reporting gap, not
-// a behavioral one; projResult.Policy's Declared section below still shows
-// every declared_tagged = "untag" instance and its verb.
-func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, rec *discovery.ReconcileResult) views.StatelessPolicyReport {
+// The fourth source is the node writer's own record of which instances a
+// declared_tagged = "untag" verb actually released a marker key from
+// ([projection.NodeResolver.UntagReleases], GitHub issue #1002), which fills
+// [views.StatelessPolicyReport.Untagged]. It arrives separately from the
+// other three because it does not exist yet when they do: the projection,
+// the sweep and the reconciliation pass all finish before the plan walk,
+// and the release happens inside it, one
+// [projection.NodeResolver.AdjustConfigValue] call per instance. So each
+// pipeline calls this function twice - once before the walk with released
+// nil, once after it with released alone - and the view prints the untag
+// section directly above the plan it describes. A caller that passes
+// released before the walk gets an empty list for every estate, which is
+// what this section rendered from 2026-08-25 (when the node writer took over
+// from internal/live/stamp, whose Result.Untagged used to feed it) until
+// #1002: GitHub issue #644 deleted the unreachable stamp implementation and
+// GitHub issue #949 ported the suppression without the record.
+//
+// Declared and Untagged answer different questions and are expected to
+// differ. Declared names every instance the verb governs. Untagged names the
+// ones a key was really withheld from, so an instance whose configuration
+// hand-writes the key, or that a -target kept out of the walk, is in the
+// first list and not the second.
+func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, rec *discovery.ReconcileResult, released []projection.UntagRelease) views.StatelessPolicyReport {
 	var rep views.StatelessPolicyReport
 
 	if projResult != nil {
@@ -264,6 +270,14 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 				Withheld:    o.Withheld,
 			})
 		}
+	}
+
+	for _, u := range released {
+		rep.Untagged = append(rep.Untagged, views.StatelessUntagged{
+			Addr:         u.Addr.String(),
+			Key:          u.Key,
+			EstateMarker: u.EstateMarker(),
+		})
 	}
 
 	if rec != nil {
