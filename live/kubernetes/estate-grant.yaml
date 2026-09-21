@@ -11,6 +11,13 @@
 # for the kinds its estate declares (create, update, patch, delete) and
 # list on every kind the estate sweep asks for; the estate label is what
 # the fence reads, and RBAC alone cannot read it.
+#
+# A third-party operator that creates objects carrying an estate's label
+# (cert-manager, an ingress controller) needs this same grant for that
+# estate, one binding: an ownerReference does not exempt a create, and it
+# does not exempt a write that changes the label (#1449). An operator that
+# only updates a labelled object a controller already owns, and leaves its
+# tofu-estate label alone, needs nothing here.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
