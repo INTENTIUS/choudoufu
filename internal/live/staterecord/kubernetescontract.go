@@ -748,8 +748,8 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Finding
 		return f
 	}
 	f.Outcome = NotChecked
-	f.Found = fmt.Sprintf("not readable from here, not checked: the API server runs with %s, and the file that flag names is not an API object, so whether secrets are encrypted was not established: a configuration whose first provider for secrets is `identity` sets the flag and encrypts nothing. Read it on the control-plane node with `sudo cat %s` (on kind, `docker exec <cluster>-control-plane cat %s`) and check which provider comes first under the resources entry covering secrets",
-		strings.Join(configured, ", "), paths[0], paths[0])
+	f.Found = fmt.Sprintf("not readable from here, not checked: the API server runs with %s, and the file that flag names is not an API object, so whether secrets are encrypted was not established: a configuration whose first provider for secrets is `identity` sets the flag and encrypts nothing. Read it on the control-plane node with `sudo cat %s` and check which provider comes first under the resources entry covering secrets",
+		strings.Join(configured, ", "), paths[0])
 	return f
 }
 
