@@ -55,7 +55,16 @@ type LiveClusterCommand struct {
 type liveClusterReport struct {
 	Namespace string `json:"namespace"`
 	Estate    string `json:"estate"`
-	Correct   bool   `json:"correct"`
+	// Server is the API server these findings were read from, and Context
+	// the kubeconfig context a record_store "kubernetes" block named, if it
+	// named one. FromConfig says whether the connection came from such a
+	// block or from the ambient kubeconfig. A report that named neither
+	// could not be told apart from a report about another cluster
+	// altogether (GitHub issue #1448).
+	Server     string `json:"server"`
+	Context    string `json:"context,omitempty"`
+	FromConfig bool   `json:"from_config"`
+	Correct    bool   `json:"correct"`
 	// Warnings counts the findings that are a concern and not a refusal. A
 	// run proceeds past every one of them, so they do not change Correct,
 	// and the verdict line names the count rather than letting a green
@@ -66,8 +75,9 @@ type liveClusterReport struct {
 	// question it answered.
 	CheckedAs string                   `json:"checked_as"`
 	Settings  []liveClusterSettingLine `json:"settings"`
-	// Waived is what the configuration's allow_insecure names, empty with
-	// -namespace or with no waiver. It never affects Correct.
+	// Waived is what the configuration's allow_insecure names, empty where
+	// no record_store "kubernetes" block was read or where it waives
+	// nothing. It never affects Correct.
 	Waived []liveWaiverLine `json:"waived"`
 }
 
@@ -93,26 +103,17 @@ func (c *LiveClusterCommand) Run(rawArgs []string) int {
 	}
 	c.Meta.input = false
 
-	namespace, estate := args.Namespace, args.Estate
-	var rs *configs.LiveRecordStore
-	if namespace == "" {
-		live, liveDiags := c.statelessSettings(ctx, false)
-		diags = diags.Append(liveDiags)
-		switch {
-		case liveDiags.HasErrors():
-		case live == nil || live.RecordStore == nil || live.RecordStore.Type != "kubernetes":
-			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "No record store cluster here",
-				"This directory's configuration declares no record_store \"kubernetes\" block, so there is no records namespace to report on. Name one with -namespace=<name>."))
-		default:
-			rs = live.RecordStore
-			if estate == "" {
-				estate = live.Estate
-			}
-		}
-		if diags.HasErrors() {
-			c.View.Diagnostics(diags)
-			return 1
-		}
+	// The configuration is read whether or not -namespace was given. A
+	// directory that will not load is only an error without one: with
+	// -namespace this command still answers the cluster admin checking a
+	// namespace before any estate exists, from wherever they are standing.
+	live, liveDiags := c.statelessSettings(ctx, args.Namespace != "")
+	diags = diags.Append(liveDiags)
+	namespace, estate, rs, subjectDiags := liveClusterSubject(args, live, liveDiags.HasErrors())
+	diags = diags.Append(subjectDiags)
+	if diags.HasErrors() {
+		c.View.Diagnostics(diags)
+		return 1
 	}
 
 	requiredVerbs := staterecord.KubernetesRecordVerbs
@@ -122,14 +123,14 @@ func (c *LiveClusterCommand) Run(rawArgs []string) int {
 		checkedAs = "plan"
 	}
 
-	findings, ns, err := projection.VerifyCluster(ctx, rs, estate, namespace, requiredVerbs)
+	findings, target, err := projection.VerifyCluster(ctx, rs, estate, namespace, requiredVerbs)
 	if err != nil {
 		c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read the cluster",
-			fmt.Sprintf("The records namespace %q could not be checked: %s. This says nothing about whether the cluster is correct.", ns, err))))
+			fmt.Sprintf("The records namespace %q could not be checked: %s. This says nothing about whether the cluster is correct.", target.Namespace, err))))
 		return 1
 	}
 
-	report := buildLiveClusterReport(ns, estate, checkedAs, findings, rs)
+	report := buildLiveClusterReport(target, estate, checkedAs, findings, rs)
 
 	if args.JSON {
 		out, jsonErr := json.MarshalIndent(report, "", "  ")
@@ -147,14 +148,51 @@ func (c *LiveClusterCommand) Run(rawArgs []string) int {
 	return 0
 }
 
+// liveClusterSubject settles what this run reports on: which namespace,
+// which estate, and which record_store "kubernetes" block supplies the
+// connection. live is the directory's live block, or nil where there is
+// none; loadFailed says the configuration would not load, which is only
+// reachable without -namespace and is already an error by then.
+//
+// GitHub issue #1448. -namespace used to skip the configuration altogether,
+// so rs stayed nil and the connection fell through to KUBE_CONFIG_PATH,
+// KUBECONFIG and the current context. In a directory whose record_store
+// "kubernetes" block sets host, config_context or exec, that reported on a
+// different cluster from the one the estate's records are in, and printed
+// "correct". -namespace now overrides the namespace and nothing else, which
+// is the direction live-bucket's -bucket already goes with -region and
+// -bucket_owner.
+func liveClusterSubject(args *arguments.LiveCluster, live *configs.Live, loadFailed bool) (namespace, estate string, rs *configs.LiveRecordStore, diags tfdiags.Diagnostics) {
+	namespace, estate = args.Namespace, args.Estate
+	switch {
+	case loadFailed:
+	case live == nil || live.RecordStore == nil || live.RecordStore.Type != "kubernetes":
+		if namespace == "" {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "No record store cluster here",
+				"This directory's configuration declares no record_store \"kubernetes\" block, so there is no records namespace to report on. Name one with -namespace=<name>."))
+		}
+	default:
+		rs = live.RecordStore
+		if estate == "" {
+			estate = live.Estate
+		}
+	}
+	return namespace, estate, rs, diags
+}
+
 // buildLiveClusterReport is the whole of this command's judgement, kept apart
 // from the cluster call so it can be held to the one rule that matters:
 // Correct comes from the findings alone, and a finding that could not be
-// answered is not a pass. rs is nil with -namespace.
-func buildLiveClusterReport(namespace, estate, checkedAs string, findings []staterecord.Finding, rs *configs.LiveRecordStore) liveClusterReport {
+// answered is not a pass. rs is nil where no record_store "kubernetes" block
+// was in reach.
+func buildLiveClusterReport(target projection.ClusterTarget, estate, checkedAs string, findings []staterecord.Finding, rs *configs.LiveRecordStore) liveClusterReport {
 	report := liveClusterReport{
-		Namespace: namespace, Estate: estate, Correct: true, CheckedAs: checkedAs,
+		Namespace: target.Namespace, Estate: estate, Correct: true, CheckedAs: checkedAs,
+		Server: target.Server, FromConfig: rs != nil,
 		Settings: []liveClusterSettingLine{},
+	}
+	if rs != nil {
+		report.Context = rs.Kubernetes.ConfigContext
 	}
 	failing := map[staterecord.Setting]bool{}
 	for _, f := range findings {
@@ -188,6 +226,24 @@ func buildLiveClusterReport(namespace, estate, checkedAs string, findings []stat
 	return report
 }
 
+// liveClusterWhere is the line that says which cluster answered, and where
+// that connection came from. GitHub issue #1448: without it two reports on
+// two different clusters print the same words.
+func liveClusterWhere(r liveClusterReport) string {
+	server := r.Server
+	if server == "" {
+		server = "(the resolved connection named no server)"
+	}
+	switch {
+	case r.FromConfig && r.Context != "":
+		return fmt.Sprintf("  cluster: %s, reached through the record_store block's config_context %q\n", server, r.Context)
+	case r.FromConfig:
+		return fmt.Sprintf("  cluster: %s, reached through the record_store \"kubernetes\" block\n", server)
+	default:
+		return fmt.Sprintf("  cluster: %s, reached through the ambient kubeconfig: no record_store \"kubernetes\" block was read here\n", server)
+	}
+}
+
 func renderLiveClusterReport(r liveClusterReport) string {
 	var b strings.Builder
 	for _, s := range r.Settings {
@@ -205,6 +261,7 @@ func renderLiveClusterReport(r liveClusterReport) string {
 		}
 	}
 	renderLiveWaiverLines(&b, r.Waived, "cluster")
+	b.WriteString(liveClusterWhere(r))
 	if r.CheckedAs == "plan" {
 		b.WriteString("  checked as a plan identity: secrets get and list are required, create, update and delete are reported and not required. An apply needs all five.\n")
 	} else {
@@ -239,10 +296,13 @@ Usage: choudoufu [global options] live-cluster [options]
   in satisfies the four things those records depend on: the records
   namespace and this identity's access to Secrets in it, read isolation
   from other estates, encryption at rest, and the estate boundary policy.
-  Exits non-zero unless all four hold.
+  Exits non-zero unless all four hold, except on a warning: a finding a run
+  proceeds past is counted and exits 0.
 
   Run with no options in a configuration directory to check the namespace
-  its live block resolves to, or name any namespace with -namespace.
+  its live block resolves to, or name any namespace with -namespace. The
+  report names the API server it reached and where that connection came
+  from, because two clusters otherwise print the same words.
 
   This reports the CLUSTER, not the configuration. An allow_insecure waiver
   lets a plan or an apply proceed; it never changes a verdict here. A
@@ -263,10 +323,13 @@ Options:
 
   -namespace=name
                  The records namespace to check, instead of the one the
-                 configuration resolves to.
+                 configuration resolves to. It changes the namespace and
+                 nothing else: where a record_store "kubernetes" block is
+                 present, its connection is still what says which cluster
+                 this report is about.
   -estate=name   The estate whose records live there. Without -namespace it
-                 is only reported; with one, and with no configuration, it
-                 is what the default namespace name is derived from.
+                 is what the default namespace name is derived from; with
+                 one it is only reported.
   -plan-identity Ask what a PLAN job's identity needs - get and list on
                  Secrets - instead of what an apply needs. The other three
                  verbs are still reported. The report says which of the two

@@ -182,14 +182,21 @@ granting an identity Secrets in it are two halves of the same cluster-admin
 act, and a list in a namespace that does not exist answers empty, which would
 otherwise read as an estate with no records.
 
+A Secret's name is a hash of the record key, and the key itself is in the
+`choudoufu.intentius.io/record-key` annotation. When that annotation names a
+different key from the one the name hashes, the read is refused by name
+rather than answered with some other record, which is what a hand-edited
+annotation gets.
+
 Anyone who can `get secrets` in the records namespace reads every recorded
 value, the same bargain `s3:GetObject` on the bucket makes.
 
 ### What the store checks about the cluster
 
-Four things, asked once on an estate's first contact with the store and again
-before every apply, never on an ordinary plan. They are the cluster's version
-of the bucket's three settings.
+Four things, asked on an estate's first contact with the store and again
+before every run that writes a record: an apply, a `live-mv` that is not a
+dry run, a `live-import -approve`. Never on an ordinary plan. They are the
+cluster's version of the bucket's three settings.
 
 | Assertion | What it asks | Asked with |
 | --- | --- | --- |
@@ -200,9 +207,11 @@ of the bucket's three settings.
 
 `choudoufu live-cluster` asks the same four and prints them, with no plan and
 nothing written. Run in a configuration directory it uses that live block's
-namespace; `-namespace=<name>` checks any other. It exits non-zero unless all
-four hold, and `-plan-identity` asks what a plan job's identity needs rather
-than what an apply needs.
+namespace; `-namespace=<name>` checks any other, on the same cluster the
+block's connection names, and the report says which API server answered. It
+exits non-zero unless all four hold, except on a warning: a finding a run
+proceeds past is counted and exits 0. `-plan-identity` asks what a plan job's
+identity needs rather than what an apply needs.
 
 A run refuses on a property that was READ and is wrong, and warns on one it
 could not read. The two are different and the difference decides whether

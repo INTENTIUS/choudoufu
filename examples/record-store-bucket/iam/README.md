@@ -218,9 +218,9 @@ a plan never uses. `s3:PutObject` and `s3:PutObjectTagging`, because a plan
 writes no record. `s3:DeleteObject`, because deleting a record is what an
 apply does when a block goes away. The three `ReadTheBucketsAssertedSettings`
 reads, because the bucket assertions run on an estate's first contact with
-its store and again before an apply, and a read-only plan is neither. And
-under `--kms` the grant drops to `kms:Decrypt` alone, since
-`kms:GenerateDataKey` is what S3 asks for on a PUT.
+its store and again before any run that writes a record, and a read-only
+plan is neither. And under `--kms` the grant drops to `kms:Decrypt` alone,
+since `kms:GenerateDataKey` is what S3 asks for on a PUT.
 
 Both Deny statements stay, including the one over tagging actions this
 rendering allows none of. That is the same rule the full policy follows for
@@ -236,15 +236,19 @@ the estate once under the full policy and read-only plans work from then on.
 both halves on real AWS, and reconciles what such a plan asks S3 for against
 what this rendering grants.
 
-A Kubernetes estate's plan job gets this same rendering. Such a job holds two
-credentials and nothing routes one to the other: the kubernetes provider's
-kubeconfig or in-cluster ServiceAccount token reaches the cluster, and the
-process's own AWS credentials reach the record store (or, for a `local`
-store, the process's filesystem user). The record store is never opened with
-the cluster identity, and there is no cluster-backed record store to open it
-with. So a ServiceAccount bound to `get`, `list` and `watch` says nothing
-about whether the run may write the sentinel, and the AWS role beside it is
-what this flag renders.
+A Kubernetes estate that keeps its records in a bucket gets this same
+rendering. Such a job holds two credentials and nothing routes one to the
+other: the kubernetes provider's kubeconfig or in-cluster ServiceAccount
+token reaches the cluster, and the process's own AWS credentials reach the
+record store (or, for a `local` store, the process's filesystem user). With
+records in a bucket the store is never opened with the cluster identity, so a
+ServiceAccount bound to `get`, `list` and `watch` says nothing about whether
+the run may write the sentinel, and the AWS role beside it is what this flag
+renders. A Kubernetes-only estate can keep its records in the cluster
+instead, with `record_store "kubernetes"`, and then one ServiceAccount does
+both jobs and there is no role here to render;
+[live/kubernetes/OPERATE.md](../../../live/kubernetes/OPERATE.md) has the
+RBAC that store asks for.
 
 ## What a recovery needs
 

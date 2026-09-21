@@ -17,7 +17,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -179,18 +178,14 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	var recordStore *projection.RecordStore
 	var rootOutputStore *projection.RootOutputStore
 	if recordStoreCfg != nil {
-		var store staterecord.Store
-		storeOpts, storeErr := recordStoreOpenOptions()
-		if storeErr == nil {
-			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, args.Estate, ".", storeOpts...)
-		}
-		if storeErr != nil {
-			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))
+		// The waiver warnings and, when this run will stamp, the store's
+		// contract: see [openRecordStoreForImport], GitHub issues #1340,
+		// #1376 and #1448.
+		store, storeDiags := openRecordStoreForImport(ctx, projection.NewRecordStore, recordStoreCfg, retryCfg, args.Estate, args.Approve)
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
 			return nil, closer, diags
 		}
-		// #1340, #1376: a waiver is announced on every path that opens the
-		// store, and a migration is the run that fills it.
-		diags = diags.Append(bucketWaiverWarnings(recordStoreCfg))
 		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))
 		// GitHub issue #349: the same underlying store again, its own
 		// namespace rather than a member of the envelope - an output names

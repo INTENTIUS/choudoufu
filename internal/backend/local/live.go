@@ -163,9 +163,11 @@ type StatelessRun interface {
 	// change is applied, on the plan opApply made itself and on a saved plan
 	// alike. It is where the run asserts whatever it must be able to rely on
 	// for the whole apply and could not afford to ask on every plan - today
-	// the record store bucket's contract (GitHub issue #1339): an apply is
-	// the run that writes records, so it is the run that must not start
-	// against a bucket that cannot keep them. Error diagnostics abort the
+	// the record store's contract, the bucket's (GitHub issue #1339) or the
+	// cluster's (#1393): an apply writes records, so it must not start
+	// against a store that cannot keep them. `live-mv` and `live-import
+	// -approve` write records too and assert the same contract on their own
+	// paths (#1448); this method is the apply's. Error diagnostics abort the
 	// operation with nothing applied. A plan-only operation never calls it.
 	BeforeApply(ctx context.Context) tfdiags.Diagnostics
 

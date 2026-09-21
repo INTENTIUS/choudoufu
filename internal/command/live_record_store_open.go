@@ -103,3 +103,60 @@ func openRecordStoreAsOneMoreSource(ctx context.Context, open recordStoreOpener,
 	}
 	return store, diags.Append(bucketWaiverWarnings(rs))
 }
+
+// openRecordStoreForMove is `live-mv`'s whole dealing with the record store:
+// open it the lenient way above, and, for a rename that will write, assert
+// the store's contract before the first write reaches it.
+//
+// GitHub issue #1448. A rename writes a record - it moves the old address's
+// envelope to the new one through [projection.RecordStore.MoveRecord] - so
+// it is a run a store with versioning off or no estate boundary can hurt,
+// and it asserted nothing. -dry-run stops before the rewrite and moves no
+// record, so it asks for nothing and is not refused for a store it never
+// writes to.
+//
+// It is one function rather than two calls in liveMv so that a test can
+// drive exactly the production sequence over a scripted store, the way
+// [projection.NewRecordStore]'s own glue is one function for the same
+// reason.
+func openRecordStoreForMove(ctx context.Context, open recordStoreOpener, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate string, dryRun bool) (staterecord.Store, tfdiags.Diagnostics) {
+	store, diags := openRecordStoreAsOneMoreSource(ctx, open, rs, rt, estate, "live-mv")
+	if diags.HasErrors() || dryRun {
+		return store, diags
+	}
+	// store is nil after an outage the command went on past. There is then
+	// nothing to assert a contract over and nothing to write a record to
+	// either, so the rename proceeds exactly as it did before this existed.
+	return store, diags.Append(assertRecordStoreContract(ctx, store, rs, estate, contractRunMove))
+}
+
+// openRecordStoreForImport is `live-import`'s. Unlike the two commands
+// above, a migration treats a store that will not open as fatal whatever the
+// reason: it is where the estate's records come from, not one more hint.
+//
+// GitHub issue #1448 again. `live-import -approve` seeds this estate's
+// records - liveimport's recordOne, locateOne and seedIdentityFor - and it
+// asserted no contract. The read-only run, the one with no -approve that
+// prints the ratification report and writes nothing, does not assert:
+// approve is the flag that makes this a writing run.
+func openRecordStoreForImport(ctx context.Context, open recordStoreOpener, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate string, approve bool) (staterecord.Store, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if rs == nil {
+		return nil, diags
+	}
+	storeOpts, err := recordStoreOpenOptions()
+	if err != nil {
+		return nil, diags.Append(recordStoreOpenDiag(rs.Type, err))
+	}
+	store, err := open(ctx, rs, rt, estate, ".", storeOpts...)
+	if err != nil {
+		return nil, diags.Append(recordStoreOpenDiag(rs.Type, err))
+	}
+	// #1340, #1376: a waiver is announced on every path that opens the
+	// store, and a migration is the run that fills it.
+	diags = diags.Append(bucketWaiverWarnings(rs))
+	if approve {
+		diags = diags.Append(assertRecordStoreContract(ctx, store, rs, estate, contractRunImport))
+	}
+	return store, diags
+}

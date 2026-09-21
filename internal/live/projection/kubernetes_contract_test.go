@@ -295,6 +295,37 @@ func TestAPlanWithNoSentinelIsStillRefused(t *testing.T) {
 	}
 }
 
+// TestVerifyClusterReportsWhereItWent is GitHub issue #1448. `live-cluster`
+// printed a verdict with nothing in it that named the cluster, so a report
+// about a namespace of the same name on some other cluster read exactly like
+// a report about this one. The connection is the block's and the report says
+// what it reached.
+func TestVerifyClusterReportsWhereItWent(t *testing.T) {
+	// No ambient kubeconfig, so a connection resolved from anywhere but rs
+	// would fail outright rather than quietly answer about another cluster.
+	t.Setenv("KUBECONFIG", "")
+	t.Setenv("KUBE_CONFIG_PATH", "")
+	t.Setenv("KUBE_CONFIG_PATHS", "")
+
+	const host = "https://127.0.0.1:1"
+	rs := kubernetesRecordStore()
+	rs.Kubernetes.Host = host
+
+	// Nothing listens there, so the findings are an error. What is measured
+	// is what the report can say about where it went, which is the half an
+	// operator needs before they believe a verdict.
+	_, target, err := VerifyCluster(context.Background(), rs, contractEstate, "other-ns", nil)
+	if err == nil {
+		t.Fatal("a contract check against a port nothing listens on succeeded")
+	}
+	if target.Server != host {
+		t.Errorf("Server = %q, want the record_store block's own host %q", target.Server, host)
+	}
+	if target.Namespace != "other-ns" {
+		t.Errorf("Namespace = %q: a namespace named by the caller overrides the block's, and nothing else does", target.Namespace)
+	}
+}
+
 // TestContractFindingsSeesThroughTheWrappers pins that the contract is
 // reachable from the store openBuiltStore hands back, which is the run cache
 // over the trip counter over the store.
