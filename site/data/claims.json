@@ -134,7 +134,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
+          "note": "Not measured on Kubernetes: this claim is about a crashed create binding to its resource on the re-run, which on Kubernetes is #1110 item 4. Claim 39 step 3 kills an apply and re-runs it, but what it measures is that nothing lock-shaped is left in the records namespace, not that a create rebinds. Refs #1441."
         }
       },
       "evidence": [],
@@ -412,7 +412,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster. #1016 ruled the marker; the four Kubernetes claims are the ones measured."
+          "note": "Not measured on Kubernetes: no scenario measures this claim on the cluster record store. Refs #1441."
         }
       },
       "evidence": [],
@@ -690,8 +690,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "proven",
+          "note": "Measured by claim 39 (k8s-records-in-the-cluster) steps 7 and 8: the Kubernetes record store (#1392) refuses each broken cluster assertion by name before it writes a record, and refuses a Role that is one verb short at first contact, naming the missing verb, without leaving anything behind. The proof lives in claim 39's scenario until #1112 rules how a provider cell carries its own scenario."
         }
       },
       "evidence": [],
@@ -713,8 +713,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "open",
+          "note": "Not measured on Kubernetes: the scenario sets allow_insecure and no step asserts that a run names what it waives. Refs #1441."
         }
       },
       "evidence": [],
@@ -736,8 +736,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "open",
+          "note": "Not measured on Kubernetes: GetAll pages with a continue token and no step fails a page mid-read. Refs #1441."
         }
       },
       "evidence": [],
@@ -759,8 +759,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. Claim 2 is where contention at a platform's own API is measured."
+          "status": "open",
+          "note": "Not measured on Kubernetes as a claim: TestKubernetesStoreVersionIsTheResourceVersion runs one writer after the other. Refs #1441."
         }
       },
       "evidence": [],
@@ -809,8 +809,8 @@
           "note": "Real AWS and maintainer-run, not CI: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so there a working policy and a broken one look the same. Run with SMOKE_REAL_AWS=1; it creates a bucket and IAM roles and removes them. Last run 2026-09-18, us-east-2."
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "proven",
+          "note": "Measured by claim 39 (k8s-records-in-the-cluster) step 2: a Kubernetes-only estate's first apply writes its first record to the Kubernetes record store (#1392), with no AWS credentials in the environment, and the replan after it reads that record back. The proof lives in claim 39's scenario until #1112 rules how a provider cell carries its own scenario."
         }
       },
       "evidence": [
@@ -913,8 +913,8 @@
           "note": "Real AWS and maintainer-run, not CI: the claim is about what one IAM policy permits and another refuses, and the pinned emulator evaluates neither the policy nor its conditions. Run with SMOKE_REAL_AWS=1; it creates a bucket and two IAM roles and removes them."
         },
         "kubernetes": {
-          "status": "restated",
-          "note": "A Kubernetes estate's plan job opens the record store with the process's own AWS credentials, never with the cluster identity, so the role it needs is the same read-only rendering this claim measures. TestNoRecordStoreBackendIsKubernetes pins that there is no cluster-backed record store to state a different claim about."
+          "status": "proven",
+          "note": "Measured by claim 39 (k8s-records-in-the-cluster) step 9 for a Kubernetes-only estate: an identity holding get and list on the record Secrets plans and writes nothing, and the same identity is refused the apply question by name, naming create, update and delete. A Kubernetes estate that uses record_store \"s3\" instead opens the bucket with the process's own AWS credentials, so for that arrangement the AWS proof above is the proof. The Kubernetes-native proof lives in claim 39's scenario until #1112 rules how a provider cell carries its own scenario."
         }
       },
       "evidence": [
