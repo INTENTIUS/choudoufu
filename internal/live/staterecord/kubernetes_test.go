@@ -212,14 +212,22 @@ func TestKubernetesRefusesAHashCollisionByName(t *testing.T) {
 		t.Errorf("KeyCollisionError.FoundKey = %q, want the key the object actually holds", collision.FoundKey)
 	}
 
-	// And List returns the key the object holds, never the one that was asked
-	// for, so a listing and a Get cannot disagree about what is there.
+	// And List refuses rather than returning the key the object holds. It
+	// used to return it, on the reasoning that a listing should say what the
+	// object says; but the name is what a Get reads, and no Get of that key
+	// reaches this object, so the listing was handing out a key nothing could
+	// answer for. That is A3 in GitHub issue #1448, and the refusal names
+	// both the Secret and the name the key hashes to.
 	keys, err := store.List(ctx, "tofu-records/prod/")
-	if err != nil {
-		t.Fatalf("List: %v", err)
+	var misnamed *MisnamedRecordError
+	if !errors.As(err, &misnamed) {
+		t.Fatalf("List over the edited Secret: keys=%v err=%v (%T), want *MisnamedRecordError", keys, err, err)
 	}
-	if len(keys) != 1 || keys[0] != "tofu-records/prod/aws_thing/somethingelse" {
-		t.Errorf("List = %v, want the annotation's key", keys)
+	if misnamed.SecretName != store.SecretName(key) {
+		t.Errorf("the refusal names Secret %q, want %q", misnamed.SecretName, store.SecretName(key))
+	}
+	if misnamed.Key != "tofu-records/prod/aws_thing/somethingelse" {
+		t.Errorf("the refusal names key %q, want the key the annotation holds", misnamed.Key)
 	}
 }
 
