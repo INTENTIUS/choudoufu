@@ -182,6 +182,35 @@ granting an identity Secrets in it are two halves of the same cluster-admin
 act, and a list in a namespace that does not exist answers empty, which would
 otherwise read as an estate with no records.
 
+A read says the same. A `get` of a Secret in a namespace that is gone is a 404
+naming the Secret, not the namespace, so every read that would answer "nothing
+here" asks whether the namespace is still there, and one that is missing or
+being deleted is refused rather than returned as an empty estate. An identity
+that may not `get namespaces` cannot be asked that; for those runs the signal
+is the sentinel, and a listing that does not carry it is refused when the store
+is opened.
+
+The listing carries no label selector, because a selector cannot find a record
+by the label it is missing. A record Secret that lost `tofu-estate` or
+`app.kubernetes.io/managed-by`, one whose name is not the hash of the key it
+claims, and two that claim one key are each refused by name with the `kubectl`
+line that settles them, rather than left out of the listing.
+
+A Secret under the wrong name is moved by copying it to the right one, and the
+refusal names both the Secret it found and the name that record's key hashes
+to. With `<namespace>`, `<misnamed>` and `<hashed-name>` read off it:
+
+```
+kubectl -n <namespace> get secret <misnamed> -o json \
+  | jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)
+        | .metadata.name = "<hashed-name>"' \
+  | kubectl create -f -
+kubectl -n <namespace> delete secret <misnamed>
+```
+
+That needs `jq`, which is why the refusal names this file instead of carrying
+the pipeline.
+
 Anyone who can `get secrets` in the records namespace reads every recorded
 value, the same bargain `s3:GetObject` on the bucket makes.
 

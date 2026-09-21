@@ -16,6 +16,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -66,6 +67,28 @@ import (
 // and creating it is a cluster-admin act, not something a record write does
 // on the way past. A namespace that is not there is refused by name, with the
 // kubectl line that creates it.
+//
+// # What a listing is, and why it carries no label selector
+//
+// [KubernetesStore.List] and [KubernetesStore.GetAll] LIST the namespace with
+// no selector and attribute each object client-side, by the key its own
+// annotation carries and by its name. They used to select on
+// app.kubernetes.io/managed-by and tofu-estate server-side, which is cheaper
+// and which loses a record the moment either label goes: the object was then
+// in no listing, with a nil error, while a Get of its key still served it, and
+// an estate that reads as having fewer records than it has is planned against
+// as if the missing ones were never created. GitHub issue #1448 measured it on
+// kind. A selector cannot find an object by the label it is missing, so the
+// narrowing and the refusal cannot both be had; the refusal is the one worth
+// keeping ([UnlabelledRecordError]).
+//
+// What that costs is that a LIST carries every Secret in the namespace rather
+// than this estate's records only. The default arrangement is one namespace
+// per estate, where the difference is nothing; a namespace shared by
+// configuration pays for the other estates' objects on the wire, and skips
+// them client-side by their own tofu-estate label. No new permission is
+// needed: anything that can list Secrets in the namespace could already read
+// every record in it, which is decision 5 in this package's doc.
 type KubernetesStore struct {
 	secrets   corev1client.SecretInterface
 	clientset kubernetes.Interface
@@ -76,6 +99,12 @@ type KubernetesStore struct {
 	// listPageSize bounds one page of a LIST. Zero takes
 	// [DefaultKubernetesListPageSize].
 	listPageSize int64
+
+	// namespaceUnaskable remembers that this identity may not get the
+	// namespace, so [KubernetesStore.namespaceFault] asks once per run rather
+	// than putting a refused call in front of every read that answers
+	// "nothing here".
+	namespaceUnaskable atomic.Bool
 }
 
 // KubernetesConfig configures a [KubernetesStore].
@@ -149,19 +178,25 @@ const (
 	// KubernetesNamespaceLabel is the key's first "/"-delimited segment -
 	// "tofu-records", "tofu-hints", "tofu-outputs" - or
 	// [KubernetesNamespaceLabelOther] when that segment cannot be a label
-	// value. It narrows a LIST server-side; it is never what a returned key
-	// is read from.
+	// value. It is never what a returned key is read from.
+	//
+	// Nothing in this store selects on it any more. It narrowed a LIST
+	// server-side until #1448 took the selector off the listing entirely (see
+	// [KubernetesStore]), and it is still written because an operator reading
+	// or sorting a namespace by hand has nothing else to group records by:
+	// the name is a hash and the key is an annotation.
 	KubernetesNamespaceLabel = "choudoufu.intentius.io/record-namespace"
 
 	// KubernetesNamespaceLabelOther is [KubernetesNamespaceLabel]'s value for
 	// a key whose first segment is not a valid label value. Every Secret
-	// carries the label with some value, so a LIST that selects on it can
-	// never miss an object by the label being absent.
+	// carries the label with some value, so the label is never absent on an
+	// object this store wrote.
 	KubernetesNamespaceLabelOther = "other"
 
 	// KubernetesManagedByLabel and KubernetesManagedByValue mark the Secrets
-	// this store owns, so a LIST in a namespace holding anything else
-	// returns records only.
+	// this store owns. A listing reads them to tell one estate's records from
+	// another's in a shared namespace, and a record that is missing them is
+	// refused by name rather than skipped ([UnlabelledRecordError]).
 	KubernetesManagedByLabel = "app.kubernetes.io/managed-by"
 	KubernetesManagedByValue = "choudoufu"
 
@@ -235,6 +270,128 @@ func (e *NamespaceMissingError) Error() string {
 }
 
 func (e *NamespaceMissingError) Unwrap() error { return e.Err }
+
+// NamespaceTerminatingError reports that the Kubernetes namespace this store
+// writes into is being deleted. It is [NamespaceMissingError] a few seconds
+// early: the API server is removing every object in the namespace, so a LIST
+// of it answers 200 with an empty list as soon as the records are gone, and
+// that empty listing reads as an estate with no records.
+//
+// It is kept apart from [NamespaceMissingError] because the operator's next
+// move is different. A missing namespace is created; a terminating one has to
+// finish going away before it can be.
+type NamespaceTerminatingError struct {
+	Namespace string
+	Err       error
+}
+
+func (e *NamespaceTerminatingError) Error() string {
+	s := fmt.Sprintf(
+		"staterecord: kubernetes: namespace %q is being deleted, so this cluster is removing every record this estate has and a listing of it is not an empty estate; wait for the delete to finish (`kubectl get namespace %s` stops answering), create it again with `kubectl create namespace %s` and grant this run's identity get, list, create, update and delete on secrets in it, and expect to import or re-record anything the delete took with it",
+		e.Namespace, e.Namespace, e.Namespace)
+	if e.Err != nil {
+		s += ": " + e.Err.Error()
+	}
+	return s
+}
+
+func (e *NamespaceTerminatingError) Unwrap() error { return e.Err }
+
+// UnlabelledRecordError reports a Secret that is a record object under this
+// store's own keys - it is named the way this store names a record, and its
+// annotation carries a key under the prefix being listed - and that does not
+// carry the labels every record this store writes carries.
+//
+// It is a refusal rather than an omission because of what the omission cost.
+// The listing used to be a label selector, so a record whose tofu-estate or
+// app.kubernetes.io/managed-by label was stripped - `kubectl label secret
+// NAME tofu-estate-`, a restore that dropped labels, an admission policy
+// mutating an object on the way past - was in neither List nor GetAll, with a
+// nil error, while a Get of its key still served it. An estate then reads as
+// having fewer records than it has, and the next plan proposes creating those
+// live resources a second time. GitHub issue #1448.
+//
+// The labels are not put back by this store. A write that repaired them would
+// be a write to an object the estate boundary policy does not currently fence,
+// which is the one write that must not happen silently.
+type UnlabelledRecordError struct {
+	Namespace  string
+	SecretName string
+	Key        string
+
+	// Missing is what the Secret has to carry, as "label=value", for each
+	// label that is absent or holds another value.
+	Missing []string
+}
+
+func (e *UnlabelledRecordError) Error() string {
+	var labels []string
+	for _, m := range e.Missing {
+		name, _, _ := strings.Cut(m, "=")
+		labels = append(labels, name)
+	}
+	return fmt.Sprintf(
+		"staterecord: kubernetes: Secret %q in namespace %q holds the record for key %q and does not carry %s, so it is a record of this estate that no label selector can find; put the labels back with `kubectl -n %s label secret %s --overwrite %s`, or, if that object is another estate's record, label it with that estate's name and this listing will skip it",
+		e.SecretName, e.Namespace, e.Key, strings.Join(labels, " and "),
+		e.Namespace, e.SecretName, strings.Join(e.Missing, " "))
+}
+
+// MisnamedRecordError reports a Secret whose record-key annotation says it
+// holds one key while its NAME is not the name that key hashes to.
+//
+// The name is how a read finds a record, so such an object is in every listing
+// and reachable by nothing: Get of the key it claims says no record is there,
+// and a PutIfVersion or a Delete carrying the version the listing gave
+// conflicts forever. It is what a renamed record Secret looks like - a copy
+// taken by hand, a restore under a new name.
+type MisnamedRecordError struct {
+	Namespace  string
+	SecretName string
+	Key        string
+	WantName   string
+}
+
+func (e *MisnamedRecordError) Error() string {
+	return fmt.Sprintf(
+		"staterecord: kubernetes: Secret %q in namespace %q claims the record for key %q in its %s annotation, and that key hashes to Secret %q; the name is what a read looks up, so this object is in every listing and no read, write or delete of that key can reach it. If it is a copy, delete it with `kubectl -n %s delete secret %s`. If it is the record, live/STORAGE.md has the command that moves it to the name its key hashes to.",
+		e.SecretName, e.Namespace, e.Key, KubernetesRecordKeyAnnotation, e.WantName,
+		e.Namespace, e.SecretName)
+}
+
+// DuplicateRecordKeyError reports two or more Secrets in the namespace whose
+// record-key annotation carries the SAME key.
+//
+// A listing used to return that key once per object and a bulk read kept
+// whichever the cluster listed last, so which payload the run used was decided
+// by list order. Only one of them can be named for the key - a name is a hash
+// of it and a namespace holds one object per name - so the rest are copies,
+// and the refusal says which is which rather than picking one.
+type DuplicateRecordKeyError struct {
+	Namespace   string
+	Key         string
+	SecretNames []string
+
+	// WantName is the name Key hashes to: the one of SecretNames that is the
+	// record, when it is among them at all.
+	WantName string
+}
+
+func (e *DuplicateRecordKeyError) Error() string {
+	var copies []string
+	for _, name := range e.SecretNames {
+		if name != e.WantName {
+			copies = append(copies, name)
+		}
+	}
+	s := fmt.Sprintf(
+		"staterecord: kubernetes: Secrets %s in namespace %q all hold the record for key %q, so a listing returns that key once per object and a bulk read keeps whichever the cluster listed last; the key hashes to Secret %q, which is the record",
+		strings.Join(e.SecretNames, ", "), e.Namespace, e.Key, e.WantName)
+	if len(copies) > 0 {
+		s += fmt.Sprintf(". Delete the copies with `kubectl -n %s delete secret %s`, once you have checked that none of them holds a payload the record does not",
+			e.Namespace, strings.Join(copies, " "))
+	}
+	return s
+}
 
 // KeyCollisionError reports that the Secret a key hashes to holds a DIFFERENT
 // key. A SHA-256 collision is not something to plan for and is something to
@@ -338,34 +495,17 @@ func namespaceLabelValue(storeKey string) string {
 	return seg
 }
 
-// baseSelector matches every Secret this store owns in the namespace.
-func (s *KubernetesStore) baseSelector() string {
-	return fmt.Sprintf("%s=%s,%s=%s", KubernetesManagedByLabel, KubernetesManagedByValue, KubernetesEstateLabel, s.estate)
-}
-
-// listSelector narrows [KubernetesStore.List]'s LIST by the namespace label
-// when the requested prefix determines it - a prefix that reaches past its
-// first "/" names exactly one segment, so selecting on it can drop nothing
-// the prefix would have matched. A prefix with no "/" yet could still grow
-// into any segment, so it selects on nothing extra and filters client-side.
-func (s *KubernetesStore) listSelector(keyPrefix string) string {
-	sel := s.baseSelector()
-	storePrefix := s.storeKey(keyPrefix)
-	seg, _, complete := strings.Cut(storePrefix, "/")
-	if !complete || seg == "" {
-		return sel
-	}
-	if len(validation.IsValidLabelValue(seg)) > 0 {
-		return sel + "," + KubernetesNamespaceLabel + "=" + KubernetesNamespaceLabelOther
-	}
-	return sel + "," + KubernetesNamespaceLabel + "=" + seg
-}
-
 // notFoundIsNamespace reports whether a NotFound was the NAMESPACE's and not
 // the Secret's. The API server names what it could not find in
 // Status.Details.Kind, which is the only thing that tells the two apart, and
 // reading a missing namespace as a missing record is this backend's version of
 // #1383's missing bucket.
+//
+// It is only ever true of a CREATE. Measured on kind (#1448): a GET of a
+// Secret in a namespace that does not exist is `404 secrets "x" not found`,
+// with Kind "secrets", and a LIST of one is `200 {"items":[]}`. So this leg
+// answers the write path and [KubernetesStore.namespaceFault] answers the
+// read path; neither replaces the other.
 func notFoundIsNamespace(err error) bool {
 	var status k8serrors.APIStatus
 	if !errors.As(err, &status) {
@@ -375,11 +515,68 @@ func notFoundIsNamespace(err error) bool {
 	return details != nil && details.Kind == "namespaces"
 }
 
+// namespaceFault is how a read that answered "nothing here" finds out that
+// the nothing was the namespace. It returns the refusal to raise instead of
+// that answer, and nil when the namespace is there and usable.
+//
+// A read cannot tell the two apart by what it is told - see
+// [notFoundIsNamespace] - so this asks the one question that can: the
+// namespace itself. A namespace being DELETED counts as gone, because the
+// cluster is removing every record in it and the listing empties out while it
+// happens ([NamespaceTerminatingError]).
+//
+// # When it cannot ask, and what covers that
+//
+// It answers nil. A store built from a bare SecretInterface has no clientset
+// (the conformance suite, for one), and the Role this fork recommends holds
+// no cluster-scoped get on namespaces, which checkNamespaceAccess in
+// kubernetescontract.go already reports rather than asserts. Under either, an
+// empty listing stays an empty listing here.
+//
+// What covers it is one layer up. internal/live/projection writes a
+// provisioning sentinel into every store it opens, so a listing that does not
+// carry the sentinel is not an empty estate whatever this identity may ask
+// about namespaces - a permission-free signal, and the reason a missing
+// namespace is refused on the open path even under a scoped identity. That
+// rule lives there because this package holds no notion of a sentinel (see
+// this package's doc comment).
+func (s *KubernetesStore) namespaceFault(ctx context.Context) error {
+	if s.clientset == nil || s.namespaceUnaskable.Load() {
+		return nil
+	}
+	ns, err := s.clientset.CoreV1().Namespaces().Get(ctx, s.namespace, metav1.GetOptions{})
+	switch {
+	case err == nil:
+	case k8serrors.IsNotFound(err):
+		return &NamespaceMissingError{Namespace: s.namespace, Err: err}
+	case k8serrors.IsForbidden(err):
+		// Asked once per store. A permission does not change inside a run,
+		// and repeating the question would put one refused call in front of
+		// every read that answers "nothing here".
+		s.namespaceUnaskable.Store(true)
+		return nil
+	default:
+		return fmt.Errorf("staterecord: kubernetes: a read of namespace %q answered that nothing is there, an absent namespace answers a read the same way, and the question that tells the two apart failed: %w", s.namespace, err)
+	}
+	if ns.Status.Phase == corev1.NamespaceTerminating || ns.DeletionTimestamp != nil {
+		return &NamespaceTerminatingError{Namespace: s.namespace}
+	}
+	return nil
+}
+
 // classify turns a client-go error into this store's own. It is the one place
 // a Kubernetes failure becomes a staterecord one.
 func (s *KubernetesStore) classify(doing, key string, err error) error {
 	if notFoundIsNamespace(err) {
 		return &NamespaceMissingError{Namespace: s.namespace, Err: err}
+	}
+	// A write into a namespace that is being deleted is refused with 403 and
+	// a NamespaceTerminating cause (measured on kind). It is a 403 that has
+	// nothing to do with this run's identity, and without this leg
+	// [IsAccessDenied] reads it as one and #1370's reader tolerance carries
+	// the run past a namespace whose records are being deleted underneath it.
+	if k8serrors.HasStatusCause(err, corev1.NamespaceTerminatingCause) {
+		return &NamespaceTerminatingError{Namespace: s.namespace, Err: err}
 	}
 	return fmt.Errorf("staterecord: kubernetes: %s %q in namespace %q: %w", doing, key, s.namespace, err)
 }
@@ -396,6 +593,12 @@ func (s *KubernetesStore) Get(ctx context.Context, key string) ([]byte, string, 
 			return nil, "", false, &NamespaceMissingError{Namespace: s.namespace, Err: err}
 		}
 		if k8serrors.IsNotFound(err) {
+			// This Secret is not there. Whether the NAMESPACE is is a
+			// different question, and a 404 naming the secret is the same
+			// answer either way, so it is asked rather than assumed.
+			if nsErr := s.namespaceFault(ctx); nsErr != nil {
+				return nil, "", false, nsErr
+			}
 			return nil, "", false, nil
 		}
 		return nil, "", false, s.classify("getting", key, err)
@@ -420,10 +623,19 @@ func (s *KubernetesStore) readSecret(key string, secret *corev1.Secret) ([]byte,
 }
 
 // buildSecret is the object a write sends. Every write carries the whole set
-// of labels and annotations, so a Secret an older build wrote without one is
-// corrected by the next write to it - the same rule [S3Store]'s tagging
-// follows, for the same reason: a tag-conditioned or label-conditioned policy
-// must never see a bare object.
+// of labels and annotations, so a record this store writes is never missing
+// one.
+//
+// That is as far as the rule goes here, and it is where this store parts from
+// [S3Store]'s tagging. An S3 object whose tags were stripped is still in every
+// listing - a listing is by key prefix - so the next write to it puts the tags
+// back, and the comment here used to say the same of a Secret. It was false:
+// the listing was a label selector, so a Secret that lost a label was in no
+// listing, nothing proposed a write to it, and nothing ever corrected it. A
+// record that is not labelled like one is refused by name instead
+// ([UnlabelledRecordError], GitHub issue #1448), and repairing it is an
+// operator's kubectl line rather than a write this store makes to an object
+// the estate boundary policy does not currently fence.
 //
 // tofu-estate is a LABEL because that is what live/kubernetes/estate-boundary.yaml
 // reads and what a selector can match. The address goes in an ANNOTATION
@@ -574,22 +786,36 @@ func (s *KubernetesStore) Delete(ctx context.Context, key string, expectedVersio
 	return nil
 }
 
-// List implements [Store]. One paginated LIST narrowed by label selector,
-// then an ordinary string-prefix filter on the key each Secret's annotation
-// carries.
+// List implements [Store]. One paginated LIST of the whole namespace, then an
+// ordinary string-prefix filter on the key each Secret's annotation carries.
 //
 // The filter is client-side because a label selector cannot express a prefix
-// and the key is not in the name. What the selector does buy is that a LIST
-// never carries another estate's records, and never carries anything in the
-// namespace that is not a record.
+// and the key is not in the name. So is the rest of the attribution, and that
+// is a deliberate trade rather than an oversight: see [KubernetesStore] for
+// what a server-side selector lost, and [KubernetesStore.attributeRecord] for
+// what stands in its place.
 func (s *KubernetesStore) List(ctx context.Context, keyPrefix string) ([]string, error) {
 	keys, _, err := s.list(ctx, keyPrefix, false)
 	return keys, err
 }
 
+// listedRecord is one Secret the listing attributed to this store, kept until
+// the whole namespace has been read so that the checks below see every object
+// rather than the page one happens to be on.
+type listedRecord struct {
+	key     string
+	name    string
+	payload []byte
+	version string
+}
+
 // list is the shared body of List and GetAll. withPayload decides whether the
 // records are decompressed, since a LIST carries every object's data whether
 // or not the caller wants it.
+//
+// Nothing is returned alongside a refusal. A short listing with a nil error is
+// the failure this whole file is about, and a listing beside an error would be
+// one a caller could use by mistake.
 func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayload bool) ([]string, map[string]Record, error) {
 	if err := validateKeyPrefix(keyPrefix); err != nil {
 		return nil, nil, err
@@ -600,17 +826,13 @@ func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayloa
 		pageSize = DefaultKubernetesListPageSize
 	}
 
-	var keys []string
-	var records map[string]Record
-	if withPayload {
-		records = map[string]Record{}
-	}
+	var found []listedRecord
+	var unlabelled []error
 	cont := ""
 	for {
 		page, err := s.secrets.List(ctx, metav1.ListOptions{
-			LabelSelector: s.listSelector(keyPrefix),
-			Limit:         pageSize,
-			Continue:      cont,
+			Limit:    pageSize,
+			Continue: cont,
 		})
 		if err != nil {
 			if notFoundIsNamespace(err) {
@@ -620,37 +842,164 @@ func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayloa
 		}
 		for i := range page.Items {
 			secret := &page.Items[i]
-			storeKey, ok := secret.Annotations[KubernetesRecordKeyAnnotation]
-			if !ok {
-				// Carries this store's labels and not its key annotation:
-				// something else wrote it, or an operator edited it. It is not
-				// a record, and inventing a key for it would put a key in a
-				// listing that no Get can answer.
+			key, mine, err := s.attributeRecord(secret, prefix)
+			if err != nil {
+				unlabelled = append(unlabelled, err)
 				continue
 			}
-			if !strings.HasPrefix(storeKey, prefix) {
+			if !mine {
 				continue
 			}
-			key, ok := s.keyFromStoreKey(storeKey)
-			if !ok {
-				continue
-			}
-			keys = append(keys, key)
+			rec := listedRecord{key: key, name: secret.Name, version: secret.ResourceVersion}
 			if withPayload {
 				payload, err := uncompressRecord(secret.Data[kubernetesPayloadKey])
 				if err != nil {
 					return nil, nil, fmt.Errorf("staterecord: kubernetes: reading everything under %q: %q from Secret %q: %w", keyPrefix, key, secret.Name, err)
 				}
-				records[key] = Record{Payload: payload, Version: secret.ResourceVersion}
+				rec.payload = payload
 			}
+			found = append(found, rec)
 		}
 		cont = page.Continue
 		if cont == "" {
 			break
 		}
 	}
+
+	// An empty listing and a full one say the same thing about the namespace,
+	// which is nothing: a LIST in a namespace that is gone or going answers
+	// 200 with no items.
+	if err := s.namespaceFault(ctx); err != nil {
+		return nil, nil, err
+	}
+	if err := s.listFault(found, unlabelled); err != nil {
+		return nil, nil, err
+	}
+
+	keys := make([]string, 0, len(found))
+	var records map[string]Record
+	if withPayload {
+		records = make(map[string]Record, len(found))
+	}
+	for _, rec := range found {
+		keys = append(keys, rec.key)
+		if withPayload {
+			records[rec.key] = Record{Payload: rec.payload, Version: rec.version}
+		}
+	}
 	sort.Strings(keys)
 	return keys, records, nil
+}
+
+// attributeRecord decides what one Secret in the namespace is to this store:
+// one of its records, another estate's, something that is not a record at
+// all, or a record of this estate that is not labelled like one.
+//
+// It is the client-side half of listing with no label selector. What makes an
+// object a record here is that it agrees with itself: its annotation carries a
+// key, and its NAME is the name that key hashes to under this store's prefix.
+// Labels are read to tell one estate's records from another's, which is what
+// keeps a shared namespace working, and a record that carries none of them is
+// refused rather than skipped.
+//
+// # What it cannot find
+//
+// A Secret that lost its labels AND was renamed. Neither signal is left, and
+// claiming an object on the key annotation alone would let anything in the
+// namespace that carries that annotation refuse this estate's runs. A renamed
+// record that kept its labels is found and refused ([MisnamedRecordError]);
+// an unlabelled one that kept its name is too; one that lost both is a Secret
+// this store has no way to tell from someone else's.
+func (s *KubernetesStore) attributeRecord(secret *corev1.Secret, prefix string) (key string, mine bool, err error) {
+	storeKey, ok := secret.Annotations[KubernetesRecordKeyAnnotation]
+	if !ok {
+		// No key annotation: something else wrote it, or an operator edited
+		// it. It is not a record, and inventing a key for it would put a key
+		// in a listing that no Get can answer.
+		return "", false, nil
+	}
+	if !strings.HasPrefix(storeKey, prefix) {
+		return "", false, nil
+	}
+	key, ok = s.keyFromStoreKey(storeKey)
+	if !ok {
+		return "", false, nil
+	}
+
+	managedBy := secret.Labels[KubernetesManagedByLabel]
+	estate := secret.Labels[KubernetesEstateLabel]
+	if managedBy == KubernetesManagedByValue {
+		switch estate {
+		case s.estate:
+			return key, true, nil
+		case "":
+			// Labelled as a record and not as anyone's: below.
+		default:
+			// Another estate's record, labelled the way this store labels its
+			// own. A namespace may be shared by configuration, and one
+			// estate's listing has never carried another's.
+			return "", false, nil
+		}
+	}
+	if !strings.HasPrefix(secret.Name, KubernetesSecretNamePrefix) {
+		return "", false, nil
+	}
+	var missing []string
+	if managedBy != KubernetesManagedByValue {
+		missing = append(missing, KubernetesManagedByLabel+"="+KubernetesManagedByValue)
+	}
+	if estate != s.estate {
+		missing = append(missing, KubernetesEstateLabel+"="+s.estate)
+	}
+	return "", false, &UnlabelledRecordError{
+		Namespace:  s.namespace,
+		SecretName: secret.Name,
+		Key:        storeKey,
+		Missing:    missing,
+	}
+}
+
+// listFault is what a listing refuses with when the namespace holds a record
+// object that no read of the keys it returns could answer for.
+//
+// More than one of these can be true of one namespace. The refusal names one
+// and the next run names the next, and the order is the most specific first: a
+// duplicate names both objects and says which of them the key hashes to, which
+// is everything the misnamed refusal for the copy would have said and the name
+// of the record besides.
+func (s *KubernetesStore) listFault(found []listedRecord, unlabelled []error) error {
+	byKey := map[string][]string{}
+	for _, rec := range found {
+		byKey[rec.key] = append(byKey[rec.key], rec.name)
+	}
+	for _, rec := range found {
+		names := byKey[rec.key]
+		if len(names) < 2 {
+			continue
+		}
+		sorted := append([]string(nil), names...)
+		sort.Strings(sorted)
+		return &DuplicateRecordKeyError{
+			Namespace:   s.namespace,
+			Key:         s.storeKey(rec.key),
+			SecretNames: sorted,
+			WantName:    s.SecretName(rec.key),
+		}
+	}
+	for _, rec := range found {
+		if want := s.SecretName(rec.key); rec.name != want {
+			return &MisnamedRecordError{
+				Namespace:  s.namespace,
+				SecretName: rec.name,
+				Key:        s.storeKey(rec.key),
+				WantName:   want,
+			}
+		}
+	}
+	if len(unlabelled) > 0 {
+		return unlabelled[0]
+	}
+	return nil
 }
 
 // GetAll implements [BulkReader] in ONE paginated LIST.
