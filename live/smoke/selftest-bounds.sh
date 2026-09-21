@@ -353,7 +353,12 @@ fi
 # the cases above could be passing over a stub that returns by itself.
 if wanted mutant-no-watchdog; then
   sandbox mutant-no-watchdog
-  if grep -q '^    smoke_timer "\$BOUND".*' "$SB/tree/live/smoke/smoke.sh"; then
+  # A call wrapped with a backslash cannot be replaced one line at a time:
+  # the second half is left behind and runs as a command, which is how this
+  # case once exited 127 without saying why. Refuse that shape by name.
+  if grep -q '^    smoke_timer "\$BOUND".*\\$' "$SB/tree/live/smoke/smoke.sh"; then
+    bad "smoke.sh's 'smoke_timer \"\$BOUND\"' call ends in a backslash; the mutant is built by replacing that one line, so put the call on a single line"
+  elif grep -q '^    smoke_timer "\$BOUND".*' "$SB/tree/live/smoke/smoke.sh"; then
     sed 's/^    smoke_timer "\$BOUND".*/    SMOKE_TIMER_PID=""/' "$SB/tree/live/smoke/smoke.sh" > "$SB/smoke.mutant" \
       && mv "$SB/smoke.mutant" "$SB/tree/live/smoke/smoke.sh"
     run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \

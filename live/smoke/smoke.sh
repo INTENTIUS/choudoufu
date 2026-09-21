@@ -107,8 +107,11 @@ banner "$SCENARIO"
 case "$SCENARIO" in
   k8s-*)
     BOUND="$(scenario_bound_secs)"
-    smoke_timer "$BOUND" "stalled" \
-      "and killed after ${BOUND}s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>."
+    # The verdict's two halves, in variables so the call below stays on one
+    # line: selftest-bounds.sh builds its mutant by replacing that line.
+    STALL_BEFORE="stalled"
+    STALL_AFTER="and killed after ${BOUND}s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>."
+    smoke_timer "$BOUND" "$STALL_BEFORE" "$STALL_AFTER"
     WATCHDOG_PID="$SMOKE_TIMER_PID"
     ;;
 esac
