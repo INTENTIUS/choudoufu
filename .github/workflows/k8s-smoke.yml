@@ -161,8 +161,12 @@ jobs:
           bash live/smoke/smoke.sh ${{ matrix.scenario }} >> "$log" 2>&1 || rc=$?
           sleep 2; kill "$tail_pid" 2>/dev/null || true
           exit "$rc"
+      # continue-on-error: the log has already streamed into the job log and
+      # this artifact is the backup. A backup that cannot be stored must not
+      # turn a passed scenario red (#1457, the 403 on run 35660111631).
       - name: the smoke logs, whatever happened to the job
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: k8s-smoke-logs-${{ matrix.scenario }}
