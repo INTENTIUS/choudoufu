@@ -85,8 +85,10 @@ is claim 32 on this store.
    sentinel. The API server's own `apiserver_request_total` counter for
    `selfsubjectaccessreviews` is the measurement: it moves on first
    contact and does not move across the two plans after it. The scoped
-   identity cannot read two of the four, and says so by name on every
-   run rather than reporting them as passes.
+   identity cannot read three of the four - it cannot list kube-system's
+   Pods, cannot get a `ValidatingAdmissionPolicy`, and cannot list the
+   namespaces the other estates keep records in - and says so by name on
+   every run rather than reporting them as passes.
 7. `each assertion refuses by name, on this cluster, for its own reason` -
    `choudoufu live-cluster` asks the same four questions without running
    a plan and without writing anything. kind supplies two of the
@@ -94,7 +96,10 @@ is claim 32 on this store.
    `--encryption-provider-config`, and a cluster-admin can read every
    records namespace there is. The binding is removed for a third, and a
    namespace that does not exist gets the fourth, in the store's own
-   words.
+   words. `estate_boundary` also says which half of itself it asked: the
+   policy is compared against the file this repository ships, and the
+   `use` grant the policy's own CEL reads is asked for only when an
+   estate is named.
 8. `a Role short one verb is refused at first contact` - the same
    assertion stopping an apply rather than reporting on a cluster. The
    Role holds four of the five verbs the store uses, so the sentinel
@@ -135,13 +140,15 @@ both writes landed and no conflict named at all. That writer lives in the
 test file and is reached only through an environment variable it reads, so
 no build of choudoufu carries it.
 
-Two of the four assertions cannot be answered on every cluster. Whether
-Secrets are encrypted at rest is an API server flag, readable where the
-API server's own Pod is and not on a managed control plane; reading the
-estate boundary policy needs cluster-scoped `get`. A run says so on every
-run, by name, and never calls it a pass; `choudoufu live-cluster`, run by
-an identity that holds those reads, answers the question and exits
-non-zero until it can.
+Three of the four assertions go unanswered for the identity the docs
+recommend, and one of them goes unanswered for everybody. Whether Secrets
+are encrypted at rest is an API server flag naming a file that is not an
+API object, so a set flag is NOT CHECKED at any permission level and only
+a missing one is a refusal; reading the estate boundary policy needs
+cluster-scoped `get`; and finding the other estates' records means listing
+namespaces. A run says each of them on every run, by name, and never calls
+one a pass; `choudoufu live-cluster`, run by an identity that holds those
+reads, answers what can be answered and exits non-zero until it is.
 
 Anyone who can `get secrets` in the records namespace reads every recorded
 value, which is the same bargain `s3:GetObject` on the bucket makes for
