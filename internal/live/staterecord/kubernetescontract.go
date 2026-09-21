@@ -105,6 +105,12 @@ var KubernetesPlanVerbs = []string{"get", "list"}
 // gives both its ValidatingAdmissionPolicy and its binding.
 const EstateBoundaryPolicyName = "choudoufu-estate-boundary"
 
+// reapplyShippedBoundary is what an operator does about a boundary policy
+// that is installed, in force, and older than the one this release asserts.
+// It is the whole upgrade: the file carries the policy and its binding, and
+// applying it over an earlier version is one request.
+const reapplyShippedBoundary = "If the installed policy is from an earlier release, re-apply the shipped one: `kubectl apply -f live/kubernetes/estate-boundary.yaml`"
+
 // KubernetesRecordNamespacePrefix starts the default records namespace of
 // every estate ("tofu-records-" and the estate name). The read-isolation
 // check uses it to recognise ANOTHER estate's records namespace when it can
@@ -748,8 +754,8 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Finding
 		return f
 	}
 	f.Outcome = NotChecked
-	f.Found = fmt.Sprintf("not readable from here, not checked: the API server runs with %s, and the file that flag names is not an API object, so whether secrets are encrypted was not established: a configuration whose first provider for secrets is `identity` sets the flag and encrypts nothing. Read it on the control-plane node with `sudo cat %s` (on kind, `docker exec <cluster>-control-plane cat %s`) and check which provider comes first under the resources entry covering secrets",
-		strings.Join(configured, ", "), paths[0], paths[0])
+	f.Found = fmt.Sprintf("not readable from here, not checked: the API server runs with %s, and the file that flag names is not an API object, so whether secrets are encrypted was not established: a configuration whose first provider for secrets is `identity` sets the flag and encrypts nothing. Read it on the control-plane node with `sudo cat %s` and check which provider comes first under the resources entry covering secrets",
+		strings.Join(configured, ", "), paths[0])
 	return f
 }
 
@@ -855,7 +861,9 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface, opts Clus
 	if err != nil {
 		return f, err
 	}
+	celDiffers := false
 	if diffs := policyCELDifferences(policy, shipped); len(diffs) > 0 {
+		celDiffers = true
 		problems = append(problems, fmt.Sprintf("the installed policy's CEL is not the CEL live/kubernetes/estate-boundary.yaml ships (%s), so what it refuses is not what this store asserts is refused", strings.Join(diffs, "; ")))
 	}
 
@@ -880,6 +888,19 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface, opts Clus
 
 	if len(problems) > 0 {
 		f.Found = strings.Join(append(problems, undecided...), "; ")
+		// The remedy for a policy that is installed and out of date, said
+		// here rather than left to the setting's own fix paragraph, which
+		// tells a reader to INSTALL the policy - the wrong instruction for
+		// someone who has it. It is also the only place `choudoufu
+		// live-cluster` could print it: that report shows what was found and
+		// no fix paragraph at all.
+		//
+		// Only this failure carries it. An absent policy's own text already
+		// says to apply the file, an absent binding's says what a policy
+		// with no binding is, and a missing grant carries its own sed line.
+		if celDiffers {
+			f.Found += ". " + reapplyShippedBoundary
+		}
 		return f, nil
 	}
 	if len(undecided) > 0 {
