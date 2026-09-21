@@ -65,7 +65,7 @@ reap_stubs() {
 }
 trap 'reap_stubs 2>/dev/null; rm -rf "$WORK"' EXIT
 
-# ── the stubs ───────────────────────────────────────────────────────────
+# --- the stubs ---
 # `kubectl` logs every invocation and its own pid, then does one of three
 # things with a call matching KUBECTL_STALL_GLOB: never return (the fault
 # #1457 is about), never return and ignore TERM as well, or, with
@@ -243,27 +243,32 @@ check_stall_verdict() {
   else bad "still running after the run ended:$left"; fi
 }
 
-# ── 1. the scenario bound, against a kubectl that never returns ──────────
+# --- 1. the scenario bound, against a kubectl that never returns ---
+# The scenario bound counts from the scenario's start, so the step it names
+# depends on the run reaching step 2 before it fires. Ten seconds is the
+# margin for that: a four-second bound named an earlier step once, on a
+# loaded laptop, in some forty runs. The other bounds count from the call
+# they guard and have no such race.
 if wanted watchdog-kubectl; then
   sandbox watchdog-kubectl
-  run_smoke k8s-selftest-stall 15 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
-    SMOKE_TIMEOUT_SECS=4 SMOKE_KILL_GRACE_SECS=2
-  check_stall_verdict k8s-selftest-stall "no verdict after 4s" "2. the step that stalls"
+  run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
+    SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
+  check_stall_verdict k8s-selftest-stall "no verdict after 10s" "2. the step that stalls"
   if grep -q 'still running: .*kubectl.*create namespace stall' "$OUT"; then ok "the stalled command is named above the verdict"
   else bad "the output does not name the command that was still running"; fi
   [ "$PASS" = "1" ] || show_out
 fi
 
-# ── 2. the same, against a kubectl that ignores TERM ─────────────────────
+# --- 2. the same, against a kubectl that ignores TERM ---
 if wanted watchdog-kubectl-ignores-term; then
   sandbox watchdog-kubectl-ignores-term
-  run_smoke k8s-selftest-stall 15 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
-    KUBECTL_IGNORE_TERM=1 SMOKE_TIMEOUT_SECS=4 SMOKE_KILL_GRACE_SECS=2
-  check_stall_verdict k8s-selftest-stall "no verdict after 4s" "2. the step that stalls"
+  run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
+    KUBECTL_IGNORE_TERM=1 SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
+  check_stall_verdict k8s-selftest-stall "no verdict after 10s" "2. the step that stalls"
   [ "$PASS" = "1" ] || show_out
 fi
 
-# ── 3. the choudoufu bound, inside a scenario bound that is far away ─────
+# --- 3. the choudoufu bound, inside a scenario bound that is far away ---
 if wanted chdf-bound; then
   sandbox chdf-bound
   run_smoke k8s-selftest-stall 15 SELFTEST_STALL=choudoufu CHDF_STALL_GLOB='apply*' \
@@ -272,7 +277,7 @@ if wanted chdf-bound; then
   [ "$PASS" = "1" ] || show_out
 fi
 
-# ── 4. the shipped scenario: wait_admission against requests that time out ─
+# --- 4. the shipped scenario: wait_admission against requests that time out ---
 # k8s-the-server-gets-the-last-word, as shipped, up to the wait that hung in
 # CI. Every admission-probe request gives up after its --request-timeout,
 # which only happens if kc passes one. The wait then has to fail by name
@@ -299,7 +304,7 @@ if wanted last-word-wait; then
   [ "$PASS" = "1" ] || show_out
 fi
 
-# ── 5. every kubectl request carries a timeout ───────────────────────────
+# --- 5. every kubectl request carries a timeout ---
 # Two halves. What the stub saw: each request the cases above made has
 # --request-timeout on it. And the roster: no k8s scenario, and nothing in
 # lib.sh but kc_as, calls kubectl bare, so a scenario written tomorrow cannot
@@ -342,7 +347,7 @@ if wanted kc-request-timeout; then
   [ "$PASS" = "1" ] || show_out
 fi
 
-# ── 6. the mutant: the same stall with the scenario bound taken out ──────
+# --- 6. the mutant: the same stall with the scenario bound taken out ---
 # Case 1 again, against a copy of smoke.sh with the line that starts the
 # watchdog removed. It has to hang until this script kills it. Without this
 # the cases above could be passing over a stub that returns by itself.
@@ -351,8 +356,8 @@ if wanted mutant-no-watchdog; then
   if grep -q '^    smoke_timer "\$BOUND".*' "$SB/tree/live/smoke/smoke.sh"; then
     sed 's/^    smoke_timer "\$BOUND".*/    SMOKE_TIMER_PID=""/' "$SB/tree/live/smoke/smoke.sh" > "$SB/smoke.mutant" \
       && mv "$SB/smoke.mutant" "$SB/tree/live/smoke/smoke.sh"
-    run_smoke k8s-selftest-stall 12 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
-      SMOKE_TIMEOUT_SECS=4 SMOKE_KILL_GRACE_SECS=2
+    run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
+      SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
     show_out mutant
     if [ "$HUNG" = "1" ] && ! grep -qE '^FAIL \[' "$OUT"; then
       ok "the same case fails against a smoke.sh with no watchdog: still going after ${ELAPSED}s, no FAIL line, killed by this script"

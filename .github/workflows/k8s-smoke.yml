@@ -30,6 +30,16 @@
 # any k8s-* scenario calls stack_up, and live/bucket_ci_test.go leaves such
 # a scenario to this workflow rather than bucket-smoke.yml, which installs
 # no cluster.
+#
+# Bounds and logs (#1457). One job sat in its scenario step for 35 minutes,
+# was cancelled by the job timeout and left no log at all. smoke.sh now
+# bounds every k8s-* scenario and fails it by name (SMOKE_TIMEOUT_SECS, at
+# most 28 minutes for the longest claim), so timeout-minutes below is the
+# backstop and sits above one scenario's bound plus setup. Each run also
+# writes its output to a file as it goes, uploaded whether the job passed,
+# failed or was cancelled, so a run that stops still shows where. The
+# selftest job proves the bounds against a kubectl that never returns; it
+# needs no cluster.
 name: k8s-smoke
 on:
   pull_request:
@@ -60,9 +70,25 @@ concurrency:
   group: k8s-smoke-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: selftest-bounds, a stalled call fails by name inside its bound
+        shell: bash
+        run: |
+          set -o pipefail
+          bash live/smoke/selftest-bounds.sh 2>&1 | tee "$RUNNER_TEMP/selftest-bounds.log"
+          # The verdict line, not the exit code: an early `exit 0` before the
+          # cases must not read as a pass.
+          grep -q -- '^PASS: selftest-bounds' "$RUNNER_TEMP/selftest-bounds.log" || {
+            echo "selftest-bounds.sh did not reach its own PASS verdict line in this job."
+            exit 1
+          }
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -107,9 +133,38 @@ jobs:
           version: v0.33.0
           kubectl_version: v1.34.0
           install_only: true
+      # Both runs write to a file that `tail -f` copies into the job log as
+      # it grows, and not through `| tee`: the step's exit code is smoke.sh's
+      # own with no pipefail to forget, and a process the scenario orphans
+      # (claim 39 SIGKILLs an apply on purpose) holds a file open, which
+      # harms nothing, where it would hold a pipe open and keep tee and the
+      # step alive after smoke.sh had exited.
       - name: the scenario
-        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/smoke-logs/scenario.log"
+          mkdir -p "$(dirname "$log")"; : > "$log"
+          tail -f "$log" & tail_pid=$!
+          rc=0
+          bash live/smoke/smoke.sh ${{ matrix.scenario }} >> "$log" 2>&1 || rc=$?
+          sleep 2; kill "$tail_pid" 2>/dev/null || true
+          exit "$rc"
       - name: the BREAK=1 control
+        shell: bash
         env:
           BREAK: "1"
-        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+        run: |
+          log="$RUNNER_TEMP/smoke-logs/break.log"
+          mkdir -p "$(dirname "$log")"; : > "$log"
+          tail -f "$log" & tail_pid=$!
+          rc=0
+          bash live/smoke/smoke.sh ${{ matrix.scenario }} >> "$log" 2>&1 || rc=$?
+          sleep 2; kill "$tail_pid" 2>/dev/null || true
+          exit "$rc"
+      - name: the smoke logs, whatever happened to the job
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: k8s-smoke-logs-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/smoke-logs
+          if-no-files-found: warn
