@@ -48,8 +48,8 @@ func TestInsecureTLSRefusesByNameWithoutAWaiver(t *testing.T) {
 	if f.Unwaivable {
 		t.Error("the finding is unwaivable, and the ruling is that allow_insecure reaches it")
 	}
-	if !strings.Contains(f.Found, "`insecure = true`") {
-		t.Errorf("the finding does not name the argument that caused it: %s", f.Found)
+	if want := "`insecure = true` is set, so the API server's certificate is not verified"; f.Found != want {
+		t.Errorf("the finding reads %q, want %q", f.Found, want)
 	}
 
 	// A waiver of something else does not reach it.
@@ -63,7 +63,11 @@ func TestInsecureTLSRefusesByNameWithoutAWaiver(t *testing.T) {
 	if !strings.Contains(summary, "tls_verification") {
 		t.Errorf("the headline does not carry the name: %q", summary)
 	}
-	for _, want := range []string{"`insecure = true`", "cluster_ca_certificate", `allow_insecure = ["tls_verification"]`} {
+	for _, want := range []string{
+		"With verification off, anything on the path can answer as the API server, and it receives this identity's credential and every record.",
+		"Remove `insecure = true` and set `cluster_ca_certificate`.",
+		`allow_insecure = ["tls_verification"]`,
+	} {
 		if !strings.Contains(detail, want) {
 			t.Errorf("the refusal does not carry %s: %q", want, detail)
 		}
@@ -79,8 +83,8 @@ func TestInsecureTLSWaivedIsAWaivedFailureAndNotAPass(t *testing.T) {
 	if !hasSetting(waived, ClusterTLSVerification) {
 		t.Fatalf("the waived finding is not among the waived failures (%v), so no run could say it proceeded past it", settingsOf(waived))
 	}
-	if cost := ClusterWaiverCost(ClusterTLSVerification); cost == ClusterWaiverCost("unknown") || !strings.Contains(cost, "credential") {
-		t.Errorf("the waiver's cost does not say what is exposed: %q", cost)
+	if cost, want := ClusterWaiverCost(ClusterTLSVerification), "the API server's certificate is not verified, so this identity's credential and every record go to whatever answers at that address"; cost != want {
+		t.Errorf("the waiver's cost reads %q, want %q", cost, want)
 	}
 }
 

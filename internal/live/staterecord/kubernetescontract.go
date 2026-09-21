@@ -297,7 +297,7 @@ func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts Clu
 func insecureTLSFinding() Finding {
 	return Finding{
 		Setting: ClusterTLSVerification,
-		Found:   "this record_store block sets `insecure = true`, so the API server's certificate is not verified and whatever answers at its address is sent this identity's credential and every record",
+		Found:   "`insecure = true` is set, so the API server's certificate is not verified",
 	}
 }
 
@@ -1056,8 +1056,8 @@ func ClusterContractRefusal(namespace string, f Finding) (summary, detail string
 	why, fix := "", ""
 	switch f.Setting {
 	case ClusterTLSVerification:
-		why = "The certificate is how a run knows it is talking to this cluster's API server. With verification off, anything on the path can answer in its place, and it receives the credential this identity writes records with, reads every record sent to it, and can serve records of its own."
-		fix = "Fix it by removing `insecure = true` from this record_store \"kubernetes\" block and naming the cluster's CA instead, with `cluster_ca_certificate` or a kubeconfig that carries it."
+		why = "With verification off, anything on the path can answer as the API server, and it receives this identity's credential and every record."
+		fix = "Remove `insecure = true` and set `cluster_ca_certificate`."
 	case ClusterNamespaceAccess:
 		why = "Every record this estate keeps is a Secret in that namespace. A verb the store needs and does not have stops a run part-way through writing records, which leaves the estate half-recorded, and a records namespace that is not there reads as an estate with no records at all."
 		fix = fmt.Sprintf("Create the namespace if it is missing (`kubectl create namespace %s`) and grant this identity the verbs it lacks on secrets in it:\n\n  kubectl create role records-rw -n %s --verb=%s --resource=secrets\n  kubectl create rolebinding <name> -n %s --role=records-rw --serviceaccount=<ns>:<name>",
@@ -1120,7 +1120,7 @@ func ClusterWaiverArgument(settings ...Setting) string {
 func ClusterWaiverCost(setting Setting) string {
 	switch setting {
 	case ClusterTLSVerification:
-		return "nothing verifies that the server this estate's records go to is its cluster's API server, and whatever answers at that address is sent this identity's credential and every record"
+		return "the API server's certificate is not verified, so this identity's credential and every record go to whatever answers at that address"
 	case ClusterNamespaceAccess:
 		return "nothing has checked that this identity can do what the store will ask of it, so a run may stop part-way through writing records"
 	case ClusterReadIsolation:

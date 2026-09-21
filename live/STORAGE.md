@@ -234,12 +234,12 @@ cluster's version of the bucket's three settings.
 | `estate_boundary` | `estate-boundary.yaml`'s policy and its binding are installed, observed, denying and in force over the record Secrets, and this identity is granted its estate | a get on each, compared against the shipped file, and one review of `use` on `estates.choudoufu.intentius.io/<estate>` |
 
 A fifth finding comes from the block itself. `insecure = true` turns off
-verification of the API server's certificate. Whatever answers at that address
-is then sent this identity's credential and every record. The finding is named
-`tls_verification`. It is known from the block before any request and refuses
-like a property that was read and is wrong. Clear it by removing the argument
-and naming the cluster's CA in `cluster_ca_certificate` or in the kubeconfig. A
-block that does not set `insecure = true` has no such finding.
+verification of the API server's certificate. Anything on the path can then
+answer as the API server, and it receives this identity's credential and every
+record. The finding is named `tls_verification`. It is known from the block
+before any request and refuses like a property that was read and is wrong.
+Remove `insecure = true` and set `cluster_ca_certificate`. A block that does
+not set `insecure = true` has no such finding.
 
 `choudoufu live-cluster` asks the same four and prints them, with no plan and
 nothing written. Run in a configuration directory it uses that live block's
