@@ -61,7 +61,8 @@ between two plans, and checking them costs three reads and three permissions.
   run that writes the store's sentinel is the first, and it is the one moment
   a wrong bucket costs nothing to walk away from. A refusal takes the sentinel
   back out, so the next run is a first contact again.
-- **Before every apply.**
+- **Before any run that writes a record**: an apply, a `live-mv` that is not
+  a dry run, a `live-import -approve`.
 - Whenever you ask: `choudoufu live-bucket -bucket <name>` reports all three
   and exits non-zero on a failure. It reports the bucket, so a waiver in some
   estate's configuration never changes its answer.

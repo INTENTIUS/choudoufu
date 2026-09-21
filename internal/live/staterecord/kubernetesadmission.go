@@ -140,9 +140,9 @@ func (s *KubernetesStore) classifyWrite(ctx context.Context, doing, verb, key st
 // create record Secrets and the estate boundary refuses. That identity is not
 // #1370's reader - a get/list identity is refused by the authorizer, so
 // admission never sees its write - and it is the identity PR #1452's cluster
-// contract fails `estate_boundary` for on every apply, for the same reason and
-// with the same remedy. Refusing it when the store opens says the same thing
-// at the one moment nothing has been written yet.
+// contract fails `estate_boundary` for on every run that writes a record, for
+// the same reason and with the same remedy. Refusing it when the store opens
+// says the same thing at the one moment nothing has been written yet.
 //
 // # When the review cannot be asked
 //

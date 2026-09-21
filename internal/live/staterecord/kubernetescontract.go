@@ -415,10 +415,10 @@ func joinOrNone(s []string) string {
 // The third is a capability rather than a breach: get or list on Secrets
 // cluster-wide, on a cluster where no other estate keeps records. It is the
 // ordinary state of every cluster-admin standing up the first estate, so it
-// warns - loud on every apply, never a refusal. #1393 asks for a warning as
-// the floor and the refusal where the other estate's records are known, and a
-// gate that refused every first estate would be a gate everyone waives on
-// their first day (#1102).
+// warns - loud on every run that writes a record, never a refusal. #1393 asks
+// for a warning as the floor and the refusal where the other estate's records
+// are known, and a gate that refused every first estate would be a gate
+// everyone waives on their first day (#1102).
 //
 // # What is not asked is not a pass
 //

@@ -87,12 +87,13 @@ is claim 32 on this store.
 6. `the cluster contract runs on an estate's first contact with the
    cluster, and not on every plan` - the four assertions are asked on an
    estate's first contact with the store, which is the run that creates
-   the sentinel, and again before every apply, because an apply is the run
-   that writes records. An ordinary plan asks none of them. Two
-   measurements say so. The API server's own `apiserver_request_total`
-   counter for `selfsubjectaccessreviews` moves on first contact and does
-   not move across the two plans after it, and a failed read of that
-   counter fails the step rather than counting zero. The plans' own output
+   the sentinel, and again before any run that writes a record: an apply,
+   a `live-mv` that is not a dry run, a `live-import -approve`. An
+   ordinary plan asks none of them. Two measurements say so. The API
+   server's own `apiserver_request_total` counter for
+   `selfsubjectaccessreviews` moves on first contact and does not move
+   across the two plans after it, and a failed read of that counter fails
+   the step rather than counting zero. The plans' own output
    is the second: the scoped identity cannot read three of the four - it
    cannot list kube-system's Pods, cannot get a
    `ValidatingAdmissionPolicy`, and cannot list the namespaces the other
