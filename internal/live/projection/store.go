@@ -87,6 +87,18 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 // the store is unreadable while it lasts, so a plan built without records
 // would propose creating an estate that exists.
 //
+// The cluster store's own named faults are refusals for the same reason, and
+// they are recognised by type rather than by where they were raised (GitHub
+// issue #1448). A namespace that does not exist, or that is being deleted, is
+// the missing bucket: the cluster was reached and answered, and every read of
+// that namespace answers empty until a person creates it again. A record
+// object that is not labelled like one, is not named like one, or shares its
+// key with another is the same shape - the store was reached, it found
+// something it will not read past, and it stays that way until an operator's
+// kubectl line fixes the object. A run that treated any of them as an outage
+// and went on would be planning against an estate that reads as having fewer
+// records than it has, which is what all of them are about.
+//
 // Everything else - a store that could not be reached, a role IAM would not
 // let in - is an outage from where this package stands. The difference is
 // for internal/command. `plan` and `apply` fail on both. `live-plan` and
@@ -102,11 +114,41 @@ func (e *StoreRefusal) Unwrap() error { return e.Err }
 
 // IsStoreRefusal reports whether err, from [NewRecordStore], is a refusal
 // and not an outage. See [StoreRefusal].
+//
+// It reads the store's own error types as well as this package's wrapper,
+// because a refusal is a fact about what the store answered and not about
+// which line wrapped it. [provisionStoreSentinel] wraps a failed sentinel
+// write and a failed List in a plain error, so before #1448 a missing
+// Kubernetes namespace - raised by the store, by name, with the kubectl line
+// that fixes it - reached `live-plan` and `live-mv` as an outage and both
+// went on without the store.
 func IsStoreRefusal(err error) bool {
 	var refusal *StoreRefusal
-	var kms *staterecord.KMSDeniedError
-	var unusable *staterecord.KMSKeyUnusableError
-	return errors.As(err, &refusal) || errors.As(err, &kms) || errors.As(err, &unusable)
+	return errors.As(err, &refusal) || isStoreFault(err)
+}
+
+// isStoreFault reports whether err is one of the store's own named refusals:
+// something the store reached, read, and will not answer past. See
+// [StoreRefusal] for what puts each of these on this list.
+func isStoreFault(err error) bool {
+	var (
+		kms         *staterecord.KMSDeniedError
+		unusable    *staterecord.KMSKeyUnusableError
+		nsMissing   *staterecord.NamespaceMissingError
+		terminating *staterecord.NamespaceTerminatingError
+		collision   *staterecord.KeyCollisionError
+		unlabelled  *staterecord.UnlabelledRecordError
+		misnamed    *staterecord.MisnamedRecordError
+		duplicate   *staterecord.DuplicateRecordKeyError
+	)
+	return errors.As(err, &kms) ||
+		errors.As(err, &unusable) ||
+		errors.As(err, &nsMissing) ||
+		errors.As(err, &terminating) ||
+		errors.As(err, &collision) ||
+		errors.As(err, &unlabelled) ||
+		errors.As(err, &misnamed) ||
+		errors.As(err, &duplicate)
 }
 
 // openBuiltStore is everything [NewRecordStore] does to a store once it is

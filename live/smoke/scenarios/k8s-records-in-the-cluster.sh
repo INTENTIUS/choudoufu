@@ -147,16 +147,36 @@ explain \
   "case here would pass vacuously against it."
 kc create namespace "$RECORDS_NS" >/dev/null || fail "k8srec" "could not create the records namespace"
 kc create namespace "$BOB_NS" >/dev/null || fail "k8srec" "could not create Bob's records namespace"
+# CONFORMANCE_CASES is how many cases the shared Store contract suite has:
+# one t.Run per case in runConformance, internal/live/staterecord/
+# conformance_test.go. It is written here, once, and compared EXACTLY rather
+# than as a floor, so that a case added to that suite without this number
+# moving fails this step and says so. Deriving it from the same `go test`
+# output this step is checking would make it agree with itself whatever
+# happened, which is the failure #1448 found in the `-ge 17` this replaces.
+CONFORMANCE_CASES=18
 cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # against the kind cluster"
 CONF_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
   go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
-  || fail "k8srec" "the conformance suite failed against the cluster: $(grep -E '^\s+--- FAIL|FAIL' <<< "$CONF_OUT" | head -10)"
-grep -c -- '--- PASS: TestKubernetesStoreConformance/' <<< "$CONF_OUT" | sed 's/^/conformance cases passed: /' | evidence
-grep -q -- '--- SKIP: TestKubernetesStoreConformance' <<< "$CONF_OUT" \
+  || fail "k8srec" "the conformance suite failed against the cluster: $( { grep -E '^\s+--- FAIL|FAIL' <<< "$CONF_OUT" || true; } | awk 'NR<=10' )"
+# The guards come BEFORE the evidence line, and every capture carries its own
+# `|| true`. This step used to open with `grep -c ... | evidence`, which exits
+# 1 when nothing matched: under set -euo pipefail a whole-suite SKIP therefore
+# ended the run on that line, with no verdict line at all, and the SKIP guard
+# written to catch exactly that sat on the next line, unreached. #1448.
+grep -qE '^--- SKIP: TestKubernetesStoreConformance ' <<< "$CONF_OUT" \
   && fail "k8srec" "the conformance suite SKIPPED; a skip is not a pass and this step measured nothing"
-CASES="$(grep -c -- '--- PASS: TestKubernetesStoreConformance/' <<< "$CONF_OUT")"
-[ "$CASES" -ge 17 ] || fail "k8srec" "only $CASES conformance cases ran; the suite has 17 and a short run means cases were skipped"
-grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$CONF_OUT" | evidence
+grep -q 'no tests to run' <<< "$CONF_OUT" \
+  && fail "k8srec" "go test matched no test at all, so this step measured nothing: $CONF_OUT"
+# Anchored the way step 10 anchors its own PASS line. `go test -v` indents a
+# subtest's result by four spaces and writes what a test LOGS behind a
+# file:line prefix, so an unanchored --- PASS also counts a log line quoting
+# one.
+CASES="$( { grep -cE '^    --- PASS: TestKubernetesStoreConformance/[A-Za-z][A-Za-z0-9]* \(' <<< "$CONF_OUT" || true; } )"
+echo "conformance cases passed: $CASES of $CONFORMANCE_CASES" | evidence
+[ "$CASES" = "$CONFORMANCE_CASES" ] \
+  || fail "k8srec" "$CASES conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (runConformance in internal/live/staterecord/conformance_test.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
+{ grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$CONF_OUT" || true; } | evidence
 proof "every case in the shared Store suite passes against a real API server, including the stale-version conflict and the absent-key answers, plus the two Kubernetes-specific ones: the version IS metadata.resourceVersion, and a namespace that does not exist is refused by name rather than read as an empty estate."
 
 step "2. a Kubernetes-only estate applies with no AWS credentials in the environment"
@@ -193,7 +213,7 @@ cmd "env -u AWS_... AWS_CONFIG_FILE=/dev/null AWS_EC2_METADATA_DISABLED=true cho
 ( cd "$APP" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "init failed"
 A_OUT="$( cd "$APP" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the apply with no AWS credentials failed: $A_OUT"
-grep -E 'Apply complete!' <<< "$A_OUT" | evidence
+{ grep -E 'Apply complete!' <<< "$A_OUT" || true; } | evidence
 grep -qE 'Apply complete! Resources: 3 added' <<< "$A_OUT" \
   || fail "k8srec" "the apply did not report 3 added: $A_OUT"
 grep -qiE 'aws|credential' <<< "$A_OUT" \
@@ -205,16 +225,21 @@ echo "$REC_NAMES" | evidence
 [ -n "$REC_NAMES" ] || fail "k8srec" "no record Secret carries tofu-estate=k8srec-alice; the estate wrote its records somewhere else, or nowhere"
 grep -q 'secret/tofu-record-' <<< "$REC_NAMES" \
   || fail "k8srec" "a record Secret is not named tofu-record-<hash>: $REC_NAMES"
-ONE="$(head -1 <<< "$REC_NAMES" | sed 's|^secret/||')"
+# How many record Secrets this estate has, read here where they are checked
+# by name. Step 3 requires a listing of the same namespace to still hold at
+# least this many before it says nothing in it is named like a lock.
+ALICE_RECORDS="$( { grep -c '^secret/tofu-record-' <<< "$REC_NAMES" || true; } )"
+ONE="$(awk 'NR<=1' <<< "$REC_NAMES" | sed 's|^secret/||')"
 cmd "kubectl get secret $ONE -n $RECORDS_NS -o jsonpath='{.metadata.annotations}'"
-ANN="$(kc get secret "$ONE" -n "$RECORDS_NS" -o jsonpath='{.metadata.annotations}' 2>&1)"
+ANN="$(kc get secret "$ONE" -n "$RECORDS_NS" -o jsonpath='{.metadata.annotations}' 2>&1)" \
+  || fail "k8srec" "reading the record Secret's annotations failed: $ANN"
 echo "$ANN" | evidence
 grep -q 'choudoufu.intentius.io/record-key' <<< "$ANN" \
   || fail "k8srec" "the record Secret carries no record-key annotation, so nothing says which record it is: $ANN"
 # The apply is idempotent and the record is what makes it so: a second plan
 # reads the record back and proposes nothing.
 P_OUT="$( cd "$APP" && no_aws chdf plan -input=false -no-color 2>&1 )" || fail "k8srec" "the replan failed: $P_OUT"
-grep -E 'No changes|Plan:' <<< "$P_OUT" | head -1 | evidence
+{ grep -E 'No changes|Plan:' <<< "$P_OUT" || true; } | awk 'NR<=1' | evidence
 grep -q 'No changes' <<< "$P_OUT" \
   || fail "k8srec" "the replan proposes changes, so the records it just wrote were not read back: $P_OUT"
 proof "a Kubernetes-only estate applied and replanned empty with no way to reach AWS, and its records are Secrets in the cluster, named tofu-record-<sha256 of the key> with the key itself in an annotation."
@@ -255,21 +280,34 @@ echo "killed with SIGKILL while terraform_data.slow was creating" | evidence
 sed -i.bak 's/exec sleep 120/exec sleep 1/' "$APP/main.tf" && rm -f "$APP/main.tf.bak"
 grep -q 'exec sleep 1"' "$APP/main.tf" || fail "k8srec" "the slow provisioner was not shortened; the next run would wait two minutes"
 cmd "kubectl get leases,secrets -n $RECORDS_NS   # nothing lock-shaped"
-LOCKS="$(kc get leases -n "$RECORDS_NS" -o name 2>&1)"
-echo "leases in the records namespace: ${LOCKS:-none}" | evidence
+# Both listings are captured with their own exit status checked, and the
+# Secret listing has to still hold the records step 2 read back by name. A
+# `kc get secrets | grep -i lock && fail` reads clean when the kubectl
+# crashed, and a listing that saw nothing reads clean for having seen
+# nothing: either way the absence below would be nobody's absence. Step 10
+# does exactly this; this is the same shape. #1448.
+LOCKS="$(kc get leases -n "$RECORDS_NS" -o name 2>&1)" \
+  || fail "k8srec" "listing Leases in $RECORDS_NS failed, so whether the killed apply left one behind was never answered: $LOCKS"
+SECRETS_NOW="$(kc get secrets -n "$RECORDS_NS" -o name 2>&1)" \
+  || fail "k8srec" "listing Secrets in $RECORDS_NS failed, so whether anything in it is named like a lock was never answered: $SECRETS_NOW"
+RECORDS_NOW="$( { grep -c '^secret/tofu-record-' <<< "$SECRETS_NOW" || true; } )"
+echo "record Secrets in the records namespace: $RECORDS_NOW; leases: ${LOCKS:-none}" | evidence
+[ "$RECORDS_NOW" -ge "$ALICE_RECORDS" ] \
+  || fail "k8srec" "this listing of $RECORDS_NS holds $RECORDS_NOW record Secrets and step 2 read $ALICE_RECORDS of them back by name; a listing that cannot see the estate's own objects cannot say whether one of them is named like a lock: $SECRETS_NOW"
 [ -z "$LOCKS" ] || fail "k8srec" "a Lease exists in the records namespace; this store takes no lock: $LOCKS"
-kc get secrets -n "$RECORDS_NS" -o name | grep -i 'lock' && fail "k8srec" "an object in the records namespace is named like a lock"
+grep -qi 'lock' <<< "$SECRETS_NOW" \
+  && fail "k8srec" "an object in the records namespace is named like a lock: $SECRETS_NOW"
 cmd "choudoufu apply -auto-approve   # the very next run, nothing done in between"
 N_OUT="$( cd "$APP" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the run after the killed one failed: $N_OUT"
 grep -qiE "state lock|acquiring the lock|force-unlock" <<< "$N_OUT" \
   && fail "k8srec" "the run after the killed one talks about a lock: $N_OUT"
-grep -E 'Apply complete!' <<< "$N_OUT" | head -1 | evidence
+{ grep -E 'Apply complete!' <<< "$N_OUT" || true; } | awk 'NR<=1' | evidence
 grep -q 'Apply complete!' <<< "$N_OUT" || fail "k8srec" "the run after the killed one did not complete: $N_OUT"
 # And it converged, which is the other half of carrying on: the estate the
 # killed run left half-built is whole again.
 C_OUT="$( cd "$APP" && no_aws chdf plan -input=false -no-color 2>&1 )" || fail "k8srec" "the plan after the recovery run failed: $C_OUT"
-grep -E 'No changes|Plan:' <<< "$C_OUT" | head -1 | evidence
+{ grep -E 'No changes|Plan:' <<< "$C_OUT" || true; } | awk 'NR<=1' | evidence
 grep -q 'No changes' <<< "$C_OUT" \
   || fail "k8srec" "the estate did not converge after the killed run: $C_OUT"
 proof "the run after the killed one just worked and the estate converged, and there is no Lease and no lock-shaped object anywhere in the records namespace. Contention here settles at the API server's own resourceVersion, one record at a time."
@@ -298,7 +336,8 @@ B_OUT="$( cd "$BOB" && no_aws chdf apply -auto-approve -input=false -no-color 2>
 grep -qE 'Apply complete! Resources: 1 added' <<< "$B_OUT" || fail "k8srec" "Bob's apply: $B_OUT"
 
 cmd "kubectl get secrets -n $BOB_NS   # the CONTROL, as cluster-admin: Bob's records are readable"
-CTRL="$(kc get secrets -n "$BOB_NS" -l tofu-estate=k8srec-bob -o name 2>&1)"
+CTRL="$(kc get secrets -n "$BOB_NS" -l tofu-estate=k8srec-bob -o name 2>&1)" \
+  || fail "k8srec" "the control listing of Bob's records failed, so the refusal below would be compared against nothing: $CTRL"
 echo "$CTRL" | evidence
 [ -n "$CTRL" ] || fail "k8srec" "the control read nothing: Bob wrote no records, so the refusal below would prove nothing"
 
@@ -316,7 +355,8 @@ kubectl --kubeconfig "$PLANNER_KC" config set-credentials planner --token="$TOK"
 kubectl --kubeconfig "$PLANNER_KC" config set-context --current --user=planner >/dev/null
 
 cmd "kubectl --as the planner get secrets -n $RECORDS_NS   # its own estate's records"
-OWN="$(kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name 2>&1)"
+OWN="$(kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name 2>&1)" \
+  || fail "k8srec" "the scoped identity's read of its OWN estate's records failed, so the refusal below would be a role that reads nothing at all: $OWN"
 echo "$OWN" | evidence
 grep -q 'secret/tofu-record-' <<< "$OWN" \
   || fail "k8srec" "the scoped role cannot read its OWN estate's records, so the refusal below would be a role that reads nothing at all: $OWN"
@@ -325,7 +365,7 @@ cmd "kubectl --as the planner get secrets -n $BOB_NS   # the other estate's"
 if CROSS="$(kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$BOB_NS" -o name 2>&1)"; then
   fail "k8srec" "the scoped role READ another estate's records: $CROSS"
 fi
-echo "$CROSS" | head -2 | evidence
+awk 'NR<=2' <<< "$CROSS" | evidence
 grep -qiE 'forbidden|cannot list' <<< "$CROSS" \
   || fail "k8srec" "the cross-estate read failed for some reason other than a refusal: $CROSS"
 proof "the same identity reads its own estate's records and is refused the other estate's, by name, from the API server's own authorizer. The namespace is the boundary, which is exactly what the docs have to say: one records namespace per estate, and a Role that names it."
@@ -348,20 +388,28 @@ for _ in $(seq 1 30); do
   [ -n "$OBS" ] && break; sleep 1
 done
 [ -n "$OBS" ] || fail "k8srec" "the API server never observed the estate boundary policy"
-TC="$(kc get validatingadmissionpolicy choudoufu-estate-boundary -o jsonpath='{.status.typeChecking.expressionWarnings}')"
+TC="$(kc get validatingadmissionpolicy choudoufu-estate-boundary -o jsonpath='{.status.typeChecking.expressionWarnings}' 2>&1)" \
+  || fail "k8srec" "reading the policy's type-check status failed, so whether its CEL type-checks was never answered: $TC"
 [ -z "$TC" ] || fail "k8srec" "the policy's CEL has type-check warnings: $TC"
 sed -e "s/ESTATE/k8srec-bob/g" -e "s/PRINCIPAL_NAMESPACE/default/g" -e "s/PRINCIPAL/planner/g" \
   "$ROOT/live/kubernetes/estate-grant.yaml" | kc apply -f - >/dev/null \
   || fail "k8srec" "could not grant estate k8srec-bob to the planner"
-TARGET="$(kc get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name | head -1 | sed 's|^secret/||')"
-[ -n "$TARGET" ] || fail "k8srec" "no record Secret of Alice's to write to"
+# `kc | head -1` under pipefail: head closes the pipe after one line, the
+# kubectl writing the rest dies of EPIPE, and the whole substitution fails -
+# which under set -e ends the run here, with no verdict line, and the
+# emptiness guard below never runs. Captured whole, then narrowed with awk.
+ALICE_NOW="$(kc get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name 2>&1)" \
+  || fail "k8srec" "listing Alice's record Secrets failed, so there is no object for the fenced write to be refused on: $ALICE_NOW"
+TARGET="$( { grep '^secret/tofu-record-' <<< "$ALICE_NOW" || true; } | awk 'NR<=1' | sed 's|^secret/||')"
+[ -n "$TARGET" ] || fail "k8srec" "no record Secret of Alice's to write to: $ALICE_NOW"
 # The write is an UPDATE and not a patch, on purpose. `kubectl annotate` and
 # `kubectl label` both send a PATCH, and the Role the docs recommend - get,
 # list, create, update, delete, which is what the store itself uses - does not
 # carry patch. A patch here is refused by RBAC before admission is ever
 # consulted, so it would read as the boundary holding while measuring nothing
 # about it. That is exactly what the first version of this step did.
-kc get secret "$TARGET" -n "$RECORDS_NS" -o json > "$W/target.json"
+kc get secret "$TARGET" -n "$RECORDS_NS" -o json > "$W/target.json" \
+  || fail "k8srec" "reading Alice's record Secret $TARGET failed, so there is nothing for the fenced write to send"
 python3 - "$W/target.json" <<'EDIT'
 import json, sys
 path = sys.argv[1]
@@ -388,7 +436,7 @@ cmd "kubectl --as the planner (bound to estate k8srec-bob) replace -f <Alice's r
 if WROTE="$(kubectl --kubeconfig "$PLANNER_KC" replace -f "$W/target.json" 2>&1)"; then
   fail "k8srec" "an identity bound to estate k8srec-bob wrote estate k8srec-alice's record object: $WROTE"
 fi
-echo "$WROTE" | head -3 | evidence
+awk 'NR<=3' <<< "$WROTE" | evidence
 grep -q 'not bound to that estate' <<< "$WROTE" \
   || fail "k8srec" "the write was refused by something other than the estate boundary policy, whose message says \"not bound to that estate\"; an RBAC refusal here would measure nothing about the boundary: $WROTE"
 proof "the record objects are inside the estate fence the cluster already has, because they carry the same label every other object in the estate carries. No policy was added for the record store."
@@ -433,12 +481,27 @@ as_identity() (
 # record of the same thing: one line per handled request, summed over every
 # label combination. It is read as cluster-admin, which the counted runs are
 # not, so reading it cannot move it.
+#
+# A FAILED READ FAILS THE STEP, by name, every time the counter is read. This
+# used to end `|| true`, which turned a refused, crashed or empty /metrics
+# call into a count of 0 - and a BEFORE reading of 0 makes "first contact
+# asked the authorizer something" true of any AFTER reading at all, which is
+# the whole measurement. #1448.
+#
+# The status is still captured separately from the awk rather than piped into
+# it, which is what the `|| true` was there for: this scenario runs under set
+# -euo pipefail, and a pipeline whose first stage fails would end the run with
+# no verdict line. Capturing the status explicitly keeps that property and
+# answers the question the `|| true` threw away.
 ssar_count() {
-  local raw
-  # `|| true` and a separate awk, not one pipeline: this scenario runs under
-  # set -euo pipefail, so a pipeline whose first stage fails ends the run
-  # with no verdict line at all.
-  raw="$(kc get --raw /metrics 2>/dev/null || true)"
+  local raw rc
+  raw="$(kc get --raw /metrics 2>&1)" && rc=0 || rc=$?
+  [ "$rc" = "0" ] \
+    || fail "k8srec" "reading the API server's /metrics exited $rc, so the SelfSubjectAccessReview counter this step is measured with was never read and a count of zero here would be the read failing rather than nothing being asked: $raw"
+  [ -n "$raw" ] \
+    || fail "k8srec" "the API server's /metrics answered nothing at all, so the SelfSubjectAccessReview counter this step is measured with is empty"
+  grep -q '^apiserver_request_total' <<< "$raw" \
+    || fail "k8srec" "the API server's /metrics carries no apiserver_request_total series, so a count of zero would mean the metric is gone rather than that the authorizer was asked nothing"
   awk -F' ' '/^apiserver_request_total\{.*resource="selfsubjectaccessreviews"/ {s+=$2} END {printf "%d\n", s}' <<< "$raw"
 }
 
@@ -446,16 +509,20 @@ step "6. the cluster contract runs on an estate's first contact with the cluster
 explain \
   "Before it writes a record, the store asks four things about the cluster:" \
   "that this identity can do to Secrets in the records namespace what the" \
-  "store will ask, that it cannot read another estate's records, that" \
-  "Secrets are encrypted at rest, and that the estate boundary policy is" \
-  "in force. The permission questions go to the API server's own authorizer" \
+  "store will ask, that it cannot read another estate's records, that the" \
+  "API server is started with an encryption configuration, and that the" \
+  "estate boundary policy is in force. The permission questions go to the" \
+  "API server's own authorizer" \
   "as SelfSubjectAccessReviews - never by attempting a write, because the" \
   "only thing there is to write in that namespace is a record." \
   "" \
-  "They are facts about the cluster and do not change between two plans, so" \
-  "they are asked once: on the estate's FIRST contact with the store, which" \
-  "is the one run that created the sentinel. The API server's own request" \
-  "counter is what measures that."
+  "They are asked on the estate's FIRST contact with the store, which is the" \
+  "run that created the sentinel, and again before every apply, because an" \
+  "apply is the run that writes records and a policy somebody uninstalled" \
+  "last week is worth catching. They are NOT asked on an ordinary plan. The" \
+  "API server's own request counter measures the plans, and the plans'" \
+  "output measures it a second way: the warnings for what could not be" \
+  "checked come from the paths that run the contract, so a plan prints none."
 kc create namespace "$CAROL_NS" >/dev/null || fail "k8srec" "could not create Carol's records namespace"
 mkdir -p "$CAROL"
 scoped_identity carol "$CAROL_NS" k8srec-carol "$CAROL_KC" get,list,create,update,delete
@@ -494,28 +561,43 @@ BEFORE="$(ssar_count)"
 C_OUT="$( cd "$CAROL" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the first contact under the recommended Role was refused: $C_OUT"
 FIRST="$(ssar_count)"
-{ grep -E 'Apply complete!' <<< "$C_OUT" || true; } | head -1 | evidence
+{ grep -E 'Apply complete!' <<< "$C_OUT" || true; } | awk 'NR<=1' | evidence
 echo "SelfSubjectAccessReviews on first contact: $((FIRST-BEFORE))" | evidence
 [ "$((FIRST-BEFORE))" -gt 0 ] \
   || fail "k8srec" "first contact asked the authorizer nothing, so the contract did not run and the count below would measure nothing"
 # What a scoped identity cannot read, it says, by name, rather than passing.
+# This is the run that says it: the contract ran here, so the warnings are
+# here. The two plans below must carry none.
 { grep -E 'could not be checked' <<< "$C_OUT" || true; } | evidence
-for setting in encryption_at_rest estate_boundary; do
+# Three, not two, since #1448: a Role scoped to one namespace cannot list the
+# cluster's namespaces either, so whether another estate keeps records in one
+# it can reach is a question it cannot ask, and an unasked question is not a
+# pass.
+for setting in read_isolation encryption_at_rest estate_boundary; do
   grep -q "cluster's $setting could not be checked" <<< "$C_OUT" \
     || fail "k8srec" "a Role that cannot read $setting did not say so: $C_OUT"
 done
 grep -q "not readable from here, not checked" <<< "$C_OUT" \
   || fail "k8srec" "the warning does not use the words the report uses: $C_OUT"
 cmd "choudoufu plan   # twice more, and the counter must not move"
-for _ in 1 2; do
-  ( cd "$CAROL" && as_identity "$CAROL_KC" chdf plan -input=false -no-color >/dev/null 2>&1 ) \
-    || fail "k8srec" "a plan after first contact failed"
+# The plans' output is KEPT. It used to go to /dev/null, so the half of this
+# step that does not need the metrics endpoint - that a plan prints no
+# contract finding, because the contract did not run - was never measured at
+# all. #1448.
+for n in 1 2; do
+  PL_OUT="$( cd "$CAROL" && as_identity "$CAROL_KC" chdf plan -input=false -no-color 2>&1 )" \
+    || fail "k8srec" "plan $n after first contact failed: $PL_OUT"
+  grep -q 'could not be checked' <<< "$PL_OUT" \
+    && fail "k8srec" "plan $n printed a contract warning, so the contract ran on an ordinary plan: $PL_OUT"
+  grep -q 'not readable from here, not checked' <<< "$PL_OUT" \
+    && fail "k8srec" "plan $n printed a contract finding, so the contract ran on an ordinary plan: $PL_OUT"
 done
+echo "contract findings printed by the two plans: none" | evidence
 AFTER="$(ssar_count)"
 echo "SelfSubjectAccessReviews across two further plans: $((AFTER-FIRST))" | evidence
 [ "$((AFTER-FIRST))" -eq 0 ] \
-  || fail "k8srec" "the contract ran again on a plan: $((AFTER-FIRST)) more SelfSubjectAccessReviews across two plans, and it is supposed to run once, on first contact"
-proof "the estate's first contact asked the authorizer $((FIRST-BEFORE)) questions and the two plans after it asked none. The two properties this scoped identity cannot read are warned about by name on every run, and neither is reported as a pass."
+  || fail "k8srec" "the contract ran again on a plan: $((AFTER-FIRST)) more SelfSubjectAccessReviews across two plans, and a plan is not supposed to ask it at all"
+proof "the estate's first contact asked the authorizer $((FIRST-BEFORE)) questions; the two plans after it asked none and printed no contract finding. The three properties this scoped identity cannot read - read_isolation, encryption_at_rest and estate_boundary - were each named on the run that asked them, and none of them was reported as a pass."
 
 step "7. each assertion refuses by name, on this cluster, for its own reason"
 explain \
@@ -536,6 +618,19 @@ grep -qE '^  encryption_at_rest +FAIL .*no --encryption-provider-config' <<< "$A
 grep -qE '^  estate_boundary +OK' <<< "$ADMIN_OUT" \
   || fail "k8srec" "estate_boundary did not pass although step 5 installed the policy and measured it refusing a write: $ADMIN_OUT"
 
+# The policy being in force is half of estate_boundary. The other half is
+# whether the identity holds `use` on its estate, which is what the policy's
+# own CEL asks the authorizer for (#1448, B6). A report given no estate says
+# it did not ask; named one, it asks, and a cluster-admin holds every estate
+# the way the account root does on AWS.
+grep -q 'no estate was named' <<< "$ADMIN_OUT" \
+  || fail "k8srec" "a report with no estate named did not say that the grant half went unasked: $ADMIN_OUT"
+cmd "choudoufu live-cluster -namespace=$CAROL_NS -estate=k8srec-carol   # name the estate and the grant is asked too"
+GRANTED="$( cd "$ROOT" && no_aws chdf live-cluster -namespace="$CAROL_NS" -estate=k8srec-carol -no-color 2>&1 )" || true
+{ grep -E '^  estate_boundary' <<< "$GRANTED" || true; } | cut -c1-200 | evidence
+grep -qE '^  estate_boundary +OK .*use. on estates.choudoufu.intentius.io/k8srec-carol' <<< "$GRANTED" \
+  || fail "k8srec" "naming the estate did not make the report ask the authorizer for the grant the boundary policy reads: $GRANTED"
+
 cmd "kubectl delete validatingadmissionpolicybinding choudoufu-estate-boundary   # then ask again"
 kc delete validatingadmissionpolicybinding choudoufu-estate-boundary >/dev/null \
   || fail "k8srec" "could not remove the binding"
@@ -552,7 +647,7 @@ grep -qE '^  namespace_access +FAIL .*does not exist' <<< "$ABSENT" \
   || fail "k8srec" "an absent records namespace was not refused: $ABSENT"
 grep -q 'kubectl create namespace tofu-records-k8srec-nobody' <<< "$ABSENT" \
   || fail "k8srec" "the refusal does not carry the kubectl line the store's own NamespaceMissingError carries, so the contract and the store disagree about what to tell an operator: $ABSENT"
-proof "each assertion was made to fail and each refusal named itself: read_isolation named the other estate's namespace, encryption_at_rest named the missing API server flag, estate_boundary named the binding it needs, and an absent namespace came back in the store's own words."
+proof "each assertion was made to fail and each refusal named itself: read_isolation named the other estate's namespace, encryption_at_rest named the missing API server flag, estate_boundary named the binding it needs, and an absent namespace came back in the store's own words. estate_boundary also says which half it asked: with no estate named it says the grant went unasked, and with one it asks the authorizer for the same `use` the policy's CEL reads."
 
 step "8. the fourth refusal is the run's, not just the report's: a Role short one verb is refused at first contact"
 explain \
@@ -576,7 +671,7 @@ cmd "choudoufu apply   # as a Role with get, list, create and delete, and no upd
 if D_OUT="$( cd "$DAN" && as_identity "$DAN_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
   fail "k8srec" "an apply under a Role that cannot update a record Secret was allowed to start: $D_OUT"
 fi
-{ grep -E 'namespace_access|may not update' <<< "$D_OUT" || true; } | head -3 | evidence
+{ grep -E 'namespace_access|may not update' <<< "$D_OUT" || true; } | awk 'NR<=3' | evidence
 grep -q 'fails its namespace_access assertion' <<< "$D_OUT" \
   || fail "k8srec" "the refusal does not name the assertion: $D_OUT"
 grep -q 'may not update secrets' <<< "$D_OUT" \
@@ -623,19 +718,40 @@ for verb in get list create update delete; do
     *) fail "k8srec" "the plan identity answers $ANS to $verb on secrets in $CAROL_NS; it is supposed to hold get and list and nothing else" ;;
   esac
 done
-kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' > "$W/rv-before"
+# The before/after pair is guarded, both halves, the way the sibling scenario
+# k8s-a-label-is-a-change.sh guards its own. Two EMPTY files diff clean, so an
+# unguarded pair reads "nothing moved" when the kubectl crashed, when the
+# namespace emptied out and when the jsonpath stopped matching - three ways of
+# measuring nothing and calling it a pass. #1448.
+rv_dump() {
+  kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}'
+}
+CAROL_SECRETS="$(kc get secrets -n "$CAROL_NS" -o name 2>&1)" \
+  || fail "k8srec" "listing Carol's records namespace failed, so the pair of resourceVersion dumps below would be two empty files, and two empty files diff clean: $CAROL_SECRETS"
+CAROL_RECORDS="$( { grep -c '^secret/tofu-record-' <<< "$CAROL_SECRETS" || true; } )"
+[ "$CAROL_RECORDS" -ge 1 ] \
+  || fail "k8srec" "Carol's records namespace holds no tofu-record- Secret although step 6 applied her estate into it; there is no record Secret here whose resourceVersion could move or stay put: $CAROL_SECRETS"
+rv_dump > "$W/rv-before" \
+  || fail "k8srec" "reading the record Secrets' resourceVersions before the plan failed, so there is nothing for the reading after it to be compared against"
+RV_BEFORE_N="$( { grep -c '=' "$W/rv-before" || true; } )"
+[ "$RV_BEFORE_N" -ge "$CAROL_RECORDS" ] \
+  || fail "k8srec" "the before dump holds $RV_BEFORE_N resourceVersions and this namespace holds $CAROL_RECORDS record Secrets; a short or empty dump diffs clean against anything"
 cmd "choudoufu plan   # as an identity with get and list on secrets, and no create, update or delete"
 P2="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf plan -input=false -no-color 2>&1 )" \
   || fail "k8srec" "a plan under a get/list-only identity was refused: $P2"
-{ grep -E 'No changes' <<< "$P2" || true; } | head -1 | evidence
+{ grep -E 'No changes' <<< "$P2" || true; } | awk 'NR<=1' | evidence
 grep -q 'No changes' <<< "$P2" \
   || fail "k8srec" "the read-only plan did not read the records back, so it proposed changes: $P2"
-kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' > "$W/rv-after"
+rv_dump > "$W/rv-after" \
+  || fail "k8srec" "reading the record Secrets' resourceVersions after the plan failed, so whether one of them moved was never answered"
+RV_AFTER_N="$( { grep -c '=' "$W/rv-after" || true; } )"
+[ "$RV_AFTER_N" -ge "$CAROL_RECORDS" ] \
+  || fail "k8srec" "the after dump holds $RV_AFTER_N resourceVersions and this namespace holds $CAROL_RECORDS record Secrets; a short or empty dump diffs clean against anything"
 cmd "diff <(resourceVersions before) <(resourceVersions after)"
 if ! diff "$W/rv-before" "$W/rv-after" > "$W/rv-diff" 2>&1; then
   fail "k8srec" "a record Secret's resourceVersion moved across a plan, so the plan wrote something: $(cat "$W/rv-diff")"
 fi
-echo "every record Secret's resourceVersion is unchanged across the plan" | evidence
+echo "$RV_AFTER_N record Secret resourceVersions, $CAROL_RECORDS of them records, unchanged across the plan" | evidence
 cmd "choudoufu live-cluster -plan-identity   # and without it, the apply question"
 PI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -plan-identity -no-color 2>&1 )" || true
 AI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -no-color 2>&1 )" || true
@@ -827,7 +943,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   if BR="$( cd "$BROKE" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
     fail "k8srec" "BREAK: an identity that can read every estate's records in this cluster was allowed to open a new store, so step 6's pass was not read_isolation holding: $BR"
   fi
-  { grep -E 'read_isolation' <<< "$BR" || true; } | head -2 | evidence
+  { grep -E 'read_isolation' <<< "$BR" || true; } | awk 'NR<=2' | evidence
   grep -q 'fails its read_isolation assertion' <<< "$BR" \
     || fail "k8srec" "BREAK: the widened identity was refused for some other reason: $BR"
   proof "step 6's contract can refuse the run it let through: the same estate, the same store, the same command, with cluster-wide secret reads added, is refused by name on read_isolation."

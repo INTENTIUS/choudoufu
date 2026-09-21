@@ -212,14 +212,22 @@ func TestKubernetesRefusesAHashCollisionByName(t *testing.T) {
 		t.Errorf("KeyCollisionError.FoundKey = %q, want the key the object actually holds", collision.FoundKey)
 	}
 
-	// And List returns the key the object holds, never the one that was asked
-	// for, so a listing and a Get cannot disagree about what is there.
+	// And List refuses rather than returning the key the object holds. It
+	// used to return it, on the reasoning that a listing should say what the
+	// object says; but the name is what a Get reads, and no Get of that key
+	// reaches this object, so the listing was handing out a key nothing could
+	// answer for. That is A3 in GitHub issue #1448, and the refusal names
+	// both the Secret and the name the key hashes to.
 	keys, err := store.List(ctx, "tofu-records/prod/")
-	if err != nil {
-		t.Fatalf("List: %v", err)
+	var misnamed *MisnamedRecordError
+	if !errors.As(err, &misnamed) {
+		t.Fatalf("List over the edited Secret: keys=%v err=%v (%T), want *MisnamedRecordError", keys, err, err)
 	}
-	if len(keys) != 1 || keys[0] != "tofu-records/prod/aws_thing/somethingelse" {
-		t.Errorf("List = %v, want the annotation's key", keys)
+	if misnamed.SecretName != store.SecretName(key) {
+		t.Errorf("the refusal names Secret %q, want %q", misnamed.SecretName, store.SecretName(key))
+	}
+	if misnamed.Key != "tofu-records/prod/aws_thing/somethingelse" {
+		t.Errorf("the refusal names key %q, want the key the annotation holds", misnamed.Key)
 	}
 }
 
@@ -236,8 +244,13 @@ func TestKubernetesWritesTheEstateLabelAndTheAddressAnnotation(t *testing.T) {
 	const addr = "module.a.module.b.aws_instance.this[\"a-very-long-instance-key-that-is-well-past-a-label-value\"]"
 	ctx := WithObjectTags(context.Background(), map[string]string{
 		"tofu-address": addr,
-		// An estate tag from the context must never win over the store's own:
-		// an object can only ever name the estate the store was opened for.
+		// The LABEL below is the store's own estate and not this. That is all
+		// this case says, and it is less than it used to claim: the label is
+		// written from s.estate after the tag loop, so it reads "prod"
+		// whether or not buildSecret skips this key on the way into the
+		// ANNOTATIONS. The skip is pinned in
+		// TestKubernetesRecordSecretNeverAnnotatesAnotherEstate, where
+		// deleting it goes red (GitHub issue #1448, section F, M11).
 		"tofu-estate": "some-other-estate",
 	})
 	const key = "tofu-records/prod/aws_instance/one"

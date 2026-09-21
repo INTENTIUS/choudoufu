@@ -112,12 +112,19 @@ const EstateBoundaryPolicyName = "choudoufu-estate-boundary"
 // string, spelled here so the check does not import it.
 const KubernetesRecordNamespacePrefix = "tofu-records-"
 
-// maxForeignNamespaceReviews bounds how many other estates' records
-// namespaces one read-isolation check reviews. A cluster with a thousand
-// estates would otherwise make a thousand SelfSubjectAccessReviews on every
-// first contact. A truncated review says so in its Found text, so the number
-// is never silently the answer.
+// maxForeignNamespaceReviews bounds how many OTHER namespaces one
+// read-isolation check reviews. A cluster with a thousand namespaces would
+// otherwise make two thousand SelfSubjectAccessReviews on every first
+// contact. A truncated review is NOT CHECKED and says how many of how many it
+// got through, because "the first 25 were fenced" is not an answer to "is
+// anything else readable" (GitHub issue #1448, B1).
 const maxForeignNamespaceReviews = 25
+
+// maxForeignRecordSecrets bounds a list that only has to answer "is there
+// anything here at all, and whose". Nothing reads a record's payload here;
+// the list exists to read labels, and the API server sends whole objects, so
+// it asks for as few as will name the problem.
+const maxForeignRecordSecrets = 5
 
 // VerbAccess is one verb's answer from a SelfSubjectAccessReview.
 type VerbAccess struct {
@@ -241,7 +248,12 @@ func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts Clu
 	findings = append(findings, isolation)
 
 	findings = append(findings, checkEncryptionAtRest(ctx, cs))
-	findings = append(findings, checkEstateBoundary(ctx, cs))
+
+	boundary, err := checkEstateBoundary(ctx, cs, opts)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, boundary)
 
 	return findings, nil
 }
@@ -383,26 +395,41 @@ func joinOrNone(s []string) string {
 }
 
 // checkReadIsolation is assertion 2. The namespace is the read boundary, so
-// the question is whether this identity can read Secrets outside it.
+// the question is whether this identity can read another estate's records.
 //
-// # What refuses and what only warns
+// # Three ways the boundary can be absent
 //
-// The refusal is a records namespace that EXISTS, belongs to another estate,
-// and is readable by this identity. That is the boundary being absent, and
-// what makes it findable without cluster-wide permission is that the other
-// estate's namespace is asked about by name.
+// A records namespace belonging to another estate, readable by this identity.
+// Another estate's records INSIDE this namespace, which two blocks configured
+// with the same `namespace` produce and which nothing used to ask about
+// (GitHub issue #1448, B2): every identity that may list Secrets here reads
+// the neighbour's payloads, and no policy is even consulted, because
+// admission never sees a get. Either is read, and wrong, and refuses.
 //
-// Being able to get or list Secrets cluster-wide, on a cluster where no other
-// estate keeps records, is a capability and not yet a breach, and it is the
-// ordinary state of every cluster-admin standing up the first estate. So it
-// warns: loud on every apply, never a refusal. GitHub issue #1393 asks for a
-// warning as the floor here and the refusal where the other namespace is
-// known, and a gate that refused every first estate would be a gate everyone
-// waives on their first day (#1102).
+// The third is a capability rather than a breach: get or list on Secrets
+// cluster-wide, on a cluster where no other estate keeps records. It is the
+// ordinary state of every cluster-admin standing up the first estate, so it
+// warns - loud on every apply, never a refusal. #1393 asks for a warning as
+// the floor and the refusal where the other estate's records are known, and a
+// gate that refused every first estate would be a gate everyone waives on
+// their first day (#1102).
 //
-// Enumerating the other namespaces needs list on namespaces, which the
-// recommended Role does not carry. When it cannot be done the finding says so
-// in as many words rather than implying both questions were asked.
+// # What is not asked is not a pass
+//
+// Finding the other estates means listing namespaces, which the recommended
+// Role does not carry. This function used to report that identity as PASSED
+// in a sentence whose own words were "was not checked" (#1448, B1), which
+// made an identity holding one stray RoleBinding into a neighbour's records
+// namespace read green. It is NOT CHECKED now, and it says who can answer it.
+//
+// Nor does the enumeration go by name any more. A records namespace is
+// whatever a record_store block's `namespace` says, so `team-prod-records` is
+// one and was invisible to a check that only looked at `tofu-records-*`
+// (#1448, B3). Every other namespace is reviewed instead, the record-named
+// ones first so a truncated review spends its budget where the records
+// usually are; one that is readable and not record-named is settled by
+// looking for record Secrets in it, and left NOT CHECKED when even that
+// cannot be asked.
 func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (Finding, error) {
 	f := Finding{Setting: ClusterReadIsolation}
 
@@ -421,66 +448,130 @@ func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts Clust
 		wideClause = fmt.Sprintf("this identity may %s secrets in EVERY namespace, so the records namespace fences nothing against it", strings.Join(wide, " and "))
 	}
 
-	foreign, enumerated, err := foreignRecordNamespaces(ctx, cs, opts.Namespace)
+	// The neighbour that is already inside, before the ones outside.
+	sharing, sharingAsked, err := estatesSharingNamespace(ctx, cs, opts.Namespace, opts.Estate)
 	if err != nil {
 		return f, err
 	}
-
-	var readable []string
-	reviewed := 0
-	truncated := false
-	for _, ns := range foreign {
-		if reviewed >= maxForeignNamespaceReviews {
-			truncated = true
-			break
-		}
-		reviewed++
-		for _, verb := range []string{"get", "list"} {
-			allowed, _, err := reviewSecrets(ctx, cs, ns, verb)
-			if err != nil {
-				return f, err
-			}
-			if allowed {
-				readable = append(readable, ns+" ("+verb+")")
-				break
-			}
-		}
-	}
-	if len(readable) > 0 {
-		f.Found = fmt.Sprintf("this identity may read Secrets in another estate's records namespace: %s", strings.Join(readable, ", "))
+	if len(sharing) > 0 {
+		f.Found = fmt.Sprintf("namespace %q holds record Secrets belonging to another estate (%s), so it is the records namespace of more than one estate and every identity that may list Secrets here reads the other's payloads; admission is never consulted for a read, so nothing fences this",
+			opts.Namespace, strings.Join(sharing, ", "))
 		if wideClause != "" {
 			f.Found += "; " + wideClause
 		}
 		return f, nil
 	}
 
+	others, enumerated, err := otherNamespaces(ctx, cs, opts.Namespace)
+	if err != nil {
+		return f, err
+	}
+
+	var breaches, undecided []string
+	reviewed := 0
+	truncated := false
+	for _, ns := range others {
+		if reviewed >= maxForeignNamespaceReviews {
+			truncated = true
+			break
+		}
+		reviewed++
+		canGet, _, err := reviewSecrets(ctx, cs, ns, "get")
+		if err != nil {
+			return f, err
+		}
+		canList, _, err := reviewSecrets(ctx, cs, ns, "list")
+		if err != nil {
+			return f, err
+		}
+		if !canGet && !canList {
+			continue
+		}
+		verb := "get"
+		if canList {
+			verb = "list"
+		}
+		if strings.HasPrefix(ns, KubernetesRecordNamespacePrefix) {
+			breaches = append(breaches, ns+" ("+verb+")")
+			continue
+		}
+		// Not named like a records namespace, and readable. Whether it IS
+		// one is a question about what is in it, which this identity can ask
+		// only where it may list.
+		if !canList {
+			undecided = append(undecided, ns+" (get)")
+			continue
+		}
+		holds, asked, err := namespaceHoldsRecords(ctx, cs, ns)
+		if err != nil {
+			return f, err
+		}
+		switch {
+		case !asked:
+			undecided = append(undecided, ns+" (list)")
+		case holds:
+			breaches = append(breaches, ns+" (list)")
+		}
+	}
+	if len(breaches) > 0 {
+		f.Found = fmt.Sprintf("this identity may read Secrets in another estate's records namespace: %s", strings.Join(breaches, ", "))
+		if wideClause != "" {
+			f.Found += "; " + wideClause
+		}
+		return f, nil
+	}
+
+	// Nothing was found wrong. What is left is how much of the question was
+	// actually asked.
+	unchecked := ""
 	switch {
-	case !enumerated && wideClause != "":
-		f.Outcome = Warned
-		f.Found = wideClause + ", and other estates' records namespaces could not be enumerated here (listing namespaces is not permitted), so whether any exist was not checked"
 	case !enumerated:
-		f.Outcome = Passed
-		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q; other estates' records namespaces could not be enumerated, because listing namespaces is not permitted here, so whether a RoleBinding elsewhere reaches one was not checked", opts.Namespace)
+		unchecked = "the namespaces of this cluster could not be listed here, so whether another estate keeps records in one this identity can read was not asked at all"
+	case truncated:
+		unchecked = fmt.Sprintf("%d of this cluster's %d other namespaces were reviewed and the rest were not, so whether one of those holds another estate's records was not asked", reviewed, len(others))
+	case len(undecided) > 0:
+		unchecked = fmt.Sprintf("this identity may read Secrets in %s, which is not named %s* and could be a records namespace under any other name, and it may not list there, so whether it holds another estate's records was not established",
+			strings.Join(undecided, ", "), KubernetesRecordNamespacePrefix)
+	}
+	if !sharingAsked {
+		if unchecked != "" {
+			unchecked += "; and "
+		}
+		unchecked += fmt.Sprintf("this identity may not list Secrets in namespace %q, so whether another estate keeps its records in this one was not established", opts.Namespace)
+	}
+	if unchecked != "" {
+		f.Outcome = NotChecked
+		f.Found = "not readable from here, not checked: " + unchecked
+		if wideClause != "" {
+			f.Found = "not readable from here, not checked: " + wideClause + ", and " + unchecked
+		}
+		f.Found += fmt.Sprintf(". `choudoufu live-cluster -namespace=%s`, run by an identity that may list namespaces and Secrets across this cluster, asks it and answers it", opts.Namespace)
+		return f, nil
+	}
+
+	switch {
+	case wideClause != "" && len(others) == 0:
+		f.Outcome = Warned
+		f.Found = wideClause + fmt.Sprintf(", and %q is the only namespace in this cluster, so nothing is exposed yet; the first estate that joins this cluster will be", opts.Namespace)
 	case wideClause != "":
 		f.Outcome = Warned
-		f.Found = wideClause + fmt.Sprintf(", and this cluster holds no other %s* namespace today, so nothing is exposed yet; the first estate that joins this cluster will be", KubernetesRecordNamespacePrefix)
-	case reviewed == 0:
+		f.Found = wideClause + fmt.Sprintf(", and none of this cluster's %d other namespaces holds a record Secret, so nothing is exposed yet; the first estate that joins this cluster will be", reviewed)
+	case len(others) == 0:
 		f.Outcome = Passed
-		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and this cluster holds no other %s* namespace to check", opts.Namespace, KubernetesRecordNamespacePrefix)
-	case truncated:
-		f.Outcome = Passed
-		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in the first %d of %d other %s* namespaces", opts.Namespace, reviewed, len(foreign), KubernetesRecordNamespacePrefix)
+		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, which is the only namespace in this cluster", opts.Namespace)
 	default:
 		f.Outcome = Passed
-		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in all %d other %s* namespace(s)", opts.Namespace, reviewed, KubernetesRecordNamespacePrefix)
+		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in all %d other namespace(s) in this cluster, whatever they are named", opts.Namespace, reviewed)
 	}
 	return f, nil
 }
 
-// foreignRecordNamespaces is every OTHER estate's records namespace this
-// identity can see, sorted. enumerated is false when listing namespaces was
-// refused, which is a different answer from "there are none".
-func foreignRecordNamespaces(ctx context.Context, cs kubernetes.Interface, own string) (names []string, enumerated bool, err error) {
+// otherNamespaces is every namespace in this cluster except own, records
+// namespaces first and each group sorted, so a review that runs out of budget
+// has spent it where another estate's records most likely are. enumerated is
+// false when listing namespaces was refused, which is a different answer from
+// "there are none".
+func otherNamespaces(ctx context.Context, cs kubernetes.Interface, own string) (names []string, enumerated bool, err error) {
 	list, err := cs.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if k8serrors.IsForbidden(err) {
@@ -488,15 +579,79 @@ func foreignRecordNamespaces(ctx context.Context, cs kubernetes.Interface, own s
 		}
 		return nil, false, fmt.Errorf("staterecord: kubernetes: listing namespaces to find other estates' records: %w", err)
 	}
+	var records, rest []string
 	for i := range list.Items {
 		name := list.Items[i].Name
-		if name == own || !strings.HasPrefix(name, KubernetesRecordNamespacePrefix) {
+		switch {
+		case name == own:
+		case strings.HasPrefix(name, KubernetesRecordNamespacePrefix):
+			records = append(records, name)
+		default:
+			rest = append(rest, name)
+		}
+	}
+	sort.Strings(records)
+	sort.Strings(rest)
+	return append(records, rest...), true, nil
+}
+
+// estatesSharingNamespace is every OTHER estate whose record Secrets are in
+// this store's own records namespace, sorted. asked is false when the list was
+// refused, which is not the same answer as "there are none".
+//
+// The list selects on the managed-by label alone, which is what makes it
+// answerable by an identity scoped to this namespace: it holds list on
+// Secrets here, since that is what the store itself needs. Where the estate is
+// known the selector also excludes it, so the request carries back a
+// neighbour's objects and never this estate's own.
+func estatesSharingNamespace(ctx context.Context, cs kubernetes.Interface, namespace, estate string) (names []string, asked bool, err error) {
+	selector := KubernetesManagedByLabel + "=" + KubernetesManagedByValue
+	if estate != "" {
+		selector += "," + KubernetesEstateLabel + "!=" + estate
+	}
+	list, err := cs.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selector,
+		Limit:         maxForeignRecordSecrets,
+	})
+	if err != nil {
+		if k8serrors.IsForbidden(err) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("staterecord: kubernetes: listing the record Secrets in namespace %q to see whose they are: %w", namespace, err)
+	}
+	seen := map[string]bool{}
+	for i := range list.Items {
+		other := list.Items[i].Labels[KubernetesEstateLabel]
+		if other == "" || other == estate || seen[other] {
 			continue
 		}
-		names = append(names, name)
+		seen[other] = true
+		names = append(names, other)
+	}
+	// With no estate named there is no "own" to subtract, so one estate's
+	// records here are the expected case and two are the finding.
+	if estate == "" && len(names) < 2 {
+		return nil, true, nil
 	}
 	sort.Strings(names)
 	return names, true, nil
+}
+
+// namespaceHoldsRecords reports whether ns holds Secrets this store would
+// recognise as records. asked is false when the list was refused between the
+// authorizer's yes and the request itself.
+func namespaceHoldsRecords(ctx context.Context, cs kubernetes.Interface, ns string) (holds, asked bool, err error) {
+	list, err := cs.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{
+		LabelSelector: KubernetesManagedByLabel + "=" + KubernetesManagedByValue,
+		Limit:         1,
+	})
+	if err != nil {
+		if k8serrors.IsForbidden(err) {
+			return false, false, nil
+		}
+		return false, false, fmt.Errorf("staterecord: kubernetes: listing the record Secrets in namespace %q: %w", ns, err)
+	}
+	return len(list.Items) > 0, true, nil
 }
 
 // encryptionProviderFlag is the API server flag that turns on encryption at
@@ -505,16 +660,36 @@ func foreignRecordNamespaces(ctx context.Context, cs kubernetes.Interface, own s
 // and otherwise as it came.
 const encryptionProviderFlag = "--encryption-provider-config"
 
-// checkEncryptionAtRest is assertion 3, and the one that most often cannot be
-// answered.
+// staticPodMirrorAnnotation is on the mirror Pod the kubelet publishes for a
+// static Pod, and on nothing else. Together with an ownerReference naming the
+// Node it is what tells the real API server apart from any other Pod in
+// kube-system that happens to carry component=kube-apiserver, which was all
+// the check used to ask for (GitHub issue #1448, B5). Measured on kind
+// v1.36.1: the kube-apiserver Pod carries the annotation, a Node
+// ownerReference and the tier=control-plane label.
+const staticPodMirrorAnnotation = "kubernetes.io/config.mirror"
+
+// checkEncryptionAtRest is assertion 3, and the one that can never be
+// answered from inside.
 //
 // There is no API object that says whether Secrets are encrypted at rest. The
-// EncryptionConfiguration is a file named by an API server command-line flag,
+// EncryptionConfiguration is a FILE named by an API server command-line flag,
 // so the only thing readable through the API is the API server's own Pod - a
 // static Pod in kube-system on kind and on any kubeadm cluster, and on EKS,
-// GKE and AKS not a Pod in the user's cluster at all. Where the Pod is
-// visible this reads the actual flag. Where it is not, the finding says "not
-// readable from here" and is not a pass.
+// GKE and AKS not a Pod in the user's cluster at all.
+//
+// # The flag is half an answer, so it is half a verdict
+//
+// The flag's ABSENCE settles it: an API server started without it writes
+// Secret data to etcd base64-encoded and otherwise as it came. That is read,
+// and wrong, and refuses.
+//
+// Its presence settles nothing. `--encryption-provider-config` names a file
+// whose first provider for secrets may be `identity`, which is the
+// configuration's own way of spelling no encryption, and that file is not an
+// API object at any permission level. This used to be a PASS (#1448, B5); it
+// is NOT CHECKED, and the finding carries the command an operator runs on the
+// control-plane node to finish the question.
 //
 // Deliberately NOT done: inferring encryption from the distribution's name,
 // from a StorageClass, from a KMS plugin Pod, or from anything else that
@@ -537,18 +712,33 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Finding
 		f.Found = fmt.Sprintf("not readable from here, not checked: listing the API server's Pod in kube-system failed (%s)", err)
 		return f
 	}
-	if len(pods.Items) == 0 {
+
+	var servers []*corev1.Pod
+	labelledOnly := 0
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if isAPIServerMirrorPod(pod) {
+			servers = append(servers, pod)
+			continue
+		}
+		labelledOnly++
+	}
+	if len(servers) == 0 {
 		f.Outcome = NotChecked
-		f.Found = "not readable from here, not checked: no kube-apiserver Pod is visible in kube-system, which is the normal case on a managed control plane (EKS, GKE, AKS), where " + encryptionProviderFlag + " is set outside the cluster and readable only through that provider's own API"
+		f.Found = "not readable from here, not checked: no kube-apiserver static Pod is visible in kube-system, which is the normal case on a managed control plane (EKS, GKE, AKS), where " + encryptionProviderFlag + " is set outside the cluster and readable only through that provider's own API"
+		if labelledOnly > 0 {
+			f.Found += fmt.Sprintf("; %d Pod(s) there carry the component=kube-apiserver label and are not the API server (no %s annotation and no Node owner), so nothing was read off them", labelledOnly, staticPodMirrorAnnotation)
+		}
 		return f
 	}
 
 	var configured []string
+	var paths []string
 	var bare []string
-	for i := range pods.Items {
-		pod := &pods.Items[i]
+	for _, pod := range servers {
 		if path := encryptionProviderConfigPath(pod); path != "" {
 			configured = append(configured, pod.Name+" ("+encryptionProviderFlag+"="+path+")")
+			paths = append(paths, path)
 		} else {
 			bare = append(bare, pod.Name)
 		}
@@ -557,9 +747,26 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Finding
 		f.Found = fmt.Sprintf("the API server Pod(s) %s carry no %s, so this cluster writes Secret data to etcd base64-encoded and not encrypted; anything that reads etcd or a backup of it reads every record", strings.Join(bare, ", "), encryptionProviderFlag)
 		return f
 	}
-	f.Outcome = Passed
-	f.Found = "the API server runs with " + strings.Join(configured, ", ")
+	f.Outcome = NotChecked
+	f.Found = fmt.Sprintf("not readable from here, not checked: the API server runs with %s, and the file that flag names is not an API object, so whether secrets are encrypted was not established: a configuration whose first provider for secrets is `identity` sets the flag and encrypts nothing. Read it on the control-plane node with `sudo cat %s` (on kind, `docker exec <cluster>-control-plane cat %s`) and check which provider comes first under the resources entry covering secrets",
+		strings.Join(configured, ", "), paths[0], paths[0])
 	return f
+}
+
+// isAPIServerMirrorPod reports whether pod is the kubelet's mirror of the
+// API server's static Pod, rather than any Pod someone labelled
+// component=kube-apiserver. Both marks are asked for: the mirror annotation
+// the kubelet writes, and the Node that owns what it publishes.
+func isAPIServerMirrorPod(pod *corev1.Pod) bool {
+	if _, ok := pod.Annotations[staticPodMirrorAnnotation]; !ok {
+		return false
+	}
+	for _, owner := range pod.OwnerReferences {
+		if owner.Kind == "Node" {
+			return true
+		}
+	}
+	return false
 }
 
 // encryptionProviderConfigPath is the value of [encryptionProviderFlag] on
@@ -581,22 +788,35 @@ func encryptionProviderConfigPath(pod *corev1.Pod) string {
 }
 
 // checkEstateBoundary is assertion 4: is live/kubernetes/estate-boundary.yaml
-// installed AND in force.
+// installed AND in force AND this identity on the allowed side of it.
 //
 // Installed is not the same as in force, and the difference has already cost
-// this repository a step that measured nothing (claim 39, step 5). Three
-// things are asked, because any one of them alone would pass for a fence that
-// refuses nothing:
+// this repository a step that measured nothing (claim 39, step 5). The name
+// is not the same as the policy either: this used to read the policy's
+// status and its binding's validationActions and nothing out of
+// policy.Spec, so a policy of the right name whose one validation was `true`
+// reported "installed ... and its binding denies" (GitHub issue #1448, B4).
+// What is asked:
 //
 //   - the policy exists and the API server has OBSERVED it
 //     (status.observedGeneration matching metadata.generation), which is when
 //     its CEL has been type-checked and it can start refusing;
 //   - its CEL type-checks clean, because an expression the server warns about
 //     is one it may not be able to evaluate;
-//   - a binding exists naming it, with Deny among its validationActions. A
-//     policy with no binding is inert, and a binding whose action is Warn or
-//     Audit logs a cross-estate write and lets it through.
-func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) Finding {
+//   - it fails closed and covers secrets for CREATE, UPDATE and DELETE, and
+//     its CEL is the CEL live/kubernetes/estate-boundary.yaml ships; see
+//     kubernetesboundary.go for where that expectation comes from and why it
+//     is not transcribed into Go;
+//   - a binding exists naming it, with Deny among its validationActions, and
+//     its matchResources do not scope the policy away from the records
+//     namespace. A policy with no binding is inert, and a binding whose
+//     action is Warn or Audit logs a cross-estate write and lets it through;
+//   - and, once all of that holds, that this identity holds `use` on
+//     estates.choudoufu.intentius.io/<estate>, which is the grant the policy's
+//     own CEL asks the authorizer for (#1448, B6). Without it the fence is in
+//     force and refuses every write this run would make, which is four greens
+//     and an apply that cannot write a record.
+func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (Finding, error) {
 	f := Finding{Setting: ClusterEstateBoundary}
 
 	policy, err := cs.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(ctx, EstateBoundaryPolicyName, metav1.GetOptions{})
@@ -604,18 +824,18 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) Finding {
 		if k8serrors.IsForbidden(err) {
 			f.Outcome = NotChecked
 			f.Found = fmt.Sprintf("not readable from here, not checked: reading a ValidatingAdmissionPolicy needs cluster-scoped get on admissionregistration.k8s.io, which this identity does not hold, so whether %q fences writes to the record Secrets was not established", EstateBoundaryPolicyName)
-			return f
+			return f, nil
 		}
 		if k8serrors.IsNotFound(err) {
 			f.Found = fmt.Sprintf("no ValidatingAdmissionPolicy named %q is installed, so nothing refuses a write to this estate's record Secrets by an identity bound to another estate; install it with `kubectl apply -f live/kubernetes/estate-boundary.yaml`", EstateBoundaryPolicyName)
-			return f
+			return f, nil
 		}
 		f.Outcome = NotChecked
 		f.Found = fmt.Sprintf("not readable from here, not checked: reading the %q policy failed (%s)", EstateBoundaryPolicyName, err)
-		return f
+		return f, nil
 	}
 
-	var problems []string
+	var problems, undecided []string
 	if policy.Status.ObservedGeneration != policy.Generation {
 		problems = append(problems, fmt.Sprintf("the API server has not observed generation %d of the policy yet (it has observed %d), so the policy is installed and not yet in force", policy.Generation, policy.Status.ObservedGeneration))
 	}
@@ -627,29 +847,125 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) Finding {
 		problems = append(problems, "the policy's CEL has type-check warnings ("+strings.Join(warnings, "; ")+")")
 	}
 
+	structural, structuralUndecided := policyStructureProblems(policy, opts.Namespace, opts.Estate)
+	problems = append(problems, structural...)
+	undecided = append(undecided, structuralUndecided...)
+
+	shipped, err := shippedEstateBoundaryPolicy()
+	if err != nil {
+		return f, err
+	}
+	if diffs := policyCELDifferences(policy, shipped); len(diffs) > 0 {
+		problems = append(problems, fmt.Sprintf("the installed policy's CEL is not the CEL live/kubernetes/estate-boundary.yaml ships (%s), so what it refuses is not what this store asserts is refused", strings.Join(diffs, "; ")))
+	}
+
 	binding, err := cs.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get(ctx, EstateBoundaryPolicyName, metav1.GetOptions{})
 	switch {
 	case err == nil:
 		problems = append(problems, bindingProblems(binding)...)
+		scope, scopeUndecided := bindingScopeProblems(binding, opts.Namespace, opts.Estate)
+		problems = append(problems, scope...)
+		undecided = append(undecided, scopeUndecided...)
 	case k8serrors.IsNotFound(err):
 		problems = append(problems, fmt.Sprintf("no ValidatingAdmissionPolicyBinding named %q exists, and a policy with no binding is inert: it evaluates nothing and refuses nothing", EstateBoundaryPolicyName))
 	case k8serrors.IsForbidden(err):
 		f.Outcome = NotChecked
 		f.Found = "not readable from here, not checked: the policy is installed, and whether a binding puts it in force could not be read, because this identity may not get a ValidatingAdmissionPolicyBinding"
-		return f
+		return f, nil
 	default:
 		f.Outcome = NotChecked
 		f.Found = fmt.Sprintf("not readable from here, not checked: the policy is installed, and reading its binding failed (%s)", err)
-		return f
+		return f, nil
 	}
 
 	if len(problems) > 0 {
-		f.Found = strings.Join(problems, "; ")
-		return f
+		f.Found = strings.Join(append(problems, undecided...), "; ")
+		return f, nil
 	}
+	if len(undecided) > 0 {
+		f.Outcome = NotChecked
+		f.Found = "not readable from here, not checked: " + strings.Join(undecided, "; ")
+		return f, nil
+	}
+
+	inForce := fmt.Sprintf("the %q policy is installed, observed at generation %d, type-checks clean, carries the CEL live/kubernetes/estate-boundary.yaml ships, and its binding denies", EstateBoundaryPolicyName, policy.Generation)
+
+	// The fence is up. Whether this identity is inside it is the other half,
+	// and it is only the other half for a run that WRITES: a plan identity
+	// makes no write for the policy to refuse.
+	switch {
+	case opts.Estate == "":
+		f.Outcome = Passed
+		f.Found = inForce + fmt.Sprintf("; no estate was named, so whether an identity holds `%s` on %s.%s/<estate> was not asked (`choudoufu live-cluster -estate=<name>` asks it)", EstateGrantVerb, EstateGrantResource, EstateGrantGroup)
+		return f, nil
+	case !runWritesRecords(opts.RequiredVerbs):
+		f.Outcome = Passed
+		f.Found = inForce + fmt.Sprintf("; this run writes no record, so the `%s` grant on %s.%s/%s that the policy asks the authorizer for is reported and not required", EstateGrantVerb, EstateGrantResource, EstateGrantGroup, opts.Estate)
+		return f, nil
+	}
+
+	allowed, reason, err := reviewEstateUse(ctx, cs, opts.Estate)
+	if err != nil {
+		return f, err
+	}
+	if !allowed {
+		detail := ""
+		if reason != "" {
+			detail = " (" + reason + ")"
+		}
+		f.Found = inForce + fmt.Sprintf("; and this identity does not hold `%s` on %s.%s/%s%s, which is exactly what that policy's CEL asks the authorizer for, so it refuses every write this run would make to a record Secret. Grant it with:\n\n  sed -e 's/ESTATE/%s/g' -e 's/PRINCIPAL_NAMESPACE/<namespace>/g' -e 's/PRINCIPAL/<serviceaccount>/g' live/kubernetes/estate-grant.yaml | kubectl apply -f -",
+			EstateGrantVerb, EstateGrantResource, EstateGrantGroup, opts.Estate, detail, opts.Estate)
+		return f, nil
+	}
+
 	f.Outcome = Passed
-	f.Found = fmt.Sprintf("the %q policy is installed, observed at generation %d, type-checks clean, and its binding denies", EstateBoundaryPolicyName, policy.Generation)
-	return f
+	f.Found = inForce + fmt.Sprintf("; and this identity holds `%s` on %s.%s/%s, so its writes to the record Secrets are on the allowed side of it", EstateGrantVerb, EstateGrantResource, EstateGrantGroup, opts.Estate)
+	return f, nil
+}
+
+// runWritesRecords reports whether the verbs this run needs include one that
+// changes a record Secret, which is what the estate boundary policy is
+// consulted for. Nil is every verb; see [ClusterContractOptions.RequiredVerbs].
+func runWritesRecords(required []string) bool {
+	if len(required) == 0 {
+		return true
+	}
+	for _, verb := range required {
+		switch verb {
+		case "create", "update", "patch", "delete", "deletecollection":
+			return true
+		}
+	}
+	return false
+}
+
+// reviewEstateUse asks the authorizer the question the boundary policy's own
+// CEL asks: may this identity `use` the virtual estate resource. It is a
+// SelfSubjectAccessReview like every other question this file asks, so it
+// needs no permission and changes nothing.
+func reviewEstateUse(ctx context.Context, cs kubernetes.Interface, estate string) (allowed bool, reason string, err error) {
+	review := &authzv1.SelfSubjectAccessReview{
+		Spec: authzv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authzv1.ResourceAttributes{
+				Group:    EstateGrantGroup,
+				Resource: EstateGrantResource,
+				Name:     estate,
+				Verb:     EstateGrantVerb,
+			},
+		},
+	}
+	out, err := cs.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, review, metav1.CreateOptions{})
+	if err != nil {
+		return false, "", fmt.Errorf("staterecord: kubernetes: asking the API server whether this identity may %s the estate %q: %w", EstateGrantVerb, estate, err)
+	}
+	reason = strings.TrimSpace(out.Status.Reason)
+	if out.Status.EvaluationError != "" {
+		if reason != "" {
+			reason += "; "
+		}
+		reason += "evaluation error: " + out.Status.EvaluationError
+	}
+	return out.Status.Allowed && !out.Status.Denied, reason, nil
 }
 
 func bindingProblems(binding *admissionv1.ValidatingAdmissionPolicyBinding) []string {
@@ -687,7 +1003,7 @@ func ClusterContractRefusal(namespace string, f Finding) (summary, detail string
 			namespace, namespace, strings.Join(KubernetesRecordVerbs, ","), namespace)
 	case ClusterReadIsolation:
 		why = "The namespace is the read boundary and there is no other one. RBAC cannot condition on a label, and admission is never consulted for a get or a list, so an identity that may read Secrets outside this namespace reads every other estate's records in this cluster, and every record holds whatever the resource it records holds."
-		fix = fmt.Sprintf("Bind this identity to a Role in %s rather than a ClusterRole, and take away any cluster-wide read of secrets it holds. `kubectl auth can-i list secrets --all-namespaces` under this identity is the same question this check asked.", namespace)
+		fix = fmt.Sprintf("Bind this identity to a Role in %s rather than a ClusterRole, and take away any cluster-wide read of secrets it holds. `kubectl auth can-i list secrets --all-namespaces` under this identity is the same question this check asked. If the finding names another ESTATE rather than another namespace, two record_store blocks are configured with this one namespace: give each estate its own and move its records into it, because a Role here cannot fence one estate's Secrets from the other's.", namespace)
 	case ClusterEncryptionAtRest:
 		why = "A Secret is base64, not encryption. Without an EncryptionConfiguration the API server writes each record's payload into etcd as it came, so anything that reads etcd or an etcd backup reads every record in the estate."
 		fix = "Fix it by starting the API server with " + encryptionProviderFlag + " and an EncryptionConfiguration covering secrets, then rewriting the existing Secrets so they are stored encrypted (`kubectl get secrets -A -o json | kubectl replace -f -`); on a managed control plane it is that provider's own setting instead (EKS envelope encryption, GKE application-layer secrets encryption, AKS KMS etcd encryption), and on kind and minikube there is no flag set at all, which is what this is telling you."
