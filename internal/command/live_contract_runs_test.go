@@ -7,11 +7,14 @@ package command
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -39,6 +42,21 @@ func failingCluster() []staterecord.Finding {
 		out = append(out, f)
 	}
 	return out
+}
+
+// fencedOpen is an opener refused by the estate boundary policy the way
+// provisionStoreSentinel wraps it: the identity may write the Secret as far
+// as the authorizer is concerned, and admission refuses it anyway.
+func fencedOpen() recordStoreOpener {
+	denied := &staterecord.AdmissionDeniedError{
+		Namespace: testNamespace,
+		Key:       "tofu-records/prod/.store-sentinel",
+		Estate:    "prod",
+		Verb:      "create",
+		Policy:    staterecord.EstateBoundaryPolicyName,
+		Err:       errors.New(`secrets "tofu-record-abc" is forbidden: ValidatingAdmissionPolicy 'choudoufu-estate-boundary' denied request`),
+	}
+	return openerReturning(nil, fmt.Errorf("record_store: provisioning the sentinel at %q: %w", denied.Key, denied))
 }
 
 func passingCluster() []staterecord.Finding {
@@ -236,6 +254,64 @@ func TestLiveImportAssertsTheStoreContractBeforeItStamps(t *testing.T) {
 		store, diags := openRecordStoreForImport(ctx, openerReturning(nil, nil), nil, nil, estate, true)
 		if store != nil || len(diags) != 0 {
 			t.Errorf("store=%v diags=%d, want neither", store, len(diags))
+		}
+	})
+}
+
+// TestAFencedOpenStopsBothWritingCommands crosses this unit with GitHub
+// issue #1448 section C, which landed beside it. Both commands reach the
+// store through a wrapper of this unit's, so the fence's own headline has to
+// survive both wrappers: a rename or a migration that cannot write the
+// sentinel must not carry on, and must not be told the store was merely
+// unreachable.
+//
+// The live-mv half is the one that can regress quietly. Its open is the
+// lenient path, where anything that is not a refusal becomes a warning and
+// the rename proceeds; an admission denial reads as a plain error unless
+// projection.IsStoreRefusal names it.
+func TestAFencedOpenStopsBothWritingCommands(t *testing.T) {
+	ctx := context.Background()
+	const estate = "prod"
+	rs := &configs.LiveRecordStore{Type: "kubernetes", Namespace: testNamespace, NamespaceSet: true}
+
+	t.Run("live-mv", func(t *testing.T) {
+		store, diags := openRecordStoreForMove(ctx, fencedOpen(), rs, nil, estate, false)
+		if !diags.HasErrors() {
+			t.Fatal("a rename went on past an estate boundary refusal it will hit again on its own record write")
+		}
+		if store != nil {
+			t.Error("the rename kept a store it could not write to")
+		}
+		if got := summaries(diags, tfdiags.Error); !slices.Contains(got, projection.SummaryEstateBoundaryRefusedTheWrite) {
+			t.Errorf("summaries = %q, want the fence's own headline", got)
+		}
+		if got := summaries(diags, tfdiags.Warning); slices.Contains(got, SummaryRecordStoreNotRead) {
+			t.Errorf("the fence was reported as an outage the rename may proceed past: %q", got)
+		}
+		if !strings.Contains(details(diags, tfdiags.Error), "estate-grant.yaml") {
+			t.Errorf("the refusal does not carry the grant that fixes it:\n%s", details(diags, tfdiags.Error))
+		}
+	})
+
+	t.Run("live-import -approve", func(t *testing.T) {
+		store, diags := openRecordStoreForImport(ctx, fencedOpen(), rs, nil, estate, true)
+		if !diags.HasErrors() {
+			t.Fatal("a migration went on past an estate boundary refusal")
+		}
+		if store != nil {
+			t.Error("the migration kept a store it could not write to")
+		}
+		if got := summaries(diags, tfdiags.Error); !slices.Contains(got, projection.SummaryEstateBoundaryRefusedTheWrite) {
+			t.Errorf("summaries = %q, want the fence's own headline", got)
+		}
+	})
+
+	// The read-only migration opens the same store and is refused too: the
+	// fence is about opening, not about writing, so there is nothing for it
+	// to proceed to.
+	t.Run("live-import with no -approve", func(t *testing.T) {
+		if _, diags := openRecordStoreForImport(ctx, fencedOpen(), rs, nil, estate, false); !diags.HasErrors() {
+			t.Fatal("a ratification report was built against a store that refused to open")
 		}
 	})
 }
