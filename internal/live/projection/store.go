@@ -281,10 +281,12 @@ func SentinelKey(prefix string) string {
 // refused by the authorizer, so its write never reaches admission and nothing
 // here changes for it. The identity that does newly stop is one the
 // authorizer allows to create record Secrets and the policy refuses, which is
-// the identity PR #1452's cluster contract fails `estate_boundary` for on
-// every apply, with the same remedy. Saying it when the store opens says it
-// while nothing has been written, and leaves nothing for that check to
-// repeat.
+// the identity PR #1452's cluster contract fails `estate_boundary` for, with
+// the same remedy. That contract is checked on an estate's first run against
+// the store, before any run that writes a record, and whenever somebody runs
+// `live-bucket` or `live-cluster`. Within a run the first two both come
+// after this function, so saying it when the store opens says it while
+// nothing has been written, and leaves nothing for that check to repeat.
 func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix string) (createdVersion string, err error) {
 	key := SentinelKey(prefix)
 	var writeDenied error
@@ -492,10 +494,11 @@ func BucketNamespaces(rs *configs.LiveRecordStore, estate string) []string {
 //
 // The options carry what every contract might want and each store reads what
 // its own needs. RequiredVerbs is left nil on purpose: every caller of this
-// function reached the store through an apply or a first contact, which is a
-// run that WRITES records, and nil means exactly the verbs such a run asks
-// for. `choudoufu live-cluster -plan-identity` is how a read-only identity
-// asks the narrower question, through [VerifyCluster].
+// function reached the store through a first contact or through a run that
+// is about to write a record (an apply, a `live-mv` rename, a `live-import
+// -approve`). Each of those WRITES records, and nil means exactly the verbs
+// such a run asks for. `choudoufu live-cluster -plan-identity` is how a
+// read-only identity asks the narrower question, through [VerifyCluster].
 func ContractFindings(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string) (findings []staterecord.Finding, checker staterecord.ContractChecker, err error) {
 	checker, ok := staterecord.AsContractChecker(store)
 	if !ok {
@@ -507,9 +510,10 @@ func ContractFindings(ctx context.Context, store staterecord.Store, rs *configs.
 
 // assertStoreOnFirstContact runs whichever contract this store has - the
 // bucket's (GitHub issue #1339), the cluster's (#1393), or none at all for a
-// local store. It is one of the two places a contract is asserted;
-// internal/command's BeforeApply is the other, and an ordinary plan is
-// deliberately neither.
+// local store. It is one of the places a contract is asserted. The others
+// are internal/command's assertRecordStoreContract, before any run that
+// writes a record, and the explicit `live-bucket` and `live-cluster`
+// commands. An ordinary plan is deliberately none of them.
 //
 // The ruling on #1339 is that the assertions do not run on every plan: they
 // are facts about the store, which do not change between two plans, and
