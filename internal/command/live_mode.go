@@ -980,11 +980,26 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// GitHub issue #1256's half of the scope: the per-resource rules narrow
 	// to the blocks the plan graph still holds, and every whole-
 	// configuration rule ignores it. See [lint.Context].
+	//
+	// GitHub issue #1268, the maintainer's ruling of 2026-09-21: lint
+	// warnings are advisory. This gate reads [lint.HasErrors] the way
+	// live-plan's does, so a warning-severity issue ([lint.RuleStateBackend]
+	// is the only one today, GitHub issue #210) is rendered and the run
+	// continues, and only an error-severity issue refuses. The bare len
+	// check that stood here was never the stricter position it looked like:
+	// it returned a nil projection beside warning-only diagnostics, the
+	// caller (internal/backend/local, localRunDirect) gates on HasErrors, and
+	// so the ordinary operation carried on with an empty prior state and none
+	// of the pipeline below - no discovery, no stamping, no record store -
+	// and an apply created unmarked resources under the warning. Never return
+	// nil from this function beside diagnostics that carry no error.
 	lctx := lint.Context{Schemas: resourceSchemas, Scope: scope}
 	if issues := lint.CheckWith(ctx, config, lctx); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
-		diags = diags.Append(provs.close(ctx))
-		return nil, diags
+		if lint.HasErrors(issues) {
+			diags = diags.Append(provs.close(ctx))
+			return nil, diags
+		}
 	}
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
@@ -1232,7 +1247,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		r.view.Policy(statelessPolicyReport(nil, disco, reconcile))
+		r.view.Policy(statelessPolicyReport(nil, disco, reconcile, nil))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
@@ -1417,7 +1432,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		return nil, diags
 	}
 
-	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile))
+	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
 	// applyOrphanPolicy withheld from the sweep because a non-default verb

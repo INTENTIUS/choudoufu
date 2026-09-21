@@ -116,7 +116,41 @@ func TestBucketSmokesRunInCIWithTheirControls(t *testing.T) {
 	if !strings.Contains(string(wf), "smoke.sh ${{ matrix.scenario }}") {
 		t.Errorf("bucket-smoke.yml does not run live/smoke/smoke.sh for each matrix entry")
 	}
+
+	// A scenario's SECOND control (GitHub issue #1430). BREAK=1 is one step
+	// for the whole matrix; a control under a name of its own is read here
+	// off the scenario rather than listed, so one added later lands with a
+	// workflow step or lands red. Proving it red: delete the
+	// BREAK_CROSSCHECK step from the workflow.
+	named := 0
+	for _, name := range onDisk {
+		raw, err := os.ReadFile(filepath.Join("smoke", "scenarios", name+".sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]bool{}
+		for _, m := range bucketNamedControl.FindAllStringSubmatch(string(raw), -1) {
+			if seen[m[1]] {
+				continue
+			}
+			seen[m[1]] = true
+			named++
+			if !strings.Contains(string(wf), m[1]+": \"1\"") {
+				t.Errorf("%s.sh reads %s and bucket-smoke.yml never sets it, so no job runs that control; a scenario whose failure is never demonstrated is scenery", name, m[1])
+			}
+			if !strings.Contains(string(wf), "matrix.scenario == '"+name+"'") {
+				t.Errorf("%s.sh reads %s and bucket-smoke.yml has no step conditioned on matrix.scenario == '%s' to run it in", name, m[1], name)
+			}
+		}
+	}
+	if named == 0 {
+		t.Errorf("no bucket scenario reads a control variable of its own (BREAK_<NAME>), and claim 31 is known to read BREAK_CROSSCHECK; this guard is looking in the wrong place")
+	}
 }
+
+// bucketNamedControl matches a scenario reading a control variable other than
+// BREAK itself, in the one spelling the scenarios use: ${BREAK_NAME:-0}.
+var bucketNamedControl = regexp.MustCompile(`\$\{(BREAK_[A-Z0-9_]+):-`)
 
 // TestBucketSmokeWorkflowWatchesWhatCanBreakIt: the trigger. A workflow that
 // runs only on its own file, or only on demand, is one nobody sees fail.

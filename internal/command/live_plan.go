@@ -759,7 +759,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		statelessView.Policy(statelessPolicyReport(nil, disco, reconcile))
+		statelessView.Policy(statelessPolicyReport(nil, disco, reconcile, nil))
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
@@ -982,7 +982,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
-	statelessView.Policy(statelessPolicyReport(projResult, disco, reconcile))
+	statelessView.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
 	// GitHub issue #348: evaluate the configuration's root-level `output`
 	// blocks against the projection now, in place, the same way a real
@@ -1027,6 +1027,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	if classified != nil {
 		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
+
+	// GitHub issue #1002: which instances declared_tagged = "untag" really
+	// released a marker key from. Only readable now - the release happens
+	// inside the walk tfCtx.Plan just ran - which is why this is a second
+	// Policy call and not part of the one above. See
+	// [statelessPolicyReport]'s own doc comment.
+	statelessView.Policy(statelessPolicyReport(nil, nil, nil, resolver.UntagReleases()))
 
 	// The server-side dry run (GitHub issue #1081, item 3): every planned
 	// create or update of a kubernetes_manifest instance, sent to the

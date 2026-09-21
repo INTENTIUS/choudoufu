@@ -305,14 +305,28 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		return tagsVal.WithMarks(tagsMarks), diags
 	}
 
+	// GitHub issue #1002: each skipped write is also recorded, so the plan
+	// can name the instances the verb reached rather than only the ones it
+	// governs. [NodeResolver.noteUntagRelease] declines a key elems already
+	// carries, which is the hand-written case above: nothing was released
+	// there. tofu-slot is recorded only where a slot was assigned, because
+	// without one there was no write to withhold.
 	if untagKey != markers.TagEstate {
 		elems[markers.TagEstate] = cty.StringVal(n.Estate)
+	} else {
+		n.noteUntagRelease(addr, markers.TagEstate, elems)
 	}
 	if untagKey != markers.TagAddress {
 		elems[markers.TagAddress] = cty.StringVal(address)
+	} else {
+		n.noteUntagRelease(addr, markers.TagAddress, elems)
 	}
-	if slot, ok := n.Slots[address]; ok && untagKey != markers.TagSlot {
-		elems[markers.TagSlot] = cty.StringVal(slot)
+	if slot, ok := n.Slots[address]; ok {
+		if untagKey != markers.TagSlot {
+			elems[markers.TagSlot] = cty.StringVal(slot)
+		} else {
+			n.noteUntagRelease(addr, markers.TagSlot, elems)
+		}
 	}
 
 	return cty.MapVal(elems).WithMarks(tagsMarks), diags

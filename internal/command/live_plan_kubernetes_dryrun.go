@@ -241,6 +241,10 @@ func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 // update, through the sweep's own cluster clients captured in PriorState,
 // printed above the plan by this run's view. A rejection is an error and
 // the backend stops with nothing rendered and nothing applied.
+//
+// It is also where the run reports what only the walk could have produced
+// (GitHub issue #1002's untag releases), since this is the one hook the
+// backend calls between the plan existing and the plan being rendered.
 func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
 	// GitHub issue #1184: the plan's Kubernetes deletes, kept for
 	// AfterApply. Read here because this is the last moment the plan still
@@ -248,6 +252,14 @@ func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config,
 	if r.resolver != nil {
 		r.kubeDeletes = statelessKubernetesDeletes(r.kubeSweepers, plan, schemas, r.resolver.MarkerIndex)
 	}
+
+	// GitHub issue #1002: the declared_tagged = "untag" releases the walk
+	// just made, reported here for the reason live_plan.go's own identical
+	// call gives - this is the first point in the run they exist.
+	if r.view != nil && r.resolver != nil {
+		r.view.Policy(statelessPolicyReport(nil, nil, nil, r.resolver.UntagReleases()))
+	}
+
 	evidence, diags := statelessKubernetesDryRun(ctx, r.kubeSweepers, config, plan, schemas)
 	if r.view != nil {
 		r.view.KubernetesDryRun(evidence)

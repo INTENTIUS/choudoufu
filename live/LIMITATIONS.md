@@ -726,10 +726,17 @@ finding once the corpus showed it was the sole thing blocking every estate on
 the onboarding ladder's upper rungs, and leaving the block in place carries
 no risk to *this* run: it configures nothing this run touches.
 
-**Forwarding address.** This warning can only fire on a configuration with no
+**Forwarding address.** This warning can only fire on a module with no
 `live` block: `internal/configs/module.go`'s decoder hard-refuses to load
-any module that has both, before lint runs, so the two never coexist by the
-time this text is shown. That makes deletion optional for the run in front
+any module that has both, before lint runs, so the two never coexist in one
+module by the time this text is shown. A child module is the one place it
+fires under a `live` block, since a child may carry a backend block and may
+not carry a `live` block; stock ignores that block too ("Backend
+configuration ignored"). The warning is advisory under every entry point:
+`live-plan`, plain `plan` and plain `apply` all render it and carry on
+(`lint.HasErrors` at both lint gates, GitHub issue #1268, ruled 2026-09-21;
+pinned by `TestLintGateAgreesAcrossEntryPoints1268`). For a root module, that
+makes deletion optional for the run in front
 of the operator - live-plan, live-import and live-mv can all still name an
 estate with `-estate` instead of a block - but not in general. Every other
 command, apply included, has no `-estate` flag, so reaching it requires
@@ -2254,8 +2261,10 @@ deriving the verdict from the live provider schema's own WriteOnly and
 Sensitive flags at runtime, with no generated table, so a new provider
 release's new `_wo` twin is covered the day it ships. It is a `tfdiags`
 warning riding beside the subset check in every live entry point, not a
-lint `Issue`: lint issues are fatal by design, and a refusal was ruled out
-at both ends. It cannot see the schema-invisible members at all, and
+lint `Issue`: a lint issue is fatal unless its rule declares warning
+severity, and a refusal was ruled out at both ends. A warning-severity lint
+issue is advisory in the same way, under `live-plan`, plain `plan` and plain
+`apply` alike (GitHub issue #1268). It cannot see the schema-invisible members at all, and
 <!-- limits-gen:begin residue-soft-required-top-level -->8<!-- limits-gen:end residue-soft-required-top-level -->
 of the sensitive attributes are unconditionally required, so refusing the
 argument would refuse the type and undo its admission

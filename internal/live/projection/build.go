@@ -2173,6 +2173,22 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		}
 		attrsSeed["tags"] = tagsSeed
 	}
+	// GitHub issue #1262: a manifest the strict seed above dropped whole -
+	// because one leaf of it reads another resource - is seeded with the
+	// skeleton configuration can evaluate, its unresolvable leaves left open
+	// for [fillManifestOpenPaths] to answer from the live object after the
+	// read. See manifestpartialseed.go for what the seed is in that case and
+	// for the identity rule that makes it decline instead.
+	var manifestOpen []cty.Path
+	if _, seeded := attrsSeed[markers.ManifestSurfaceAttr]; !seeded {
+		if partial, open, ok := partialManifestSeed(ctx, seedEval, modPath, rc, schema); ok {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, 1)
+			}
+			attrsSeed[markers.ManifestSurfaceAttr] = partial
+			manifestOpen = open
+		}
+	}
 	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
 		// GitHub issue #1079: a manifest-surface seed carries the
 		// estate's label the way the stamped configuration will, or the
@@ -2224,7 +2240,7 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		// where the address and the record store exist and the read has
 		// neither. Nil for every type that is not manifest-shaped, which
 		// is every read that is not a Kubernetes one.
-		manifestKeys: newManifestKeyLookup(schema, addr, providerAddr, b.opts.ManifestOwnedKeys, b.manifestDeclaredKeysFor(ctx, addr, schema)),
+		manifestKeys: newManifestKeyLookup(schema, addr, providerAddr, b.opts.ManifestOwnedKeys, b.manifestDeclaredKeysFor(ctx, addr, schema)).withOpenPaths(manifestOpen),
 	}
 }
 
@@ -3954,6 +3970,12 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	// operator deleted. [manifestRemovalKeys] returns nil for a type that
 	// is not manifest-shaped, nil for an instance with no record, and nil
 	// with a warning whenever it found a candidate it will not act on.
+	//
+	// GitHub issue #1262 runs first: the leaves a partial seed left open
+	// take the live object's value, and the mirror then keeps the last word
+	// on the two metadata maps. No open paths - every read that did not go
+	// through [partialManifestSeed] - returns newVal untouched.
+	newVal = fillManifestOpenPaths(newVal, schema.Block, manifestKeys.openPaths())
 	removed, removedDiags := manifestRemovalKeys(ctx, newVal, manifestKeys)
 	diags = diags.Append(removedDiags)
 	newVal = mirrorManifestComputedFields(newVal, schema.Block, removed)

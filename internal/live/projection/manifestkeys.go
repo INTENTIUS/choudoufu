@@ -167,6 +167,31 @@ type manifestKeyLookup struct {
 	// declared is the record's answer, keyed by metadata map attribute
 	// name, or nil when this instance has no record to read.
 	declared map[string][]string
+
+	// open is GitHub issue #1262's half of the same binding: the paths,
+	// relative to the manifest argument, that [partialManifestSeed] could
+	// not evaluate and handed the provider as nulls. The read fills them
+	// from the live object ([fillManifestOpenPaths]). Nil for every
+	// manifest configuration evaluates in full, which is nearly all of them.
+	open []cty.Path
+}
+
+// withOpenPaths records the seed's open paths on the lookup. A nil lookup
+// is a type that is not manifest-shaped, which has no such paths to carry.
+func (l *manifestKeyLookup) withOpenPaths(open []cty.Path) *manifestKeyLookup {
+	if l != nil {
+		l.open = open
+	}
+	return l
+}
+
+// openPaths is nil-safe for the same reason: every caller of
+// [importAndRead] that builds no lookup has nothing open.
+func (l *manifestKeyLookup) openPaths() []cty.Path {
+	if l == nil {
+		return nil
+	}
+	return l.open
 }
 
 // newManifestKeyLookup returns the binding for one prepared read, or nil
