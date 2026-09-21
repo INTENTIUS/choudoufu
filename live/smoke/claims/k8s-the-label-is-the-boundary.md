@@ -68,23 +68,39 @@ The steps, in the order they print:
 7. `Bob, tool-less, is refused on Alice's object` - a plain `kubectl
    label`, a plain `kubectl delete` and a plain strip of the marker, all
    refused, and a plain `kubectl get` let through.
-8. `Bob's own estate, tool-less, and the API server lets it through` -
-   the next plan sees the drift and reconciles it.
-9. `a rename is a configuration edit: live-mv has nothing governed to
-   write` - Bob renames the router block, runs the same `live-mv` an AWS
-   runbook ends a rename with, and it reports `Nothing to write` and exits
-   0; the next plan is empty.
-10. `the carve begins with a git move, and the relabel is refused from
+8. `an owned object keeps its estate: the owner field is no way out of
+   one` - Alice's relabel of an `app` object into `net` is refused with no
+   `ownerReference` on it, she then puts one on (allowed: the label does
+   not change), and the same relabel is refused again; so is adding the
+   owner and changing the label in one request, so is Bob's strip of the
+   label off the owned object and his delete of it. Bob's plain update of
+   it, leaving `tofu-estate` alone, goes through with no grant on `app`
+   ([#1449](https://github.com/INTENTIUS/choudoufu/issues/1449)).
+9. `the owner field is no way INTO an estate either: the create arm` -
+   three creates by Alice for an estate she does not hold, all refused:
+   a ConfigMap labelled `net` with no owner, the same one owned, and a
+   Secret shaped like a record the Kubernetes record store writes, owned.
+10. `what the exemption costs: a Deployment's ReplicaSet and Pods are
+    still made` - a Deployment whose pod template carries the label still
+    fans out into a labelled ReplicaSet and a labelled Pod, written by
+    kube-system controllers, and the garbage collector still removes them.
+11. `Bob's own estate, tool-less, and the API server lets it through` -
+    the next plan sees the drift and reconciles it.
+12. `a rename is a configuration edit: live-mv has nothing governed to
+    write` - Bob renames the router block, runs the same `live-mv` an AWS
+    runbook ends a rename with, and it reports `Nothing to write` and exits
+    0; the next plan is empty.
+13. `the carve begins with a git move, and the relabel is refused from
     both sides` - Alice runs `live-mv -from-estate=app` in `data/` and is
     refused by the policy on the estate the object would enter, as is her
     plain `kubectl label`; Bob is refused on the estate it is leaving.
-11. `handover is an RBAC change: grant Alice data, and the same live-mv
+14. `handover is an RBAC change: grant Alice data, and the same live-mv
     goes through` - the grant template for `data` is applied to Alice,
     the same `live-mv` lands, and `kubectl` reads `tofu-estate=data` back.
-12. `every estate plans clean, each under its own principal` - `app` no
+15. `every estate plans clean, each under its own principal` - `app` no
     longer declares the block and the object no longer carries its label,
     so its plan is honestly empty.
-13. `teardown - each estate by its own destroy, under its own principal`.
+16. `teardown - each estate by its own destroy, under its own principal`.
 
 The `BREAK=1` run deletes the policy after step 4 and requires the three
 writes the main run refuses to succeed: Bob's apply on Alice's estate,
@@ -94,13 +110,23 @@ is the one assertion that must not change when the policy goes. The same
 arm runs it again with the policy deleted and requires the identical
 refusal, because "never write a wrong marker" is a property of the plan.
 
-The exempt objects are the control plane (nodes, the kube-system
-controllers, the scheduler and the API server itself) and any object
-carrying an `ownerReference`. The estate sweep excludes those by the same
-rule ([claim 22](k8s-no-silent-orphans.md)),
-so the fence and the sweep agree on what an estate contains. A
-cluster-admin's wildcard rule matches the virtual resource too, so
-cluster-admin holds every estate the way the account root does on AWS.
+The exempt callers are the control plane: nodes, the kube-system
+controllers, the scheduler and the API server itself. That is what keeps a
+controller's copies out of the fence, and step 10 measures it. Owned
+objects keep their estate: an object already carrying an `ownerReference`
+may be updated with no grant while its `tofu-estate` label stays as it
+was, which is what a third-party operator's writes on a labelled child
+need, and an operator that creates labelled children of its own needs
+`use` on that estate, one binding. Changing the label, stripping it,
+deleting the object or creating a new labelled one needs the grant, owner
+or no owner: `ownerReferences` is a field the caller writes, and until
+[#1449](https://github.com/INTENTIUS/choudoufu/issues/1449) an identity
+holding one estate could add an owner to its own object and then relabel
+it into an estate it was never granted. The estate sweep still excludes
+owned objects ([claim 22](k8s-no-silent-orphans.md)), so the fence now
+judges more than the sweep discovers. A cluster-admin's wildcard rule
+matches the virtual resource too, so cluster-admin holds every estate the
+way the account root does on AWS.
 
 `live-mv` is the same command on both substrates
 ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)).

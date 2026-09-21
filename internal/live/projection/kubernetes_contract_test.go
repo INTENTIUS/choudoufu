@@ -49,15 +49,18 @@ type clusterFake struct {
 	mu      sync.Mutex
 	reviews int
 
-	// denied are Secret verbs this cluster's AUTHORIZER refuses, so a test
-	// that makes a call fail with 403 can make the review agree with it.
-	// Without that agreement the fake describes an identity RBAC lets write
+	// denied are verbs this cluster's AUTHORIZER refuses, so a test that
+	// makes a call fail with 403 can make the review agree with it. Without
+	// that agreement the fake describes an identity the authorizer lets write
 	// and the API server refuses anyway, which is an admission denial and a
-	// different case entirely (GitHub issue #1448 section C).
+	// different case entirely (GitHub issue #1448 section C). It covers the
+	// estate grant as well as the Secrets, since the grant is read through
+	// the same review: denying EstateGrantVerb is an identity holding no
+	// estate.
 	denied map[string]bool
 }
 
-// denyVerb makes this cluster's authorizer refuse verb on Secrets.
+// denyVerb makes this cluster's authorizer refuse verb.
 func (c *clusterFake) denyVerb(verb string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -73,19 +76,18 @@ func newClusterFake(t *testing.T, objects ...runtime.Object) *clusterFake {
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: contractNamespace}},
 		&corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "kube-apiserver-control-plane",
-				Namespace: "kube-system",
-				Labels:    map[string]string{"component": "kube-apiserver"},
+				Name:            "kube-apiserver-control-plane",
+				Namespace:       "kube-system",
+				Labels:          map[string]string{"component": "kube-apiserver"},
+				Annotations:     map[string]string{"kubernetes.io/config.mirror": "c20cabde2f7d94f6524441d8571ee712"},
+				OwnerReferences: []metav1.OwnerReference{{APIVersion: "v1", Kind: "Node", Name: "control-plane"}},
 			},
 			Spec: corev1.PodSpec{Containers: []corev1.Container{{
 				Name:    "kube-apiserver",
 				Command: []string{"kube-apiserver", "--encryption-provider-config=/etc/kubernetes/enc/enc.yaml"},
 			}}},
 		},
-		&admissionv1.ValidatingAdmissionPolicy{
-			ObjectMeta: metav1.ObjectMeta{Name: staterecord.EstateBoundaryPolicyName, Generation: 1},
-			Status:     admissionv1.ValidatingAdmissionPolicyStatus{ObservedGeneration: 1},
-		},
+		shippedBoundaryPolicy(t),
 		&admissionv1.ValidatingAdmissionPolicyBinding{
 			ObjectMeta: metav1.ObjectMeta{Name: staterecord.EstateBoundaryPolicyName},
 			Spec: admissionv1.ValidatingAdmissionPolicyBindingSpec{
@@ -115,17 +117,39 @@ func newClusterFake(t *testing.T, objects ...runtime.Object) *clusterFake {
 		if !ok {
 			return false, nil, nil
 		}
+		ra := review.Spec.ResourceAttributes
 		cs.mu.Lock()
 		cs.reviews++
-		denied := cs.denied[review.Spec.ResourceAttributes.Verb]
+		denied := cs.denied[ra.Verb]
 		cs.mu.Unlock()
 		out := review.DeepCopy()
 		// Scoped to its own records namespace, which is what the docs
-		// recommend and what read_isolation wants to see.
-		out.Status.Allowed = review.Spec.ResourceAttributes.Namespace == contractNamespace && !denied
+		// recommend and what read_isolation wants to see, plus the grant on
+		// its own estate, which is what the boundary policy's CEL asks the
+		// authorizer for before it lets a write through. Either arm is closed
+		// by denyVerb; see [clusterFake.denied].
+		out.Status.Allowed = !denied &&
+			(ra.Namespace == contractNamespace ||
+				(ra.Group == staterecord.EstateGrantGroup && ra.Resource == staterecord.EstateGrantResource && ra.Name == contractEstate))
 		return true, out, nil
 	})
 	return cs
+}
+
+// shippedBoundaryPolicy is live/kubernetes/estate-boundary.yaml's policy as
+// the API server serves it once observed. The contract reads what a policy
+// SAYS now (GitHub issue #1448, B4), so a cluster that satisfies the contract
+// is one carrying the policy this repository ships, and not an object of the
+// right name.
+func shippedBoundaryPolicy(t *testing.T) *admissionv1.ValidatingAdmissionPolicy {
+	t.Helper()
+	policy, err := staterecord.ShippedEstateBoundaryPolicy()
+	if err != nil {
+		t.Fatalf("reading the shipped estate boundary: %v", err)
+	}
+	policy.Generation = 1
+	policy.Status = admissionv1.ValidatingAdmissionPolicyStatus{ObservedGeneration: 1}
+	return policy
 }
 
 func (c *clusterFake) reviewCount() int {
@@ -349,6 +373,17 @@ func TestContractFindingsSeesThroughTheWrappers(t *testing.T) {
 		t.Fatalf("ContractFindings: %v", err)
 	}
 	for _, f := range findings {
+		// encryption_at_rest is the one no cluster can satisfy from inside.
+		// The flag is readable and the file it names is not an API object at
+		// any permission level, so the honest verdict where the flag is set
+		// is NOT CHECKED (GitHub issue #1448, B5) and there is no fixture
+		// that makes it a pass.
+		if f.Setting == staterecord.ClusterEncryptionAtRest {
+			if f.Outcome != staterecord.NotChecked {
+				t.Errorf("encryption_at_rest came back %v on a flag whose file nobody can read: %s", f.Outcome, f.Found)
+			}
+			continue
+		}
 		if !f.OK() {
 			t.Errorf("%s failed on a cluster built to satisfy everything: %s", f.Setting, f.Found)
 		}

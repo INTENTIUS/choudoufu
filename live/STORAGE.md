@@ -208,9 +208,9 @@ of the bucket's three settings.
 | Assertion | What it asks | Asked with |
 | --- | --- | --- |
 | `namespace_access` | the records namespace is there, and this identity may do to Secrets in it what this run will ask | one `SelfSubjectAccessReview` per verb, never an attempted write |
-| `read_isolation` | this identity cannot read Secrets in another estate's records namespace | a cluster-wide review, then one per other `tofu-records-*` namespace it can see |
-| `encryption_at_rest` | the API server runs with `--encryption-provider-config` | the API server's own Pod, where that Pod is visible |
-| `estate_boundary` | `estate-boundary.yaml`'s policy and its binding are installed, observed and denying | a get on each |
+| `read_isolation` | no other estate's records are readable, in another namespace or in this one | a cluster-wide review, then one per other namespace it can see, and a list of this namespace's records by their `managed-by` label |
+| `encryption_at_rest` | the API server runs with `--encryption-provider-config` | the API server's own static Pod, where that Pod is visible |
+| `estate_boundary` | `estate-boundary.yaml`'s policy and its binding are installed, observed, denying and in force over the record Secrets, and this identity is granted its estate | a get on each, compared against the shipped file, and one review of `use` on `estates.choudoufu.intentius.io/<estate>` |
 
 `choudoufu live-cluster` asks the same four and prints them, with no plan and
 nothing written. Run in a configuration directory it uses that live block's
@@ -222,10 +222,18 @@ A run refuses on a property that was READ and is wrong, and warns on one it
 could not read. The two are different and the difference decides whether
 anyone can act: a cluster whose API server carries no encryption configuration
 is a fact somebody can change, while a Role scoped to one namespace cannot see
-kube-system's Pods or a `ValidatingAdmissionPolicy` at all. Refusing on the
-second would put `allow_insecure` into every correctly scoped CI job on its
-first day. So a run says it by name on every run and never calls it a pass,
-and `live-cluster`, run by someone holding those reads, is what answers it.
+kube-system's Pods, cannot get a `ValidatingAdmissionPolicy`, and cannot list
+the namespaces the other estates keep records in. Refusing on the second would
+put `allow_insecure` into every correctly scoped CI job on its first day. So a
+run says it by name on every run and never calls it a pass, and `live-cluster`,
+run by someone holding those reads, is what answers it.
+
+`encryption_at_rest` is never more than half readable. The flag is on the API
+server's Pod where that Pod is visible, and the EncryptionConfiguration it
+names is a file on the control plane: a configuration whose first provider for
+secrets is `identity` sets the flag and encrypts nothing. So a missing flag
+refuses, a present one is NOT CHECKED, and the finding carries the `cat` line
+an operator runs on the node to finish it.
 
 `allow_insecure` takes these four names the way it takes the bucket's three.
 A waiver reaches only what it names, silences a refusal or a warning, and says
@@ -238,6 +246,14 @@ warns. One that can read a records namespace belonging to another estate is
 refused, naming it. A cluster-admin applying the second estate on a cluster is
 refused, which is the arrangement this store exists to make unnecessary: bind
 each estate to a Role in its own records namespace.
+
+Two estates given the same `namespace` are refused the same way, naming the
+other estate. A records namespace is whatever the block says it is, so the
+other estates are not found by the `tofu-records-` prefix: every namespace this
+identity can see is reviewed, and a readable one that is not named like a
+records namespace is settled by looking for record Secrets in it. An identity
+that cannot list namespaces cannot ask any of this, and that is NOT CHECKED
+rather than a pass.
 
 ### What a plan job needs
 
