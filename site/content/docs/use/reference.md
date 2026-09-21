@@ -97,7 +97,7 @@ estate has a store; a `live` block naming none gets the local one.
 | `region` | `s3` | Region of the bucket. Unset, the AWS SDK's default-configuration chain decides. |
 | `bucket_owner` | `s3` | The twelve-digit AWS account that must own the bucket. Every S3 call carries it as `ExpectedBucketOwner`, so a same-named bucket in another account is refused. |
 | `namespace` | `kubernetes` | Namespace holding this estate's record Secrets. Defaults to `tofu-records-<estate>`. The store does not create it. |
-| connection | `kubernetes` | How to reach the cluster: `host`, `token`, `config_path`, `config_context` and the rest, plus an `exec` block, spelled as stock's `kubernetes` backend spells them. `RecordStoreKubernetesSettings` in `internal/configs/live.go` is the full list. |
+| connection | `kubernetes` | How to reach the cluster: `host`, `token`, `config_path`, `config_context` and the rest, plus an `exec` block, spelled as stock's `kubernetes` backend spells them. |
 | `allow_insecure` | `s3`, `kubernetes` | A list naming the assertions this estate proceeds without. On `s3`, any of `"versioning"`, `"lifecycle"`, `"public_access_block"`; on `kubernetes`, any of `"namespace_access"`, `"read_isolation"`, `"encryption_at_rest"`, `"estate_boundary"`. Never a boolean. Each waiver is announced on every run with what it costs. [The three settings]({{< relref "/docs/use/bucket" >}}) has the bucket's. |
 
 ### `policy` block
