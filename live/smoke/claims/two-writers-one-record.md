@@ -69,3 +69,33 @@ The `BREAK=1` binary drops the `If-Match`. Both applies report success
 in the first round, one envelope silently replaces the other, and
 neither run says anything. That is last-write-wins, and it is what the
 conditional write exists to prevent.
+
+## The same claim on Kubernetes
+
+`record_store "kubernetes"` keeps each record in a Secret and carries
+`metadata.resourceVersion` where the bucket store carries `If-Match`.
+The proof is step 10 of
+[claim 39's scenario](k8s-records-in-the-cluster.md), on a kind cluster:
+
+```text
+just smoke k8s-records-in-the-cluster
+```
+
+Two writers, each with its own connection to the cluster, read one
+record and come away with one `resourceVersion`. The first request of
+each writer's write is held on the wire, unanswered, until both are
+held, and they are then released one at a time. Twelve rounds, six of
+two updates and six of two creates, and each round lands one write and
+refuses the other with a conflict naming the version that writer planned
+against and the version the store now holds. The record never ends up
+holding the refused writer's payload, and no Lease is taken to arrange
+any of it. The `BREAK=1` control gives each writer the stock
+`backend "kubernetes"` Put, which reads the Secret and updates what it
+read, and then all twelve rounds end with both writes landed and no
+conflict named.
+
+It is a step of claim 39's scenario rather than a scenario of its own
+because one promise keeps one claim number and gets a proof per platform
+([#1112](https://github.com/INTENTIUS/choudoufu/issues/1112)). A
+separate scenario would mean a second claim number for this same
+promise.
