@@ -664,3 +664,96 @@ func TestCheckClusterContractHonoursTheStoresEstate(t *testing.T) {
 		}
 	}
 }
+
+// preFence1449MatchConditions is what live/kubernetes/estate-boundary.yaml
+// carried before #1449: one condition exempting every object with an
+// ownerReference from the fence, which is the hole that issue closed.
+//
+// It is spelled out here on purpose, and it is the one place in this package
+// that spells any of the policy's CEL. Everything else reads the shipped file
+// (see kubernetesboundary.go), because the shipped file is the expectation;
+// this is an INSTALLED policy from before an upgrade, so it is exactly as
+// historical as the cluster that still runs it.
+var preFence1449MatchConditions = []admissionv1.MatchCondition{
+	{
+		Name: "not-the-control-plane",
+		Expression: "!('system:nodes' in request.userInfo.groups) " +
+			"&& !request.userInfo.username.startsWith('system:serviceaccount:kube-system:') " +
+			"&& !request.userInfo.username.startsWith('system:kube-') " +
+			"&& request.userInfo.username != 'system:apiserver'",
+	},
+	{
+		Name:       "not-a-controllers-object",
+		Expression: "(oldObject == null ? object : oldObject).?metadata.?ownerReferences.orValue([]).size() == 0",
+	},
+}
+
+// TestEstateBoundaryFailsAClusterStillRunningTheOldPolicy is the upgrade this
+// check exists to catch, and the reason B4's expectation comes out of the
+// shipped file rather than out of Go.
+//
+// #1449 changed the boundary's matchConditions. A cluster that installed the
+// policy before that still has a fence with the hole #1449 closed, under the
+// same name, observed, type-checking clean and bound with Deny - every
+// property the old check looked at. It has to be a failure, and the failure
+// has to say WHICH condition differs, because "the policy differs" sends an
+// operator diffing two CEL documents by eye.
+//
+// The shipped names are read from the file, so this test does not go stale
+// the next time that file moves: it asserts that whatever the shipped policy
+// declares and this cluster does not is named.
+func TestEstateBoundaryFailsAClusterStillRunningTheOldPolicy(t *testing.T) {
+	shipped, err := ShippedEstateBoundaryPolicy()
+	if err != nil {
+		t.Fatalf("reading the shipped estate boundary: %v", err)
+	}
+	installed := boundaryPolicy()
+	installed.Spec.MatchConditions = preFence1449MatchConditions
+
+	cs := withDetailedReviews(fake.NewClientset(installed, boundaryBinding(admissionv1.Deny)),
+		estateUseAnswers(contractNamespace, true))
+	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true, Estate: "alice"}), ClusterEstateBoundary)
+	t.Logf("estate_boundary: %s", f.Found)
+
+	if f.OK() {
+		t.Fatalf("a cluster still running the pre-#1449 policy passed estate_boundary: %s", f.Found)
+	}
+	if f.Outcome != Failed {
+		t.Fatalf("outcome %v, want Failed: the policy was read and it is not the one this store asserts: %s", f.Outcome, f.Found)
+	}
+
+	// Every match condition the shipped policy declares and this cluster does
+	// not has to be named, and so does the one it carries instead.
+	have := map[string]bool{}
+	for _, c := range installed.Spec.MatchConditions {
+		have[c.Name] = true
+	}
+	named := 0
+	for _, c := range shipped.Spec.MatchConditions {
+		if have[c.Name] {
+			continue
+		}
+		named++
+		if !strings.Contains(f.Found, c.Name) {
+			t.Errorf("the finding does not name the shipped match condition %q this cluster is missing: %s", c.Name, f.Found)
+		}
+	}
+	if named == 0 {
+		t.Fatal("the fixture declares every match condition the shipped policy does, so it is not an out-of-date policy and this test measures nothing")
+	}
+	if !strings.Contains(f.Found, "not-a-controllers-object") {
+		t.Errorf("the finding does not name the condition this cluster carries instead: %s", f.Found)
+	}
+	if !strings.Contains(f.Found, "estate-boundary.yaml ships") {
+		t.Errorf("the finding does not say what it compared against: %s", f.Found)
+	}
+
+	// The control: the same cluster with the shipped conditions passes, so
+	// the failure above is the conditions and not the fixture.
+	current := boundaryPolicy()
+	ok := withDetailedReviews(fake.NewClientset(current, boundaryBinding(admissionv1.Deny)),
+		estateUseAnswers(contractNamespace, true))
+	if g := findingFor(t, check(t, ok, ClusterContractOptions{NamespaceKnownToExist: true, Estate: "alice"}), ClusterEstateBoundary); !g.OK() {
+		t.Fatalf("the policy the file ships today failed, so the test above measured the fixture and not the upgrade: %s", g.Found)
+	}
+}
