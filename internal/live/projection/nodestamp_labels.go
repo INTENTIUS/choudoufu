@@ -115,6 +115,9 @@ func (n *NodeResolver) stampedMetadata(addr addrs.AbsResourceInstance, metaVal c
 			return metaVal.WithMarks(metaMarks), diags
 		}
 		elems[markers.TagEstate] = cty.StringVal(n.Estate)
+	} else {
+		// GitHub issue #1002: see stampedTags' own note.
+		n.noteUntagRelease(addr, markers.TagEstate, elems)
 	}
 	if len(elems) == 0 {
 		// Only reachable under an untag of tofu-estate on a resource with

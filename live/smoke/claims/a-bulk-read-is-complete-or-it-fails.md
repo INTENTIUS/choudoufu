@@ -23,7 +23,11 @@ installed. From the repo root run:
 Explain each step's verdict line to me as it prints. Then run
 BREAK=1 just smoke a-bulk-read-is-complete-or-it-fails and report the
 "caught" line: it rebuilds choudoufu so a failed GET drops its key, and
-the plan must be caught proposing to create a resource that exists.
+the plan must be caught proposing to create a resource that exists. Then
+run BREAK_CROSSCHECK=1 just smoke a-bulk-read-is-complete-or-it-fails
+and report its "caught" line too: it rebuilds choudoufu without the
+plan-time cross-check, and a destroy must be caught reporting one
+destroyed of two.
 ```
 
 As the run prints them:
@@ -50,7 +54,20 @@ As the run prints them:
 4. `the same GET fails every time` - there is no true plan to be had, so
    the run refuses and names the record. An unreadable record is not an
    absent one.
-5. `teardown`.
+5. `a record the listing names and the GET does not find` - a second
+   estate of two instances, the one GitHub issue #1355 was filed over.
+   The proxy answers 404 NoSuchKey to every GET of one record, on the
+   bulk read, on its second look and on the per-key read the run falls
+   back to, while the listing goes on naming the key. A 404 is a read
+   that succeeded and said no record is there, so nothing fails by
+   itself: the instance has no prior state, a plan would propose
+   creating it, and a destroy would propose nothing for it. `plan`,
+   `plan -destroy` and `apply -destroy` each refuse with `The record
+   store contradicts itself about a record`, naming the address and the
+   key. The step counts the 404s the proxy served and the listings it
+   forwarded in each run, and reads the bucket's versions and delete
+   markers from the emulator before and after: they are the same.
+6. `teardown` - both estates, each asserted by its full destroyed count.
 
 The estate sets `retry { max_attempts = 1 }`. With the SDK's default of
 three attempts a single 500 is retried away below the code this claim is
@@ -60,6 +77,18 @@ The `BREAK=1` binary swallows a failed call instead of failing the read.
 Its plan in step 3 reads `terraform_data.effect[4] will be created` and
 `Plan: 1 to add`, for a resource that exists. The claim is proved at the
 plan and not at the store's return value, because the plan is the harm.
+
+The `BREAK_CROSSCHECK=1` binary is built without the one call to
+`refuseListedButReadAsAbsent`. It is a second variable and not a second
+meaning of `BREAK=1` because it corrupts a different file for a
+different step, and because the two cannot stand in for each other: a
+snapshot torn by `BREAK=1` is self-consistent, so the cross-check has
+nothing to catch there, and only a 404 on the per-key path reaches it.
+In step 5 that binary's plan reads `terraform_data.effect["plain"] will
+be created`, and its `apply -destroy` reads `Apply complete! Resources:
+0 added, 0 changed, 1 destroyed.` with exit 0 and the record still in
+the bucket. That is #1355's output, manufactured. What produced the 404
+on real S3 is still not known; the proxy stands in for it.
 
 How many GETs run at once is `TOFU_LIVE_RECORD_READ_PARALLELISM`,
 default 8. It is an environment variable and not a `record_store`

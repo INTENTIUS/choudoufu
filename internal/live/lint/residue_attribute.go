@@ -64,9 +64,11 @@ import (
 //
 // # Not an [Issue], not a [Rule], and not in any registry
 //
-// Lint issues are fatal by design ([Diagnostics] hardcodes hcl.DiagError),
-// and #126 ruled this a warning, so it rides the tfdiags channel from each
-// live entry point, beside [CheckWith] - the wiring the retired
+// A lint issue is fatal unless its rule declares [SeverityWarning] (when
+// this check was written [Diagnostics] hardcoded hcl.DiagError; GitHub issue
+// #210 added the severity since, and GitHub issue #1268 made both command
+// gates read it), and #126 ruled this a warning, so it rides the tfdiags
+// channel from each live entry point, beside [CheckWith] - the wiring the retired
 // CheckModuleProviders warning used (#70). The refusal registries do not
 // want it either, honestly: internal/live/refusalscan scans the identity,
 // passthrough, stamp, discovery and projection packages, not lint (lint's

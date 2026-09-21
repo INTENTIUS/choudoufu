@@ -26,9 +26,22 @@ func clusterTargetForTest() projection.ClusterTarget {
 	return projection.ClusterTarget{Namespace: clusterNS, Server: clusterServer}
 }
 
+// clusterSettingsAlwaysReported is what a contract check reports on a block
+// that does not set `insecure = true`: every cluster setting but
+// tls_verification, which has a finding only when it fails (#1448).
+func clusterSettingsAlwaysReported() []staterecord.Setting {
+	var out []staterecord.Setting
+	for _, s := range staterecord.ClusterSettings {
+		if s != staterecord.ClusterTLSVerification {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func clusterFindings(failing ...staterecord.Setting) []staterecord.Finding {
 	var out []staterecord.Finding
-	for _, s := range staterecord.ClusterSettings {
+	for _, s := range clusterSettingsAlwaysReported() {
 		f := staterecord.Finding{Setting: s, Outcome: staterecord.Passed, Found: "fine"}
 		for _, bad := range failing {
 			if bad == s {
@@ -207,8 +220,8 @@ func TestLiveClusterJSONIsTheSameReport(t *testing.T) {
 	if back.Namespace != clusterNS || back.Estate != "alice" || back.CheckedAs != "plan" {
 		t.Errorf("the JSON lost what the report was about: %+v", back)
 	}
-	if len(back.Settings) != len(staterecord.ClusterSettings) {
-		t.Errorf("the JSON carries %d settings, want %d", len(back.Settings), len(staterecord.ClusterSettings))
+	if want := len(clusterSettingsAlwaysReported()); len(back.Settings) != want {
+		t.Errorf("the JSON carries %d settings, want %d", len(back.Settings), want)
 	}
 }
 

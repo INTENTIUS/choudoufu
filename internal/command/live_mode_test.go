@@ -1279,3 +1279,203 @@ func TestCacheConditionsPlanIdentically(t *testing.T) {
 		t.Fatal("the negative control produced a byte-identical plan; the equality assertions above are comparing something that cannot fail")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// The lint gate reads the same from both entry points (GitHub issue #1268)
+// ---------------------------------------------------------------------------
+
+// lintGateFixture1268 writes one configuration in two spellings that differ
+// only in how the estate is named: a live block (plain plan and apply, which
+// run internal/command/live_mode.go's lint call) or none (live-plan with
+// -estate, which runs internal/command/live_plan.go's own). Everything else
+// is byte for byte the same, which is what lets the test below call the two
+// runs "the same configuration".
+//
+// The warning it carries is a backend block in a child module. That is the
+// one warning-severity issue [lint.CheckWith] can return under a live block:
+// [lint.RuleStateBackend] is the only rule that declares
+// [lint.SeverityWarning], the decoder refuses a root module carrying both a
+// live and a backend block before lint runs, and a child module may not
+// declare a live block at all. Stock treats the same block as inert too
+// ("Backend configuration ignored").
+//
+// resourceBody is appended inside the root bucket's block, so a caller can
+// add the residue attribute or an error-severity construct to it.
+func lintGateFixture1268(t *testing.T, dir string, liveBlock bool, resourceBody string) {
+	t.Helper()
+
+	live := ""
+	if liveBlock {
+		live = "  live {\n    estate = \"lint-gate-unit\"\n  }\n\n"
+	}
+	root := "terraform {\n" + live +
+		"  required_providers {\n    aws = {\n      source = \"hashicorp/aws\"\n    }\n  }\n}\n\n" +
+		"provider \"aws\" {\n  region = \"us-east-1\"\n}\n\n" +
+		"resource \"aws_s3_bucket\" \"data\" {\n  bucket = \"tofu-lint-gate-data\"\n" + resourceBody + "}\n\n" +
+		"module \"child\" {\n  source = \"./child\"\n}\n"
+	child := "terraform {\n  backend \"s3\" {\n    bucket = \"somebody-elses-state\"\n    key    = \"child.tfstate\"\n    region = \"us-east-1\"\n  }\n}\n"
+	manifest := `{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"child","Source":"./child","Dir":"child"}]}`
+
+	for path, body := range map[string]string{
+		"main.tf":                         root,
+		"child/main.tf":                   child,
+		".terraform/modules/modules.json": manifest,
+	} {
+		full := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// TestLintGateAgreesAcrossEntryPoints1268 is GitHub issue #1268's pin, under
+// the maintainer's ruling of 2026-09-21 that lint warnings are advisory: the
+// same configuration carrying the same warning gets the same verdict from
+// live_plan.go's lint gate and from live_mode.go's, the warning reaches the
+// operator either way (on apply too, where a dropped warning would be the
+// expensive kind of silence), and an error-severity issue still refuses
+// under both before anything is read from or written to the live system.
+func TestLintGateAgreesAcrossEntryPoints1268(t *testing.T) {
+	const (
+		backendWarning = "State backends are not available under live resource markers"
+		residueWarning = "Attribute value cannot round-trip a live replan"
+		lintError      = "Ownership markers would be ignored"
+	)
+
+	type run struct {
+		code     int
+		combined string
+		cloud    *statelessTestCloud
+	}
+	viaLivePlan := func(t *testing.T, body string) run {
+		td := t.TempDir()
+		lintGateFixture1268(t, td, false, body)
+		t.Chdir(td)
+		cloud := newStatelessTestCloud()
+		c, done := newLivePlanCommand(t, cloud)
+		code := c.Run([]string{"-no-color", "-estate=lint-gate-unit"})
+		out := done(t)
+		return run{code, out.Stdout() + out.Stderr(), cloud}
+	}
+	viaPlan := func(t *testing.T, body string) run {
+		td := t.TempDir()
+		lintGateFixture1268(t, td, true, body)
+		t.Chdir(td)
+		cloud := newStatelessTestCloud()
+		c, done := newLiveBlockPlanCommand(t, cloud)
+		code := c.Run([]string{"-no-color"})
+		out := done(t)
+		return run{code, out.Stdout() + out.Stderr(), cloud}
+	}
+	viaApply := func(t *testing.T, body string) run {
+		td := t.TempDir()
+		lintGateFixture1268(t, td, true, body)
+		t.Chdir(td)
+		cloud := newStatelessTestCloud()
+		view, done := testView(t)
+		c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
+		code := c.Run([]string{"-no-color", "-auto-approve"})
+		out := done(t)
+		return run{code, out.Stdout() + out.Stderr(), cloud}
+	}
+
+	entryPoints := []struct {
+		name string
+		run  func(*testing.T, string) run
+	}{
+		{"live-plan -estate (live_plan.go)", viaLivePlan},
+		{"plan under a live block (live_mode.go)", viaPlan},
+		{"apply under a live block (live_mode.go)", viaApply},
+	}
+
+	t.Run("a warning is shown and the run continues", func(t *testing.T) {
+		for _, ep := range entryPoints {
+			t.Run(ep.name, func(t *testing.T) {
+				got := ep.run(t, "")
+				if got.code != 0 {
+					t.Fatalf("exit code %d, want 0: a warning-severity lint issue is advisory under every entry point\n%s", got.code, got.combined)
+				}
+				if !strings.Contains(got.combined, backendWarning) {
+					t.Errorf("the run continued but the warning never reached the operator:\n%s", got.combined)
+				}
+				if !strings.Contains(got.combined, "Warning: "+backendWarning) {
+					t.Errorf("the issue was not rendered at warning severity:\n%s", got.combined)
+				}
+				// Exit 0 with the warning on screen is not yet "the run
+				// continued". Before #1268 live_mode.go returned a nil
+				// projection beside warning-only diagnostics, its caller
+				// gates on HasErrors, and the ordinary operation carried on
+				// WITHOUT the live pipeline: no discovery, no stamping, and
+				// an apply that created the bucket with no ownership marker
+				// while printing this same warning. So the verdict is read
+				// off what the pipeline does, not off the exit code.
+				if !strings.Contains(got.combined, "tofu-address") {
+					t.Errorf("the plan carries no ownership marker, so the live pipeline did not run past the warning:\n%s", got.combined)
+				}
+			})
+		}
+	})
+
+	t.Run("both plans read the same past the warning", func(t *testing.T) {
+		block, command := viaPlan(t, ""), viaLivePlan(t, "")
+		if block.code != command.code {
+			t.Fatalf("plan under a live block exited %d, live-plan -estate exited %d", block.code, command.code)
+		}
+		if got, want := statelessPlanBody(block.combined), statelessPlanBody(command.combined); got != want {
+			t.Errorf("the two entry points plan the same configuration differently.\n--- plan under a live block ---\n%s\n--- live-plan -estate ---\n%s", got, want)
+		}
+	})
+
+	t.Run("an apply past the warning still writes the markers", func(t *testing.T) {
+		got := viaApply(t, "")
+		if got.code != 0 {
+			t.Fatalf("exit code %d, want 0\n%s", got.code, got.combined)
+		}
+		tags := got.cloud.applied["aws_s3_bucket.data"]
+		if tags == nil {
+			t.Fatalf("aws_s3_bucket.data was never applied; applied: %v\n%s", got.cloud.applied, got.combined)
+		}
+		if tags["tofu-estate"] != "lint-gate-unit" || tags["tofu-address"] != "aws_s3_bucket.data" {
+			t.Errorf("the bucket was created without its ownership markers (tags %v): a lint warning switched the live pipeline off instead of riding beside it", tags)
+		}
+	})
+
+	t.Run("the residue warning rides with it", func(t *testing.T) {
+		for _, ep := range entryPoints {
+			t.Run(ep.name, func(t *testing.T) {
+				got := ep.run(t, "  secret_policy_seed = \"hunter2\"\n")
+				if got.code != 0 {
+					t.Fatalf("exit code %d, want 0\n%s", got.code, got.combined)
+				}
+				for _, want := range []string{backendWarning, residueWarning} {
+					if !strings.Contains(got.combined, want) {
+						t.Errorf("warning %q did not reach the operator:\n%s", want, got.combined)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("an error still refuses, beside the same warning", func(t *testing.T) {
+		for _, ep := range entryPoints {
+			t.Run(ep.name, func(t *testing.T) {
+				got := ep.run(t, "\n  lifecycle {\n    ignore_changes = all\n  }\n")
+				if got.code != 1 {
+					t.Fatalf("exit code %d, want 1: an error-severity lint issue refuses under every entry point\n%s", got.code, got.combined)
+				}
+				if !strings.Contains(got.combined, lintError) {
+					t.Errorf("the refusal does not carry the lint error:\n%s", got.combined)
+				}
+				if !strings.Contains(got.combined, backendWarning) {
+					t.Errorf("the refusal dropped the warning that rode beside the error:\n%s", got.combined)
+				}
+				if len(got.cloud.imports) > 0 || len(got.cloud.applied) > 0 {
+					t.Errorf("a refused configuration still touched the live system: reads %v, writes %v", got.cloud.imports, got.cloud.applied)
+				}
+			})
+		}
+	})
+}

@@ -72,3 +72,22 @@ jobs:
         env:
           BREAK: "1"
         run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+      # Claim 31 has a second control (GitHub issue #1430): a binary built
+      # without the plan-time cross-check must be caught reporting one
+      # destroyed of two, which is #1355's output. Read from a file and held
+      # to its "caught" line, because a control that exits 0 has only proved
+      # something if it got as far as the corruption: a run that ignored the
+      # variable would print PASS and exit 0 as well.
+      - name: the BREAK_CROSSCHECK=1 control
+        if: matrix.scenario == 'a-bulk-read-is-complete-or-it-fails'
+        env:
+          BREAK_CROSSCHECK: "1"
+        run: |
+          rc=0
+          bash live/smoke/smoke.sh ${{ matrix.scenario }} > control.out 2>&1 || rc=$?
+          cat control.out
+          if [ "$rc" != "0" ]; then echo "the BREAK_CROSSCHECK=1 control exited $rc"; exit 1; fi
+          if ! grep -q -e '-> caught - without the cross-check' control.out; then
+            echo "the BREAK_CROSSCHECK=1 control exited 0 without printing its caught line, so it never reached the corruption"
+            exit 1
+          fi
