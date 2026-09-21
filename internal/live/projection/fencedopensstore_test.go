@@ -7,6 +7,7 @@ package projection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,6 +15,8 @@ import (
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -207,4 +210,115 @@ func TestWriteBackStillSaysCannotPersistARecordForEverythingElse(t *testing.T) {
 	if got := diags[0].Description().Summary; got != "Cannot persist a record" {
 		t.Errorf("an ordinary write failure now reads %q", got)
 	}
+}
+
+// TestAFencedApplyIsRefusedOnceAndNotTwice is the agreement between this
+// change and PR #1452, measured on one cluster rather than reasoned about.
+//
+// #1452's cluster contract asks the API server whether this identity holds
+// `use` on its estate and fails `estate_boundary` when it does not. That check
+// runs in internal/command's BeforeApply, on every apply. This change refuses
+// when the store is OPENED, which happens in the stateless runner's PriorState
+// - before the plan graph exists, and so before BeforeApply is reached at all.
+//
+// So an apply by a fenced identity has two refusals available to it and prints
+// one. This test shows both halves on the same fake cluster: the open path
+// refuses in the fence's own words, and the contract, asked directly of that
+// same cluster, does fail estate_boundary - which the run never gets far
+// enough to hear.
+func TestAFencedApplyIsRefusedOnceAndNotTwice(t *testing.T) {
+	cs := newClusterFake(t)
+	rs := kubernetesRecordStore()
+	ctx := context.Background()
+
+	// An earlier granted run, so the sentinel is there and the fenced run
+	// below is not a first contact. That is the arrangement the audit found:
+	// with the sentinel present, nothing else on the open path objected.
+	if err := openCluster(t, cs, rs); err != nil {
+		t.Fatalf("the granted run could not open the store: %v", err)
+	}
+
+	// Now the fence. The authorizer still allows create on Secrets in the
+	// records namespace, which is what makes the 403 admission's rather than
+	// its own; the estate grant is withheld, which is what #1452 asks for.
+	cs.PrependReactor("create", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, estateBoundaryDenial()
+	})
+	cs.denyVerb(staterecord.EstateGrantVerb)
+
+	openErr := openCluster(t, cs, rs)
+	if openErr == nil {
+		t.Fatal("the store opened for a fenced identity, so the run would reach BeforeApply and be refused there instead, after the plan was built")
+	}
+	if !IsStoreRefusal(openErr) {
+		t.Errorf("the open refusal is reported as an outage: %v", openErr)
+	}
+	var denied *staterecord.AdmissionDeniedError
+	if !errors.As(openErr, &denied) {
+		t.Fatalf("the open refusal is not the fence's: %v (%T)", openErr, openErr)
+	}
+
+	// The other refusal exists on this same cluster. It is the one #1452
+	// raises, and the run never hears it because the store never opened.
+	store, err := staterecord.NewKubernetesStore(staterecord.KubernetesConfig{
+		Secrets:   cs.CoreV1().Secrets(contractNamespace),
+		Clientset: cs,
+		Namespace: contractNamespace,
+		Estate:    contractEstate,
+	})
+	if err != nil {
+		t.Fatalf("NewKubernetesStore: %v", err)
+	}
+	findings, checker, err := ContractFindings(ctx, store, rs, contractEstate)
+	if err != nil {
+		t.Fatalf("reading the cluster contract: %v", err)
+	}
+	if checker == nil {
+		t.Fatal("the cluster store has no contract checker")
+	}
+	var boundary *staterecord.Finding
+	for i := range findings {
+		if findings[i].Setting == staterecord.ClusterEstateBoundary {
+			boundary = &findings[i]
+		}
+	}
+	if boundary == nil {
+		t.Fatal("the contract reports no estate_boundary finding at all")
+	}
+	if boundary.Outcome != staterecord.Failed {
+		t.Fatalf("estate_boundary is %v on a cluster whose policy refuses this identity every record write; this test then proves nothing about two refusals: %s", boundary.Outcome, boundary.Found)
+	}
+
+	// One refusal reaches the operator, and it is this one. The two say the
+	// same thing - the identity holds no `use` on its estate - and send them
+	// to the same file.
+	for _, want := range []string{staterecord.EstateGrantVerb, "live/kubernetes/estate-grant.yaml"} {
+		if !strings.Contains(openErr.Error(), want) {
+			t.Errorf("the refusal the operator sees does not say %q:\n%s", want, openErr)
+		}
+		if !strings.Contains(boundary.Found, want) {
+			t.Errorf("the refusal the operator does NOT see says %q and the one they do see should agree:\n%s", want, boundary.Found)
+		}
+	}
+}
+
+// estateBoundaryDenial is the API server's 403 when the estate boundary policy
+// refuses a write: Details.Name set and one Details.Causes entry carrying the
+// policy's own message. Transcribed from kind; see
+// [staterecord.AdmissionDeniedError].
+func estateBoundaryDenial() error {
+	denial := fmt.Sprintf(
+		"ValidatingAdmissionPolicy '%s' with binding '%s' denied request: tofu-estate=%s would move this object into estate %s and system:serviceaccount:ci:fenced is not bound to it",
+		staterecord.EstateBoundaryPolicyName, staterecord.EstateBoundaryPolicyName, contractEstate, contractEstate)
+	return &k8serrors.StatusError{ErrStatus: metav1.Status{
+		Status:  metav1.StatusFailure,
+		Code:    http.StatusForbidden,
+		Reason:  metav1.StatusReasonForbidden,
+		Message: "secrets is forbidden: " + denial,
+		Details: &metav1.StatusDetails{
+			Name:   "tofu-record-abc",
+			Kind:   "secrets",
+			Causes: []metav1.StatusCause{{Message: denial}},
+		},
+	}}
 }

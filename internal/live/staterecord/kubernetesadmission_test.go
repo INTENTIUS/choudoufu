@@ -181,6 +181,14 @@ func TestTheFenceIsNotReaderTolerance(t *testing.T) {
 		t.Errorf("the refusal names verb %q, want create", denied.Verb)
 	}
 	text := denied.Error()
+	// The whole grant sentence, not its pieces: it is built from
+	// EstateGrantVerb, EstateGrantResource and EstateGrantGroup, which
+	// PR #1452 also builds its own estate_boundary finding from, and a
+	// change to any of the three has to be a deliberate change to what an
+	// operator reads here.
+	if want := "holds no `use` on estates.choudoufu.intentius.io/alice and every record this run writes is refused the same way"; !strings.Contains(text, want) {
+		t.Errorf("the refusal no longer reads %q:\n%s", want, text)
+	}
 	for _, want := range []string{
 		EstateBoundaryPolicyName,
 		"estates.choudoufu.intentius.io/alice",

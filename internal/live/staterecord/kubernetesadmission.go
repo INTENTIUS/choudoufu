@@ -38,6 +38,12 @@ import (
 // cluster was reached and answered, the answer is about a grant no retry
 // changes, and every record this run would write meets the same policy.
 //
+// The grant this refusal asks for is named with [EstateGrantVerb],
+// [EstateGrantResource] and [EstateGrantGroup], the same three
+// [checkEstateBoundary] puts in its own SelfSubjectAccessReview, so the two
+// cannot come to ask an operator for different grants. The rendered sentence
+// is unchanged by that: the constants spell what the string used to.
+//
 // Policy is [EstateBoundaryPolicyName] when the API server named this fork's
 // own estate boundary policy, and "" when some other admission controller
 // refused the write - another policy, a validating webhook, a built-in plugin.
@@ -61,8 +67,10 @@ type AdmissionDeniedError struct {
 func (e *AdmissionDeniedError) Error() string {
 	if e.Policy != "" {
 		return fmt.Sprintf(
-			"staterecord: kubernetes: the %s policy refused this run's %s of %q in namespace %q, so this identity holds no `use` on estates.choudoufu.intentius.io/%s and every record this run writes is refused the same way; grant it with `sed -e 's/ESTATE/%s/g' -e 's/PRINCIPAL_NAMESPACE/<namespace>/g' -e 's/PRINCIPAL/<serviceaccount>/g' live/kubernetes/estate-grant.yaml | kubectl apply -f -`: %v",
-			e.Policy, e.Verb, e.Key, e.Namespace, e.Estate, e.Estate, e.Err)
+			"staterecord: kubernetes: the %s policy refused this run's %s of %q in namespace %q, so this identity holds no `%s` on %s.%s/%s and every record this run writes is refused the same way; grant it with `sed -e 's/ESTATE/%s/g' -e 's/PRINCIPAL_NAMESPACE/<namespace>/g' -e 's/PRINCIPAL/<serviceaccount>/g' live/kubernetes/estate-grant.yaml | kubectl apply -f -`: %v",
+			e.Policy, e.Verb, e.Key, e.Namespace,
+			EstateGrantVerb, EstateGrantResource, EstateGrantGroup, e.Estate,
+			e.Estate, e.Err)
 	}
 	return fmt.Sprintf(
 		"staterecord: kubernetes: an admission policy on this cluster refused this run's %s of %q in namespace %q, and the API server's authorizer allows this identity that write, so every record this run writes meets the same policy; read what refused it and either grant this identity what it asks for or take the estate's records elsewhere: %v",
