@@ -19,14 +19,8 @@
 # only updates a labelled object a controller already owns, and leaves its
 # tofu-estate label alone, needs nothing here.
 #
-# Living in kube-system exempts nothing (#1448). The policy exempts the
-# control plane by name: nodes, the API server, the scheduler and the
-# kube-controller-manager's own controllers. An add-on installed in
-# kube-system that writes labelled objects (a CNI, a load balancer
-# controller, a third-party operator) needs this grant like any other
-# principal, with PRINCIPAL_NAMESPACE set to kube-system. The refusal it
-# gets names it: "... and system:serviceaccount:kube-system:<name> is not
-# bound to it".
+# An add-on in kube-system needs this grant too; only the control plane's
+# own controllers are exempt.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

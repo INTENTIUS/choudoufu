@@ -400,19 +400,10 @@ spec:
         - key: tofu-estate
           operator: Exists
   matchConditions:
-    # The control plane, by name. The list is the API server, the
-    # kube-controller-manager under its own name (the token controller
-    # always runs as it, and every controller does when
-    # --use-service-account-credentials is off), the scheduler (preemption
-    # deletes Pods), and each kube-controller-manager controller whose
-    # bootstrap ClusterRole or Role lets it create, update or delete an
-    # object, as opposed to a status or a scale. Kubelets come in by the
-    # system:nodes group. To extend it, add one name on one line, here in
-    # the repository, when a Kubernetes release adds such a controller. Do
-    # not add an add-on and do not edit the installed copy: the record
-    # store's estate_boundary assertion compares the installed CEL with
-    # this file and fails a cluster that differs. An add-on gets a binding
-    # from live/kubernetes/estate-grant.yaml instead.
+    # The control plane, by name: the API server, the controller manager,
+    # the scheduler, and the controller manager's controllers that write
+    # objects. One name per line. Extend it here in the repository, never
+    # in the installed copy.
     - name: not-the-control-plane
       expression: >-
         !('system:nodes' in request.userInfo.groups)
@@ -520,14 +511,8 @@ spec:
 # only updates a labelled object a controller already owns, and leaves its
 # tofu-estate label alone, needs nothing here.
 #
-# Living in kube-system exempts nothing (#1448). The policy exempts the
-# control plane by name: nodes, the API server, the scheduler and the
-# kube-controller-manager's own controllers. An add-on installed in
-# kube-system that writes labelled objects (a CNI, a load balancer
-# controller, a third-party operator) needs this grant like any other
-# principal, with PRINCIPAL_NAMESPACE set to kube-system. The refusal it
-# gets names it: "... and system:serviceaccount:kube-system:<name> is not
-# bound to it".
+# An add-on in kube-system needs this grant too; only the control plane's
+# own controllers are exempt.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -565,18 +550,12 @@ admin installs it and any cluster admin can remove it. The fence is also
 per estate, never per address, because the label carries no address; a
 team that wants two boundaries makes two estates.
 
-**What is exempt.** The control plane, by name (#1448): `system:nodes`,
-`system:apiserver`, `system:kube-scheduler`,
-`system:kube-controller-manager`, and the kube-controller-manager's own
-controller ServiceAccounts in `kube-system` that write objects, listed in
-the policy's first match condition. Controllers write the copies a
-template makes and delete what a parent leaves behind. That is what keeps
-a ReplicaSet's Pods out of the fence, and it is measured in claim 23. Any
-other ServiceAccount in `kube-system` (an add-on, a CNI, a third-party
-operator) and any other `system:kube-` username is judged like every
-caller, and needs `use` on an estate to write its labelled objects: one
-binding from `estate-grant.yaml` with `PRINCIPAL_NAMESPACE` set to
-`kube-system`. Owned objects keep their estate (#1449): an object
+**What is exempt.** Only the control plane, by name: nodes, the API
+server, the scheduler and the controller manager's own controllers, which
+keeps a ReplicaSet's Pods out of the fence (claim 23). If anything else in
+kube-system is refused with "is not bound to it", grant it the estate
+with `estate-grant.yaml`; never add it to the installed policy's list.
+Owned objects keep their estate (#1449): an object
 carrying a non-empty `metadata.ownerReferences` may be updated with no
 grant while its `tofu-estate` label stays exactly as it was, so a
 third-party operator's status-like writes on a labelled child are let

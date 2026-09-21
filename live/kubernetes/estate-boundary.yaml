@@ -60,19 +60,10 @@ spec:
         - key: tofu-estate
           operator: Exists
   matchConditions:
-    # The control plane, by name. The list is the API server, the
-    # kube-controller-manager under its own name (the token controller
-    # always runs as it, and every controller does when
-    # --use-service-account-credentials is off), the scheduler (preemption
-    # deletes Pods), and each kube-controller-manager controller whose
-    # bootstrap ClusterRole or Role lets it create, update or delete an
-    # object, as opposed to a status or a scale. Kubelets come in by the
-    # system:nodes group. To extend it, add one name on one line, here in
-    # the repository, when a Kubernetes release adds such a controller. Do
-    # not add an add-on and do not edit the installed copy: the record
-    # store's estate_boundary assertion compares the installed CEL with
-    # this file and fails a cluster that differs. An add-on gets a binding
-    # from live/kubernetes/estate-grant.yaml instead.
+    # The control plane, by name: the API server, the controller manager,
+    # the scheduler, and the controller manager's controllers that write
+    # objects. One name per line. Extend it here in the repository, never
+    # in the installed copy.
     - name: not-the-control-plane
       expression: >-
         !('system:nodes' in request.userInfo.groups)
