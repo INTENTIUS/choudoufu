@@ -4192,19 +4192,7 @@ func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.Ab
 	if schemaDiags.HasErrors() {
 		return nil, nil, "", schemaDiags, schemaDiags.Err()
 	}
-	for name, rs := range schema.ResourceTypes {
-		if _, ok := identity.ObjectMetaShape(rs.Block); ok {
-			types = append(types, name)
-		}
-		if identity.ManifestShape(rs.Block) {
-			// GitHub issue #1079: the type the manifest shape admits,
-			// found by shape and never by name, puts every served kind
-			// in the sweep's universe, CRDs included.
-			types = append(types, name)
-			manifestType = name
-		}
-	}
-	sort.Strings(types)
+	types, manifestType = kubernetesTypeUniverse(schema)
 
 	p.mu.Lock()
 	val, ok := p.configVals[providerCacheKey(addr)]

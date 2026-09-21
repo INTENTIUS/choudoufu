@@ -722,6 +722,14 @@ type statelessRunner struct {
 	// through are closed, and the sweep's client is not one of them.
 	kubeSweepers map[string]kubesweep.Sweeper
 
+	// kubeDeletes is GitHub issue #1184's capture: the deletes this run's
+	// plan scheduled through a provider configuration kubeSweepers holds a
+	// client for, read by AfterPlan - the plan is drained as it applies, so
+	// AfterApply could not read them - and consumed by AfterApply, which
+	// asks each cluster which of them it only accepted. Nil for a plan with
+	// no such delete, which is what makes that check free.
+	kubeDeletes map[string]*kubernetesDeleteSet
+
 	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
 	// into view above. It selected only the renderer until
 	// the CollectUnclaimed ruling (#604); now
@@ -1510,6 +1518,15 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 // returning, since nothing after this point needs it.
 func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	// GitHub issue #1184: which of this run's Kubernetes deletes the
+	// cluster accepted and has not finished. One warning or nothing, never
+	// an error, and no request at all when the plan deleted nothing there.
+	// See live_apply_kubernetes_held.go.
+	if r.resolver != nil {
+		diags = diags.Append(statelessHeldKubernetesDeletes(ctx, r.kubeSweepers, r.kubeDeletes, r.resolver.Estate))
+	}
+
 	if len(r.untagTargets) == 0 {
 		return diags
 	}

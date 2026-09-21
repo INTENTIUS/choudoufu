@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,6 +53,14 @@ type Object struct {
 	// kind is filed under: NAMESPACE/NAME, or NAME for a cluster-scoped
 	// kind, for a built-in type; [ManifestImportID] for the manifest type.
 	ImportID string
+	// DeletionTimestamp is metadata.deletionTimestamp as RFC 3339, or
+	// empty for an object nobody has asked to go (GitHub issue #1184). Set,
+	// it means the API server accepted a delete and the object is held:
+	// by Finalizers, or for its grace period. A terminating object is still
+	// a live, labelled object, so the sweep lists it like any other.
+	DeletionTimestamp string
+	// Finalizers is metadata.finalizers, in the server's order.
+	Finalizers []string
 }
 
 // Sweeper is what discovery asks of a Kubernetes sweep, so a test can
@@ -106,6 +116,18 @@ type Client struct {
 	// failure can be reported against what was actually sent
 	// (GitHub issue #1114). Zero - Known false - for a [NewWith] client.
 	creds Credentials
+
+	// kindsMu guards the one remembered [Client.Kinds] answer. A client
+	// lives for one run, and the run asks the same question twice when an
+	// apply deleted something: once for the sweep before the plan, and
+	// once for the post-apply look at what those deletes left behind
+	// (GitHub issue #1184). The second ask is answered from here, so that
+	// look costs its lists and no second API discovery. Only a successful
+	// answer is kept, and only for the same arguments.
+	kindsMu   sync.Mutex
+	kindsKey  string
+	kindsVal  []Kind
+	kindsGaps []string
 }
 
 // New connects. Nothing is called until [Client.Kinds] or [Client.List].
@@ -142,6 +164,24 @@ func NewWith(disc discovery.DiscoveryInterface, dyn dynamic.Interface) *Client {
 // served at more than one version within a group is listed at the
 // group's preferred version only, since those are one resource.
 func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
+	memoKey := manifestType + "\x00" + strings.Join(typeNames, "\x00")
+	c.kindsMu.Lock()
+	if c.kindsKey == memoKey && c.kindsVal != nil {
+		kinds, unserved := append([]Kind(nil), c.kindsVal...), append([]string(nil), c.kindsGaps...)
+		c.kindsMu.Unlock()
+		return kinds, unserved, nil
+	}
+	c.kindsMu.Unlock()
+	kinds, unserved, err := c.kinds(ctx, typeNames, manifestType)
+	if err == nil {
+		c.kindsMu.Lock()
+		c.kindsKey, c.kindsVal, c.kindsGaps = memoKey, append([]Kind{}, kinds...), append([]string(nil), unserved...)
+		c.kindsMu.Unlock()
+	}
+	return kinds, unserved, err
+}
+
+func (c *Client) kinds(_ context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
 	var builtIn []string
 	for _, t := range typeNames {
 		if t != manifestType {
@@ -271,6 +311,10 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 			if k.Manifest {
 				o.ImportID = ManifestImportID(k.APIVersion, k.Kind, item.GetNamespace(), item.GetName())
 			}
+			if ts := item.GetDeletionTimestamp(); ts != nil {
+				o.DeletionTimestamp = ts.UTC().Format(time.RFC3339)
+			}
+			o.Finalizers = item.GetFinalizers()
 			items = append(items, o)
 		}
 		cont = ul.GetContinue()

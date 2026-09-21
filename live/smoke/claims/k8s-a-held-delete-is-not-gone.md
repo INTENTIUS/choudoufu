@@ -44,37 +44,60 @@ The steps, in the order they print:
 3. `the block is deleted from source` - the plan proposes exactly one
    destroy, found by the label.
 4. `apply - the run says destroyed, the cluster says terminating` - the run
-   prints `Destruction complete after 0s` and counts one destroyed; the
-   object is still there, with a `deletionTimestamp` and its label.
+   prints `Destruction complete after 0s` and counts one destroyed, then
+   warns `Delete accepted, object not gone`, naming `ConfigMap
+   smoke-k8s/held-config` and the finalizer holding it; the object is still
+   there, with a `deletionTimestamp` and its label.
 5. `the next plan - the sweep finds it again, by the same label` - the same
    one destroy, twice over, because that is what every plan says until the
    object is gone.
 6. `the finalizer clears - the object goes and the plan is empty`.
 7. `apply -destroy over a held object` - the run reports the estate
-   destroyed and exits 0 with one object still in the namespace; the plan
-   after it proposes exactly the one create that is genuinely missing, not
-   two.
+   destroyed and exits 0 with one object still in the namespace, and the
+   same warning names that one object and not the one that really went; the
+   plan after it proposes exactly the one create that is genuinely missing,
+   not two.
 8. `clear the hold and put the namespace back`.
 
 The `BREAK=1` run removes the finalizer just before the apply in step 3 and
-requires the opposite outcome: the object gone in one apply and the replan
-empty. Without that control the whole scenario would read the same if
+requires the opposite outcome: the object gone in one apply, no warning,
+and the replan empty. Without that control the whole scenario would read the same if
 choudoufu simply never deleted a ConfigMap, and the finalizer would be
 scenery.
 
-## The line that is not true, and why it is asserted anyway
+## The line that is not true, and the warning after it
 
 `Destruction complete after 0s` and `Resources: 0 added, 0 changed, 1
 destroyed` are the provider's word for "the API accepted the delete", not
-for "the object is gone". Stock prints the same line, so this is not a
-divergence from the oracle, but choudoufu is the one in a position to know
-better: the sweep that contradicts the summary runs on the very next plan.
-[#1184](https://github.com/INTENTIUS/choudoufu/issues/1184) is that gap.
-The scenario asserts the line verbatim because it is what a user sees;
-closing #1184 changes those assertions on purpose.
+for "the object is gone". Stock prints the same two lines, so they are left
+exactly as they are and the scenario asserts them verbatim, because they
+are what a user sees. choudoufu is the one in a position to know better,
+and since [#1184](https://github.com/INTENTIUS/choudoufu/issues/1184) it
+says so in the same run: after the apply, for each kind the run deleted
+anything of, it lists the estate's objects of that kind once by the
+`tofu-estate` label, and every object it deleted that is still there with a
+`deletionTimestamp` is named in one warning, with its finalizers:
 
-The promise this claim makes is about the run after it. The summary line is
-wrong for as long as the finalizer holds; the plan never is.
+```text
+Warning: Delete accepted, object not gone
+
+The API server accepted the delete of 1 object this run destroyed, and it
+is still in the cluster, terminating:
+
+  - ConfigMap smoke-k8s/held-config (kubernetes_config_map.orphan_smoke-k8s_held-config), finalizers: smoke.choudoufu.io/hold
+
+It stays until the controller that owns each finalizer removes it. This
+run's destroyed count includes it. It still carries the estate's label, so
+the next plan will propose destroying it again until it is gone.
+```
+
+It is a warning and the exit code is the apply's. A run that deleted
+nothing on the cluster makes no request for it. It is a Kubernetes check
+only: no AWS call is added, because no AWS listing this fork already makes
+reports an accepted, unfinished delete.
+
+The promise this claim makes is still about the run after it. The summary
+count is wrong for as long as the finalizer holds; the plan never is.
 
 ## What is not measured here
 

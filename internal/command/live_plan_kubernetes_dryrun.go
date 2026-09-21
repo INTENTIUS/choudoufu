@@ -242,6 +242,12 @@ func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 // printed above the plan by this run's view. A rejection is an error and
 // the backend stops with nothing rendered and nothing applied.
 func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
+	// GitHub issue #1184: the plan's Kubernetes deletes, kept for
+	// AfterApply. Read here because this is the last moment the plan still
+	// holds them; nothing is asked of any cluster until an apply has run.
+	if r.resolver != nil {
+		r.kubeDeletes = statelessKubernetesDeletes(r.kubeSweepers, plan, schemas, r.resolver.MarkerIndex)
+	}
 	evidence, diags := statelessKubernetesDryRun(ctx, r.kubeSweepers, config, plan, schemas)
 	if r.view != nil {
 		r.view.KubernetesDryRun(evidence)
