@@ -71,12 +71,42 @@ address by ruling, so a team that wants two boundaries makes two estates.
 
 ## What is exempt
 
-The control plane: nodes, the `kube-system` controllers, the scheduler and
-the API server itself, because kubelets write status and controllers write
-the copies a pod template makes. That is the whole exemption, and it is
-what keeps a ReplicaSet's Pods out of the fence: a Deployment whose pod
-template carries the label still gets its ReplicaSet and its Pods, which
-claim 23 measures.
+The control plane, by name: nodes (the `system:nodes` group), the API
+server (`system:apiserver`), the scheduler (`system:kube-scheduler`, which
+deletes Pods when it preempts), the kube-controller-manager under its own
+name (`system:kube-controller-manager`), and each of its controllers'
+ServiceAccounts in `kube-system` whose built-in role lets it create, update
+or delete an object: `deployment-controller`, `replicaset-controller`,
+`statefulset-controller`, `job-controller`, `endpointslice-controller`,
+`generic-garbage-collector`, `namespace-controller` and the rest of the
+list in the policy's first match condition. Controllers write the copies a
+template makes, remove finalizers, and delete what a parent's deletion
+leaves behind. That is the whole exemption, and it is what keeps a
+ReplicaSet's Pods out of the fence: a Deployment whose pod template
+carries the label still gets its ReplicaSet and its Pods, which claim 23
+measures. The list was checked against the `system:controller:` roles of
+Kubernetes 1.36 on kind. Controllers that write only a status or a scale
+(the horizontal pod autoscaler, the disruption controller) are not on it
+and do not need to be, because subresources never reach the policy.
+
+Living in `kube-system` exempts nothing
+([#1448](https://github.com/INTENTIUS/choudoufu/issues/1448)). Before that
+issue the policy skipped every ServiceAccount in `kube-system` and every
+username beginning `system:kube-`, so an add-on installed there held every
+estate. An add-on in `kube-system` (a CNI, a load balancer controller, a
+third-party operator) is now judged like any other caller. If it writes
+objects carrying a `tofu-estate` label, the API server refuses it and the
+refusal names its ServiceAccount, until it holds `use` on that estate. That
+is one binding, here for a ServiceAccount called NAME and the estate `app`:
+
+```
+sed -e 's/ESTATE/app/g' -e 's/PRINCIPAL_NAMESPACE/kube-system/g' -e 's/PRINCIPAL/NAME/g' \
+  live/kubernetes/estate-grant.yaml | kubectl apply -f -
+```
+
+Do not add it to the installed policy's list instead. The record store's
+`estate_boundary` assertion compares the installed CEL with the file this
+release ships and fails a cluster whose copy differs.
 
 Owned objects keep their estate ([#1449](https://github.com/INTENTIUS/choudoufu/issues/1449)).
 An object that already carries an `ownerReference` may be updated with no

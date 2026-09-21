@@ -356,10 +356,15 @@ rename within one estate has nothing to write on this surface and
 # the fence is write-only where an IAM condition can fence a describe. It
 # fences the object, not its subresources: a scale or a status write
 # arrives as a Scale or a status object carrying no label, and RBAC on
-# deployments/scale is the fence for those. The control plane is exempt
-# (nodes, the kube-system controllers, the scheduler and the API server
-# itself), which is what keeps a ReplicaSet's Pods out of the fence: the
-# copies a template makes are written by kube-system controllers.
+# deployments/scale is the fence for those. The control plane is exempt,
+# by name: nodes, the API server, the scheduler, and the controllers of
+# the kube-controller-manager that write objects. That is what keeps a
+# ReplicaSet's Pods out of the fence: the copies a template makes are
+# written by those controllers. Nothing else in kube-system is exempt
+# (#1448). An add-on installed there (a CNI, coredns, kube-proxy, a
+# third-party operator) and any other system:kube- name is judged like
+# every other caller, and one that writes labelled objects needs "use" on
+# that estate, one binding from live/kubernetes/estate-grant.yaml.
 #
 # Owned objects keep their estate (the ruling on #1449). An object that
 # already carries an ownerReference may be updated with no grant at all,
@@ -395,12 +400,59 @@ spec:
         - key: tofu-estate
           operator: Exists
   matchConditions:
+    # The control plane, by name. The list is the API server, the
+    # kube-controller-manager under its own name (the token controller
+    # always runs as it, and every controller does when
+    # --use-service-account-credentials is off), the scheduler (preemption
+    # deletes Pods), and each kube-controller-manager controller whose
+    # bootstrap ClusterRole or Role lets it create, update or delete an
+    # object, as opposed to a status or a scale. Kubelets come in by the
+    # system:nodes group. To extend it, add one name on one line, here in
+    # the repository, when a Kubernetes release adds such a controller. Do
+    # not add an add-on and do not edit the installed copy: the record
+    # store's estate_boundary assertion compares the installed CEL with
+    # this file and fails a cluster that differs. An add-on gets a binding
+    # from live/kubernetes/estate-grant.yaml instead.
     - name: not-the-control-plane
       expression: >-
         !('system:nodes' in request.userInfo.groups)
-        && !request.userInfo.username.startsWith('system:serviceaccount:kube-system:')
-        && !request.userInfo.username.startsWith('system:kube-')
-        && request.userInfo.username != 'system:apiserver'
+        && !(request.userInfo.username in [
+        'system:apiserver',
+        'system:kube-controller-manager',
+        'system:kube-scheduler',
+        'system:serviceaccount:kube-system:attachdetach-controller',
+        'system:serviceaccount:kube-system:bootstrap-signer',
+        'system:serviceaccount:kube-system:certificate-controller',
+        'system:serviceaccount:kube-system:clusterrole-aggregation-controller',
+        'system:serviceaccount:kube-system:cronjob-controller',
+        'system:serviceaccount:kube-system:daemon-set-controller',
+        'system:serviceaccount:kube-system:deployment-controller',
+        'system:serviceaccount:kube-system:device-taint-eviction-controller',
+        'system:serviceaccount:kube-system:endpoint-controller',
+        'system:serviceaccount:kube-system:endpointslice-controller',
+        'system:serviceaccount:kube-system:endpointslicemirroring-controller',
+        'system:serviceaccount:kube-system:ephemeral-volume-controller',
+        'system:serviceaccount:kube-system:expand-controller',
+        'system:serviceaccount:kube-system:generic-garbage-collector',
+        'system:serviceaccount:kube-system:job-controller',
+        'system:serviceaccount:kube-system:legacy-service-account-token-cleaner',
+        'system:serviceaccount:kube-system:namespace-controller',
+        'system:serviceaccount:kube-system:node-controller',
+        'system:serviceaccount:kube-system:persistent-volume-binder',
+        'system:serviceaccount:kube-system:pod-garbage-collector',
+        'system:serviceaccount:kube-system:pv-protection-controller',
+        'system:serviceaccount:kube-system:pvc-protection-controller',
+        'system:serviceaccount:kube-system:replicaset-controller',
+        'system:serviceaccount:kube-system:replication-controller',
+        'system:serviceaccount:kube-system:resource-claim-controller',
+        'system:serviceaccount:kube-system:root-ca-cert-publisher',
+        'system:serviceaccount:kube-system:service-cidrs-controller',
+        'system:serviceaccount:kube-system:statefulset-controller',
+        'system:serviceaccount:kube-system:token-cleaner',
+        'system:serviceaccount:kube-system:ttl-after-finished-controller',
+        'system:serviceaccount:kube-system:ttl-controller',
+        'system:serviceaccount:kube-system:volumeattributesclass-protection-controller'
+        ])
     - name: not-an-owned-object-keeping-its-estate
       expression: >-
         !(request.operation == 'UPDATE'
@@ -467,6 +519,15 @@ spec:
 # does not exempt a write that changes the label (#1449). An operator that
 # only updates a labelled object a controller already owns, and leaves its
 # tofu-estate label alone, needs nothing here.
+#
+# Living in kube-system exempts nothing (#1448). The policy exempts the
+# control plane by name: nodes, the API server, the scheduler and the
+# kube-controller-manager's own controllers. An add-on installed in
+# kube-system that writes labelled objects (a CNI, a load balancer
+# controller, a third-party operator) needs this grant like any other
+# principal, with PRINCIPAL_NAMESPACE set to kube-system. The refusal it
+# gets names it: "... and system:serviceaccount:kube-system:<name> is not
+# bound to it".
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -504,11 +565,18 @@ admin installs it and any cluster admin can remove it. The fence is also
 per estate, never per address, because the label carries no address; a
 team that wants two boundaries makes two estates.
 
-**What is exempt.** The control plane (`system:nodes`, the `kube-system`
-ServiceAccounts, `system:kube-*` and the API server itself), because
-kubelets write status and controllers write the copies a template makes.
-That is what keeps a ReplicaSet's Pods out of the fence, and it is
-measured in claim 23. Owned objects keep their estate (#1449): an object
+**What is exempt.** The control plane, by name (#1448): `system:nodes`,
+`system:apiserver`, `system:kube-scheduler`,
+`system:kube-controller-manager`, and the kube-controller-manager's own
+controller ServiceAccounts in `kube-system` that write objects, listed in
+the policy's first match condition. Controllers write the copies a
+template makes and delete what a parent leaves behind. That is what keeps
+a ReplicaSet's Pods out of the fence, and it is measured in claim 23. Any
+other ServiceAccount in `kube-system` (an add-on, a CNI, a third-party
+operator) and any other `system:kube-` username is judged like every
+caller, and needs `use` on an estate to write its labelled objects: one
+binding from `estate-grant.yaml` with `PRINCIPAL_NAMESPACE` set to
+`kube-system`. Owned objects keep their estate (#1449): an object
 carrying a non-empty `metadata.ownerReferences` may be updated with no
 grant while its `tofu-estate` label stays exactly as it was, so a
 third-party operator's status-like writes on a labelled child are let
