@@ -244,8 +244,13 @@ func TestKubernetesWritesTheEstateLabelAndTheAddressAnnotation(t *testing.T) {
 	const addr = "module.a.module.b.aws_instance.this[\"a-very-long-instance-key-that-is-well-past-a-label-value\"]"
 	ctx := WithObjectTags(context.Background(), map[string]string{
 		"tofu-address": addr,
-		// An estate tag from the context must never win over the store's own:
-		// an object can only ever name the estate the store was opened for.
+		// The LABEL below is the store's own estate and not this. That is all
+		// this case says, and it is less than it used to claim: the label is
+		// written from s.estate after the tag loop, so it reads "prod"
+		// whether or not buildSecret skips this key on the way into the
+		// ANNOTATIONS. The skip is pinned in
+		// TestKubernetesRecordSecretNeverAnnotatesAnotherEstate, where
+		// deleting it goes red (GitHub issue #1448, section F, M11).
 		"tofu-estate": "some-other-estate",
 	})
 	const key = "tofu-records/prod/aws_instance/one"
