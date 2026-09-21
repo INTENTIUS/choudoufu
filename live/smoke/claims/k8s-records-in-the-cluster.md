@@ -16,7 +16,10 @@ It is not the stock `backend "kubernetes"` holding the plan cache. That
 backend takes a coordination.k8s.io Lease per workspace, and a lock per
 estate is what [#1332](https://github.com/INTENTIUS/choudoufu/issues/1332)
 ruled out in favour of one conditional write per record. This store takes
-no Lease and has no lock of any kind.
+no Lease. Steps 3 and 10 measure that the way it can be measured from
+outside: after an apply killed with SIGKILL, and again after twelve
+contended writes, the records namespace holds no Lease and no object whose
+name contains `lock`.
 
 A record's Secret is named `tofu-record-` and the SHA-256 of its key. A
 record key carries `/` and base64url runs and is routinely past the 253
@@ -44,8 +47,9 @@ root run:
   just smoke k8s-records-in-the-cluster
 
 Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke k8s-records-in-the-cluster and explain why the three
-refusals become successes.
+BREAK=1 just smoke k8s-records-in-the-cluster and explain why the first two
+controls turn a refusal into a success while the third turns a success into
+a refusal.
 ```
 
 The ten steps. The first five measure the store, the next four measure
@@ -54,10 +58,11 @@ is claim 32 on this store.
 
 1. `the Store contract, against this cluster's own API server` - the
    conformance suite every record store is held to, run against kind. The
-   step fails if the suite skips, and fails if fewer than its 17 cases
-   ran: client-go's fake clientset assigns no `resourceVersion`, so every
-   version case would pass vacuously against a fake and none of it would
-   be evidence.
+   step fails if the suite skips, fails if `go test` matched no test at
+   all, and fails unless the number of cases that passed is exactly the 18
+   the suite has: client-go's fake clientset assigns no `resourceVersion`,
+   so every version case would pass vacuously against a fake and none of
+   it would be evidence.
 2. `a Kubernetes-only estate applies with no AWS credentials in the
    environment` - every `AWS_` variable unset, `AWS_CONFIG_FILE` and
    `AWS_SHARED_CREDENTIALS_FILE` pointed at `/dev/null`, IMDS disabled.
@@ -80,15 +85,19 @@ is claim 32 on this store.
    policy an estate already installs covers its records.
 
 6. `the cluster contract runs on an estate's first contact with the
-   cluster, and not on every plan` - the four assertions are facts about
-   the cluster, so they are asked once, on the run that created the
-   sentinel. The API server's own `apiserver_request_total` counter for
-   `selfsubjectaccessreviews` is the measurement: it moves on first
-   contact and does not move across the two plans after it. The scoped
-   identity cannot read three of the four - it cannot list kube-system's
-   Pods, cannot get a `ValidatingAdmissionPolicy`, and cannot list the
-   namespaces the other estates keep records in - and says so by name on
-   every run rather than reporting them as passes.
+   cluster, and not on every plan` - the four assertions are asked on an
+   estate's first contact with the store, which is the run that creates
+   the sentinel, and again before every apply, because an apply is the run
+   that writes records. An ordinary plan asks none of them. Two
+   measurements say so. The API server's own `apiserver_request_total`
+   counter for `selfsubjectaccessreviews` moves on first contact and does
+   not move across the two plans after it, and a failed read of that
+   counter fails the step rather than counting zero. The plans' own output
+   is the second: the scoped identity cannot read three of the four - it
+   cannot list kube-system's Pods, cannot get a
+   `ValidatingAdmissionPolicy`, and cannot list the namespaces the other
+   estates keep records in - so the run that asks them names all three,
+   and the two plans name none, because they asked nothing.
 7. `each assertion refuses by name, on this cluster, for its own reason` -
    `choudoufu live-cluster` asks the same four questions without running
    a plan and without writing anything. kind supplies two of the
@@ -146,7 +155,7 @@ are encrypted at rest is an API server flag naming a file that is not an
 API object, so a set flag is NOT CHECKED at any permission level and only
 a missing one is a refusal; reading the estate boundary policy needs
 cluster-scoped `get`; and finding the other estates' records means listing
-namespaces. A run says each of them on every run, by name, and never calls
+namespaces. Every run that asks them names each of them and never calls
 one a pass; `choudoufu live-cluster`, run by an identity that holds those
 reads, answers what can be answered and exits non-zero until it is.
 
