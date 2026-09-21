@@ -34,7 +34,7 @@ func failingBucket() []staterecord.Finding {
 
 func failingCluster() []staterecord.Finding {
 	var out []staterecord.Finding
-	for _, setting := range staterecord.ClusterSettings {
+	for _, setting := range clusterSettingsAlwaysReported() {
 		f := staterecord.Finding{Setting: setting, Outcome: staterecord.Passed, Found: "fine"}
 		if setting == staterecord.ClusterEstateBoundary {
 			f = staterecord.Finding{Setting: setting, Found: `no ValidatingAdmissionPolicy named "choudoufu-estate-boundary" is installed`}
@@ -61,7 +61,7 @@ func fencedOpen() recordStoreOpener {
 
 func passingCluster() []staterecord.Finding {
 	var out []staterecord.Finding
-	for _, setting := range staterecord.ClusterSettings {
+	for _, setting := range clusterSettingsAlwaysReported() {
 		out = append(out, staterecord.Finding{Setting: setting, Outcome: staterecord.Passed, Found: "fine"})
 	}
 	return out

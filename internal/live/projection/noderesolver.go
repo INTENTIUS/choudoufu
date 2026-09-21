@@ -167,6 +167,13 @@ type NodeResolver struct {
 	// hand-written marker value anywhere else, and untag is not an
 	// exception").
 	PolicyUntag map[string]string
+
+	// releases collects which of PolicyUntag's instances the writer
+	// actually released a key from, during the walk (GitHub issue #1002).
+	// Read it through [NodeResolver.UntagReleases]. It holds a mutex, so a
+	// NodeResolver is passed by pointer and never copied - which every
+	// construction site already did.
+	releases untagReleases
 }
 
 // NewMarkerIndex builds a [NodeResolver.MarkerIndex] from a discovery

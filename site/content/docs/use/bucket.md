@@ -32,10 +32,10 @@ choudoufu refuses a bucket that fails one of these.
 | A lifecycle rule expires noncurrent versions, and none expires current objects | Without the first the bucket keeps every version forever. The second would delete your records on a timer |
 | Public-access block is fully on | Records hold secrets by default |
 
-They are checked on an estate's first run against the bucket, before every
-apply, and whenever you run `live-bucket`. They are not checked on an
-ordinary plan. `allow_insecure = ["lifecycle"]` waives a setting by name, and
-every run under a waiver says so.
+They are checked on an estate's first run against the bucket, before any run
+that writes a record, and whenever you run `live-bucket`. They are not checked
+on an ordinary plan. `allow_insecure = ["lifecycle"]` waives a setting by
+name, and every run under a waiver says so.
 
 Encryption is not a fourth setting, because S3 encrypts every object by
 default and every SSE flavour works. A key of your own adds a second gate on

@@ -341,8 +341,11 @@ type StatelessPolicyWithheld struct {
 	Withheld    string
 }
 
-// StatelessUntagged is one resource block a declared_tagged = "untag" verb
-// released a tag key from - stamp.Untagged, in this package's own shape.
+// StatelessUntagged is one resource instance a declared_tagged = "untag"
+// verb released a tag key from - projection.UntagRelease, in this package's
+// own shape. Per instance, not per block: the node writer decides each
+// instance on its own, so a count or for_each block can have some instances
+// here and some not (GitHub issue #1002).
 type StatelessUntagged struct {
 	Addr         string
 	Key          string
@@ -459,10 +462,24 @@ const (
 	// on: [statelessBoundReport in package command] classifies by the
 	// pre-sweep identity.ClassNeedsDiscovery set, which is the only thing
 	// left once binding has rewritten the resolution. An instance the
-	// sweep did not manage to bind - a real account's tag index lags a
-	// write by minutes - can still be materialized from its record by
-	// GitHub issue #364's record-first read and reach a reader here. The
-	// [LivePlanBound.Identity] such a row carries is the record's, and
+	// sweep did not bind can still be materialized from its record by
+	// GitHub issue #364's record-first read and reach a reader here.
+	//
+	// GitHub issue #1014 measured how common that is: it is the ORDINARY
+	// case, and a lagging tag index is only the rare one. Every
+	// marker-governed instance an apply has written an identity record for
+	// is taken out of the sweep's binding demand before the sweep runs
+	// (edge 3 of GitHub issue #388's plan-node seam,
+	// discovery.Request.RecordBackedAddrs, on unless
+	// CHOUDOUFU_NODE_RESOLVE=0), so from the first plan after an apply
+	// onwards the record locates the object and the marker on the object
+	// the projection reads back is what verifies it
+	// (internal/live/projection's checkOwnership, recordFirst). "marker" on
+	// such a row is therefore true of what governs the instance and of
+	// what the binding was checked against, and approximate about what
+	// found it.
+	//
+	// The [LivePlanBound.Identity] such a row carries is the record's, and
 	// names the same live object either way; only the provenance this
 	// value states is approximate. GitHub issue #967 found it while
 	// fixing the identity and deliberately did not move it: narrowing
@@ -1469,7 +1486,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 
 	if len(rep.Untagged) > 0 {
 		colored("\n[reset][bold]Policy untag: %d resource %s releasing a tag[reset]\n\n",
-			len(rep.Untagged), noun(len(rep.Untagged), "block", "blocks"))
+			len(rep.Untagged), noun(len(rep.Untagged), "instance", "instances"))
 		wrapped(statelessUntaggedIntro, 0)
 		out("\n")
 		for _, u := range rep.Untagged {

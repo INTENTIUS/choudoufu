@@ -192,7 +192,10 @@ const (
 // here. Passing verified=true (own.verified(addr)) without also checking
 // declared would read an orphan as declared_tagged and hand it a
 // declared-quadrant verb it was never assigned - see
-// TestOwnershipPolicy_ReconcileCandidateIsNotDeclaredTagged.
+// TestOwnershipPolicy_ReconcileCandidateIsNotDeclaredTagged. The same holds
+// for an undeclared instance that is NOT verified and so reaches the tag
+// read: it is never handed a declared-quadrant verb either (GitHub issue
+// #1226, and the comment at the verb lookup below).
 //
 // recordFirst is GitHub issue #364 unit B's addition: true when the
 // identity being checked came from [builder.materializeFromRecord]'s
@@ -361,8 +364,35 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		}
 	}
 
-	verb := own.Policy.Verb(true, tagged)
-	nonDefault := verb != policy.DefaultVerb[quadrantFor(tagged)]
+	// GitHub issue #1226. The verb is a DECLARED quadrant's verb, so it is
+	// asked for only when the instance is declared. The first argument here
+	// was the literal true, which read every instance that got this far as
+	// declared whatever the caller had said, and handed an undeclared one
+	// declared_untagged's "adopt" or declared_tagged's "untag" - the hazard
+	// the own.verified case above already guards, on the path that case does
+	// not cover.
+	//
+	// An undeclared instance gets no verb from this function at all, rather
+	// than Verb(false, tagged). Neither undeclared quadrant has a verb that
+	// means anything here ([policy.ValidVerbs]): none admits, and the two
+	// that act - undeclared_tagged's delete and untag, undeclared_untagged's
+	// scoped delete - are internal/live/discovery's, decided before the
+	// resolution ever reached the projection (applyOrphanPolicy, and the
+	// reconcile pass's threshold guard, whose candidates arrive vouched
+	// through [Ownership.Verified]). So the verdict for an undeclared
+	// instance is the marker's alone: carrying this estate's marker and its
+	// own address it is admitted, which is what makes it destroyable, and
+	// carrying none it is foreign - live/MARKERS.md, "Ownership semantics":
+	// "reported, protected, and never auto-deleted". Admitting that one is
+	// the opposite of protecting it, because an instance with no resource
+	// block can only ever be planned as a destroy. No [PolicyOutcome] is
+	// recorded either way: that type is a declared instance's by definition.
+	var verb policy.Verb
+	nonDefault := false
+	if declared {
+		verb = own.Policy.Verb(declared, tagged)
+		nonDefault = verb != policy.DefaultVerb[policy.QuadrantOf(declared, tagged)]
+	}
 	if nonDefault {
 		switch verb {
 		case policy.Converge, policy.Adopt, policy.Untag:
@@ -401,6 +431,15 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		detail = fmt.Sprintf(
 			"A live %s exists with identity %q, and this run has no estate name, so there is nothing to check its ownership marker against. Pass -estate=<name>, or name the estate in the live block, and re-run. See live/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID)
+	case !declared:
+		// Foreign, not declared_untagged (#1226). The two wordings below
+		// both speak of "the resource this configuration declares" and
+		// offer policy { declared_untagged = "adopt" }; neither is true of
+		// an instance with no resource block, and the second would send an
+		// operator to a verb that does not reach this object.
+		detail = fmt.Sprintf(
+			"A live %s with identity %q carries no %s marker and nothing in this configuration declares %s, so it was left out of the prior state and this plan does not touch it. policy { declared_untagged } does not apply to a resource the configuration does not declare. To manage it, add a resource block for it and re-run.",
+			typeName, importID, markers.TagEstate, addr)
 	case estate == "" && !surface.carriesAddress():
 		// The Kubernetes wording. Same quadrant, same verdict, same two
 		// ways out; what differs is that the marker to write is one
@@ -572,14 +611,6 @@ func (b *builder) addressNames(addr addrs.AbsResourceInstance, typeName, importI
 		), fmt.Sprintf("the live %s at its identity carries another address's %s marker.", typeName, markers.TagAddress), false
 	}
 	return "", "", true
-}
-
-// quadrantFor is the declared-side quadrant one "tagged" reading names.
-func quadrantFor(tagged bool) policy.Quadrant {
-	if tagged {
-		return policy.DeclaredTagged
-	}
-	return policy.DeclaredUntagged
 }
 
 // SummaryStaleRecord is the summary [builder.recordStale]'s diagnostic

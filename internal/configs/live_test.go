@@ -7,6 +7,7 @@ package configs
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -573,6 +574,26 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 	})
 
+	// GitHub issue #1448, section C. `insecure = true` is a contract finding
+	// named tls_verification, so the waiver list has to accept that name. The
+	// misspelling beside it is in TestModule_liveRecordStoreRefused.
+	t.Run("kubernetes with insecure waived", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes-insecure-waived")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if !rs.Kubernetes.Insecure {
+			t.Error("Insecure = false for a block that set it to true")
+		}
+		if got, want := rs.AllowInsecure, []string{"tls_verification"}; !slices.Equal(got, want) {
+			t.Errorf("AllowInsecure = %v, want %v", got, want)
+		}
+	})
+
 	// GitHub issue #1381. A bucket name is global: a name that is free can be
 	// taken by anyone, in any account, so the name alone does not say whose
 	// bucket this is.
@@ -783,7 +804,7 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		// GitHub issue #1393. Both remote backends take allow_insecure, with
 		// their own names, so a bucket setting named on a cluster store is
 		// refused rather than read as waiving something.
-		{"testdata/invalid-files/live-record-store-allow-insecure-bucket-name-on-kubernetes.tf", `Valid names are "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-bucket-name-on-kubernetes.tf", `Valid names are "tls_verification", "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"`},
 		// GitHub issue #1381. An account ID that is not twelve digits would
 		// go on the wire as ExpectedBucketOwner and be refused by S3 on
 		// every request, with nothing saying the configuration is why.
@@ -794,6 +815,9 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		// bucket's are refused on each other's backend, both directions, so a
 		// block that names both is told which one this store does not have
 		// rather than silently ignoring half of what was written.
+		// #1448: the name tls_verification joined the list, and a near miss is
+		// still refused by name rather than waiving nothing in silence.
+		{"testdata/invalid-files/live-record-store-allow-insecure-unknown-on-kubernetes.tf", `names "tls_verify", which is not something record_store "kubernetes" asserts`},
 		{"testdata/invalid-files/live-record-store-kubernetes-bucket.tf", `has no meaning for record_store "kubernetes"`},
 		{"testdata/invalid-files/live-record-store-kubernetes-region.tf", `has no meaning for record_store "kubernetes"`},
 		{"testdata/invalid-files/live-record-store-namespace-on-s3.tf", `has no meaning for record_store "s3"`},
