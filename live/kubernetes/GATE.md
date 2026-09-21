@@ -73,11 +73,26 @@ address by ruling, so a team that wants two boundaries makes two estates.
 
 The control plane: nodes, the `kube-system` controllers, the scheduler and
 the API server itself, because kubelets write status and controllers write
-the copies a pod template makes. And any object carrying an
-`ownerReference`, because a controller made it from a template. That
-second exemption is the same rule the estate sweep excludes by
-([Operate](https://intentius.io/choudoufu/kubernetes/operate/)), so the fence and the
-sweep agree on what an estate contains.
+the copies a pod template makes. That is the whole exemption, and it is
+what keeps a ReplicaSet's Pods out of the fence: a Deployment whose pod
+template carries the label still gets its ReplicaSet and its Pods, which
+claim 23 measures.
+
+Owned objects keep their estate ([#1449](https://github.com/INTENTIUS/choudoufu/issues/1449)).
+An object that already carries an `ownerReference` may be updated with no
+grant at all while its `tofu-estate` label stays exactly as it was, which
+is what a third-party operator's status-like writes on a labelled child
+need. Changing that label, stripping it, deleting the object or creating a
+new labelled one needs `use` on every estate involved, owner or no owner.
+Until #1449 the policy skipped any object with an `ownerReference`
+outright, and `ownerReferences` is a field the caller writes, so one
+estate's identity could add an owner to its own object and then relabel it
+into an estate it was never granted. An operator that creates labelled
+children of its own (cert-manager, an ingress controller) needs `use` on
+that estate: one ClusterRoleBinding from
+`live/kubernetes/estate-grant.yaml`. The estate sweep still excludes owned
+objects ([Operate](https://intentius.io/choudoufu/kubernetes/operate/)), so
+what the fence now judges is wider than what the sweep discovers.
 
 Kyverno and Gatekeeper could express the same policy. Neither has been
 verified for this.
