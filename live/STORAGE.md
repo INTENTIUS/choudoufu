@@ -196,6 +196,21 @@ by the label it is missing. A record Secret that lost `tofu-estate` or
 claims, and two that claim one key are each refused by name with the `kubectl`
 line that settles them, rather than left out of the listing.
 
+A Secret under the wrong name is moved by copying it to the right one, and the
+refusal names both the Secret it found and the name that record's key hashes
+to. With `<namespace>`, `<misnamed>` and `<hashed-name>` read off it:
+
+```
+kubectl -n <namespace> get secret <misnamed> -o json \
+  | jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp)
+        | .metadata.name = "<hashed-name>"' \
+  | kubectl create -f -
+kubectl -n <namespace> delete secret <misnamed>
+```
+
+That needs `jq`, which is why the refusal names this file instead of carrying
+the pipeline.
+
 Anyone who can `get secrets` in the records namespace reads every recorded
 value, the same bargain `s3:GetObject` on the bucket makes.
 
