@@ -358,9 +358,22 @@ rename within one estate has nothing to write on this surface and
 # arrives as a Scale or a status object carrying no label, and RBAC on
 # deployments/scale is the fence for those. The control plane is exempt
 # (nodes, the kube-system controllers, the scheduler and the API server
-# itself), and so is any object carrying an ownerReference: a controller
-# made it from a template, and the estate sweep excludes it by the same
-# rule, so the fence and the sweep agree on what an estate contains.
+# itself), which is what keeps a ReplicaSet's Pods out of the fence: the
+# copies a template makes are written by kube-system controllers.
+#
+# Owned objects keep their estate (the ruling on #1449). An object that
+# already carries an ownerReference may be updated with no grant at all,
+# as long as the write leaves its tofu-estate label exactly as it found
+# it, which is what a third-party operator's status-like writes on a
+# labelled child need. Changing that label, stripping it, deleting the
+# object or creating a new labelled one needs "use" on every estate
+# involved, owner or no owner. The earlier rule skipped the whole policy
+# for any object with an ownerReference, and ownerReferences is a field
+# the caller writes: an identity holding one estate could add an owner to
+# its own object and then relabel it into an estate it was never granted,
+# or create an object already labelled and already owned. An operator
+# that creates labelled children of its own therefore needs "use" on that
+# estate, one binding from live/kubernetes/estate-grant.yaml.
 #
 #   kubectl apply -f live/kubernetes/estate-boundary.yaml
 #
@@ -388,9 +401,12 @@ spec:
         && !request.userInfo.username.startsWith('system:serviceaccount:kube-system:')
         && !request.userInfo.username.startsWith('system:kube-')
         && request.userInfo.username != 'system:apiserver'
-    - name: not-a-controllers-object
+    - name: not-an-owned-object-keeping-its-estate
       expression: >-
-        (oldObject == null ? object : oldObject).?metadata.?ownerReferences.orValue([]).size() == 0
+        !(request.operation == 'UPDATE'
+        && oldObject.?metadata.?ownerReferences.orValue([]).size() > 0
+        && oldObject.?metadata.?labels[?'tofu-estate'].orValue('')
+        == object.?metadata.?labels[?'tofu-estate'].orValue(''))
   variables:
     - name: oldEstate
       expression: >-
@@ -444,6 +460,13 @@ spec:
 # for the kinds its estate declares (create, update, patch, delete) and
 # list on every kind the estate sweep asks for; the estate label is what
 # the fence reads, and RBAC alone cannot read it.
+#
+# A third-party operator that creates objects carrying an estate's label
+# (cert-manager, an ingress controller) needs this same grant for that
+# estate, one binding: an ownerReference does not exempt a create, and it
+# does not exempt a write that changes the label (#1449). An operator that
+# only updates a labelled object a controller already owns, and leaves its
+# tofu-estate label alone, needs nothing here.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -483,11 +506,17 @@ team that wants two boundaries makes two estates.
 
 **What is exempt.** The control plane (`system:nodes`, the `kube-system`
 ServiceAccounts, `system:kube-*` and the API server itself), because
-kubelets write status and controllers write the copies a template makes;
-and any object carrying a non-empty `metadata.ownerReferences`, because a
-controller made it from a template. That second exemption is the same
-rule the estate sweep excludes by, so the fence and the sweep agree on
-what an estate contains. A `cluster-admin`'s wildcard rule matches the
+kubelets write status and controllers write the copies a template makes.
+That is what keeps a ReplicaSet's Pods out of the fence, and it is
+measured in claim 23. Owned objects keep their estate (#1449): an object
+carrying a non-empty `metadata.ownerReferences` may be updated with no
+grant while its `tofu-estate` label stays exactly as it was, so a
+third-party operator's status-like writes on a labelled child are let
+through. Changing the label, stripping it, deleting the object or
+creating a new labelled one needs `use` on every estate involved, owner
+or no owner, because `ownerReferences` is a field the caller writes. An
+operator that creates labelled children of its own needs `use` on that
+estate, one binding. A `cluster-admin`'s wildcard rule matches the
 virtual resource, so `cluster-admin` holds every estate, the way the
 account root does on AWS.
 
