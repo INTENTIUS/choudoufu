@@ -101,7 +101,11 @@
 //     can fence a read. The store does not create it: an absent namespace is
 //     refused by name ([NamespaceMissingError]) with the kubectl line, which
 //     it has to be, because a list in a namespace that does not exist answers
-//     EMPTY and an empty listing reads as an empty estate.
+//     EMPTY and an empty listing reads as an empty estate. A READ cannot tell
+//     that from what it is told - the 404 names the Secret - so a read that
+//     would answer "nothing here" asks about the namespace itself, and an
+//     identity that may not ask is answered one layer up, by the caller's own
+//     provisioning sentinel (#1448).
 //  3. The estate is a LABEL and the address is an ANNOTATION. tofu-estate has
 //     to be a label because live/kubernetes/estate-boundary.yaml selects on
 //     it, which is what fences a write to a record object with no policy
