@@ -438,7 +438,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		// an instance with no resource block, and the second would send an
 		// operator to a verb that does not reach this object.
 		detail = fmt.Sprintf(
-			"A live %s exists with identity %q and carries no %s marker, and nothing in this configuration declares %s. It is foreign: no estate owns it, so it was left out of the prior state and nothing in this plan reads, changes or destroys it. The ownership policy's declared_untagged verb does not apply to it, because that quadrant is for resources this configuration declares. To manage it, declare it: a declared resource with no marker is what that quadrant is about, and its own message names the ways to adopt one. See live/MARKERS.md, \"Ownership semantics\".",
+			"A live %s with identity %q carries no %s marker and nothing in this configuration declares %s, so it was left out of the prior state and this plan does not touch it. policy { declared_untagged } does not apply to a resource the configuration does not declare. To manage it, add a resource block for it and re-run.",
 			typeName, importID, markers.TagEstate, addr)
 	case estate == "" && !surface.carriesAddress():
 		// The Kubernetes wording. Same quadrant, same verdict, same two
