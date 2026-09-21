@@ -56,6 +56,17 @@ func IsAccessDenied(err error) bool {
 	if errors.As(err, &denied) || errors.As(err, &unusable) {
 		return false
 	}
+	// An admission denial is deliberately NOT one of these either, for the
+	// reason the KMS refusals are not. It is a 403 the cluster's own policy
+	// raised about a write the authorizer had already allowed, so a caller
+	// that read it as "this identity may read but not write" would carry on
+	// with a store that will refuse every record it writes. GitHub issue
+	// #1448 measured that on kind: the fenced identity opened the store
+	// green and was refused mid-apply. See [AdmissionDeniedError].
+	var admission *AdmissionDeniedError
+	if errors.As(err, &admission) {
+		return false
+	}
 	if accessDenied(err) {
 		return true
 	}

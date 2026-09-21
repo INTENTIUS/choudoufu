@@ -16,6 +16,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
@@ -105,6 +106,13 @@ type KubernetesStore struct {
 	// than putting a refused call in front of every read that answers
 	// "nothing here".
 	namespaceUnaskable atomic.Bool
+
+	// writeAuthz remembers what the API server's authorizer said about each
+	// write verb and object name this run asked about, so a refused
+	// write-back asks once rather than once per record. Keys are
+	// verb + "\x00" + name, values are authzAnswer. See
+	// [KubernetesStore.authorizerAllowsWrite].
+	writeAuthz sync.Map
 }
 
 // KubernetesConfig configures a [KubernetesStore].
@@ -722,7 +730,7 @@ func (s *KubernetesStore) PutIfVersion(ctx context.Context, key string, payload 
 			if k8serrors.IsAlreadyExists(createErr) {
 				return "", s.conflictError(ctx, key, "", createErr)
 			}
-			return "", s.classify("creating", key, createErr)
+			return "", s.classifyWrite(ctx, "creating", admissionVerbCreate, key, createErr)
 		}
 		return out.ResourceVersion, nil
 	}
@@ -746,7 +754,7 @@ func (s *KubernetesStore) PutIfVersion(ctx context.Context, key string, payload 
 		if k8serrors.IsNotFound(updateErr) && !notFoundIsNamespace(updateErr) {
 			return "", s.conflictError(ctx, key, expectedVersion, updateErr)
 		}
-		return "", s.classify("writing", key, updateErr)
+		return "", s.classifyWrite(ctx, "writing", admissionVerbUpdate, key, updateErr)
 	}
 	return out.ResourceVersion, nil
 }
@@ -781,7 +789,7 @@ func (s *KubernetesStore) Delete(ctx context.Context, key string, expectedVersio
 			// the store's. Same case as the update above.
 			return s.conflictError(ctx, key, expectedVersion, err)
 		}
-		return s.classify("deleting", key, err)
+		return s.classifyWrite(ctx, "deleting", admissionVerbDelete, key, err)
 	}
 	return nil
 }
