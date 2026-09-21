@@ -52,20 +52,20 @@ record_store "s3" {
 }
 ```
 
-All three give the same guarantees, and a run cannot tell them apart.
+All three give the same guarantees; a run cannot tell them apart.
 
 Every write is conditional. A create succeeds only if the record does not
 exist, and an update or a delete only if the record still has the version the
-writer read. A losing writer gets a named conflict and changes nothing.
-Nothing is locked, so a crashed run leaves nothing held.
+writer read. A losing writer gets a named conflict and changes nothing. The
+remote stores lock nothing, so a crashed run leaves nothing held; the `local`
+store takes a lock file for one write.
 [Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the cases.
 
-A run reads its estate's records whole before it plans, and the read is
-complete or the run fails. A store that errors partway never reaches the plan
-as a smaller estate.
+A run reads its estate's records whole before it plans: the read is complete
+or the run fails, never a smaller estate.
 
 Each record is its own object, tagged or labelled with the estate's name the
-way a managed resource is. One bucket or one cluster serves any number of
+way a managed resource is. One bucket or cluster serves any number of
 estates, and your IAM or RBAC decides who reads which.
 
 ## It holds secrets

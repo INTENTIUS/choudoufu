@@ -259,9 +259,11 @@ type clusterContractCheckingStore struct {
 	staterecord.Store
 	findings []staterecord.Finding
 	err      error
+	checks   int
 }
 
 func (s *clusterContractCheckingStore) CheckContract(context.Context, staterecord.ContractOptions) ([]staterecord.Finding, error) {
+	s.checks++
 	return s.findings, s.err
 }
 

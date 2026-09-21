@@ -54,9 +54,9 @@ has the measurements.
 ## The live configuration
 
 Two places to write it, one dialect. The leading form is the sidecar
-`estate.chdf.hcl` at the configuration root. Its body is the live configuration
-itself, and since the extension is not `.tf`, stock tooling never parses it:
-OpenTofu and Terraform skip it, and so do fmt and linters.
+`estate.chdf.hcl` at the configuration root. Its extension is not `.tf`, so
+stock tooling never parses it: OpenTofu, Terraform, fmt and linters all skip
+it.
 
 ```hcl
 # estate.chdf.hcl
@@ -67,62 +67,63 @@ record_store "s3" {
 }
 ```
 
-The same content may live in a `live` block inside `terraform`. Both forms are
-supported. Both present at once is an error naming the file and the block. A
-`backend` or `cloud` block alongside either is refused in the decoder, before
-any command runs.
+The same content may live in a `live` block inside `terraform`. Both forms
+are supported; both present at once is an error naming the file and the
+block. A `backend` or `cloud` block alongside either is refused in the
+decoder, before any command runs.
 
 ### Arguments
 
 | Argument | Meaning |
 |---|---|
-| `estate` | The estate this configuration owns, the value the `tofu-estate` marker carries. Deliberately a literal string, because a name assembled from variables could differ between plan and apply, and the estate name is an identity rather than a computed value. Optional. Omitted, the name derives from the markers this configuration stamps. |
-| `reads` | `"selective"` (the default) or `"full"`. Selective lets a `-refresh=false` run serve vouched, unchanged instances from the state cache, skipping their wire reads outright; full makes every plan pay every read regardless of flags - the estate-level off switch. `CHOUDOUFU_READS` overrides per run. Default plans read fully either way: drift detection never depends on this setting. |
+| `estate` | The estate this configuration owns, the value the `tofu-estate` marker carries. A literal string, not an expression: a name assembled from variables could differ between plan and apply. Optional; omitted, it derives from the markers this configuration stamps. |
+| `reads` | `"selective"` (the default) or `"full"`. Selective lets a `-refresh=false` run serve vouched, unchanged instances from the state cache; full makes every plan pay every read whatever the flags. `CHOUDOUFU_READS` overrides per run. Default plans read fully either way: drift detection never depends on this setting. |
 
-`snapshots` and `snapshot_path` are tombstones. The observational-snapshot
-subsystem they configured was removed, and setting either errors with what
-replaced it. Guided discovery's hint now rides the `record_store`.
+`snapshots` and `snapshot_path` are tombstones: the subsystem they configured
+was removed, and setting either errors with what replaced it. Guided
+discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
 One label picks the backend: `"local"`, `"s3"` or `"kubernetes"`. Every
-estate has a store, and a `live` block that names none gets the local one.
+estate has a store; a `live` block naming none gets the local one.
 [Where things are stored]({{< relref "/docs/use/storage" >}}) has the rest.
 
 | Argument | Applies to | Meaning |
 |---|---|---|
 | `path` | `local` | Directory for the records, relative to the module. |
 | `bucket` | `s3` | The bucket holding the records. |
-| `key_prefix` | `s3` | Namespace for this estate's records, in place of `tofu-records/<estate>/`. It may not begin with a reserved root (`tofu-receipts`, `tofu-hints`, `tofu-outputs`, `tofu-located`, `tofu-residue`, `tofu-provisioned`). |
-| `region` | `s3` | Region of the bucket. Unset, the AWS SDK's own default-configuration chain decides. |
-| `bucket_owner` | `s3` | The twelve-digit AWS account that must own the bucket. Every S3 call carries it as `ExpectedBucketOwner`, so a bucket of the same name in another account is refused. |
-| `allow_insecure` | `s3` | A list naming the bucket settings this estate proceeds without: any of `"versioning"`, `"lifecycle"`, `"public_access_block"`. Never a boolean. Each waiver is announced on every run with what it costs. [The three settings]({{< relref "/docs/use/bucket" >}}) has the costs. |
+| `key_prefix` | `s3`, `kubernetes` | Namespace for this estate's records, in place of `tofu-records/<estate>/`. It may not begin with a reserved root (`tofu-receipts`, `tofu-hints`, `tofu-outputs`, `tofu-located`, `tofu-residue`, `tofu-provisioned`). |
+| `region` | `s3` | Region of the bucket. Unset, the AWS SDK's default-configuration chain decides. |
+| `bucket_owner` | `s3` | The twelve-digit AWS account that must own the bucket. Every S3 call carries it as `ExpectedBucketOwner`, so a same-named bucket in another account is refused. |
+| `namespace` | `kubernetes` | Namespace holding this estate's record Secrets. Defaults to `tofu-records-<estate>`. The store does not create it. |
+| connection | `kubernetes` | How to reach the cluster: `host`, `token`, `config_path`, `config_context` and the rest, plus an `exec` block, spelled as stock's `kubernetes` backend spells them. |
+| `allow_insecure` | `s3`, `kubernetes` | A list naming the assertions this estate proceeds without. On `s3`, any of `"versioning"`, `"lifecycle"`, `"public_access_block"`; on `kubernetes`, any of `"namespace_access"`, `"read_isolation"`, `"encryption_at_rest"`, `"estate_boundary"`. Never a boolean. Each waiver is announced on every run with what it costs. [The three settings]({{< relref "/docs/use/bucket" >}}) has the bucket's. |
 
 ### `policy` block
 
 The ownership matrix. One verb per quadrant of declared-or-not against
 tagged-or-not, plus marker key overrides and the delete guard.
-[The ownership policy matrix]({{< relref "/docs/use/ownership-policy" >}}) has the verbs, defaults and reasoning. The
-arguments follow.
+[The ownership policy matrix]({{< relref "/docs/use/ownership-policy" >}}) has the verbs, defaults and reasoning.
 
 | Argument | Meaning |
 |---|---|
 | `declared_tagged`, `declared_untagged`, `undeclared_tagged`, `undeclared_untagged` | The verb for each quadrant. "Untagged" means carrying no estate marker at all; an object marked for another estate is outside all four. |
 | `tag_key`, `tag_value` | Override the marker tag names. |
-| `threshold` | Guard for a delete quadrant. The run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number, and lint refuses zero. |
+| `threshold` | Guard for a delete quadrant: the run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number; lint refuses zero. |
 
 The `undeclared_untagged = "delete"` quadrant reconciles a whole account and
-requires a nested `scope` block bounding what a sweep may touch, through
-`services`, `types` and `regions`, each a list. Other delete verbs need none,
-including `undeclared_tagged`'s default estate-scoped sweep.
+needs a nested `scope` block bounding the sweep, through `services`, `types`
+and `regions`, each a list. Other delete verbs need none, including
+`undeclared_tagged`'s estate-scoped sweep.
 
 ### `strict` block
 
-The principles this fork exists for, each as a toggle whose default is
-today's behavior. A configuration with no `strict` block, and one whose
-`strict` block sets nothing, behave identically: that is what makes
-"compatible out of the box" true by construction rather than by review.
-Turning a toggle on is the setup step.
+The principles this fork exists for, each as a toggle whose default is what
+stock OpenTofu does, so an estate that sets none behaves like stock plus
+markers. A configuration with no `strict` block behaves exactly like one
+whose `strict` block sets nothing, which makes "compatible out of the box"
+true by construction. Turning a toggle on is the setup step.
 
 <!-- toggles-gen:begin strict-toggles -->
 | Argument | Values | Default | Meaning |
@@ -133,31 +134,29 @@ Turning a toggle on is the setup step.
 | `provider_change` | `"refuse"`, `"recreate"` | `"refuse"` | What a run does when a resource block names a different provider configuration than the one whose account or region still holds a live object carrying this estate's marker for that block's address - a region or account change. "refuse" reports the object, by name, with the provider configuration that found it and the one its address now belongs to, and names both remedies: destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own behavior - plan the create under the new configuration - and warns, by name, that the old one's object is abandoned and nothing will find it again. |
 <!-- toggles-gen:end strict-toggles -->
 
-Every toggle defaults to what stock OpenTofu does, so an estate that sets
-none behaves like stock plus markers. `secrets` and `no_source_create` can be
-pinned to their strict setting by `CHOUDOUFU_STRICT_PIN=1` in the environment
-that runs the plan or apply, so a configuration cannot relax them.
+`secrets` and `no_source_create` can be pinned to their strict setting by
+`CHOUDOUFU_STRICT_PIN=1` in the environment that runs the plan or apply, so a
+configuration cannot relax them.
 [`live/STRICT.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STRICT.md)
 has each toggle's reasoning and what it refuses, with the fixtures that prove
 it.
 
 ## Permissions a run needs
 
-choudoufu makes few AWS calls of its own. Resource reads, writes and lists go
-through the provider plugin, so those are the AWS provider's permissions,
-exactly as any OpenTofu run. The fork's own surface follows.
+choudoufu makes few calls of its own. Resource reads, writes and lists go
+through the provider plugin, so those are the provider's permissions as in
+any OpenTofu run. The fork's own surface follows.
 
 | Stage | Calls | Where |
 |---|---|---|
 | Estate-wide tag sweep | `tag:GetResources` | `internal/live/cloudcontrol/tagging.go` |
 | Cloud Control fallback | `cloudformation:ListResources`, `cloudformation:GetResource` | `internal/live/cloudcontrol/client.go` |
-| Record store, `s3` | `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:PutObjectTagging`, `s3:DeleteObject`, and for the bucket's asserted settings `s3:GetBucketVersioning`, `s3:GetLifecycleConfiguration`, `s3:GetBucketPublicAccessBlock`. With a customer managed key, `kms:Decrypt` and `kms:GenerateDataKey`, which S3 makes on the caller's behalf. This is the set an estate's whole life was measured to use ([claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})); [IAM]({{< relref "/docs/use/bucket" >}}) has the policy | `internal/live/staterecord/s3.go`, `bucketcontract.go` |
+| Record store, `s3` | `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:PutObjectTagging`, `s3:DeleteObject`, and for the asserted settings `s3:GetBucketVersioning`, `s3:GetLifecycleConfiguration`, `s3:GetBucketPublicAccessBlock`. With a customer managed key, `kms:Decrypt` and `kms:GenerateDataKey`. Measured over an estate's whole life ([claim 37]({{< relref "/docs/claims/the-recommended-secure-configuration" >}})); [IAM]({{< relref "/docs/use/bucket" >}}) has the policy | `internal/live/staterecord/s3.go`, `bucketcontract.go` |
+| Record store, `kubernetes` | On Secrets in the records namespace: `get` and `list` for a plan, plus `create`, `update` and `delete` for an apply. For the asserted settings, `create` on `selfsubjectaccessreviews`, which every authenticated identity holds by default | `internal/live/staterecord/kubernetes.go`, `kubernetescontract.go` |
 | Record store, `local` | none | `internal/live/staterecord/local.go` |
 
-Each row names the file making the calls. That list is short and fixed, so a
-generated span for ten names would cost more machinery than it saves. The
-tagging verbs below move with botocore across <!-- tagverbs-gen:begin tag-verbs-total -->205<!-- tagverbs-gen:end tag-verbs-total --> services, so they are
-generated.
+Each row names the file making the calls. The tagging verbs below move with
+botocore across <!-- tagverbs-gen:begin tag-verbs-total -->205<!-- tagverbs-gen:end tag-verbs-total --> services, so they are generated.
 
 ## Marker stamping
 

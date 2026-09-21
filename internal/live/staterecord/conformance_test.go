@@ -348,6 +348,53 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 	})
 
+	// GitHub issue #1448, section F. Every store's Delete has this leg and no
+	// store's suite had the case, so a Delete that returned nil here was a
+	// mutation all three stores' tests passed with. It is in the SHARED suite
+	// because the gap was the contract's, not one backend's.
+	//
+	// What the contract says (store.go): expectedVersion "" is idempotent over
+	// an ABSENT key, and over a present one it is a caller holding no version
+	// deleting a record it never read. That is the delete half of a
+	// PutIfAbsent over an existing key, and it conflicts the same way, naming
+	// the version the store holds so the caller can re-read and decide.
+	t.Run("DeleteOfPresentKeyWithEmptyVersionConflicts", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		err = s.Delete(ctx, "k1", "")
+		var conflict *VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("Delete of a PRESENT key with expectedVersion \"\": got %v (%T), want *VersionConflictError", err, err)
+		}
+		if conflict.Key != "k1" {
+			t.Errorf("conflict.Key = %q, want k1", conflict.Key)
+		}
+		if conflict.ExpectedVersion != "" {
+			t.Errorf("conflict.ExpectedVersion = %q, want empty", conflict.ExpectedVersion)
+		}
+		if conflict.ActualVersion != v1 {
+			t.Errorf("conflict.ActualVersion = %q, want %q (the version the store holds)", conflict.ActualVersion, v1)
+		}
+
+		// And the record must still be there. A delete that refused and
+		// removed the record anyway would be worse than one that removed it
+		// and said so.
+		payload, _, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after the refused delete: %v", err)
+		}
+		if !exists {
+			t.Fatal("exists = false after a refused Delete; the record must survive")
+		}
+		if string(payload) != "v1" {
+			t.Errorf("payload after the refused delete = %q, want %q", payload, "v1")
+		}
+	})
+
 	t.Run("ListReturnsKeysByPrefixSorted", func(t *testing.T) {
 		s := newStore(t)
 		ctx := context.Background()

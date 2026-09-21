@@ -2543,6 +2543,7 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | A removed label or annotation cannot be removed | error | `internal/live/projection` | "A removed label or annotation cannot be removed" |
+| - | - | projection | An admission policy refused this run's record write | error | `internal/live/projection` | "An admission policy refused this run's record write" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a deposed object | error | `internal/live/projection` | "Cannot encode a deposed object" |
@@ -2601,12 +2602,13 @@ refused, and each says so in its own entry.
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
+| - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
 | - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**237 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**239 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3812,6 +3814,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### An admission policy refused this run's record write
+
+**What.** An admission policy on the records cluster refused a record write the API server's own authorizer allows, and this fork does not know which policy it is. Every record this run writes meets the same policy, so the run stops rather than leaving half an estate recorded (GitHub issue #1448).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Argument values could not be recorded
 
 **What.** An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.
@@ -4271,6 +4281,14 @@ reserved for the limits wing's fixture directories, and
 #### Resource type has no classic Importer
 
 **What.** A resource type projection needed to read back has no ImportResourceState implementation at all - a fixed property of the provider's own code (GitHub issue #331), not a transient failure. Admitted for naming and reference purposes only; refused here rather than risk proposing a create for an object this run cannot verify.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### The estate boundary policy refused this run's record write
+
+**What.** live/kubernetes/estate-boundary.yaml refused a record write because this run's identity holds no "use" grant on its estate. The refusal carries the estate-grant.yaml line that fixes it. It is raised when the store is opened, so a plan stops as well as an apply (GitHub issue #1448).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

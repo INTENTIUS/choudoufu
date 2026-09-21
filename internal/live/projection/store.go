@@ -99,6 +99,16 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 // and went on would be planning against an estate that reads as having fewer
 // records than it has, which is what all of them are about.
 //
+// The estate boundary policy refusing this run's write is one too, and it is
+// the one refusal on that list that is about the identity rather than the
+// objects ([staterecord.AdmissionDeniedError], GitHub issue #1448 section C).
+// A 403 the API server's admission stage raised about a write its authorizer
+// had already allowed says the run holds no `use` grant on its estate, which
+// no retry and no other command changes, and which every record write this run
+// makes meets again. It is kept out of #1370's reader tolerance deliberately -
+// see [provisionStoreSentinel] - because a store an ungranted run can read and
+// cannot write reads exactly like a store it may use.
+//
 // Everything else - a store that could not be reached, a role IAM would not
 // let in - is an outage from where this package stands. The difference is
 // for internal/command. `plan` and `apply` fail on both. `live-plan` and
@@ -140,6 +150,7 @@ func isStoreFault(err error) bool {
 		unlabelled  *staterecord.UnlabelledRecordError
 		misnamed    *staterecord.MisnamedRecordError
 		duplicate   *staterecord.DuplicateRecordKeyError
+		admission   *staterecord.AdmissionDeniedError
 	)
 	return errors.As(err, &kms) ||
 		errors.As(err, &unusable) ||
@@ -148,7 +159,8 @@ func isStoreFault(err error) bool {
 		errors.As(err, &collision) ||
 		errors.As(err, &unlabelled) ||
 		errors.As(err, &misnamed) ||
-		errors.As(err, &duplicate)
+		errors.As(err, &duplicate) ||
+		errors.As(err, &admission)
 }
 
 // openBuiltStore is everything [NewRecordStore] does to a store once it is
@@ -248,6 +260,31 @@ func SentinelKey(prefix string) string {
 // estate that already exists. That refusal is a [StoreRefusal] and not an
 // outage, under #1376's rule - no retry gets past it, and it is settled by
 // a person running the estate once under an identity that may write.
+//
+// # A run the estate boundary policy refuses
+//
+// GitHub issue #1448, section C. Not every 403 on that write is the
+// authorizer's. A run whose identity the authorizer LETS write records, and
+// whose write the cluster's admission stage then refuses, is no reader: it is
+// an identity the estate boundary policy fences, and every record it writes
+// meets that policy again. [staterecord.IsAccessDenied] is false for one, so
+// the switch below never reaches the tolerance leg, the run is refused
+// whatever the List says, and what the operator reads is the policy's own
+// words and the grant line rather than this function's sentence about a
+// read-only role. The sentinel being there proves only that some EARLIER run
+// could write it.
+//
+// That refusal lands on a plan as well as an apply, which this function
+// cannot tell apart. It does not have to: the question is not which command
+// this is but whether this identity's record writes are fenced, and the
+// answer is the same for both. #1370's reader - get and list, no create - is
+// refused by the authorizer, so its write never reaches admission and nothing
+// here changes for it. The identity that does newly stop is one the
+// authorizer allows to create record Secrets and the policy refuses, which is
+// the identity PR #1452's cluster contract fails `estate_boundary` for on
+// every apply, with the same remedy. Saying it when the store opens says it
+// while nothing has been written, and leaves nothing for that check to
+// repeat.
 func provisionStoreSentinel(ctx context.Context, store staterecord.Store, prefix string) (createdVersion string, err error) {
 	key := SentinelKey(prefix)
 	var writeDenied error

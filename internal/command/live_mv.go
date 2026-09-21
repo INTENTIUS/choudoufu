@@ -237,11 +237,12 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// to find a resource, not the only one, and a run with no live block
 	// or no record_store block leaves recordStore nil, which degrades
 	// live-mv to exactly its pre-existing behavior for such a type.
-	// A store that REFUSED does stop it. See [openRecordStoreAsOneMoreSource]
-	// and GitHub issue #1376.
+	// A store that REFUSED does stop it. See [openRecordStoreForMove] and
+	// GitHub issues #1376 and #1448: a rename that will write also asserts
+	// the store's contract here, before the write, and -dry-run does not.
 	var recordStore staterecord.Store
 	if config.Module != nil && config.Module.Live != nil {
-		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-mv")
+		store, storeDiags := openRecordStoreForMove(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, args.dryRun)
 		diags = diags.Append(storeDiags)
 		if storeDiags.HasErrors() {
 			return nil, diags

@@ -48,6 +48,26 @@ type clusterFake struct {
 
 	mu      sync.Mutex
 	reviews int
+
+	// denied are verbs this cluster's AUTHORIZER refuses, so a test that
+	// makes a call fail with 403 can make the review agree with it. Without
+	// that agreement the fake describes an identity the authorizer lets write
+	// and the API server refuses anyway, which is an admission denial and a
+	// different case entirely (GitHub issue #1448 section C). It covers the
+	// estate grant as well as the Secrets, since the grant is read through
+	// the same review: denying EstateGrantVerb is an identity holding no
+	// estate.
+	denied map[string]bool
+}
+
+// denyVerb makes this cluster's authorizer refuse verb.
+func (c *clusterFake) denyVerb(verb string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.denied == nil {
+		c.denied = map[string]bool{}
+	}
+	c.denied[verb] = true
 }
 
 func newClusterFake(t *testing.T, objects ...runtime.Object) *clusterFake {
@@ -97,17 +117,20 @@ func newClusterFake(t *testing.T, objects ...runtime.Object) *clusterFake {
 		if !ok {
 			return false, nil, nil
 		}
+		ra := review.Spec.ResourceAttributes
 		cs.mu.Lock()
 		cs.reviews++
+		denied := cs.denied[ra.Verb]
 		cs.mu.Unlock()
 		out := review.DeepCopy()
-		ra := review.Spec.ResourceAttributes
 		// Scoped to its own records namespace, which is what the docs
 		// recommend and what read_isolation wants to see, plus the grant on
 		// its own estate, which is what the boundary policy's CEL asks the
-		// authorizer for before it lets a write through.
-		out.Status.Allowed = ra.Namespace == contractNamespace ||
-			(ra.Group == staterecord.EstateGrantGroup && ra.Resource == staterecord.EstateGrantResource && ra.Name == contractEstate)
+		// authorizer for before it lets a write through. Either arm is closed
+		// by denyVerb; see [clusterFake.denied].
+		out.Status.Allowed = !denied &&
+			(ra.Namespace == contractNamespace ||
+				(ra.Group == staterecord.EstateGrantGroup && ra.Resource == staterecord.EstateGrantResource && ra.Name == contractEstate))
 		return true, out, nil
 	})
 	return cs
@@ -278,16 +301,24 @@ func TestAPlanIsNotRefusedForLackingWriteVerbs(t *testing.T) {
 	afterWrite := cs.reviewCount()
 
 	// Now the plan identity: create is forbidden, everything else stands.
+	// The authorizer says so too, which is what makes this the authorizer's
+	// own refusal rather than an admission one (#1448 section C).
 	cs.PrependReactor("create", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "",
 			nil)
 	})
+	cs.denyVerb("create")
 
 	if err := openCluster(t, cs, rs); err != nil {
 		t.Fatalf("a plan under a get/list-only identity was refused: %v", err)
 	}
-	if got := cs.reviewCount(); got != afterWrite {
-		t.Errorf("the plan made %d reviews (was %d); a run that did not create the sentinel is not a first contact and must not assert", got-afterWrite, afterWrite)
+	// One review, and exactly one: the store asks the authorizer whether it
+	// would have allowed the write it was refused, which is how the
+	// authorizer's refusal is told from the estate boundary policy's. The
+	// contract itself makes several, and a run that did not create the
+	// sentinel is not a first contact and must not assert.
+	if got := cs.reviewCount(); got != afterWrite+1 {
+		t.Errorf("the plan made %d reviews (was %d), want 1: the one that classifies the 403, and none of the contract's", got-afterWrite, afterWrite)
 	}
 }
 
@@ -301,6 +332,7 @@ func TestAPlanWithNoSentinelIsStillRefused(t *testing.T) {
 	cs.PrependReactor("create", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "", nil)
 	})
+	cs.denyVerb("create")
 
 	err := openCluster(t, cs, kubernetesRecordStore())
 	if err == nil {
@@ -311,6 +343,37 @@ func TestAPlanWithNoSentinelIsStillRefused(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "holds no sentinel") {
 		t.Errorf("the refusal does not say what is missing: %v", err)
+	}
+}
+
+// TestVerifyClusterReportsWhereItWent is GitHub issue #1448. `live-cluster`
+// printed a verdict with nothing in it that named the cluster, so a report
+// about a namespace of the same name on some other cluster read exactly like
+// a report about this one. The connection is the block's and the report says
+// what it reached.
+func TestVerifyClusterReportsWhereItWent(t *testing.T) {
+	// No ambient kubeconfig, so a connection resolved from anywhere but rs
+	// would fail outright rather than quietly answer about another cluster.
+	t.Setenv("KUBECONFIG", "")
+	t.Setenv("KUBE_CONFIG_PATH", "")
+	t.Setenv("KUBE_CONFIG_PATHS", "")
+
+	const host = "https://127.0.0.1:1"
+	rs := kubernetesRecordStore()
+	rs.Kubernetes.Host = host
+
+	// Nothing listens there, so the findings are an error. What is measured
+	// is what the report can say about where it went, which is the half an
+	// operator needs before they believe a verdict.
+	_, target, err := VerifyCluster(context.Background(), rs, contractEstate, "other-ns", nil)
+	if err == nil {
+		t.Fatal("a contract check against a port nothing listens on succeeded")
+	}
+	if target.Server != host {
+		t.Errorf("Server = %q, want the record_store block's own host %q", target.Server, host)
+	}
+	if target.Namespace != "other-ns" {
+		t.Errorf("Namespace = %q: a namespace named by the caller overrides the block's, and nothing else does", target.Namespace)
 	}
 }
 

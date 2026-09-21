@@ -67,8 +67,8 @@ const (
 
 	// Warned is a finding that was read, is a concern, and is not yet a
 	// breach - an identity that MAY read another estate's records on a
-	// cluster where no other estate keeps any. Said out loud on every apply,
-	// never a refusal.
+	// cluster where no other estate keeps any. Said out loud on every run
+	// that writes a record, never a refusal.
 	Warned
 )
 
@@ -213,9 +213,10 @@ func AsContractChecker(s Store) (ContractChecker, bool) {
 // one namespace and cannot list kube-system's Pods. Every CI job in the
 // intended arrangement would carry a waiver from its first day, which this
 // repository has paid to learn protects nothing (#1102). So it warns: by
-// name, with its cost, on every apply, which is #1340's whole standard for a
-// thing a run proceeds past. [Unreadable] is the other side of that line and
-// refuses, because somebody CAN read it and the fix is a grant.
+// name, with its cost, on every run that writes a record, which is #1340's
+// whole standard for a thing a run proceeds past. [Unreadable] is the other
+// side of that line and refuses, because somebody CAN read it and the fix is
+// a grant.
 func SplitWaived(findings []Finding, waived []string) (refused, warned, waivedFailing []Finding) {
 	for _, f := range findings {
 		if f.OK() {

@@ -9,7 +9,7 @@ deeper:
 
 # Proof
 
-Seven claims run on a real API server, a kind cluster in Docker, each with a
+Eight claims run on a real API server, a kind cluster in Docker, each with a
 `BREAK=1` run that corrupts what the claim guards and must be caught. They run
 in CI on every pull request that touches the Kubernetes code.
 

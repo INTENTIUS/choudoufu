@@ -15,9 +15,15 @@ import (
 type LiveCluster struct {
 	// Namespace names the records namespace to report on. Empty means "the
 	// one this directory's configuration resolves to", which is how an
-	// operator checks the namespace an estate actually uses; set with
-	// -estate, no configuration is read at all, which is how a cluster admin
-	// checks a namespace before any estate exists.
+	// operator checks the namespace an estate actually uses.
+	//
+	// Set, it overrides the namespace and nothing else (GitHub issue
+	// #1448). A record_store "kubernetes" block in this directory still
+	// says which cluster is reached, because a report about some other
+	// cluster's namespace of the same name is a report about nothing.
+	// Outside a configuration directory there is no such block and the
+	// ambient kubeconfig is reached, which is how a cluster admin checks a
+	// namespace before any estate exists.
 	Namespace string
 
 	// Estate is the estate whose records live there. With -namespace it is

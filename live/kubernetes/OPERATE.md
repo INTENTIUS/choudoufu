@@ -84,10 +84,12 @@ Before it writes a record, the store checks the namespace, this identity's
 access to Secrets in it, whether another estate's records are readable, whether
 the API server is started with an encryption configuration, and whether the
 estate boundary policy is in force. It asks once, on the estate's first contact
-with the store, and again before every apply. `choudoufu live-cluster` asks the
-same four on demand and writes nothing; `-plan-identity` asks what a plan job
-needs instead of what an apply needs. Three of the four cannot be answered by a
-scoped Role, and a run says so on every run rather than calling them a pass.
+with the store, and again before any run that writes a record: an apply, a
+`live-mv` that is not a dry run, a `live-import -approve`. `choudoufu
+live-cluster` asks the same four on demand and writes nothing;
+`-plan-identity` asks what a plan job needs instead of what an apply needs.
+Three of the four cannot be answered by a scoped Role, and a run says so on
+every run rather than calling them a pass.
 
 ## Two runs at once
 

@@ -1,11 +1,13 @@
 # Proof
 
-Four claims are proven on a real cluster: the marker itself, the sweep
+Eight claims are proven on a real cluster: the marker itself, the sweep
 that finds a deleted block's object by it, the admission policy that
 fences a write by it (through which claim 13's Kubernetes cell is proven
-too), and a custom resource bound by the natural key inside its
-manifest, carrying the label and swept by it. The rest are stated per claim in the claims data rather
-than left implicit. The table
+too), a custom resource bound by the natural key inside its manifest,
+carrying the label and swept by it, a delete the platform has accepted and
+not finished, admission getting the last word over a plan, a label edit as
+an ordinary change, and records kept in the cluster. The rest are stated
+per claim in the claims data rather than left implicit. The table
 below shows only the claims whose Kubernetes cell is not still open; hover a
 cell for its note.
 
@@ -14,7 +16,7 @@ https://intentius.io/choudoufu/kubernetes/proof/.
 
 ## In CI
 
-The four Kubernetes claims run on a kind cluster in GitHub Actions on
+The eight Kubernetes claims run on a kind cluster in GitHub Actions on
 every pull request that touches the Kubernetes surface, each with its
 `BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
 lane's estates on the same cadence as the AWS rows

@@ -33,9 +33,9 @@ change and not another `just up`.
 
 This section is the specification. The project is one way to meet it,
 and a bucket built with your own tooling is just as correct if it
-satisfies the same three things. choudoufu checks them itself, before an
-apply changes anything and on an estate's first contact with the bucket,
-and refuses a bucket that fails one.
+satisfies the same three things. choudoufu checks them itself, on an
+estate's first contact with the bucket and before any run that writes a
+record, and refuses a bucket that fails one.
 
 **Versioning is enabled.** A record can be the only copy of what it
 says. A record-backed resource carries no marker and cannot be imported
