@@ -30,7 +30,7 @@ record_store "s3" {
 |---|---|---|
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
 | `s3` | A bucket you already own | `bucket` (required), `bucket_owner`, `key_prefix`, `region`, `allow_insecure` |
-| `kubernetes` | Secrets in a namespace you already own | `namespace` (required), and the connection arguments of stock's `kubernetes` backend |
+| `kubernetes` | Secrets in a namespace you already own | `namespace` (default `tofu-records-<estate>`), and the connection arguments of stock's `kubernetes` backend |
 
 An estate that declares no `record_store` gets the local one. Use a bucket or
 a cluster for anything more than one person shares. On a CI runner the local

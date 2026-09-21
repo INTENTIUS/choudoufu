@@ -141,9 +141,9 @@ func validateKeyPrefix(keyPrefix string) error {
 		// both. An empty List reads as an empty estate, so the failure
 		// surfaced as a plan proposing to re-create live resources
 		// (issue #688's terralith run). Refusing loudly here is the
-		// fix's contract half; issue #689 pins it across the stores,
-		// which are the local one and S3 now that the third is gone.
-		// internal/configs refuses the same slash on a record_store
+		// fix's contract half; issue #689 pins it across every store
+		// this package ships, local and S3 then and the Kubernetes one
+		// since. internal/configs refuses the same slash on a record_store
 		// key_prefix, so the argument is named at load time rather than
 		// at the first write (#1383).
 		return fmt.Errorf("staterecord: key %q starts with %q: keys are store-relative, and the store prepends its own configured prefix (issue #688)", keyPrefix, "/")
