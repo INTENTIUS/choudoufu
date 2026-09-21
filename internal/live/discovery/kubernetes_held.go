@@ -56,8 +56,11 @@ type DeletedKubernetesObject struct {
 // HeldKubernetesDelete is one of those objects the post-apply list still
 // found, carrying a deletionTimestamp.
 type HeldKubernetesDelete struct {
-	Addr              addrs.AbsResourceInstance
-	Kind              string
+	Addr addrs.AbsResourceInstance
+	Kind string
+	// Group is the API group the object was listed in, empty for the core
+	// group: what makes a custom resource's kind resolvable by name.
+	Group             string
 	Namespace         string
 	Name              string
 	DeletionTimestamp string
@@ -158,6 +161,7 @@ func HeldKubernetesDeletes(ctx context.Context, sweeper kubesweep.Sweeper, typeN
 			held = append(held, HeldKubernetesDelete{
 				Addr:              w.addr,
 				Kind:              k.Kind,
+				Group:             k.GVR.Group,
 				Namespace:         o.Namespace,
 				Name:              o.Name,
 				DeletionTimestamp: o.DeletionTimestamp,
@@ -179,29 +183,70 @@ func HeldKubernetesDeletes(ctx context.Context, sweeper kubesweep.Sweeper, typeN
 
 // HeldKubernetesDeletesDiag is the one warning for a run, naming every held
 // object. Nil for none.
+//
+// The wording is the maintainer's (2026-09-21): what was found, by name,
+// and the one command. The closing is chosen by whether ANY named object
+// has finalizers: if one does, it speaks of finalizers and gives the
+// command for the first named object that has some, since that is the
+// object the command has something to show for; if none does, every object
+// is one the server is still finishing, and there is no command to give.
+//
+// The command line is indented so the diagnostic renderer leaves it whole:
+// it word-wraps any detail line that does not begin with a space, and a
+// wrapped command does not paste.
 func HeldKubernetesDeletesDiag(held []HeldKubernetesDelete) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if len(held) == 0 {
 		return diags
 	}
+	one := len(held) == 1
 	var b strings.Builder
-	if len(held) == 1 {
-		b.WriteString("The API server accepted the delete of 1 object this run destroyed, and it is still in the cluster, terminating:\n\n")
+	if one {
+		b.WriteString("The API server accepted the delete of 1 object and it is still in the cluster, terminating:\n\n")
 	} else {
-		fmt.Fprintf(&b, "The API server accepted the delete of %d objects this run destroyed, and they are still in the cluster, terminating:\n\n", len(held))
+		fmt.Fprintf(&b, "The API server accepted the delete of %d objects and they are still in the cluster, terminating:\n\n", len(held))
 	}
-	for _, h := range held {
+	var show *HeldKubernetesDelete
+	for i, h := range held {
 		fmt.Fprintf(&b, "  - %s %s (%s), ", h.Kind, kubesweep.NaturalKey(h.Namespace, h.Name), h.Addr)
 		if len(h.Finalizers) == 0 {
 			b.WriteString("no finalizers: the server has not finished the delete yet\n")
-		} else {
-			fmt.Fprintf(&b, "finalizers: %s\n", strings.Join(h.Finalizers, ", "))
+			continue
+		}
+		fmt.Fprintf(&b, "finalizers: %s\n", strings.Join(h.Finalizers, ", "))
+		if show == nil {
+			show = &held[i]
 		}
 	}
-	if len(held) == 1 {
-		b.WriteString("\nIt stays until the controller that owns each finalizer removes it. This run's destroyed count includes it. It still carries the estate's label, so the next plan will propose destroying it again until it is gone.")
-	} else {
-		b.WriteString("\nEach stays until the controller that owns each of its finalizers removes it. This run's destroyed count includes them. They still carry the estate's label, so the next plan will propose destroying them again until they are gone.")
+	b.WriteString("\n")
+	switch {
+	case show == nil && one:
+		b.WriteString("It stays until the server finishes the delete, and the next plan will propose destroying it again.")
+	case show == nil:
+		b.WriteString("They stay until the server finishes the delete, and the next plan will propose destroying them again.")
+	case one:
+		b.WriteString("It stays until those finalizers are removed, and the next plan will propose destroying it again. To see what holds it:\n")
+	default:
+		b.WriteString("They stay until their finalizers are removed, and the next plan will propose destroying them again. To see what holds one:\n")
+	}
+	if show != nil {
+		b.WriteString("  " + heldFinalizersCommand(*show))
 	}
 	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryKubernetesDeleteHeld, b.String()))
+}
+
+// heldFinalizersCommand is the kubectl read of one held object's
+// finalizers, built from the listed object's own fields: the kind lowered,
+// qualified by its API group when it has one so that a custom resource
+// resolves, and -n only for a namespaced object.
+func heldFinalizersCommand(h HeldKubernetesDelete) string {
+	resource := strings.ToLower(h.Kind)
+	if h.Group != "" {
+		resource += "." + h.Group
+	}
+	cmd := "kubectl get " + resource + " " + h.Name
+	if h.Namespace != "" {
+		cmd += " -n " + h.Namespace
+	}
+	return cmd + " -o jsonpath='{.metadata.finalizers}'"
 }

@@ -76,3 +76,40 @@ func TestHeldKubernetesDeletesDiagIsNothingForNothing(t *testing.T) {
 		t.Errorf("diagnostics = %v, want none", diags)
 	}
 }
+
+// TestHeldKubernetesDeletesDiagWording pins the variants the command-level
+// tests do not reach: nothing has finalizers, so there is nothing for a
+// command to show and the closing says the server is still finishing; and a
+// cluster-scoped object's command carries no -n.
+func TestHeldKubernetesDeletesDiagWording(t *testing.T) {
+	pod := HeldKubernetesDelete{Addr: k8sInstance(t, "kubernetes_pod", "web"), Kind: "Pod", Namespace: "a", Name: "web", DeletionTimestamp: "x"}
+	job := HeldKubernetesDelete{Addr: k8sInstance(t, "kubernetes_job", "run"), Kind: "Job", Group: "batch", Namespace: "a", Name: "run", DeletionTimestamp: "x"}
+	role := HeldKubernetesDelete{Addr: k8sInstance(t, "kubernetes_cluster_role", "r"), Kind: "ClusterRole", Group: "rbac.authorization.k8s.io", Name: "r", DeletionTimestamp: "x", Finalizers: []string{"x/y"}}
+	for name, tc := range map[string]struct {
+		held []HeldKubernetesDelete
+		want string
+	}{
+		"one object, no finalizers": {[]HeldKubernetesDelete{pod},
+			"The API server accepted the delete of 1 object and it is still in the cluster, terminating:\n\n" +
+				"  - Pod a/web (kubernetes_pod.web), no finalizers: the server has not finished the delete yet\n\n" +
+				"It stays until the server finishes the delete, and the next plan will propose destroying it again."},
+		"two objects, no finalizers": {[]HeldKubernetesDelete{job, pod},
+			"The API server accepted the delete of 2 objects and they are still in the cluster, terminating:\n\n" +
+				"  - Job a/run (kubernetes_job.run), no finalizers: the server has not finished the delete yet\n" +
+				"  - Pod a/web (kubernetes_pod.web), no finalizers: the server has not finished the delete yet\n\n" +
+				"They stay until the server finishes the delete, and the next plan will propose destroying them again."},
+		"cluster-scoped, grouped": {[]HeldKubernetesDelete{role},
+			"The API server accepted the delete of 1 object and it is still in the cluster, terminating:\n\n" +
+				"  - ClusterRole r (kubernetes_cluster_role.r), finalizers: x/y\n\n" +
+				"It stays until those finalizers are removed, and the next plan will propose destroying it again. To see what holds it:\n" +
+				"  kubectl get clusterrole.rbac.authorization.k8s.io r -o jsonpath='{.metadata.finalizers}'"},
+	} {
+		diags := HeldKubernetesDeletesDiag(tc.held)
+		if len(diags) != 1 {
+			t.Fatalf("%s: diagnostics = %v, want one", name, diags)
+		}
+		if got := diags[0].Description().Detail; got != tc.want {
+			t.Errorf("%s: detail:\n%s\nwant:\n%s", name, got, tc.want)
+		}
+	}
+}

@@ -214,6 +214,8 @@ grep -q 'Warning: Delete accepted, object not gone' <<< "$APPLY2" \
   || fail "k8s-a-held-delete-is-not-gone" "apply did not warn that the delete was only accepted (#1184): $APPLY2"
 grep -qE -- "- ConfigMap smoke-k8s/held-config \(.*\), finalizers: $FINALIZER\$" <<< "$APPLY2" \
   || fail "k8s-a-held-delete-is-not-gone" "the warning does not name ConfigMap smoke-k8s/held-config and its finalizer $FINALIZER: $APPLY2"
+grep -qF -- "kubectl get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.finalizers}'" <<< "$APPLY2" \
+  || fail "k8s-a-held-delete-is-not-gone" "the warning does not give the one command that shows what holds the object: $APPLY2"
 kc get configmap held-config -n smoke-k8s >/dev/null 2>&1 \
   || fail "k8s-a-held-delete-is-not-gone" "held-config is gone; the finalizer did not hold and there is no fault to measure"
 DEL_TS="$(kc get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.deletionTimestamp}')"

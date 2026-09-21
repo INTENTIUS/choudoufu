@@ -155,11 +155,12 @@ func TestHeldKubernetesDeleteIsNamedAfterApply(t *testing.T) {
 		t.Errorf("severity = %v, want a warning: the apply did what it was asked and its exit code is the apply's", diags[0].Severity())
 	}
 	const wantSummary = "Delete accepted, object not gone"
-	const wantDetail = "The API server accepted the delete of 1 object this run destroyed, and it is still in the cluster, terminating:\n" +
+	const wantDetail = "The API server accepted the delete of 1 object and it is still in the cluster, terminating:\n" +
 		"\n" +
 		"  - ConfigMap smoke-k8s/held-config (kubernetes_config_map.orphan_smoke-k8s_held-config), finalizers: smoke.choudoufu.io/hold, backup.example.com/snapshot\n" +
 		"\n" +
-		"It stays until the controller that owns each finalizer removes it. This run's destroyed count includes it. It still carries the estate's label, so the next plan will propose destroying it again until it is gone."
+		"It stays until those finalizers are removed, and the next plan will propose destroying it again. To see what holds it:\n" +
+		"  kubectl get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.finalizers}'"
 	if got := diags[0].Description().Summary; got != wantSummary {
 		t.Errorf("summary = %q, want %q", got, wantSummary)
 	}
@@ -175,7 +176,10 @@ func TestHeldKubernetesDeleteIsNamedAfterApply(t *testing.T) {
 // manifest type is joined by its import id's kind and group, a replace's
 // delete leg counts, and each kind with deletes is listed once however many
 // deletes it had. An object with a deletionTimestamp and no finalizer (the
-// server still finishing) is named as that, and one with no deletionTimestamp at all is not named.
+// server still finishing) is named as that, the closing is chosen by whether
+// any object has finalizers, the command is for the first object that has
+// some - here the second named - and a custom resource's kind carries its
+// API group so kubectl resolves it, and one with no deletionTimestamp at all is not named.
 func TestHeldKubernetesDeletesAcrossKindsAndShapes(t *testing.T) {
 	sweeper := &heldStubSweeper{liveLsStubSweeper: liveLsStubSweeper{
 		kinds: []kubesweep.Kind{heldTestCM, heldTestSecret, heldTestCronTab},
@@ -205,12 +209,13 @@ func TestHeldKubernetesDeletesAcrossKindsAndShapes(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("diagnostics = %v, want exactly one warning for both objects", diags)
 	}
-	const wantDetail = "The API server accepted the delete of 2 objects this run destroyed, and they are still in the cluster, terminating:\n" +
+	const wantDetail = "The API server accepted the delete of 2 objects and they are still in the cluster, terminating:\n" +
 		"\n" +
 		"  - ConfigMap a/one (kubernetes_config_map.one), no finalizers: the server has not finished the delete yet\n" +
 		"  - CronTab a/tab (kubernetes_manifest.tab), finalizers: stable.example.com/cleanup\n" +
 		"\n" +
-		"Each stays until the controller that owns each of its finalizers removes it. This run's destroyed count includes them. They still carry the estate's label, so the next plan will propose destroying them again until they are gone."
+		"They stay until their finalizers are removed, and the next plan will propose destroying them again. To see what holds one:\n" +
+		"  kubectl get crontab.stable.example.com tab -n a -o jsonpath='{.metadata.finalizers}'"
 	if got := diags[0].Description().Detail; got != wantDetail {
 		t.Errorf("detail:\n%s\nwant:\n%s", got, wantDetail)
 	}

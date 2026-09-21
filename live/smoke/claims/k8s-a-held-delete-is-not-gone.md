@@ -81,14 +81,14 @@ anything of, it lists the estate's objects of that kind once by the
 ```text
 Warning: Delete accepted, object not gone
 
-The API server accepted the delete of 1 object this run destroyed, and it
-is still in the cluster, terminating:
+The API server accepted the delete of 1 object and it is still in the
+cluster, terminating:
 
   - ConfigMap smoke-k8s/held-config (kubernetes_config_map.orphan_smoke-k8s_held-config), finalizers: smoke.choudoufu.io/hold
 
-It stays until the controller that owns each finalizer removes it. This
-run's destroyed count includes it. It still carries the estate's label, so
-the next plan will propose destroying it again until it is gone.
+It stays until those finalizers are removed, and the next plan will propose
+destroying it again. To see what holds it:
+  kubectl get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.finalizers}'
 ```
 
 It is a warning and the exit code is the apply's. A run that deleted
