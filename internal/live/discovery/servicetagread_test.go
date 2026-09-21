@@ -31,6 +31,10 @@ type fakeServiceTags struct {
 	routes map[string]bool
 	tags   map[string]map[string]string
 	err    error
+	// errFor fails the read of one import ID and leaves the others alone,
+	// for the #1162 shape where one object's read is refused beside a
+	// sibling's that succeeds.
+	errFor map[string]error
 
 	calls    int
 	askedFor []string
@@ -43,6 +47,9 @@ func (f *fakeServiceTags) ReadTags(_ context.Context, typeName, importID string)
 	f.askedFor = append(f.askedFor, typeName+" "+importID)
 	if f.err != nil {
 		return nil, f.err
+	}
+	if err := f.errFor[importID]; err != nil {
+		return nil, err
 	}
 	return f.tags[importID], nil
 }
@@ -219,23 +226,29 @@ func TestServiceTagReadFailureKeepsTheMarkerUnreadableRefusal(t *testing.T) {
 	}
 }
 
-// TestServiceTagReadSkippedWhenTheTagIndexAlreadyServesTheType is the cost
-// gate, and it is the clause that makes this leg scoped by evidence rather
-// than by service name.
+// TestServiceTagReadSkipsOnlyTheObjectTheTagIndexAnsweredFor is the cost
+// gate, and since GitHub issue #1162 it is per object.
 //
 // #1134 measured a real account serving iam:instance-profile through
 // GetResources in us-east-1 while the pinned emulator serves no IAM at all.
 // A leg keyed on the service would have to be wrong about one of those two
-// targets. Here the index serves the type, so its silence about a profile
-// it does NOT hold is a real answer about that profile - joinNone - and the
-// leg must not spend a call per unowned object re-deriving it.
+// targets. Here the index serves the type and answers for the owned profile,
+// which therefore costs no tag read.
 //
-// The account therefore holds two profiles, which is what makes the
-// assertion load-bearing: the owned one binds from the index and would have
-// short-circuited the leg on its own, so a one-object fixture cannot tell
-// the gate working from the gate missing. The second profile is not in the
-// index, reaches joinNone, and is the object the gate has to decline.
-func TestServiceTagReadSkippedWhenTheTagIndexAlreadyServesTheType(t *testing.T) {
+// This test used to assert ZERO calls, on the reasoning that an index which
+// serves the type makes its silence about another profile a real answer.
+// #1046 measured why that does not hold: the index lags the marker writes,
+// so "not in the index" covers this estate's own unindexed profile as well
+// as somebody else's, and the two cannot be told apart without reading. The
+// maintainer ruled the per-object gate on 2026-09-21, and the price is the
+// one call asserted below - one per listed object the index did not answer
+// for, on a target whose index serves the type. live/costs/plan-cost.md
+// publishes it.
+//
+// The account holds two profiles, which is what makes the assertion
+// load-bearing: a one-object fixture cannot tell a per-object gate from no
+// gate at all.
+func TestServiceTagReadSkipsOnlyTheObjectTheTagIndexAnsweredFor(t *testing.T) {
 	const (
 		typeName  = "aws_iam_instance_profile"
 		cfnType   = "AWS::IAM::InstanceProfile"
@@ -285,8 +298,12 @@ func TestServiceTagReadSkippedWhenTheTagIndexAlreadyServesTheType(t *testing.T) 
 	res, diags := discoverFixture(t, cloud, serviceTagReadRequest(t, tagServer.URL, ccServer.URL, reader))
 	assertNoErrors(t, diags)
 
-	if reader.calls != 0 {
-		t.Fatalf("the service tag reader was called %d time(s) (%v), want 0: the estate's tag index already holds this type, so #266's join answered for the owned profile and joinNone is a real answer for the other one. Paying a call per object here is what would bend #1037/#1039's flat-sweep claim on a target that never needed the leg.", reader.calls, reader.askedFor)
+	wantAsked := typeName + " " + otherName
+	if reader.calls != 1 || len(reader.askedFor) != 1 || reader.askedFor[0] != wantAsked {
+		t.Fatalf("the service tag reader was asked %v (%d call(s)), want exactly [%q]: #266's join answered for the owned profile, which must cost no read, and the index said nothing about the other one, which must be read rather than assumed unowned", reader.askedFor, reader.calls, wantAsked)
+	}
+	if got := sortedRemovalAddrs(res); len(got) != 1 || got[0] != typeName+".team_0002_profile" {
+		t.Fatalf("destroys proposed for %v, want only the owned profile - the other one's tag read names another estate", got)
 	}
 	if _, ok := removalsByAddr(res)[typeName+".team_0002_profile"]; !ok {
 		t.Fatalf("the orphan was not found by the tag index alone, so this test is not measuring what it claims:\n%s", res)

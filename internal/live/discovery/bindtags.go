@@ -146,10 +146,7 @@ type markerObject struct {
 // is a type rather than a function: the tag index is one GetResources call
 // for the estate ([markerIndex.fetch], behind a sync.Once), and the bare
 // function this replaces built a throwaway index per object, so a sweep of
-// N tagless objects made N identical calls. It is also what makes the
-// service leg's third gate meaningful - [markerIndex.servesType] is an
-// answer about the index as a whole, so asking it needs an index that
-// outlives one lookup.
+// N tagless objects made N identical calls.
 //
 // A zero-value or nil *MarkerFallback answers "no marker" to everything, so
 // no call site needs a nil check of its own, and so does one built with a
@@ -185,9 +182,9 @@ func NewMarkerFallback(estate string, tagging *cloudcontrol.Client, svc servicet
 // The two routes are tried in [Discover]'s own order, for [Discover]'s own
 // reason (discovery.go's #1125 comment): the index first because it is one
 // call already paid for, the service's tag API second because it is one
-// call per object. The service leg's gate, including the clause that keeps
-// it off a target whose index does serve the type, is
-// [serviceTagReadWith]'s and is not restated here.
+// call per object. The service leg's gate is per object since #1162 (see
+// servicetagread.go): an object the index answered for returns above and
+// costs no tag read, and any other object of a routed type is read.
 //
 // ok is true only when exactly one tagged resource matched the index; an
 // ambiguous match (more than one) is reported as not found, the same way
@@ -200,7 +197,10 @@ func (f *MarkerFallback) Tags(ctx context.Context, typeName, importID string) (m
 	if tags, outcome := f.markers.join(ctx, typeName, importID); outcome == joinBound {
 		return tags, true
 	}
-	return serviceTagReadWith(ctx, f.svc, f.markers, typeName, importID, nil)
+	// The per-object gate (#1162) is the three lines above: the index did
+	// not answer for this object, so the service is asked about it.
+	tags, outcome := serviceTagReadWith(ctx, f.svc, typeName, importID, nil)
+	return tags, outcome == tagReadAnswered
 }
 
 // newMarkerIndex builds the shared index for one discovery pass, or returns
@@ -268,42 +268,6 @@ func (m *markerIndex) available(ctx context.Context) bool {
 	}
 	_, err := m.resources(ctx)
 	return err == nil
-}
-
-// servesType reports whether the estate's tag index holds at least one
-// object of typeName - which is to say, whether the Resource Groups Tagging
-// API indexes this type on THIS target, for THIS estate, rather than
-// whether some artifact says it ought to.
-//
-// GitHub issue #1131 uses it as the gate on the per-service tag-read leg,
-// and the reason it is the right gate is #1134's measurement. On a real
-// account GetResources serves iam:instance-profile in us-east-1 and never
-// serves iam:role anywhere; the pinned emulator serves neither
-// (lex00/floci#205, tracked as #1152). A leg selected by service name would
-// have to pick one of those two targets to be right about. This predicate
-// picks neither: it asks the index what it is holding and lets the answer
-// decide, so the same binary runs the leg on floci and skips it on a real
-// account with no flag and no list of endpoints.
-//
-// It is order-independent by construction, which a per-object accumulator
-// would not be: the index is one GetResources call for the whole estate
-// made once per run ([markerIndex.fetch]), so the answer is the same for
-// the first object of a type as for the last.
-//
-// False when the index could not be consulted at all. That is not an answer
-// about the type, and treating it as one would silence the leg on exactly
-// the runs that most need it; the caller pays a read it might not have
-// needed, which is the safe direction.
-func (m *markerIndex) servesType(ctx context.Context, typeName string) bool {
-	if !m.available(ctx) {
-		return false
-	}
-	for _, obj := range m.objs {
-		if obj.markerType == typeName && obj.tags[TagEstate] == m.estate {
-			return true
-		}
-	}
-	return false
 }
 
 // settled reports whether the one GetResources call has already been made

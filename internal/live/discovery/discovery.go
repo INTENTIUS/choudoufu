@@ -2117,6 +2117,10 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// on one object proves nothing on its own.
 	var markerReadWorked bool
 	var joinBlind, joinAbsent int
+	// readFailedUnread is #1162: at least one listed object reached the
+	// service tag read, the read FAILED, and nothing else had read its
+	// marker. It overrides [markerReadWorked]'s refutation below.
+	var readFailedUnread bool
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
 			sawIdentity = true
@@ -2289,15 +2293,22 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			//
 			// Placed after the index join rather than before it because the
 			// index is already paid for: one GetResources for the whole
-			// sweep against one ListRoleTags per role. [serviceTagRead]'s
-			// own third clause ([markerIndex.servesType]) says the same
-			// thing from the other side and keeps this off entirely on a
-			// target whose index does serve the type - which is not
-			// hypothetical for IAM, #1134 having measured real AWS serving
-			// iam:policy and iam:instance-profile in us-east-1 while the
-			// pinned emulator serves no IAM at all (#1152).
+			// sweep against one ListRoleTags per role.
+			//
+			// GitHub issue #1162: the gate is per object, and this `if` is
+			// it. The read runs exactly when this object's own listing and
+			// this object's own index join both produced no tofu-estate. An
+			// object the index answered for took joinBound above, carries
+			// its marker already and costs no call; its unindexed sibling
+			// is read. The gate used to be per type (the index holding any
+			// marked object of the type switched the leg off for all of
+			// them), which was wrong about the lagging index #1046 measured:
+			// the sibling went unread AND the bound join refuted the gap,
+			// so a marked, undeclared role was dropped with nothing said.
 			if tags[TagEstate] == "" {
-				if svcTags, ok := serviceTagRead(ctx, req, typeName, importID, &scan); ok {
+				svcTags, readOutcome := serviceTagRead(ctx, req, typeName, importID, &scan)
+				switch readOutcome {
+				case tagReadAnswered:
 					tags, taggable = svcTags, true
 					// Unconditionally, including for an empty answer, and
 					// this is the one place that differs from the list
@@ -2310,6 +2321,21 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 					// none.
 					markerReadWorked = true
 					blindPending, absentPending = false, false
+				case tagReadFailed:
+					// #1162. This object's own read was refused (access
+					// denied, throttled, gone). A sibling whose marker WAS
+					// read - off the index or off the service - proves a
+					// route exists for the type and proves nothing about
+					// this object, which is exactly as unread as it would be
+					// with no leg at all. [markerReadWorked] exists to stop
+					// "the join said nothing" filing a gap over other
+					// people's resources; it must not also absorb an object
+					// the run tried to read and could not. Counted only
+					// where the gap was pending anyway, so a type with no
+					// route, or a plain plan, is untouched.
+					if blindPending || absentPending {
+						readFailedUnread = true
+					}
 				}
 			}
 			if blindPending {
@@ -2715,7 +2741,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// produces opposite visible failures on the two, and why a plain plan
 	// (neither flag) is deliberately left to #322's per-address warning.
 	if sweep || collectUnclaimed {
-		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked, joinBlind, joinAbsent))
+		// #1162: a refused per-object read is not refuted by a sibling's
+		// success. joinBlind/joinAbsent then count exactly the objects left
+		// unread, because every pending object of a routed type is read and
+		// only the failures stay pending.
+		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked && !readFailedUnread, joinBlind, joinAbsent))
 	}
 
 	if scan.Filtering == FilterServerSide && sawIdentity && !sawAccountID && scan.Listed > 0 {
