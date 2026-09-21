@@ -52,7 +52,7 @@
 //     as a live record's version, so a caller can treat it as a stable
 //     sentinel without inspecting which store it is talking to. Beyond
 //     that, a version's shape is entirely implementation-defined — a
-//     content hash, an S3 ETag — and
+//     content hash, an S3 ETag, a Kubernetes resourceVersion — and
 //     [Store] callers are expected to hold it opaque too: compare it for
 //     equality, pass it to PutIfVersion/Delete, never parse it.
 //   - Every conditional operation that fails on a version mismatch
@@ -61,21 +61,22 @@
 //     actually found (or "" for "no record"). A caller never has to
 //     distinguish "conflict" from "some other failure" by parsing prose.
 //   - "Conditional" means real compare-and-swap with no read-compare-write
-//     race window, on every store: [LocalStore] and [S3Store] both give
-//     it. That is a requirement of the interface and not a property two
-//     implementations happen to share. See "The store that was retired".
+//     race window, on every store: [LocalStore], [S3Store] and
+//     [KubernetesStore] all give it. That is a requirement of the
+//     interface and not a property some implementations happen to share.
+//     See "The store that was retired".
 //
 // # The three implementations
 //
-// [LocalStore] (a directory of files, the zero-configuration default — solo
-// development, tests, air-gapped runs, mirroring plain local state's own
-// "just works" shape), [S3Store] (S3 conditional writes, for anything
-// more than one operator shares) and [KubernetesStore] (Secrets in one
-// cluster namespace, resourceVersion as the conditional write, for an estate
-// that runs on Kubernetes and has no AWS account to put a bucket in). All
-// three implement the identical [Store] interface; a caller choosing between
-// them is choosing an operational tradeoff, never a different programming
-// model.
+// [LocalStore] (local.go: a directory of files, the zero-configuration
+// default — solo development, tests, air-gapped runs, mirroring plain local
+// state's own "just works" shape), [S3Store] (s3.go: S3 conditional writes,
+// for anything more than one operator shares) and [KubernetesStore]
+// (kubernetes.go: Secrets in one cluster namespace, resourceVersion as the
+// conditional write, for an estate that runs on Kubernetes and has no AWS
+// account to put a bucket in). All three implement the identical [Store]
+// interface; a caller choosing between them is choosing an operational
+// tradeoff, never a different programming model.
 //
 // # The five things the Kubernetes store had to settle
 //

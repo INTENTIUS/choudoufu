@@ -339,14 +339,15 @@ type LiveStrictMarkers struct {
 }
 
 // LiveRecordStore is the "record_store" block nested inside a live block. Its
-// label picks the backend ("local" or "s3"), the same
+// label picks the backend ("local", "s3", or "kubernetes"), the same
 // labeled-block-names-the-implementation shape a stock "backend" block uses,
 // per issue #73's "phrased in familiar backend-like terms" ruling. See
 // [Live.RecordStore].
 type LiveRecordStore struct {
-	// Type is the block's label: "local" or "s3". Validated against exactly
-	// those two spellings in decodeRecordStoreBlock; nothing else reaches
-	// this field. "ssm" is refused there by name (GitHub issue #1346).
+	// Type is the block's label: "local", "s3", or "kubernetes". Validated
+	// against exactly those three spellings in decodeRecordStoreBlock;
+	// nothing else reaches this field. "ssm" is refused there by name
+	// (GitHub issue #1346).
 	Type      string
 	TypeRange hcl.Range
 
