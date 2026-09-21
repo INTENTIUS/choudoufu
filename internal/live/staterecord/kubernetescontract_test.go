@@ -537,6 +537,12 @@ func TestClusterContractEstateBoundary(t *testing.T) {
 		if !strings.Contains(f.Found, "estate-boundary.yaml") {
 			t.Errorf("the finding does not say what to install: %s", f.Found)
 		}
+		// Once, and as an install. An absent policy is not an out-of-date
+		// one, and the upgrade line the CEL comparison adds would be the
+		// same command said twice with two different reasons.
+		if strings.Contains(f.Found, "from an earlier release") {
+			t.Errorf("an absent policy was told to re-apply an earlier release of itself: %s", f.Found)
+		}
 	})
 
 	t.Run("no binding", func(t *testing.T) {

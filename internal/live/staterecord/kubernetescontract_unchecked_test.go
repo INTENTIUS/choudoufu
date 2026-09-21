@@ -383,6 +383,12 @@ func TestEstateBoundaryReadsThePolicyAndNotOnlyItsName(t *testing.T) {
 		if !strings.Contains(f.Found, "namespaceSelector does not select namespace") {
 			t.Errorf("the finding does not say where the policy is not in force: %s", f.Found)
 		}
+		// And it does NOT carry the upgrade line. This policy is the one the
+		// file ships; re-applying it changes nothing here, and a remedy that
+		// does nothing sends the reader round the loop again.
+		if strings.Contains(f.Found, "from an earlier release") {
+			t.Errorf("a binding scoped away from the records namespace was told to re-apply a policy that is already current: %s", f.Found)
+		}
 	})
 
 	t.Run("the binding is keyed on a label nobody here can read", func(t *testing.T) {
@@ -746,6 +752,20 @@ func TestEstateBoundaryFailsAClusterStillRunningTheOldPolicy(t *testing.T) {
 	}
 	if !strings.Contains(f.Found, "estate-boundary.yaml ships") {
 		t.Errorf("the finding does not say what it compared against: %s", f.Found)
+	}
+
+	// The upgrade itself. The setting's own fix paragraph tells a reader to
+	// INSTALL the policy, which is the wrong instruction for someone who has
+	// it, so this failure carries the remedy that fits it, and carries it in
+	// the finding, because `choudoufu live-cluster` prints what was found and
+	// no fix paragraph at all.
+	want := "If the installed policy is from an earlier release, re-apply the shipped one: `kubectl apply -f live/kubernetes/estate-boundary.yaml`"
+	if !strings.Contains(f.Found, want) {
+		t.Errorf("the finding does not say how to upgrade the policy (%q): %s", want, f.Found)
+	}
+	// And a run's refusal shows it, since that is where an apply is stopped.
+	if _, detail := ClusterContractRefusal(contractNamespace, f); !strings.Contains(detail, want) {
+		t.Errorf("the refusal an apply prints does not carry the upgrade line: %q", detail)
 	}
 
 	// The control: the same cluster with the shipped conditions passes, so
