@@ -43,6 +43,14 @@ import (
 //     AND its binding are installed and in force, since that is what fences
 //     writes to the record Secrets (#1392, decision 3).
 //
+// A fifth is a fact about the connection and not about the cluster, so it is
+// reported only when it is wrong (GitHub issue #1448, section C):
+//
+//   - tls_verification: the record_store block sets `insecure = true`, which
+//     turns off verification of the API server's certificate. Every other
+//     answer here, every record and the credential that writes them go over
+//     that connection. It is known from the block alone, before any request.
+//
 // # Not readable is not a pass
 //
 // Two of these four cannot be answered at all from some clusters. The API
@@ -70,6 +78,7 @@ import (
 // a finding about one is a [Finding]; see contract.go for what every store's
 // contract has in common and what the outcomes mean.
 const (
+	ClusterTLSVerification  Setting = "tls_verification"
 	ClusterNamespaceAccess  Setting = "namespace_access"
 	ClusterReadIsolation    Setting = "read_isolation"
 	ClusterEncryptionAtRest Setting = "encryption_at_rest"
@@ -77,8 +86,11 @@ const (
 )
 
 // ClusterSettings is every asserted property, in the order findings are
-// reported.
+// reported. [ClusterTLSVerification] comes first because every other answer
+// is read over the connection it is about, and it is the one setting with no
+// finding when it holds; see [CheckClusterContract].
 var ClusterSettings = []Setting{
+	ClusterTLSVerification,
 	ClusterNamespaceAccess,
 	ClusterReadIsolation,
 	ClusterEncryptionAtRest,
@@ -160,8 +172,8 @@ func (s *KubernetesStore) CheckContract(ctx context.Context, opts ContractOption
 
 // CheckClusterContract is [KubernetesStore.CheckContract] in this store's own
 // vocabulary, for a caller that has one of these in hand and wants to name
-// the options itself. The namespace, the estate and NamespaceKnownToExist are
-// always the store's own whatever opts says.
+// the options itself. The namespace, the estate, NamespaceKnownToExist and
+// InsecureTLS are always the store's own whatever opts says.
 func (s *KubernetesStore) CheckClusterContract(ctx context.Context, opts ClusterContractOptions) ([]Finding, error) {
 	if s.clientset == nil {
 		return nil, fmt.Errorf("staterecord: kubernetes: this store was built with no clientset, so the cluster contract cannot be checked; internal/live/projection always passes one (see KubernetesConfig.Clientset)")
@@ -169,6 +181,7 @@ func (s *KubernetesStore) CheckClusterContract(ctx context.Context, opts Cluster
 	opts.Namespace = s.namespace
 	opts.Estate = s.estate
 	opts.NamespaceKnownToExist = true
+	opts.InsecureTLS = s.insecureTLS
 	return CheckClusterContract(ctx, s.clientset, opts)
 }
 
@@ -220,12 +233,23 @@ type ClusterContractOptions struct {
 	// *[NamespaceMissingError]'s own words, so the contract and the store's
 	// refusal say the same thing.
 	NamespaceKnownToExist bool
+
+	// InsecureTLS is the record_store block's `insecure = true`: cs was built
+	// not to verify the API server's certificate. It is the caller's to say
+	// because a clientset does not carry it, and it is a fact about the block,
+	// so it needs no request to establish. See [ClusterTLSVerification].
+	InsecureTLS bool
 }
 
 // CheckClusterContract reads the four properties of the cluster cs reaches
 // and reports one finding per setting, always all four and always in
 // [ClusterSettings] order: a caller that refused on the first bad one would
 // make an operator fix them one run at a time.
+//
+// [ClusterTLSVerification] is ahead of those four when opts.InsecureTLS is
+// set, and absent otherwise. It is a fact about the block, and a passing line
+// for it would claim something nobody asked: a kubeconfig can turn
+// verification off as well, and that is not read here.
 //
 // The error return is for a failure that is not about the cluster's
 // properties at all - a cancelled context, an unreachable API server, a
@@ -240,6 +264,9 @@ func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts Clu
 	}
 
 	findings := make([]Finding, 0, len(ClusterSettings))
+	if opts.InsecureTLS {
+		findings = append(findings, insecureTLSFinding())
+	}
 
 	access, err := checkNamespaceAccess(ctx, cs, opts)
 	if err != nil {
@@ -262,6 +289,16 @@ func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts Clu
 	findings = append(findings, boundary)
 
 	return findings, nil
+}
+
+// insecureTLSFinding is the [ClusterTLSVerification] failure. It reads
+// nothing, so it cannot come out NotChecked or Unreadable: the block says
+// `insecure = true` or it does not.
+func insecureTLSFinding() Finding {
+	return Finding{
+		Setting: ClusterTLSVerification,
+		Found:   "`insecure = true` is set, so the API server's certificate is not verified",
+	}
 }
 
 // reviewSecrets asks the API server's own authorizer whether this identity
@@ -1018,6 +1055,9 @@ func ClusterContractRefusal(namespace string, f Finding) (summary, detail string
 	}
 	why, fix := "", ""
 	switch f.Setting {
+	case ClusterTLSVerification:
+		why = "With verification off, anything on the path can answer as the API server, and it receives this identity's credential and every record."
+		fix = "Remove `insecure = true` and set `cluster_ca_certificate`."
 	case ClusterNamespaceAccess:
 		why = "Every record this estate keeps is a Secret in that namespace. A verb the store needs and does not have stops a run part-way through writing records, which leaves the estate half-recorded, and a records namespace that is not there reads as an estate with no records at all."
 		fix = fmt.Sprintf("Create the namespace if it is missing (`kubectl create namespace %s`) and grant this identity the verbs it lacks on secrets in it:\n\n  kubectl create role records-rw -n %s --verb=%s --resource=secrets\n  kubectl create rolebinding <name> -n %s --role=records-rw --serviceaccount=<ns>:<name>",
@@ -1079,6 +1119,8 @@ func ClusterWaiverArgument(settings ...Setting) string {
 // sentence, never a generic "running with reduced checks".
 func ClusterWaiverCost(setting Setting) string {
 	switch setting {
+	case ClusterTLSVerification:
+		return "the API server's certificate is not verified, so this identity's credential and every record go to whatever answers at that address"
 	case ClusterNamespaceAccess:
 		return "nothing has checked that this identity can do what the store will ask of it, so a run may stop part-way through writing records"
 	case ClusterReadIsolation:

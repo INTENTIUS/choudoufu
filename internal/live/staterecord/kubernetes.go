@@ -97,6 +97,10 @@ type KubernetesStore struct {
 	keyPrefix string
 	estate    string
 
+	// insecureTLS is [KubernetesConfig.InsecureTLS], kept for the contract
+	// and read by nothing else.
+	insecureTLS bool
+
 	// listPageSize bounds one page of a LIST. Zero takes
 	// [DefaultKubernetesListPageSize].
 	listPageSize int64
@@ -133,6 +137,13 @@ type KubernetesConfig struct {
 	// that it has no client, which is what a caller that built the store
 	// from a bare SecretInterface gets - the conformance suite, for one.
 	Clientset kubernetes.Interface
+
+	// InsecureTLS says the caller built Secrets and Clientset not to verify
+	// the API server's certificate, which is the record_store block's
+	// `insecure = true`. The store does nothing differently for it. The
+	// cluster contract reports it as a finding (GitHub issue #1448), and it
+	// is carried here because neither client says how it was built.
+	InsecureTLS bool
 
 	// Namespace is the Kubernetes namespace Secrets writes into. It is
 	// carried here for the error text, since a namespaced client does not
@@ -448,6 +459,7 @@ func NewKubernetesStore(cfg KubernetesConfig) (*KubernetesStore, error) {
 		namespace:    cfg.Namespace,
 		keyPrefix:    cfg.KeyPrefix,
 		estate:       cfg.Estate,
+		insecureTLS:  cfg.InsecureTLS,
 		listPageSize: cfg.ListPageSize,
 	}, nil
 }

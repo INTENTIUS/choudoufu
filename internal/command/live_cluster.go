@@ -297,7 +297,8 @@ Usage: choudoufu [global options] live-cluster [options]
   namespace and this identity's access to Secrets in it, read isolation
   from other estates, encryption at rest, and the estate boundary policy.
   Exits non-zero unless all four hold, except on a warning: a finding a run
-  proceeds past is counted and exits 0.
+  proceeds past is counted and exits 0. A block that sets insecure = true
+  adds a fifth line, tls_verification, which fails.
 
   Run with no options in a configuration directory to check the namespace
   its live block resolves to, or name any namespace with -namespace. The
