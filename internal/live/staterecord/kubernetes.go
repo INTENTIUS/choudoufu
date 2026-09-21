@@ -92,7 +92,7 @@ type KubernetesConfig struct {
 	// identity may do and reads the estate boundary policy. No record ever
 	// goes through it.
 	//
-	// Optional. Nil leaves [KubernetesStore.CheckClusterContract] reporting
+	// Optional. Nil leaves [KubernetesStore.CheckContract] reporting
 	// that it has no client, which is what a caller that built the store
 	// from a bare SecretInterface gets - the conformance suite, for one.
 	Clientset kubernetes.Interface

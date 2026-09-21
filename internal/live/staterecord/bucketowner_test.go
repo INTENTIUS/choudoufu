@@ -199,8 +199,8 @@ func everyOperation(t *testing.T, store *S3Store) {
 	if _, err := store.GetAll(ctx, ""); err != nil {
 		t.Fatalf("GetAll: %v", err)
 	}
-	if _, err := store.CheckBucketContract(ctx, []string{"tofu-records/prod/"}); err != nil {
-		t.Fatalf("CheckBucketContract: %v", err)
+	if _, err := store.CheckContract(ctx, ContractOptions{Namespaces: []string{"tofu-records/prod/"}}); err != nil {
+		t.Fatalf("CheckContract: %v", err)
 	}
 	if err := store.Delete(ctx, "k1", v2); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -365,15 +365,15 @@ func TestBucketContractSaysTheOwnerMayBeWrong(t *testing.T) {
 	store, fake := newOwnerFakeStore(t, wrongAccount)
 	fake.refuseWrongOwner = true
 
-	findings, err := store.CheckBucketContract(context.Background(), []string{"tofu-records/prod/"})
+	findings, err := store.CheckContract(context.Background(), ContractOptions{Namespaces: []string{"tofu-records/prod/"}})
 	if err != nil {
-		t.Fatalf("CheckBucketContract: %v", err)
+		t.Fatalf("CheckContract: %v", err)
 	}
 	if len(findings) != len(BucketSettings) {
 		t.Fatalf("got %d findings, want one per setting", len(findings))
 	}
 	for _, f := range findings {
-		if !f.Unreadable {
+		if f.Outcome != Unreadable {
 			t.Errorf("%s: a 403 is an unreadable setting, got %+v", f.Setting, f)
 		}
 		if !strings.Contains(f.Found, wrongAccount) {
@@ -389,9 +389,9 @@ func TestBucketContractSaysNothingAboutTheOwnerWhenNoneIsPinned(t *testing.T) {
 	fake.refuseWrongOwner = true
 	fake.realOwner = "never matches, and no header is sent anyway"
 
-	findings, err := store.CheckBucketContract(context.Background(), []string{"tofu-records/prod/"})
+	findings, err := store.CheckContract(context.Background(), ContractOptions{Namespaces: []string{"tofu-records/prod/"}})
 	if err != nil {
-		t.Fatalf("CheckBucketContract: %v", err)
+		t.Fatalf("CheckContract: %v", err)
 	}
 	for _, f := range findings {
 		if strings.Contains(f.Found, "owned by an account other than") {

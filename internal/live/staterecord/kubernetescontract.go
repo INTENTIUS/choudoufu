@@ -66,21 +66,19 @@ import (
 // cluster that fails. Whether a run may PROCEED past a finding is the
 // caller's decision (#1340).
 
-// ClusterSetting names one asserted property of the cluster a record store
-// lives in. The values are the names an operator writes in allow_insecure,
-// so they are part of the configuration language and do not change casually.
-type ClusterSetting string
-
+// The cluster's properties are named in the shared vocabulary [Setting], and
+// a finding about one is a [Finding]; see contract.go for what every store's
+// contract has in common and what the outcomes mean.
 const (
-	ClusterNamespaceAccess  ClusterSetting = "namespace_access"
-	ClusterReadIsolation    ClusterSetting = "read_isolation"
-	ClusterEncryptionAtRest ClusterSetting = "encryption_at_rest"
-	ClusterEstateBoundary   ClusterSetting = "estate_boundary"
+	ClusterNamespaceAccess  Setting = "namespace_access"
+	ClusterReadIsolation    Setting = "read_isolation"
+	ClusterEncryptionAtRest Setting = "encryption_at_rest"
+	ClusterEstateBoundary   Setting = "estate_boundary"
 )
 
 // ClusterSettings is every asserted property, in the order findings are
 // reported.
-var ClusterSettings = []ClusterSetting{
+var ClusterSettings = []Setting{
 	ClusterNamespaceAccess,
 	ClusterReadIsolation,
 	ClusterEncryptionAtRest,
@@ -135,77 +133,23 @@ type VerbAccess struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// ClusterFinding is what one setting turned out to be.
-type ClusterFinding struct {
-	Setting ClusterSetting
-
-	// OK is true when the cluster satisfies the assertion.
-	OK bool
-
-	// NotChecked is true when the question could not be answered from
-	// here - the control plane is not visible, the identity may not read
-	// admissionregistration objects. It is never true together with OK, and
-	// it is NOT a pass: a caller refuses on it the same way it refuses a
-	// failure, and an operator who cannot make it answerable acknowledges it
-	// in allow_insecure instead.
-	NotChecked bool
-
-	// Warning is true for a finding that is a concern and not a refusal: it
-	// is said out loud on every apply and the run goes on. It is never true
-	// together with OK, because it is not a pass either.
-	//
-	// One finding uses it, and the reason is the difference between a
-	// capability and a breach. An identity that may list Secrets
-	// cluster-wide on a cluster where no other estate keeps records has
-	// exposed nothing yet, and refusing it would refuse every cluster-admin
-	// running the first estate on a fresh cluster - a gate everyone routes
-	// around on their first day, which this repository has learned protects
-	// nothing (#1102). An identity that may read a records namespace that
-	// EXISTS and belongs to another estate is a breach, and that refuses.
-	// GitHub issue #1393 asks for a warning as the floor and the refusal
-	// where the other namespace is known, which is exactly this split.
-	Warning bool
-
-	// Found says what the cluster actually has, in one clause, for the
-	// refusal to quote.
-	Found string
-
-	// Verbs is the namespace_access review, one entry per
-	// [KubernetesRecordVerbs] element, and empty for every other setting.
-	Verbs []VerbAccess
-}
-
-// ClusterContractChecker is implemented by a store that lives in a cluster.
-// Neither the local nor the bucket store does: a directory and a bucket have
-// no namespace and no admission policy, and a store with nothing to assert is
-// not a store that failed.
-type ClusterContractChecker interface {
-	CheckClusterContract(ctx context.Context, opts ClusterContractOptions) ([]ClusterFinding, error)
-}
-
-// AsClusterContractChecker finds the cluster-backed store under s, looking
-// through this package's own wrappers ([RunCache], [CountingStore]). False
-// means there is nothing to assert.
-func AsClusterContractChecker(s Store) (ClusterContractChecker, bool) {
-	for s != nil {
-		if c, ok := s.(ClusterContractChecker); ok {
-			return c, true
-		}
-		u, ok := s.(interface{ Unwrap() Store })
-		if !ok {
-			return nil, false
-		}
-		s = u.Unwrap()
+// CheckContract implements [ContractChecker]. The namespace and the estate
+// are the store's own, never the caller's: a report about some other
+// namespace than the one the records are in would be a report about nothing.
+// NamespaceKnownToExist is set, because a store that got this far has already
+// written and listed through that namespace.
+func (s *KubernetesStore) CheckContract(ctx context.Context, opts ContractOptions) ([]Finding, error) {
+	if s.clientset == nil {
+		return nil, fmt.Errorf("staterecord: kubernetes: this store was built with no clientset, so the cluster contract cannot be checked; internal/live/projection always passes one (see KubernetesConfig.Clientset)")
 	}
-	return nil, false
+	return s.CheckClusterContract(ctx, ClusterContractOptions{RequiredVerbs: opts.RequiredVerbs})
 }
 
-// CheckClusterContract implements [ClusterContractChecker]. The namespace and
-// the estate are the store's own, never the caller's: a report about some
-// other namespace than the one the records are in would be a report about
-// nothing. NamespaceKnownToExist is set, because a store that got this far
-// has already written and listed through that namespace.
-func (s *KubernetesStore) CheckClusterContract(ctx context.Context, opts ClusterContractOptions) ([]ClusterFinding, error) {
+// CheckClusterContract is [KubernetesStore.CheckContract] in this store's own
+// vocabulary, for a caller that has one of these in hand and wants to name
+// the options itself. The namespace, the estate and NamespaceKnownToExist are
+// always the store's own whatever opts says.
+func (s *KubernetesStore) CheckClusterContract(ctx context.Context, opts ClusterContractOptions) ([]Finding, error) {
 	if s.clientset == nil {
 		return nil, fmt.Errorf("staterecord: kubernetes: this store was built with no clientset, so the cluster contract cannot be checked; internal/live/projection always passes one (see KubernetesConfig.Clientset)")
 	}
@@ -213,6 +157,26 @@ func (s *KubernetesStore) CheckClusterContract(ctx context.Context, opts Cluster
 	opts.Estate = s.estate
 	opts.NamespaceKnownToExist = true
 	return CheckClusterContract(ctx, s.clientset, opts)
+}
+
+// ContractSubject implements [ContractChecker]: a cluster store is named by
+// the namespace its records live in, which is also its read boundary.
+func (s *KubernetesStore) ContractSubject() (label, value string) { return "Namespace", s.namespace }
+
+// ContractRefusal implements [ContractChecker] with this cluster's own words.
+func (s *KubernetesStore) ContractRefusal(f Finding) (summary, detail string) {
+	return ClusterContractRefusal(s.namespace, f)
+}
+
+// ContractCheckFailed implements [ContractChecker].
+func (s *KubernetesStore) ContractCheckFailed(err error) (summary, detail string) {
+	return ClusterContractCheckFailed(err)
+}
+
+// ContractRefusalClosing implements [ContractChecker] with this cluster's
+// own words.
+func (s *KubernetesStore) ContractRefusalClosing(refused []Setting) string {
+	return ClusterContractRefusalClosing(refused)
 }
 
 // ClusterContractOptions is what a check needs to know beyond the client.
@@ -254,7 +218,7 @@ type ClusterContractOptions struct {
 // properties at all - a cancelled context, an unreachable API server, a
 // SelfSubjectAccessReview the server would not accept. A DENIED read is not
 // an error: it is a finding with NotChecked set.
-func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) ([]ClusterFinding, error) {
+func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) ([]Finding, error) {
 	if cs == nil {
 		return nil, fmt.Errorf("staterecord: kubernetes: the cluster contract needs a clientset and was given none")
 	}
@@ -262,7 +226,7 @@ func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts Clu
 		return nil, fmt.Errorf("staterecord: kubernetes: the cluster contract needs the records namespace and was given none")
 	}
 
-	findings := make([]ClusterFinding, 0, len(ClusterSettings))
+	findings := make([]Finding, 0, len(ClusterSettings))
 
 	access, err := checkNamespaceAccess(ctx, cs, opts)
 	if err != nil {
@@ -323,8 +287,8 @@ func reviewSecrets(ctx context.Context, cs kubernetes.Interface, namespace, verb
 // them have to be ALLOWED is opts.RequiredVerbs, so a plan under a get/list
 // Role is not refused for lacking create, update and delete - it is told, in
 // the same line, that it has them and does not need them.
-func checkNamespaceAccess(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (ClusterFinding, error) {
-	f := ClusterFinding{Setting: ClusterNamespaceAccess}
+func checkNamespaceAccess(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (Finding, error) {
+	f := Finding{Setting: ClusterNamespaceAccess}
 
 	required := opts.RequiredVerbs
 	if len(required) == 0 {
@@ -380,7 +344,9 @@ func checkNamespaceAccess(ctx context.Context, cs kubernetes.Interface, opts Clu
 			// by the store's first use of it, which is where the refusal
 			// lives, so this is reported and not asserted.
 			f.Found = verbs + fmt.Sprintf("; this identity may not get namespace %q, so whether it exists was not established here, and the store refuses an absent one by name on its first write", opts.Namespace)
-			f.OK = len(missing) == 0
+			if len(missing) == 0 {
+				f.Outcome = Passed
+			}
 			return f, nil
 		default:
 			return f, fmt.Errorf("staterecord: kubernetes: reading namespace %q: %w", opts.Namespace, err)
@@ -388,7 +354,9 @@ func checkNamespaceAccess(ctx context.Context, cs kubernetes.Interface, opts Clu
 	}
 
 	f.Found = verbs
-	f.OK = len(missing) == 0
+	if len(missing) == 0 {
+		f.Outcome = Passed
+	}
 	return f, nil
 }
 
@@ -435,8 +403,8 @@ func joinOrNone(s []string) string {
 // Enumerating the other namespaces needs list on namespaces, which the
 // recommended Role does not carry. When it cannot be done the finding says so
 // in as many words rather than implying both questions were asked.
-func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (ClusterFinding, error) {
-	f := ClusterFinding{Setting: ClusterReadIsolation}
+func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts ClusterContractOptions) (Finding, error) {
+	f := Finding{Setting: ClusterReadIsolation}
 
 	var wide []string
 	for _, verb := range []string{"get", "list"} {
@@ -488,22 +456,22 @@ func checkReadIsolation(ctx context.Context, cs kubernetes.Interface, opts Clust
 
 	switch {
 	case !enumerated && wideClause != "":
-		f.Warning = true
+		f.Outcome = Warned
 		f.Found = wideClause + ", and other estates' records namespaces could not be enumerated here (listing namespaces is not permitted), so whether any exist was not checked"
 	case !enumerated:
-		f.OK = true
+		f.Outcome = Passed
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q; other estates' records namespaces could not be enumerated, because listing namespaces is not permitted here, so whether a RoleBinding elsewhere reaches one was not checked", opts.Namespace)
 	case wideClause != "":
-		f.Warning = true
+		f.Outcome = Warned
 		f.Found = wideClause + fmt.Sprintf(", and this cluster holds no other %s* namespace today, so nothing is exposed yet; the first estate that joins this cluster will be", KubernetesRecordNamespacePrefix)
 	case reviewed == 0:
-		f.OK = true
+		f.Outcome = Passed
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and this cluster holds no other %s* namespace to check", opts.Namespace, KubernetesRecordNamespacePrefix)
 	case truncated:
-		f.OK = true
+		f.Outcome = Passed
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in the first %d of %d other %s* namespaces", opts.Namespace, reviewed, len(foreign), KubernetesRecordNamespacePrefix)
 	default:
-		f.OK = true
+		f.Outcome = Passed
 		f.Found = fmt.Sprintf("this identity may not get or list secrets outside namespace %q, and is refused Secrets in all %d other %s* namespace(s)", opts.Namespace, reviewed, KubernetesRecordNamespacePrefix)
 	}
 	return f, nil
@@ -554,14 +522,14 @@ const encryptionProviderFlag = "--encryption-provider-config"
 // count a check that cannot fail, and a green that is a guess is worse than
 // an honest "not checked" - an operator acts on the first and investigates
 // the second.
-func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) ClusterFinding {
-	f := ClusterFinding{Setting: ClusterEncryptionAtRest}
+func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Finding {
+	f := Finding{Setting: ClusterEncryptionAtRest}
 
 	pods, err := cs.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
 		LabelSelector: "component=kube-apiserver",
 	})
 	if err != nil {
-		f.NotChecked = true
+		f.Outcome = NotChecked
 		if k8serrors.IsForbidden(err) {
 			f.Found = "not readable from here, not checked: whether Secrets are encrypted at rest is an API server flag (" + encryptionProviderFlag + ") and the only thing that carries it through the API is the API server's own Pod, which this identity may not list in kube-system"
 			return f
@@ -570,7 +538,7 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Cluster
 		return f
 	}
 	if len(pods.Items) == 0 {
-		f.NotChecked = true
+		f.Outcome = NotChecked
 		f.Found = "not readable from here, not checked: no kube-apiserver Pod is visible in kube-system, which is the normal case on a managed control plane (EKS, GKE, AKS), where " + encryptionProviderFlag + " is set outside the cluster and readable only through that provider's own API"
 		return f
 	}
@@ -589,7 +557,7 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Cluster
 		f.Found = fmt.Sprintf("the API server Pod(s) %s carry no %s, so this cluster writes Secret data to etcd base64-encoded and not encrypted; anything that reads etcd or a backup of it reads every record", strings.Join(bare, ", "), encryptionProviderFlag)
 		return f
 	}
-	f.OK = true
+	f.Outcome = Passed
 	f.Found = "the API server runs with " + strings.Join(configured, ", ")
 	return f
 }
@@ -628,13 +596,13 @@ func encryptionProviderConfigPath(pod *corev1.Pod) string {
 //   - a binding exists naming it, with Deny among its validationActions. A
 //     policy with no binding is inert, and a binding whose action is Warn or
 //     Audit logs a cross-estate write and lets it through.
-func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) ClusterFinding {
-	f := ClusterFinding{Setting: ClusterEstateBoundary}
+func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) Finding {
+	f := Finding{Setting: ClusterEstateBoundary}
 
 	policy, err := cs.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get(ctx, EstateBoundaryPolicyName, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsForbidden(err) {
-			f.NotChecked = true
+			f.Outcome = NotChecked
 			f.Found = fmt.Sprintf("not readable from here, not checked: reading a ValidatingAdmissionPolicy needs cluster-scoped get on admissionregistration.k8s.io, which this identity does not hold, so whether %q fences writes to the record Secrets was not established", EstateBoundaryPolicyName)
 			return f
 		}
@@ -642,7 +610,7 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) ClusterFi
 			f.Found = fmt.Sprintf("no ValidatingAdmissionPolicy named %q is installed, so nothing refuses a write to this estate's record Secrets by an identity bound to another estate; install it with `kubectl apply -f live/kubernetes/estate-boundary.yaml`", EstateBoundaryPolicyName)
 			return f
 		}
-		f.NotChecked = true
+		f.Outcome = NotChecked
 		f.Found = fmt.Sprintf("not readable from here, not checked: reading the %q policy failed (%s)", EstateBoundaryPolicyName, err)
 		return f
 	}
@@ -666,11 +634,11 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) ClusterFi
 	case k8serrors.IsNotFound(err):
 		problems = append(problems, fmt.Sprintf("no ValidatingAdmissionPolicyBinding named %q exists, and a policy with no binding is inert: it evaluates nothing and refuses nothing", EstateBoundaryPolicyName))
 	case k8serrors.IsForbidden(err):
-		f.NotChecked = true
+		f.Outcome = NotChecked
 		f.Found = "not readable from here, not checked: the policy is installed, and whether a binding puts it in force could not be read, because this identity may not get a ValidatingAdmissionPolicyBinding"
 		return f
 	default:
-		f.NotChecked = true
+		f.Outcome = NotChecked
 		f.Found = fmt.Sprintf("not readable from here, not checked: the policy is installed, and reading its binding failed (%s)", err)
 		return f
 	}
@@ -679,7 +647,7 @@ func checkEstateBoundary(ctx context.Context, cs kubernetes.Interface) ClusterFi
 		f.Found = strings.Join(problems, "; ")
 		return f
 	}
-	f.OK = true
+	f.Outcome = Passed
 	f.Found = fmt.Sprintf("the %q policy is installed, observed at generation %d, type-checks clean, and its binding denies", EstateBoundaryPolicyName, policy.Generation)
 	return f
 }
@@ -707,8 +675,8 @@ func bindingProblems(binding *admissionv1.ValidatingAdmissionPolicyBinding) []st
 // finding, in internal/command's statelessCommandRefusals shape: what was
 // refused, then what it protects against and what to do instead. Empty for a
 // finding that passed.
-func ClusterContractRefusal(namespace string, f ClusterFinding) (summary, detail string) {
-	if f.OK {
+func ClusterContractRefusal(namespace string, f Finding) (summary, detail string) {
+	if f.OK() {
 		return "", ""
 	}
 	why, fix := "", ""
@@ -727,12 +695,12 @@ func ClusterContractRefusal(namespace string, f ClusterFinding) (summary, detail
 		why = "The record Secrets carry the estate's tofu-estate label, and that policy is what stops an identity bound to another estate from writing them. Without it in force, any identity with write access to this namespace can overwrite or delete another estate's records, and a record can be the only copy of what it says."
 		fix = "Fix it, as a cluster admin, by installing the policy and its binding with `kubectl apply -f live/kubernetes/estate-boundary.yaml` and then granting this estate to the identity that runs it with live/kubernetes/estate-grant.yaml, which is one ClusterRole and one binding per estate."
 	}
-	if f.Warning {
+	if f.Outcome == Warned {
 		summary = fmt.Sprintf("The record store cluster's %s is weaker than it should be", f.Setting)
 		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nThe run goes on, because nothing is exposed by this yet. %s", namespace, f.Found, why, fix)
 		return summary, detail
 	}
-	if f.NotChecked {
+	if f.Outcome == NotChecked {
 		summary = fmt.Sprintf("The record store cluster's %s could not be checked", f.Setting)
 		detail = fmt.Sprintf("Namespace %q: %s.\n\n%s\n\nThe run goes on and this is not a pass: nothing here says the property holds, and this says so on every run for as long as it cannot be read. %s\n\n%s `choudoufu live-cluster`, run by an identity that can read what this one cannot, answers the question properly and exits non-zero until it does.", namespace, f.Found, why, fix, ClusterWaiverLine(f.Setting))
 		return summary, detail
@@ -753,14 +721,14 @@ func ClusterContractRefusal(namespace string, f ClusterFinding) (summary, detail
 // "not on this cluster, and I know". A refusal that names only the fix
 // leaves that reader with a message they cannot act on, and a refusal that
 // says "waive it" without the line leaves them guessing at the spelling.
-func ClusterWaiverLine(settings ...ClusterSetting) string {
+func ClusterWaiverLine(settings ...Setting) string {
 	return fmt.Sprintf("Or accept it on purpose: put `%s` in this record_store \"kubernetes\" block, which lets every run proceed and makes each run say what the waiver costs.", ClusterWaiverArgument(settings...))
 }
 
 // ClusterWaiverArgument is the argument itself, for a caller writing its own
 // sentence around it - internal/live/projection's closing line when more than
 // one assertion refuses at once.
-func ClusterWaiverArgument(settings ...ClusterSetting) string {
+func ClusterWaiverArgument(settings ...Setting) string {
 	quoted := make([]string, 0, len(settings))
 	for _, s := range settings {
 		quoted = append(quoted, `"`+string(s)+`"`)
@@ -772,7 +740,7 @@ func ClusterWaiverArgument(settings ...ClusterSetting) string {
 // clause that completes "is waived, so ...". GitHub issue #1340's rule, on
 // this store: the warning names the setting and its cost in the same
 // sentence, never a generic "running with reduced checks".
-func ClusterWaiverCost(setting ClusterSetting) string {
+func ClusterWaiverCost(setting Setting) string {
 	switch setting {
 	case ClusterNamespaceAccess:
 		return "nothing has checked that this identity can do what the store will ask of it, so a run may stop part-way through writing records"
@@ -786,58 +754,23 @@ func ClusterWaiverCost(setting ClusterSetting) string {
 	return "that assertion is not made"
 }
 
-// SplitWaivedCluster sorts the findings that did not pass into the ones a RUN
-// must refuse on, the ones it must WARN about, and the ones waived names,
-// leaving passing findings out of all three. A waiver reaches exactly the
-// settings it names, and silences a warning as well as a refusal.
+// ClusterContractRefusalClosing is the line that follows two or more
+// refusals in one message.
 //
-// # Why a NotChecked finding warns a run and fails a report
-//
-// The two callers are asking different questions and the answer differs.
-//
-// `choudoufu live-cluster` asks "is this cluster correct". A property nobody
-// could read is not a pass there: the report prints NOT_CHECKED, calls the
-// cluster NOT correct and exits non-zero, so the operator who ran it on
-// purpose goes and gets the answer from outside the cluster. That is what
-// GitHub issue #1393 asks of the report, and internal/command's
-// live_cluster.go does not go through this function.
-//
-// A RUN asks "may I proceed". There, a refusal on NotChecked would refuse
-// every correctly scoped identity, because scoped is exactly what makes the
-// two cluster-wide reads impossible: the Role the docs recommend holds
-// Secrets in one namespace and cannot list kube-system's Pods or get a
-// ValidatingAdmissionPolicy. Every CI job in the intended arrangement would
-// then carry allow_insecure = ["encryption_at_rest", "estate_boundary"] from
-// its first day - a gate satisfied by a line in the configuration, which this
-// repository has paid to learn protects nothing (#1102). So it warns: by
-// name, with its cost, on every apply, which is #1340's whole standard for a
-// thing a run proceeds past.
-//
-// What still refuses is a property that WAS read and is wrong. A cluster
-// whose API server carries no --encryption-provider-config, an estate
-// boundary policy that is absent or does not deny, a records namespace of
-// another estate this identity can read: each of those is a fact somebody can
-// act on, and each of them refuses.
-func SplitWaivedCluster(findings []ClusterFinding, waived []string) (refused, warned, waivedFailing []ClusterFinding) {
-	for _, f := range findings {
-		if f.OK {
-			continue
-		}
-		isWaived := false
-		for _, name := range waived {
-			if ClusterSetting(name) == f.Setting {
-				isWaived = true
-				break
-			}
-		}
-		switch {
-		case isWaived:
-			waivedFailing = append(waivedFailing, f)
-		case f.Warning, f.NotChecked:
-			warned = append(warned, f)
-		default:
-			refused = append(refused, f)
-		}
-	}
-	return refused, warned, waivedFailing
+// A plain kind cluster refuses an estate's first contact twice at once - no
+// --encryption-provider-config and no estate boundary policy - and each
+// refusal's own waiver line names only itself, so a reader following them
+// both would write allow_insecure twice in one block, which is a duplicate
+// argument and does not parse. This is the line they can paste.
+func ClusterContractRefusalClosing(refused []Setting) string {
+	return fmt.Sprintf("To accept all %d on purpose, the waiver is one line and not %d: `%s`",
+		len(refused), len(refused), ClusterWaiverArgument(refused...))
+}
+
+// ClusterContractCheckFailed is what an apply says when the contract read
+// itself could not be made - not a finding about the cluster, but nothing
+// known about it at all.
+func ClusterContractCheckFailed(err error) (summary, detail string) {
+	return "Cannot check the record store cluster",
+		fmt.Sprintf("Before applying, the cluster this estate keeps its records in is checked for the properties those records depend on, and that check could not be made: %s. Nothing has been applied.", err)
 }

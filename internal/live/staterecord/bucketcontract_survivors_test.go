@@ -51,7 +51,7 @@ func TestLifecyclePrefixIsReadWhereverItArrives(t *testing.T) {
 			// not this estate's recovery window.
 			other := rule("logs/")
 			other.NoncurrentVersionExpiration = &s3types.NoncurrentVersionExpiration{NoncurrentDays: aws.Int32(30)}
-			if f := lifecycleFinding(t, []s3types.LifecycleRule{other}); f.OK {
+			if f := lifecycleFinding(t, []s3types.LifecycleRule{other}); f.OK() {
 				t.Errorf("a noncurrent expiry under logs/ was credited to an estate under tofu-*: %q", f.Found)
 			}
 
@@ -60,8 +60,8 @@ func TestLifecyclePrefixIsReadWhereverItArrives(t *testing.T) {
 			logs := rule("logs/")
 			logs.Expiration = &s3types.LifecycleExpiration{Days: aws.Int32(7)}
 			f := lifecycleFinding(t, []s3types.LifecycleRule{expiresNoncurrent("keep", 30), logs})
-			if f.DeletesRecords || !f.OK {
-				t.Errorf("a rule that expires logs/ was read as reaching the records: OK=%v DeletesRecords=%v %q", f.OK, f.DeletesRecords, f.Found)
+			if f.Unwaivable || !f.OK() {
+				t.Errorf("a rule that expires logs/ was read as reaching the records: OK=%v DeletesRecords=%v %q", f.OK(), f.Unwaivable, f.Found)
 			}
 
 			// The control for both: the same shapes over the estate's own
@@ -70,7 +70,7 @@ func TestLifecyclePrefixIsReadWhereverItArrives(t *testing.T) {
 			mine := rule("tofu-records/prod/")
 			mine.Expiration = &s3types.LifecycleExpiration{Days: aws.Int32(7)}
 			f = lifecycleFinding(t, []s3types.LifecycleRule{expiresNoncurrent("keep", 30), mine})
-			if !f.DeletesRecords {
+			if !f.Unwaivable {
 				t.Errorf("a rule that expires tofu-records/prod/ was not read as deleting records: %q", f.Found)
 			}
 		})
@@ -97,7 +97,7 @@ func TestPublicAccessBlockNeedsEachOfTheFourFlags(t *testing.T) {
 			}
 			b.pab = cfg
 			f := settingFinding(t, b, BucketPublicAccessBlock)
-			if f.OK {
+			if f.OK() {
 				t.Fatalf("the bucket passed with %s off: %q", flag, f.Found)
 			}
 			if !strings.Contains(f.Found, flag) {
@@ -125,8 +125,8 @@ func TestBucketContractReadsABare403AsUnreadable(t *testing.T) {
 	b := correctBucket()
 	b.pabErr = statusOnly(http.StatusForbidden)
 	f := settingFinding(t, b, BucketPublicAccessBlock)
-	if f.OK || !f.Unreadable {
-		t.Errorf("a 403 with no error code: OK=%v Unreadable=%v %q", f.OK, f.Unreadable, f.Found)
+	if f.OK() || f.Outcome != Unreadable {
+		t.Errorf("a 403 with no error code: OK=%v Unreadable=%v %q", f.OK(), f.Outcome == Unreadable, f.Found)
 	}
 
 	// The control. A 500 of the same shape is a read that never happened,
@@ -138,7 +138,7 @@ func TestBucketContractReadsABare403AsUnreadable(t *testing.T) {
 	}
 }
 
-func settingFinding(t *testing.T, b *fakeBucket, setting BucketSetting) BucketFinding {
+func settingFinding(t *testing.T, b *fakeBucket, setting Setting) Finding {
 	t.Helper()
 	findings, err := CheckBucketContract(context.Background(), b, "the-bucket", "", estateNamespaces)
 	if err != nil {
@@ -150,5 +150,5 @@ func settingFinding(t *testing.T, b *fakeBucket, setting BucketSetting) BucketFi
 		}
 	}
 	t.Fatalf("no %s finding", setting)
-	return BucketFinding{}
+	return Finding{}
 }

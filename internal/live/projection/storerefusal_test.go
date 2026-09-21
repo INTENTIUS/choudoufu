@@ -52,7 +52,7 @@ func TestStoreOpenFailuresAreRefusalsOrOutages(t *testing.T) {
 	rs := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket"}
 
 	failing := passing()
-	failing[0].OK = false
+	failing[0].Outcome = staterecord.Failed
 	failing[0].Found = "versioning is Suspended"
 
 	for _, tc := range []struct {

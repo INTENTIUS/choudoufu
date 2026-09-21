@@ -17,13 +17,13 @@ import (
 
 const clusterNS = "tofu-records-alice"
 
-func clusterFindings(failing ...staterecord.ClusterSetting) []staterecord.ClusterFinding {
-	var out []staterecord.ClusterFinding
+func clusterFindings(failing ...staterecord.Setting) []staterecord.Finding {
+	var out []staterecord.Finding
 	for _, s := range staterecord.ClusterSettings {
-		f := staterecord.ClusterFinding{Setting: s, OK: true, Found: "fine"}
+		f := staterecord.Finding{Setting: s, Outcome: staterecord.Passed, Found: "fine"}
 		for _, bad := range failing {
 			if bad == s {
-				f = staterecord.ClusterFinding{Setting: s, Found: "wrong"}
+				f = staterecord.Finding{Setting: s, Found: "wrong"}
 			}
 		}
 		out = append(out, f)
@@ -82,10 +82,10 @@ func TestLiveClusterReportsTheClusterNotTheConfiguration(t *testing.T) {
 // verdict, and it makes the cluster NOT correct.
 func TestLiveClusterNotCheckedIsNotAPass(t *testing.T) {
 	findings := clusterFindings()
-	findings[2] = staterecord.ClusterFinding{
-		Setting:    staterecord.ClusterEncryptionAtRest,
-		NotChecked: true,
-		Found:      "not readable from here, not checked: no kube-apiserver Pod is visible in kube-system",
+	findings[2] = staterecord.Finding{
+		Setting: staterecord.ClusterEncryptionAtRest,
+		Outcome: staterecord.NotChecked,
+		Found:   "not readable from here, not checked: no kube-apiserver Pod is visible in kube-system",
 	}
 	r := buildLiveClusterReport(clusterNS, "alice", "apply", findings, nil)
 	if r.Correct {
@@ -110,8 +110,8 @@ func TestLiveClusterNotCheckedIsNotAPass(t *testing.T) {
 // for. It prints, it counts, and the verdict line names the count.
 func TestLiveClusterWarningsAreCountedAndNotSwallowed(t *testing.T) {
 	findings := clusterFindings()
-	findings[1] = staterecord.ClusterFinding{
-		Setting: staterecord.ClusterReadIsolation, Warning: true,
+	findings[1] = staterecord.Finding{
+		Setting: staterecord.ClusterReadIsolation, Outcome: staterecord.Warned,
 		Found: "this identity may get and list secrets in EVERY namespace, and this cluster holds no other tofu-records-* namespace today, so nothing is exposed yet",
 	}
 	r := buildLiveClusterReport(clusterNS, "alice", "apply", findings, nil)
@@ -144,8 +144,8 @@ func TestLiveClusterWarningsAreCountedAndNotSwallowed(t *testing.T) {
 // whether this run needs it.
 func TestLiveClusterReportsEveryVerbItReviewed(t *testing.T) {
 	findings := clusterFindings()
-	findings[0] = staterecord.ClusterFinding{
-		Setting: staterecord.ClusterNamespaceAccess, OK: true, Found: "allowed: get, list; denied: create, update, delete",
+	findings[0] = staterecord.Finding{
+		Setting: staterecord.ClusterNamespaceAccess, Outcome: staterecord.Passed, Found: "allowed: get, list; denied: create, update, delete",
 		Verbs: []staterecord.VerbAccess{
 			{Verb: "get", Allowed: true, Required: true},
 			{Verb: "list", Allowed: true, Required: true},

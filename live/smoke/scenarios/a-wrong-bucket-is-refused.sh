@@ -118,7 +118,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   python3 - "$SRC" "$SMOKE_WORK/break/bucketcontract.go" <<'PYEOF'
 import sys
 src = open(sys.argv[1]).read()
-old = "\tfindings := make([]BucketFinding, 0, len(BucketSettings))\n"
+old = "\tfindings := make([]Finding, 0, len(BucketSettings))\n"
 assert src.count(old) == 1, "the break patch no longer matches CheckBucketContract"
 open(sys.argv[2], "w").write(src.replace(old, old + "\tif true {\n\t\treturn findings, nil // BREAK: the bucket is never checked\n\t}\n"))
 PYEOF

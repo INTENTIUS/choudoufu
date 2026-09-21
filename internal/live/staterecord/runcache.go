@@ -122,7 +122,7 @@ func NewRunCache(inner Store, prefix string) Store {
 // case: see [Fresh].
 func (c *RunCache) Uncached() Store { return c.inner }
 
-// Unwrap returns the wrapped store, for [AsBucketContractChecker].
+// Unwrap returns the wrapped store, for [AsContractChecker].
 func (c *RunCache) Unwrap() Store { return c.inner }
 
 // Fresh returns the store beneath any read cache in s, or s itself when

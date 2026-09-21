@@ -81,10 +81,22 @@ func (s *writeRefusingStore) PutIfAbsent(_ context.Context, key string, _ []byte
 	return "", s.denial(key)
 }
 
-func (s *writeRefusingStore) CheckBucketContract(_ context.Context, _ []string) ([]staterecord.BucketFinding, error) {
+func (s *writeRefusingStore) CheckContract(context.Context, staterecord.ContractOptions) ([]staterecord.Finding, error) {
 	s.checks++
 	return passing(), nil
 }
+
+func (s *writeRefusingStore) ContractSubject() (string, string) { return "Bucket", fakeBucketName }
+
+func (s *writeRefusingStore) ContractRefusal(f staterecord.Finding) (string, string) {
+	return staterecord.BucketContractRefusal(fakeBucketName, f)
+}
+
+func (s *writeRefusingStore) ContractCheckFailed(err error) (string, string) {
+	return staterecord.BucketContractCheckFailed(fakeBucketName, err)
+}
+
+func (s *writeRefusingStore) ContractRefusalClosing([]staterecord.Setting) string { return "" }
 
 // seedSentinel writes the sentinel the way a run with write access would
 // have, straight into the underlying store, so the run under test meets a

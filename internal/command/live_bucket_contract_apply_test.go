@@ -16,26 +16,43 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
+// testBucket is what contractCheckingStore calls itself, so the refusals it
+// renders name the same bucket the record_store block does.
+const testBucket = "the-bucket"
+
 // contractCheckingStore is a real local store that also answers the bucket
 // contract, the same shape internal/live/projection's bucketBackedStore has
 // and for the same reason: everything but the bucket's settings is the
-// production code, and the settings are the only thing scripted.
+// production code, and the settings are the only thing scripted. The words
+// are the bucket's own, so what these tests read is what an operator reads.
 //
 // The runner is built around one of these directly rather than through a
 // seam, because BeforeApply reaches the store the way every other caller
-// does - staterecord.AsBucketContractChecker over r.rawStore - and a seam
+// does - staterecord.AsContractChecker over r.rawStore - and a seam
 // would be production indirection bought to make a test easier.
 type contractCheckingStore struct {
 	staterecord.Store
-	findings []staterecord.BucketFinding
+	findings []staterecord.Finding
 	err      error
 	checks   int
 }
 
-func (s *contractCheckingStore) CheckBucketContract(context.Context, []string) ([]staterecord.BucketFinding, error) {
+func (s *contractCheckingStore) CheckContract(context.Context, staterecord.ContractOptions) ([]staterecord.Finding, error) {
 	s.checks++
 	return s.findings, s.err
 }
+
+func (s *contractCheckingStore) ContractSubject() (string, string) { return "Bucket", testBucket }
+
+func (s *contractCheckingStore) ContractRefusal(f staterecord.Finding) (string, string) {
+	return staterecord.BucketContractRefusal(testBucket, f)
+}
+
+func (s *contractCheckingStore) ContractCheckFailed(err error) (string, string) {
+	return staterecord.BucketContractCheckFailed(testBucket, err)
+}
+
+func (s *contractCheckingStore) ContractRefusalClosing([]staterecord.Setting) string { return "" }
 
 func localStoreForTest(t *testing.T) staterecord.Store {
 	t.Helper()
@@ -46,16 +63,16 @@ func localStoreForTest(t *testing.T) staterecord.Store {
 	return store
 }
 
-func passingFindings() []staterecord.BucketFinding {
-	var out []staterecord.BucketFinding
+func passingFindings() []staterecord.Finding {
+	var out []staterecord.Finding
 	for _, setting := range staterecord.BucketSettings {
-		out = append(out, staterecord.BucketFinding{Setting: setting, OK: true, Found: "fine"})
+		out = append(out, staterecord.Finding{Setting: setting, Outcome: staterecord.Passed, Found: "fine"})
 	}
 	return out
 }
 
 // withFinding replaces the finding for f.Setting, leaving the others passing.
-func withFinding(f staterecord.BucketFinding) []staterecord.BucketFinding {
+func withFinding(f staterecord.Finding) []staterecord.Finding {
 	out := passingFindings()
 	for i := range out {
 		if out[i].Setting == f.Setting {
@@ -103,7 +120,7 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 	})
 
 	t.Run("a failing setting refuses the apply", func(t *testing.T) {
-		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.BucketFinding{
+		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.Finding{
 			Setting: staterecord.BucketVersioning, Found: "versioning is Suspended",
 		})}
 		diags := runnerOver(store, plain).BeforeApply(ctx)
@@ -119,8 +136,8 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 	})
 
 	t.Run("a setting that could not be read is refused like one that failed", func(t *testing.T) {
-		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.BucketFinding{
-			Setting: staterecord.BucketPublicAccessBlock, Unreadable: true, Found: "s3:GetBucketPublicAccessBlock was denied",
+		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.Finding{
+			Setting: staterecord.BucketPublicAccessBlock, Outcome: staterecord.Unreadable, Found: "s3:GetBucketPublicAccessBlock was denied",
 		})}
 		diags := runnerOver(store, plain).BeforeApply(ctx)
 		if !diags.HasErrors() {
@@ -136,7 +153,7 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 
 	t.Run("a waived failing setting proceeds, and says what it let through", func(t *testing.T) {
 		waived := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket", AllowInsecure: []string{"lifecycle"}}
-		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.BucketFinding{
+		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.Finding{
 			Setting: staterecord.BucketLifecycle, Found: "the bucket has no lifecycle configuration",
 		})}
 		diags := runnerOver(store, waived).BeforeApply(ctx)
@@ -159,7 +176,7 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 
 	t.Run("a waiver reaches only the setting it names", func(t *testing.T) {
 		waived := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket", AllowInsecure: []string{"lifecycle"}}
-		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.BucketFinding{
+		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.Finding{
 			Setting: staterecord.BucketVersioning, Found: "versioning is Suspended",
 		})}
 		diags := runnerOver(store, waived).BeforeApply(ctx)
@@ -174,10 +191,10 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 	// something is known and it deletes records on a timer.
 	t.Run("a lifecycle that deletes records is refused although lifecycle is waived", func(t *testing.T) {
 		waived := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket", AllowInsecure: []string{"lifecycle"}}
-		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.BucketFinding{
-			Setting:        staterecord.BucketLifecycle,
-			DeletesRecords: true,
-			Found:          `rule "expire-everything" expires current objects after 30 day(s), and a record is a current object`,
+		store := &contractCheckingStore{Store: localStoreForTest(t), findings: withFinding(staterecord.Finding{
+			Setting:    staterecord.BucketLifecycle,
+			Unwaivable: true,
+			Found:      `rule "expire-everything" expires current objects after 30 day(s), and a record is a current object`,
 		})}
 		diags := runnerOver(store, waived).BeforeApply(ctx)
 		if !diags.HasErrors() {
@@ -225,6 +242,139 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 		}
 		if store.checks != 0 {
 			t.Errorf("the bucket was checked %d time(s) with no record_store block to name it", store.checks)
+		}
+	})
+}
+
+// testNamespace is what clusterContractCheckingStore calls itself.
+const testNamespace = "tofu-records-prod"
+
+// clusterContractCheckingStore is the cluster's side of the same shape: a
+// real local store answering the CLUSTER contract, with the cluster's own
+// words. GitHub issue #1442 made BeforeApply one path over
+// [staterecord.ContractChecker] instead of two halves with a `case
+// "kubernetes"` between them, and this is the half that had no unit test of
+// its own before that.
+type clusterContractCheckingStore struct {
+	staterecord.Store
+	findings []staterecord.Finding
+	err      error
+}
+
+func (s *clusterContractCheckingStore) CheckContract(context.Context, staterecord.ContractOptions) ([]staterecord.Finding, error) {
+	return s.findings, s.err
+}
+
+func (s *clusterContractCheckingStore) ContractSubject() (string, string) {
+	return "Namespace", testNamespace
+}
+
+func (s *clusterContractCheckingStore) ContractRefusal(f staterecord.Finding) (string, string) {
+	return staterecord.ClusterContractRefusal(testNamespace, f)
+}
+
+func (s *clusterContractCheckingStore) ContractCheckFailed(err error) (string, string) {
+	return staterecord.ClusterContractCheckFailed(err)
+}
+
+func (s *clusterContractCheckingStore) ContractRefusalClosing(refused []staterecord.Setting) string {
+	return staterecord.ClusterContractRefusalClosing(refused)
+}
+
+// TestBeforeApplyAssertsTheClusterContract is GitHub issue #1393's apply half
+// over the merged path. The three outcomes a run treats differently all come
+// out of one function now, so each is pinned here: a property that was read
+// and is wrong refuses, a property nobody could read warns and lets the apply
+// through, and a waived failure warns with what it let through.
+func TestBeforeApplyAssertsTheClusterContract(t *testing.T) {
+	ctx := context.Background()
+	const estate = "prod"
+	plain := &configs.LiveRecordStore{Type: "kubernetes", Namespace: testNamespace, NamespaceSet: true}
+
+	runnerOver := func(store staterecord.Store, rs *configs.LiveRecordStore) *statelessRunner {
+		return &statelessRunner{rawStore: store, recordStoreCfg: rs, recordEstate: estate}
+	}
+	clusterFindings := func(f staterecord.Finding) []staterecord.Finding {
+		var out []staterecord.Finding
+		for _, setting := range staterecord.ClusterSettings {
+			if setting == f.Setting {
+				out = append(out, f)
+				continue
+			}
+			out = append(out, staterecord.Finding{Setting: setting, Outcome: staterecord.Passed, Found: "fine"})
+		}
+		return out
+	}
+
+	t.Run("a property that was read and is wrong refuses the apply", func(t *testing.T) {
+		store := &clusterContractCheckingStore{Store: localStoreForTest(t), findings: clusterFindings(staterecord.Finding{
+			Setting: staterecord.ClusterEstateBoundary,
+			Found:   `no ValidatingAdmissionPolicy named "choudoufu-estate-boundary" is installed`,
+		})}
+		diags := runnerOver(store, plain).BeforeApply(ctx)
+		if !diags.HasErrors() {
+			t.Fatal("a cluster with no estate boundary policy was applied to")
+		}
+		got := details(diags, tfdiags.Error)
+		for _, want := range []string{"estate_boundary", testNamespace, "is installed", "Nothing has been applied."} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the refusal does not say %q:\n%s", want, got)
+			}
+		}
+	})
+
+	t.Run("a property nobody could read warns and the apply goes on", func(t *testing.T) {
+		store := &clusterContractCheckingStore{Store: localStoreForTest(t), findings: clusterFindings(staterecord.Finding{
+			Setting: staterecord.ClusterEncryptionAtRest,
+			Outcome: staterecord.NotChecked,
+			Found:   "not readable from here, not checked: no kube-apiserver Pod is visible in kube-system",
+		})}
+		diags := runnerOver(store, plain).BeforeApply(ctx)
+		if diags.HasErrors() {
+			t.Fatalf("a correctly scoped identity was refused for what it cannot read:\n%s", diags.Err())
+		}
+		got := details(diags, tfdiags.Warning)
+		for _, want := range []string{"could not be checked", "this is not a pass"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the warning does not say %q:\n%s", want, got)
+			}
+		}
+	})
+
+	t.Run("a waived failure warns with what it let through", func(t *testing.T) {
+		waived := &configs.LiveRecordStore{Type: "kubernetes", Namespace: testNamespace, NamespaceSet: true,
+			AllowInsecure: []string{"estate_boundary"}}
+		store := &clusterContractCheckingStore{Store: localStoreForTest(t), findings: clusterFindings(staterecord.Finding{
+			Setting: staterecord.ClusterEstateBoundary,
+			Found:   "no ValidatingAdmissionPolicy is installed",
+		})}
+		diags := runnerOver(store, waived).BeforeApply(ctx)
+		if diags.HasErrors() {
+			t.Fatalf("a waived estate_boundary failure refused the apply:\n%s", diags.Err())
+		}
+		got := details(diags, tfdiags.Warning)
+		for _, want := range []string{"The waived estate_boundary assertion would have refused this apply",
+			`Namespace "` + testNamespace + `"`, `allow_insecure names "estate_boundary"`} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the warning does not say %q:\n%s", want, got)
+			}
+		}
+	})
+
+	t.Run("a check that could not be made stops the apply in the cluster's words", func(t *testing.T) {
+		store := &clusterContractCheckingStore{Store: localStoreForTest(t), err: errors.New("dial tcp: connect: connection refused")}
+		diags := runnerOver(store, plain).BeforeApply(ctx)
+		if !diags.HasErrors() {
+			t.Fatal("the apply went ahead although the cluster could not be checked")
+		}
+		got := details(diags, tfdiags.Error)
+		for _, want := range []string{"Cannot check the record store cluster", "connection refused", "Nothing has been applied."} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the refusal does not say %q:\n%s", want, got)
+			}
+		}
+		if strings.Contains(got, "bucket") {
+			t.Errorf("a cluster store was refused in the bucket's words:\n%s", got)
 		}
 	})
 }

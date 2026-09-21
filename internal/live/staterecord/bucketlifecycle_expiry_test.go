@@ -27,7 +27,7 @@ func expiresCurrent(id string, days int32, prefix string) s3types.LifecycleRule 
 	return r
 }
 
-func lifecycleFinding(t *testing.T, rules []s3types.LifecycleRule) BucketFinding {
+func lifecycleFinding(t *testing.T, rules []s3types.LifecycleRule) Finding {
 	t.Helper()
 	b := correctBucket()
 	b.rules = rules
@@ -41,7 +41,7 @@ func lifecycleFinding(t *testing.T, rules []s3types.LifecycleRule) BucketFinding
 		}
 	}
 	t.Fatal("no lifecycle finding")
-	return BucketFinding{}
+	return Finding{}
 }
 
 // TestLifecycleThatExpiresCurrentObjectsIsRefused is GitHub issue #1377. The
@@ -94,8 +94,8 @@ func TestLifecycleThatExpiresCurrentObjectsIsRefused(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := lifecycleFinding(t, tc.rules)
-			if f.OK != tc.ok {
-				t.Errorf("OK = %v, want %v (found: %s)", f.OK, tc.ok, f.Found)
+			if f.OK() != tc.ok {
+				t.Errorf("OK = %v, want %v (found: %s)", f.OK(), tc.ok, f.Found)
 			}
 			if !strings.Contains(f.Found, tc.found) {
 				t.Errorf("Found = %q, want it to contain %q", f.Found, tc.found)
@@ -127,11 +127,11 @@ func TestLifecycleCoveredByOneRulePerNamespace(t *testing.T) {
 		perNamespace("hints", "tofu-hints/"),
 		perNamespace("outputs", "tofu-outputs/"),
 	}
-	if f := lifecycleFinding(t, all); !f.OK {
+	if f := lifecycleFinding(t, all); !f.OK() {
 		t.Errorf("three rules, one per namespace, were refused: %s", f.Found)
 	}
 	f := lifecycleFinding(t, all[:2])
-	if f.OK {
+	if f.OK() {
 		t.Fatalf("two of three namespaces covered was accepted: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "tofu-outputs/prod/") {
@@ -146,7 +146,7 @@ func TestLifecycleFindingSaysWhenVersionsAreAlsoKeptByCount(t *testing.T) {
 	r := expiresNoncurrent("keep-five", 30)
 	r.NoncurrentVersionExpiration.NewerNoncurrentVersions = aws.Int32(5)
 	f := lifecycleFinding(t, []s3types.LifecycleRule{r})
-	if !f.OK {
+	if !f.OK() {
 		t.Fatalf("refused: %s", f.Found)
 	}
 	if !strings.Contains(f.Found, "5") || !strings.Contains(f.Found, "newest") {
@@ -161,19 +161,19 @@ func TestLifecycleFindingSaysWhenVersionsAreAlsoKeptByCount(t *testing.T) {
 // waive it. An ordinary lifecycle failure is still waived by the same name.
 func TestAWaiverDoesNotCoverALifecycleThatDeletesRecords(t *testing.T) {
 	deleting := lifecycleFinding(t, []s3types.LifecycleRule{expiresNoncurrent("ok", 30), expiresCurrent("sweep", 90, "")})
-	if !deleting.DeletesRecords {
+	if !deleting.Unwaivable {
 		t.Fatalf("the finding is not marked as deleting records: %+v", deleting)
 	}
-	refused, waived := SplitWaived([]BucketFinding{deleting}, []string{"lifecycle"})
+	refused, _, waived := SplitWaived([]Finding{deleting}, []string{"lifecycle"})
 	if len(refused) != 1 || len(waived) != 0 {
 		t.Errorf("a lifecycle that deletes records was waived: refused=%d waived=%d", len(refused), len(waived))
 	}
 
 	absent := lifecycleFinding(t, nil)
-	if absent.DeletesRecords {
+	if absent.Unwaivable {
 		t.Fatalf("a bucket with no rules is marked as deleting records")
 	}
-	refused, waived = SplitWaived([]BucketFinding{absent}, []string{"lifecycle"})
+	refused, _, waived = SplitWaived([]Finding{absent}, []string{"lifecycle"})
 	if len(refused) != 0 || len(waived) != 1 {
 		t.Errorf("an ordinary lifecycle failure was not waived by name: refused=%d waived=%d", len(refused), len(waived))
 	}
