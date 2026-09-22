@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -103,8 +104,14 @@ func WriteReport(root string, drift *DriftReport, regen *RegenerateResult, propo
 			diffs = map[string][2]int{}
 		}
 		for _, path := range pipelineArtifactPaths {
-			before := artifactCounts(root, "HEAD", path)
-			after := artifactCounts(root, "", path)
+			before, err := artifactCounts(root, "HEAD", path)
+			if err != nil {
+				return "", err
+			}
+			after, err := artifactCounts(root, "", path)
+			if err != nil {
+				return "", err
+			}
 			if before == nil && after == nil {
 				continue // never existed either side - not this run's concern
 			}
@@ -151,29 +158,37 @@ func WriteReport(root string, drift *DriftReport, regen *RegenerateResult, propo
 }
 
 // artifactCounts reads relPath's top-level "counts" JSON object, either
-// from a git ref ("HEAD") or the working tree (ref == ""). Any failure
-// (missing file, unparsable JSON, no counts field) reports nil rather than
-// an error - a brand-new or removed artifact is an expected shape for
-// REPORT to show, not a failure.
-func artifactCounts(root, ref, relPath string) map[string]any {
+// from a git ref ("HEAD") or the working tree (ref == ""). An absent file
+// (on disk, or at ref), unparsable JSON or a missing counts field reports
+// nil - a brand-new or removed artifact is an expected shape for REPORT to
+// show, not a failure. A git that could not answer is the one failure that
+// IS an error (#1220): nil there would show the whole artifact as newly
+// appearing, a report nobody measured.
+func artifactCounts(root, ref, relPath string) (map[string]any, error) {
 	var data []byte
 	var err error
 	if ref == "" {
 		data, err = os.ReadFile(filepath.Join(root, relPath))
+		if err != nil {
+			return nil, nil //nolint:nilerr // absent on disk is the expected "no after state"
+		}
 	} else {
 		data, err = gitShow(root, ref, relPath)
-	}
-	if err != nil {
-		return nil
+		if errors.Is(err, errNotAtRef) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading %s at %s for the report: %w", relPath, ref, err)
+		}
 	}
 
 	var hdr struct {
 		Counts map[string]any `json:"counts"`
 	}
 	if err := json.Unmarshal(data, &hdr); err != nil {
-		return nil
+		return nil, nil //nolint:nilerr // not an artifact with a counts header; nothing to show
 	}
-	return hdr.Counts
+	return hdr.Counts, nil
 }
 
 func findRowGenSummary(stderr string) string {

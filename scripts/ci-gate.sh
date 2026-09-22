@@ -67,10 +67,26 @@
 #       refusal, exit 1, and says what it was still waiting for.
 set -uo pipefail
 
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
-  echo "ci-gate: not inside a git worktree" >&2
-  exit 2
+# git_or_die CMD...: run a git command whose answer this script cannot do
+# without, print its stdout, or abort with git's own stderr (#1220). Every
+# `git rev-parse HEAD` here used to be an unchecked substitution, so a git
+# that could not run left `check` printing "HEAD is now " with nothing
+# after it and `run` stamping an empty sha into ci.meta. A failing git is
+# never a verdict about the gate; it stops the script before one is given.
+git_or_die() {
+  local out errf rc=0
+  errf="$(mktemp)"
+  out="$(git "$@" 2>"$errf")" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "ci-gate: git $* failed (exit $rc): $(head -n1 "$errf")" >&2
+    rm -f "$errf"
+    return 2
+  fi
+  rm -f "$errf"
+  printf '%s\n' "$out"
 }
+
+root="$(git_or_die rev-parse --show-toplevel)" || exit 2
 cd "$root" || exit 2
 
 cmd_run() {
@@ -92,12 +108,15 @@ cmd_run() {
   # know it by hand. Idempotent and silent when already initialised.
   git submodule update --init site/themes/hugo-book >/dev/null 2>&1 || true
 
+  # Resolve the sha BEFORE touching anything: a git that cannot name HEAD
+  # means there is nothing to stamp a result with, so nothing runs.
+  local sha start end rc id
+  sha="$(git_or_die rev-parse HEAD)" || return 2
+
   # Delete first: a kill at any point from here on leaves no ci.rc, which
   # `check` already treats as "no completed run" rather than a pass.
   rm -f ci.rc ci.out ci.meta ci.meta.tmp
 
-  local sha start end rc id
-  sha="$(git rev-parse HEAD)"
   start="$(date -u +%FT%TZ)"
   # A per-run identity, so that two runs at the SAME sha are still
   # distinguishable from each other. `check` does not read it - a gate's
@@ -137,7 +156,7 @@ cmd_check() {
 
   local meta_sha head_sha rc
   meta_sha="$(sed -n 's/^sha=//p' ci.meta)"
-  head_sha="$(git rev-parse HEAD)"
+  head_sha="$(git_or_die rev-parse HEAD)" || return 2
   if [ -z "$meta_sha" ]; then
     echo "INCOMPLETE GATE: ci.meta has no sha= line - do not trust it"
     return 1
@@ -218,11 +237,12 @@ cmd_wait() {
   local entry_rc="absent"
   [ -f ci.rc ] && entry_rc="$(tr -d '[:space:]' <ci.rc)"
 
-  echo "ci-gate wait: waiting for a gate at $(git rev-parse HEAD) newer than the one already here (ci.rc=$entry_rc, ci.meta=$entry_desc)" >&2
-
   local waited=0 head_sha meta_sha now_meta
+  head_sha="$(git_or_die rev-parse HEAD)" || return 2
+  echo "ci-gate wait: waiting for a gate at $head_sha newer than the one already here (ci.rc=$entry_rc, ci.meta=$entry_desc)" >&2
+
   while :; do
-    head_sha="$(git rev-parse HEAD)"
+    head_sha="$(git_or_die rev-parse HEAD)" || return 2
     if [ -f ci.rc ] && [ -f ci.meta ]; then
       now_meta="$(cat ci.meta)"
       meta_sha="$(sed -n 's/^sha=//p' ci.meta)"

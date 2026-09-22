@@ -23,6 +23,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -67,9 +68,28 @@ func main() {
 }
 
 func repoRoot() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	out, err := gitOutput("", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", fmt.Errorf("not in a git checkout: %w", err)
+	}
+	return out, nil
+}
+
+// gitOutput runs git in dir ("" for the working directory) and returns its
+// trimmed stdout. On failure the error carries git's own first line of
+// stderr, not just the bare "exit status 128" that exec.Cmd.Output()'s
+// ExitError formats as (#1220, copied from tools/gauntlet/main.go, #1149).
+func gitOutput(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...) //nolint:gosec // a fixed subcommand list, arguments are internal
+	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
