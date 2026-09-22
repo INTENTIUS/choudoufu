@@ -1,5 +1,5 @@
 # no-secret-survives-in-what-the-tool-keeps
-# CLAIM 40 - No secret the run generates or sets survives in anything the tool keeps. ~3 min.
+# CLAIM 40 - No secret the run generates or sets survives in what the tool keeps: under strict { secrets = "refuse" } a random_password and an aws_iam_access_key are refused by name, and a database's master password is in no file the run keeps on its own, while the default keeps it in the record and the cache the way a stock state file does. ~3 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/secrets"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
