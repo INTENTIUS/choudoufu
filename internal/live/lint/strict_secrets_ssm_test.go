@@ -145,8 +145,14 @@ func TestSecretsSSMIsRefusedAsUnimplemented(t *testing.T) {
 	if !strict.SecretsValid(strict.SSM) {
 		t.Fatal(`strict.SecretsValid("ssm") = false, so the setting would be refused as a typo, which it is not`)
 	}
+	// Not a t.Skip. A skip here would go green the moment someone flipped
+	// the support table, which is the one change this test exists to catch,
+	// and a guard that cannot fail is not a guard. When the write path
+	// genuinely lands this test is rewritten on purpose, and until then a
+	// flipped flag fails here and in TestSecretsValuesExcludesSSM.
 	if strict.SecretsImplemented(strict.SSM) {
-		t.Skip("the write path landed; this test is the one that has to change on purpose")
+		t.Fatalf("strict.SecretsImplemented(%q) = true. If the write path landed, rewrite this test to measure "+
+			"what it now does; if the support table was flipped without it, that is the defect.", strict.SSM)
 	}
 
 	for _, dir := range []string{
