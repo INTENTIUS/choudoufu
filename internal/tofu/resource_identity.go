@@ -171,7 +171,12 @@ type AppliedMarkerVerifier interface {
 // instance with no prior object - none at all, or a tainted one, which plan
 // treats as a create followed by a replace - at exactly the same point and
 // under exactly the same ordering rules (before ignore_changes, never after
-// PlanResourceChange; see [ConfigValueAdjuster]).
+// PlanResourceChange; see [ConfigValueAdjuster]). For an instance that has
+// a prior object, plan calls it as well, on the same evaluated value, and
+// uses the result only if the plan turns out to be a replace: that value
+// plans the replace's create half, because at apply the prior object is
+// gone or deposed and the create is re-planned through this entry point
+// (GitHub issue #1512).
 //
 // GitHub issue #1084: some taggable types cannot be handed tags in the
 // call that creates them (CloudFormation's tagging.tagOnCreate false; a
@@ -199,8 +204,9 @@ type CreateConfigValueAdjuster interface {
 // [CreateConfigValueAdjuster] can be written onto the created object
 // immediately after ApplyResourceChange returns and before the PostApply
 // hook reports the instance complete. It is called for a successful Create
-// only - never for an update, a delete, or an apply that already carries an
-// error - with the object the provider returned and the provider
+// only - which includes a replace's create half, since the apply node sees
+// a replace simplified to Create (GitHub issue #1512) - never for an
+// update, a delete, or an apply that already carries an error - with the object the provider returned and the provider
 // configuration the instance was applied through, so that the write can be
 // made as the same principal.
 //

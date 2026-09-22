@@ -406,6 +406,11 @@ type tagWriteProxy struct {
 	refuse   bool
 	counts   map[string]int
 	zoneTags []string
+	// markerWrites is every request other than this fork's own
+	// TagResources, and the discovery sweep's GetResources (whose tag
+	// filter names tofu-estate), whose body names tofu-estate: a marker
+	// going out through a call the provider made (#1512).
+	markerWrites []string
 }
 
 func newTagWriteProxy(t *testing.T, target string) *tagWriteProxy {
@@ -433,6 +438,10 @@ func newTagWriteProxy(t *testing.T, target string) *tagWriteProxy {
 		p.counts[action]++
 		if isZoneTagWrite {
 			p.zoneTags = append(p.zoneTags, string(body))
+		}
+		isSweep := action == "ResourceGroupsTaggingAPI_20170126.GetResources"
+		if !isTagResources && !isSweep && bytes.Contains(body, []byte("tofu-estate")) {
+			p.markerWrites = append(p.markerWrites, action+" "+string(body))
 		}
 		refuse := p.refuse
 		p.mu.Unlock()
@@ -474,6 +483,7 @@ func (p *tagWriteProxy) reset() {
 	defer p.mu.Unlock()
 	p.counts = map[string]int{}
 	p.zoneTags = nil
+	p.markerWrites = nil
 }
 
 func (p *tagWriteProxy) count(action string) int {
@@ -496,4 +506,13 @@ func (p *tagWriteProxy) hostedZoneTagWrites() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]string(nil), p.zoneTags...)
+}
+
+// providerMarkerWrites lists the requests, other than this fork's own
+// TagResources and the sweep's GetResources, whose body carried
+// tofu-estate.
+func (p *tagWriteProxy) providerMarkerWrites() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.markerWrites...)
 }
