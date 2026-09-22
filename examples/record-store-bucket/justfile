@@ -108,7 +108,11 @@ _livekey bucket:
       echo "whether this run would drop the key's Deny statements. Fix the error above." >&2
       exit 1
     fi
-    jq -r '[.ServerSideEncryptionConfiguration[]?
+    # .Rules[], not []?: GetBucketEncryption answers with an OBJECT whose one
+    # field is Rules. Iterating the object yields that array, and indexing an
+    # array by name is a jq error, which `set -e` turned into a dead `up` on
+    # every real KMS bucket - refusing nothing, naming nothing (#1421).
+    jq -r '[.ServerSideEncryptionConfiguration.Rules[]?
             | select(.ApplyServerSideEncryptionByDefault.SSEAlgorithm == "aws:kms")
             | .ApplyServerSideEncryptionByDefault.KMSMasterKeyID // ""]
            | map(select(. != "")) | .[0] // ""' <<< "$live"
