@@ -143,7 +143,7 @@ case "$*" in
   *"s3api get-bucket-encryption"*)
     if [ -n "${ENCRYPTION_ERROR:-}" ]; then printf '%s\n' "$ENCRYPTION_ERROR" >&2; exit 254; fi
     if [ -n "${ENCRYPTION_JSON:-}" ]; then printf '%s\n' "$ENCRYPTION_JSON"; else
-      printf '{"ServerSideEncryptionConfiguration": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}\n'
+      printf '{"ServerSideEncryptionConfiguration": {"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}}\n'
     fi
     exit 0 ;;
   *"cloudformation delete-stack"*|*"cloudformation wait"*|*"cloudformation deploy"*)
@@ -524,7 +524,12 @@ func TestRecordStoreBucketUpRefusesASilentEncryptionDowngrade(t *testing.T) {
 	recordStoreChant(t)
 	const key = "arn:aws:kms:us-east-2:111122223333:key/8c1e7b2a-0000-4a4a-9d3d-records"
 	const other = "arn:aws:kms:us-east-2:111122223333:key/deadbeef-0000-4a4a-9d3d-records"
-	kmsConfig := fmt.Sprintf(`{"ServerSideEncryptionConfiguration": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms", "KMSMasterKeyID": %q}, "BucketKeyEnabled": true}]}`, key)
+	// The real GetBucketEncryption document, checked against S3 in us-east-2 on
+	// 2026-09-22 (GitHub issue #1421): ServerSideEncryptionConfiguration is an
+	// OBJECT with a Rules array. This fixture was an array of rules, which no
+	// S3 ever returns, and the recipe's jq was written to match the fixture, so
+	// `just up` died on the real document before it could refuse anything.
+	kmsConfig := fmt.Sprintf(`{"ServerSideEncryptionConfiguration": {"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms", "KMSMasterKeyID": %q}, "BucketKeyEnabled": true}]}}`, key)
 	for _, tc := range []struct {
 		name        string
 		env         []string

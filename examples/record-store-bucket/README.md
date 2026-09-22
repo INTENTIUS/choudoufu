@@ -134,6 +134,14 @@ statements. It prints the key it found and what to do about it. There is
 no flag for the downgrade, on purpose: change the bucket's encryption
 yourself first, then run `up` again.
 
+That comparison is textual, against the string S3 hands back, which is
+the key as the operator who stood the bucket up spelled it. Give the same
+key as `alias/records` or as a bare key id and it will not match the ARN
+S3 reports, so `up` refuses a run that changes nothing and tells you to
+re-run with the ARN it prints. Measured on real AWS in us-east-2 on
+2026-09-22 (issue #1421): all three spellings of one key, the ARN
+accepted and the other two refused.
+
 ### The key is yours
 
 With `RECORD_KMS_KEY_ARN` set, the bucket's default encryption becomes
