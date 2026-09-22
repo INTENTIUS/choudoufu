@@ -251,6 +251,33 @@ type IdentityAttrs struct {
 	// (account_id and region, in the AWS provider). Both sorted.
 	RequiredForImport []string `json:"required_for_import"`
 	OptionalForImport []string `json:"optional_for_import,omitempty"`
+
+	// NotResourceAttributes are the identity schema's attributes, required
+	// or optional, that the resource schema has no top-level attribute or
+	// block by the name of. Sorted; omitted when every identity attribute
+	// is also a resource attribute, which is the case for 181 of the 479
+	// identity schemas hashicorp/aws 6.59.0 ships.
+	//
+	// The two schemas are different vocabularies that mostly coincide. The
+	// identity schema names the attributes of the identity OBJECT the
+	// provider returns from a list call and accepts on an import by
+	// identity; the resource schema names what a configuration can
+	// reference as aws_type.name.attr. account_id is the common case of a
+	// name in the first and not the second (296 types), and three types
+	// carry a required identity attribute the resource spells differently:
+	// aws_osis_pipeline's identity is {name} and its resource attribute is
+	// pipeline_name; aws_securityhub_member's is {member_account_id}
+	// against account_id; aws_organizations_delegated_administrator's is
+	// {delegated_account_id} against account_id.
+	//
+	// It is recorded here, where the resource schema is in hand, because
+	// tools/row-gen has to keep these names OUT of
+	// [identity.TypeIdentity.IdentityAttrs] - that field is defined as
+	// resource attributes another resource may reference, and a name from
+	// the identity vocabulary there is a reference that resolves against
+	// nothing (identity.VerifyTable's FindingAttributeNotInSchema, which
+	// fired on aws_osis_pipeline.name at the table's own pin).
+	NotResourceAttributes []string `json:"not_resource_attributes,omitempty"`
 }
 
 // buildSurvey derives one row per roster type from the provider's schemas.
@@ -382,7 +409,11 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 	}
 	if rs.IdentitySchema != nil {
 		required, optional := identityAttrNames(rs.IdentitySchema)
-		row.Identity = &IdentityAttrs{RequiredForImport: required, OptionalForImport: optional}
+		row.Identity = &IdentityAttrs{
+			RequiredForImport:     required,
+			OptionalForImport:     optional,
+			NotResourceAttributes: notResourceAttributes(rs.Block, required, optional),
+		}
 	}
 
 	if rs.Block == nil {
@@ -759,6 +790,30 @@ func identityAttrNames(obj *configschema.Object) (required, optional []string) {
 	sort.Strings(required)
 	sort.Strings(optional)
 	return required, optional
+}
+
+// notResourceAttributes is [IdentityAttrs.NotResourceAttributes]: the
+// identity attributes, required and optional together, that block has no
+// top-level attribute or nested block for. A nil block (a type the provider
+// serves an identity schema for but no resource schema) makes every identity
+// attribute a non-resource one, which is the honest answer rather than a
+// special case. The result is sorted and nil when empty, so the field is
+// omitted from the artifact for the types where the two vocabularies agree.
+func notResourceAttributes(block *configschema.Block, required, optional []string) []string {
+	var out []string
+	for _, name := range append(append([]string{}, required...), optional...) {
+		if block != nil {
+			if _, ok := block.Attributes[name]; ok {
+				continue
+			}
+			if _, ok := block.BlockTypes[name]; ok {
+				continue
+			}
+		}
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // marshal renders the survey deterministically: sorted rows, two-space
