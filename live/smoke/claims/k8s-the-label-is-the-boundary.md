@@ -80,10 +80,18 @@ The steps, in the order they print:
    three creates by Alice for an estate she does not hold, all refused:
    a ConfigMap labelled `net` with no owner, the same one owned, and a
    Secret shaped like a record the Kubernetes record store writes, owned.
-10. `what the exemption costs: a Deployment's ReplicaSet and Pods are
-    still made` - a Deployment whose pod template carries the label still
-    fans out into a labelled ReplicaSet and a labelled Pod, written by
-    kube-system controllers, and the garbage collector still removes them.
+10. `what the exemption costs: a labelled workload's copies are still
+    made, and still cleaned up` - a Deployment whose pod template carries
+    the label still fans out into a labelled ReplicaSet and a labelled
+    Pod, written by the control plane's named controllers. So do a Job's
+    Pod, a StatefulSet's PersistentVolumeClaim, which binds, and a
+    Service's EndpointSlice. The garbage collector still removes the
+    Deployment's copies, and a labelled namespace finishes terminating.
+10b. `living in kube-system exempts nothing` - a ServiceAccount in
+    `kube-system` that is not one of those controllers, and a user named
+    `system:kube-proxy`, each create an unlabelled ConfigMap and are each
+    refused one carrying `tofu-estate=app`, by name
+    ([#1448](https://github.com/INTENTIUS/choudoufu/issues/1448)).
 11. `Bob's own estate, tool-less, and the API server lets it through` -
     the next plan sees the drift and reconciles it.
 12. `a rename is a configuration edit: live-mv has nothing governed to
@@ -102,17 +110,20 @@ The steps, in the order they print:
     so its plan is honestly empty.
 16. `teardown - each estate by its own destroy, under its own principal`.
 
-The `BREAK=1` run deletes the policy after step 4 and requires the three
+The `BREAK=1` run deletes the policy after step 4 and requires the
 writes the main run refuses to succeed: Bob's apply on Alice's estate,
-his plain `kubectl label` on her object, and Alice's
-`live-mv -from-estate=app` into an estate she was never granted. Step 4
+his plain `kubectl label` on her object, Alice's
+`live-mv -from-estate=app` into an estate she was never granted, and
+step 10b's two labelled creates. Step 4
 is the one assertion that must not change when the policy goes. The same
 arm runs it again with the policy deleted and requires the identical
 refusal, because "never write a wrong marker" is a property of the plan.
 
-The exempt callers are the control plane: nodes, the kube-system
-controllers, the scheduler and the API server itself. That is what keeps a
-controller's copies out of the fence, and step 10 measures it. Owned
+Only the control plane is exempt, by name: nodes, the API server, the
+scheduler and the controller manager's own controllers. That is what keeps
+a controller's copies out of the fence, and step 10 measures it. If
+anything else in kube-system is refused with "is not bound to it", grant
+it the estate with `live/kubernetes/estate-grant.yaml`. Owned
 objects keep their estate: an object already carrying an `ownerReference`
 may be updated with no grant while its `tofu-estate` label stays as it
 was, which is what a third-party operator's writes on a labelled child
