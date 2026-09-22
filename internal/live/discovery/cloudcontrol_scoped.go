@@ -207,7 +207,7 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 			// the unscoped listings' denials raise. A mixed set - one
 			// parent throttled, another denied - keeps its own line, since
 			// its detail names both and the group would name one.
-			diags = diags.Append(sweepGapDenied(res, gap, cfnType, callErrs[0]))
+			diags = diags.Append(sweepGapDenied(req, res, gap, cfnType, callErrs[0]))
 		} else {
 			diags = diags.Append(sweepGapDiag(res, gap))
 		}

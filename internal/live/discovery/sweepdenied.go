@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -34,6 +35,12 @@ import (
 // one), one [WARN] log line names the type and the action its denial
 // named, and the warning itself is deferred to [deniedSweepDiag], which
 // [Discover] raises once at the end of the run.
+//
+// GitHub issue #1513: a live-plan runs Discover once per provider
+// configuration, so "once at the end of Discover" was once per
+// configuration. Such a caller sets [Request.DeferDeniedSweepWarning] and
+// raises [DeniedSweepWarning] over all of its passes' results instead; the
+// log line per type names the configuration it was denied through.
 
 // sweepDenial is one Cloud Control listing this run's own credential was
 // refused.
@@ -41,6 +48,25 @@ type sweepDenial struct {
 	typeName string // the provider type
 	cfnType  string // the Cloud Control type the listing was made on
 	action   string // "<service>:<Action>" the denial named, or "" when it did not
+	provider string // the provider configuration the listing went through, short form, or "" when the caller named none
+}
+
+// providerConfigLabel is a provider configuration as an operator writes it
+// in a resource block's provider argument: "aws", "aws.west", or under a
+// module "module.net.aws.west". "" for the zero value, which a caller that
+// names no configuration (a package test, a single standalone pass) leaves.
+func providerConfigLabel(p addrs.AbsProviderConfig) string {
+	if p.Provider.Type == "" {
+		return ""
+	}
+	label := p.Provider.Type
+	if p.Alias != "" {
+		label += "." + p.Alias
+	}
+	if !p.Module.IsRoot() {
+		label = p.Module.String() + "." + label
+	}
+	return label
 }
 
 // deniedActionRE finds the IAM action an AWS AccessDeniedException names:
@@ -66,15 +92,22 @@ func deniedAction(err error) string {
 // logged with the action it named, and the warning is deferred to
 // [deniedSweepDiag] so the run raises one for all of them. It returns no
 // diagnostic of its own.
-func sweepGapDenied(res *Result, g SweepGap, cfnType string, err error) tfdiags.Diagnostics {
+func sweepGapDenied(req Request, res *Result, g SweepGap, cfnType string, err error) tfdiags.Diagnostics {
 	res.SweepGaps = append(res.SweepGaps, g)
 	action := deniedAction(err)
-	res.sweepDenied = append(res.sweepDenied, sweepDenial{typeName: g.TypeName, cfnType: cfnType, action: action})
+	provider := providerConfigLabel(req.VouchProvider)
+	res.sweepDenied = append(res.sweepDenied, sweepDenial{typeName: g.TypeName, cfnType: cfnType, action: action, provider: provider})
 	needs := action
 	if needs == "" {
 		needs = "an action the denial did not name"
 	}
-	log.Printf("[WARN] stateless/discovery: sweep denied: Cloud Control ListResources on %s (for %s) needs %s: %v", cfnType, g.TypeName, needs, err)
+	// The configuration, when the caller named one, is what says whose
+	// credential was refused: two configurations are two roles.
+	through := ""
+	if provider != "" {
+		through = ", through provider " + provider
+	}
+	log.Printf("[WARN] stateless/discovery: sweep denied: Cloud Control ListResources on %s (for %s%s) needs %s: %v", cfnType, g.TypeName, through, needs, err)
 	return nil
 }
 
@@ -86,18 +119,35 @@ const deniedTypesNamed = 5
 // names when the denials span more services than fit on a few lines.
 const grantPatternsNamed = 5
 
-// deniedSweepDiag is the one warning for every Cloud Control listing this
-// run's credential was refused, raised once by [Discover] after the sweep.
-// Nothing when nothing was denied.
-func deniedSweepDiag(res *Result) tfdiags.Diagnostics {
+// DeniedSweepWarning is the one warning for every Cloud Control listing
+// the run's credentials were refused, over every pass the caller ran with
+// [Request.DeferDeniedSweepWarning] set (GitHub issue #1513): one count of
+// distinct types, the first five of them, and one grant pattern over every
+// action the denials named, whichever provider configuration each came
+// through. Nothing when nothing was denied. A nil result is skipped.
+func DeniedSweepWarning(results ...*Result) tfdiags.Diagnostics {
+	var denials []sweepDenial
+	for _, r := range results {
+		if r != nil {
+			denials = append(denials, r.sweepDenied...)
+		}
+	}
+	return deniedSweepDiag(denials)
+}
+
+// deniedSweepDiag is the one warning for every Cloud Control listing in
+// denials, raised once by [Discover] after the sweep, or by
+// [DeniedSweepWarning] over several passes. Nothing when nothing was
+// denied.
+func deniedSweepDiag(denials []sweepDenial) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if len(res.sweepDenied) == 0 {
+	if len(denials) == 0 {
 		return diags
 	}
 
 	seen := map[string]bool{}
-	var cfnTypes, actions []string
-	for _, d := range res.sweepDenied {
+	var cfnTypes, actions, providers []string
+	for _, d := range denials {
 		if !seen["t "+d.cfnType] {
 			seen["t "+d.cfnType] = true
 			cfnTypes = append(cfnTypes, d.cfnType)
@@ -106,9 +156,25 @@ func deniedSweepDiag(res *Result) tfdiags.Diagnostics {
 			seen["a "+d.action] = true
 			actions = append(actions, d.action)
 		}
+		if d.provider != "" && !seen["p "+d.provider] {
+			seen["p "+d.provider] = true
+			providers = append(providers, d.provider)
+		}
 	}
 	sort.Strings(cfnTypes)
 	sort.Strings(actions)
+	sort.Strings(providers)
+
+	// One configuration is one role, and the text says "the role" as it
+	// always has. Several are several roles, each refused on its own
+	// types: the warning names them, and the log says which type went
+	// through which.
+	through, role, perLine := "", "the role", "Every denied type and the action it named"
+	if len(providers) > 1 {
+		through = " through provider configurations " + joinAnd(providers)
+		role = "their roles"
+		perLine = "Every denied type, the configuration it went through and the action it named"
+	}
 
 	// The full list, on one line, for a reader who has the log and not the
 	// per-type lines above it.
@@ -119,8 +185,8 @@ func deniedSweepDiag(res *Result) tfdiags.Diagnostics {
 		tfdiagsSeverity(SeverityForRefusal(SummaryIncompleteSweep)),
 		SummaryIncompleteSweep,
 		fmt.Sprintf(
-			"Cloud Control ListResources was denied for %d of the %s the sweep covers (%s), so a resource of any of those types this estate owns but no longer declares WILL NOT be proposed for destruction by this run. Each denial names the read its type's list handler makes. Grant the role %s, then re-run. Every denied type and the action it named is one [WARN] line in the log: run with TF_LOG=WARN, or TF_LOG_PATH to write it to a file.",
-			len(cfnTypes), plural(len(cfnTypes), "type", "types"), nameFirst(cfnTypes, deniedTypesNamed), grantPattern(actions)),
+			"Cloud Control ListResources was denied for %d of the %s the sweep covers (%s)%s, so a resource of any of those types this estate owns but no longer declares WILL NOT be proposed for destruction by this run. Each denial names the read its type's list handler makes. Grant %s %s, then re-run. %s is one [WARN] line in the log: run with TF_LOG=WARN, or TF_LOG_PATH to write it to a file.",
+			len(cfnTypes), plural(len(cfnTypes), "type", "types"), nameFirst(cfnTypes, deniedTypesNamed), through, role, grantPattern(actions), perLine),
 	))
 }
 
@@ -172,6 +238,14 @@ func grantPattern(actions []string) string {
 	}
 	return fmt.Sprintf("%s and %d more per-service patterns (every one is in the log), or AWS's managed ReadOnlyAccess policy if it may read the whole account",
 		strings.Join(patterns[:grantPatternsNamed], ", "), len(patterns)-grantPatternsNamed)
+}
+
+// joinAnd renders names as "a and b" or "a, b and c".
+func joinAnd(names []string) string {
+	if len(names) <= 1 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // plural picks the noun for n.

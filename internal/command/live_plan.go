@@ -1340,6 +1340,18 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 
 	passProviders := statelessDiscoveryPassProviders(sweepProviders, needsProviders)
 
+	// GitHub issue #1513: #1052's ruling is one warning for every Cloud
+	// Control listing the run was refused, and each pass below defers its
+	// own ([discovery.Request.DeferDeniedSweepWarning], set by
+	// statelessDiscoverOne). ran is every pass that returned a result,
+	// kept even when a later pass fails, and denied raises the one warning
+	// over all of them on every return from here on, so an early return
+	// loses no denial a pass already recorded.
+	var ran []*discovery.Result
+	denied := func(diags tfdiags.Diagnostics) tfdiags.Diagnostics {
+		return diags.Append(discovery.DeniedSweepWarning(ran...))
+	}
+
 	if len(passProviders) == 1 {
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
@@ -1349,11 +1361,12 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 			diags = diags.Append(warn)
 			return nil, noProvider, nil, diags
 		}
+		ran = append(ran, res)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
-			return nil, noProvider, nil, diags
+			return nil, noProvider, nil, denied(diags)
 		}
-		return res, providerAddr, nil, diags
+		return res, providerAddr, nil, denied(diags)
 	}
 
 	// More than one provider configuration among the estate's managed
@@ -1388,9 +1401,10 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 			diags = diags.Append(warn)
 			continue
 		}
+		ran = append(ran, res)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
-			return nil, noProvider, nil, diags
+			return nil, noProvider, nil, denied(diags)
 		}
 		passes = append(passes, discovery.Pass{
 			Provider: providerAddr,
@@ -1409,7 +1423,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		// already-config-derived resolution set with nothing - so this
 		// case is reported exactly like "nothing waiting on discovery"
 		// (len(sweepProviders) == 0 above) rather than handed to Merge.
-		return nil, noProvider, nil, diags
+		return nil, noProvider, nil, denied(diags)
 	}
 
 	// GitHub issue #906's toggle, resolved here rather than inside the
@@ -1421,7 +1435,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		strict.RecreatesOnProviderChange(identity.ProviderChangeFor(config)))
 	diags = diags.Append(mergeDiags)
 	if mergeDiags.HasErrors() {
-		return merged, noProvider, providerOf, diags
+		return merged, noProvider, providerOf, denied(diags)
 	}
 
 	// The primary is the first needs-discovery configuration in address
@@ -1435,7 +1449,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	if len(needsProviders) > 0 {
 		primary = needsProviders[0]
 	}
-	return merged, primary, providerOf, diags
+	return merged, primary, providerOf, denied(diags)
 }
 
 // summaryProviderConfigNotEvaluableForSweep is [statelessDiscoverOne]'s
@@ -1595,7 +1609,11 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		// zero value and its sightings still have to name the one
 		// configuration that produced them.
 		VouchProvider: providerAddr,
-		Sweep:         true,
+		// GitHub issue #1513: [statelessDiscover] raises #1052's one
+		// AccessDenied warning over every pass it ran, so a second
+		// provider configuration does not raise a second one.
+		DeferDeniedSweepWarning: true,
+		Sweep:                   true,
 		// GitHub issue #612. The estate-wide sweep's list calls run
 		// concurrently (issue #605), and this is the only place in the
 		// command layer that says how many at once: without this line the
