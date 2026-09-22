@@ -31,15 +31,29 @@ set -uo pipefail
 #   SELFTEST_KILL_WAIT_BOUND_S=<seconds> bounds the wait for the harness to
 #     finish its trap after the SIGTERM (default 240).
 #
-# KNOWN LIMIT (issue #1279): the "independent verification" section at the
-# end of this script is unreachable on a passing run. The harness removes
-# the floci container as teardown's last step, so the endpoint is already
-# gone when this driver goes to list it, and the listing is skipped with a
-# line that reads like a confirmation. Measured: with the harness's destroy
-# AND sweep neutered, the harness itself printed "STILL NOT EMPTY after
-# destroy and sweep" and this script still exited 0 with its PASS verdict.
-# Until that is fixed, read this script's PASS as "the trap fired, teardown
-# ran, the container is gone", not as "the account is empty".
+# The independent listing at the end runs on EVERY run, and issue #1279 is
+# why that sentence is worth writing down. It used to be unreachable on any
+# passing run: the harness removes the floci container as teardown's last
+# step, so by the time this driver went to list the endpoint it was gone,
+# and the listing was skipped with a line that read like a confirmation -
+# "nothing left to list, consistent with a full teardown", which is equally
+# true of a correct teardown and of no teardown at all. Measured then: with
+# the harness's destroy AND sweep neutered, the harness itself printed
+# "STILL NOT EMPTY after destroy and sweep" into this driver's own log and
+# this script exited 0 with its PASS verdict.
+#
+# This driver now sets LIVECERT_KEEP_FLOCI=1, which the harness honours only
+# under TARGET=floci: teardown does everything it normally does, then leaves
+# the container up instead of removing it. So the endpoint is still there
+# when the listing below runs, and this driver removes the container itself
+# afterwards - a leak here would be this script's, not the harness's.
+#
+# Two things that used to be shrugged off are now hard failures, for the
+# same reason: a missing "VERIFIED EMPTY" in the harness log, which was
+# excused on the grounds that "the check below does not stop here" when the
+# check below never ran; and an endpoint this driver cannot reach when it
+# expected to list one, which can no longer be read as evidence of an empty
+# account.
 #
 # Run automatically by ci.yml's livecert-selftest-kill job (issue #1267);
 # live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the guard
@@ -120,7 +134,10 @@ dump_harness_artifacts() {
 cleanup() {
   # This driver's own belt-and-suspenders: if the assertions below somehow
   # leave the harness process or its container alive, clean up rather than
-  # leaving a second thing depending on a trap firing correctly.
+  # leaving a second thing depending on a trap firing correctly. Since
+  # #1279 the container is deliberately left up by the harness for the
+  # independent listing, so this is also the backstop for an exit that
+  # happens between that listing and the driver's own `docker rm -f`.
   [ -n "${WATCHDOG_PID:-}" ] && kill -TERM "$WATCHDOG_PID" 2>/dev/null
   [ -n "${HARNESS_PID:-}" ] && kill -0 "$HARNESS_PID" 2>/dev/null && kill -TERM "$HARNESS_PID" 2>/dev/null
   docker rm -f "choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID:-nonexistent}" >/dev/null 2>&1 || true
@@ -143,6 +160,7 @@ log "=== selftest-kill: launching the harness (target=floci, run_id=$RUN_ID) in 
 (
   cd "$ROOT" && \
   export TARGET=floci RUN_ID="$RUN_ID" FLOCI_PORT="$FLOCI_PORT" LIVECERT_WORK_DIR="$WORK/harness-work" && \
+  export LIVECERT_KEEP_FLOCI=1 && \
   exec bash live/live-cert/reference-ec2-vpc.sh
 ) > "$LOG" 2>&1 &
 HARNESS_PID=$!
@@ -291,44 +309,54 @@ fi
 if grep -q "VERIFIED EMPTY" "$LOG"; then
   log "  the harness's OWN self-report says VERIFIED EMPTY"
 else
-  log "  the harness's own self-report does NOT say VERIFIED EMPTY - checking independently below regardless (this is exactly why the check below does not stop here)"
+  log "FAIL: the harness's own self-report does NOT say VERIFIED EMPTY - its teardown ran and did not reach an empty estate. This line used to be informational, waved through on the grounds that the independent listing below would catch it anyway; the listing never ran on a passing run (#1279), so nothing caught it."
+  pass=0
+fi
+# The harness reaching its LAST teardown step is what the old "floci
+# container is gone" assertion proved. It no longer removes the container,
+# because this driver asked it not to, so that proof moves onto the line it
+# prints in place of the removal. A trap that stopped short never prints it.
+if grep -q "LIVECERT_KEEP_FLOCI=1: teardown reached its container-removal step" "$LOG"; then
+  log "  teardown reached its last step (container removal) and honoured LIVECERT_KEEP_FLOCI=1 - so the endpoint listed below is the one teardown finished with"
+else
+  log "FAIL: the harness log never shows teardown reaching its container-removal step with LIVECERT_KEEP_FLOCI=1 honoured - either the trap stopped short of that step, or the harness no longer honours the variable this driver needs in order to list the endpoint at all"
+  pass=0
 fi
 
 log "=== selftest-kill: independent verification - THIS driver lists the SAME floci endpoint itself, trusting nothing the harness said ==="
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
-if docker ps --filter "name=choudoufu-livecert-reference-ec2-vpc-" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  # The container may legitimately still be reachable for a moment right
-  # after the harness process exits (docker rm -f is the harness's last
-  # teardown step); give it a short settle window before treating this as
-  # a real leak, purely for the container's own lifecycle, never for the
-  # AWS-object verification below.
-  sleep 2
-fi
-if docker ps --filter "name=choudoufu-livecert-reference-ec2-vpc-" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  log "FAIL: the floci container is still running after the harness exited - teardown's own container cleanup did not happen"
+# The exact container, not the prefix: $$ inside the harness is HARNESS_PID
+# (the `exec` above is what makes that true), and a prefix match would also
+# see a concurrent run's emulator.
+#
+# Named KEPT_CONTAINER rather than FLOCI_NAME, and that is not cosmetic:
+# live/flocipostmortem_test.go's TestFlociTeardownGoesThroughTheLibrary
+# requires every `docker rm` of a `$FLOCI_*` container to go through
+# gauntlet_floci_teardown, so a container's corpse is read before it is
+# discarded (#1299). That rule is about a floci teardown, and this is not
+# one - this driver runs the harness as an external process and does not
+# source the library, the harness's own teardown already went through
+# gauntlet_floci_teardown's call site, and this container is alive and has
+# just answered a listing. The evidence half of #1299 is kept anyway, by
+# ordering: dump_harness_artifacts (which runs `docker logs` on it) happens
+# BELOW, before the removal.
+KEPT_CONTAINER="choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID}"
+if ! docker ps --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "FAIL: the emulator container $KEPT_CONTAINER is not running, although this driver set LIVECERT_KEEP_FLOCI=1 precisely so that it would be. There is nothing to list, and an endpoint that is gone answers identically for a perfect teardown and for no teardown at all - so this run made NO independent confirmation of anything (#1279)."
+  pass=0
+elif ! curl -fs "${ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
+  log "FAIL: the emulator container $KEPT_CONTAINER is up but $ENDPOINT does not answer, so this driver could not make the one listing it exists to make. An unreachable endpoint is not evidence of an empty account (#1279)."
   pass=0
 else
-  log "  floci container is gone"
-fi
-
-# The container itself may already be gone (the harness's own teardown
-# removes it), which would make an endpoint-based listing fail outright -
-# that is EXPECTED and is itself part of the proof (teardown discarded the
-# emulator state along with the real objects the sweep would otherwise have
-# had to find). Only treat a listing failure as a hard FAIL when the
-# container is still reachable but reports something left over.
-if curl -fs "${ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
   N="$(rgta_count tofu-cert-run "$RUN_ID")"
   VPCS="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters "Name=tag:tofu-cert-run,Values=$RUN_ID" --query 'Vpcs[].VpcId' --output text 2>/dev/null || true)"
   IGWS="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-internet-gateways --filters "Name=tag:tofu-cert-run,Values=$RUN_ID" --query 'InternetGateways[].InternetGatewayId' --output text 2>/dev/null || true)"
   if [ "$N" = "0" ] && [ -z "$VPCS" ] && [ -z "$IGWS" ]; then
-    log "  independent listing (this driver's own aws CLI calls): 0 resources tagged tofu-cert-run=$RUN_ID, no vpc, no internet gateway"
+    log "  independent listing (this driver's own aws CLI calls against the live endpoint): 0 resources tagged tofu-cert-run=$RUN_ID, no vpc, no internet gateway"
   else
     log "FAIL: independent listing found leftovers - resourcegroupstaggingapi=$N vpcs=[$VPCS] igws=[$IGWS]"
     pass=0
   fi
-else
-  log "  the emulator endpoint is unreachable (the container is already gone, which teardown does on its own last step) - nothing left to list, consistent with a full teardown"
 fi
 
 if [ "$pass" != "1" ]; then
@@ -338,12 +366,29 @@ if [ "$pass" != "1" ]; then
   dump_harness_artifacts
 fi
 
+# The container outlived teardown only because this driver asked for it, so
+# removing it is this driver's job - on the failing paths above too, where
+# it is if anything more important. It happens after dump_harness_artifacts
+# deliberately: that dump runs `docker logs` on this container, and on a
+# failing run those logs are often the only place the reason exists.
+# cleanup() removes the same name on the way out, but this is the ordinary
+# path, so the removal is asserted here rather than left to a trap.
+if docker ps -a --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  docker rm -f "$KEPT_CONTAINER" >/dev/null 2>&1 || true
+fi
+if docker ps -a --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "FAIL: this driver could not remove $KEPT_CONTAINER, the container it asked the harness to leave behind - it is leaking one, and the leak is this script's own"
+  pass=0
+else
+  log "  floci container removed by this driver (it outlived teardown only because this driver asked it to)"
+fi
+
 log ""
 log "=== selftest-kill: full harness log (the evidence this verdict was read from) ==="
 cat "$LOG"
 log ""
 if [ "$pass" = "1" ]; then
-  log "=== selftest-kill: PASS - a real SIGTERM delivered to the harness mid-apply (after at least one resource genuinely existed) still ran teardown and left the account (this floci endpoint) verifiably empty, confirmed independently of the harness's own report ==="
+  log "=== selftest-kill: PASS - a real SIGTERM delivered to the harness mid-apply (after at least one resource genuinely existed) still ran teardown and left the account (this floci endpoint) verifiably empty: listed by this driver against the endpoint teardown finished with, still up because this driver asked for it and removed by this driver afterwards ==="
 else
   log "=== selftest-kill: FAIL - see above ==="
 fi

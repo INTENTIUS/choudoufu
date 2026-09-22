@@ -21,6 +21,12 @@
 #   CHOUDOUFU_BIN=/path        run an explicit binary
 #   FLOCI_IMAGE=...            override the pinned emulator image
 #   FLOCI_PORT=4650            host port for the emulator
+#   SMOKE_LOG_DIR=/path        where the side logs go - docker compose's own
+#                              output, kind's. ci-run.sh sets it to the
+#                              scenario log's directory so the CI artifact
+#                              carries them; unset, they go to the run's
+#                              workroot and die with it, and the tail
+#                              printed on failure is the lasting copy
 #   SMOKE_INSTRUMENT=1         capture TF_LOG=debug per call and summarize
 #                              requests/retries (the terralith counters)
 #   BREAK=1                    corrupt one expected fact mid-scenario and
