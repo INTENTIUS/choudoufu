@@ -1283,7 +1283,18 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	needs := resolutions.NeedsDiscovery()
+	// GitHub issue #1514: the needs-discovery set is the run's own, so a
+	// block -target or -exclude leaves out of the plan graph is not in it -
+	// the same placement #1256 gave lint and #1470 gave collectSignal. It
+	// feeds the estate-name note, the record-backed shrink and the provider
+	// set whose failure is fatal ([statelessDiscoverProviderUnavailable]'s
+	// needsSet), all three questions about what THIS run must find. What
+	// discovery is handed below is still resolutions.All(): the estate
+	// sweep's declared set stays whole, or an excluded block's live
+	// objects would read as orphans (see [identity.Scope]), and
+	// [discovery.Request.Scope] is what keeps an excluded block out of the
+	// binding demand itself. A nil scope returns the list unchanged.
+	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
 
 	estate, estateDiags := statelessEstateName(ctx, estateFlag, config, needs)
 	diags = diags.Append(estateDiags)
@@ -1445,7 +1456,10 @@ const summaryProviderConfigNotEvaluableForSweep = "Provider configuration not ev
 //
 //   - no declared instance's own IDENTITY resolution depends on this
 //     provider (providerAddr is absent from needsSet, [statelessDiscover]'s
-//     own needsProviders membership test) - if it did, "could not verify"
+//     own needsProviders membership test, which since GitHub issue #1514
+//     counts only the blocks this run's -target / -exclude keeps: an
+//     excluded block is not planned, so its identity is not this run's to
+//     verify) - if it did, "could not verify"
 //     really does mean "cannot tell whether this instance already exists",
 //     which stays the fatal case ratifyOne (internal/live/liveimport/
 //     ratify.go) is the migrate-time analogue of, per instance rather than
@@ -1495,7 +1509,7 @@ func statelessDiscoverProviderUnavailable(providerAddr addrs.AbsProviderConfig, 
 			tfdiags.Warning,
 			"Provider unavailable for the estate-wide sweep",
 			fmt.Sprintf(
-				"%s No declared instance's identity depends on this provider configuration, so this is not fatal: nothing under it could have been swept before now either, since the provider itself could not be reached. Its declared instances proceed; the real apply configures this provider once its own dependency is known, the same order stock's plan graph already gives it.",
+				"%s No declared instance this run acts on depends on this provider configuration for its identity, so this is not fatal: nothing under it could have been swept before now either, since the provider itself could not be reached. Its declared instances proceed; the real apply configures this provider once its own dependency is known, the same order stock's plan graph already gives it.",
 				desc.Detail,
 			),
 		))

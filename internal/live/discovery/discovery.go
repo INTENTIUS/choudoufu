@@ -116,7 +116,13 @@ type Request struct {
 	// block's resolution is what stops the sweep reading that block's
 	// live objects as orphans to remove. So the scope is not a filter on
 	// the input here; it is the answer to a different question, which
-	// only two places ask:
+	// only three places ask:
+	//
+	//   - [declaredInstances] must not put an out-of-scope block into the
+	//     binding demand. It is still recorded as declared, so the sweep
+	//     does not read its live objects as orphans, but it is not looked
+	//     for: a type the provider cannot list must not refuse a run that
+	//     excludes every block of it. See GitHub issue #1514.
 	//
 	//   - [refuseUnservedManifests] must not refuse a block this run
 	//     cannot plan. A resource -target excludes is pruned from the
@@ -1520,6 +1526,17 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			// already contributed its address to d.all above, which is what
 			// keeps another pass's sweep from mistaking it for an orphan;
 			// this pass simply is not the one that tries to find it.
+			continue
+		}
+
+		if !req.inScope(r.Addr) {
+			// Declared, but by a block this run's -target / -exclude leaves
+			// out of the plan graph (GitHub issue #1514). The same shape as
+			// the provider-scope skip just above: it already contributed its
+			// address to d.all, so the sweep still reads its live objects as
+			// declared rather than as orphans, and this run simply does not
+			// try to find it - a type the provider cannot list must not
+			// refuse a run that excludes every block of it.
 			continue
 		}
 
