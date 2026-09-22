@@ -62,19 +62,22 @@ Kubernetes:
   - An object with an ownerReference is no longer exempt (#1449, PR #1451).
     Only an UPDATE of an already-owned object that leaves its `tofu-estate`
     label alone is skipped. Every create and every delete is judged.
-  - The control plane is exempt by name (#1448): nodes, the API server, the
-    scheduler and the kube-controller-manager's own controllers. Living in
-    `kube-system` exempts nothing.
+  - The control plane is exempt by name (#1448, PR #1472): nodes, the API
+    server, the scheduler and the kube-controller-manager's own controllers.
+    Living in `kube-system` exempts nothing.
 
 - Any other ServiceAccount in `kube-system`, and any other `system:kube-*`
   username, that writes objects labelled `tofu-estate` now needs `use` on
-  that estate (#1448). That covers an add-on, a CNI, a load balancer
-  controller, a third-party operator and `system:kube-proxy`. The denial
-  names the username. The fix is one binding, here for estate `app` and a
-  ServiceAccount called `NAME`:
+  that estate (#1448, PR #1472). That covers an add-on, a CNI, a load
+  balancer controller, a third-party operator and `system:kube-proxy`. The
+  denial names the username. The fix is one binding, here for estate `app`
+  and a ServiceAccount called `NAME`:
 
   ```
-  sed -e 's/ESTATE/app/g' -e 's/PRINCIPAL_NAMESPACE/kube-system/g' -e 's/PRINCIPAL/NAME/g' live/kubernetes/estate-grant.yaml | kubectl apply -f -
+  sed -e 's/ESTATE/app/g' \
+      -e 's/PRINCIPAL_NAMESPACE/kube-system/g' \
+      -e 's/PRINCIPAL/NAME/g' \
+      live/kubernetes/estate-grant.yaml | kubectl apply -f -
   ```
 
   The named list was measured on kind (kubeadm, Kubernetes 1.36.1). A
