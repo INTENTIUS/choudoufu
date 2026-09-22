@@ -71,6 +71,6 @@ reference. `CHOUDOUFU_STRICT_PIN=1` in the environment stops a configuration
 relaxing the setting.
 
 [`live/SECRETS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SECRETS.md)
-has the full account: the measured record of a `kubernetes_secret`, the
-optional arrangement that keeps sensitive values in SSM instead, and the two
-kinds of sensitive argument that stay out of a record under either setting.
+has the full account: the measured record of a `kubernetes_secret`, the two
+kinds of sensitive argument that stay out of a record under either setting,
+and SSM for secret values, which is planned (#1515) and not built.

@@ -165,18 +165,23 @@ secret somewhere built to hold one and pass a reference. And an argument that
 is neither returned by the API nor remembered has no prior value, so every
 plan shows it as a change.
 
-## Keeping secret values in SSM
+## Keeping secret values in SSM: planned, not built
 
-Optional, and nothing requires it. Some organisations keep secret material in
-SSM because their rotation, audit and access review already live there. For
-them the records stay in the record store, and the sensitive attributes and
-the provider's private data alone are written to SSM as `SecureString` under
-a KMS key, with the record carrying a reference in place of the value.
+Nothing here is available yet. It is designed in #1515, with its rulings made
+on 2026-09-22, and a configuration that asks for it today is refused.
 
-It means depending on two services, and a secret's write is then conditional
-on SSM's terms and not the store's. Weigh that against
-`strict { secrets = "refuse" }` with secrets passed in by reference, which
-keeps one store. [Reference](https://intentius.io/choudoufu/docs/use/reference/) covers the
+For organisations whose rotation, audit and access review already live in
+SSM, the records will stay in the S3 record store, and the values at the
+record's sensitive paths and the provider's private data alone will go to SSM
+as `SecureString` under a customer managed KMS key, with the record carrying
+a reference in place of each value. It will be configured as
+`strict { secrets = "ssm" }`. The S3 record's compare-and-swap stays the only
+thing that decides a concurrent write, because each secret goes to a
+parameter name no other write uses.
+
+Until it ships, `strict { secrets = "refuse" }` with secrets passed in by
+reference is the way to keep secret values out of the record store.
+[Reference](https://intentius.io/choudoufu/docs/use/reference/) covers the
 setting and the environment pin that stops a configuration relaxing it.
 
 ## What a customer managed key adds

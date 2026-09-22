@@ -1202,7 +1202,7 @@ const SummaryRecordStoreRetired = "Retired record_store backend"
 // what was retired is Parameter Store holding RECORDS, and a reader who
 // takes away "SSM is removed" has been misinformed. And it does not offer
 // SSM for secret values as something available, because it is not built:
-// that is planned (#1244 section 3), and today's only alternative to secret
+// that is planned (#1515, split from #1244 section 3), and today's only alternative to secret
 // values in the record store is strict { secrets = "refuse" }.
 //
 // There is no migration, and the message says so with the reason. No estate
@@ -1213,7 +1213,7 @@ func recordStoreRetiredDetail(label string) string {
 		"It also has no general conditional write, only create-if-absent, where the record store's consistency rests on every write being conditional.\n\n"+
 		"Declare record_store \"s3\" with a bucket instead. examples/record-store-bucket stands a correct bucket up with \"just up\", \"choudoufu live-bucket\" says whether an existing one is correct, and its iam directory renders the policy an estate's role needs.\n\n"+
 		"Records already in Parameter Store are not migrated, and no migration command exists, because no estate was on this backend when it was retired. "+
-		"This is about where records are kept and says nothing against SSM for secret values: keeping those out of the bucket, in SSM, is planned (#1244) and not available yet. Until it is, strict { secrets = \"refuse\" } is the way to keep secret values out of the record store.",
+		"This is about where records are kept and says nothing against SSM for secret values: keeping those out of the bucket, in SSM, is planned (#1515) and not available yet. Until it is, strict { secrets = \"refuse\" } is the way to keep secret values out of the record store.",
 		label)
 }
 
