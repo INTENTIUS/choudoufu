@@ -16,6 +16,15 @@
 # is that such a run is the maintainer's to start. live/bucket_ci_test.go
 # holds this file to the scenario directory, so an emulator claim added to
 # the epic lands with a matrix entry or lands red.
+#
+# Verdict lines, not exit codes (#1439). Every run goes through
+# live/smoke/ci-run.sh, which writes the run's output to a file as it goes
+# and then reads it back: the step fails unless the log carries the
+# scenario's own `PASS: smoke scenario '<name>' - ` line, a control step
+# fails unless a `-> caught` proof line is there too, and a control held to
+# one particular line (--caught) fails without that line. The logs are
+# uploaded whether the job passed or failed. live/smoke_verdict_test.go
+# holds every step that runs a scenario to the wrapper.
 name: bucket-smoke
 on:
   pull_request:
@@ -67,27 +76,33 @@ jobs:
           docker info > /dev/null
           aws --version
       - name: the scenario
-        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+        shell: bash
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/scenario.log"
       - name: the BREAK=1 control
+        shell: bash
         env:
           BREAK: "1"
-        run: bash live/smoke/smoke.sh ${{ matrix.scenario }}
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break.log"
       # Claim 31 has a second control (GitHub issue #1430): a binary built
       # without the plan-time cross-check must be caught reporting one
-      # destroyed of two, which is #1355's output. Read from a file and held
-      # to its "caught" line, because a control that exits 0 has only proved
+      # destroyed of two, which is #1355's output. Held to its one "caught"
+      # line by name, because a control that exits 0 has only proved
       # something if it got as far as the corruption: a run that ignored the
       # variable would print PASS and exit 0 as well.
       - name: the BREAK_CROSSCHECK=1 control
         if: matrix.scenario == 'a-bulk-read-is-complete-or-it-fails'
+        shell: bash
         env:
           BREAK_CROSSCHECK: "1"
-        run: |
-          rc=0
-          bash live/smoke/smoke.sh ${{ matrix.scenario }} > control.out 2>&1 || rc=$?
-          cat control.out
-          if [ "$rc" != "0" ]; then echo "the BREAK_CROSSCHECK=1 control exited $rc"; exit 1; fi
-          if ! grep -q -e '-> caught - without the cross-check' control.out; then
-            echo "the BREAK_CROSSCHECK=1 control exited 0 without printing its caught line, so it never reached the corruption"
-            exit 1
-          fi
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break-crosscheck.log" --caught 'caught - without the cross-check'
+      # continue-on-error: the log has already streamed into the job log and
+      # this artifact is the backup. A backup that cannot be stored must not
+      # turn a passed scenario red (#1457, the 403 on run 35660111631).
+      - name: the smoke logs, whatever happened to the job
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: bucket-smoke-logs-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/smoke-logs
+          if-no-files-found: warn
