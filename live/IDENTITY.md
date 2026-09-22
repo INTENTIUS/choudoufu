@@ -35,8 +35,10 @@ other tag you declared.
 
 For most types the AWS provider carries tags on the create call itself, which
 means a create that succeeds carries its marker already. Where a service cannot
-tag on create, the provider tags immediately after, and a crash in that window
-leaves a resource nothing can bind to. That case is what
+tag on create, choudoufu tags immediately after the create returns, and a crash
+in that window leaves a resource nothing can bind to. The window is not a
+moment: it is the provider's whole create step plus the tag write, measured at
+15.0s for `aws_route53_zone` against the pinned emulator (#1535). That case is what
 [adoption](https://intentius.io/choudoufu/docs/use/migrate/) exists for.
 
 ## Recovering an address
