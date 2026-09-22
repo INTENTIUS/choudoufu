@@ -3783,6 +3783,40 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 	return provider, nil
 }
 
+// providerBlockFor is mod's own provider block for addr, or nil when mod
+// declares none: the lookup [statelessProviders.providerConfigValue] runs
+// before evaluating a block, and the one live-ls runs to read a root's
+// region (GitHub issue #1044), so the two cannot pick different blocks for
+// the same address.
+//
+// Each block's own local name is resolved to a provider FQN, rather than the
+// FQN round-tripped through LocalNameForProvider: when required_providers
+// gives one provider two local names, ProviderLocalNames holds one winner
+// chosen by Go map order, and the first version of this lookup refused a
+// configuration stock terraform accepts - at random, one parse in a few -
+// claiming a block that exists under the other name was not declared. Keys
+// are scanned in sorted order so two blocks that both resolve here pick the
+// same one every run.
+func providerBlockFor(mod *configs.Module, addr addrs.AbsProviderConfig) *configs.Provider {
+	keys := make([]string, 0, len(mod.ProviderConfigs))
+	for k := range mod.ProviderConfigs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		pc := mod.ProviderConfigs[k]
+		if pc.Alias != addr.Alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: pc.Name}) != addr.Provider {
+			continue
+		}
+		return pc
+	}
+	return nil
+}
+
 // providerConfigValue evaluates the provider block for the given address, or
 // - for the default (unaliased) configuration only - produces the all-null
 // value that an absent provider block implies, which is how a provider that
@@ -3834,33 +3868,9 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 	}
 	mod := cfg.Module
 
-	// Find the provider block for this address by resolving each block's
-	// own local name to a provider FQN, not by round-tripping the FQN
-	// through LocalNameForProvider: when required_providers gives one
-	// provider two local names, ProviderLocalNames holds one winner chosen
-	// by Go map order, and the first version of this lookup refused a
-	// configuration stock terraform accepts - at random, one parse in a
-	// few - claiming a block that exists under the other name was not
-	// declared. Keys are scanned in sorted order so two blocks that both
-	// resolve here pick the same one every run.
-	keys := make([]string, 0, len(mod.ProviderConfigs))
-	for k := range mod.ProviderConfigs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var found *configs.Provider
-	for _, k := range keys {
-		pc := mod.ProviderConfigs[k]
-		if pc.Alias != addr.Alias {
-			continue
-		}
-		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: pc.Name}) != addr.Provider {
-			continue
-		}
-		found = pc
-		break
-	}
+	// See providerBlockFor for why the lookup resolves each block's own
+	// local name rather than round-tripping the FQN.
+	found := providerBlockFor(mod, addr)
 
 	displayName := mod.LocalNameForProvider(addr.Provider)
 	if addr.Alias != "" {
