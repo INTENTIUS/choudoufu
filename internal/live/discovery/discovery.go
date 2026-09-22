@@ -242,6 +242,19 @@ type Request struct {
 	// servicetagread.go for the gate and for what the leg costs.
 	ServiceTags servicetags.Reader
 
+	// ServiceList is GitHub issue #1477's per-service LIST leg: the
+	// enumeration route for a type with no provider list resource and no
+	// Cloud Control list handler, which the service's own API can still
+	// list. One type today, aws_iam_service_linked_role through
+	// iam:ListRoles with PathPrefix=/aws-service-role/. Nil (every caller
+	// before this field existed) disables the leg and leaves such a type
+	// on #293's tag-index fallback and its refusals exactly as they were.
+	// See servicelist.go for the leg and what it costs; the markers of the
+	// objects it lists are read through ServiceTags, so a run that sets
+	// this and not that enumerates objects whose ownership it cannot
+	// establish and says so.
+	ServiceList servicetags.Lister
+
 	// TaggingSweep replaces the estate-wide sweep's per-type listing
 	// ([sweepTypes], one list call per admitted type not already covered by
 	// the config-driven scan) with one paginated GetResources call filtered
@@ -1944,6 +1957,18 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// refusal unchanged.
 		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
 			return scanTypeCloudControl(ctx, req, schemas, decl, typeName, cfnType, res, sweep, collectUnclaimed)
+		}
+
+		// GitHub issue #1477: the service's own list API, for a type
+		// neither route above enumerates and the lister has a route for
+		// (aws_iam_service_linked_role through iam:ListRoles). An
+		// enumeration, so it is tried with the enumerations and before
+		// the two fallbacks below, which exist for a type nothing can
+		// list. A nil Request.ServiceList is "the leg does not apply
+		// here", exactly as a nil CloudControl is above. See
+		// servicelist.go.
+		if serviceListRoute(req, typeName) {
+			return scanTypeServiceList(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed)
 		}
 
 		// Issue #293. Neither route above found a way to list typeName at

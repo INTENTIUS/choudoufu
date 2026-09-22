@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=675 instances=2433
-# shape: class CONCRETE=1489
-# shape: class NEEDS_DISCOVERY=779
+# shape: dirs=676 instances=2435
+# shape: class CONCRETE=1490
+# shape: class NEEDS_DISCOVERY=780
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=644 fixture-instances=1729
+# shape: fixture-dirs=645 fixture-instances=1731
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=49425d303d88d0058e1472e0a31dc3e0c4f7be29691c3f95c275fb44c3b729a3
+# shape: body-sha256=4c9dcfa7180d3f1f90fcd5956deae125bac1b090dd9314efe1a26ee69f868709
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -134,6 +134,8 @@ internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.before	NEE
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.beyond	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-sweep-dedup	aws_iam_policy.owned	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-role-collect-unclaimed	aws_iam_role.this	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-service-linked-role-named	aws_iam_role.named	CONCRETE	tofu-iam-ecr-cohort-iam-role	name=tofu-iam-ecr-cohort-iam-role
+internal/live/discovery/testdata/iam-service-linked-role-named	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_role.other	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	aws_subnet.this["b"]	NEEDS_DISCOVERY		

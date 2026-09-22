@@ -498,6 +498,44 @@ The measured tables above are unaffected and were not re-taken: the
 `TypeScan.ServiceTagReads` counts the calls per type in the scan row, so a
 run that pays for this leg says how much.
 
+#### The service-list leg: service-linked roles
+
+[#1477](https://github.com/INTENTIUS/choudoufu/issues/1477) added an
+enumeration one step before the read above, for the one admitted type no
+other route lists: `aws_iam_service_linked_role` has no provider list
+resource, `AWS::IAM::ServiceLinkedRole` has no Cloud Control list handler,
+and `GetResources` never indexes `iam:role`. The leg is `iam:ListRoles` with
+`PathPrefix=/aws-service-role/`, paginated, and it costs **one list call per
+scan of the type**, plus the per-object bill above: one `iam:ListRoleTags`
+per listed service-linked role the index did not answer for, which on real
+AWS is every one of them, because the index holds none. A plan that declares
+the type scans it once for the declared instances and once more in the
+sweep, exactly as it already does `aws_iam_role` (declared IAM types join
+the sweep universe because the tag index cannot cover them), so the bill is
+paid twice per such plan.
+
+The population is the account's, not the estate's. Every AWS service that
+needs a service-linked role creates one the first time it is used, so an
+account that has been in use for a while carries tens of them, of which the
+estate declares perhaps one. Each costs a read, the read answers "no
+marker", and the object lands in the unclaimed count. That shape is the same
+one the role row above describes for ordinary roles, one path prefix
+narrower. `TypeScan.Listed` and `TypeScan.ServiceTagReads` on the type's
+scan row carry both numbers for a run.
+
+Derived, not read off a call log: the `iam-ecr` cohort's emulator account
+holds one service-linked role (the cohort's own), so each scan of the type
+there is one `iam:ListRoles` page and one `iam:ListRoleTags`, and a plan
+makes two of each. The cohort
+harness forwards no debug log, so that figure comes from the shape of the
+leg and the account's population, not from counting calls; a run with
+`TF_LOG=debug` prints both on the type's scan row. Not measured on real AWS:
+neither the service-linked-role count of a realistic account nor whether
+`ListRoleTags` across a few dozen of them meets IAM's request-rate limit. A refused or
+throttled read is not silent here either: a declared instance left unbound
+beside an unreadable object gets `UNREADABLE_MARKER`, and the sweep keeps a
+`MARKER_UNREADABLE` gap naming `iam:ListRoleTags` as the action to grant.
+
 ## On real AWS the sweep was nearly the whole plan
 
 Call counts say what the two terms are. Seconds say which one an operator
