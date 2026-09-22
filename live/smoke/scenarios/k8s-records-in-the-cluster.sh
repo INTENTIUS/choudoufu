@@ -61,11 +61,12 @@
 #      two failures.
 #  12. Claim 31 on this store (#1441): the store's bulk read is one paged
 #      LIST, and a proxy (live/smoke/k8sproxy.py) answers its second page
-#      with the API server's own 410 Expired. The run must fail, naming the
-#      listing and the reason, and print no plan at all - never one over the
-#      records it did see. The namespace is padded so the first page holds
-#      the store's sentinel and nothing of the estate, and the second page
-#      every record.
+#      with the API server's own 410 Expired, once on the listing the store
+#      opens with and twice on the bulk read after it. Each run must fail,
+#      naming the listing and the reason, and print no plan at all - never
+#      one over the records it did see. The namespace is padded so the first
+#      page holds the store's sentinel and nothing of the estate, and the
+#      second page every record.
 #
 # BREAK=1 takes the three fences away and requires what they refused to go
 # through: the plan role is given cluster-wide secret reads and must then
@@ -1042,7 +1043,8 @@ explain \
   "and the API server, re-terminating TLS - the run's kubeconfig points" \
   "at it with insecure-skip-tls-verify, and it speaks to the real API" \
   "server as the admin - and answers the second page with the API" \
-  "server's own 410 Expired on cue."
+  "server's own 410 Expired on cue: first on the listing the store opens" \
+  "with, then, with that one relayed whole, on the bulk read after it."
 # The estate whose sentinel Secret sorts before its six records and its hint.
 # Names are SHA-256 of the key (staterecord.KubernetesStore.SecretName), the
 # keys are projection's (RecordKeyPrefix, SentinelKey, HintKey), and what
@@ -1183,21 +1185,40 @@ listing_failed_whole() {
   grep -q "$PAGED_NS" <<< "$text" \
     || fail "k8srec" "the refusal does not name the namespace whose listing failed: $out"
 }
+# Three runs. A run lists the records namespace twice: when the store opens,
+# to read its sentinel back, and for the bulk read the plan is built on. With
+# no skip the 410 lands on the first; with skip 1 the proxy relays the open's
+# second page and answers the bulk read's, which is the read claim 31 is
+# about, so those two runs must get past opening the store and be refused
+# after it.
 echo "-1" > "$PROXY_WORK/expire"
-for MODE in "plan" "plan -destroy"; do
+for CASE in "0 plan" "1 plan" "1 plan -destroy"; do
+  SKIP="${CASE%% *}"; MODE="${CASE#* }"
+  if [ "$SKIP" = "0" ]; then WHERE="the store's open"; else WHERE="the bulk read"; fi
   : > "$PROXY_WORK/proxy.log"
+  echo "$SKIP" > "$PROXY_WORK/skip"
   rm -f "$PAGED/.terraform/choudoufu-cache.tfstate"
-  cmd "choudoufu $MODE   # every second page of a Secrets LIST answers 410 Expired"
+  cmd "choudoufu $MODE   # the second page of $WHERE's Secrets LIST answers 410 Expired"
   # MODE is a command and its flags, so it is meant to split.
   # shellcheck disable=SC2086
   PX_OUT="$( cd "$PAGED" && as_identity "$PROXY_KC" chdf $MODE -input=false -no-color 2>&1 )" && PX_RC=0 || PX_RC=$?
-  EXPIRED="$( { grep -c ' 410$' "$PROXY_WORK/proxy.log" || true; } )"
+  printf '%s\n' "$PX_OUT" > "$SMOKE_WORKROOT/logs/k8srec-paged-skip$SKIP-${MODE// /_}.out"
+  PAGE_LINES="$( { grep -E "^GET /api/v1/namespaces/$PAGED_NS/secrets\?.*continue=" "$PROXY_WORK/proxy.log" || true; } )"
+  EXPIRED="$( { grep -c ' 410$' <<< "$PAGE_LINES" || true; } )"
+  RELAYED="$( { grep -c ' 200$' <<< "$PAGE_LINES" || true; } )"
   [ "$EXPIRED" -ge 1 ] \
     || fail "k8srec" "the proxy answered 410 to nothing during choudoufu $MODE, so this run measured an ordinary plan: $(cat "$PROXY_WORK/proxy.log")"
+  [ "$RELAYED" = "$SKIP" ] \
+    || fail "k8srec" "the proxy relayed $RELAYED later page(s) before answering 410 during choudoufu $MODE, want $SKIP: $PAGE_LINES"
   listing_failed_whole "$PX_RC" "$PX_OUT"
-  { grep -E 'Error:' <<< "$PX_OUT" || true; } | awk 'NR<=1' | cut -c1-160 | evidence
-  echo "choudoufu $MODE: exit $PX_RC, no plan printed; second pages answered 410 by the proxy: $EXPIRED" | evidence
+  if [ "$SKIP" = "1" ]; then
+    grep -q 'Cannot open the record store' <<< "$PX_OUT" \
+      && fail "k8srec" "with the open's listing relayed whole, choudoufu $MODE was still refused at opening the store, so the bulk read never met the 410 and this run measured the open again: $PX_OUT"
+  fi
+  { grep -A3 -E 'Error:' <<< "$PX_OUT" || true; } | flat | cut -c1-400 | evidence
+  echo "choudoufu $MODE, 410 on $WHERE: exit $PX_RC, no plan printed; later pages relayed $RELAYED, answered 410 $EXPIRED" | evidence
 done
+rm -f "$PROXY_WORK/skip"
 rm -f "$PROXY_WORK/expire"
 # And the estate is whole: the same plan with the fault lifted is empty, so
 # the refusals above were over a store holding every record.
@@ -1206,7 +1227,7 @@ PW_OUT="$( cd "$PAGED" && as_identity "$PROXY_KC" chdf plan -input=false -no-col
   || fail "k8srec" "the plan after the fault was lifted failed: $PW_OUT"
 grep -q 'No changes' <<< "$PW_OUT" || fail "k8srec" "the plan after the fault was lifted is not empty, so a refused run above changed something: $PW_OUT"
 echo "the fault lifted: the plan is empty again" | evidence
-proof "a plan and a destroy plan, each with the second page of the record listing answered 410 Expired, each failed naming the listing, the namespace and the API server's reason, and neither printed a plan: not an empty one over the records on page one, not a create for the six it never saw. With the fault lifted the plan is empty, so the store held every record the whole time."
+proof "three runs with the second page of a record listing answered 410 Expired: a plan whose store-open listing failed, and a plan and a destroy plan whose bulk read failed after the store had opened. Each exited non-zero naming the listing, the namespace and the API server's reason, and none printed a plan: not an empty one over the records on page one, not a create for the six it never saw. With the fault lifted the plan is empty, so the store held every record the whole time."
 
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - take the two fences away, and what they refused must go through"

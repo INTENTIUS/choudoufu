@@ -29,8 +29,8 @@ request to <work-dir>/proxy.log ("METHOD path?query status"), so a scenario
 can read back how many LISTs went by, how many carried a continue token, and
 how many were answered by the fault rather than the cluster.
 
-One control file in <work-dir> changes what it does, and a scenario drives
-it by writing the file:
+Two control files in <work-dir> change what it does, and a scenario drives
+them by writing the files:
 
 expire   "<count>"
          A GET of a `/secrets` collection whose query carries a continue
@@ -39,6 +39,15 @@ expire   "<count>"
          <count> times (-1 is forever). The first page is never failed, so
          what the run gets is exactly what an expired token gets it: a good
          first page and a refused second one. Claim 31.
+
+skip     "<count>"
+         The first <count> later-page requests that `expire` would answer
+         are relayed to the cluster instead, and only then does `expire`
+         start answering. A run lists the records namespace more than once:
+         once when the store opens, to read its sentinel back, and again for
+         the bulk read the plan is built on. skip 1 lets the first through,
+         so the 410 lands on the second, which is the read claim 31 is
+         about; with no skip it lands on the first.
 """
 import http.client
 import http.server
@@ -90,6 +99,10 @@ def should_expire(method, path, query):
             return False
         count = int(raw)
         if count == 0:
+            return False
+        skip = int(read("skip") or "0")
+        if skip > 0:
+            open(os.path.join(work, "skip"), "w").write(str(skip - 1))
             return False
         if count > 0:
             open(os.path.join(work, "expire"), "w").write(str(count - 1))
