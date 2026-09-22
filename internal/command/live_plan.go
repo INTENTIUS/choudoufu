@@ -3159,7 +3159,10 @@ func statelessResolve(ctx context.Context, config *configs.Config, provs project
 		return first, firstDiags
 	}
 
-	planned, planDiags := projection.PlanInstances(ctx, config, provs)
+	// Narrowed to the target set since GitHub issue #1258; see
+	// [projection.PlanInstancesIn] for why nothing an in-scope block needs
+	// is lost, and TestProviderWorkOverTargetExcludedBlocks for the count.
+	planned, planDiags := projection.PlanInstancesIn(ctx, config, provs, scope)
 	// PlanInstances never fails its caller - a resource it cannot plan is
 	// simply absent - so these are logged rather than raised. Raising them
 	// would turn a run that refuses today into a run that refuses today plus

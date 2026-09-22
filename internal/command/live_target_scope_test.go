@@ -113,7 +113,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"collectDeposedRecords":           {wholeConfigByDesign, "record reads for crash-window recovery; errors are swallowed, nothing is refused"},
 
 	// ---- filed gaps ------------------------------------------------
-	"statelessProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs and projection.PlanInstances run unscoped; provider work, not a refusal. #1258"},
+	"statelessProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs runs unscoped; provider work, not a refusal. #1258's second leg. Its first leg, projection.PlanInstancesIn inside statelessResolve, is narrowed"},
 
 	// ---- not a pass ------------------------------------------------
 	"lint.Diagnostics":                    {notAPass, "renders issues"},
