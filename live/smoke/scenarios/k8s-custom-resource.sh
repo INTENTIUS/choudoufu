@@ -719,7 +719,7 @@ YAML
   if grep -q 'Estate name cannot be written as a Kubernetes label' <<< "$OK_ERR"; then
     fail "k8s-custom-resource" "BREAK: a 60-character name was refused as a label value, so step 14's refusal is not the 63-character cap: $OK_ERR"
   fi
-  grep -E '^  kubernetes_config_map\.|eligible for stamping' <<< "$OK_OUT" | head -3 | evidence
+  grep -E '^  kubernetes_config_map\.|eligible for stamping' <<< "$OK_OUT" | head -3 | evidence || true
   OK_LINES="$(grep -cE '^  kubernetes_config_map\.(a|b) ' <<< "$OK_OUT" || true)"
   [ "$OK_LINES" = "2" ] \
     || fail "k8s-custom-resource" "BREAK: the report does not carry one line per ConfigMap (got $OK_LINES): $OK_OUT"
@@ -957,8 +957,8 @@ LONG_OUT="$(cd "$SMOKE_WORK/migrated-cm" && chdf live-import -state="$SMOKE_WORK
 LONG_ERR="$(cat "$SMOKE_WORK/long-name.stderr")"
 LONG_FLAT="$(tr '\n' ' ' <<< "$LONG_ERR" | tr -s ' ')"
 LONG_COUNT="$(grep -c 'Estate name cannot be written as a Kubernetes label' <<< "$LONG_ERR" || true)"
-grep -E 'Estate name cannot be written as a Kubernetes label' <<< "$LONG_ERR" | head -1 | evidence
-grep -oE '[0-9]+ resource instances? in this state|it is [0-9]+ characters long and a Kubernetes label value is capped at [0-9]+|Nothing was ratified and nothing was written' <<< "$LONG_FLAT" | evidence
+grep -E 'Estate name cannot be written as a Kubernetes label' <<< "$LONG_ERR" | head -1 | evidence || true
+grep -oE '[0-9]+ resource instances? in this state|it is [0-9]+ characters long and a Kubernetes label value is capped at [0-9]+|Nothing was ratified and nothing was written' <<< "$LONG_FLAT" | evidence || true
 echo "diagnostics: $LONG_COUNT, exit $LONG_RC" | evidence
 [ "$LONG_RC" = "1" ] \
   || fail "k8s-custom-resource" "the read-only run under a 64-character name exited $LONG_RC, not 1: $(tail -5 <<< "$LONG_OUT$LONG_ERR")"
