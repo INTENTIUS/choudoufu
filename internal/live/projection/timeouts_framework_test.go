@@ -321,3 +321,96 @@ func TestFrameworkDestroyReceivesTheConfiguredTimeouts(t *testing.T) {
 		t.Errorf("stub_ns.plain's destroy carries timeouts = %#v, want null: it declares no block", plain.GetAttr("timeouts"))
 	}
 }
+
+// TestWithConfiguredTimeoutsBlockGates pins every condition under which the
+// value write must NOT happen, each one mutated out during review to
+// confirm the test sees it: a private carrying #1185's SDKv2 meta (that
+// carrier's own test also pins the value untouched), a read that answered
+// the block itself, a seed whose type is not the schema's, a schema with no
+// NestingSingle timeouts block, and a marked prior, whose marks must
+// survive the write.
+func TestWithConfiguredTimeoutsBlockGates(t *testing.T) {
+	block := stubNamespaceSchema().Block
+	seed := cty.ObjectVal(map[string]cty.Value{"create": cty.NullVal(cty.String), "delete": cty.StringVal("20s")})
+	prior := func(timeouts cty.Value) cty.Value {
+		return cty.ObjectVal(map[string]cty.Value{
+			"id":       cty.StringVal("held"),
+			"name":     cty.StringVal("held"),
+			"timeouts": timeouts,
+		})
+	}
+	nullPrior := prior(cty.NullVal(stubTimeoutsType))
+
+	if got, ok := withConfiguredTimeoutsBlock(nullPrior, seed, block, nil); !ok || !got.GetAttr("timeouts").RawEquals(seed) {
+		t.Fatalf("the plain case did not seed: ok=%v timeouts=%#v", ok, got.GetAttr("timeouts"))
+	}
+	if _, ok := withConfiguredTimeoutsBlock(nullPrior, seed, block, frameworkImportPrivate); !ok {
+		t.Error("the framework's own import-marker private refused the seed; it carries no SDKv2 meta")
+	}
+	if _, ok := withConfiguredTimeoutsBlock(nullPrior, seed, block, declaredDefaultPrivate(t)); ok {
+		t.Error("seeded over a private carrying helper/schema's timeout meta: that is #1185's carrier, and its value is left alone by design")
+	}
+	answered := prior(cty.ObjectVal(map[string]cty.Value{"create": cty.StringVal("1m"), "delete": cty.NullVal(cty.String)}))
+	if got, ok := withConfiguredTimeoutsBlock(answered, seed, block, nil); ok || !got.RawEquals(answered) {
+		t.Error("overwrote a timeouts object the read itself returned; the read keeps the last word")
+	}
+	if _, ok := withConfiguredTimeoutsBlock(nullPrior, cty.ObjectVal(map[string]cty.Value{"delete": cty.StringVal("20s")}), block, nil); ok {
+		t.Error("seeded an object whose type is not the schema's nested block type; the prior would no longer conform")
+	}
+	if _, ok := withConfiguredTimeoutsBlock(nullPrior, seed, stubLaunchConfigSchema().Block, nil); ok {
+		t.Error("seeded against a schema with no timeouts block")
+	}
+	if _, ok := withConfiguredTimeoutsBlock(nullPrior, cty.NilVal, block, nil); ok {
+		t.Error("seeded with nothing configured")
+	}
+
+	marked := nullPrior.MarkWithPaths([]cty.PathValueMarks{{Path: cty.GetAttrPath("name"), Marks: cty.NewValueMarks("sensitive")}})
+	got, ok := withConfiguredTimeoutsBlock(marked, seed, block, nil)
+	if !ok {
+		t.Fatal("a marked prior refused the seed")
+	}
+	if !got.GetAttr("name").HasMark("sensitive") {
+		t.Error("the write dropped the prior's sensitivity mark on name")
+	}
+	if got.GetAttr("timeouts").IsMarked() {
+		t.Error("the seeded block acquired a mark it was never given")
+	}
+}
+
+// TestTimeoutsBlockSeedRefusesWhatNoStateCouldHold pins [timeoutsBlockSeed]'s
+// own refusals, which are the part of the gate the projection test above
+// reaches only through the fixture's unparseable instance.
+func TestTimeoutsBlockSeedRefusesWhatNoStateCouldHold(t *testing.T) {
+	schema := stubNamespaceSchema()
+	obj := func(create, del cty.Value) cty.Value {
+		return cty.ObjectVal(map[string]cty.Value{"create": create, "delete": del})
+	}
+	for name, tc := range map[string]struct {
+		block cty.Value
+		want  bool
+	}{
+		"delete set":             {obj(cty.NullVal(cty.String), cty.StringVal("20s")), true},
+		"both set":               {obj(cty.StringVal("1m"), cty.StringVal("20s")), true},
+		"nothing set":            {obj(cty.NullVal(cty.String), cty.NullVal(cty.String)), false},
+		"one not a duration":     {obj(cty.StringVal("1m"), cty.StringVal("twenty")), false},
+		"unknown":                {obj(cty.NullVal(cty.String), cty.UnknownVal(cty.String)), false},
+		"missing attribute":      {cty.ObjectVal(map[string]cty.Value{"delete": cty.StringVal("20s")}), false},
+		"nil":                    {cty.NilVal, false},
+		"no block in the schema": {cty.NilVal, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := schema
+			if name == "no block in the schema" {
+				s = stubLaunchConfigSchema()
+				tc.block = obj(cty.NullVal(cty.String), cty.StringVal("20s"))
+			}
+			got := timeoutsBlockSeed(tc.block, s)
+			if (got != cty.NilVal) != tc.want {
+				t.Errorf("timeoutsBlockSeed = %#v, want seeded=%v", got, tc.want)
+			}
+			if tc.want && !got.RawEquals(tc.block) {
+				t.Errorf("the seed is %#v, not the block as configured %#v", got, tc.block)
+			}
+		})
+	}
+}
