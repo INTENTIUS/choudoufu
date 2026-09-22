@@ -236,6 +236,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -348,7 +353,7 @@ grep -q 's3_use_path_style' "$EST/main.tf" || fail "the emulator delta did not m
 log "  DELTA  emulator flags added to the provider block; no backend, no version pin, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -366,8 +371,8 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
-( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$EST" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "the cold apply failed"; }
 grep -qE 'Apply complete! Resources: 2 added' <<< "$COLD_OUT" \
@@ -460,8 +465,8 @@ moved {
   to   = module.iam_policy_renamed2
 }
 EOF
-( cd "$EST_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_rename stock oracle's reinit (after renaming both module calls) failed"; }
+( cd "$EST_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_rename stock oracle's reinit (after renaming both module calls) failed"; }
 ORACLE_PLAN_OUT="$(cd "$EST_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be destroyed' <<< "$ORACLE_PLAN_OUT" \
@@ -495,8 +500,8 @@ cp -R "$SRC_MODULE" "$WORK/oracle-remove-tree/iam/modules/iam-policy"
 perl -0pi -e 's/module "iam_policy_from_data_source" \{.*?\n\}\n\n//s' "$EST_ORACLE_REMOVE/main.tf"
 grep -q 'module "iam_policy_from_data_source"' "$EST_ORACLE_REMOVE/main.tf" \
   && fail "removing module.iam_policy_from_data_source's block from the oracle copy did not match - the corpus example has moved"
-( cd "$EST_ORACLE_REMOVE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST_ORACLE_REMOVE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
+( cd "$EST_ORACLE_REMOVE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE_REMOVE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$EST_ORACLE_REMOVE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.iam_policy_from_data_source\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -529,8 +534,8 @@ sed -i.bak 's/name_prefix = "example-"/name_prefix = "example-v2-"/' "$EST_ORACL
 rm -f "$EST_ORACLE_REPLACE/main.tf.bak"
 grep -q 'name_prefix = "example-v2-"' "$EST_ORACLE_REPLACE/main.tf" \
   || fail "changing module.iam_policy's name_prefix argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$EST_ORACLE_REPLACE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST_ORACLE_REPLACE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_replace stock oracle's reinit failed"; }
+( cd "$EST_ORACLE_REPLACE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE_REPLACE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$EST_ORACLE_REPLACE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.iam_policy\.aws_iam_policy\.policy\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -562,7 +567,7 @@ FLOCI_GREEN_NAME="choudoufu-corpus-iam-policy-green-$$"
 GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 GREEN_ESTATE="iam-policy-greenfield"
 
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 for _ in $(seq 1 45); do
   GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -1589,8 +1594,8 @@ resource "aws_iam_policy" "count_test" {
 }
 HCL
     gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
-    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's terraform init failed"; }
+    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
     grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \

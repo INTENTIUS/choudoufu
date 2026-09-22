@@ -157,18 +157,30 @@ func TestFlociTeardownGoesThroughTheLibrary(t *testing.T) {
 // one's population comes from a glob.
 func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	scripts := flociScriptSources(t)
-	// 61, measured 2026-09-18, not guessed: 63 scripts carried the
-	// `docker run -d --rm` string before this change, but two of those are
+	// 61 was measured 2026-09-18, not guessed: 63 scripts carried the
+	// `docker run -d --rm` string before #1299, but two of those are
 	// comments - the library's own explanation of the fix, and a live-cert
 	// selftest telling a human how to bring up an ad-hoc emulator.
-	const wantStarters = 61
+	//
+	// 62 since #1312, and the extra one is a blind spot found, not a script
+	// added: corpus-eks-basic's three starts were `docker run -d --network
+	// ... \` with `--name` on a later line, so the one-line detection above
+	// never counted it. Routing every start through gauntlet_floci_start put
+	// the name on the same line as the call, and the guard now sees it.
+	const wantStarters = 62
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {
+		if rel == flociLibrary {
+			// The library holds the one `docker run -d` since #1312 and
+			// defines the helper; it is not a script that starts an
+			// estate's emulator.
+			continue
+		}
 		src := scripts[rel]
 		startsOne := false
 		for _, line := range linesOnly(codeLines(src)) {
-			if strings.Contains(line, "docker run") && strings.Contains(line, " -d") && strings.Contains(line, "--name") {
+			if startsFloci(line) {
 				startsOne = true
 				break
 			}
@@ -228,6 +240,83 @@ func TestFlociTeardownReadsBeforeItRemoves(t *testing.T) {
 	}
 	if strings.Contains(body, `printf 'GAUNTLET `) {
 		t.Error("gauntlet_floci_teardown prints a GAUNTLET-prefixed line; that prefix is the runner's parsed grammar, not a place for diagnostics")
+	}
+}
+
+// flociLibrary is live/e2e/lib/gauntlet.sh as flociScriptSources keys it.
+const flociLibrary = "e2e/lib/gauntlet.sh"
+
+// startsFloci says whether a code line starts a floci container: through
+// the library's gauntlet_floci_start (#1312), or with the bare
+// `docker run -d ... --name` that TestFlociStartGoesThroughTheLibrary
+// forbids outside the library. Both count, so a script that regresses to
+// the bare form is still a starter here and still has to read its corpse.
+func startsFloci(line string) bool {
+	if strings.Contains(line, "gauntlet_floci_start ") && !strings.Contains(line, "() {") {
+		return true
+	}
+	return strings.Contains(line, "docker run") && strings.Contains(line, " -d") && strings.Contains(line, "--name")
+}
+
+// TestFlociStartGoesThroughTheLibrary is issue #1312's guard. A container
+// started with a bare `docker run -d` carries no ownership labels, so once
+// the script that started it is SIGKILLed nothing can tell it from a
+// concurrent run's container and it is unsweepable for the rest of its
+// life. gauntlet_floci_start labels it with the owner's pid and that pid's
+// start time, and sweeps the estate's leaks first.
+//
+// Scoped like TestFlociTeardownGoesThroughTheLibrary, to lines that name a
+// FLOCI_* variable: corpus-eks-basic's per-command `docker run --rm`
+// helpers are neither detached nor floci, and belong outside this rule.
+func TestFlociStartGoesThroughTheLibrary(t *testing.T) {
+	scripts := flociScriptSources(t)
+	var found []string
+	scanned := 0
+	for _, rel := range flociSortedKeys(scripts) {
+		if rel == flociLibrary {
+			continue
+		}
+		scanned++
+		for n, line := range codeLines(scripts[rel]) {
+			if !strings.Contains(line, "docker run") || !strings.Contains(line, " -d") {
+				continue
+			}
+			if strings.Contains(line, "$FLOCI_") || strings.Contains(line, "${FLOCI_") {
+				found = append(found, fmt.Sprintf("live/%s:%d: %s", rel, n, strings.TrimSpace(line)))
+			}
+		}
+	}
+	for _, f := range found {
+		t.Errorf("a floci container is started with a bare `docker run -d`, so it carries no ownership labels and can never be swept; call gauntlet_floci_start <name> <docker run args...> instead (#1312): %s", f)
+	}
+	if scanned == 0 {
+		t.Fatal("no script outside the library was scanned; the population is broken rather than clean")
+	}
+
+	// And the library's helper must actually write both owner labels and
+	// sweep before it starts, or every script is calling a function that
+	// labels nothing. Read from the function's own body.
+	lib, ok := scripts[flociLibrary]
+	if !ok {
+		t.Fatalf("%s is not in the scanned population", flociLibrary)
+	}
+	start := strings.Index(lib, "gauntlet_floci_start() {")
+	if start < 0 {
+		t.Fatal("live/e2e/lib/gauntlet.sh does not define gauntlet_floci_start")
+	}
+	body := lib[start:]
+	sweep := strings.Index(body, "gauntlet_sweep_leaked_floci ")
+	run := strings.Index(body, "docker run -d")
+	if sweep < 0 || run < 0 {
+		t.Fatalf("gauntlet_floci_start is missing its sweep or its docker run (sweep=%d run=%d)", sweep, run)
+	}
+	if sweep > run {
+		t.Error("gauntlet_floci_start runs `docker run` before it sweeps, so a leak on this estate's port fails the health check before the sweep could have cleared it")
+	}
+	for _, label := range []string{"$GAUNTLET_FLOCI_LABEL_PID=$$", "$GAUNTLET_FLOCI_LABEL_STARTED=$started", "$GAUNTLET_FLOCI_LABEL_ESTATE=$estate"} {
+		if !strings.Contains(body, `--label "`+label+`"`) {
+			t.Errorf("gauntlet_floci_start does not write --label %q, so the sweeper has nothing to check", label)
+		}
 	}
 }
 

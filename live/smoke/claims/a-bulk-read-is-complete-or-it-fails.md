@@ -96,3 +96,25 @@ argument because it is a lever for a run that is misbehaving, not a
 decision a team checks in. The unit tests behind this claim run at 1, 8
 and 32: a sibling's cancellation being reported in place of the real
 failure is a defect that exists only above 1.
+
+## The same claim on Kubernetes
+
+The cluster store has no fan-out to fail. Its bulk read is one paged
+LIST of the records namespace, every record's payload riding along with
+its metadata, so what can come back short is a page: the API server
+answers a continue token that has outlived its watch cache with 410
+Gone. The proof is step 12 of
+[claim 39's scenario](k8s-records-in-the-cluster.md), on a kind cluster:
+
+```text
+just smoke k8s-records-in-the-cluster
+```
+
+Padding puts the records on the second page, and a proxy in front of the
+API server (`live/smoke/k8sproxy.py`) answers that page with the API
+server's own 410 Expired. The listing the store opens with and the bulk
+read after it are each failed that way, and each run exits non-zero
+naming the listing, the namespace and the reason, with no plan printed.
+The `BREAK=1` binary keeps the first page and drops the error; its plan
+proposes creating all six resources, which exist, and the step's check
+must refuse it.

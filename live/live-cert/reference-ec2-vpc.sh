@@ -223,7 +223,7 @@ fi
 # ── 0b. the endpoint ────────────────────────────────────────────────────
 if [ "$TARGET" = "floci" ]; then
   log "=== 0b. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-  docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
     || fail "docker run for $FLOCI_NAME failed"
   healthy=0
   for _ in $(seq 1 45); do

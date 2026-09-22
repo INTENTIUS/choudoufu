@@ -49,13 +49,13 @@ root run:
 Explain each step's verdict line to me as it prints. Then run
 BREAK=1 just smoke k8s-records-in-the-cluster and explain why the first two
 controls turn a refusal into a success while the third turns a success into
-a refusal, and why the last five run a step's own check against a world
-built to fail it.
+a refusal, and why the last seven run a step's own check against a world
+or a binary built to fail it.
 ```
 
-The ten steps. The first five measure the store, the next four measure
+The twelve steps. The first five measure the store, the next four measure
 what it checks about the cluster before it writes a record, and the last
-is claim 32 on this store.
+three are claims 32, 30 and 31 on this store.
 
 1. `the Store contract, against this cluster's own API server` - the
    conformance suite every record store is held to, run against kind. The
@@ -137,6 +137,37 @@ is claim 32 on this store.
     far apart the two requests arrived and how long each sat on the wire,
     and a round whose requests were not parked together is counted apart
     and fails the run, because a race that did not overlap is a sequence.
+11. `a waiver names what it waives on every run, and live-cluster ignores
+    it` - [claim 30](a-waiver-names-what-it-waives.md) on this store. Steps
+    2 to 5 run under `allow_insecure` naming `read_isolation`,
+    `encryption_at_rest` and `estate_boundary`, and until
+    [#1441](https://github.com/INTENTIUS/choudoufu/issues/1441) nothing
+    asserted that a run says so. A fresh estate's first apply, a plan and
+    a second apply must each name all three waived settings with what each
+    costs, and exactly three. `choudoufu live-cluster`, run from the same
+    directory so it reads the same block, must still report
+    `read_isolation` and `encryption_at_rest` as FAIL, read NOT correct
+    and exit non-zero, and name each waiver apart from the verdict: two
+    hiding a failure, and `estate_boundary`, which this cluster passes by
+    then, hiding nothing.
+12. `a listing that fails after its first page fails the plan, and never
+    reads as a short estate` - [claim 31](a-bulk-read-is-complete-or-it-fails.md)
+    on this store. The bucket's bulk read is a LIST and a fan-out of GETs;
+    this store's is one paged LIST, with every payload riding along, so
+    the page is where it can come back short. The store lists 200 Secrets
+    a page, so 199 padding Secrets named to sort first put the store's
+    sentinel alone on page one and every record on page two. A proxy
+    between the run and the API server (`live/smoke/k8sproxy.py`)
+    re-terminates TLS: the run's kubeconfig points at it with
+    `insecure-skip-tls-verify`, and it reaches the real API server with
+    the kind admin's own CA and client certificate. It answers the second
+    page with the API server's own 410 Expired, first on the listing the
+    store opens with, then, with that one relayed, on the bulk read after
+    it, for a plan and a destroy plan. Each run must exit non-zero naming
+    the listing, the namespace and the API server's reason, and print no
+    plan at all. A control plan through the unarmed proxy is empty and
+    shows the listing paging, and the same plan with the fault lifted is
+    empty again.
 
 The `BREAK=1` run takes the three fences away and requires what they
 refused to go through: the plan identity is given cluster-wide secret
@@ -150,6 +181,16 @@ becomes the stock backend's read-then-update, which is what
 both writes landed and no conflict named at all. That writer lives in the
 test file and is reached only through an environment variable it reads, so
 no build of choudoufu carries it.
+
+Steps 11 and 12 each have a control that rebuilds choudoufu with
+`go build -overlay`, as claims 30 and 31 do on the bucket, so the source
+tree is never touched. Step 11's binary emits the waiver warning only
+while the estate has no state cache, which is its first run: that run
+still names all three, and step 11's check must refuse the plan after it
+for naming none. Step 12's binary keeps the pages it has when a later one
+fails. With the sentinel on page one it opens the store, reads the estate
+as holding no record, and plans to create all six resources, which exist;
+step 12's check must refuse that run for exiting 0.
 
 Steps 1, 2, 3, 8 and 9 each have a control of their own
 ([#1448](https://github.com/INTENTIUS/choudoufu/issues/1448)). Each step's

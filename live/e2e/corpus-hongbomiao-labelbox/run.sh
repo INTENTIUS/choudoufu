@@ -278,6 +278,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -422,7 +427,7 @@ log "  DELTA confirmed: all three leaf modules are byte-identical to the pinned 
 # Positive proof, not an assertion of belief: stock terraform genuinely
 # cannot see this estate at all, because every file in it - the three leaf
 # modules AND this script's own root wiring - uses the .tofu extension.
-TF_INIT_OUT="$(cd "$PLAIN" && terraform init -input=false -no-color 2>&1)"
+TF_INIT_OUT="$(cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1)"
 grep -qF "The directory has no Terraform configuration files." <<< "$TF_INIT_OUT" \
   || { printf '%s\n' "$TF_INIT_OUT"; fail "expected stock terraform to find zero config files in an all-.tofu directory - either the extension changed or terraform now reads .tofu"; }
 log "  proven: stock terraform sees an EMPTY directory here (.tofu is invisible to it) - this is genuinely OpenTofu-only surface"
@@ -440,7 +445,7 @@ log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added)"
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -621,7 +626,7 @@ FLOCI_GREEN_NAME="choudoufu-corpus-hongbomiao-labelbox-green-$$"
 GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 GREEN_ESTATE_NAME="hongbomiao-labelbox-greenfield"
 
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 for _ in $(seq 1 45); do
   GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -770,8 +775,8 @@ log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and bac
 PLAIN_ORACLE_COUNT="$WORK/plain-oracle-count"
 mkdir -p "$PLAIN_ORACLE_COUNT"
 { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
-( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
 ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
 grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \

@@ -95,7 +95,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Incomplete sweep for undeclared resources",
-		What:    "The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation.",
+		What:    "The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation. When the cause is the run's own credential - Cloud Control answered AccessDeniedException for a type's list handler - every such type is reported in one warning naming the count, the first five types and the IAM action pattern to grant, with every denied type and action in the log at TF_LOG=WARN (GitHub issue #1052); a listing that failed for any other reason keeps its own warning.",
 	},
 	{
 		Summary: "Indistinguishable instances without per-instance markers",

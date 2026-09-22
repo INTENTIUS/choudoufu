@@ -126,7 +126,12 @@ requires the replan not to list the object, then deletes the object and
 requires the replan to propose creating it. Removing the block for real
 (step 5) has the sweep, which lists every kind the cluster serves under
 `kubernetes_manifest` (#1079's third unit), find the CronTab by its label
-and propose destroying exactly it.
+and propose destroying exactly it. Its last step (#1396, #1434) migrates
+two stock-made ConfigMaps under a 64-character estate name and requires
+the read-only `live-import` to refuse once, naming `2 resource instances`
+and the 63-character cap, with no per-object line, exit 1 and nothing
+changed on the cluster; `BREAK=1`'s last control runs the same migration
+under a 60-character name and requires the report and exit 0.
 
 `k8s-a-held-delete-is-not-gone` is claim 25 (#1110's first fault): a
 finalizer added out of band holds a ConfigMap's delete, so the API accepts
@@ -559,7 +564,9 @@ showing its own checks would have caught it.
   the three names it does accept. The BREAK control rebuilds choudoufu
   so the warning appears on an estate's first run only (go build
   -overlay, needs Go, refuses a release binary) and passes only when run
-  two is caught proceeding in silence (#1340).
+  two is caught proceeding in silence (#1340). The same claim on the
+  Kubernetes record store is step 11 of `k8s-records-in-the-cluster`, which
+  also requires `live-cluster` to ignore the waiver (#1441).
 
 - **a-bulk-read-is-complete-or-it-fails** - *Claim 31: a record read
   that fails mid-fanout fails the read; a short map never reaches a
@@ -584,7 +591,9 @@ showing its own checks would have caught it.
   without the plan-time cross-check, passing only when apply -destroy is
   caught reporting 1 destroyed of two and exiting 0 with the record
   still in the bucket, which is #1355's output, manufactured.
-  Needs python3.
+  Needs python3. The same claim on the Kubernetes record store is step 12
+  of `k8s-records-in-the-cluster`, where `live/smoke/k8sproxy.py` answers
+  the second page of the records listing with 410 Expired (#1441).
 
 - **two-writers-one-record** - *Claim 32: two writers, one record: the
   loser is named, nothing is clobbered, and nothing is held.* Two

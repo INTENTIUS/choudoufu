@@ -11,16 +11,20 @@ import (
 )
 
 // The error codes Cloud Control sends that a caller of this package needs to
-// tell apart. There are more codes than these in the API, but these four are
+// tell apart. There are more codes than these in the API, but these five are
 // the ones the discovery layer branches on: UnsupportedOperation is floci's
 // answer for GetResource on some types while ListResources works for the
-// same type, and the other three separate "this type does not exist here"
-// from "the request was malformed" from "slow down".
+// same type, the next three separate "this type does not exist here" from
+// "the request was malformed" from "slow down", and AccessDenied is the
+// caller's own credential being refused the read a type's list handler
+// makes (GitHub issue #1052) - the one failure a sweep over hundreds of
+// types reports as a group rather than one type at a time.
 const (
 	CodeUnsupportedOperation  = "UnsupportedOperation"
 	CodeResourceNotFoundError = "ResourceNotFoundException"
 	CodeValidationError       = "ValidationException"
 	CodeThrottlingError       = "ThrottlingException"
+	CodeAccessDenied          = "AccessDeniedException"
 )
 
 // APIError is a failed Cloud Control call, carrying the HTTP status and the

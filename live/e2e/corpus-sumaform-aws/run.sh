@@ -792,7 +792,7 @@ EOF
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -1024,9 +1024,9 @@ gauntlet_stage cold_deploy pass "11 managed resource instances, genuinely cold, 
 gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_ORACLE_NAME" -p "${FLOCI_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for ep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   H=""
@@ -2135,7 +2135,7 @@ gauntlet_stage day2_replace pass "choudoufu: changing module.server's image inpu
 
 gauntlet_begin_stage day2_count
 log "=== G-ORACLE. stock: the same two-instance count block, stood up for real in its own idle account ==="
-docker run -d -p "${FLOCI_COUNT_PORT}:4566" --name "$FLOCI_COUNT_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_COUNT_NAME" -p "${FLOCI_COUNT_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_COUNT_NAME (the day2_count stock oracle's own account) failed"
 for _ in $(seq 1 45); do
   COUNT_HEALTH="$(curl -fs "${COUNT_ORACLE_ENDPOINT}/_localstack/health" 2>/dev/null)" || true

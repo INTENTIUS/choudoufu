@@ -112,13 +112,19 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 	if err != nil {
 		res.Scans = append(res.Scans, scan)
 		if sweep {
-			return diags.Append(sweepGapDiag(res, SweepGap{
+			gap := SweepGap{
 				TypeName: typeName,
 				Reason:   SweepGapListFailed,
 				Detail: fmt.Sprintf(
 					"Cloud Control ListResources on %s (for %s) failed, so the sweep could not look for resources of that type which this estate owns but no longer declares: %s.",
 					cfnType, typeName, err),
-			}))
+			}
+			if cloudcontrol.HasCode(err, cloudcontrol.CodeAccessDenied) {
+				// GitHub issue #1052: the credential itself, reported once
+				// for every type it was refused on rather than per type.
+				return diags.Append(sweepGapDenied(res, gap, cfnType, err))
+			}
+			return diags.Append(sweepGapDiag(res, gap))
 		}
 		decl.unscanned[typeName] = true
 		return diags.Append(problemDiag(res, Problem{

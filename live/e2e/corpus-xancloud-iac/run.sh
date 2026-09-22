@@ -546,7 +546,7 @@ log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added t
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -629,7 +629,7 @@ gauntlet_stage cold_deploy pass "28 resources, genuinely cold, genuinely unmarke
 # start, no migration, no state file ever existing.
 gauntlet_begin_stage greenfield
 log "=== PART F: 0. a second floci, a genuinely empty namespace ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GREEN_HEALTH=""
 for _ in $(seq 1 45); do
