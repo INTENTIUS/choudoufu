@@ -49,25 +49,30 @@ import (
 //     tofu-estate; the cache written at run end holds the zone's tags as
 //     the provider returned them, marker-free), and the zone must carry
 //     the markers by the end of the apply, read back with no tofu in the
-//     loop. The next plan must bind the zone by its marker (0 to add).
+//     loop through both the Tagging API and Route 53's own
+//     list-tags-for-resource. The next plan must bind the zone by its
+//     marker and propose nothing (0 to add, 0 to change).
 //  2. Refused: the proxy answers every hosted-zone tag write - the
 //     provider's own ChangeTagsForResource and this fork's TagResources -
 //     with 403. The apply must fail with an error naming the zone's ARN
 //     and printing the aws command that marks it; running that command by
-//     hand and planning again must bind the zone (0 to add).
+//     hand and planning again must bind the zone (0 to add, 0 to change).
 //
-// What the pinned emulator does with the write, measured by hand before
-// this test existed (aws CLI only, no tofu): route53
-// change-tags-for-resource is honoured and read back by route53
-// list-tags-for-resource; resourcegroupstaggingapi tag-resources is
-// accepted (empty FailedResourcesMap) and read back by
-// resourcegroupstaggingapi get-resources - the estate-wide sweep's own
-// read - but NOT by route53 list-tags-for-resource, which is what the
-// provider's refresh reads; cloudcontrol update-resource on
-// AWS::Route53::HostedZone answers UnsupportedOperation. So on floci the
-// two tag views are separate stores, where on real AWS the Tagging API
-// writes the service's own tags. This test reads the marker back through
-// the store discovery reads and logs the route53 view beside it.
+// What the pinned emulator does with the write (aws CLI only, no tofu):
+// resourcegroupstaggingapi tag-resources on a hostedzone ARN is accepted
+// (empty FailedResourcesMap) and read back both by resourcegroupstaggingapi
+// get-resources - the estate-wide sweep's own read - and by route53
+// list-tags-for-resource, which is what the provider's refresh reads. On
+// real AWS the Tagging API writes the service's own tags, and the emulator
+// does the same since lex00/floci#215 (issue #1316, pinned at
+// sha256:6c3d5c2d). The pin before that, sha256:74ffd40e, kept the two
+// views as separate stores: the markers reached get-resources and never
+// reached list-tags-for-resource, so the provider's refresh read them as
+// missing and every next plan proposed "1 to change" on the zone. This
+// test reads the marker back through both views, so a regression to the
+// split store fails here rather than as a non-empty steady-state plan
+// somewhere else. cloudcontrol update-resource on AWS::Route53::HostedZone
+// still answers UnsupportedOperation.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestTagOnCreateHostedZone -v
 func TestTagOnCreateHostedZone(t *testing.T) {
@@ -137,15 +142,17 @@ func TestTagOnCreateHostedZone(t *testing.T) {
 		"tofu-estate":  estateA,
 		"tofu-address": "aws_route53_zone.this",
 	})
-	t.Logf("phase 1: route53 list-tags-for-resource view (the provider's read; separate store on floci): %v",
-		tocRoute53Tags(t, floci, zoneIDA))
+	// The same markers through Route 53's own read, which is what the
+	// provider's refresh consults: the Tagging API wrote the service's
+	// tags, as AWS does.
+	assertTags(t, tocRoute53Tags(t, floci, zoneIDA), "aws_route53_zone.this (route53 list-tags-for-resource)", map[string]string{
+		"tofu-estate":  estateA,
+		"tofu-address": "aws_route53_zone.this",
+	})
 
-	// The next plan binds the zone by its marker: nothing to add. On
-	// floci it also proposes to change the zone - the provider's refresh
-	// reads route53's own tag view, which the emulator keeps apart from
-	// the store the Tagging API wrote, so the markers read as missing and
-	// are re-proposed through the provider. On real AWS the two are one
-	// store and the plan is empty.
+	// The next plan binds the zone by its marker and proposes nothing:
+	// the provider's refresh reads the markers the Tagging API wrote, so
+	// it has none to re-propose.
 	tocAssertBound(t, "phase 1: the next plan", tofu(t, tofuBin, dirA, "plan"))
 
 	// --- Phase 2: the write is refused ----------------------------------
@@ -194,6 +201,10 @@ func TestTagOnCreateHostedZone(t *testing.T) {
 		"tofu-estate":  estateB,
 		"tofu-address": "aws_route53_zone.this",
 	})
+	assertTags(t, tocRoute53Tags(t, floci, zoneIDB), "aws_route53_zone.this (route53 list-tags-for-resource)", map[string]string{
+		"tofu-estate":  estateB,
+		"tofu-address": "aws_route53_zone.this",
+	})
 	tocAssertBound(t, "phase 2: the plan after the hand-run command", tofu(t, tofuBin, dirB, "plan"))
 }
 
@@ -202,8 +213,10 @@ func TestTagOnCreateHostedZone(t *testing.T) {
 var tocPlanLine = regexp.MustCompile(`Plan: (?:(\d+) to import, )?(\d+) to add, (\d+) to change, (\d+) to destroy`)
 
 // tocAssertBound reads a plan's summary and fails unless it proposes
-// nothing to add and nothing to destroy: the zone was found by its marker
-// rather than planned a second time. "No changes." passes too.
+// nothing to add, change or destroy: the zone was found by its marker
+// rather than planned a second time, and its markers read back through the
+// provider's own refresh rather than being re-proposed. An import of the
+// bound zone is allowed. "No changes." passes too.
 func tocAssertBound(t *testing.T, what, plan string) {
 	t.Helper()
 	if strings.Contains(plan, "No changes.") {
@@ -217,6 +230,9 @@ func tocAssertBound(t *testing.T, what, plan string) {
 	}
 	if m[2] != "0" || m[4] != "0" {
 		t.Errorf("%s proposes %s to add / %s to destroy; the zone was not bound by its marker", what, m[2], m[4])
+	}
+	if m[3] != "0" {
+		t.Errorf("%s proposes %s to change; the provider's refresh did not read the markers the Tagging API wrote (a split tag store, as the emulator had before lex00/floci#215)", what, m[3])
 	}
 	t.Logf("%s: %s", what, m[0])
 }
