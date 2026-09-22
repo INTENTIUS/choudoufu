@@ -675,7 +675,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// unavailable" diagnostic providerConfigValue has always raised for
 	// what this cannot resolve fires unchanged, later, when something
 	// actually tries to configure that provider.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar, scope)
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -3352,6 +3352,31 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // taken as an argument rather than read from the environment here, so that one
 // run cannot use two different bounds and a bad setting is reported once.
 //
+// scope is GitHub issue #1258's second leg, the run's own [identity.Scope],
+// and it narrows this pass in two places. [dataread.Options.Scope] drops a
+// provider-configuration data source the plan graph does not contain, which
+// is where nearly all of the saving is: a source the plan will not read is
+// one whose value would sit in front of a diff that cannot match it, the
+// same rule [analyzer.classify] already applies to the other two demand
+// classes. Underneath it [statelessInScopeResolutions] drops an out-of-scope
+// managed instance from the demand list, because
+// [identity.DemandedManagedReads] reads the whole resolution list on purpose
+// and the list deliberately keeps out-of-scope blocks.
+//
+// What it gives up, on the one run that can notice: a provider whose own
+// configuration needs a source this now declines to read cannot be
+// configured for the rest of that run. Nothing in the plan graph wants it -
+// the same targeting that dropped the source dropped every block using that
+// provider, or the source would be in scope - but the estate-wide sweep
+// still asks for it, since [statelessManagedResourceProviders] is read off
+// the whole configuration. GitHub issue #1514 is what makes that safe: such
+// a pass is the "Provider unavailable for the estate-wide sweep" warning,
+// fatal only for a provider a needs-discovery instance THIS RUN ACTS ON
+// uses, and such an instance is in scope by construction. The sweep set is
+// left whole on purpose - narrowing it would give up unclaimed inventory
+// and vouching for that provider's objects, which is an estate-wide
+// question a -target flag was never asked about.
+//
 // It is inert on this path today, and stated rather than left to be
 // rediscovered: [projection.ReadInstances] reads its concrete instances through
 // the same sequential materialize loop it always has - only
@@ -3360,9 +3385,9 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // is a projection read pass built from a [projection.Options], and the day
 // ReadInstances grows the same prefetch, it should inherit the bound the
 // operator set for the run rather than silently take ten.
-func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int) map[string]cty.Value {
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int, scope identity.Scope) map[string]cty.Value {
 	managedTypes := provs.managedTypesByProvider(ctx)
-	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes}
+	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes, Scope: scope}
 	confined := func(a *dataread.Analysis) dataread.Providers {
 		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
 	}
@@ -3389,6 +3414,16 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 				}
 			}
 		}
+		// GitHub issue #1258's second narrowing, the demand list rather
+		// than the pass: [identity.DemandedManagedReads] reads the whole
+		// resolution list on purpose ([identity.Scope]'s own doc comment -
+		// that list is also the sweep's declared set), so an instance a
+		// -target run leaves out of the plan graph could still reach
+		// [projection.ReadInstances] here. Narrowed BEFORE
+		// expandFormulaParents, never after: a parent is not read for its
+		// own sake but to render an in-scope child's formula, and the
+		// child's own scope is what has already been decided above.
+		instances = statelessInScopeResolutions(instances, scope)
 		instances = expandFormulaParents(resolutions, instances)
 		if len(instances) == 0 {
 			// Nothing new demanded that a prior pass has not already read;

@@ -424,18 +424,43 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 // to say so. The PlanInstances excluded column is at zero; the read column
 // is not, and the untargeted row must not move with either.
 //
-// The second leg's hazard, stated here because no test in this file can
-// reach it: [dataread.Options.Scope] on this pass would leave
-// data.aws_eks_cluster.cluster unread on the first targeted row, which
-// leaves provider "kubernetes" unconfigurable for the rest of the run. The
-// plan graph does not mind - targeting dropped that provider too - but
-// [statelessDiscover] does: its provider set is
-// [statelessManagedResourceProviders], read off the configuration, and its
-// needs-discovery set is the whole resolution list. A provider that will not
-// configure there is a new warning and a skipped sweep pass at best
-// ([statelessDiscoverProviderUnavailable]) and a fatal error whenever any
-// kubernetes block, in scope or not, needs discovery. The sweep's provider
-// set has to see the target set before this pass can.
+// Re-read after GitHub issue #1514 scoped [statelessDiscover]'s
+// needs-discovery set and #1258's second leg passed the run's scope into
+// [statelessProviderDataReads]:
+//
+//	                                   PlanInstances' own    live managed reads       data reads
+//	                                   PlanResourceChange    import+read+normalize
+//	                                   total   excluded      total      excluded      total
+//	untargeted                           9        0          1+1+1         0            1
+//	-target=aws_route53_record.cert_..   1        0          0+0+0         0            0
+//	-target=kubernetes_namespace.app     0        0          1+1+1         0            1
+//
+// Only the record row moves, and it moves to zero. Targeting the record
+// drops data.aws_eks_cluster.cluster from the plan graph, so
+// [dataread.AnalyzeProviderConfigs] marks that source
+// [dataread.SummaryOutOfScope] and never demands the cluster, which is the
+// whole of that row's remaining provider work: the import, the read, the
+// normalizing plan and the data read were all four for a block the run
+// excludes. The kubernetes row does not move, and must not: targeting the
+// namespace keeps provider "kubernetes", so the plan graph keeps the data
+// source and the cluster with it (TestTargetWorkScopeIsThePlanGraphs). The
+// untargeted row does not move because a nil scope admits every block.
+//
+// What the record row gives up is stated rather than hidden: provider
+// "kubernetes" is now unconfigurable for the rest of that run, because the
+// value its host argument needs was deliberately not read. Nothing in the
+// plan graph wants it - targeting dropped every kubernetes block too - but
+// [statelessManagedResourceProviders] is still read off the whole
+// configuration, so the estate-wide sweep still tries a pass through it and
+// [statelessDiscoverProviderUnavailable] downgrades that pass to the
+// "Provider unavailable for the estate-wide sweep" warning GitHub issue
+// #1514 built for exactly this. Fatal is reachable only when a
+// needs-discovery instance THIS RUN ACTS ON uses that provider, and such an
+// instance is in scope by construction, which is what makes the pass above
+// safe to narrow. The end-to-end shape of that warning is pinned by
+// TestLivePlan_targetIsNotRefusedByAnExcludedBlocksDiscoveryProvider; this
+// file cannot reach it, because its harness registers no second provider
+// process.
 func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 
@@ -448,6 +473,11 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 
 		plans, imports, reads, dataReads string
 
+		// readPlans is the PlanResourceChange calls the READ makes, one
+		// per instance [builder.normalizeIdentityAttrs] normalizes, and so
+		// moves with reads rather than with plans.
+		readPlans string
+
 		// plansForExcluded is PlanResourceChange calls minus the plannable
 		// blocks the scope keeps. readsForExcluded is the import/read pairs
 		// made for a managed block the scope drops.
@@ -458,25 +488,36 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 		// statelessResolve returns before PlanInstances and the subtraction
 		// above has nothing to measure: zero calls, in scope or out.
 		noSecondPass bool
+
+		// sourceOutOfScope is a row whose provider-configuration data
+		// source the run's own -target drops, so the fixpoint reads
+		// nothing and the control below inverts: the absence IS the
+		// measurement, and what it costs is the paragraph above.
+		sourceOutOfScope bool
 	}{
 		{
 			name:  "untargeted",
-			plans: allNinePlans, imports: oneCluster, reads: oneCluster, dataReads: oneCluster,
+			plans: allNinePlans, imports: oneCluster, reads: oneCluster, dataReads: oneCluster, readPlans: oneCluster,
 		},
 		{
 			// The certificate alone since #1258's first leg: the one
 			// plannable block the scope keeps, and the one the record's
-			// for_each reads.
+			// for_each reads. Nothing at all since its second: this run's
+			// plan graph has no kubernetes block, so it has no
+			// data.aws_eks_cluster.cluster and no cluster read either.
 			name: "targeting the record", target: "aws_route53_record.cert_validation",
-			plans: "1 [aws_acm_certificate=1]", imports: oneCluster, reads: oneCluster, dataReads: oneCluster,
-			plansForExcluded: 0, readsForExcluded: 1,
+			plans: "1 [aws_acm_certificate=1]", imports: "0 []", reads: "0 []", dataReads: "0 []", readPlans: "0 []",
+			plansForExcluded: 0, readsForExcluded: 0, sourceOutOfScope: true,
 		},
 		{
 			// No plan call at all since #1470: with the excluded record's
 			// refusal rolled back, this run's first pass is clean and
-			// statelessResolve returns before PlanInstances.
+			// statelessResolve returns before PlanInstances. The reads
+			// stand: targeting the namespace keeps its provider, and the
+			// plan graph keeps that provider's data source and the cluster
+			// the data source names.
 			name: "targeting a kubernetes block", target: "kubernetes_namespace.app",
-			plans: "0 []", imports: oneCluster, reads: oneCluster, dataReads: oneCluster,
+			plans: "0 []", imports: oneCluster, reads: oneCluster, dataReads: oneCluster, readPlans: oneCluster,
 			noSecondPass: true, readsForExcluded: 0,
 		},
 	} {
@@ -522,7 +563,7 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 			// Leg two: the provider-configuration fixpoint, on a fresh cloud
 			// so the two legs' calls cannot be confused.
 			readCloud := newTargetWorkCloud()
-			results := statelessProviderDataReads(t.Context(), cfg, readCloud, nil, resolutions, nil, 1)
+			results := statelessProviderDataReads(t.Context(), cfg, readCloud, nil, resolutions, nil, 1, scope)
 			if got := renderCounts(readCloud.imports); got != tc.imports {
 				t.Errorf("ImportResourceState calls: got %s, want %s", got, tc.imports)
 			}
@@ -547,13 +588,27 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 			// [builder.normalizeIdentityAttrs] makes per instance it reads
 			// (GitHub issue #281), so it moves with the read and is part of
 			// what a read of an excluded block costs.
-			if got := renderCounts(readCloud.plans); got != oneCluster {
-				t.Errorf("PlanResourceChange calls made by the read itself: got %s, want %s", got, oneCluster)
+			if got := renderCounts(readCloud.plans); got != tc.readPlans {
+				t.Errorf("PlanResourceChange calls made by the read itself: got %s, want %s", got, tc.readPlans)
 			}
 
 			// The control: without it every count above could be zero
 			// because the fixpoint never closed, not because it was narrow.
 			got, ok := results["data.aws_eks_cluster.cluster"]
+			if tc.sourceOutOfScope {
+				// The inverse control. This row's zeros are only worth
+				// something if the source is absent for the stated reason -
+				// the scope dropped it - rather than because the whole
+				// fixpoint stopped working, which the two rows either side
+				// of it would catch.
+				if ok {
+					t.Errorf("the fixpoint read data.aws_eks_cluster.cluster on a run whose -target drops it: %#v", got)
+				}
+				if len(results) != 0 {
+					t.Errorf("the fixpoint returned %d source(s) on a run whose only provider-config source is out of scope", len(results))
+				}
+				return
+			}
 			if !ok {
 				t.Fatalf("the fixpoint did not read data.aws_eks_cluster.cluster; results: %d", len(results))
 			}
