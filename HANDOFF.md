@@ -279,7 +279,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 | Guard | What it holds |
 |---|---|
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2435 rendered identities across 683 configuration directories, pinned by value; 652 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2436 rendered identities across 684 configuration directories, pinned by value; 653 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the site pages and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |

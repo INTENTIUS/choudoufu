@@ -1627,6 +1627,33 @@ type TypeScan struct {
 	// able to see how many of them a run made.
 	DirectRead int
 
+	// LookalikeRelist marks a row whose type was listed a SECOND time,
+	// without the server-side estate filter, after binding had already
+	// run - GitHub issue #1480, [relistForLookalikes]. It happens only on
+	// a plain plan (CollectUnclaimed unset), only for a type whose first
+	// listing was server-side estate-filtered, and only when a declared
+	// instance of that type was left unbound, which is to say only when
+	// the plan proposes creating one. Scope, Filtering and FilterReason
+	// describe that second call rather than the first, because they are
+	// what internal/live/foreign reads to decide whether an unclaimed
+	// resource of this type could have been seen at all - and after the
+	// widening it could.
+	//
+	// Declared, Listed, Bound, Joined, NameBound, DirectRead and
+	// ServiceTagReads all still describe the FIRST, estate-scoped call:
+	// the second one binds nothing and claims nothing. Only Unclaimed
+	// grows, by what the widening found.
+	LookalikeRelist bool
+
+	// RelistListed is the number of live resources the widened list
+	// described by LookalikeRelist returned - the whole regional
+	// population of the type, against Listed's estate-scoped count. Zero
+	// on every row where LookalikeRelist is false. It is reported rather
+	// than folded into Listed because it is the cost of an extra call,
+	// and live/costs/plan-cost.md's claim is about how many calls a plan
+	// makes.
+	RelistListed int
+
 	// ServiceTagReads is the number of listed objects of this type whose
 	// marker no enumeration route and no tag index could carry, and which
 	// the per-service tag-read leg therefore asked the service's own tag
@@ -1666,6 +1693,9 @@ func (s TypeScan) String() string {
 		source = " source=service-api"
 	}
 	joined := ""
+	if s.LookalikeRelist {
+		joined += fmt.Sprintf(" lookalike-relist=%d", s.RelistListed)
+	}
 	if s.Joined > 0 {
 		joined = fmt.Sprintf(" joined=%d", s.Joined)
 	}

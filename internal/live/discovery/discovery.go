@@ -765,6 +765,17 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	diags = diags.Append(sweepKubernetes(ctx, req, res))
 
 	diags = diags.Append(bind(ctx, req, decl, res))
+
+	// GitHub issue #1480, and it has to be here rather than in either scan
+	// loop above: what it needs to know is which declared instances nothing
+	// claimed, and bind() is what settles that. A type left with an unbound
+	// instance is a type the plan proposes creating one of, which is the
+	// only case the lookalike guard has anything to say about - so this is
+	// where the guard's one widened list call is worth making and the only
+	// place it can be decided. See [relistForLookalikes]: a steady-state
+	// plan makes no call at all here.
+	diags = diags.Append(relistForLookalikes(ctx, req, schemas, res))
+
 	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
 
 	// The three removal legs that read res.Resolutions rather than the tag

@@ -1697,21 +1697,34 @@ policy nobody has written yet. Prevention cannot cover every case, which
 is why this fork does not rely on it alone.
 
 At plan time, when a declared resource of an admitted type would be
-created and the estate sweep saw one or more live resources of the same
-type that this estate does not own, the plan runs the same content-match
-machinery that offers adoption elsewhere (`internal/live/foreign`'s match
-table and its one-to-one rule) against the declared configuration. On a
-match it does not change what the plan does (the create may be
-intended), but the create's entry in the plan gains a `[POSSIBLE
-DUPLICATE]` warning, naming the matched live resource's ID and the exact
-command that adopts it instead. A type with no content-match rule (a route
-table, an EIP: nothing in their configuration distinguishes one from
-another) still gets a generic warning when exactly one same-type unowned
-resource exists, naming it the same way. Either way the warning sits
-immediately above the plan diff itself, not buried in a report an operator
-could plan past without reading. This is the guard that assumes the tags
-will get stripped sometime, by someone, despite whatever policy is in
-place, and catches it anyway.
+created and one or more live resources of the same type that this estate
+does not own exist, the plan runs the same content-match machinery that
+offers adoption elsewhere (`internal/live/foreign`'s match table and its
+one-to-one rule) against the declared configuration. On a match it does not
+change what the plan does (the create may be intended), but the create's
+entry in the plan gains a `[POSSIBLE DUPLICATE]` warning, naming the
+matched live resource's ID and the exact command that adopts it instead. A
+type with no content-match rule (a route table, an EIP: nothing in their
+configuration distinguishes one from another) still gets a generic warning
+when exactly one same-type unowned resource exists, naming it the same way.
+Either way the warning sits immediately above the plan diff itself, not
+buried in a report an operator could plan past without reading. This is the
+guard that assumes the tags will get stripped sometime, by someone, despite
+whatever policy is in place, and catches it anyway.
+
+Finding those unowned resources costs one list call, and an ordinary plan
+makes it only where it buys something. Most declared types are listed with
+a server-side `tofu-estate` filter, which by construction hides exactly the
+resource this guard is looking for; so after discovery has bound what it
+can, any type left with a declared instance nothing claimed — which is to
+say, any type the plan proposes creating one of — is listed once more with
+that filter off (`internal/live/discovery`'s `relistForLookalikes`, GitHub
+issue #1480). A steady-state `No changes` plan has nothing unbound and
+makes no extra call at all, so the per-plan cost the estate-wide sweep's
+narrowing bought (`live/costs/plan-cost.md`) is unchanged. Between
+`09d180f921` and that fix, an ordinary plan could not fire this guard for
+any filterable type at all, and `TOFU_LIVE_COLLECT_UNCLAIMED=1` was the
+only route to the warning.
 
 Taken together: a tag policy cannot do this job at all, an
 SCP narrows who can strip a marker and where, and the plan-time guard
