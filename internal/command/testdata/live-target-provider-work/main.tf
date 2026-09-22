@@ -54,8 +54,16 @@ data "aws_eks_cluster" "cluster" {
   name = aws_eks_cluster.this.id
 }
 
+# Directly readable, unlike the cluster above: nothing in its arguments
+# waits on a managed resource. It is here so that the run's scope, and not
+# the managed-read demand, is what decides whether it is read - the two
+# halves of #1258's narrowing are otherwise indistinguishable on this
+# fixture.
+data "aws_region" "current" {}
+
 provider "kubernetes" {
-  host = data.aws_eks_cluster.cluster.endpoint
+  host  = data.aws_eks_cluster.cluster.endpoint
+  token = data.aws_region.current.name
 }
 
 resource "aws_s3_bucket" "logs" {
