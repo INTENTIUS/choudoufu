@@ -276,3 +276,58 @@ func TestLiveLsJSON_KubernetesObjectCarriesKindAndAPIVersion(t *testing.T) {
 		}
 	}
 }
+
+// GitHub issue #1044: the human report says where the region came from -
+// the flag, the root's provider block, or the SDK chain - so a run whose
+// region disagrees with live-plan's on the same DIR shows it. The exact
+// wording is pinned here because a reader greps for it.
+func TestLiveLsHuman_RegionSourceLine(t *testing.T) {
+	cases := map[string]struct {
+		rep  LiveLsReport
+		want string
+	}{
+		"flag": {
+			rep:  LiveLsReport{Estate: "dev", Region: "us-west-2", RegionSource: "flag"},
+			want: "Region us-west-2 (from -region).",
+		},
+		"provider": {
+			rep:  LiveLsReport{Estate: "dev", Region: "eu-west-1", RegionSource: "provider", RegionNote: `provider "aws"`, ConfigDir: "/srv/estate"},
+			want: `Region eu-west-1 (from provider "aws" in /srv/estate).`,
+		},
+		"sdk, no DIR": {
+			rep:  LiveLsReport{Estate: "dev", Region: "us-east-1", RegionSource: "sdk"},
+			want: "Region us-east-1 (from the AWS SDK's default chain).",
+		},
+		"sdk, DIR gave none": {
+			rep:  LiveLsReport{Estate: "dev", Region: "us-east-1", RegionSource: "sdk", RegionNote: `provider "aws" in /srv/estate sets no region`, ConfigDir: "/srv/estate"},
+			want: `Region us-east-1 (from the AWS SDK's default chain; provider "aws" in /srv/estate sets no region).`,
+		},
+		"sdk named none": {
+			rep:  LiveLsReport{Estate: "dev", RegionSource: "sdk"},
+			want: "Region unresolved (the AWS SDK's default chain named none; pass -region or set AWS_REGION).",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			streams, done := terminal.StreamsForTesting(t)
+			(&LiveLsHuman{view: NewView(streams)}).Report(tc.rep)
+			out := done(t).Stdout()
+			if !strings.Contains(out, tc.want) {
+				t.Errorf("source line missing or reworded.\nwant: %s\n--- got ---\n%s", tc.want, out)
+			}
+		})
+	}
+}
+
+// A Kubernetes-only listing has no AWS region to explain, so no source
+// line: the header pinned by
+// TestLiveLsCommand_Run_kubernetesOnlyConfigurationNeverTouchesAWS stays
+// the whole story.
+func TestLiveLsHuman_NoRegionSourceNoLine(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	(&LiveLsHuman{view: NewView(streams)}).Report(LiveLsReport{Estate: "app", ConfigDir: "/srv/app"})
+	out := done(t).Stdout()
+	if strings.Contains(out, "Region ") {
+		t.Errorf("a region line was printed for a report with no region source:\n%s", out)
+	}
+}
