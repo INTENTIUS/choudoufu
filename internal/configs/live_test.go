@@ -1016,6 +1016,72 @@ func TestModule_liveStrictSecrets(t *testing.T) {
 	}
 }
 
+// TestModule_liveStrictSSM: the nested ssm block GitHub issue #1515's
+// ruling 2 puts the KMS key and the parameter path in. Three literal
+// strings, decoded and judged nowhere - that an omitted kms_key_id is a
+// refusal, and that this block means nothing beside any other secrets
+// setting, are internal/live/lint's, the same division the strict block's
+// own spellings already have.
+func TestModule_liveStrictSSM(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-ssm")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	st := mod.Live.Strict
+	if st == nil {
+		t.Fatal("no strict block was decoded")
+	}
+	if got, want := st.Secrets, "ssm"; got != want {
+		t.Fatalf("Secrets = %q, want %q", got, want)
+	}
+	sm := st.SSM
+	if sm == nil {
+		t.Fatal("no ssm block was decoded from a strict block that declares one")
+	}
+	for _, f := range []struct {
+		name string
+		got  string
+		set  bool
+		want string
+	}{
+		{"kms_key_id", sm.KMSKeyID, sm.KMSKeyIDSet, "arn:aws:kms:eu-west-1:111122223333:key/1234abcd"},
+		{"path", sm.Path, sm.PathSet, "/choudoufu/my-estate/secrets"},
+		{"region", sm.Region, sm.RegionSet, "eu-west-1"},
+	} {
+		if !f.set {
+			t.Errorf("%sSet is false for an argument this block writes", f.name)
+		}
+		if f.got != f.want {
+			t.Errorf("%s = %q, want %q - the three arguments share a decode loop and must not be reading each other's attribute", f.name, f.got, f.want)
+		}
+	}
+	if sm.DeclRange.Filename == "" {
+		t.Error("the ssm block's DeclRange is the zero value, so a diagnostic about the block as a whole cannot point at it")
+	}
+	// A diagnostic about the key has to point at the key, not at the
+	// block: an operator reading "this ssm block names no kms_key_id" on a
+	// block whose every line looks the same needs the caret on the line
+	// they have to change.
+	if sm.KMSKeyIDRange == sm.PathRange || sm.KMSKeyIDRange == sm.RegionRange {
+		t.Error("two of the ssm block's arguments decoded to one range")
+	}
+}
+
+// TestModule_liveStrictSSMAbsent: a strict block with no ssm block leaves
+// SSM nil. "Absent means absent" here is load-bearing rather than tidy -
+// internal/live/lint reads the nil to refuse `secrets = "ssm"` with no key,
+// so a zero-valued block standing in for an absent one would let an estate
+// run with no key named and nothing saying so.
+func TestModule_liveStrictSSMAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-secrets")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if got := mod.Live.Strict.SSM; got != nil {
+		t.Errorf("SSM is %+v for a strict block with no ssm block, want nil", got)
+	}
+}
+
 // TestModule_liveStrictEmpty: a strict block that sets nothing decodes as a
 // non-nil block with every *Set flag false. The distinction matters because
 // "the block is there and sets nothing" and "the block is absent" must both
@@ -1066,6 +1132,14 @@ func TestModule_liveStrictRefused(t *testing.T) {
 		{"testdata/invalid-files/live-strict-duplicate.tf", "Duplicate strict block"},
 		{"testdata/invalid-files/live-strict-non-literal.tf", "Variables not allowed"},
 		{"testdata/invalid-files/live-strict-secrets-non-literal.tf", "Variables not allowed"},
+		{"testdata/invalid-files/live-strict-ssm-duplicate.tf", "Duplicate ssm block"},
+		{"testdata/invalid-files/live-strict-ssm-non-literal.tf", "Variables not allowed"},
+		// An argument this block does not define. The schema is closed on
+		// purpose: "tier" reads as though it selected the advanced tier,
+		// and #1515's ruling 3 is that the tier is not an operator's
+		// choice at all - it is decided per value, by size, and announced
+		// with its cost.
+		{"testdata/invalid-files/live-strict-ssm-unknown-argument.tf", "Unsupported argument"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)

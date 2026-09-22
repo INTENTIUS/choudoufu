@@ -255,6 +255,36 @@ const (
 	// with nothing saying why; refusing the type says so once, loudly, at
 	// the configuration.
 	Refuse Secrets = "refuse"
+
+	// SSM admits a secret-bearing type or argument, keeps its value, and
+	// keeps it somewhere the estate's record store is not: AWS Systems
+	// Manager Parameter Store, as a SecureString under a customer managed
+	// KMS key, with the record carrying a reference in place of the value.
+	// GitHub issue #1515, ruling 2, splitting #1244's section 3.
+	//
+	// It is a third answer to the question the other two share, not a
+	// variant of either. [Store] answers "keep them, here"; [Refuse]
+	// answers "keep none"; this one answers "keep them, over there", for an
+	// organisation whose rotation, audit and access review already live in
+	// SSM. What an operator buys is a second access boundary on the values
+	// alone - reading a record no longer reads a private key, because the
+	// record does not hold one - and what they pay for it is a second
+	// service in the write path and SSM's own quotas.
+	//
+	// It is NOT the retired record_store "ssm" backend (#1346), which put
+	// whole records into Parameter Store as plain String parameters and was
+	// retired for its capacity ceiling and its weak compare-and-swap.
+	// Records stay in S3 here, and S3's If-Match stays the only thing that
+	// decides a concurrent write: every SSM write is a create, with
+	// Overwrite false, of a name no other write uses, so PutParameter's
+	// read-compare-write weakness has nothing to decide (#1515, ruling 1).
+	//
+	// It pairs with record_store "s3" and with nothing else. The local and
+	// Kubernetes stores refuse it by name rather than ignoring it, because
+	// an estate whose records are in a local directory has no If-Match to
+	// commit a reference with, and a reference that is not committed
+	// atomically is a record pointing at a parameter that may not exist.
+	SSM Secrets = "ssm"
 )
 
 // DefaultSecrets is what an omitted secrets argument means, and therefore
@@ -270,22 +300,67 @@ const (
 // toggles, and turning them on is the setup step" says.
 const DefaultSecrets = Store
 
-// secretsSettings is the whole vocabulary. Both settings are implemented, so
-// unlike [markerRepairs] this needs no support column: there is no
-// grammar-without-a-mechanism case here.
+// secretsSettings is the whole vocabulary, paired with whether a build acts
+// on each. It grew [markerRepairs]'s support column when [SSM] arrived, and
+// for the same reason that table has one: [SecretsValid] and
+// [SecretsImplemented] are two questions, and holding them in one table is
+// what stops them drifting apart.
 var secretsSettings = map[Secrets]bool{
 	Store:  true,
 	Refuse: true,
+	SSM:    false,
 }
 
-// SecretsValid reports whether v is one of the two settings this fork's
-// schema defines.
+// SecretsValid reports whether v is one of the three settings this fork's
+// schema defines. It says nothing about whether a build acts on it - see
+// [SecretsImplemented].
 func SecretsValid(v Secrets) bool {
+	_, ok := secretsSettings[v]
+	return ok
+}
+
+// SecretsImplemented reports whether a build acts on v.
+//
+// [Store] and [Refuse] are each somebody's whole behavior today and neither
+// can be accepted-and-ignored. [SSM] is the one this fork's schema defines
+// and this build does not act on yet: GitHub issue #1515 settles the
+// grammar, the four rulings and every refusal around the setting, and the
+// write path that would put a value into Parameter Store and a reference
+// into the record is a later unit.
+//
+// It is refused rather than accepted silently, for [Implemented]'s reason
+// pointed at a worse outcome. Accepting it would tell an operator their
+// secret values were in Parameter Store under their own KMS key while every
+// one of them went on being written into the estate's records in clear, and
+// the only evidence would be the absence of parameters nobody was watching
+// for. A refusal is loud and reversible; a setting that silently does
+// nothing about secrets is the "you are fine" this fork keeps finding in
+// itself.
+//
+// Everything around the setting is built and is reached BEFORE this: the
+// nested block decodes, internal/live/lint's strict-secrets-ssm refuses an
+// arrangement that could not work, and the state cache is already off under
+// it. So the day the write path lands, this entry flips and nothing else
+// has to move.
+func SecretsImplemented(v Secrets) bool {
 	return secretsSettings[v]
 }
 
+// SecretsImplementedNames renders just the settings a build acts on, in the
+// shape [SecretsNames] uses: `"refuse", "store"`.
+func SecretsImplementedNames() string {
+	out := make([]string, 0, len(secretsSettings))
+	for v, implemented := range secretsSettings {
+		if implemented {
+			out = append(out, `"`+string(v)+`"`)
+		}
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
+}
+
 // SecretsNames renders the vocabulary for a diagnostic, sorted so the
-// message is stable: `"refuse", "store"`.
+// message is stable: `"refuse", "ssm", "store"`.
 func SecretsNames() string {
 	out := make([]string, 0, len(secretsSettings))
 	for v := range secretsSettings {
@@ -295,8 +370,17 @@ func SecretsNames() string {
 	return strings.Join(out, ", ")
 }
 
-// StoresSecrets reports whether v is the setting under which a run may keep
-// secret material.
+// StoresSecrets reports whether v is a setting under which a run may keep
+// secret material at all - [Store], which keeps it in the estate's record
+// store the way stock keeps it in a state file, and [SSM], which keeps the
+// same values in Parameter Store and leaves a reference in the record.
+//
+// "At all" is the whole of what it asks, and the two callers it has are why
+// it is phrased that way. A lint rule refusing a secret-generating type and
+// a residue writer dropping a sensitive settable argument are both acting
+// on "this run keeps nothing", which is [Refuse] alone; neither has any
+// business behaving differently because the value's destination changed.
+// The layer that writes the value asks [SecretsInSSM] instead.
 //
 // It is a function over the type rather than a `v == Store` at each call
 // site because the call sites are in four packages (internal/live/lint,
@@ -310,7 +394,52 @@ func SecretsNames() string {
 // first; see identity.SecretsFor, which is the one place that resolution
 // happens.
 func StoresSecrets(v Secrets) bool {
-	return v == Store
+	return v == Store || v == SSM
+}
+
+// SecretsInSSM reports whether v is the setting under which a kept secret
+// value goes to AWS Systems Manager Parameter Store rather than into the
+// record itself. GitHub issue #1515.
+//
+// It is the narrow question [StoresSecrets] deliberately does not answer.
+// Every layer that asks "may this run keep this value at all" - the lint
+// rules that refuse a secret-generating type, the residue writer that
+// decides whether a sensitive settable argument is remembered - gets the
+// same answer under [Store] and under [SSM], because the value IS kept
+// either way and an operator who chose SSM did not choose to stop
+// generating passwords. Only the layer that writes the value has to know
+// where it goes, and that layer asks this.
+//
+// The zero value answers false, for [StoresSecrets]'s own reason: a caller
+// holding no configuration must not conclude the operator asked for a
+// second service in the write path.
+func SecretsInSSM(v Secrets) bool {
+	return v == SSM
+}
+
+// NoStateCache reports whether v is a setting under which the local state
+// cache is neither written nor read - as if CHOUDOUFU_STATE_CACHE=off, and
+// still overridable by naming a path in that variable, which is a person
+// asking for the file on purpose.
+//
+// [Refuse] is the maintainer's ruling on GitHub issue #1375: the cache is a
+// stock state file written unencrypted, so it holds every sensitive
+// attribute in clear on each machine that applies, and "refuse" is an
+// operator saying the tool keeps no secret material.
+//
+// [SSM] is #1515's ruling 4, and it is the same sentence pointed at a
+// different arrangement. Moving the values out of the bucket and leaving
+// them in clear in .terraform/choudoufu-cache.tfstate on every laptop and
+// CI runner that applied would buy the estate a KMS key policy on the copy
+// nobody was worried about while leaving the copy on disk exactly where it
+// was. An operator who wants the file anyway names a path, the same door
+// "refuse" leaves open.
+//
+// The zero value answers false - the cache stays on for a caller holding no
+// configuration - which is what every run did before either setting
+// existed.
+func NoStateCache(v Secrets) bool {
+	return v == Refuse || v == SSM
 }
 
 // Names renders the whole vocabulary for a diagnostic, sorted so the message

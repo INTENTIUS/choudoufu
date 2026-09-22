@@ -125,6 +125,48 @@ func TestToggleValuesAreRecognizedSpellings(t *testing.T) {
 	}
 }
 
+// TestSecretsValuesExcludesSSM is [TestMarkerRepairValuesExcludesReport]'s
+// twin for GitHub issue #1515, and it exists to make the registry and the
+// build disagree loudly rather than quietly. "ssm" is grammar
+// [SecretsValid] recognizes, so a configuration that writes it gets the
+// specific "not implemented yet" refusal rather than a generic typo one -
+// and no build writes a parameter or resolves a reference, so this registry
+// does not advertise it as a usable setting or render it into the doc
+// table.
+//
+// The second half is the one that matters on the day the write path lands:
+// if [SecretsImplemented] starts answering true while Values still excludes
+// it, this test fails and names the staleness, so a shipped mechanism
+// cannot sit undocumented.
+func TestSecretsValuesExcludesSSM(t *testing.T) {
+	tg, ok := toggleNamed("secrets")
+	if !ok {
+		t.Fatal(`toggleNamed("secrets") not found`)
+	}
+	got := append([]string(nil), tg.Values...)
+	sort.Strings(got)
+	want := []string{string(Refuse), string(Store)}
+	if len(got) != len(want) {
+		t.Fatalf("secrets Values = %v, want exactly %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("secrets Values = %v, want exactly %v", got, want)
+		}
+	}
+	if !SecretsValid(SSM) {
+		t.Error(`SecretsValid(SSM) = false, want true - "ssm" must stay recognized grammar, refused with a ` +
+			`specific "not implemented" detail rather than a generic typo message`)
+	}
+	if SecretsImplemented(SSM) {
+		t.Error(`SecretsImplemented(SSM) = true but secrets' Values still excludes it - the registry is now ` +
+			`stale in the other direction and should declare the setting it implements`)
+	}
+	if got, want := SecretsImplementedNames(), `"refuse", "store"`; got != want {
+		t.Errorf("SecretsImplementedNames() = %s, want %s", got, want)
+	}
+}
+
 // TestMarkerRepairValuesExcludesReport pins the 2026-08-24 audit finding by
 // value: "report" is grammar [Valid] still recognizes (so a configuration
 // that writes it gets [unimplementedRepairDetail]'s specific refusal, not

@@ -192,14 +192,15 @@ func statelessBegin(
 	// written. It is a stock state file, unencrypted, holding every sensitive
 	// attribute and output, and an operator who set "refuse" has been told the
 	// tool keeps no secret material.
-	cachePath, cacheOffForSecrets := stateCachePathFor(identity.SecretsFor(&configs.Config{Module: &configs.Module{Live: settings}}))
+	secretsSetting := identity.SecretsFor(&configs.Config{Module: &configs.Module{Live: settings}})
+	cachePath, cacheOffForSecrets := stateCachePathFor(secretsSetting)
 	if cachePath != "" {
 		mgr.EnableStateCache(cachePath)
 		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
 	}
 	if cacheOffForSecrets {
-		log.Printf("[INFO] stateless: strict { secrets = \"refuse\" } is set, so no state cache is written or read; set %s to a path to keep one on purpose", EnvStateCache)
-		diags = diags.Append(stateCacheOffForSecretsDiags())
+		log.Printf("[INFO] stateless: strict { secrets = %q } is set, so no state cache is written or read; set %s to a path to keep one on purpose", secretsSetting, EnvStateCache)
+		diags = diags.Append(stateCacheOffForSecretsDiags(secretsSetting))
 	}
 
 	// Issue #732's estate-level toggle, resolved before the runner
@@ -423,9 +424,8 @@ type statelessSurface int
 // leave no file behind, such as an audit from a read-only working copy.
 //
 // The estate's secrets setting is taken into account. offForSecrets is true
-// only when the cache is off
-// BECAUSE of strict { secrets = "refuse" }, so the caller can say so; an
-// operator who set CHOUDOUFU_STATE_CACHE=off already knows.
+// only when the cache is off BECAUSE of the secrets setting, so the caller
+// can say so; an operator who set CHOUDOUFU_STATE_CACHE=off already knows.
 //
 // Maintainer's ruling on GitHub issue #1375, 2026-09-19: "refuse" also turns
 // the cache off, as if CHOUDOUFU_STATE_CACHE=off. The cache is a stock state
@@ -435,10 +435,18 @@ type statelessSurface int
 // CHOUDOUFU_STATE_CACHE is still honoured under "refuse": that is a person
 // asking for the file on purpose, and it is what keeps the cache-as-the-exit
 // route (copy it to terraform.tfstate and leave) open for such an estate.
+//
+// GitHub issue #1515's ruling 4, 2026-09-22, puts "ssm" on the same side,
+// and strict.NoStateCache is the predicate that says which settings those
+// are. The reasoning is the ruling's own: moving the values out of the
+// bucket and into Parameter Store under a customer managed key, while the
+// same values carried on landing in clear in the working directory of every
+// laptop and runner that applied, would buy a key policy on the copy nobody
+// was worried about.
 func stateCachePathFor(secrets strict.Secrets) (path string, offForSecrets bool) {
 	switch v := os.Getenv(EnvStateCache); v {
 	case "":
-		if secrets == strict.Refuse {
+		if strict.NoStateCache(secrets) {
 			return "", true
 		}
 		return defaultStateCachePath(), false
@@ -457,13 +465,14 @@ func defaultStateCachePath() string {
 	return filepath.Join(dataDir, "choudoufu-cache.tfstate")
 }
 
-// stateCacheOffForSecretsDiags is what a run under "refuse" owes the operator
+// stateCacheOffForSecretsDiags is what a run under a no-cache secrets
+// setting - "refuse" or "ssm", see [strict.NoStateCache] - owes the operator
 // about the cache: nothing, unless a cache file from before the setting is
 // still on disk. Turning the cache off stops the next write. It does nothing
 // about a file an earlier run left, which still holds what it held, and the
 // run is the only thing that knows both facts. It is not deleted: the file is
 // the operator's, and it is also the way out to stock.
-func stateCacheOffForSecretsDiags() tfdiags.Diagnostics {
+func stateCacheOffForSecretsDiags(secrets strict.Secrets) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	leftover := defaultStateCachePath()
 	if _, err := os.Stat(leftover); err != nil {
@@ -471,7 +480,7 @@ func stateCacheOffForSecretsDiags() tfdiags.Diagnostics {
 	}
 	return diags.Append(tfdiags.Sourceless(tfdiags.Warning,
 		"An earlier state cache is still on disk",
-		fmt.Sprintf("The live block sets strict { secrets = \"refuse\" }, so this run writes no state cache and reads none. The file %s was written by an earlier run. It is a stock state file, unencrypted, and it holds every sensitive attribute and output that run saw, in clear. Delete it, or move it somewhere built to hold it. To keep a state cache on purpose under this setting, name a path in %s.", leftover, EnvStateCache),
+		fmt.Sprintf("The live block sets strict { secrets = %q }, so this run writes no state cache and reads none. The file %s was written by an earlier run. It is a stock state file, unencrypted, and it holds every sensitive attribute and output that run saw, in clear. Delete it, or move it somewhere built to hold it. To keep a state cache on purpose under this setting, name a path in %s.", secrets, leftover, EnvStateCache),
 	))
 }
 

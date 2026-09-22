@@ -165,21 +165,62 @@ secret somewhere built to hold one and pass a reference. And an argument that
 is neither returned by the API nor remembered has no prior value, so every
 plan shows it as a change.
 
-## Keeping secret values in SSM: planned, not built
+## Keeping secret values in SSM: the setting, not yet the write path
 
-Nothing here is available yet. It is designed in #1515, with its rulings made
-on 2026-09-22, and a configuration that asks for it today is refused.
+Designed in #1515, with its four rulings made on 2026-09-22. The
+configuration surface is built and a configuration that asks for the setting
+is still refused, because nothing writes a parameter yet.
 
 For organisations whose rotation, audit and access review already live in
-SSM, the records will stay in the S3 record store, and the values at the
-record's sensitive paths and the provider's private data alone will go to SSM
-as `SecureString` under a customer managed KMS key, with the record carrying
-a reference in place of each value. It will be configured as
-`strict { secrets = "ssm" }`. The S3 record's compare-and-swap stays the only
-thing that decides a concurrent write, because each secret goes to a
+SSM, the records stay in the S3 record store, and the values at the record's
+sensitive paths and the provider's private data alone go to SSM as
+`SecureString` under a customer managed KMS key, with the record carrying a
+reference in place of each value. The S3 record's compare-and-swap stays the
+only thing that decides a concurrent write, because each secret goes to a
 parameter name no other write uses.
 
-Until it ships, `strict { secrets = "refuse" }` with secrets passed in by
+### What is built
+
+`strict { secrets = "ssm" }` is a spelling the vocabulary recognises, with
+the key, the parameter path and the region in a nested `ssm` block:
+
+```hcl
+strict {
+  secrets = "ssm"
+  ssm {
+    kms_key_id = "arn:aws:kms:eu-west-1:111122223333:key/1234abcd"
+    path       = "/choudoufu/prod/secrets"
+  }
+}
+```
+
+Around it, four refusals, all of them reached before the write path would be
+(`live/LIMITATIONS.md`, "strict-secrets-ssm"): the setting with no `ssm`
+block, a block with no `kms_key_id`, the setting with a record store other
+than `"s3"`, and a block under a secrets setting that would never read it.
+A customer managed key is required, because SSM's own `alias/aws/ssm` is
+readable by every principal in the account holding `ssm:GetParameter` — no
+narrower than the read on the bucket the values would be leaving.
+
+Ruling 4 is built too: no local cache file is written or read under the
+setting, as under `refuse`, unless `CHOUDOUFU_STATE_CACHE` names a path.
+`CHOUDOUFU_STRICT_PIN=1` refuses the setting the way it refuses `"store"`,
+because `"ssm"` keeps secret material and so relaxes a pin that forces
+`"refuse"`.
+
+### What is owed
+
+The write path and everything downstream of it: the content-addressed
+parameter name and its `Overwrite: false` create, the reference in the
+record, the read that resolves one, the delete of a superseded parameter and
+the sweep for orphans, the advanced tier for a single value still over 4 KB
+with its monthly cost announced (ruling 3), the first-contact contract on the
+key and the role's put and get with its `allow_insecure` waivers, and the
+plan role's `ssm:GetParameters` and `kms:Decrypt`. The claim with a BREAK arm
+that #1515's "Done when" asks for is owed with them: nothing can measure that
+no secret value reaches the bucket until something is putting them elsewhere.
+
+Until that lands, `strict { secrets = "refuse" }` with secrets passed in by
 reference is the way to keep secret values out of the record store.
 [Reference](https://intentius.io/choudoufu/docs/use/reference/) covers the
 setting and the environment pin that stops a configuration relaxing it.

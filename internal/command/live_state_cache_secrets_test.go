@@ -40,6 +40,20 @@ func TestRefuseTurnsTheStateCacheOff(t *testing.T) {
 		{"store, a path named: honoured", "/tmp/c.tfstate", strict.Store, "/tmp/c.tfstate", false},
 		{"store, off: off, and not because of refuse", "off", strict.Store, "", false},
 		{"refuse, off: off, and the operator's doing", "off", strict.Refuse, "", false},
+		// GitHub issue #1515's ruling 4. "ssm" is on "refuse"'s side of
+		// this question and on "store"'s side of every other one, which is
+		// why it is spelled out here rather than left to the predicate:
+		// the values it keeps go to Parameter Store under a customer
+		// managed key, and a cache file would put the same values back in
+		// clear in the working directory of every machine that applied.
+		{"ssm, nothing set: off, and because of the setting", "", strict.SSM, "", true},
+		{"ssm, a path named on purpose: honoured", "/tmp/exit.tfstate", strict.SSM, "/tmp/exit.tfstate", false},
+		{"ssm, off: off, and the operator's doing", "off", strict.SSM, "", false},
+		// The zero value is a caller that could not read a configuration.
+		// It keeps the cache, which is what every run written before
+		// either setting existed does; turning the cache off here would
+		// be a behavior change nothing asked for.
+		{"the zero value: the default path, unchanged", "", strict.Secrets(""), defaultPath, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(EnvStateCache, tc.env)
@@ -63,14 +77,14 @@ func TestRefuseSaysSoWhenAnOldCacheIsStillOnDisk(t *testing.T) {
 	t.Setenv(EnvStateCache, "")
 	leftover := filepath.Join(dir, "choudoufu-cache.tfstate")
 
-	if diags := stateCacheOffForSecretsDiags(); len(diags) != 0 {
+	if diags := stateCacheOffForSecretsDiags(strict.Refuse); len(diags) != 0 {
 		t.Fatalf("with no leftover file the run warned anyway: %v", diags.ErrWithWarnings())
 	}
 
 	if err := os.WriteFile(leftover, []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	diags := stateCacheOffForSecretsDiags()
+	diags := stateCacheOffForSecretsDiags(strict.Refuse)
 	if len(diags) != 1 || diags[0].Severity() != tfdiags.Warning {
 		t.Fatalf("want exactly one warning, got %d: %v", len(diags), diags.ErrWithWarnings())
 	}
@@ -82,6 +96,22 @@ func TestRefuseSaysSoWhenAnOldCacheIsStillOnDisk(t *testing.T) {
 	}
 	if _, err := os.Stat(leftover); err != nil {
 		t.Errorf("the run removed the operator's file: %v", err)
+	}
+
+	// The warning names the setting in force, not a hard-coded "refuse".
+	// An operator under #1515's "ssm" reading a warning about a setting
+	// their configuration does not contain would go looking for a line
+	// that is not there.
+	ssmDiags := stateCacheOffForSecretsDiags(strict.SSM)
+	if len(ssmDiags) != 1 {
+		t.Fatalf("under %q, want exactly one warning, got %d", strict.SSM, len(ssmDiags))
+	}
+	ssmDetail := ssmDiags[0].Description().Detail
+	if !strings.Contains(ssmDetail, `secrets = "ssm"`) {
+		t.Errorf("the warning under %q does not name that setting:\n%s", strict.SSM, ssmDetail)
+	}
+	if strings.Contains(ssmDetail, `secrets = "refuse"`) {
+		t.Errorf("the warning under %q names \"refuse\", a setting this configuration does not contain:\n%s", strict.SSM, ssmDetail)
 	}
 }
 
