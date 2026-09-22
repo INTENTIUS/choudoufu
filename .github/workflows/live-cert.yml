@@ -253,7 +253,6 @@ jobs:
             site/data/gauntlet_board.json
             site/data/gauntlet_scale.json
             live/GAUNTLET.md
-            site/content/docs/progress/
           delete-branch: true
 
       - name: Fail loudly if the certification PR did not open

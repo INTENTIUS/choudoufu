@@ -36,12 +36,22 @@ name: Gauntlet
 # PATH with no terraform fallback - and the corpus materialised by
 # tools/corpus-fetch.
 #
-# Opening the pull request needs a GAUNTLET_PR_TOKEN secret (a fine-grained
-# PAT with contents:write and pull-requests:write on this repo): this repo's
-# org blocks the built-in GITHUB_TOKEN from creating pull requests at all,
-# so without it this step fails every run and the verdicts have to be PRed
-# by hand. Falls back to GITHUB_TOKEN if the secret isn't set, which will
-# hit that same org restriction.
+# Opening the pull request wants a GAUNTLET_PR_TOKEN secret: a fine-grained
+# PAT whose RESOURCE OWNER is the INTENTIUS organization (not the user
+# account), with access to this repository and Contents + Pull requests
+# read/write. A token issued under the wrong owner authenticates perfectly
+# and is then refused on the branch push - "Permission to
+# INTENTIUS/choudoufu.git denied to lex00", HTTP 403 - which is what every
+# night from 2026-09-13 to 2026-09-21 did (issue #496, second act).
+#
+# So the "Check the PR token" step below proves the secret can reach THIS
+# repository before the five-hour run, and when it cannot, the PR step falls
+# back to GITHUB_TOKEN. The org policy that once blocked GITHUB_TOKEN from
+# opening pull requests is gone (2026-09-21: can_approve_pull_request_reviews
+# is true at both the org and the repo level), so the fallback opens the PR;
+# its cost is issue #948 - a PR authored by the Actions app waits for a human
+# to approve its CI run. That is one click. The alternative was a measurement
+# computed nightly and discarded.
 
 on:
   schedule:
@@ -98,6 +108,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: true
+      # Issue #496: is the secret a token this repository accepts a push
+      # from? Answered here, in seconds, rather than five hours later at the
+      # bottom of the PR step's log. `usable` selects the PR step's token;
+      # `reason` is quoted in the PR body and the job summary either way.
+      # scripts/gauntlet-pr-token-check.sh is exercised by
+      # live/gauntlet_pr_token_test.go against a stubbed gh, so the branch
+      # that says "unusable" is proven to fire.
+      - name: Check the PR token (issue #496)
+        id: prtoken
+        env:
+          PAT: ${{ secrets.GAUNTLET_PR_TOKEN }}
+        run: scripts/gauntlet-pr-token-check.sh
       - name: Read the pinned stock oracle versions (issue #544)
         id: oracle
         run: |
@@ -211,7 +233,9 @@ jobs:
         continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GAUNTLET_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          # The token the preflight proved, or GITHUB_TOKEN when it proved
+          # nothing (see the header comment for what each costs).
+          token: ${{ steps.prtoken.outputs.usable == 'true' && secrets.GAUNTLET_PR_TOKEN || secrets.GITHUB_TOKEN }}
           branch: gauntlet/nightly
           title: "gauntlet: nightly verdicts"
           commit-message: "gauntlet: nightly verdicts"
@@ -223,12 +247,21 @@ jobs:
             the cohort-acceptance-run.log lines the same way, and its
             enforceRatchet failure (if any) means a previously-passing cohort
             regressed, not merely that a still-failing one stayed failing.
+
+            ${{ steps.prtoken.outputs.usable != 'true' && format('Opened with GITHUB_TOKEN because GAUNTLET_PR_TOKEN was unusable: {0}. A pull request authored by the Actions app waits for a human to approve its CI run (issue #948): `gh run list --branch gauntlet/nightly --workflow CI`, then `gh api -X POST repos/INTENTIUS/choudoufu/actions/runs/<id>/approve`. A fine-grained PAT with resource owner INTENTIUS stops this (issue #496).', steps.prtoken.outputs.reason) || '' }}
+          # Every file `gauntlet render` writes (tools/gauntlet/render.go)
+          # plus the cohort acceptance artifact this job also writes.
+          # TestGauntletWorkflowCarriesEveryFileTheCommandWrites holds this
+          # list to Render's output; it named neither board file for eleven
+          # days (issue #1310), so a night that moved a verdict opened a PR
+          # that was red on the board it left out.
           add-paths: |
             live/gauntlet.json
             live/gauntlet/estates.json
             live/GAUNTLET.md
             site/data/gauntlet.json
-            site/content/docs/progress/
+            site/data/gauntlet_board.json
+            site/data/gauntlet_scale.json
             live/cohort-acceptance.json
           delete-branch: true
       # The PR changes only the artifact and rendered docs, so
@@ -236,13 +269,33 @@ jobs:
       - name: Fail loudly if the verdicts PR did not open
         # Turns a failure buried in the previous step's log into a one-line
         # annotation at the top of the run, and fails the job (issue #496).
-        # The gauntlet ran and the artifact reached origin/gauntlet/nightly
-        # either way; only landing on main failed.
+        # The gauntlet ran either way; only landing on main failed. Whether
+        # the artifact reached origin/gauntlet/nightly depends on where the
+        # step died - a refused push leaves the branch as it was.
         if: steps.open_pr.outcome == 'failure'
+        env:
+          REASON: ${{ steps.prtoken.outputs.reason }}
         run: |
-          MSG="nightly gauntlet: the verdicts PR failed to open - artifact force-pushed to origin/gauntlet/nightly but nothing reached main; see issue #496 (GAUNTLET_PR_TOKEN unset/expired/mis-scoped, or org policy blocks PR creation)"
+          MSG="nightly gauntlet: the verdicts PR failed to open, so nothing reached main; see issue #496. PR token check said: $REASON"
           echo "::error title=Nightly verdicts PR did not open::$MSG"
           if [ -n "$GITHUB_STEP_SUMMARY" ]; then
             echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit 1
+      - name: Warn when the verdicts PR was opened by the Actions app
+        # The fallback path (header comment): the measurement landed in a
+        # pull request, and that pull request needs a human's click on its
+        # CI run (issue #948) until the secret is reissued (issue #496).
+        # A warning and not a failure, because the job did its work - but
+        # nightly-watch.yml reads conclusions, so a token left broken shows
+        # up here, in the PR body, and in the run summary, not in an issue.
+        if: steps.open_pr.outcome == 'success' && steps.prtoken.outputs.usable != 'true'
+        env:
+          REASON: ${{ steps.prtoken.outputs.reason }}
+          PR_URL: ${{ steps.open_pr.outputs.pull-request-url }}
+        run: |
+          MSG="the verdicts PR ${PR_URL:-(none opened: nothing changed)} was opened with GITHUB_TOKEN because $REASON. Approve its CI run by hand (issue #948) and issue GAUNTLET_PR_TOKEN with resource owner INTENTIUS (issue #496)."
+          echo "::warning title=Nightly verdicts PR opened by the Actions app::$MSG"
+          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
+          fi

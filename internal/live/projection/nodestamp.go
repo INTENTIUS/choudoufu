@@ -374,6 +374,22 @@ func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Val
 	if got == want {
 		return diags
 	}
+	// A tofu-address a configuration declares by hand is usually the
+	// UNESCAPED address - `module.wrapped["a"].aws_eip.app`, the way HCL
+	// spells it and the way live/e2e/estate-module-keyed's generated
+	// wrapped module spells it - while `want` is the escaped form the tag
+	// will actually carry (`module.wrapped:a.aws_eip.app`, live/MARKERS.md
+	// "Escaping"). The two name one instance; a plan that called that a
+	// rename refused every keyed-module estate that declared its own
+	// address tag (floci-tier, TestModuleKeyedForEachAgainstFloci, red
+	// every night the tier ran). Normalize the declared value the same way
+	// Discover normalizes an observed one - markers.EscapeAddress is
+	// idempotent, so an already-escaped declaration is unchanged by it -
+	// and only a value that still differs is a marker naming another
+	// address.
+	if key == markers.TagAddress && markers.EscapeAddress(got) == want {
+		return diags
+	}
 
 	switch key {
 	case markers.TagEstate:
