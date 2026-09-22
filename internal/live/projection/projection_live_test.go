@@ -95,16 +95,13 @@ func TestBuildAgainstFloci(t *testing.T) {
 	_ = os.Remove(stateFile + ".backup")
 
 	provider, providerSchema := launchAWSProvider(t, dir)
-
-	// With a real provider on the line, the identity table stops being an
-	// unfalsifiable assertion: the provider's own resource identity schemas
-	// say what identifies each of these types. Divergences are logged
-	// rather than failed - the table's inference layer is something no
-	// schema carries, so the two are allowed to describe one identity
-	// differently - but a table entry naming an argument or an attribute
-	// the real provider does not have is a bug in the table, and this is
-	// the test that can see it.
-	verifyIdentityTable(t, providerSchema)
+	// The identity-table check that used to run here against this
+	// provider - the estate fixture's release - moved to
+	// TestIdentityTableAgainstThePinnedProvider, against the release the
+	// table was generated from. Against the fixture's older release every
+	// type the survey pin added since read as a breaking "the provider does
+	// not have" finding, nineteen of them on the tier's first measured
+	// nights (#1316), none of which was a bug in the table.
 
 	cfg := loadConfig(t, dir)
 	resolutions := resolveOrFail(t, cfg)
