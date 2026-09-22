@@ -3258,7 +3258,14 @@ func (n *NodeAbstractResourceInstance) apply(
 			// DeleteThenCreate, CreateThenDelete and ForgetThenCreate into
 			// Create for the apply node (GitHub issue #1512).
 			if w, ok := adjuster.(AppliedMarkerWriter); ok && change.Action == plans.Create && !diags.HasErrors() {
-				diags = diags.Append(w.WriteAppliedMarkers(ctx, n.Addr, n.ResolvedProvider.ProviderConfig, change.Action, newVal, *schema))
+				written, writeDiags := w.WriteAppliedMarkers(ctx, n.Addr, n.ResolvedProvider.ProviderConfig, change.Action, newVal, *schema)
+				diags = diags.Append(writeDiags)
+				if !writeDiags.HasErrors() && written != cty.NilVal {
+					// The object as it now stands, marker included, so the
+					// state and the cache do not contradict the object
+					// they describe (#1316).
+					newVal = written
+				}
 			}
 		}
 	}
