@@ -12,6 +12,9 @@ import (
 
 	"github.com/mitchellh/cli"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -19,6 +22,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -205,7 +210,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	// did. Placed here because it must be complete before the first
 	// [statelessProviders.ConfiguredProvider] call, and Ratify's own first
 	// instance makes one.
-	liveImportProviderDataReads(ctx, config, provs, recordStore)
+	liveImportProviderDataReads(ctx, config, provs, recordStore, stateFile.State)
 
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
 		Estate: args.Estate,
@@ -291,7 +296,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 // The nil [identity.Scope] is live-import having no -target or -exclude flag
 // to honour, and nil means every block is in scope - the same value
 // live-mv and live-ls pass for the same reason.
-func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, recordStore *projection.RecordStore) {
+func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, recordStore *projection.RecordStore, state *states.State) {
 	if dataread.AnalyzeProviderConfigs(ctx, config, dataread.Options{}).Empty() {
 		return
 	}
@@ -319,7 +324,64 @@ func liveImportProviderDataReads(ctx context.Context, config *configs.Config, pr
 		log.Printf("[TRACE] live-import: %s", d.Description().Summary)
 	}
 
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
+}
+
+// liveImportPriorManagedValues is the state file being migrated, decoded into
+// [projection.ReadInstances]' own output shape - every managed instance in it,
+// keyed by absolute instance address - for [statelessProviderDataReads]'
+// priorManaged argument.
+//
+// It is the migrate path's whole answer to a question the plan path never has
+// to ask. The fixpoint reads a managed instance a provider-configuration data
+// source names, and it reads a record-backed one out of the estate's record
+// store; a migration is what WRITES that store, so during Ratify the store is
+// empty and such an instance cannot be materialized at all. The state file has
+// had the value the whole time. corpus-eks-basic is the measured case:
+// data.aws_eks_cluster.cluster needs module.eks.aws_eks_cluster.this[0], whose
+// identity is parent-derived from random_string.suffix, which is record-backed
+// - the plan path read both and the migrate path read neither.
+//
+// The state is also the RIGHT source rather than a convenient one. It is the
+// prior state stock OpenTofu would hand its own plan graph for this
+// configuration, which is exactly what [statelessProviderDataReads]' doc
+// comment says the phase reproduces, and it is the file this command's whole
+// job is to migrate from.
+//
+// Silent and partial on purpose, like every other input to that phase: a type
+// this run has no schema for, an instance with only a deposed object, an
+// object that will not decode against the schema it was written with, are each
+// left out rather than raised. What is missing costs the one provider
+// configuration that wanted it, which then fails to configure with the
+// diagnostic it already had.
+func liveImportPriorManagedValues(state *states.State, schemas map[string]providers.Schema) map[string]cty.Value {
+	if state == nil || len(schemas) == 0 {
+		return nil
+	}
+	out := make(map[string]cty.Value)
+	for _, mod := range state.Modules {
+		for _, res := range mod.Resources {
+			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
+				continue
+			}
+			schema, ok := schemas[res.Addr.Resource.Type]
+			if !ok || schema.Block == nil {
+				continue
+			}
+			ty := schema.Block.ImpliedType()
+			for key, inst := range res.Instances {
+				if inst == nil || inst.Current == nil {
+					continue
+				}
+				obj, err := inst.Current.Decode(ty)
+				if err != nil || obj == nil || obj.Value == cty.NilVal {
+					continue
+				}
+				out[res.Addr.Instance(key).String()] = obj.Value
+			}
+		}
+	}
+	return out
 }
 
 func liveImportReport(statePath string, rat *liveimport.Ratification) views.StatelessImportReport {
