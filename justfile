@@ -79,13 +79,15 @@ demo:
 smoke scenario="":
     bash live/smoke/smoke.sh {{scenario}}
 
-# selftest-teardown is #1378 (every teardown step is attempted) and
+# selftest-teardown is #1378 (every teardown step is attempted),
 # selftest-bounds is #1457 (a stalled kubectl or choudoufu call fails the
-# scenario by name inside a bound). Read the ok:/FAIL: lines.
+# scenario by name inside a bound) and selftest-verdict is #1439 (every way
+# a run can end ends on one verdict line). Read the ok:/FAIL: lines.
 # The smoke harness's own selftests, against stubs: no cluster, no emulator, no AWS, about a minute.
 smoke-selftest:
     bash live/smoke/selftest-teardown.sh
     bash live/smoke/selftest-bounds.sh
+    bash live/smoke/selftest-verdict.sh
 
 # The five Ops of examples/ci-pipelines, actually run (issue #1026): the
 # pinned floci image, then live-check, live-plan, live-apply (gated, then

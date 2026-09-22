@@ -24,8 +24,16 @@ COMPOSE=(docker compose -p "choudoufu-smoke-${SMOKE_ID}" -f "$SMOKE_DIR/docker-c
 # Once a bound has fired (smoke_stall below) the scenario is being killed,
 # and whatever command it stood on fails because of the kill. The stall's own
 # FAIL line is the verdict, so a fail that arrives after it says nothing.
+#
+# The verdict file (#1439) is how smoke.sh's EXIT trap knows a FAIL line
+# ended the run, so it does not print a second one over it. Only the
+# scenario shell's own fail ends the run: one inside a `$(...)` is output
+# the scenario reads, and a-wrong-bucket-is-refused's control captures an
+# arm's fail on purpose and goes on to pass. So the file is written only
+# from that shell, in the portable spelling of "am I that shell".
 fail() {
   if [ -n "${SMOKE_WORKROOT:-}" ] && [ -d "$SMOKE_WORKROOT/stalled" ]; then exit 124; fi
+  if [ -n "${SMOKE_WORKROOT:-}" ] && [ "$(exec sh -c 'echo $PPID')" = "$$" ]; then : > "$SMOKE_WORKROOT/verdict"; fi
   echo "FAIL [$1]: $2" >&2; exit 1
 }
 # step also records where the scenario is, in a file, because the process
@@ -41,10 +49,21 @@ note() { echo "  $*"; }
 #   cmd     - the command being run, verbatim, so the watcher could type it
 #   evidence- real output lines, indented, so the claim is seen not asserted
 #   proof   - what the evidence just proved, one arrow line
+#
+# A proof line that begins with the word `caught` is a control's verdict
+# (#1439): every BREAK=1 and BREAK_<NAME>=1 arm ends with one, and smoke.sh
+# refuses to pass a control run that printed none. proof records each such
+# line in a file so the EXIT trap can count them; a file and not a variable
+# because a control's proof is sometimes printed from a subshell.
 explain() { while [ $# -gt 0 ]; do echo "  $1"; shift; done; echo; }
 cmd() { echo "  \$ $*"; }
 evidence() { sed 's/^/      /'; }
-proof() { echo; echo "  -> $*"; echo; }
+proof() {
+  case "${1:-}" in
+    caught*) if [ -n "${SMOKE_WORKROOT:-}" ]; then printf '%s\n' "$*" >> "$SMOKE_WORKROOT/caught"; fi ;;
+  esac
+  echo; echo "  -> $*"; echo
+}
 
 # destroyed_exactly <tag> <n> <output> asserts that a destroy reported
 # exactly n resources destroyed, and prints the destroy's WHOLE output when

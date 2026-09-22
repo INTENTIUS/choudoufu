@@ -16,10 +16,11 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 5. Report each step's verdict line as it prints, and each scenario's final
    PASS or FAIL line.
 
-Exit code 0 means every claim held: an estate stood up by stock OpenTofu
-survived losing its state file, and a brand-new estate carried its
-ownership markers from the first create call. Non-zero names the step
-that failed.
+A closing `PASS: smoke scenario '<name>' - every claim held` line means
+every claim held: an estate stood up by stock OpenTofu survived losing
+its state file, and a brand-new estate carried its ownership markers
+from the first create call. Anything else ends on a `FAIL [...]` line
+naming the step that failed.
 ```
 
 ## What this is
@@ -712,3 +713,21 @@ Every step prints a `=== N. name ===` banner and an indented verdict
 line. Trust the verdict lines, never the exit code alone; the exit code is
 the summary, the lines are the evidence. A scenario that cannot fail is
 not a check, which is what `BREAK=1` exists to disprove on demand.
+
+Every run ends on exactly one closing line, printed by `smoke.sh` and
+never by a scenario (#1439): `PASS: smoke scenario '<name>' - every claim
+held`, or for a control run `PASS: smoke scenario '<name>' - the control
+(BREAK) caught what it broke, N proof line(s)`, or a `FAIL [<name>]: ...`
+naming what broke and the step it was in. A run whose scenario died under
+`set -e` mid-step, which used to end with no line at all, now ends on
+`FAIL [<name>]: no verdict line - a command failed under set -e in step
+"<step>" ...`; a scenario that exits 0 on its own outside a control arm
+ends on `FAIL [<name>]: no PASS line ...`; and a control run (`BREAK=1`
+or any `BREAK_<NAME>=1`) in which no control printed a `-> caught` proof
+line ends on `FAIL [<name>]: no '-> caught' line ...`. The convention
+every scenario follows: a control arm ends with `proof "caught ..."`, and
+then either exits 0 or runs on into the steps it shares with the main
+arm. CI reads the run's log for those lines rather than the exit code,
+through `live/smoke/ci-run.sh`, and `bash live/smoke/selftest-verdict.sh`
+proves each shape against stubs in a few seconds; `go test ./live/` runs
+it.

@@ -40,6 +40,13 @@
 # failed or was cancelled, so a run that stops still shows where. The
 # selftest job proves the bounds against a kubectl that never returns; it
 # needs no cluster.
+#
+# Verdict lines, not exit codes (#1439). Both runs go through
+# live/smoke/ci-run.sh, which writes the log as above and then reads it
+# back: the step fails unless the log carries the scenario's own
+# `PASS: smoke scenario '<name>' - ` line, and the control step fails
+# unless a `-> caught` proof line is there too. live/smoke_verdict_test.go
+# holds every step that runs a scenario to that wrapper.
 name: k8s-smoke
 on:
   pull_request:
@@ -134,33 +141,20 @@ jobs:
           kubectl_version: v1.34.0
           install_only: true
       # Both runs write to a file that `tail -f` copies into the job log as
-      # it grows, and not through `| tee`: the step's exit code is smoke.sh's
-      # own with no pipefail to forget, and a process the scenario orphans
+      # it grows, and not through `| tee`: a process the scenario orphans
       # (claim 39 SIGKILLs an apply on purpose) holds a file open, which
       # harms nothing, where it would hold a pipe open and keep tee and the
-      # step alive after smoke.sh had exited.
+      # step alive after smoke.sh had exited. ci-run.sh does that and then
+      # reads the file for the verdict line; the file is what the artifact
+      # below uploads.
       - name: the scenario
         shell: bash
-        run: |
-          log="$RUNNER_TEMP/smoke-logs/scenario.log"
-          mkdir -p "$(dirname "$log")"; : > "$log"
-          tail -f "$log" & tail_pid=$!
-          rc=0
-          bash live/smoke/smoke.sh ${{ matrix.scenario }} >> "$log" 2>&1 || rc=$?
-          sleep 2; kill "$tail_pid" 2>/dev/null || true
-          exit "$rc"
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/scenario.log"
       - name: the BREAK=1 control
         shell: bash
         env:
           BREAK: "1"
-        run: |
-          log="$RUNNER_TEMP/smoke-logs/break.log"
-          mkdir -p "$(dirname "$log")"; : > "$log"
-          tail -f "$log" & tail_pid=$!
-          rc=0
-          bash live/smoke/smoke.sh ${{ matrix.scenario }} >> "$log" 2>&1 || rc=$?
-          sleep 2; kill "$tail_pid" 2>/dev/null || true
-          exit "$rc"
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break.log"
       # continue-on-error: the log has already streamed into the job log and
       # this artifact is the backup. A backup that cannot be stored must not
       # turn a passed scenario red (#1457, the 403 on run 35660111631).

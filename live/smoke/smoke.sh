@@ -2,6 +2,15 @@
 # The smoke entrypoint (issue #713): one scenario per invocation, verdict
 # lines over exit codes, exit 0 only when every claim held.
 #
+# Every run ends on exactly one verdict line, printed here and never by a
+# scenario (#1439): `PASS: smoke scenario '<name>' - ...` on exit 0, or a
+# `FAIL [<name>]: ...` naming what broke. A run that exits 0 without one is
+# itself a FAIL, and a control run (BREAK=1 or any BREAK_<NAME>=1) is a FAIL
+# unless at least one control printed its `-> caught` proof line. The
+# convention every scenario follows: a control arm ends with
+# `proof "caught ..."`, and then either exits 0 or runs on into the steps it
+# shares with the main arm; both reach the same closing line.
+#
 #   bash live/smoke/smoke.sh greenfield
 #   bash live/smoke/smoke.sh import
 #   bash live/smoke/smoke.sh full
@@ -84,14 +93,89 @@ print(max(600, 2 * 60 * max(minutes + [0])))
 PY
 }
 
+# The verdict (#1439). Four files under SMOKE_WORKROOT say how the run ended,
+# and cleanup reads them because it is the one place every exit passes:
+#   verdict  fail() printed its FAIL line; the exit status is its own
+#   caught   one line per `proof "caught ..."` a control printed
+#   done     the scenario returned and the main path reached its end
+#   exit     the status the main shell's own `exit` was called with
+# Exit status alone cannot be read there: seven scenarios re-trap EXIT to
+# run a teardown before cleanup, and by the time cleanup runs `$?` is the
+# teardown's. So `exit` is shadowed below, in this shell only, to record its
+# argument first. A death under `set -e` calls no exit and leaves no record,
+# which is exactly how cleanup tells it apart from a scenario's own `exit 0`.
+exit() {
+  local rc="${1:-$?}"
+  # Only the scenario shell's exit is the run's; the timer subshell exits 0
+  # every time it is stopped. The portable spelling of "am I that shell".
+  if [ "$(exec sh -c 'echo $PPID')" = "$$" ]; then printf '%s\n' "$rc" > "$SMOKE_WORKROOT/exit"; fi
+  builtin exit "$rc"
+}
+
+# smoke_controls prints the control variables this run was started with:
+# BREAK, and any BREAK_<NAME>, that are set to 1. Empty for an ordinary run.
+smoke_controls() {
+  local v out=""
+  [ "${BREAK:-0}" = "1" ] && out="BREAK"
+  for v in $(compgen -v BREAK_ 2>/dev/null); do
+    [ "${!v}" = "1" ] && out="$out${out:+ }$v"
+  done
+  echo "$out"
+}
+CONTROLS="$(smoke_controls)"
+
+# smoke_verdict prints the closing line from the files above and sets
+# VERDICT_RC to the status the run must exit with, or leaves it empty when
+# the status the shell is already exiting with is the right one: fail's own
+# exit 1, or a death under set -e. An EXIT trap that calls no exit keeps
+# that status.
+VERDICT_RC=""
+smoke_verdict() {
+  local step ncaught rc
+  step="$(cat "$SMOKE_WORKROOT/step" 2>/dev/null || echo '?')"
+  ncaught="$(grep -c '' "$SMOKE_WORKROOT/caught" 2>/dev/null || echo 0)"
+  rc="$(cat "$SMOKE_WORKROOT/exit" 2>/dev/null || echo '')"
+  if [ -f "$SMOKE_WORKROOT/verdict" ]; then return 0; fi
+  if [ -f "$SMOKE_WORKROOT/done" ] || [ "$rc" = "0" ]; then
+    if [ -n "$CONTROLS" ] && [ "$ncaught" = "0" ]; then
+      echo "FAIL [$SCENARIO]: no '-> caught' line - the control run ($CONTROLS) exited 0 in step \"$step\" without any control printing its proof line, so nothing shows the break was caught. Read that step's output above." >&2
+      VERDICT_RC=1; return 0
+    fi
+    if [ -z "$CONTROLS" ] && [ ! -f "$SMOKE_WORKROOT/done" ]; then
+      echo "FAIL [$SCENARIO]: no PASS line - the run exited 0 in step \"$step\" before reaching its end. Outside a control arm a scenario ends on the harness's PASS line or a FAIL naming what broke, never an exit of its own. Read that step's output above." >&2
+      VERDICT_RC=1; return 0
+    fi
+    echo
+    if [ -n "$CONTROLS" ]; then
+      echo "PASS: smoke scenario '$SCENARIO' - the control ($CONTROLS) caught what it broke, $ncaught proof line(s) (smoke v$SMOKE_VERSION)"
+    else
+      echo "PASS: smoke scenario '$SCENARIO' - every claim held (smoke v$SMOKE_VERSION)"
+    fi
+    VERDICT_RC=0; return 0
+  fi
+  if [ -z "$rc" ]; then
+    echo "FAIL [$SCENARIO]: no verdict line - the run ended in step \"$step\" on a command that failed under set -e. A FAIL line above this one, if any, came from inside that command; otherwise nothing named what broke. Read that step's output above." >&2
+  else
+    echo "FAIL [$SCENARIO]: no verdict line - the run ended with exit $rc in step \"$step\". Read that step's output above." >&2
+  fi
+  return 0
+}
+
 cleanup() {
   # errexit off: this is a trap body, and the first command that fails in one
   # ends it with every later step skipped and nothing printed (#1378).
   set +e
   [ -z "$WATCHDOG_PID" ] || smoke_timer_stop "$WATCHDOG_PID"
+  # The verdict goes out before the teardown, so it sits under the step it
+  # is about and a slow cluster delete does not hold it back. A stall has
+  # already printed its FAIL line from the timer, prints nothing here and
+  # exits 124 as before (#1457). `builtin exit` below: the shadowing exit
+  # above would write to a work directory this trap has just removed.
+  [ -d "$SMOKE_WORKROOT/stalled" ] || smoke_verdict
   stack_down; cluster_down
-  if [ -d "$SMOKE_WORKROOT/stalled" ]; then rm -rf "$SMOKE_WORKROOT"; exit 124; fi
+  if [ -d "$SMOKE_WORKROOT/stalled" ]; then rm -rf "$SMOKE_WORKROOT"; builtin exit 124; fi
   rm -rf "$SMOKE_WORKROOT"
+  [ -z "$VERDICT_RC" ] || builtin exit "$VERDICT_RC"
 }
 trap cleanup EXIT
 # 124 is what timeout(1) exits with. A TERM from anywhere else keeps its 143.
@@ -120,5 +204,8 @@ esac
 . "$HERE/scenarios/$SCENARIO.sh"
 
 instrument_summary
-echo
-echo "PASS: smoke scenario '$SCENARIO' - every claim held (smoke v$SMOKE_VERSION)"
+# The scenario returned. The closing line is cleanup's, from this mark: an
+# ordinary run's PASS, or a control run's PASS if a control printed its
+# proof line and its FAIL if none did.
+: > "$SMOKE_WORKROOT/done"
+exit 0

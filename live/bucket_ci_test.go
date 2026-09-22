@@ -113,8 +113,10 @@ func TestBucketSmokesRunInCIWithTheirControls(t *testing.T) {
 	if !strings.Contains(string(wf), "BREAK: \"1\"") {
 		t.Errorf("bucket-smoke.yml runs no BREAK=1 control; a scenario whose failure is never demonstrated is scenery")
 	}
-	if !strings.Contains(string(wf), "smoke.sh ${{ matrix.scenario }}") {
-		t.Errorf("bucket-smoke.yml does not run live/smoke/smoke.sh for each matrix entry")
+	// Through the wrapper that reads the verdict line (#1439), and
+	// live/smoke_verdict_test.go holds every scenario-running step to it.
+	if !strings.Contains(string(wf), "ci-run.sh ${{ matrix.scenario }}") {
+		t.Errorf("bucket-smoke.yml does not run live/smoke/ci-run.sh for each matrix entry")
 	}
 
 	// A scenario's SECOND control (GitHub issue #1430). BREAK=1 is one step
