@@ -190,7 +190,7 @@ cmd "choudoufu init && choudoufu apply -auto-approve   # TF_VAR_db_password set"
 ( cd "$REFUSE" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "init of the refuse estate failed"
 RAPPLY="$(cd "$REFUSE" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "secrets" "apply under refuse failed: $RAPPLY"
-grep -E 'Apply complete!' <<< "$RAPPLY" | evidence
+{ grep -E 'Apply complete!' <<< "$RAPPLY" || true; } | evidence
 grep -q 'Resources: 1 added' <<< "$RAPPLY" || fail "secrets" "the apply did not add exactly the database: $RAPPLY"
 DBSTATUS="$(awsl rds describe-db-instances --db-instance-identifier smoke-secrets-refuse-app --query 'DBInstances[0].DBInstanceStatus' --output text 2>/dev/null || echo none)"
 [ "$DBSTATUS" = "available" ] || fail "secrets" "the database is not there after the apply: $DBSTATUS"
@@ -246,37 +246,57 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
-step "4. what refuse costs, and what you can still ask to be written"
+step "4. what you can still ask to be written"
 explain \
-  "A value that is neither returned by the API nor remembered has no" \
-  "prior side. So every plan under refuse shows the password as a change" \
-  "to an otherwise unchanged database, and the apply that follows sends" \
-  "it again. This step saves that plan with -out and applies it under" \
-  "TF_LOG=debug, the two ways an operator can ask for more on disk, and" \
-  "reads both. They are not what the tool keeps; they are files you" \
-  "named. What they hold is stated here rather than left to be found."
+  "Two flags put more on disk: a saved plan (-out) and a debug log" \
+  "(TF_LOG=debug). They are files you name, not what the tool keeps, and" \
+  "what they hold is stated here rather than left to be found. A fresh" \
+  "estate under the same setting, because only the create sends the" \
+  "password: its plan is saved and applied under TF_LOG=debug, then the" \
+  "plan's zip members and the log are read for the value."
+FLAGS="$SMOKE_WORK/flags"
+write_db_estate "$FLAGS" "smoke-secrets-flags" '    strict {
+      secrets = "refuse"
+    }'
 cmd "choudoufu plan -out=change.tfplan && TF_LOG=debug TF_LOG_PATH=apply-debug.log choudoufu apply change.tfplan"
-RPLAN="$(cd "$REFUSE" && chdf plan -input=false -no-color -out=change.tfplan 2>&1)" || fail "secrets" "the replan under refuse failed: $RPLAN"
-grep -E '~ password|Plan:' <<< "$RPLAN" | head -2 | evidence
-grep -q '0 to add, 1 to change, 0 to destroy' <<< "$RPLAN" || fail "secrets" "the replan under refuse is not exactly one in-place change: $RPLAN"
-grep -qE '~ password' <<< "$RPLAN" || fail "secrets" "the replan's one change is not the password: $RPLAN"
-grep -qF -- "$SECRET" <<< "$RPLAN" && fail "secrets" "the plan printed the password"
-RAPPLY2="$(cd "$REFUSE" && TF_LOG=debug TF_LOG_PATH="$REFUSE/apply-debug.log" "$TOFU" apply -input=false -no-color change.tfplan 2>&1)" \
-  || fail "secrets" "applying the saved plan failed: $RAPPLY2"
-grep -q 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RAPPLY2" || fail "secrets" "the saved plan did not apply as the one change: $RAPPLY2"
-PMEMBERS="$(planfile_members "$REFUSE/change.tfplan")" || fail "secrets" "could not read the saved plan as a zip archive"
+( cd "$FLAGS" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "init of the flags estate failed"
+FPLAN="$(cd "$FLAGS" && chdf plan -input=false -no-color -out=change.tfplan 2>&1)" || fail "secrets" "plan -out under refuse failed: $FPLAN"
+grep -qF -- "$SECRET" <<< "$FPLAN" && fail "secrets" "the plan printed the password"
+FAPPLY="$(cd "$FLAGS" && TF_LOG=debug TF_LOG_PATH="$FLAGS/apply-debug.log" "$TOFU" apply -input=false -no-color change.tfplan 2>&1)" \
+  || fail "secrets" "applying the saved plan failed: $FAPPLY"
+grep -q 'Resources: 1 added, 0 changed, 0 destroyed' <<< "$FAPPLY" || fail "secrets" "the saved plan did not create the database: $FAPPLY"
+PMEMBERS="$(planfile_members "$FLAGS/change.tfplan")" || fail "secrets" "could not read the saved plan as a zip archive"
 echo "saved plan, members holding the password: $(tr '\n' ' ' <<< "${PMEMBERS:-none}")" | evidence
-LOGHITS="$(grep -cF -- "$SECRET" "$REFUSE/apply-debug.log" || true)"
-grep -q 'CreateDBInstance\|ModifyDBInstance' "$REFUSE/apply-debug.log" || fail "secrets" "the debug log never mentions the RDS request that carried the password, so it is not the log this step claims to have read"
-LOGNONPROVIDER="$(grep -F -- "$SECRET" "$REFUSE/apply-debug.log" | grep -vF 'provider.terraform-provider-aws' || true)"
-echo "debug log, lines holding the password: $LOGHITS, written by: $( [ -z "$LOGNONPROVIDER" ] && [ "$LOGHITS" -gt 0 ] && echo 'the aws provider plugin only' || echo 'see below')" | evidence
-grep -F -- "$SECRET" "$REFUSE/apply-debug.log" | head -1 | sed "s/$SECRET/<the password>/g" \
-  | grep -oE '\[DEBUG\] provider[^:]*: [A-Za-z ]+:|[A-Za-z]*Password=<the password>' | head -2 | evidence
+[ -n "$PMEMBERS" ] || fail "secrets" "the saved plan holds no copy of the password, yet the apply that consumed it set one; either the plan file is not being read or the value came from elsewhere"
+grep -q 'CreateDBInstance' "$FLAGS/apply-debug.log" || fail "secrets" "the debug log never mentions CreateDBInstance, the request that carried the password, so it is not the log this step claims to have read"
+LOGHITS="$(grep -cF -- "$SECRET" "$FLAGS/apply-debug.log" || true)"
+LOGNONPROVIDER="$(grep -F -- "$SECRET" "$FLAGS/apply-debug.log" | grep -vF 'provider.terraform-provider-aws' || true)"
+echo "debug log, lines holding the password: $LOGHITS" | evidence
+{ grep -F -- "$SECRET" "$FLAGS/apply-debug.log" || true; } | head -1 | sed "s/$SECRET/<the password>/g" \
+  | { grep -oE '\[DEBUG\] provider[^:]*: [A-Za-z ]+:|[A-Za-z]*Password=<the password>' || true; } | head -2 | evidence
 [ -z "$LOGNONPROVIDER" ] || fail "secrets" "a line outside the provider plugin wrote the password into the debug log:
 $(sed "s/$SECRET/<the password>/g" <<< "$LOGNONPROVIDER" | cut -c1-300)"
-KEPT_AFTER="$(scan_kept "$REFUSE")"
-[ -z "$KEPT_AFTER" ] || fail "secrets" "after the second apply the password is in what the run kept: $KEPT_AFTER"
-proof "one change, the password, rendered as a sensitive value and sent again: the cost of remembering nothing. What you ask for by flag holds it, as it does on stock, and what the tool keeps on its own still does not."
+FKEPT="$(scan_kept "$FLAGS")"
+echo "what the tool kept from this run, files holding the password: ${FKEPT:-none}" | evidence
+[ -z "$FKEPT" ] || fail "secrets" "the noisy run left the password in what the tool keeps: $FKEPT"
+proof "the saved plan carries the value its apply will send, and the provider's debug lines carry the request it sent, as they do on stock; the record store and data dir from the same run hold none of it."
+
+step "4b. the replan under refuse, as measured"
+explain \
+  "use/secrets.md says a sensitive argument left out of its record shows" \
+  "as a change on every plan. Measured, it does not: the plan seeds the" \
+  "prior from the configuration's own value, so the replan reads No" \
+  "changes. The same seeding means a password changed in the" \
+  "configuration is not proposed under refuse; that is a defect, filed" \
+  "as #1503, and this step prints the replan without asserting its shape" \
+  "so the scenario does not pin it. What it does assert is the claim:" \
+  "the replan leaves nothing behind."
+cmd "choudoufu plan"
+RPLAN="$(cd "$REFUSE" && chdf plan -input=false -no-color 2>&1)" || fail "secrets" "the replan under refuse failed: $RPLAN"
+{ grep -E '^Plan:|^No changes' <<< "$RPLAN" || true; } | head -1 | evidence
+grep -qF -- "$SECRET" <<< "$RPLAN" && fail "secrets" "the replan printed the password"
+[ -z "$(scan_kept "$REFUSE")" ] || fail "secrets" "the replan left the password in what the tool keeps"
+proof "observed, not asserted: the replan headline above. Asserted: it printed no password and left none on disk."
 
 step "5. the default, honestly"
 explain \
@@ -310,13 +330,13 @@ grep -E 'No changes\.' <<< "$SPLAN" | head -1 | evidence
 proof "under the default the password is in the record and was in the cache, which is what a stock state file keeps; with the cache deleted the plan is still No changes. The setting is the difference, and it is yours to make."
 
 step "6. teardown"
-cmd "choudoufu apply -destroy -auto-approve   # both estates"
-for d in "$REFUSE" "$STORE"; do
+cmd "choudoufu apply -destroy -auto-approve   # all three estates"
+for d in "$REFUSE" "$FLAGS" "$STORE"; do
   DOUT="$(cd "$d" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
     || fail "secrets" "teardown of $(basename "$d") failed: $DOUT"
   destroyed_exactly "secrets" 1 "$DOUT"
 done
-proof "both databases gone."
+proof "all three databases gone."
 
 echo "  What you watched: a random_password and an access key refused by"
 echo "  name under strict { secrets = \"refuse\" }, with nothing written;"
