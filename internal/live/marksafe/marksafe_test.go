@@ -95,6 +95,11 @@ var guardedPackages = []string{
 	"onboard",
 	"passthrough",
 	"pins",
+	// Issue #1509: the per-user provider plugin cache the golden render and
+	// estate-gen share - a directory lock and a path lookup for the pinned
+	// release. It imports no cty at all, so like "onboard" it is held to
+	// zero rather than deferred: it has nothing to defer.
+	"plugincache",
 	"pluginschema",
 	"policy",
 	// GitHub issues #1196 and #1148's retry vocabulary: two settings, their
