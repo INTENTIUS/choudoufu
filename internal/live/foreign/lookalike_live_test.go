@@ -7,11 +7,9 @@ package foreign
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
@@ -98,17 +96,33 @@ func TestLookalikeGuardAgainstFloci(t *testing.T) {
 		t.Fatalf("the marker tags are still on %s after delete-tags: %q", sgID, remaining)
 	}
 
-	// --- The whole pipeline, through the command -------------------------
-	start := time.Now()
-	cmd := exec.Command(tofuBin, "live-plan", "-no-color", "-input=false") //nolint:gosec // paths are this test's own temp dirs
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	elapsed := time.Since(start)
-	output := string(out)
-	t.Logf("choudoufu live-plan took %s\n%s", elapsed, output)
-	if err != nil {
-		t.Fatalf("live-plan failed: %v", err)
+	// --- A plain plan first, for the record ------------------------------
+	//
+	// Since 09d180f921 (2026-08-30, the CollectUnclaimed ruling on #604) an
+	// ordinary plan lists a declared type with the server-side tofu-estate
+	// filter on, and a security group whose markers were just stripped is
+	// exactly what that filter drops. So on a plain plan the guard has
+	// nothing to look at: the create is proposed and no "Possible
+	// duplicates" section follows it. That is the gap #1480 records;
+	// the guard was written (b32bb7d5dd) to catch a stripped marker on the
+	// next plan, whatever flags it ran with. This half only logs which side
+	// of the gap the binary is on, so closing it does not have to flip an
+	// assertion here.
+	plain := runLivePlan(t, tofuBin, dir, nil)
+	if strings.Contains(plain, "Possible duplicates:") {
+		t.Log("a plain plan now sees the stripped security group (#1480 closed?); the opt-in below can be retired")
+	} else {
+		t.Logf("a plain plan cannot see the stripped security group (#1480); aws_security_group listed estate-scoped: %v",
+			strings.Contains(plain, "aws_security_group [SCOPE_ESTATE]"))
 	}
+
+	// --- The whole pipeline, through the command, asking the question ----
+	//
+	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is the documented way to ask on an
+	// ordinary plan (live/ADOPTION-ONLY.md); -adoption-only would ask the
+	// same question but its view drops the Lookalikes section this test
+	// reads (views.StatelessAdoptionHuman.Lookalikes is a no-op).
+	output := runLivePlan(t, tofuBin, dir, []string{collectUnclaimedEnv + "=1"})
 
 	// The stripped security group's declared address is now unmatched by any
 	// marker, exactly the shape of a brand new resource, so the plan
