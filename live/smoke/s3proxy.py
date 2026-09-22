@@ -11,9 +11,18 @@ files in <work-dir> change what it does, and a scenario drives it by writing
 them. Nothing in the emulator or in the cloud can be corrupted into either
 behaviour, which is why this exists.
 
-fail     "<substring> <count>"
+fail     "<substring> <count>" or "<substring> <count> 404"
          A GetObject whose path contains <substring> is answered 500, <count>
          times (-1 is forever). ListObjectsV2 is never failed. Claim 31.
+
+         With the third field "404" the answer is S3's own 404 NoSuchKey
+         instead, which is a different fault and not a milder one: a 500 is
+         a read that FAILED, and a 404 is a read that SUCCEEDED and said no
+         record is there. The listing is still forwarded, so it goes on
+         naming the key. That is a store contradicting itself about one
+         record, which is GitHub issue #1355's route, and every GET of the
+         key gets it - the bulk read's, its second look, and the per-key
+         read the run falls back to. Claim 31, step 5.
 
 hold     "<substring>"
          A PUT whose path contains <substring> is HELD: not forwarded, not
@@ -76,19 +85,33 @@ def log(line):
         open(os.path.join(work, "proxy.log"), "a").write(line + "\n")
 
 
+FAULTS = {
+    500: (b'<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code>'
+          b"<Message>injected by the smoke proxy</Message></Error>"),
+    404: (b'<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code>'
+          b"<Message>The specified key does not exist. (injected by the smoke proxy)</Message></Error>"),
+}
+
+
 def should_fail(path, query):
+    """The status to answer this GET with instead of forwarding it, or 0.
+
+    0 and not False for "forward it", so the caller's test is one truth
+    test and a status can never be mistaken for a flag.
+    """
     if "list-type=2" in query:
-        return False
+        return 0
     with lock:
         parts = read("fail").split()
-        if len(parts) != 2:
-            return False
+        if len(parts) not in (2, 3):
+            return 0
         sub, count = parts[0], int(parts[1])
-        if sub not in path or count == 0:
-            return False
+        status = int(parts[2]) if len(parts) == 3 else 500
+        if sub not in path or count == 0 or status not in FAULTS:
+            return 0
         if count > 0:
-            open(os.path.join(work, "fail"), "w").write("%s %d" % (sub, count - 1))
-        return True
+            open(os.path.join(work, "fail"), "w").write(" ".join([sub, str(count - 1)] + parts[2:]))
+        return status
 
 
 def count_enter(path):
@@ -198,14 +221,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.connection.close()
                 return
         counted = self.command == "GET" and "list-type=2" not in query and count_enter(path)
-        if self.command == "GET" and should_fail(path, query):
-            payload = (b'<?xml version="1.0" encoding="UTF-8"?><Error><Code>InternalError</Code>'
-                       b"<Message>injected by the smoke proxy</Message></Error>")
-            self.send_response(500)
+        fault = should_fail(path, query) if self.command == "GET" else 0
+        if fault:
+            payload = FAULTS[fault]
+            self.send_response(fault)
+            self.send_header("Content-Type", "application/xml")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
-            status = 500
+            status = fault
         else:
             if self.command == "GET":
                 stall(path)

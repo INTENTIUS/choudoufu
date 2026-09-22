@@ -233,6 +233,14 @@ cluster's version of the bucket's three settings.
 | `encryption_at_rest` | the API server runs with `--encryption-provider-config` | the API server's own static Pod, where that Pod is visible |
 | `estate_boundary` | `estate-boundary.yaml`'s policy and its binding are installed, observed, denying and in force over the record Secrets, and this identity is granted its estate | a get on each, compared against the shipped file, and one review of `use` on `estates.choudoufu.intentius.io/<estate>` |
 
+A fifth finding comes from the block itself. `insecure = true` turns off
+verification of the API server's certificate. Anything on the path can then
+answer as the API server, and it receives this identity's credential and every
+record. The finding is named `tls_verification`. It is known from the block
+before any request and refuses like a property that was read and is wrong.
+Remove `insecure = true` and set `cluster_ca_certificate`. A block that does
+not set `insecure = true` has no such finding.
+
 `choudoufu live-cluster` asks the same four and prints them, with no plan and
 nothing written. Run in a configuration directory it uses that live block's
 namespace; `-namespace=<name>` checks any other, on the same cluster the
@@ -258,7 +266,8 @@ secrets is `identity` sets the flag and encrypts nothing. So a missing flag
 refuses, a present one is NOT CHECKED, and the finding carries the `cat` line
 an operator runs on the node to finish it.
 
-`allow_insecure` takes these four names the way it takes the bucket's three.
+`allow_insecure` takes these four names and `tls_verification` the way it
+takes the bucket's three.
 A waiver reaches only what it names, silences a refusal or a warning, and says
 what it costs on every run for as long as it is configured.
 

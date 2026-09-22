@@ -770,10 +770,11 @@ var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_ac
 
 // RecordStoreClusterInsecureSettings is every name the "kubernetes" backend's
 // "allow_insecure" argument accepts: the four properties the cluster contract
-// asserts (GitHub issue #1393). Pinned to
+// asserts (GitHub issue #1393), and ahead of them the one it asserts about
+// this block's own "insecure" argument (#1448). Pinned to
 // [internal/live/staterecord.ClusterSettings] by the same test, for the same
 // reason.
-var RecordStoreClusterInsecureSettings = []string{"namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"}
+var RecordStoreClusterInsecureSettings = []string{"tls_verification", "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"}
 
 // RecordStoreInsecureSettingsFor is the names "allow_insecure" accepts on a
 // store of this type, and nil for a store with no contract to waive. The

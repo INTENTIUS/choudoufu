@@ -85,12 +85,24 @@ func check(t *testing.T, cs kubernetes.Interface, opts ClusterContractOptions) [
 	if err != nil {
 		t.Fatalf("CheckClusterContract: %v", err)
 	}
-	if len(findings) != len(ClusterSettings) {
-		t.Fatalf("got %d findings, want one per setting (%d)", len(findings), len(ClusterSettings))
+	// tls_verification is the one setting with no finding when it holds: it
+	// is a fact about the block and is reported only when the block turns
+	// verification off.
+	want := ClusterSettings
+	if !opts.InsecureTLS {
+		want = nil
+		for _, s := range ClusterSettings {
+			if s != ClusterTLSVerification {
+				want = append(want, s)
+			}
+		}
+	}
+	if len(findings) != len(want) {
+		t.Fatalf("got %d findings, want one per setting (%d)", len(findings), len(want))
 	}
 	for i, f := range findings {
-		if f.Setting != ClusterSettings[i] {
-			t.Fatalf("finding %d is %q, want %q: the order findings are reported in is part of the report", i, f.Setting, ClusterSettings[i])
+		if f.Setting != want[i] {
+			t.Fatalf("finding %d is %q, want %q: the order findings are reported in is part of the report", i, f.Setting, want[i])
 		}
 		if f.OK() && ((f.Outcome == NotChecked) || f.Outcome == Warned) {
 			t.Fatalf("finding %q is OK and also NotChecked or a Warning; a question that was not answered, and a concern, are neither of them a pass", f.Setting)

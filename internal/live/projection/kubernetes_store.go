@@ -95,7 +95,11 @@ func newKubernetesStore(rs *configs.LiveRecordStore, estate string) (staterecord
 		// The same connection, unscoped, for the cluster contract and
 		// nothing else (#1393). No record goes through it.
 		Clientset: clientset,
-		Namespace: ns,
+		// #1448: `insecure = true` is a contract finding, and the store is
+		// what carries it there, since a clientset does not say how it was
+		// built.
+		InsecureTLS: rs.Kubernetes.Insecure,
+		Namespace:   ns,
 		// Empty on purpose, the same as the s3 backend's: the namespace a
 		// record lives under is carried by the KEY. See backendKeyPrefix.
 		KeyPrefix: backendKeyPrefix,

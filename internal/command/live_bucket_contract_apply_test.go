@@ -298,7 +298,7 @@ func TestBeforeApplyAssertsTheClusterContract(t *testing.T) {
 	}
 	clusterFindings := func(f staterecord.Finding) []staterecord.Finding {
 		var out []staterecord.Finding
-		for _, setting := range staterecord.ClusterSettings {
+		for _, setting := range clusterSettingsAlwaysReported() {
 			if setting == f.Setting {
 				out = append(out, f)
 				continue

@@ -8,6 +8,7 @@ package staterecord
 import (
 	"context"
 	"errors"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -183,6 +184,16 @@ func (c *RunCache) ensureLoaded(ctx context.Context) {
 		// exactly that question, with exactly that question's error
 		// handling. Falling back costs a trip; failing here would turn an
 		// optimization into a new way for a plan to stop.
+		//
+		// It is said, though (GitHub issue #1430). Since #1355 a key the
+		// listing named and two GETs did not find fails the bulk read, so
+		// this is the path a store contradicting itself takes, and until
+		// this line a run that took it was indistinguishable in its log
+		// from one that loaded the snapshot. Every occurrence is logged,
+		// not the first: the load is retried on each read while it keeps
+		// failing, and how many times that happened is part of what a
+		// reader of this log is looking for.
+		log.Printf("[WARN] staterecord: the bulk read of %q failed, so this read and every one until a bulk read succeeds goes to the store per key: %s", c.prefix, err)
 		return
 	}
 
