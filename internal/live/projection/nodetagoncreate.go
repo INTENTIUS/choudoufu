@@ -267,7 +267,10 @@ func withWrittenMarkers(obj cty.Value, written map[string]string) cty.Value {
 			continue
 		}
 		merged := map[string]cty.Value{}
-		if !v.IsNull() {
+		// v came out of UnmarkDeepWithPaths, so it carries no mark; the
+		// explicit test is for internal/live/marksafe, which proves a read
+		// safe only from a guard it can see at the call site.
+		if !v.IsNull() && !v.ContainsMarked() {
 			for k, e := range v.AsValueMap() {
 				merged[k] = e
 			}
