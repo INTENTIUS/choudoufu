@@ -72,6 +72,13 @@ func signalStubScript(t *testing.T, root, estate string, opts stubOpts) (readyFi
 		"GRAND=$!\n" +
 		"printf 'bash=%s grand=%s\\n' \"$$\" \"$GRAND\" > " + shQuote(pidFile) + "\n" +
 		"teardown() {\n" +
+		// The script's OWN stamp of when its trap began: the file's
+		// mtime, taken by the trap's first command, before it has
+		// printed anything. It is the ground truth a re-send is
+		// placed against (#1464); the watcher's time is later by a
+		// pipe and a goroutine. bash 3.2 has no $EPOCHREALTIME, and
+		// an mtime is nanoseconds on APFS, ext4 and tmpfs alike.
+		"  touch " + shQuote(trapStartedStamp(trapFile)) + "\n" +
 		"  echo \"=== TEARDOWN (target=floci run=stub) ===\"\n" +
 		// A real teardown takes time. This one takes enough that a
 		// supervisor which exited under the trap instead of waiting for
@@ -101,6 +108,23 @@ func signalStubScript(t *testing.T, root, estate string, opts stubOpts) (readyFi
 		t.Fatal(err)
 	}
 	return readyFile, pidFile, trapFile
+}
+
+// trapStartedStamp is the file signalStubScript's trap touches as its first
+// act, beside trapFile, which it touches as its last. The two mtimes bracket
+// the teardown.
+func trapStartedStamp(trapFile string) string {
+	return filepath.Join(filepath.Dir(trapFile), "trap-started")
+}
+
+// mtimeOf is a file's mtime, and fails the test when the file is missing.
+func mtimeOf(t *testing.T, path string) time.Time {
+	t.Helper()
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	return st.ModTime()
 }
 
 type stubOpts struct {
@@ -1093,30 +1117,99 @@ func TestTheStopRequestIsRepeatedUntilTheTrapAnswers(t *testing.T) {
 // matters for spend: once teardown is running, another SIGTERM to the group
 // lands on whatever destroy it has forked.
 //
-// The ordinary stub answers immediately, so a re-send here would be a bug.
-// Its teardown is long enough to span several re-send intervals, so a
-// supervisor that kept asking would be caught.
+// It asserts on ORDER, not on a count (#1464). The ordinary stub answers as
+// soon as its foreground sleep dies, so on an idle machine there is no
+// re-send at all; but under load the script can take longer than
+// liveCertResendEvery to reach its trap, and then a re-send is the
+// supervisor doing exactly what it should. This test failed once in three
+// gate runs at load average 23 on a `TrapResends != 0` assertion whose log
+// could not say which of those it was looking at. So the fixture now stamps
+// the moment its trap begins, the record carries when the watcher saw the
+// answer and when each re-send went out, and every re-send is placed on that
+// line: before the trap began is legitimate and is logged as such; after it
+// is #1324's defect and fails with both timestamps.
+//
+// One more check costs nothing and does not depend on any clock agreeing
+// with any other: the trap's `sleep 6` can only take LONGER under load. A
+// teardown that finished in under six seconds had its sleep killed, and the
+// only thing in a position to do that is a signal to the group.
 func TestNoResendOnceTheTrapHasAnswered(t *testing.T) {
 	absorbStraySignals(t)
 	t.Setenv(LiveCertSignalGraceEnv, "")
-	root, ch, trapFile, bashPid, _ := runSignalledStub(t, "noresendestate", stubOpts{runSeconds: 120, teardownSeconds: 6})
+	const teardownSeconds = 6
+	root, ch, trapFile, bashPid, _ := runSignalledStub(t, "noresendestate", stubOpts{runSeconds: 120, teardownSeconds: teardownSeconds})
 
 	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
 		t.Fatalf("SIGTERM: %v", err)
 	}
+	sentAt := time.Now()
 	awaitStub(t, ch, 90*time.Second, bashPid).must(t)
 
 	if _, err := os.Stat(trapFile); err != nil {
 		t.Fatalf("the teardown did not finish: %v", err)
 	}
+	trapBegan := mtimeOf(t, trapStartedStamp(trapFile))
+	trapEnded := mtimeOf(t, trapFile)
 	rec, err := ReadLiveCertRun(root, "noresendestate")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.TrapResends != 0 {
-		t.Errorf("the supervisor re-sent SIGTERM %d time(s) to a group whose trap had already answered.\n"+
-			"Its teardown ran for 6s across %s intervals, so those signals landed on a teardown in progress - "+
-			"which is exactly what must never happen (#1324).", rec.TrapResends, liveCertResendEvery)
+
+	// The watcher's observation of the answer. Teardown was confirmed off
+	// the same output, so an empty stamp here is the record not carrying
+	// what it was just taught to carry.
+	if rec.TrapAnsweredUTC == "" {
+		t.Fatalf("the record has no trap_answered_utc although teardown_confirmed=%v: the watcher saw the banner and did not say when", rec.TeardownConfirmed)
+	}
+	answered, err := time.Parse(time.RFC3339Nano, rec.TrapAnsweredUTC)
+	if err != nil {
+		t.Fatalf("trap_answered_utc %q: %v", rec.TrapAnsweredUTC, err)
+	}
+	if len(rec.TrapResendsUTC) != rec.TrapResends {
+		t.Errorf("the record counts %d re-send(s) but stamps %d: %v", rec.TrapResends, len(rec.TrapResendsUTC), rec.TrapResendsUTC)
+	}
+
+	// What happened, in order, in every run's log - this is the line
+	// #1464 asked for, so the next failure needs no reproduction.
+	t.Logf("stop request sent %s; the script's trap began %s later (%s) and the watcher saw its first line %s after that (%s); teardown took %s; %d re-send(s)",
+		sentAt.UTC().Format(time.RFC3339Nano),
+		trapBegan.Sub(sentAt).Round(time.Millisecond), trapBegan.UTC().Format(time.RFC3339Nano),
+		answered.Sub(trapBegan).Round(time.Millisecond), rec.TrapAnsweredUTC,
+		trapEnded.Sub(trapBegan).Round(time.Millisecond), rec.TrapResends)
+
+	for i, stamp := range rec.TrapResendsUTC {
+		resent, err := time.Parse(time.RFC3339Nano, stamp)
+		if err != nil {
+			t.Fatalf("trap_resends_utc[%d] %q: %v", i, stamp, err)
+		}
+		switch {
+		case resent.Before(trapBegan):
+			// The script had not reached its trap: the machine was
+			// slow, the supervisor asked again, and asking again was
+			// right. Not a failure - this is (a) of #1464.
+			t.Logf("re-send %d at %s went out %s BEFORE the script's trap began: the script took more than %s to reach its trap under load, and repeating the stop request to it was correct. Not a defect.",
+				i+1, stamp, trapBegan.Sub(resent).Round(time.Millisecond), liveCertResendEvery)
+		case !resent.Before(answered):
+			// The supervisor's own guard had already seen the answer
+			// and it re-sent anyway: the loop is wrong.
+			t.Errorf("re-send %d at %s went out %s AFTER the watcher had seen the trap answer at %s (the script's trap began at %s). The re-send is gated on that very observation, so the supervisor re-sent past its own guard, and the SIGTERM landed on a teardown in progress (#1324).",
+				i+1, stamp, resent.Sub(answered).Round(time.Millisecond), rec.TrapAnsweredUTC, trapBegan.UTC().Format(time.RFC3339Nano))
+		default:
+			// Between the script's stamp and the watcher's: the trap
+			// was running, its banner had not crossed the pipe yet,
+			// and the re-send went out in that window. The guard did
+			// what it was built to do and it was not enough.
+			t.Errorf("re-send %d at %s went out %s AFTER the script's trap began at %s but %s BEFORE the watcher saw its first line at %s. The guard reads the banner off a pipe, and this SIGTERM went out in the gap between the trap starting and its banner arriving - it landed on a teardown in progress (#1324).",
+				i+1, stamp, resent.Sub(trapBegan).Round(time.Millisecond), trapBegan.UTC().Format(time.RFC3339Nano),
+				answered.Sub(resent).Round(time.Millisecond), rec.TrapAnsweredUTC)
+		}
+	}
+	if rec.TrapResendsAfterAnswer != 0 {
+		t.Errorf("the record's own monotonic count says %d re-send(s) went out after the trap answered", rec.TrapResendsAfterAnswer)
+	}
+	if took := trapEnded.Sub(trapBegan); took < teardownSeconds*time.Second {
+		t.Errorf("the teardown ran for %s, but its `sleep %d` cannot finish in less than %ds on any machine at any load: something killed that sleep, and the only thing signalling this group is the supervisor (#1324).",
+			took.Round(time.Millisecond), teardownSeconds, teardownSeconds)
 	}
 }
 
