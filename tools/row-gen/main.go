@@ -332,5 +332,9 @@ func classifyAll(rows []mappingRow, registry map[string]registryEntry, survey ma
 	// could supply, not credit taken from a rule that would have gotten
 	// there anyway. See evidenceschema.go's own doc comment.
 	applySchemaFirstArgName(out, survey)
+	// Last of all: whatever IdentityAttrs guess the passes above settled
+	// on is held to the resource schema's vocabulary, the same rule
+	// mergeIdentityAttrs applies on the ratified side (identityvocab.go).
+	applyResourceVocabulary(out, survey)
 	return out, nil
 }

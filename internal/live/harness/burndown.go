@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      151,
+		Bound:      150,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    MismatchesJSON,
@@ -577,6 +577,15 @@ func rowgenAnnotationRulings() Entry {
 				"provider type from at all, so the ruling retires only once row-gen gains one (a " +
 				"Kubernetes-provider import-grammar scrape analogous to importdocs-gen's AWS one). " +
 				"147 + 4 = 151.",
+			"150 on 2026-09-22 (issue #1316): the first fall this ledger has recorded, and it is a ruling " +
+				"retired by correcting the ratified row rather than by teaching the generator. The " +
+				"aws_securityhub_connector_v2 ruling excused a ratified IdentityAttrs of [id, connector_id] " +
+				"against the fresh proposal's [connector_id], reading the extra id as a ratifier-verified " +
+				"alias. The pinned-provider check (TestIdentityTableAgainstThePinnedProvider, hashicorp/aws " +
+				"6.59.0) found the type has no id attribute: it is a plugin-framework resource, and the alias " +
+				"was a reference target the provider does not serve. With the row corrected to [connector_id] " +
+				"the fresh proposal matches it, row-gen -mismatches reported the ruling stale, and it was " +
+				"deleted. 151 - 1 = 150.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

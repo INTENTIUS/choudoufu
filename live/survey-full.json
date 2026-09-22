@@ -269,6 +269,9 @@
           "port",
           "quic_server_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -517,6 +520,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -541,6 +547,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -564,6 +573,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -588,6 +600,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -643,6 +658,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -664,6 +682,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -751,6 +772,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -850,6 +874,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -929,6 +956,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -963,6 +993,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1132,6 +1165,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1153,6 +1189,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1631,6 +1670,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -1732,6 +1774,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -1752,6 +1797,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -1794,6 +1842,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -1814,6 +1865,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -1834,6 +1888,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -1876,6 +1933,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -1909,6 +1969,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1942,6 +2005,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1964,6 +2030,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -2040,6 +2109,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -2059,6 +2131,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -2113,6 +2188,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -2134,6 +2212,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -2290,6 +2371,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -2342,6 +2426,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -2374,6 +2461,9 @@
       "identity": {
         "required_for_import": null,
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -2538,6 +2628,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned profile_id; taggable, so recoverable by tag-filtered list"
@@ -2569,6 +2662,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned evaluator_id; taggable, so recoverable by tag-filtered list"
@@ -2601,6 +2697,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned rule_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -2632,6 +2731,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned harness_id; taggable, so recoverable by tag-filtered list"
@@ -2685,6 +2787,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned online_evaluation_config_id; taggable, so recoverable by tag-filtered list"
@@ -2706,6 +2811,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned policy_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -2726,6 +2834,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned policy_engine_id; taggable, so recoverable by tag-filtered list"
@@ -2746,6 +2857,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned registry_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -3056,6 +3170,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -3076,6 +3193,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -3097,6 +3217,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -3259,6 +3382,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -3333,6 +3459,9 @@
           "name"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -3470,6 +3599,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3589,6 +3721,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3610,6 +3745,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3631,6 +3769,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3653,6 +3794,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3674,6 +3818,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3695,6 +3842,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3716,6 +3866,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3737,6 +3890,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3758,6 +3914,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -3779,6 +3938,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3800,6 +3962,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3821,6 +3986,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3842,6 +4010,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -3865,6 +4036,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -3887,6 +4061,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3924,6 +4101,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3945,6 +4125,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -3965,6 +4148,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -3986,6 +4172,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4007,6 +4196,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4028,6 +4220,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4049,6 +4244,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4070,6 +4268,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -4091,6 +4292,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4113,6 +4317,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4134,6 +4341,9 @@
           "policy_name",
           "region",
           "resource_arn"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -4156,6 +4366,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -4174,6 +4387,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -4195,6 +4411,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4217,6 +4436,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4255,6 +4477,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4276,6 +4501,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -4295,6 +4523,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -4315,6 +4546,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned query_definition_id; untaggable, so Cloud Control listing AWS::Logs::QueryDefinition with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -4660,6 +4894,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -4800,6 +5037,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5007,6 +5247,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5028,6 +5271,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5049,6 +5295,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -5070,6 +5319,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5091,6 +5343,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5112,6 +5367,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -5133,6 +5391,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5154,6 +5415,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5175,6 +5439,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5196,6 +5463,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5217,6 +5487,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5238,6 +5511,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned name; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -5302,6 +5578,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -5345,6 +5624,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -5819,6 +6101,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5840,6 +6125,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -5861,6 +6149,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, no native list resource, and Cloud Control's list handler for AWS::DataZone::Environment requires DomainIdentifier and ProjectIdentifier as scoping input, which no enumeration leg supplies today"
@@ -5882,6 +6173,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -5904,6 +6198,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, no native list resource, and Cloud Control's list handler for AWS::DataZone::EnvironmentProfile requires DomainIdentifier as scoping input, which no enumeration leg supplies today"
@@ -5926,6 +6223,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned revision; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -5947,6 +6247,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -5968,6 +6271,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -5989,6 +6295,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, no native list resource, and Cloud Control's list handler for AWS::DataZone::Project requires DomainIdentifier as scoping input, which no enumeration leg supplies today"
@@ -6010,6 +6319,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -6207,6 +6519,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -6272,6 +6587,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -6464,6 +6782,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -6504,6 +6825,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -6885,6 +7209,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -7072,6 +7399,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -7132,6 +7462,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -7171,6 +7504,9 @@
           "account_id",
           "range_key_value",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned hash_key_value; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -7255,6 +7591,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, so Cloud Control listing AWS::EC2::SnapshotBlockPublicAccess with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -7297,6 +7636,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -7318,6 +7660,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -7468,6 +7813,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -7587,6 +7935,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -7629,6 +7980,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -7649,6 +8003,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -7667,6 +8024,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -7808,6 +8168,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned transit_gateway_metering_policy_id; taggable, so recoverable by tag-filtered list"
@@ -8015,6 +8378,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8091,6 +8457,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8123,6 +8492,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8259,6 +8631,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -8292,6 +8667,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned revision; taggable, so recoverable by tag-filtered list"
@@ -8400,6 +8778,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -8444,6 +8825,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8467,6 +8851,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8489,6 +8876,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8511,6 +8901,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8532,6 +8925,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8554,6 +8950,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -8576,6 +8975,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned identity_provider_config_name; taggable, so recoverable by tag-filtered list"
@@ -8597,6 +8999,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -8619,6 +9024,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned association_id; taggable, so recoverable by tag-filtered list"
@@ -8859,6 +9267,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -9155,6 +9566,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -9541,6 +9955,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -9661,6 +10078,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -9729,6 +10149,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -10028,6 +10451,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -10115,6 +10541,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -10145,6 +10574,9 @@
           "name"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -10190,6 +10622,9 @@
       "identity": {
         "required_for_import": null,
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -10243,6 +10678,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -10275,6 +10713,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -10295,6 +10736,9 @@
           "role"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -10403,6 +10847,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -10467,6 +10914,9 @@
           "user"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -10802,6 +11252,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -10823,6 +11276,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -10935,6 +11391,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -10953,6 +11412,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -10971,6 +11433,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -11289,6 +11754,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -11354,6 +11822,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -11424,6 +11895,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -11489,6 +11963,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -11565,6 +12042,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -11674,6 +12154,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -11706,6 +12189,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned uuid; taggable, so recoverable by tag-filtered list"
@@ -11726,6 +12212,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -11770,6 +12259,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -11814,6 +12306,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned version; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -11847,6 +12342,9 @@
           "account_id",
           "qualifier",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -11890,6 +12388,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -11911,6 +12412,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -12033,6 +12537,9 @@
           "port",
           "quic_server_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -12629,6 +13136,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -12726,6 +13236,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -12746,6 +13259,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -12766,6 +13282,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -13099,6 +13618,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -13175,6 +13697,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -13318,6 +13843,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -13364,6 +13892,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -13385,6 +13916,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -13713,6 +14247,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -13990,6 +14527,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -14008,6 +14548,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -14026,6 +14569,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -14062,6 +14608,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14083,6 +14632,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14270,6 +14822,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14291,6 +14846,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -14311,6 +14869,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -14332,6 +14893,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14354,6 +14918,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14376,6 +14943,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14397,6 +14967,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, so Cloud Control listing AWS::OpenSearchServerless::VpcEndpoint with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -14415,6 +14988,9 @@
           "id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -14435,6 +15011,9 @@
           "service_principal"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -14457,6 +15036,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "delegated_account_id"
         ]
       },
       "evidence": "identity requires server-assigned delegated_account_id; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -14475,6 +15057,9 @@
           "id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -14496,6 +15081,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -14515,6 +15103,9 @@
           "id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -14537,6 +15128,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14556,6 +15150,9 @@
           "id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -14589,6 +15186,10 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id",
+          "name"
         ]
       },
       "evidence": "identity requires server-assigned name; taggable, so recoverable by tag-filtered list"
@@ -14609,6 +15210,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -14647,6 +15251,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned capacity_task_id; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -14838,6 +15445,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14881,6 +15491,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -14919,6 +15532,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -14974,6 +15590,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -15032,6 +15651,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -15052,6 +15674,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -15511,6 +16136,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -15531,6 +16159,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -15863,6 +16494,9 @@
           "region",
           "serverless_namespace_identifier",
           "serverless_workgroup_identifier"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16082,6 +16716,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16103,6 +16740,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16124,6 +16764,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16283,6 +16926,9 @@
           "destination_ipv6_cidr_block",
           "destination_prefix_list_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16383,6 +17029,9 @@
         "optional_for_import": [
           "account_id",
           "set_identifier"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16525,6 +17174,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -16546,6 +17198,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -16589,6 +17244,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16608,6 +17266,9 @@
           "zone_id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -16630,6 +17291,9 @@
         "optional_for_import": [
           "account_id",
           "vpc_region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16805,6 +17469,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -16826,6 +17493,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -16897,6 +17567,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -16940,6 +17613,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -16972,6 +17648,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17015,6 +17694,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17036,6 +17718,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17057,6 +17742,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17089,6 +17777,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17111,6 +17802,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17143,6 +17837,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17164,6 +17861,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17185,6 +17885,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17228,6 +17931,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17249,6 +17955,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17270,6 +17979,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17291,6 +18003,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17313,6 +18028,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17534,6 +18252,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -17554,6 +18275,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -17574,6 +18298,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17595,6 +18322,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -17615,6 +18345,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17796,6 +18529,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17905,6 +18641,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -17960,6 +18699,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -17992,6 +18734,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -18181,6 +18926,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -18223,6 +18971,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -18245,6 +18996,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -18300,6 +19054,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -18427,6 +19184,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned version_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -18458,6 +19218,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -18581,6 +19344,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -18602,6 +19368,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -18623,6 +19392,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned connector_id; taggable, so recoverable by tag-filtered list"
@@ -18686,6 +19458,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "member_account_id"
         ]
       },
       "evidence": "identity requires server-assigned member_account_id; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -18706,6 +19481,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -18739,6 +19517,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::SecurityHub::ProductSubscription with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -18777,6 +19558,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -19114,6 +19898,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -19849,6 +20636,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned association_id; taggable, so recoverable by tag-filtered list"
@@ -19880,6 +20670,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -19901,6 +20694,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -19923,6 +20719,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -19945,6 +20744,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -19966,6 +20768,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -19987,6 +20792,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -20009,6 +20817,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -20149,6 +20960,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -20243,6 +21057,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -20287,6 +21104,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -20342,6 +21162,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -20492,6 +21315,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -20557,6 +21383,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -20577,6 +21406,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -20814,6 +21646,9 @@
         "required_for_import": null,
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
@@ -20957,6 +21792,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -20978,6 +21816,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -21043,6 +21884,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -21063,6 +21907,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -21129,6 +21976,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -21425,6 +22275,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -21445,6 +22298,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -21477,6 +22333,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -22082,6 +22941,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -22114,6 +22976,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -22136,6 +23001,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -22158,6 +23026,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned group_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -22178,6 +23049,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned organization_id; taggable, so recoverable by tag-filtered list"
@@ -22199,6 +23073,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned user_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -22252,6 +23129,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned pool_id; taggable, so recoverable by tag-filtered list"
@@ -22479,6 +23359,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
@@ -22515,6 +23398,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -22536,6 +23422,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -22557,6 +23446,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -22576,6 +23468,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
