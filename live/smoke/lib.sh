@@ -21,8 +21,19 @@ export FLOCI_PORT
 
 COMPOSE=(docker compose -p "choudoufu-smoke-${SMOKE_ID}" -f "$SMOKE_DIR/docker-compose.yml")
 
-fail() { echo "FAIL [$1]: $2" >&2; exit 1; }
-step() { echo; echo "=== $* ==="; echo; }
+# Once a bound has fired (smoke_stall below) the scenario is being killed,
+# and whatever command it stood on fails because of the kill. The stall's own
+# FAIL line is the verdict, so a fail that arrives after it says nothing.
+fail() {
+  if [ -n "${SMOKE_WORKROOT:-}" ] && [ -d "$SMOKE_WORKROOT/stalled" ]; then exit 124; fi
+  echo "FAIL [$1]: $2" >&2; exit 1
+}
+# step also records where the scenario is, in a file, because the process
+# that reports a stall is never the shell that ran the step (#1457).
+step() {
+  if [ -n "${SMOKE_WORKROOT:-}" ]; then printf '%s\n' "$*" > "$SMOKE_WORKROOT/step"; fi
+  echo; echo "=== $* ==="; echo
+}
 note() { echo "  $*"; }
 
 # The output contract (issue #713: easy to OBSERVE): every step teaches.
@@ -141,13 +152,135 @@ cluster_up() {
   export KUBECONFIG="$SMOKE_WORKROOT/kubeconfig" KUBE_CONFIG_PATH="$SMOKE_WORKROOT/kubeconfig"
   kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG" --wait 120s >"$SMOKE_WORKROOT/logs/kind.log" 2>&1 \
     || fail "cluster" "kind create cluster failed: $(tail -5 "$SMOKE_WORKROOT/logs/kind.log")"
-  echo "  cluster up: kind $CLUSTER_NAME ($(kubectl version 2>/dev/null | grep -i server | head -1 || echo 'server version unknown'))"
+  echo "  cluster up: kind $CLUSTER_NAME ($(kc version 2>/dev/null | grep -i server | head -1 || echo 'server version unknown'))"
 }
 
 cluster_down() {
   [ -n "$CLUSTER_NAME" ] || return 0
   kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
   CLUSTER_NAME=""
+}
+
+# kc is kubectl against the run's own cluster, and kc_as is the same under
+# another kubeconfig (a ServiceAccount's, say). Both carry --request-timeout
+# because kubectl's default is to wait on the API server for ever: #1457 was
+# one call that never came back, which cost a CI job 35 minutes and left no
+# log. Every k8s scenario goes through these two and never calls kubectl
+# bare, except for `kubectl config`, which only edits a local file.
+# live/smoke/selftest-bounds.sh holds the scenarios to that.
+KC_REQUEST_TIMEOUT="${KC_REQUEST_TIMEOUT:-30s}"
+kc() { kc_as "$KUBECONFIG" "$@"; }
+kc_as() {
+  local cfg="$1"; shift
+  kubectl --kubeconfig "$cfg" --request-timeout="$KC_REQUEST_TIMEOUT" "$@"
+}
+
+# smoke_descendants prints every live descendant of <pid>, leaving out <skip>
+# and everything under it. One ps snapshot, read the same way on macOS and
+# Linux. A stalled kubectl is usually a grandchild (scenario shell, command
+# substitution, kubectl), so killing children alone would miss it.
+smoke_descendants() { # <pid> [skip]
+  ps -A -o pid=,ppid= | awk -v root="$1" -v skip="${2:-0}" '
+    { parent[$1] = $2 }
+    END {
+      for (p in parent) {
+        q = p
+        while (q in parent && q != root && q != skip && q > 1) q = parent[q]
+        if (q == root && p != root) print p
+      }
+    }'
+}
+
+# smoke_stall is what every bound in here does when it runs out (#1457). It
+# is called from a timer subshell, never from the scenario's own shell,
+# because that shell is the one blocked. In order: claim the stall so two
+# bounds cannot both report it, print the FAIL line while the stalled command
+# is still there to name, signal the scenario shell, then kill everything
+# under it. The order matters. bash runs a trap only once its foreground
+# command returns, so the TERM is left pending and the kill is what lets it
+# run; smoke.sh's TERM trap then exits and the EXIT trap deletes the cluster.
+#
+# macOS ships no timeout(1) and CI is Linux, so this is sleep, ps and kill.
+#
+# The verdict reads `FAIL [<scenario>]: <before> in step "<step>" <after>`,
+# so each bound words its own sentence around the step.
+#
+#   smoke_stall <before> <after>
+smoke_stall() {
+  set +e
+  local before="$1" after="$2" me pids p left i main_cmd c
+  local grace="${SMOKE_KILL_GRACE_SECS:-5}"
+  mkdir "$SMOKE_WORKROOT/stalled" 2>/dev/null || return 0
+  # The scenario shell stops the watchdog on its way out. This pass has to
+  # finish first, or a child that ignores TERM outlives the run.
+  trap '' TERM
+  # $BASHPID is bash 4; this is the portable spelling of "my own pid".
+  me="$(exec sh -c 'echo $PPID')"
+  pids="$(smoke_descendants "$$" "$me")"
+  main_cmd="$(ps -o command= -p "$$" 2>/dev/null)"
+  {
+    echo
+    for p in $pids; do
+      c="$(ps -o command= -p "$p" 2>/dev/null)"
+      # A forked subshell carries the scenario shell's own command line.
+      if [ -z "$c" ] || [ "$c" = "$main_cmd" ]; then continue; fi
+      echo "  still running: $(printf '%s' "$c" | cut -c1-400)"
+    done
+    echo "FAIL [${SMOKE_SCENARIO:-smoke}]: $before in step \"$(cat "$SMOKE_WORKROOT/step" 2>/dev/null || echo '?')\" $after"
+  } >&"${SMOKE_ERR_FD:-2}"
+  kill -TERM "$$" 2>/dev/null
+  # shellcheck disable=SC2086  # a list of pids, split on purpose
+  kill -TERM $pids 2>/dev/null
+  i=0
+  while [ "$i" -lt "$grace" ]; do
+    left=""
+    for p in $pids; do kill -0 "$p" 2>/dev/null && left="$left $p"; done
+    [ -n "$left" ] || break
+    sleep 1; i=$((i+1))
+  done
+  # shellcheck disable=SC2086
+  kill -KILL $pids 2>/dev/null
+  return 0
+}
+
+# smoke_timer runs smoke_stall after <secs> unless it is stopped first, and
+# sets SMOKE_TIMER_PID. Its own output goes to the stderr smoke.sh started
+# with and never to a pipe the caller is capturing: a `$(...)` does not
+# return while anything still holds its write end.
+smoke_timer() { # <secs> <before> <after>, the two halves of smoke_stall's verdict
+  (
+    sleep "$1" >/dev/null 2>&1 &
+    nap=$!
+    trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    wait "$nap" || exit 0
+    smoke_stall "$2" "$3"
+  ) >/dev/null 2>&"${SMOKE_ERR_FD:-2}" &
+  SMOKE_TIMER_PID=$!
+}
+# Both halves are `|| true`: the timer may already be gone, this runs under
+# `set -e`, and one caller is smoke.sh's EXIT trap, where a failed kill would
+# end the trap before it deleted the cluster (#1378's shape).
+smoke_timer_stop() { # <pid>
+  kill "$1" 2>/dev/null || true
+  wait "$1" 2>/dev/null || true
+}
+
+# chdf_bounded is chdf with a bound, for the calls that talk to a cluster
+# whose admission chain the step has just broken on purpose: a fail-closed
+# webhook with nothing behind it, or a policy that rewrites the write. The
+# API server is meant to answer those inside the webhook's own timeout, and
+# nothing here used to notice when it did not. The call still runs in the
+# foreground, so its exit code, its output and Ctrl-C behave as they do for
+# chdf. A call that outlives the bound fails the scenario by name.
+CHDF_TIMEOUT_SECS="${CHDF_TIMEOUT_SECS:-300}"
+chdf_bounded() {
+  local rc=0 timer
+  smoke_timer "$CHDF_TIMEOUT_SECS" "choudoufu $1 stalled" \
+    "and was killed after ${CHDF_TIMEOUT_SECS}s. Raise the bound with CHDF_TIMEOUT_SECS=<seconds>."
+  timer="$SMOKE_TIMER_PID"
+  chdf "$@" || rc=$?
+  smoke_timer_stop "$timer"
+  return "$rc"
 }
 
 # k8s_wait_condition waits for a condition on one object in the two steps a
@@ -189,15 +322,17 @@ k8s_wait_condition() {
     # for an empty list, and non-empty only when there is a condition to
     # read - the distinction this whole function exists to make. (That was
     # the first draft's bug, caught by driving it against a nulled status.)
-    conds="$(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{.status.conditions[*].type}' 2>/dev/null || true)"
+    conds="$(kc get "$target" -o jsonpath='{.status.conditions[*].type}' 2>/dev/null || true)"
     if [ -n "$conds" ]; then break; fi
     if [ "$(date +%s)" -ge "$deadline" ]; then
       fail "$scenario" "$target still has no .status.conditions after ${status_secs}s - nothing has written a status for it, so whether it is $condition was never answered"
     fi
     sleep 1
   done
-  kubectl --kubeconfig "$KUBECONFIG" wait --for="condition=$condition" "$target" --timeout="${condition_secs}s" >/dev/null 2>&1 \
-    || fail "$scenario" "$target carries conditions [$conds] but none of them reached $condition within ${condition_secs}s: $(kubectl --kubeconfig "$KUBECONFIG" get "$target" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}' 2>&1)"
+  # kubectl wait is one long watch, so its request timeout is the wait's own
+  # bound plus slack and not kc's per-request default.
+  KC_REQUEST_TIMEOUT="$((condition_secs + 15))s" kc wait --for="condition=$condition" "$target" --timeout="${condition_secs}s" >/dev/null 2>&1 \
+    || fail "$scenario" "$target carries conditions [$conds] but none of them reached $condition within ${condition_secs}s: $(kc get "$target" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}' 2>&1)"
 }
 
 # oracle_up prepares the stock leg: the shared plugin volume is created

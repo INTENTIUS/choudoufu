@@ -97,6 +97,7 @@ var liveTargetScopeClassification = map[string]struct {
 
 	// ---- narrowed before they run ----------------------------------
 	"statelessKubernetesDryRun":        {planDerived, "iterates plan.Changes.Resources, which targeting already pruned"},
+	"statelessHeldKubernetesDeletes":   {planDerived, "asks only about the deletes statelessKubernetesDeletes read off the pruned plan (GitHub issue #1184)"},
 	"foreign.Lookalikes":               {planDerived, "reads statelessPlannedCreates(plan)"},
 	"projection.ApplyRootOutputValues": {planDerived, "evaluates outputs against projResult.State, itself scoped by BuildWith"},
 	"projection.WriteBack":             {planDerived, "reads the final state of an apply that already honoured -target"},

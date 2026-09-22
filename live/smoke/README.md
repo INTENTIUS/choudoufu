@@ -66,6 +66,23 @@ exports `KUBE_CONFIG_PATH` for the provider; `cluster_down` deletes it on
 exit. A kind cluster is a real API server, so what the scenario asserts is
 what any cluster answers. Needs `kind` and `kubectl` on PATH.
 
+Every `k8s-*` scenario runs inside bounds (#1457), because a call to an API
+server can stall for ever and one did, for 35 minutes of a CI job that left
+no log. `smoke.sh` gives the scenario a time limit. When it runs out the run
+prints `FAIL [<scenario>]: stalled in step "<step>" and killed after <n>s.`,
+names the commands that were still running, kills them, deletes the cluster as on
+any other exit, and exits 124. Scenarios call kubectl through `kc`, or
+`kc_as <kubeconfig>` for another identity, and both pass
+`--request-timeout`. `kubectl config`, which edits a local file, is the
+only kubectl a scenario calls bare. A choudoufu call made while a step has
+the admission chain failing or rewriting goes through `chdf_bounded`, which
+fails the scenario by name the same way. The three variables are under
+Knobs. `bash live/smoke/selftest-bounds.sh` (or `just smoke-selftest`)
+proves each bound against a `kubectl` and a `choudoufu` that never return,
+with no cluster and no Docker, and reads the scenarios for a bare kubectl;
+`.github/workflows/k8s-smoke.yml` runs it on every pull request that touches
+the smokes.
+
 It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
 one `tofu-estate` label, written on the create and read back with kubectl in
 step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
@@ -119,8 +136,10 @@ any other live object and every plan proposes the same one destroy until
 the finalizer clears, at which point the object goes and the plan is
 empty; `apply -destroy` over a held object likewise reports the estate
 destroyed and exits 0, and the plan after it proposes exactly the one
-create that is genuinely missing. The false summary line is #1184; the
-plan is what corrects it. Its `BREAK=1` removes the finalizer before the
+create that is genuinely missing. The provider's summary line stays as
+stock prints it; since #1184 one warning after it, `Delete accepted, object
+not gone`, names the held object and its finalizer, and the plan is what
+corrects the count. Its `BREAK=1` removes the finalizer before the
 destroying apply and requires the object gone in one apply and the replan
 empty - without it the scenario would read the same if choudoufu never
 deleted a ConfigMap at all. The namespace is made with kubectl rather than
@@ -677,6 +696,9 @@ showing its own checks would have caught it.
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
 | `BREAK_CROSSCHECK=1` | a-bulk-read-is-complete-or-it-fails's second control: choudoufu rebuilt without the plan-time cross-check between the store's listing and a record read as absent; passes only when a destroy is caught reporting 1 destroyed of two (#1355's output) |
+| `SMOKE_TIMEOUT_SECS=600` | seconds before a k8s-* scenario with no verdict is killed (default max(600, 2 x claims.json minutes)) |
+| `CHDF_TIMEOUT_SECS=300` | one choudoufu call made behind a failing or rewriting admission chain |
+| `KC_REQUEST_TIMEOUT=30s` | one kubectl request |
 | `FOREIGN_SCALE=50` | plan-cost-under-foreign-load: how large the foreign terralith beside the estate is, in `tools/terralith-gen` scale (74N + 5 resources; default 1) |
 | `OWNED_SCALE=50` | plan-cost-under-foreign-load: how large the estate under test is, same units (default 1) |
 

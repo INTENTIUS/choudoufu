@@ -62,8 +62,6 @@ TF
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 step "1. a Kubernetes estate with a Deployment whose pod template carries the estate label"
 explain \
   "Six objects under a live block: the namespace, two ConfigMaps, a" \
