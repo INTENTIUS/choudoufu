@@ -1788,10 +1788,19 @@ terraform {
 or sets the way stock OpenTofu keeps it: in the estate's record store rather
 than in a state file, with its sensitivity travelling beside it. `"refuse"`
 keeps none of it — a secret-generating logical type is refused outright, and
-a sensitive settable argument is never recorded as residue. `"ssm"` keeps
-what `"store"` keeps and puts the values somewhere else; it needs an
-arrangement of its own, and "strict-secrets-ssm" is what refuses a
-configuration that asks for it without one.
+a sensitive settable argument is never recorded as residue.
+
+`"ssm"` keeps what `"store"` keeps and puts the values in Parameter Store
+instead, and **this build does not implement it yet** (GitHub issue #1515).
+It is grammar the vocabulary recognizes, so a configuration that writes it
+gets a refusal naming the issue and the two settings that do work, rather
+than a typo message. It is refused rather than accepted for the reason
+`marker_repair = "report"` is, pointed at a worse outcome: accepting it
+would report an estate's secrets as held under its own KMS key while every
+one of them went on being written into its records in clear, and the only
+evidence would be the absence of parameters nobody was watching for. The
+rest of the arrangement is built and is checked first — see
+"strict-secrets-ssm".
 
 **Why bounded.** The two settings are opposites, so a spelling that is
 neither is a question this package cannot answer. `secrets = "none"` could
@@ -1946,7 +1955,14 @@ whole prior object rather than an identity.
 
 **Construct.** A live block that asks for `strict { secrets = "ssm" }`
 without the arrangement that setting stands on, or that builds the
-arrangement without asking for the setting. Four shapes, one rule:
+arrangement without asking for the setting.
+
+The setting itself is refused today, as not implemented — see
+"strict-secrets". This rule is everything around it, which is built: the
+nested block decodes, an arrangement that could not work is refused by name
+before the mechanism is ever reached, and no local state cache is written
+under the setting. A configuration written for it now needs no change when
+the write path lands. Four shapes, one rule:
 
 ```hcl
 terraform {
@@ -2007,7 +2023,9 @@ parameters nobody was watching for.
 
 **Forwarding address.** `secrets = "refuse"`, with the secret passed in by
 reference, keeps secret values out of the record store with no second
-service in the write path. See "strict-secrets" and `live/SECRETS.md`.
+service in the write path. It is the answer until the write path ships, and
+it needs no key, no second service and no bucket. See "strict-secrets" and
+`live/SECRETS.md`.
 
 ### strict-secrets-refusal
 

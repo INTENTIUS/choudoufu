@@ -21,7 +21,13 @@ import (
 // than a note, so a rule that fired on everything would fail on the control
 // before it passed on the cases.
 func TestStrictSecretsSSMArrangement(t *testing.T) {
-	t.Run("the whole arrangement lints clean", func(t *testing.T) {
+	t.Run("a complete arrangement raises nothing about the arrangement", func(t *testing.T) {
+		// The clean fixture is not clean overall - the setting itself is
+		// refused as not implemented yet, which is
+		// TestSecretsSSMIsRefusedAsUnimplemented's subject. What this
+		// subtest holds is that THIS rule, which is only ever about the
+		// pieces around the setting, says nothing when every piece is
+		// there.
 		issues := CheckContext(t.Context(), loadConfigDir(t, "testdata/strict-secrets-ssm-clean"))
 		for _, issue := range issues {
 			if issue.Rule == RuleStrictSecretsSSM {
@@ -119,25 +125,65 @@ func TestStrictSecretsSSMArrangement(t *testing.T) {
 	}
 }
 
-// TestStrictSecretsSSMIsNotATypo separates this rule from the one beside
-// it. "ssm" is in the vocabulary now, so [RuleStrictSecrets] - whose whole
-// content is "that spelling means nothing here" - must stay silent about
-// it, and the refusals above must be the only thing a complete-but-for-one-
-// thing arrangement gets. A vocabulary that had not been widened would
-// refuse the clean fixture twice and neither refusal would be this rule's.
-func TestStrictSecretsSSMIsNotATypo(t *testing.T) {
+// TestSecretsSSMIsRefusedAsUnimplemented is the honest half of this unit:
+// the grammar is here, the write path is not, and a configuration that asks
+// for the setting is told so rather than run under it.
+//
+// Accepting it silently is the failure this test exists to prevent, and it
+// is worse than the marker_repair case the same mechanism was built for. A
+// silently-ignored "never" leaves tags being written, which a plan shows. A
+// silently-ignored "ssm" leaves every secret value written into the estate's
+// records in clear while the configuration says they are in Parameter Store
+// under the operator's own key, and nothing anywhere would look wrong: there
+// would be no parameter to notice was missing.
+//
+// The two assertions that matter when the write path lands: the refusal
+// names #1515 and the settings that DO work, so it is actionable, and it is
+// refused as unimplemented rather than as a typo, so an author is not told
+// their correctly spelled setting is a misspelling.
+func TestSecretsSSMIsRefusedAsUnimplemented(t *testing.T) {
 	if !strict.SecretsValid(strict.SSM) {
-		t.Fatal(`strict.SecretsValid("ssm") = false, so the configuration surface below is refused as a typo before it is read`)
+		t.Fatal(`strict.SecretsValid("ssm") = false, so the setting would be refused as a typo, which it is not`)
 	}
+	if strict.SecretsImplemented(strict.SSM) {
+		t.Skip("the write path landed; this test is the one that has to change on purpose")
+	}
+
 	for _, dir := range []string{
 		"testdata/strict-secrets-ssm-clean",
 		"testdata/strict-secrets-ssm-no-block",
 		"testdata/strict-secrets-ssm-no-key",
 	} {
-		for _, issue := range CheckContext(t.Context(), loadConfigDir(t, dir)) {
-			if issue.Rule == RuleStrictSecrets {
-				t.Errorf("%s: %s fired on a setting this schema defines: %s", dir, RuleStrictSecrets, issue.Detail)
+		t.Run(dir, func(t *testing.T) {
+			var got []Issue
+			for _, issue := range CheckContext(t.Context(), loadConfigDir(t, dir)) {
+				if issue.Rule == RuleStrictSecrets {
+					got = append(got, issue)
+				}
 			}
+			if len(got) != 1 {
+				t.Fatalf("CheckContext() reported %d %s issues, want exactly 1: %v", len(got), RuleStrictSecrets, got)
+			}
+			detail := got[0].Detail
+			for _, want := range []string{"#1515", "does not implement yet", `"refuse", "store"`, "in clear"} {
+				if !strings.Contains(detail, want) {
+					t.Errorf("Detail does not contain %q; got %q", want, detail)
+				}
+			}
+			// The typo message's own words. An author who spelled the
+			// setting correctly must not be told they did not.
+			if strings.Contains(detail, "is not a secrets setting") {
+				t.Errorf("a correctly spelled setting was refused as a typo: %q", detail)
+			}
+		})
+	}
+
+	// The control: a setting this build does implement is not refused by
+	// the same branch. Without it, a predicate that answered false for
+	// everything would pass every assertion above.
+	for _, issue := range CheckContext(t.Context(), loadConfigDir(t, "testdata/strict-secrets-store")) {
+		if issue.Rule == RuleStrictSecrets {
+			t.Errorf(`secrets = "store" was refused: %s`, issue.Detail)
 		}
 	}
 }
@@ -155,16 +201,8 @@ func TestStrictSecretsSSMIsNotATypo(t *testing.T) {
 func TestStrictSecretsSSMIsRefusedUnderThePin(t *testing.T) {
 	cfg := loadConfigDir(t, "testdata/strict-secrets-ssm-clean")
 
-	t.Run("pin unset: the configuration governs", func(t *testing.T) {
-		for _, issue := range CheckContext(t.Context(), cfg) {
-			if issue.Rule == RuleStrictSecrets {
-				t.Errorf("refused with the pin unset: %s", issue.Detail)
-			}
-		}
-	})
-
-	t.Run("pin set: refused, naming both sides", func(t *testing.T) {
-		t.Setenv(strict.EnvPin, "1")
+	detailWithPin := func(t *testing.T) string {
+		t.Helper()
 		var got []Issue
 		for _, issue := range CheckContext(t.Context(), cfg) {
 			if issue.Rule == RuleStrictSecrets {
@@ -172,12 +210,33 @@ func TestStrictSecretsSSMIsRefusedUnderThePin(t *testing.T) {
 			}
 		}
 		if len(got) != 1 {
-			t.Fatalf("CheckContext() with the pin set reported %d %s issues, want exactly 1: %v", len(got), RuleStrictSecrets, got)
+			t.Fatalf("CheckContext() reported %d %s issues, want exactly 1: %v", len(got), RuleStrictSecrets, got)
 		}
+		return got[0].Detail
+	}
+
+	t.Run("pin unset: the refusal is about the mechanism, not the pin", func(t *testing.T) {
+		if detail := detailWithPin(t); strings.Contains(detail, strict.EnvPin) {
+			t.Errorf("the pin is named with the pin unset: %s", detail)
+		}
+	})
+
+	t.Run("pin set: refused, naming both sides", func(t *testing.T) {
+		t.Setenv(strict.EnvPin, "1")
+		detail := detailWithPin(t)
 		for _, want := range []string{strict.EnvPin, `secrets = "refuse"`, `secrets = "ssm"`} {
-			if !strings.Contains(got[0].Detail, want) {
-				t.Errorf("Detail does not contain %q; got %q", want, got[0].Detail)
+			if !strings.Contains(detail, want) {
+				t.Errorf("Detail does not contain %q; got %q", want, detail)
 			}
+		}
+		// The pin's refusal replaces the unimplemented one rather than
+		// joining it. An operator running under a pinned profile is being
+		// told their configuration may not relax it, which is true today
+		// and stays true the day the write path lands; leading with
+		// "not implemented yet" would read as though the pin were the
+		// thing that might be lifted.
+		if strings.Contains(detail, "does not implement yet") {
+			t.Errorf("the pin refusal and the unimplemented refusal were combined into one message: %s", detail)
 		}
 	})
 }

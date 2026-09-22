@@ -300,19 +300,63 @@ const (
 // toggles, and turning them on is the setup step" says.
 const DefaultSecrets = Store
 
-// secretsSettings is the whole vocabulary. Every setting is implemented, so
-// unlike [markerRepairs] this needs no support column: there is no
-// grammar-without-a-mechanism case here.
+// secretsSettings is the whole vocabulary, paired with whether a build acts
+// on each. It grew [markerRepairs]'s support column when [SSM] arrived, and
+// for the same reason that table has one: [SecretsValid] and
+// [SecretsImplemented] are two questions, and holding them in one table is
+// what stops them drifting apart.
 var secretsSettings = map[Secrets]bool{
 	Store:  true,
 	Refuse: true,
-	SSM:    true,
+	SSM:    false,
 }
 
 // SecretsValid reports whether v is one of the three settings this fork's
-// schema defines.
+// schema defines. It says nothing about whether a build acts on it - see
+// [SecretsImplemented].
 func SecretsValid(v Secrets) bool {
+	_, ok := secretsSettings[v]
+	return ok
+}
+
+// SecretsImplemented reports whether a build acts on v.
+//
+// [Store] and [Refuse] are each somebody's whole behavior today and neither
+// can be accepted-and-ignored. [SSM] is the one this fork's schema defines
+// and this build does not act on yet: GitHub issue #1515 settles the
+// grammar, the four rulings and every refusal around the setting, and the
+// write path that would put a value into Parameter Store and a reference
+// into the record is a later unit.
+//
+// It is refused rather than accepted silently, for [Implemented]'s reason
+// pointed at a worse outcome. Accepting it would tell an operator their
+// secret values were in Parameter Store under their own KMS key while every
+// one of them went on being written into the estate's records in clear, and
+// the only evidence would be the absence of parameters nobody was watching
+// for. A refusal is loud and reversible; a setting that silently does
+// nothing about secrets is the "you are fine" this fork keeps finding in
+// itself.
+//
+// Everything around the setting is built and is reached BEFORE this: the
+// nested block decodes, internal/live/lint's strict-secrets-ssm refuses an
+// arrangement that could not work, and the state cache is already off under
+// it. So the day the write path lands, this entry flips and nothing else
+// has to move.
+func SecretsImplemented(v Secrets) bool {
 	return secretsSettings[v]
+}
+
+// SecretsImplementedNames renders just the settings a build acts on, in the
+// shape [SecretsNames] uses: `"refuse", "store"`.
+func SecretsImplementedNames() string {
+	out := make([]string, 0, len(secretsSettings))
+	for v, implemented := range secretsSettings {
+		if implemented {
+			out = append(out, `"`+string(v)+`"`)
+		}
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
 }
 
 // SecretsNames renders the vocabulary for a diagnostic, sorted so the

@@ -112,24 +112,18 @@ tagged-or-not, plus marker key overrides and the delete guard.
 | `tag_key`, `tag_value` | Override the marker tag names. |
 | `threshold` | Guard for a delete quadrant: the run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number; lint refuses zero. |
 
-The `undeclared_untagged = "delete"` quadrant reconciles a whole account and
-needs a nested `scope` block bounding the sweep, through `services`, `types`
-and `regions`, each a list. Other delete verbs need none, including
-`undeclared_tagged`'s estate-scoped sweep.
-
 ### `strict` block
 
 The principles this fork exists for, each as a toggle whose default is what
-stock OpenTofu does, so an estate that sets none behaves like stock plus
-markers. A configuration with no `strict` block behaves exactly like one
-whose `strict` block sets nothing, which makes "compatible out of the box"
-true by construction. Turning a toggle on is the setup step.
+stock OpenTofu does. A block that sets nothing and no block at all mean the
+same thing, so an estate that sets none behaves like stock plus markers.
+Turning a toggle on is the setup step.
 
 <!-- toggles-gen:begin strict-toggles -->
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
 | `marker_repair` | `"repair"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. "repair" writes the declared value over it, as the plan's ordinary in-place tags update. "never" leaves it silently, for an estate where something else owns the tags, and only once a markers "record" selection gives the resource an identity source that is not the marker. |
-| `secrets` | `"store"`, `"refuse"`, `"ssm"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. "ssm" keeps what "store" keeps and puts the values at the record's sensitive paths, and the provider's private data, into AWS Systems Manager Parameter Store as SecureString parameters under a customer managed KMS key, leaving a reference in the record; it needs a nested ssm block naming the key, it pairs with record_store "s3" alone, and like "refuse" it writes no local state cache. |
+| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. |
 | `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. "refuse" reports it, by name, and names both remedies: "choudoufu live-import" from a stock state that already holds it, or this toggle. "create" selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
 | `provider_change` | `"refuse"`, `"recreate"` | `"refuse"` | What a run does when a resource block names a different provider configuration than the one whose account or region still holds a live object carrying this estate's marker for that block's address - a region or account change. "refuse" reports the object, by name, with the provider configuration that found it and the one its address now belongs to, and names both remedies: destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own behavior - plan the create under the new configuration - and warns, by name, that the old one's object is abandoned and nothing will find it again. |
 <!-- toggles-gen:end strict-toggles -->

@@ -162,6 +162,16 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 				Detail:    detail,
 				Subject:   st.SecretsRange,
 			})
+			return
+		}
+		if !strict.SecretsImplemented(strict.Secrets(st.Secrets)) {
+			*issues = append(*issues, Issue{
+				Rule:      RuleStrictSecrets,
+				Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+				Module:    path,
+				Detail:    unimplementedSecretsDetail(strict.Secrets(st.Secrets)),
+				Subject:   st.SecretsRange,
+			})
 		}
 		return
 	}
@@ -182,6 +192,29 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 		),
 		Subject: st.SecretsRange,
 	})
+}
+
+// unimplementedSecretsDetail is the sentence for a secrets setting this
+// fork's schema defines and this build cannot act on yet. It is
+// [unimplementedRepairDetail]'s twin, and it is deliberately specific about
+// what accepting the setting would actually do, because "not implemented"
+// on a marker_repair setting means tags keep being written and on this one
+// means secrets keep being written in clear.
+func unimplementedSecretsDetail(v strict.Secrets) string {
+	return fmt.Sprintf(
+		"%q is a secrets setting this fork's schema defines and this build does not implement yet (GitHub "+
+			"issue #1515). It would put the values at a record's sensitive paths, and the provider's private "+
+			"data, into AWS Systems Manager Parameter Store as SecureString parameters under the customer "+
+			"managed key an ssm block names, leaving a reference in the record - and nothing in this build "+
+			"writes a parameter or resolves a reference. Accepting it would report an estate's secrets as held "+
+			"under its own KMS key while every one of them went on being written into its records in clear, "+
+			"with no parameter anywhere to notice was missing, so it is refused instead. Settings this build "+
+			"implements: %s. The rest of the arrangement is already here and is checked before this refusal - "+
+			"the nested ssm block decodes, an arrangement that could not work is refused by name, and no local "+
+			"state cache is written under the setting - so a configuration written for it today needs no change "+
+			"when the write path lands.",
+		v, strict.SecretsImplementedNames(),
+	)
 }
 
 // checkStrictSecretsSSM validates the arrangement `strict { secrets = "ssm" }`

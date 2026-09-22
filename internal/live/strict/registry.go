@@ -133,21 +133,20 @@ var Toggles = []Toggle{
 		Relaxes: `"refuse" tightens the compatible-by-default answer (store secret material the way stock's ` +
 			`state file does) into HANDOFF.md's first principle: a secret-generating logical type is refused ` +
 			`outright and a sensitive settable argument is never recorded. "ssm" keeps the same material ` +
-			`"store" keeps, so it relaxes that principle too - it moves the values to Parameter Store under a ` +
-			`customer managed key rather than keeping none.`,
+			`"store" keeps and relaxes that principle too - it moves the values to Parameter Store under a ` +
+			`customer managed key rather than keeping none - but no build implements the write path yet ` +
+			`(GitHub issue #1515), so it is refused unconditionally and is not counted among this toggle's ` +
+			`declared Values below, for the reason [MarkerRepair]'s "report" is not. Everything AROUND it is ` +
+			`built: the nested ssm block decodes, an arrangement that could not work is refused by name, and ` +
+			`the state cache is already off under the setting.`,
 		Doc:       `live/LIMITATIONS.md, "strict-secrets"`,
 		Pinnable:  true,
 		SafeValue: string(Refuse),
-		Values:    []string{string(Store), string(Refuse), string(SSM)},
+		Values:    []string{string(Store), string(Refuse)},
 		Meaning: `What a run does with the secret material a configuration generates or sets. "store" keeps ` +
 			`it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is ` +
 			`refused outright, and a sensitive settable argument is left out of its record. It does not ` +
-			`reach the cache file, or a terraform_data or null_resource the configuration hands a secret. ` +
-			`"ssm" keeps what "store" keeps and puts the values at the record's sensitive paths, and the ` +
-			`provider's private data, into AWS Systems Manager Parameter Store as SecureString parameters ` +
-			`under a customer managed KMS key, leaving a reference in the record; it needs a nested ssm ` +
-			`block naming the key, it pairs with record_store "s3" alone, and like "refuse" it writes no ` +
-			`local state cache.`,
+			`reach the cache file, or a terraform_data or null_resource the configuration hands a secret.`,
 	},
 	{
 		Name:    "no_source_create",
