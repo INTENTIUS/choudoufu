@@ -92,8 +92,6 @@ held_block
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 FINALIZER="smoke.choudoufu.io/hold"
 
 step "0. a namespace the estate does not own"

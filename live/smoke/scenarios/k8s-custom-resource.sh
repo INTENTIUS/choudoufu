@@ -147,8 +147,6 @@ sed '/^resource "kubernetes_manifest" "crontab"/,$d' "$SMOKE_WORK/main.tf.full" 
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 # migrate_fixture_up stands up the adoption fixture that step 11 and the
 # mutating-policy BREAK control both work from: a second namespace and a
 # CronTab created by PLAIN stock terraform and recorded in a real
@@ -499,7 +497,7 @@ YAML
   kc apply -f "$SMOKE_WORK/mutator.yaml" >/dev/null \
     || fail "k8s-custom-resource" "BREAK: could not install the mutating policy (it needs a cluster serving admissionregistration.k8s.io/v1 MutatingAdmissionPolicy)"
   sleep 5
-  MIG_BOUT="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
+  MIG_BOUT="$(cd "$SMOKE_WORK/migrated" && chdf_bounded live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
     || fail "k8s-custom-resource" "BREAK: live-import -approve exited non-zero: $MIG_BOUT"
   grep -E 'kubernetes_manifest.crontab|failed, ' <<< "$MIG_BOUT" | tail -2 | evidence
   grep -q 'would also change spec.image' <<< "$MIG_BOUT" \
