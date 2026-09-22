@@ -46,6 +46,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -130,6 +131,7 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 	declared := declaredChildImportIDs(spec.TypeName, res)
 
 	var callFailures []string
+	var callErrs []error
 	for _, r := range res.Resolutions {
 		if r.Type() != spec.Parent || !classTable[r.Class].scopesChildList || r.ImportID == "" {
 			continue
@@ -147,6 +149,7 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 		descs, err := req.CloudControl.ListResourcesScoped(ctx, cfnType, map[string]string{spec.CFNScopeProperty: parentValue})
 		if err != nil {
 			callFailures = append(callFailures, fmt.Sprintf("%s: %v", parentValue, err))
+			callErrs = append(callErrs, err)
 			continue
 		}
 
@@ -191,13 +194,23 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 	}
 
 	if len(callFailures) > 0 {
-		diags = diags.Append(sweepGapDiag(res, SweepGap{
+		gap := SweepGap{
 			TypeName: spec.TypeName,
 			Reason:   SweepGapListFailed,
 			Detail: fmt.Sprintf(
 				"Parent-scoped Cloud Control ListResources for %s (%s) failed for %d parent instance(s): %s. Live children under those parents may be missing from this estate's removal-detection sweep.",
 				spec.TypeName, cfnType, len(callFailures), strings.Join(callFailures, "; ")),
-		}))
+		}
+		if allAccessDenied(callErrs) {
+			// GitHub issue #1052: the same handler's read refused under
+			// every parent is the credential, and joins the one warning
+			// the unscoped listings' denials raise. A mixed set - one
+			// parent throttled, another denied - keeps its own line, since
+			// its detail names both and the group would name one.
+			diags = diags.Append(sweepGapDenied(res, gap, cfnType, callErrs[0]))
+		} else {
+			diags = diags.Append(sweepGapDiag(res, gap))
+		}
 	} else {
 		res.SweepCovered = append(res.SweepCovered, spec.TypeName)
 	}
@@ -240,4 +253,18 @@ func identifierMatchesParent(identifier string, scopeIndex, arity int, parentVal
 		return false
 	}
 	return parts[scopeIndex] == parentValue
+}
+
+// allAccessDenied reports whether every error is Cloud Control refusing
+// this run's credential, and there is at least one.
+func allAccessDenied(errs []error) bool {
+	if len(errs) == 0 {
+		return false
+	}
+	for _, err := range errs {
+		if !cloudcontrol.HasCode(err, cloudcontrol.CodeAccessDenied) {
+			return false
+		}
+	}
+	return true
 }

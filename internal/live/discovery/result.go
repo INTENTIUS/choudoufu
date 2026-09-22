@@ -312,6 +312,15 @@ type Result struct {
 	sweepPrefetchWasted     []string
 	sweepPrefetchUnplanned  []string
 	sweepPrefetchMismatched int
+
+	// sweepDenied is every Cloud Control listing this run's own credential
+	// was refused (GitHub issue #1052), collected by [sweepGapDenied] so
+	// that [deniedSweepDiag] raises one warning for all of them at the end
+	// of [Discover] rather than one per type. The gaps themselves are in
+	// SweepGaps like any other; this is only what the one warning is built
+	// from. Unexported for the same reason the prefetch evidence above is:
+	// it is the run's own bookkeeping, not a fact about the estate.
+	sweepDenied []sweepDenial
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
