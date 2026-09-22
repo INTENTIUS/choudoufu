@@ -8,6 +8,7 @@ package discovery
 import (
 	"errors"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -282,4 +283,113 @@ func TestPerObjectGateKeepsTheGapWhenOneOfTwoServiceReadsFailed(t *testing.T) {
 		t.Errorf("the sweep gap for %s is %q, want %q - %s's tag read was throttled and its marker is unread\n%s",
 			typeName, reason, SweepGapMarkerUnreadable, failedName, res)
 	}
+}
+
+func gapDetailFor(res *Result, typeName string) string {
+	for _, g := range res.SweepGaps {
+		if g.TypeName == typeName {
+			return g.Detail
+		}
+	}
+	return ""
+}
+
+// TestFailedTagReadGapNamesTheErrorAndTheAction is the third MARKER_UNREADABLE
+// wording, ruled by the maintainer on 2026-09-21 for the one run the two
+// older sentences are wrong about: a per-object service tag read was made
+// and refused. The older two say the tag index cannot answer for the type
+// and that no marker was read off any listed object, and here a sibling's
+// marker WAS read off the index. Same reason code, so internal/live/foreign
+// and every reader keyed on MARKER_UNREADABLE are untouched.
+//
+// The two older sentences are asserted unchanged on their own runs beside
+// it: no route wired (the index is blind to the service, permanent) and no
+// tag index at all (transient).
+func TestFailedTagReadGapNamesTheErrorAndTheAction(t *testing.T) {
+	const (
+		typeName      = "aws_iam_role"
+		indexedAddr   = typeName + ".removed_indexed"
+		unindexedAddr = typeName + ".removed_lagging"
+	)
+
+	t.Run("one of two roles refused", func(t *testing.T) {
+		cloud, tagSrv := perObjectFixture(t, typeName, roleARN, indexedAddr, unindexedAddr)
+		tagServer := tagSrv.start(t)
+		defer tagServer.Close()
+
+		reader := &fakeServiceTags{
+			routes:  map[string]bool{typeName: true},
+			actions: map[string]string{typeName: "iam:ListRoleTags"},
+			err:     errors.New("AccessDenied: User is not authorized to perform iam:ListRoleTags"),
+		}
+		res, diags := discoverFixture(t, cloud, nativeServiceTagReadRequest(t, typeName, tagServer.URL, reader))
+		assertNoErrors(t, diags)
+
+		if reason := gapReasonFor(res, typeName); reason != SweepGapMarkerUnreadable {
+			t.Fatalf("the sweep gap for %s is %q, want %q", typeName, reason, SweepGapMarkerUnreadable)
+		}
+		want := "The sweep could not read an ownership marker off 1 of 2 aws_iam_role: the list call returned no tags, the tag index did not hold it, and the service's own tag read failed (AccessDenied: iam:ListRoleTags). A live aws_iam_role this estate owns and no longer declares WILL NOT be proposed for destruction by this run. Grant iam:ListRoleTags, or retry if it was throttled, and re-run."
+		if got := gapDetailFor(res, typeName); got != want {
+			t.Errorf("gap detail:\n got %q\nwant %q", got, want)
+		}
+	})
+
+	t.Run("two roles refused with different errors", func(t *testing.T) {
+		cloud, tagSrv := perObjectFixture(t, typeName, roleARN, indexedAddr, unindexedAddr)
+		tagSrv.arns, tagSrv.tags = nil, nil // the index holds neither
+		cloud.own(typeName, "estate-third", typeName+".removed_third")
+		stripTags(t, cloud, typeName, "estate-third")
+		tagServer := tagSrv.start(t)
+		defer tagServer.Close()
+
+		reader := &fakeServiceTags{
+			routes:  map[string]bool{typeName: true},
+			actions: map[string]string{typeName: "iam:ListRoleTags"},
+			errFor: map[string]error{
+				perObjectIndexedName:   errors.New("AccessDenied: User is not authorized to perform iam:ListRoleTags"),
+				perObjectUnindexedName: errors.New("Throttling: Rate exceeded"),
+				"estate-third":         errors.New("Throttling: Rate exceeded"),
+			},
+		}
+		res, diags := discoverFixture(t, cloud, nativeServiceTagReadRequest(t, typeName, tagServer.URL, reader))
+		assertNoErrors(t, diags)
+
+		if reader.calls != 3 {
+			t.Fatalf("the reader was called %d time(s), want 3", reader.calls)
+		}
+		got := gapDetailFor(res, typeName)
+		wantHead := "The sweep could not read an ownership marker off 3 of 3 aws_iam_role: the list call returned no tags, the tag index did not hold them, and the service's own tag read failed (AccessDenied: iam:ListRoleTags, and 1 more)."
+		if !strings.HasPrefix(got, wantHead) {
+			t.Errorf("gap detail:\n got %q\nwant prefix %q", got, wantHead)
+		}
+	})
+
+	t.Run("no route keeps the permanent sentence", func(t *testing.T) {
+		cloud := nativeRoleFixture(t, typeName, perObjectIndexedName, indexedAddr)
+		tagSrv := &taggingServer{}
+		tagServer := tagSrv.start(t)
+		defer tagServer.Close()
+
+		res, diags := discoverFixture(t, cloud, nativeServiceTagReadRequest(t, typeName, tagServer.URL, &fakeServiceTags{}))
+		assertNoErrors(t, diags)
+		want := "The estate-wide sweep listed 1 aws_iam_role through the provider's own list resource and could read an ownership marker off none of them: the list call returned no tags for any object of the type, and the Resource Groups Tagging API - the fallback that exists for exactly that - does not index this service at all, so the estate's tag index cannot answer for it either. The provider does give aws_iam_role a tags argument and this estate stamps its markers there, so a live aws_iam_role this estate owns and no longer declares WILL NOT be proposed for destruction by this run. Destroy such a resource before removing its block, or delete it out of band."
+		if got := gapDetailFor(res, typeName); got != want {
+			t.Errorf("the no-route sentence moved:\n got %q\nwant %q", got, want)
+		}
+	})
+
+	t.Run("no index keeps the transient sentence", func(t *testing.T) {
+		cloud := nativeRoleFixture(t, typeName, perObjectIndexedName, indexedAddr)
+		req := nativeServiceTagReadRequest(t, typeName, "", &fakeServiceTags{})
+		req.Tagging = nil
+		res, diags := discoverFixture(t, cloud, req)
+		assertNoErrors(t, diags)
+		want := "The estate-wide sweep listed 1 aws_iam_role through the provider's own list resource and could read an ownership marker off none of them: the list call returned no tags for any object of the type, and the estate's tag index - the fallback that exists for exactly that - could not be consulted, because this run has no Resource Groups Tagging API endpoint configured or its one GetResources call failed. Nothing here says this estate owns no aws_iam_role; it says nothing was established either way, so a live aws_iam_role this estate owns and no longer declares is not proposed for destruction by this run. Re-run with the Tagging API reachable before concluding anything about this type."
+		if reason := gapReasonFor(res, typeName); reason != SweepGapTagIndexUnavailable {
+			t.Fatalf("the gap is %q, want %q", reason, SweepGapTagIndexUnavailable)
+		}
+		if got := gapDetailFor(res, typeName); got != want {
+			t.Errorf("the no-index sentence moved:\n got %q\nwant %q", got, want)
+		}
+	})
 }

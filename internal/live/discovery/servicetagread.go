@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/intentius/choudoufu/internal/live/servicetags"
@@ -116,6 +117,47 @@ const (
 	tagReadFailed
 )
 
+// failedTagReads is what [scanType] keeps about the reads of one type that
+// were made and refused, for the third MARKER_UNREADABLE sentence
+// ([sweepMarkerReadGap], GitHub issue #1162): how many, and the first error
+// in the form the sentence quotes, "AccessDenied: iam:ListRoleTags".
+type failedTagReads struct {
+	// n is the number of listed objects whose own read failed.
+	n int
+	// first is the first failure's "code: action", quoted verbatim.
+	first string
+	// others counts the DISTINCT further failures whose "code: action"
+	// differs from first, rendered as ", and N more".
+	others map[string]bool
+}
+
+// record adds one refused read. code and action are quoted rather than
+// classified: the sentence tells the operator what the service said and
+// what to grant, and does not decide for them whether it was a throttle.
+func (f *failedTagReads) record(code, action string) {
+	f.n++
+	entry := code + ": " + action
+	if f.first == "" {
+		f.first = entry
+		return
+	}
+	if entry != f.first {
+		if f.others == nil {
+			f.others = map[string]bool{}
+		}
+		f.others[entry] = true
+	}
+}
+
+// quoted renders the parenthetical: the first error, then ", and N more"
+// when other objects failed differently.
+func (f *failedTagReads) quoted() string {
+	if len(f.others) == 0 {
+		return f.first
+	}
+	return fmt.Sprintf("%s, and %d more", f.first, len(f.others))
+}
+
 // serviceTagRead is the leg. It returns the object's real tags and
 // [tagReadAnswered] when the service answered, and nil in every other case.
 // "There is no reader" and "no route for this type" are
@@ -128,7 +170,7 @@ const (
 // gate, and it is the caller's because the join is the caller's.
 //
 // scan may be nil for a caller with no row to charge the call to.
-func serviceTagRead(ctx context.Context, req Request, typeName, importID string, scan *TypeScan) (map[string]string, tagReadOutcome) {
+func serviceTagRead(ctx context.Context, req Request, typeName, importID string, scan *TypeScan) (map[string]string, tagReadOutcome, error) {
 	return serviceTagReadWith(ctx, req.ServiceTags, typeName, importID, scan)
 }
 
@@ -144,9 +186,12 @@ func serviceTagRead(ctx context.Context, req Request, typeName, importID string,
 //
 // reader may be nil, which means this run has no such route and is not a
 // fact about the object.
-func serviceTagReadWith(ctx context.Context, reader servicetags.Reader, typeName, importID string, scan *TypeScan) (map[string]string, tagReadOutcome) {
+//
+// The error is the failed read's own, returned beside [tagReadFailed] so
+// the caller can quote its code; it is nil for the other two outcomes.
+func serviceTagReadWith(ctx context.Context, reader servicetags.Reader, typeName, importID string, scan *TypeScan) (map[string]string, tagReadOutcome, error) {
 	if reader == nil || importID == "" || !reader.Route(typeName) {
-		return nil, tagReadNotAttempted
+		return nil, tagReadNotAttempted, nil
 	}
 
 	tags, err := reader.ReadTags(ctx, typeName, importID)
@@ -160,14 +205,14 @@ func serviceTagReadWith(ctx context.Context, reader servicetags.Reader, typeName
 			// anything about the object. Logged and treated as a failed
 			// read, so the caller's existing refusal stands.
 			log.Printf("[WARN] stateless/discovery: service tag read for %s %q: %s", typeName, importID, err)
-			return nil, tagReadFailed
+			return nil, tagReadFailed, err
 		}
 		// A failed read establishes nothing. The caller keeps whatever it
 		// had - for the sweep that is #1129's SweepGapMarkerUnreadable,
 		// which is the honest answer when no route could read the marker.
 		log.Printf("[DEBUG] stateless/discovery: service tag read for %s %q failed, leaving the marker unread: %s", typeName, importID, err)
-		return nil, tagReadFailed
+		return nil, tagReadFailed, err
 	}
 	log.Printf("[DEBUG] stateless/discovery: %s %q carried no readable marker on any enumeration or index route; read %d tag(s) from the service's own tag API", typeName, importID, len(tags))
-	return tags, tagReadAnswered
+	return tags, tagReadAnswered, nil
 }

@@ -35,12 +35,17 @@ type fakeServiceTags struct {
 	// for the #1162 shape where one object's read is refused beside a
 	// sibling's that succeeds.
 	errFor map[string]error
+	// actions is what Action answers, keyed by type: the fixture's stand-in
+	// for the route table's action name.
+	actions map[string]string
 
 	calls    int
 	askedFor []string
 }
 
 func (f *fakeServiceTags) Route(typeName string) bool { return f.routes[typeName] }
+
+func (f *fakeServiceTags) Action(typeName string) string { return f.actions[typeName] }
 
 func (f *fakeServiceTags) ReadTags(_ context.Context, typeName, importID string) (map[string]string, error) {
 	f.calls++

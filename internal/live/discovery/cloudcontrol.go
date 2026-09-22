@@ -227,7 +227,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			// as it did before the leg existed, and those file
 			// [SweepGapMarkerUnreadable] per object reached rather than per
 			// type refuted.
-			if svcTags, outcome := serviceTagRead(ctx, req, typeName, importID, &scan); outcome == tagReadAnswered {
+			if svcTags, outcome, _ := serviceTagRead(ctx, req, typeName, importID, &scan); outcome == tagReadAnswered {
 				tags, taggable = svcTags, true
 			}
 		}

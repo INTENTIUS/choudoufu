@@ -487,8 +487,10 @@ estate's the index lags on. In other regions it reads all of them. None of
 this has been measured on real AWS: neither the call count on an account
 with a realistic IAM population, nor the wall-clock cost, nor whether IAM's
 request-rate limit throttles a sweep over a few thousand roles. A refused or
-throttled read is not silent. The object keeps the `MARKER_UNREADABLE` gap,
-even when a sibling's marker was read on the same run.
+throttled read is not silent. The type keeps a `MARKER_UNREADABLE` gap even
+when a sibling's marker was read on the same run, and its sentence says how
+many of the listed objects were refused, quotes the service's error code
+with the action, and names the action to grant.
 
 The measured tables above are unaffected and were not re-taken: the
 `plan-budget` estate `TestPlanCallBudgetAgainstFloci` measures is a single

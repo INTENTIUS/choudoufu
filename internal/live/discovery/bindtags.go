@@ -199,7 +199,7 @@ func (f *MarkerFallback) Tags(ctx context.Context, typeName, importID string) (m
 	}
 	// The per-object gate (#1162) is the three lines above: the index did
 	// not answer for this object, so the service is asked about it.
-	tags, outcome := serviceTagReadWith(ctx, f.svc, typeName, importID, nil)
+	tags, outcome, _ := serviceTagReadWith(ctx, f.svc, typeName, importID, nil)
 	return tags, outcome == tagReadAnswered
 }
 

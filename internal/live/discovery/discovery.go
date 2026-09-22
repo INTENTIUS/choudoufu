@@ -2117,10 +2117,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// on one object proves nothing on its own.
 	var markerReadWorked bool
 	var joinBlind, joinAbsent int
-	// readFailedUnread is #1162: at least one listed object reached the
-	// service tag read, the read FAILED, and nothing else had read its
-	// marker. It overrides [markerReadWorked]'s refutation below.
-	var readFailedUnread bool
+	// failedReads is #1162: the listed objects that reached the service tag
+	// read, whose read FAILED, and whose marker nothing else had read. It
+	// overrides [markerReadWorked]'s refutation below and supplies the
+	// third MARKER_UNREADABLE sentence's figures.
+	var failedReads failedTagReads
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
 			sawIdentity = true
@@ -2306,7 +2307,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// the sibling went unread AND the bound join refuted the gap,
 			// so a marked, undeclared role was dropped with nothing said.
 			if tags[TagEstate] == "" {
-				svcTags, readOutcome := serviceTagRead(ctx, req, typeName, importID, &scan)
+				svcTags, readOutcome, readErr := serviceTagRead(ctx, req, typeName, importID, &scan)
 				switch readOutcome {
 				case tagReadAnswered:
 					tags, taggable = svcTags, true
@@ -2334,7 +2335,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 					// where the gap was pending anyway, so a type with no
 					// route, or a plain plan, is untouched.
 					if blindPending || absentPending {
-						readFailedUnread = true
+						failedReads.record(servicetags.ErrorCode(readErr), req.ServiceTags.Action(typeName))
 					}
 				}
 			}
@@ -2742,10 +2743,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// (neither flag) is deliberately left to #322's per-address warning.
 	if sweep || collectUnclaimed {
 		// #1162: a refused per-object read is not refuted by a sibling's
-		// success. joinBlind/joinAbsent then count exactly the objects left
-		// unread, because every pending object of a routed type is read and
-		// only the failures stay pending.
-		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked && !readFailedUnread, joinBlind, joinAbsent))
+		// success, and it gets its own sentence.
+		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked, joinBlind, joinAbsent, scan.Listed, failedReads))
 	}
 
 	if scan.Filtering == FilterServerSide && sawIdentity && !sawAccountID && scan.Listed > 0 {
@@ -2898,13 +2897,48 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 // answer per run, not per object - so the ordering below settles a case
 // that does not arise, in favour of the one that can be acted on.
 //
+// # The third sentence: a read that was made and refused
+//
+// GitHub issue #1162, ruled by the maintainer on 2026-09-21. The two
+// sentences above are each wrong about a run where the per-service tag read
+// (servicetagread.go) was attempted for an object and failed: both say the
+// index cannot answer for the type and that no marker was read off ANY
+// listed object, and on a partially indexed run a sibling's marker was read
+// off the index. So a refused read gets its own wording under the SAME
+// reason code - internal/live/foreign and every other reader keyed on
+// MARKER_UNREADABLE are untouched - quoting what the service said and naming
+// the action to grant, which comes from the route table
+// (servicetags.Reader.Action) and is never typed here. It fires only when
+// at least one read's outcome was [tagReadFailed]; a run with no route or
+// no index keeps the sentence it had. markerReadWorked does not refute it:
+// a sibling's success says a route exists for the type and nothing about
+// the object that was refused.
+//
 // [Result.SweepCovered] loses the type either way, for [dropCovered]'s
 // reason: the listing succeeded and the search did not happen, so leaving
 // the name in place would have the result assert coverage it does not have
 // on the same run it files the gap.
-func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, markerReadWorked bool, joinBlind, joinAbsent int) tfdiags.Diagnostics {
+func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, markerReadWorked bool, joinBlind, joinAbsent, listed int, failed failedTagReads) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if markerReadWorked || joinBlind+joinAbsent == 0 || !typeTaggable(schemas, typeName) {
+	if !typeTaggable(schemas, typeName) {
+		return diags
+	}
+	if failed.n > 0 {
+		pronoun := "it"
+		if failed.n > 1 {
+			pronoun = "them"
+		}
+		_, action, _ := strings.Cut(failed.first, ": ")
+		res.SweepCovered = dropCovered(res.SweepCovered, typeName)
+		return diags.Append(sweepGapDiag(res, SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapMarkerUnreadable,
+			Detail: fmt.Sprintf(
+				"The sweep could not read an ownership marker off %d of %d %s: the list call returned no tags, the tag index did not hold %s, and the service's own tag read failed (%s). A live %s this estate owns and no longer declares WILL NOT be proposed for destruction by this run. Grant %s, or retry if it was throttled, and re-run.",
+				failed.n, listed, typeName, pronoun, failed.quoted(), typeName, action),
+		}))
+	}
+	if markerReadWorked || joinBlind+joinAbsent == 0 {
 		return diags
 	}
 
