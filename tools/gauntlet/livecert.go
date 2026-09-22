@@ -446,6 +446,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	writeRec()
 
 	sup := &liveCertSupervisor{}
+	say := sayTo(sink)
 	sigc := make(chan os.Signal, 8)
 	// SIGHUP is in this list so that closing a terminal does not kill this
 	// process in the middle of a teardown it is waiting for, and SIGPIPE
@@ -466,7 +467,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 			Ceiling:     time.Duration(ceilingSeconds) * time.Second,
 			Bound:       liveCertSignalBound(),
 			Tick:        liveCertWaitTick(),
-			Say:         sayTo(sink),
+			Say:         say,
 			TrapStarted: watch.Started,
 			OnStop: func(signalName string) {
 				// Stamped BEFORE the wait that may never
@@ -517,6 +518,24 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	rec.State, rec.Signal, rec.Escalated = state, signalName, escalated
 	rec.RepeatSignals = sup.Repeats()
 	rec.TrapResends = sup.Resends()
+	// The ORDER of the re-sends against the trap's answer, not only the
+	// count (#1464). Compared here on the monotonic clock; the RFC3339
+	// stamps are for a reader of the record, and for the test that puts
+	// them beside the script's own stamp of when its trap began.
+	answered := watch.AnsweredAt()
+	if !answered.IsZero() {
+		rec.TrapAnsweredUTC = answered.UTC().Format(time.RFC3339Nano)
+	}
+	for _, at := range sup.ResendTimes() {
+		rec.TrapResendsUTC = append(rec.TrapResendsUTC, at.UTC().Format(time.RFC3339Nano))
+		if !answered.IsZero() && !at.Before(answered) {
+			rec.TrapResendsAfterAnswer++
+		}
+	}
+	if signalled && !answered.IsZero() {
+		say("live-cert: the script's trap answered at %s, %d re-send(s) went out before that answer and %d after it. A re-send before the answer is the stop request being repeated to a script that had not reached its trap yet; one after it landed on a teardown in progress, which must never happen (#1324, #1464).",
+			rec.TrapAnsweredUTC, rec.TrapResends-rec.TrapResendsAfterAnswer, rec.TrapResendsAfterAnswer)
+	}
 	rec.TeardownConfirmed = confirmed
 	rec.ExitCode = exit
 	rec.Note = state.Human()

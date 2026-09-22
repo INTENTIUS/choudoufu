@@ -26,10 +26,16 @@ const terraformBin = "terraform"
 // TestTaggableSetAgainstRealSchemas is TestTaggableSetCoversAdmissionTable's
 // live half: the same taggability pin, answered by the schema the real AWS
 // provider serves instead of the caricature in testSchemas. terraform init
-// downloads the provider release the estate fixture pins, `terraform
-// providers schema -json` dumps its schema without configuring anything, and
-// the tags attribute of each admitted type is rebuilt as a configschema
-// attribute and put through the real taggable predicate. A provider release
+// downloads the provider release the admission table was generated from
+// (pins.AWSProviderVersion, via flocitest.PinnedProviderDir - not the older
+// release the estate fixture pins, against which every type the survey pin
+// added since read as "no schema" on the tier's first measured nights,
+// #1316), `terraform providers schema -json` dumps its schema without
+// configuring anything, and the tags attribute of each admitted type is
+// rebuilt as a configschema attribute and put through the real taggable
+// predicate. Admitted types of other providers (kubernetes_*) have no AWS
+// schema to check and are skipped by name; TestTaggableSetCoversAdmissionTable
+// still holds them to the pin. A provider release
 // that adds a tags argument to one of the untaggable four, or drops it from
 // a type that has it, fails here on the version bump that brings it in - a
 // reviewable failure instead of a silent change in which resources report
@@ -42,7 +48,7 @@ func TestTaggableSetAgainstRealSchemas(t *testing.T) {
 	flocitest.Gate(t, "taggable-set pin")
 	flocitest.RequireBinary(t, terraformBin)
 
-	dir := flocitest.CopyEstate(t)
+	dir := flocitest.PinnedProviderDir(t)
 	flocitest.PluginCacheDir(t)
 	flocitest.Run(t, dir, terraformBin, "init", "-backend=false", "-input=false", "-no-color")
 
@@ -96,8 +102,13 @@ func TestTaggableSetAgainstRealSchemas(t *testing.T) {
 		t.Fatalf("the schema dump names no aws provider; it has %d provider(s)", len(dump.ProviderSchemas))
 	}
 
+	var otherProvider []string
 	check := func(types []string, want bool) {
 		for _, resourceType := range types {
+			if !strings.HasPrefix(resourceType, "aws_") {
+				otherProvider = append(otherProvider, resourceType)
+				continue
+			}
 			rs, ok := resources[resourceType]
 			if !ok {
 				t.Errorf("the provider serves no schema for admitted type %s", resourceType)
@@ -130,6 +141,9 @@ func TestTaggableSetAgainstRealSchemas(t *testing.T) {
 	}
 	check(taggableAdmittedTypes, true)
 	check(untaggableAdmittedTypes, false)
+	if len(otherProvider) > 0 {
+		t.Logf("%d admitted type(s) belong to another provider and were not checked against the AWS schema: %s", len(otherProvider), strings.Join(otherProvider, ", "))
+	}
 }
 
 // stderrOfExit is the stderr an exec.ExitError carried, or nothing.
