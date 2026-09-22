@@ -549,7 +549,7 @@ grep -q 'DELTA 3' "$PLAIN_EST/main.tf" || fail "DELTA 3 did not match manage_mas
 log "  DELTA 3  manage_master_user_password_rotation disabled    (EMULATOR GAP, lex00/floci#52)"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -618,7 +618,7 @@ floci_launch_retry() {
   local name="$1" portvar="$2" tries=0 port out
   while :; do
     port=$((20000 + RANDOM % 20000))
-    out="$(docker run -d -p "${port}:4566" --name "$name" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
+    out="$(gauntlet_floci_start "$name" -p "${port}:4566" "$FLOCI_IMAGE" 2>&1)" && { eval "$portvar=$port"; return 0; }
     tries=$((tries + 1))
     grep -qF 'port is already allocated' <<< "$out" || { printf '%s\n' "$out"; return 1; }
     [ "$tries" -ge 10 ] && { printf '%s\n' "$out"; return 1; }

@@ -835,7 +835,7 @@ log "  DELTA 1  emulator flags on the provider block             (onboarding)"
 log "           skip_requesting_account_id = false (#371)"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -950,9 +950,9 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real"
 # endpoints, never through tofu state, never through choudoufu's own report.
 gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_ORACLE_NAME" -p "${FLOCI_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   GH=""
@@ -2532,7 +2532,7 @@ EOF
   gauntlet_begin_stage day2_count
 
   log "=== H-ORACLE. stock: the same 2-instance count block, scaled to 1 and back, in its own account ==="
-  docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  gauntlet_floci_start "$FLOCI_COUNT_ORACLE_NAME" -p "${FLOCI_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
     || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
   COUNT_ORACLE_HEALTH=""
   for _ in $(seq 1 45); do

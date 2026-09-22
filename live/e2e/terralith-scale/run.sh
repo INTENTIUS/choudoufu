@@ -589,9 +589,9 @@ log "  expect ${EXPECTED} resources at scale=${SCALE}, of which ${TAGGABLE} are 
 
 # ── 2. two emulators ─────────────────────────────────────────────────────
 log "=== 2. floci: COLD on :$FLOCI_PORT, GREEN on :$GREEN_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
-docker run -d -p "${GREEN_PORT}:4566" --name "$GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$GREEN_NAME" -p "${GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $GREEN_NAME failed"
 wait_healthy "$ENDPOINT" || fail "the COLD floci did not come up healthy (ec2) at $ENDPOINT"
 wait_healthy "$GREEN_ENDPOINT" || fail "the GREEN floci did not come up healthy (ec2) at $GREEN_ENDPOINT"

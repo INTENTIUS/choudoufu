@@ -394,7 +394,7 @@ log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: ch
 
 # ── 1. floci ────────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -445,9 +445,9 @@ gauntlet_stage cold_deploy pass "$(grep -E '^Apply complete!' <<< "$COLD_OUT"); 
 gauntlet_begin_stage greenfield
 log ""
 log "=== PART GREENFIELD: 0. two more floci containers ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_ORACLE_NAME" -p "${FLOCI_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for ep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   H=""
@@ -1498,7 +1498,7 @@ log "=== G-ORACLE. day2_count stock oracle: the identical count block, stood up 
 # GREENFIELD removes both of its containers), but this takes its own port and
 # its own name so the stage does not depend on that section having run, let
 # alone having passed.
-docker run -d -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_COUNT_ORACLE_NAME" -p "${FLOCI_COUNT_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
 COH=""
 for _ in $(seq 1 45); do
