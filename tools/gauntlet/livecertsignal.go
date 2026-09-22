@@ -159,6 +159,21 @@ type LiveCertRun struct {
 	// liveCertResendEvery's comment, and the teardown started later than
 	// the stop request says.
 	TrapResends int `json:"trap_resends,omitempty"`
+	// TrapAnsweredUTC is when the supervisor SAW the trap's first line,
+	// and TrapResendsUTC is when each re-send went out, both RFC3339 with
+	// nanoseconds. They exist so a record can say in which ORDER those
+	// two things happened, which a count cannot: a re-send before the
+	// answer is the supervisor doing its job on a script that had not
+	// reached its trap yet, and a re-send after it is a SIGTERM landing
+	// on a running teardown (#1324). #1464 was a test failure whose log
+	// could not tell the two apart.
+	TrapAnsweredUTC string   `json:"trap_answered_utc,omitempty"`
+	TrapResendsUTC  []string `json:"trap_resends_utc,omitempty"`
+	// TrapResendsAfterAnswer is how many of those re-sends went out
+	// after the watcher had seen the trap answer, compared on the
+	// process's monotonic clock rather than by re-parsing the strings
+	// above. Anything above zero is the defect, on any machine.
+	TrapResendsAfterAnswer int `json:"trap_resends_after_answer,omitempty"`
 	// RepeatSignals is how many further stop requests arrived while the
 	// teardown was already running and were deliberately ignored. It is
 	// recorded because it is the difference between "nobody tried to stop
@@ -301,6 +316,11 @@ var trapStartNeedles = []string{teardownBanner, "=== caught "}
 type trapWatcher struct {
 	w       io.Writer
 	started atomic.Bool
+	// answeredAt is the moment started flipped, stored before the flip
+	// so anyone who sees Started() true can read it. It is the
+	// supervisor's observation time, not the script's: the bytes crossed
+	// a pipe and a copy goroutine to get here.
+	answeredAt atomic.Pointer[time.Time]
 	// carry is the tail of the previous write, so a needle split across
 	// two writes is still found. bash writes each `log` line with one
 	// write(2), so this is belt and braces rather than the common case.
@@ -314,6 +334,8 @@ func (t *trapWatcher) Write(p []byte) (int, error) {
 		hay := string(append(t.carry, p...))
 		for _, needle := range trapStartNeedles {
 			if strings.Contains(hay, needle) {
+				now := time.Now()
+				t.answeredAt.Store(&now)
 				t.started.Store(true)
 				break
 			}
@@ -339,6 +361,18 @@ func (t *trapWatcher) Started() bool {
 		return true // no watcher: never re-send
 	}
 	return t.started.Load()
+}
+
+// AnsweredAt is when the watcher saw the trap's first line; the zero time
+// when it has not.
+func (t *trapWatcher) AnsweredAt() time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	if at := t.answeredAt.Load(); at != nil {
+		return *at
+	}
+	return time.Time{}
 }
 
 // ── the supervisor ──────────────────────────────────────────────────────
@@ -452,8 +486,10 @@ type liveCertSupervisor struct {
 	// is here so the record can say so.
 	repeats int
 	// resends is how many extra SIGTERMs the group needed before the
-	// script's trap answered.
-	resends int
+	// script's trap answered, and resendAt is when each one went out,
+	// so the record can be compared against the trap's answer.
+	resends  int
+	resendAt []time.Time
 	// ceiling: the stop request was the -timeout-seconds ceiling rather
 	// than a signal. RunLiveCert reports such a run's exit as -1, which is
 	// what its doc comment has always promised.
@@ -466,10 +502,11 @@ func (s *liveCertSupervisor) noteRepeat() {
 	s.repeats++
 }
 
-func (s *liveCertSupervisor) noteResend() {
+func (s *liveCertSupervisor) noteResend(at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.resends++
+	s.resendAt = append(s.resendAt, at)
 }
 
 // Resends is how many extra SIGTERMs it took before the script's trap
@@ -479,6 +516,13 @@ func (s *liveCertSupervisor) Resends() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.resends
+}
+
+// ResendTimes is when each re-send went out, in order.
+func (s *liveCertSupervisor) ResendTimes() []time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]time.Time(nil), s.resendAt...)
 }
 
 func (s *liveCertSupervisor) noteCeiling() {
@@ -753,9 +797,13 @@ func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 				continue
 			}
 			resends++
-			s.noteResend()
-			o.Say("live-cert: the script has not started its teardown %s after the stop request, so re-sending SIGTERM to process group %d (attempt %d of %d). A signal reaches the processes in a group at that instant, and a command forked immediately afterwards misses it while bash holds the trap pending - measured at 19 losses in 200 runs.",
-				time.Since(stoppedAt).Round(time.Second), o.PGID, resends, liveCertResendMax)
+			// Stamped immediately before the kill, so the stamp is
+			// the moment the signal was sent and can be placed
+			// against the moment the trap answered (#1464).
+			sentAt := time.Now()
+			s.noteResend(sentAt)
+			o.Say("live-cert: the script has not started its teardown %s after the stop request, so re-sending SIGTERM to process group %d at %s (attempt %d of %d). A signal reaches the processes in a group at that instant, and a command forked immediately afterwards misses it while bash holds the trap pending - measured at 19 losses in 200 runs.",
+				time.Since(stoppedAt).Round(time.Second), o.PGID, sentAt.UTC().Format(time.RFC3339Nano), resends, liveCertResendMax)
 			_ = signalGroup(o.PGID, forwarded)
 		case <-boundC:
 			// Only reachable when LIVECERT_SIGNAL_GRACE_S was set on
