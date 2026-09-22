@@ -79,6 +79,10 @@ first run leaves a sentinel record behind, and a plan reads it rather than
 writing one. Before it, a plan-only identity is refused by name, because a
 store with no sentinel is indistinguishable from an empty estate. An apply
 needs `create`, `update` and `delete` as well.
+[`examples/record-store-cluster`](../../examples/record-store-cluster/README.md)
+creates the namespace, a Role for each of the two, and the estate grant, and
+its [CONTRACT.md](../../examples/record-store-cluster/CONTRACT.md) says what
+each of the four checks below means for them.
 
 Before it writes a record, the store checks the namespace, this identity's
 access to Secrets in it, whether another estate's records are readable, whether

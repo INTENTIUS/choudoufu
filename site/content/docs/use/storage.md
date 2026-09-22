@@ -71,6 +71,10 @@ writes each one as a Secret labelled with the estate, in
 `tofu-records-<estate>` or the `namespace` you name, conditional on the
 `resourceVersion` the writer read and with nothing held. Create the namespace
 yourself, one per estate: RBAC cannot condition on a label.
+[`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)
+creates it, with a plan identity that may `get` and `list` the record
+Secrets, an apply identity that holds all five verbs the store uses, and the
+estate grant.
 
 [`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)
 has the rest: the exact requests a run sends, what `destroy` leaves behind,

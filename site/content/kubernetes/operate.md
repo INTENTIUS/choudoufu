@@ -36,6 +36,8 @@ Each record is one Secret in `tofu-records-<estate>`, written conditionally on
 estate: the store does not, and RBAC cannot condition on a label. A plan job
 needs `get` and `list` on those Secrets and nothing more, once an identity
 that may write has applied the estate once.
+[`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)
+is `just up <estate>` for the namespace, both Roles and the estate grant.
 
 The first contact also checks the cluster: the records namespace and this
 identity's access, read isolation, the API server's encryption flag, and the

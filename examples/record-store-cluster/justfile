@@ -1,0 +1,112 @@
+# The record store cluster: `just up <estate>`, `just verify <estate>`,
+# `just down <estate>`. `just` lists everything. GitHub issue #1442, the
+# cluster half of examples/record-store-bucket.
+#
+# Every recipe works on the current kubeconfig context (KUBECONFIG, or
+# ~/.kube/config), as a cluster admin: creating a namespace, Roles and the
+# estate grant is an admin's act, which is why the store does none of it.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# kubectl waits on the API server for ever by default; every call here is
+# bounded so a cluster that never answers fails by name (#1457).
+kubectl := "kubectl --request-timeout=60s"
+
+default:
+    @just --list
+
+# The records namespace for an estate: what `record_store "kubernetes" {}`
+# resolves to with no `namespace` argument (internal/live/projection).
+_namespace estate:
+    @echo "tofu-records-{{estate}}"
+
+# The manifests with ESTATE filled in, on stdout. `up` applies this; the
+# selftest renders it to build its BREAK=1 mutant from the shipped file.
+_render estate:
+    @sed -e 's/ESTATE/{{estate}}/g' manifests/records.yaml
+
+# The choudoufu binary `verify` asks. CHOUDOUFU_BIN, then PATH, then built
+# from this checkout - the same order examples/record-store-bucket uses.
+_choudoufu:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${CHOUDOUFU_BIN:-}" ]; then echo "$CHOUDOUFU_BIN"; exit 0; fi
+    if command -v choudoufu >/dev/null 2>&1; then command -v choudoufu; exit 0; fi
+    root="$(cd ../.. && pwd)"
+    command -v go >/dev/null 2>&1 || { echo "no choudoufu on PATH, CHOUDOUFU_BIN unset, and no Go to build one from $root" >&2; exit 1; }
+    mkdir -p .bin
+    ( cd "$root" && go build -o "$OLDPWD/.bin/choudoufu" ./cmd/choudoufu ) >&2
+    echo "$PWD/.bin/choudoufu"
+
+# Create or update the estate's records namespace, the plan and apply
+# ServiceAccounts, their Roles and RoleBindings, and the estate grant that
+# lets the apply identity through live/kubernetes/estate-boundary.yaml.
+# Prints the record_store block to paste. Idempotent: run it again after
+# editing the manifests.
+up estate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ns="$(just _namespace {{estate}})"
+    just _render {{estate}} | {{kubectl}} apply -f -
+    # The grant is the shipped one, applied from the repository rather than
+    # copied here, so an edit to the boundary's grant shape cannot leave this
+    # example behind. It is cluster-scoped: one ClusterRole naming the estate
+    # and one binding handing it to the apply identity. The plan identity gets
+    # no grant; the boundary fences writes, and a plan makes none.
+    sed -e 's/ESTATE/{{estate}}/g' -e "s/PRINCIPAL_NAMESPACE/$ns/g" -e 's/PRINCIPAL/choudoufu-apply/g' \
+        ../../live/kubernetes/estate-grant.yaml | {{kubectl}} apply -f -
+    echo
+    echo "RECORD_STORE_NAMESPACE=$ns"
+    echo
+    echo "Put this in the estate's live block (the namespace is the default, so the block may stay empty):"
+    echo
+    echo '  record_store "kubernetes" {}'
+    echo
+    echo "Identities: system:serviceaccount:$ns:choudoufu-plan (get, list) and system:serviceaccount:$ns:choudoufu-apply (all five verbs)."
+    echo "The estate boundary policy itself is installed once per cluster, by an admin: kubectl apply -f ../../live/kubernetes/estate-boundary.yaml"
+
+# Is this cluster correct for the estate? Asks the choudoufu binary, under
+# the current kubeconfig's identity, and passes its verdict on. Extra
+# arguments go to `live-cluster`: `just verify prod -plan-identity` asks what
+# a plan job needs instead of what an apply needs.
+verify estate *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bin="$(just _choudoufu)"
+    ns="$(just _namespace {{estate}})"
+    "$bin" live-cluster -namespace="$ns" -estate={{estate}} {{args}}
+
+# Delete the estate's records namespace and its grant. Refuses while the
+# namespace holds a record Secret: a record can be the only copy of what it
+# says, and deleting the namespace deletes every one of them.
+down estate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ns="$(just _namespace {{estate}})"
+    # The count is read from kubectl's answer and never from its exit code,
+    # and a read that failed refuses rather than reading as zero (#1448): a
+    # kubectl that could not reach the server would otherwise report an
+    # empty namespace and the delete below would go ahead.
+    if ! held="$({{kubectl}} get secrets -n "$ns" -l app.kubernetes.io/managed-by=choudoufu -o name 2>&1)"; then
+        case "$held" in
+            *"namespaces \"$ns\" not found"*|*"NotFound"*)
+                echo "namespace $ns is not there; removing the grant only" ;;
+            *)
+                echo "REFUSING to delete $ns: the record Secrets could not be counted, and a count that failed is not zero:" >&2
+                echo "  $held" >&2
+                exit 1 ;;
+        esac
+        held=""
+    fi
+    n=0
+    if [ -n "$held" ]; then n="$(printf '%s\n' "$held" | grep -c '^secret/' || true)"; fi
+    if [ "$n" -gt 0 ]; then
+        echo "REFUSING to delete $ns: it holds $n record Secret(s) (app.kubernetes.io/managed-by=choudoufu), and a record can be the only copy of what it says." >&2
+        printf '%s\n' "$held" | head -5 | sed 's/^/  /' >&2
+        [ "$n" -gt 5 ] && echo "  ..." >&2
+        echo "Destroy the estate first, or, if the records are known to be worthless, remove them by hand: kubectl delete namespace $ns" >&2
+        exit 1
+    fi
+    {{kubectl}} delete namespace "$ns" --ignore-not-found --wait=true
+    {{kubectl}} delete clusterrolebinding "choudoufu-estate-{{estate}}-choudoufu-apply" --ignore-not-found
+    {{kubectl}} delete clusterrole "choudoufu-estate-{{estate}}" --ignore-not-found
+    echo "deleted: namespace $ns and the estate grant for {{estate}}. The estate boundary policy is the cluster's and is left in place."
