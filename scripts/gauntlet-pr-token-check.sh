@@ -2,11 +2,22 @@
 # Issue #496: can GAUNTLET_PR_TOKEN push to this repository?
 #
 # Run by .github/workflows/gauntlet.yml before the five-hour measurement.
-# The secret's second failure (2026-09-13 to 2026-09-21) was a fine-grained
-# PAT issued with the USER as resource owner rather than the INTENTIUS
-# organization: it authenticates as lex00 and is refused on the push with
-# HTTP 403. `gh api user` cannot tell that token from a good one; asking the
-# repository what permission that login holds can, and does so in seconds.
+#
+# The question is asked the way the PR step's push asks it: a dry-run push
+# of HEAD to a probe ref, which makes git request the git-receive-pack
+# service - GitHub's push authorization - and sends nothing, creates
+# nothing. Nothing weaker answers it. The first version of this script
+# asked the repository what permission the token's LOGIN holds
+# (collaborators/<login>/permission), and a login with admin behind a token
+# that cannot push returned "usable" - on 2026-09-22, runs 35684452776 and
+# 35705549497, both refused on the push itself two steps later.
+#
+# Two details keep the probe honest:
+#   - actions/checkout leaves http.https://github.com/.extraheader set to
+#     GITHUB_TOKEN's basic auth, and that header wins over credentials in
+#     the URL, so an unusable PAT probes as GITHUB_TOKEN and passes. An
+#     empty -c value resets the list; proven both ways on 2026-09-22.
+#   - credential.helper is blanked so nothing cached answers instead.
 #
 # Writes two GitHub Actions outputs:
 #   usable=true|false   the PR step uses the secret only when true
@@ -16,7 +27,7 @@
 # (GITHUB_TOKEN fallback), not a reason to skip the measurement. The one
 # thing this script must never do is print `usable=true` for a token the
 # push would refuse; live/gauntlet_pr_token_test.go drives every branch
-# below against a stubbed `gh` to hold it to that.
+# against stubbed gh and git to hold it to that.
 set -u
 
 out="${GITHUB_OUTPUT:-/dev/stdout}"
@@ -43,15 +54,19 @@ if [ -z "${PAT:-}" ]; then
 fi
 
 login="$(GH_TOKEN="$PAT" gh api user -q .login 2>&1)" || \
-  emit false "the token does not authenticate: $(printf '%s' "$login" | head -1)"
+  emit false "the token does not authenticate: $(printf '%s' "$login" | grep -oE 'HTTP [0-9]{3}[^"]*|"message": *"[^"]*"' | head -1)"
 if [ -z "$login" ]; then
   emit false "the token authenticates but gh api user returned no login"
 fi
 
-perm="$(GH_TOKEN="$PAT" gh api "repos/$repo/collaborators/$login/permission" -q .permission 2>&1)" || \
-  emit false "the token authenticates as $login but cannot read $repo ($(printf '%s' "$perm" | head -1)); a fine-grained PAT issued under the user rather than the INTENTIUS organization looks exactly like this"
+probe_err="$(GIT_TERMINAL_PROMPT=0 git -c credential.helper= -c http.https://github.com/.extraheader= \
+  push --dry-run --porcelain "https://x-access-token:${PAT}@github.com/${repo}.git" \
+  HEAD:refs/heads/gauntlet/token-probe 2>&1 >/dev/null)"
+probe_rc=$?
+# The token is in the URL; never let it reach a log line.
+probe_err="$(printf '%s' "$probe_err" | sed "s#${PAT}#***#g" | grep -v '^\s*$' | head -1)"
 
-case "$perm" in
-  admin|maintain|write) emit true "authenticates as $login with '$perm' on $repo" ;;
-  *) emit false "the token authenticates as $login with '$perm' on $repo; pushing gauntlet/nightly needs write" ;;
-esac
+if [ "$probe_rc" -eq 0 ]; then
+  emit true "authenticates as $login and GitHub authorizes a push to $repo (dry-run push, git-receive-pack)"
+fi
+emit false "the token authenticates as $login but GitHub refuses it a push to $repo (dry-run push: ${probe_err:-exit $probe_rc}). lex00 having write on the repository does not help: the token itself must grant Contents write on $repo"
