@@ -270,11 +270,18 @@ echo "saved plan, members holding the password: $(tr '\n' ' ' <<< "${PMEMBERS:-n
 [ -n "$PMEMBERS" ] || fail "secrets" "the saved plan holds no copy of the password, yet the apply that consumed it set one; either the plan file is not being read or the value came from elsewhere"
 grep -q 'CreateDBInstance' "$FLAGS/apply-debug.log" || fail "secrets" "the debug log never mentions CreateDBInstance, the request that carried the password, so it is not the log this step claims to have read"
 LOGHITS="$(grep -cF -- "$SECRET" "$FLAGS/apply-debug.log" || true)"
-LOGNONPROVIDER="$(grep -F -- "$SECRET" "$FLAGS/apply-debug.log" | grep -vF 'provider.terraform-provider-aws' || true)"
+# A log entry can span lines: the provider prints a request body as
+# continuation lines under one timestamped header. So each line holding the
+# value is attributed to the header of the entry it belongs to, and every
+# such header must be the aws provider plugin's own.
+LOGHDRS="$(awk -v s="$SECRET" '/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ {hdr=$0} index($0, s) {print hdr}' "$FLAGS/apply-debug.log")"
+LOGNONPROVIDER="$(grep -vF 'provider.terraform-provider-aws' <<< "$LOGHDRS" || true)"
 echo "debug log, lines holding the password: $LOGHITS" | evidence
-{ grep -F -- "$SECRET" "$FLAGS/apply-debug.log" || true; } | head -1 | sed "s/$SECRET/<the password>/g" \
-  | { grep -oE '\[DEBUG\] provider[^:]*: [A-Za-z ]+:|[A-Za-z]*Password=<the password>' || true; } | head -2 | evidence
-[ -z "$LOGNONPROVIDER" ] || fail "secrets" "a line outside the provider plugin wrote the password into the debug log:
+{ grep -oE '\[DEBUG\] provider[^:]*: [A-Za-z ]+' <<< "$LOGHDRS" || true; } | sort -u | sed 's/$/: .../' | evidence
+echo "  | $({ grep -F -- "$SECRET" "$FLAGS/apply-debug.log" || true; } | head -1 | sed "s/$SECRET/<the password>/g" \
+  | { grep -oE 'Action=[A-Za-z]+|[A-Za-z]*Password=<the password>' || true; } | tr '\n' ' ')" | evidence
+[ "$LOGHITS" -gt 0 ] && [ -n "$LOGHDRS" ] || fail "secrets" "no log entry holds the password, so the attribution below has nothing to attribute"
+[ -z "$LOGNONPROVIDER" ] || fail "secrets" "an entry outside the provider plugin wrote the password into the debug log:
 $(sed "s/$SECRET/<the password>/g" <<< "$LOGNONPROVIDER" | cut -c1-300)"
 FKEPT="$(scan_kept "$FLAGS")"
 echo "what the tool kept from this run, files holding the password: ${FKEPT:-none}" | evidence
