@@ -204,7 +204,7 @@
     "all": {
       "label": "All estates",
       "estates": 27,
-      "clear": 26,
+      "clear": 27,
       "stages": {
         "cold_deploy": {
           "pass": 27,
@@ -212,10 +212,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 1,
@@ -223,22 +222,19 @@
           "not_run": 26
         },
         "day2_remove": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_rename": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_replace": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
@@ -246,16 +242,14 @@
           "not_run": 27
         },
         "drift_reconverge": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "greenfield": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 27,
@@ -263,10 +257,9 @@
           "not_run": 0
         },
         "plan_approval": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "strict": {
           "pass": 1,
@@ -274,14 +267,13 @@
           "not_run": 26
         },
         "test_apply": {
-          "pass": 26,
+          "pass": 27,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 26,
-          "fail": 1,
+          "pass": 27,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -289,7 +281,7 @@
     "core": {
       "label": "Core estates",
       "estates": 26,
-      "clear": 25,
+      "clear": 26,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -297,10 +289,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 1,
@@ -308,22 +299,19 @@
           "not_run": 25
         },
         "day2_remove": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_rename": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_replace": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
@@ -331,16 +319,14 @@
           "not_run": 26
         },
         "drift_reconverge": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "greenfield": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 26,
@@ -348,10 +334,9 @@
           "not_run": 0
         },
         "plan_approval": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "strict": {
           "pass": 1,
@@ -359,14 +344,13 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 25,
-          "fail": 1,
+          "pass": 26,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -685,7 +669,7 @@
     "terraform-popular": {
       "label": "terraform-popular lane",
       "estates": 15,
-      "clear": 14,
+      "clear": 15,
       "stages": {
         "cold_deploy": {
           "pass": 15,
@@ -693,10 +677,9 @@
           "not_run": 0
         },
         "day2_count": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 0,
@@ -704,22 +687,19 @@
           "not_run": 15
         },
         "day2_remove": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_rename": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_replace": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
@@ -727,16 +707,14 @@
           "not_run": 15
         },
         "drift_reconverge": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "greenfield": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 15,
@@ -744,10 +722,9 @@
           "not_run": 0
         },
         "plan_approval": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "strict": {
           "pass": 0,
@@ -755,14 +732,13 @@
           "not_run": 15
         },
         "test_apply": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 0,
-          "stale": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 14,
-          "fail": 1,
+          "pass": 15,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -1351,83 +1327,91 @@
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
-        "test_plan": "fail"
+        "test_plan": "pass"
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "64ec9a661b0eb6bdfe9e3d1204a48f2742f977de",
-          "date": "2026-09-22T20:31:33Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "day2_count": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "day2_remove": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "day2_rename": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "day2_replace": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "drift_reconverge": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "greenfield": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "migrate": {
-          "commit": "64ec9a661b0eb6bdfe9e3d1204a48f2742f977de",
-          "date": "2026-09-22T20:31:33Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "plan_approval": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "test_apply": {
-          "commit": "3bca740259d4373a831de32cb44c838ec38c1e51",
-          "date": "2026-09-10T07:49:05Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         },
         "test_plan": {
-          "commit": "64ec9a661b0eb6bdfe9e3d1204a48f2742f977de",
-          "date": "2026-09-22T20:31:33Z"
+          "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+          "date": "2026-09-22T21:50:24Z"
         }
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "64ec9a661b0eb6bdfe9e3d1204a48f2742f977de",
-        "date": "2026-09-22T20:31:33Z",
+        "commit": "a4164d1e5ef6375e21f98838f44ff7c232946a91",
+        "date": "2026-09-22T21:50:24Z",
         "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
         "oracle": {
           "terraform": "1.15.8",
           "tofu": "1.12.5"
         },
-        "exit_code": 1,
+        "exit_code": 0,
         "detail": {
           "cold_deploy": "54 resources, genuinely cold, genuinely unmarked",
-          "day2_count": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and count_test[0] kept BOTH its live id (sg-51d46dc36d8d51575) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) across it, read back through the AWS CLI rather than choudoufu's own report; the destroyed group (sg-113697a568ccbd35b) is genuinely gone from the account; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a NEW object under a NEW GroupId (sg-cee9f81453ce3ca88, was sg-113697a568ccbd35b) carrying aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; the next plan is empty. Stock oracle (G0): plain terraform, its own working directory, state and VPC, standing the IDENTICAL 2-instance count block up for real against the same idle floci account, shows the identical shape - destroy the higher index only (count_test[1]=sg-787fbb963e0c72e85), create it back under a new id (sg-4a52ba970263e8a8e), count_test[0]=sg-615ff9096ac718a56 unchanged both times - and is torn down again before choudoufu's own side runs. Synthetic block, and why: terraform-aws-eks v9.0.0 has no scalable count knob to drive - every count in the module is a boolean create toggle (var.create_eks ? 1 : 0 and siblings), and the one length-driven knob (local.worker_group_count) drives only aws_autoscaling_group, aws_launch_configuration and aws_iam_role_policy_attachment, all untaggable (no tags argument in the provider schema, so no marker surface for this stage's identity assertion), and dropping a worker group also rewrites kubernetes_config_map.aws_auth, which aggregates every worker role, so the plan would carry changes alongside the destroy. aws_security_group.count_test is the sanctioned fallback per live/GAUNTLET.md #8, of a type this estate already exercises three times, at an address nothing else in the config names. BREAK_COUNT=1 confirms the check is load-bearing: asserting the WRONG instance (count_test[0], the survivor) was destroyed makes this stage report fail.",
+          "day2_count": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and count_test[0] kept BOTH its live id (sg-de681edb00a05de33) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) across it, read back through the AWS CLI rather than choudoufu's own report; the destroyed group (sg-07d1f98ce530a7ee3) is genuinely gone from the account; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a NEW object under a NEW GroupId (sg-72b0a21489ec83b08, was sg-07d1f98ce530a7ee3) carrying aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; the next plan is empty. Stock oracle (G0): plain terraform, its own working directory, state and VPC, standing the IDENTICAL 2-instance count block up for real against the same idle floci account, shows the identical shape - destroy the higher index only (count_test[1]=sg-53d3af040c9f9e805), create it back under a new id (sg-34a2711a3f008e093), count_test[0]=sg-59ae30416ae946b96 unchanged both times - and is torn down again before choudoufu's own side runs. Synthetic block, and why: terraform-aws-eks v9.0.0 has no scalable count knob to drive - every count in the module is a boolean create toggle (var.create_eks ? 1 : 0 and siblings), and the one length-driven knob (local.worker_group_count) drives only aws_autoscaling_group, aws_launch_configuration and aws_iam_role_policy_attachment, all untaggable (no tags argument in the provider schema, so no marker surface for this stage's identity assertion), and dropping a worker group also rewrites kubernetes_config_map.aws_auth, which aggregates every worker role, so the plan would carry changes alongside the destroy. aws_security_group.count_test is the sanctioned fallback per live/GAUNTLET.md #8, of a type this estate already exercises three times, at an address nothing else in the config names. BREAK_COUNT=1 confirms the check is load-bearing: asserting the WRONG instance (count_test[0], the survivor) was destroyed makes this stage report fail.",
           "day2_remove": "choudoufu: deleting aws_security_group.worker_group_mgmt_one's block (plus emptying the one argument that referenced it) proposed 2 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the security group is genuinely gone from the live account, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other aws_security_group.worker_group_mgmt_one block is declared anywhere in this config; the next plan is empty",
           "day2_rename": "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address (Plan: 3 to add, 1 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-0da2a3b1aae14817f) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-c51c62b9b3f4ad64f -> sg-0da2a3b1aae14817f); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 1 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 (propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard); see this section's own header comment for the fix and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit. This script was not re-run for #412, so this detail string still describes the pre-#412 run until this estate's next real run.",
+          "day2_replace": "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address (Plan: 3 to add, 1 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-5329394c274595f64) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-4287869e95b52672f -> sg-5329394c274595f64); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 1 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 (propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard); see this section's own header comment for the fix and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit. This script was not re-run for #412, so this detail string still describes the pre-#412 run until this estate's next real run.",
           "drift_reconverge": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged",
           "greenfield": "54 resources from nothing, cluster marker verified via the AWS CLI, 54 records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count",
-          "migrate": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI - counted through GetResources (21) AND IAM's own list-role-tags/list-instance-profile-tags (4), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)",
-          "plan_approval": "one argument edited (aws_security_group.worker_group_mgmt_one gains tags = { Reviewed = \"yes\" }), \"plan -out=approved.tfplan\" wrote a 82168-byte stock-format plan file whose whole change set is one update on aws_security_group.worker_group_mgmt_one; the world then moved out of band (the VPC vpc-b94f704a's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_vpc.this[0] and the live vpc-b94f704a it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-e281a91a92f232d63 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-e281a91a92f232d63 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed change was in-place from end to end: sg-e281a91a92f232d63 kept its live id across the whole part, so PART D/E/F/G below still start from the objects STAGE 2 stamped. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
-          "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 25 tofu-estate-tagged objects before, 25 after",
-          "test_plan": "live-plan is not empty, so this estate would not replan clean after migration: Plan: 1 to add, 0 to change, 0 to destroy. - it proposes module.eks.data.null_data_source.node_groups[0] will be read during apply; module.eks.kubernetes_config_map.aws_auth[0] will be created"
+          "migrate": "26 of 54 resource instances stamped, 25 of the 26 confirmed via the AWS CLI and the 26th (kube-system/aws-auth's tofu-estate label) confirmed with kubectl against the cluster - counted through GetResources (21) AND IAM's own list-role-tags/list-instance-profile-tags (4), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)",
+          "plan_approval": "one argument edited (aws_security_group.worker_group_mgmt_one gains tags = { Reviewed = \"yes\" }), \"plan -out=approved.tfplan\" wrote a 79064-byte stock-format plan file whose whole change set is one update on aws_security_group.worker_group_mgmt_one; the world then moved out of band (the VPC vpc-44f3ce1f's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_vpc.this[0] and the live vpc-44f3ce1f it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-b7b2fac72d9d6045e still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-b7b2fac72d9d6045e read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed change was in-place from end to end: sg-b7b2fac72d9d6045e kept its live id across the whole part, so PART D/E/F/G below still start from the objects STAGE 2 stamped. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
+          "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 21 tofu-estate-tagged objects before, 21 after",
+          "test_plan": "live-plan runs to completion with ZERO Error diagnostics and reports \"No changes. Your infrastructure matches the configuration.\" - the record-backed worker launch configuration's enable_monitoring/root_block_device/user_data all now agree with the config's own desired value (lex00/floci#132 for the first two, configuredAttrsSeed's residue-record pre-read seed in internal/live/projection/build.go for the third)"
         },
-        "duration_s": 171.4,
+        "duration_s": 917.2,
         "stage_seconds": {
-          "cold_deploy": 70,
-          "migrate": 80,
-          "test_plan": 20
+          "cold_deploy": 66,
+          "day2_count": 231,
+          "day2_remove": 66,
+          "day2_rename": 79,
+          "day2_replace": 64,
+          "drift_reconverge": 44,
+          "greenfield": 129,
+          "migrate": 86,
+          "plan_approval": 106,
+          "test_apply": 23,
+          "test_plan": 21
         }
       },
       "notes": "Landed 9717459fd3 (2026-08-18). Crossed by an agent whose worktree, like the original rds-complete-postgres crossing, predates the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here ('3 of 4 root-module resources stamped, 50 non-root instances not considered') because that's what the agent's own stale base observed. Given rds-complete-postgres's own re-verification confirmed cec3c4b9b1 generalizes cleanly to a different estate's module-nested resources, this row very likely also improves once re-verified against current main - flagged for the same re-verification treatment, not yet done. test_plan independently fails on unadmitted default_*/VPN-gateway types (overlapping #305's pattern), undeclared-record-store logical resources, and 7 correctly-conservative count-index refusals (element() over a list, which the checker cannot statically prove injective - not a defect). Two real, generalizing floci gaps found and fixed but NOT YET merged/published: EKS worker AMI discovery (AWS-owned AMI catalog lookup, owner 602401143452/801119661308, evaluated unconditionally by every terraform-aws-eks version) and AutoScalingGroup SuspendProcesses/ResumeProcesses (unimplemented, but the AWS provider calls SuspendProcesses unconditionally around ASG creation on default settings - blocks any aws_autoscaling_group apply, not just EKS's). Filed as lex00/floci#55, PR lex00/floci#56, pushed but not merged - the currently-pinned floci image predates both fixes. Follow-up pass 2026-08-19: confirmed lex00/floci#55/PR#56 (EKS worker AMI catalog, ASG SuspendProcesses/ResumeProcesses) merged and published, current pin well past that point - cold_deploy passes cleanly with no FLOCI_IMAGE override, no new floci gap found. migrate was recorded fail on stale script assertions only (checking for issue #59's old root-module-only live-import scope) - the real, current result is a clean PASS: cec3c4b9b1's child-module live-import fix (already confirmed reaching corpus-rds-complete-postgres) generalizes here too, 25 of 54 instances eligible and stamped (0 failed), 29 skipped legitimately (27 untaggable-by-design, 2 unadmitted-type). test_plan's real wall shrank sharply once migrate covers the whole module tree: #305's default_* trio and the VPN-gateway unadmitted sites are gone entirely (admitted and stamping cleanly now); real remaining causes are kubernetes_config_map.aws_auth (1 site, a non-AWS-tag provider resource with no marker/discovery path in this codebase at all - filed as #326, DEFER/design-call caliber matching #309, not attempted), 4 correctly-RULE'd logical-resource refusals (3 correct no-record_store refusals plus #314's already-tracked local_file gap), and 4 genuinely-unresolvable count-index sites (element(subnet[*].id, count.index), PARITY/RULE, correctly conservative). run.sh's own header/assertions rewritten and re-verified (clean run plus a BREAK=1 mutation check) to match this real picture. Follow-up pass 2026-08-20 (issue #326 fix, re-crossed for real): the prior handoff note claiming #326's commit (9131275487) had \"fully landed on local main\" was WRONG - it sat on an unmerged branch (live/kubernetes-table-rows) whose base predated #331, #337, #343/#344, #348, #349 and the dynamodb/autoscaling crossing work. Merged it into a fresh worktree off current local main (f294af5838), resolved the generated-artifact conflicts by combining both sides' deltas and re-running the real generators rather than hand-computing totals (852f52073f the merge, a990112e26 the regenerated derived artifacts), full fast tier green. Re-crossed this estate for real against a live floci container with that merge: kubernetes_config_map.aws_auth's \"unadmitted-type\" refusal is CONFIRMED GONE - zero occurrences of \"Rule: unadmitted-type.\" and zero mentions of \"kubernetes\" anywhere in live-plan's output, asserted as a negative control in run.sh with BREAK=1 flipping the expectation. The 4 logical-resource and 4 count-index sites are unchanged (8 Error diagnostics total, asserted by count) - test_plan stays fail, this estate does NOT reach 5/5. Migrate's own accounting is also unchanged in total (25/54 eligible, 29 skipped) but changed in KIND for this one site: kubernetes_config_map.aws_auth moves from an outright \"unadmitted\" refusal to a genuinely-attempted verification that reports MISSING with a precise, different, real reason - \"Provider ... kubernetes could not be used ... Dynamic value in static context: Unable to use data.aws_eks_cluster_auth.cluster / data.aws_eks_cluster.cluster in static context, which is required by provider.kubernetes.\" The kubernetes provider block is itself configured from another provider's live output (the EKS cluster's endpoint/token), which live-import's no-state, no-apply verification pass cannot evaluate. This is a distinct, real, narrower wall than #326's - #326 admitted the TYPE (identity resolves, plan-time refusal gone); this is a separate provider-config-from-live-data limitation, same family as #313's own out-of-scope boundary, DEFER-caliber (stock OpenTofu is never asked this question - a real plan/apply always has other resources' already-applied state to read for the same data sources). Not attempted here, not filed as a fresh issue since it blocks nothing #326 was scoped to fix and this estate's test_plan stage was already failing for the RULE/PARITY reasons above regardless. Commented on #326 with this measured outcome."
