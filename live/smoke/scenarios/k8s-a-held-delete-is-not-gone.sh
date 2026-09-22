@@ -22,9 +22,15 @@
 #
 # The one line in all of this that is not true is the run's own summary:
 # "Destruction complete after 0s" and "1 destroyed" are the provider's word
-# for "the API accepted the delete", not for "the object is gone". This
-# scenario asserts that line verbatim, because it is what a user sees, and
-# #1184 tracks saying it honestly. Everything after it in the run is right.
+# for "the API accepted the delete", not for "the object is gone". Stock
+# prints the same two lines, so they stay exactly as they are and this
+# scenario asserts them verbatim, because they are what a user sees. What
+# #1184 added is the line after them: once the apply is done, one list of
+# the kind it deleted from, by the estate's label, and one warning - "Delete
+# accepted, object not gone" - naming the object that is still there with a
+# deletionTimestamp, and the finalizer holding it. A warning: the exit code
+# is still the apply's. Steps 4 and 7 assert it by name and finalizer, and
+# the BREAK arm asserts its absence over a delete that really finished.
 #
 # The namespace is created with kubectl rather than declared, on purpose: a
 # kubernetes_namespace delete DOES wait for the namespace to be gone, and a
@@ -163,6 +169,9 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -E 'Apply complete!' <<< "$BAPPLY" | evidence
   grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$BAPPLY" \
     || fail "k8s-a-held-delete-is-not-gone" "BREAK: apply did not report one destroy: $BAPPLY"
+  if grep -q 'Delete accepted, object not gone' <<< "$BAPPLY"; then
+    fail "k8s-a-held-delete-is-not-gone" "BREAK: the held-delete warning (#1184) was printed over a delete nothing was holding: $BAPPLY"
+  fi
   for i in $(seq 1 15); do
     kc get configmap held-config -n smoke-k8s >/dev/null 2>&1 || break
     sleep 1
@@ -188,14 +197,23 @@ explain \
   "prints \"Destruction complete after 0s\" and counts one destroyed." \
   "That line is the API's acceptance, not the object's end: read the" \
   "cluster straight afterwards and the object is still there, with a" \
-  "deletionTimestamp and the estate's label still on it. Saying this" \
-  "honestly in the run's own summary is #1184."
+  "deletionTimestamp and the estate's label still on it. Those two lines" \
+  "are stock's and stay as they are; what the run adds (#1184) is one" \
+  "warning after them, from one list of the kind it just deleted from:" \
+  "the object by name, and the finalizer that is holding it."
 cmd "choudoufu apply -auto-approve  # then: kubectl get configmap held-config -n smoke-k8s"
 APPLY2="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-a-held-delete-is-not-gone" "apply failed: $APPLY2"
 grep -E 'Destruction complete|Apply complete!' <<< "$APPLY2" | evidence
 grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$APPLY2" \
   || fail "k8s-a-held-delete-is-not-gone" "apply did not report one destroy: $APPLY2"
+grep -E 'Delete accepted, object not gone| - ConfigMap ' <<< "$APPLY2" | evidence
+grep -q 'Warning: Delete accepted, object not gone' <<< "$APPLY2" \
+  || fail "k8s-a-held-delete-is-not-gone" "apply did not warn that the delete was only accepted (#1184): $APPLY2"
+grep -qE -- "- ConfigMap smoke-k8s/held-config \(.*\), finalizers: $FINALIZER\$" <<< "$APPLY2" \
+  || fail "k8s-a-held-delete-is-not-gone" "the warning does not name ConfigMap smoke-k8s/held-config and its finalizer $FINALIZER: $APPLY2"
+grep -qF -- "kubectl get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.finalizers}'" <<< "$APPLY2" \
+  || fail "k8s-a-held-delete-is-not-gone" "the warning does not give the one command that shows what holds the object: $APPLY2"
 kc get configmap held-config -n smoke-k8s >/dev/null 2>&1 \
   || fail "k8s-a-held-delete-is-not-gone" "held-config is gone; the finalizer did not hold and there is no fault to measure"
 DEL_TS="$(kc get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.deletionTimestamp}')"
@@ -208,7 +226,7 @@ echo "deletionTimestamp=$DEL_TS  tofu-estate=$ESTATE_LABEL  finalizers=$HELD_BY"
   || fail "k8s-a-held-delete-is-not-gone" "the terminating object lost its estate label: $ESTATE_LABEL"
 [ "$HELD_BY" = "[\"$FINALIZER\"]" ] \
   || fail "k8s-a-held-delete-is-not-gone" "the finalizer is not what is holding it: $HELD_BY"
-proof "one destroyed, says the run. deletionTimestamp set, tofu-estate=smoke-k8s still on it, says the cluster. This is the moment stock loses the object: its state file has no entry for it any more."
+proof "one destroyed, says the run, and then: delete accepted, object not gone, held-config, held by $FINALIZER. deletionTimestamp set, tofu-estate=smoke-k8s still on it, says the cluster. This is the moment stock loses the object: its state file has no entry for it any more."
 
 step "5. the next plan - the sweep finds it again, by the same label"
 explain \
@@ -258,8 +276,9 @@ explain \
   "The same fault at the end of an estate's life. held-config is back and" \
   "held again; apply -destroy deletes both ConfigMaps, and because no" \
   "declared object waits on another the run reports the estate destroyed" \
-  "and exits 0 while one object is still in the cluster. That is #1184" \
-  "again. What the promise buys is the line after it: the very next plan" \
+  "and exits 0 while one object is still in the cluster. The #1184 warning" \
+  "names the one object of the two that is still there, and the exit code" \
+  "stays 0. What the promise buys is the line after it: the very next plan" \
   "reads the cluster, sees the terminating object still carrying the" \
   "label, and proposes exactly the one create that is genuinely missing."
 cmd "choudoufu apply -auto-approve && kubectl patch ... && choudoufu apply -destroy -auto-approve"
@@ -278,6 +297,14 @@ grep -E 'Destroy complete|Apply complete' <<< "$DESTROY" | head -1 | evidence
   || fail "k8s-a-held-delete-is-not-gone" "apply -destroy did not exit 0; if it now refuses or waits, this claim's wording is out of date: $DESTROY"
 grep -qE 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$DESTROY" \
   || fail "k8s-a-held-delete-is-not-gone" "apply -destroy did not report both objects destroyed: $DESTROY"
+grep -E 'Delete accepted, object not gone| - ConfigMap ' <<< "$DESTROY" | evidence
+grep -q 'Warning: Delete accepted, object not gone' <<< "$DESTROY" \
+  || fail "k8s-a-held-delete-is-not-gone" "apply -destroy did not warn that one delete was only accepted (#1184): $DESTROY"
+grep -qE -- "- ConfigMap smoke-k8s/held-config \(.*\), finalizers: $FINALIZER\$" <<< "$DESTROY" \
+  || fail "k8s-a-held-delete-is-not-gone" "the warning does not name ConfigMap smoke-k8s/held-config and its finalizer $FINALIZER: $DESTROY"
+NAMED="$(grep -cE -- '- ConfigMap smoke-k8s/' <<< "$DESTROY" || true)"
+[ "$NAMED" = "1" ] \
+  || fail "k8s-a-held-delete-is-not-gone" "the warning names $NAMED objects, want exactly the held one: app-config really went: $DESTROY"
 kc get configmap held-config -n smoke-k8s >/dev/null 2>&1 \
   || fail "k8s-a-held-delete-is-not-gone" "held-config is gone; the finalizer did not hold this time"
 kc get configmap held-config -n smoke-k8s -o jsonpath='{.metadata.name} {.metadata.deletionTimestamp} {.metadata.labels.tofu-estate}{"\n"}' | evidence
@@ -288,7 +315,7 @@ grep -qE 'Plan: 1 to add, 0 to change, 0 to destroy' <<< "$PLAN_AFTER" \
   || fail "k8s-a-held-delete-is-not-gone" "the plan after the destroy does not propose exactly the one missing create: $PLAN_AFTER"
 grep -q 'app-config' <<< "$PLAN_AFTER" \
   || fail "k8s-a-held-delete-is-not-gone" "the one create is not app-config: $PLAN_AFTER"
-proof "the run says the estate is destroyed; one object is not. The plan after it counts what is actually there and proposes one create, not two. The summary line is wrong for a few seconds; the plan never is."
+proof "the run says the estate is destroyed and, in the same breath, which one object is not and what holds it. The plan after it counts what is actually there and proposes one create, not two. The summary count is the provider's; the warning and the plan are the cluster's."
 
 step "8. clear the hold and put the namespace back"
 kc patch configmap held-config -n smoke-k8s --type merge -p '{"metadata":{"finalizers":null}}' >/dev/null \
@@ -304,7 +331,8 @@ kc delete namespace smoke-k8s --wait=false >/dev/null 2>&1 || true
 proof "nothing carrying tofu-estate=smoke-k8s is left in the cluster."
 
 echo "  What you watched: a delete the API accepted and the cluster did not"
-echo "  finish. The run's own summary said destroyed; the object stayed,"
+echo "  finish. The run's own summary said destroyed, and the warning after"
+echo "  it named the object still there and its finalizer; the object stayed,"
 echo "  terminating, with its estate label intact. Every plan after it"
 echo "  proposed the same one destroy until the finalizer cleared, and then"
 echo "  the plan was empty. Stock, which learns what exists from a state"

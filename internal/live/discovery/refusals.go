@@ -82,6 +82,10 @@ var refusals = []Refusal{
 		What:    "The estate-wide sweep found a live resource of a type this configuration declares no instance of, carrying this estate's ownership marker for an address of another type - ordinarily a tag AWS copied from a marked resource onto a dependent object it created for it. A warning: nothing in the run binds it, destroys it or retags it.",
 	},
 	{
+		Summary: "Delete accepted, object not gone",
+		What:    "An apply deleted a Kubernetes object and the API server accepted the delete without finishing it (GitHub issue #1184): a finalizer turns DELETE into a request, so the server sets metadata.deletionTimestamp, answers success, and the object stays until the controller that owns the finalizer removes it. A provider delete that does not wait then prints \"Destruction complete\" and the run counts the object destroyed, exactly as stock does, and both lines are left as they are. After the apply, for each kind the run deleted anything of, the estate's objects of that kind are listed once by the tofu-estate label, and every object this run deleted that is still there with a deletionTimestamp is named in this one warning with its finalizers. A warning, never an error: the exit code is the apply's. A terminating object keeps its label, so the next plan proposes destroying it again until it is gone. A run that deleted no Kubernetes object asks the cluster nothing. It is raised after an apply that finished without errors, never by a plan, and only for Kubernetes: no other API reports an accepted, unfinished delete in a listing this fork already makes.",
+	},
+	{
 		Summary: "Direct read could not settle a tag-index-lagged instance",
 		What:    "A declared instance of a type whose live ARN can be composed from configuration alone (issue #1046) went unbound while the estate's tag index held no marker for its address and this run listed unreadable objects of its type. A targeted direct read at the composed identity either could not be attempted or found a live object that does not carry this estate's marker for this address, so this run refuses rather than propose a create the provider would reject.",
 	},
@@ -272,9 +276,12 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld {
 		// A gap in coverage, never a wrong plan: the run in front of the
-		// operator is correct and simply did not see everything.
+		// operator is correct and simply did not see everything. The held
+		// delete (GitHub issue #1184) is the same severity for a different
+		// reason: the apply did what it was asked, and what is reported is
+		// the cluster not having finished.
 		return SeverityWarning
 	}
 	return SeverityError

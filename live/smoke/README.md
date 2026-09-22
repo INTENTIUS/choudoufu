@@ -136,8 +136,10 @@ any other live object and every plan proposes the same one destroy until
 the finalizer clears, at which point the object goes and the plan is
 empty; `apply -destroy` over a held object likewise reports the estate
 destroyed and exits 0, and the plan after it proposes exactly the one
-create that is genuinely missing. The false summary line is #1184; the
-plan is what corrects it. Its `BREAK=1` removes the finalizer before the
+create that is genuinely missing. The provider's summary line stays as
+stock prints it; since #1184 one warning after it, `Delete accepted, object
+not gone`, names the held object and its finalizer, and the plan is what
+corrects the count. Its `BREAK=1` removes the finalizer before the
 destroying apply and requires the object gone in one apply and the replan
 empty - without it the scenario would read the same if choudoufu never
 deleted a ConfigMap at all. The namespace is made with kubectl rather than
