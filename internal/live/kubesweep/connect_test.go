@@ -14,8 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	restclient "k8s.io/client-go/rest"
 )
 
 // GitHub issue #1114. Every one of these drives a real
@@ -86,6 +88,13 @@ func newAPIServerFunc(t *testing.T, answer func(*http.Request) (int, string)) *a
 	t.Helper()
 	s := &apiServer{}
 	s.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// client-go sends its request timeout as ?timeout=. Anything but
+		// the test's own bound is a client built around newTestClient,
+		// whose verdict then rides on client-go's 32s default and on
+		// machine load (#1510).
+		if got := r.URL.Query().Get("timeout"); got != "" && got != testRequestTimeout.String() {
+			t.Errorf("%s %s carries timeout=%s, not the test's %s: build the client with newTestClient", r.Method, r.URL.Path, got, testRequestTimeout)
+		}
 		status, body := answer(r)
 		s.auth = r.Header.Get("Authorization")
 		s.requests++
@@ -95,6 +104,32 @@ func newAPIServerFunc(t *testing.T, answer func(*http.Request) (int, string)) *a
 	}))
 	t.Cleanup(s.Close)
 	return s
+}
+
+// testRequestTimeout is the per-request deadline every client in these
+// tests runs under, in place of client-go discovery's own default of 32s
+// (discovery.NewDiscoveryClientForConfig sets it when the rest config's
+// Timeout is zero).
+//
+// Every request here goes to an httptest server on loopback and runs a
+// shell-script credential plugin, which takes about 0.2s on an idle
+// machine. Under several concurrent gates (load average above 20 on 18
+// cores) the plugin spawn and the handshake were starved past 32s, and
+// four tests failed on "Client.Timeout exceeded" having asserted nothing
+// wrong (#1510). None of these tests is about how long a request takes, so
+// the bound is the test's to set: five minutes is several times the slowest
+// run seen under load (70s) and still fails a genuine hang as this test's
+// own error, inside go test's default ten-minute package timeout.
+//
+// Production keeps client-go's 32s: for a real cluster that is one
+// discovery request per API group and a plugin like aws eks get-token, and
+// it is what kubectl uses.
+const testRequestTimeout = 5 * time.Minute
+
+// newTestClient is [New] under [testRequestTimeout].
+func newTestClient(cfg *restclient.Config) (*Client, error) {
+	cfg.Timeout = testRequestTimeout
+	return New(cfg)
 }
 
 const configMapList = `{"kind":"APIResourceList","groupVersion":"v1","resources":[{"name":"configmaps","kind":"ConfigMap","namespaced":true,"verbs":["list","delete","create"]}]}`
@@ -130,7 +165,7 @@ func TestExecBlockRunsTheCredentialPlugin(t *testing.T) {
 	if cfg.ExecProvider == nil {
 		t.Fatalf("RestConfig built no ExecProvider from the exec block: %#v", cfg)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -200,7 +235,7 @@ users:
 	if cfg.ExecProvider == nil {
 		t.Fatalf("the kubeconfig's exec user did not reach the rest config: %#v", cfg)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -252,7 +287,7 @@ users:
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -287,7 +322,7 @@ func TestExplicitTokenWinsOverTheExecBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -318,7 +353,7 @@ func TestNoCredentialsIsItsOwnMessage(t *testing.T) {
 	if cr := CredentialsOf(cfg); cr.Any {
 		t.Fatalf("CredentialsOf reported a credential for a bare host: %#v", cr)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -345,7 +380,7 @@ func TestExecPluginFailureIsItsOwnMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -378,7 +413,7 @@ func TestClusterDidNotAnswerIsItsOwnMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -406,7 +441,7 @@ func TestRejectedCredentialIsItsOwnMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -475,7 +510,7 @@ func TestExecFailurePhrasesAreClientGos(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RestConfig: %v", err)
 			}
-			client, err := New(cfg)
+			client, err := newTestClient(cfg)
 			if tc.atBuild {
 				if err == nil {
 					t.Fatalf("New succeeded for %s", tc.name)
@@ -511,7 +546,7 @@ func TestMissingPluginIsAnExecFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -617,7 +652,7 @@ func TestDryRunDoesNotReportA401AsTheServerRefusingTheManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestConfig: %v", err)
 	}
-	client, err := New(cfg)
+	client, err := newTestClient(cfg)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

@@ -40,6 +40,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/pins"
+	"github.com/intentius/choudoufu/internal/live/plugincache"
 )
 
 // defaultImage is the emulator every test in this tier runs against:
@@ -214,6 +215,19 @@ func ImportFixtureDir(t *testing.T) string {
 // copies into them are gone when the test ends.
 func GenerateCohorts(t *testing.T) []string {
 	t.Helper()
+
+	// estate-gen's init installs from TF_PLUGIN_CACHE_DIR with -plugin-dir
+	// when the pinned release is already there, which makes the render ask
+	// no registry anything (#1509). Without a cache every render downloaded
+	// the 812MB provider into a fresh temp directory: a registry lookup that
+	// failed the golden on a DNS blip, and a fresh executable macOS scans on
+	// first exec, which is what timed out the plugin start under load. A cold
+	// cache is filled by the first render, under the cache's cross-process
+	// lock because that render is a writer; a warm one needs no lock.
+	PluginCacheDir(t)
+	if _, warm := plugincache.FromEnv("registry.terraform.io", "hashicorp", "aws", pins.AWSProviderVersion); !warm {
+		defer lockPluginCache(t)()
+	}
 
 	out := filepath.Join(t.TempDir(), "cohorts")
 	cmd := exec.Command("go", "run", "./tools/estate-gen", "-all", "-out", out)

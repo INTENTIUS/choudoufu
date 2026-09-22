@@ -160,6 +160,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"passthrough":     true, // a registry of upstream diagnostics, not a pass
 		"pins":            true, // the shared provider-version pin (#117), one constant
 		"pluginschema":    true, // provider schema reading
+		"plugincache":     true, // whether a plugin cache holds a provider release, so an init can install offline (#1509)
 		"policy":          true, // the ownership policy matrix
 		"providerscope":   true, // module-aware provider address resolution (#104); a pure function, not yet wired into any pass
 		"recordtrips":     true, // the record-store round-trip measurement; an instrument, like "statefulcost" below

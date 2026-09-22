@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/live/plugincache"
 )
 
 // forbiddenSubstrings are choudoufu-only constructs that must never appear
@@ -308,6 +309,23 @@ func TestValidateGeneratedTerralith(t *testing.T) {
 	// subtest inits into its own empty directory and pulls hashicorp/aws
 	// 6.59.0 again, which is most of this test's runtime on a cold CI runner.
 	flocitest.PluginCacheDir(t)
+	// With the pinned release already in that cache, init installs from it
+	// with -plugin-dir and asks no registry anything; TF_PLUGIN_CACHE_DIR
+	// alone still queries registry.terraform.io for the version list, which
+	// is what turned this test red on a DNS blip (#1509). A cold cache is
+	// filled by an ordinary init under the cache's cross-process lock.
+	initArgs := []string{"init", "-backend=false", "-input=false", "-no-color"}
+	if dir, warm := plugincache.FromEnv("registry.terraform.io", "hashicorp", "aws", providerVersion); warm {
+		initArgs = append(initArgs, "-plugin-dir="+dir)
+		// The same directory as TF_PLUGIN_CACHE_DIR and -plugin-dir makes
+		// terraform refuse to install the cache "to itself" unless
+		// TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE happens to be set;
+		// the mirror alone is the whole install here.
+		t.Setenv(plugincache.EnvDir, "")
+	} else {
+		unlock := flocitest.InitLock(t)
+		defer unlock()
+	}
 
 	for _, scale := range []int{1, 4} {
 		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {
@@ -326,7 +344,7 @@ func TestValidateGeneratedTerralith(t *testing.T) {
 					t.Fatalf("terraform %s: %v\n%s", strings.Join(args, " "), err, cmdOut)
 				}
 			}
-			run("init", "-backend=false", "-input=false", "-no-color")
+			run(initArgs...)
 			run("validate", "-no-color")
 		})
 	}
