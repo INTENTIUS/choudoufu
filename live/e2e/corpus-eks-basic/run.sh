@@ -1538,10 +1538,6 @@ COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
 # discovery fallback (internal/live/discovery/locatedfallback.go) failed;
 # only "Unlistable marker-discovered type" - the refusal's own wording - is.
 LAUNCHCONFIG_SITES='Unlistable marker-discovered type'
-# The four resource addresses this estate's CURRENT wall (a non-empty
-# plan, not a refusal) touches - checked by exact shape, not merely by
-# type name, so a plan that changes for some OTHER reason still trips this.
-LAUNCHCONFIG_DIFF_SITES='module\.eks\.aws_launch_configuration\.workers\[[01]\] must be replaced|module\.eks\.random_pet\.workers\[[01]\] must be replaced|module\.eks\.aws_autoscaling_group\.workers\[[01]\] will be updated in-place'
 # The kubernetes_* lines that are NOT a refusal: the tag sweep's own
 # "no CFN type in the ARN join table" warnings, in either of the two
 # shapes that name it - the long-form warning body ("kubernetes_config_map
@@ -1551,12 +1547,11 @@ LAUNCHCONFIG_DIFF_SITES='module\.eks\.aws_launch_configuration\.workers\[[01]\] 
 # one cleared (issue #396) and the summary table's own alphabetical walk
 # reached the kubernetes_* types for the first time - it was always there,
 # just never rendered this far before an earlier error cut discovery
-# short. Excluded by exact shape rather than by the provider prefix, so a
-# real kubernetes refusal - which would say "Rule:" or "Error:" - still
-# trips the check.
+# short.
 #
-# This is the SAME shape LAUNCHCONFIG_SITES' own check below has to
-# exclude, for the identical reason: aws_launch_configuration is one of
+# The kubernetes-specific check this was written for is gone (issue #1527
+# - see the replacement at the "stage's oracle" comment below); what still
+# needs it is LAUNCHCONFIG_SITES' own check, for the identical reason: aws_launch_configuration is one of
 # many admitted types with no CFN type in that same join table (so is,
 # say, aws_lambda_permission - see the sweep's own output, which lists
 # them alphabetically with nothing type-specific about the wording), and
@@ -1606,21 +1601,42 @@ if [ "${BREAK:-}" = "1" ] || [ "${BREAK:-}" = "3" ]; then
     || fail "BREAK=${BREAK} correctly detected: no refusal fired for$BREAK_HITS - every one of those fixes holds and every negative control above is load-bearing (this failure is the expected one)"
 else
   assert_rule_absent "unadmitted-type" 'Rule: unadmitted-type\.' "issue #326's fix for kubernetes_config_map.aws_auth"
-  # The provider.kubernetes configuration wall this exclusion used to carve
-  # out (issue #313) is FIXED as of 2026-08-24 (issue #396's worker - see
-  # this script's own UPDATE note above stage 3); the exclusion patterns
-  # below are kept only because a regression of #313 would otherwise be
-  # misread as a #326 regression by this check, not because any of them is
-  # expected to match anything in a clean run.
-  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL" | grep -vcE 'Provider unavailable for marker discovery|cannot evaluate the configuration of provider|provider\.kubernetes|registry\.opentofu\.org/hashicorp/kubernetes' || true)"
-  [ "$K8S_REFUSALS" = "0" ] || {
-    grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL"
-    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed, or issue #313's provider.kubernetes wall is back"
-  }
-  log "  Confirmed: the only mentions of kubernetes anywhere in live-plan's"
-  log "             output are the tag sweep's four join-table warnings -"
-  log "             issue #326's fix holds for kubernetes_config_map.aws_auth"
-  log "             and issue #313's provider.kubernetes wall stays fixed"
+  # The stage's oracle, read here (live/GAUNTLET.md): live-plan proposes
+  # nothing. Taken off the plan's own change lines and its Plan: total, and
+  # NAMED in the failure, so a reader is told which addresses were proposed
+  # and with which verb instead of being sent to an issue number.
+  #
+  # What this replaces, and why (issue #1527). It was a bare
+  # `grep -i kubernetes` over the whole output with three carve-outs, whose
+  # failure said "#326's fix may have regressed, or issue #313's
+  # provider.kubernetes wall is back". On 2026-09-22 it fired - and both
+  # halves of its own diagnosis were wrong, cleared BY NAME two lines
+  # earlier by the zero-Error-diagnostics check and by assert_rule_absent
+  # "unadmitted-type" above. What it had actually matched was the estate
+  # sweep's "Kubernetes sweep unavailable" warning and the unowned-object
+  # warning, neither of them a refusal; meanwhile the one thing that made
+  # the stage wrong, a single proposed create, went unnamed. A grep for a
+  # provider's NAME cannot tell a refusal from a warning that mentions it,
+  # and this stage has never needed it to: a refusal is an Error diagnostic
+  # (asserted above), an unadmitted type is a Rule: line (asserted above),
+  # and everything else that matters shows up as a proposed change here.
+  #
+  # The proposed-change lines are stock's own rendering - "  # <address>
+  # will be created / will be updated in-place / must be replaced / will be
+  # destroyed" - and the Plan: total is printed only when the plan is not
+  # empty, so either one appearing is the stage failing. Both are collected
+  # rather than the first, because the total alone does not say WHAT and the
+  # addresses alone do not say how many.
+  PLAN_TOTAL="$(grep -E '^Plan: ' <<< "$PLAN_OUT" || true)"
+  PROPOSED="$(grep -E '^[[:space:]]*# .*(will be|must be) ' <<< "$PLAN_OUT" || true)"
+  if [ -n "$PLAN_TOTAL" ] || [ -n "$PROPOSED" ]; then
+    printf '%s\n' "$PLAN_TOTAL"
+    printf '%s\n' "$PROPOSED"
+    PROPOSED_FLAT="$(sed -e 's/^[[:space:]]*# //' <<< "$PROPOSED" | tr '\n' '@' | sed -e 's/@$//' -e 's/@/; /g')"
+    fail "live-plan is not empty, so this estate would not replan clean after migration: ${PLAN_TOTAL:-(no Plan: total printed)} - it proposes ${PROPOSED_FLAT:-changes it did not itemize}"
+  fi
+  log "  Confirmed: live-plan proposes nothing - no \"Plan:\" total and no"
+  log "             resource-action line anywhere in its output"
 
   assert_rule_absent "count-index" "$COUNTINDEX_SITES" "internal/live/lint/sibling_select.go's element(<sibling splat>, count.index) rule"
   assert_rule_absent "logical-resource" "$LOGICAL_SITES" "choudoufu #364's implied local record store"
@@ -1716,16 +1732,23 @@ fi
 # See this script's own PASS/FAIL summary at the end of the file for the
 # full, current five-stage picture.
 gauntlet_begin_stage test_plan
-NOT_EMPTY_SITES="$LAUNCHCONFIG_DIFF_SITES"
-if grep -qE "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"; then
-  grep -E "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"
-  fail "the launch-configuration/random_pet/autoscaling_group cascade still appears in the plan - the fix has regressed"
-fi
+# The negative form of the same oracle, and the only part of it not already
+# settled above: stock prints this sentence when, and only when, it has
+# nothing to do. The per-address check above (issue #1527) is what names a
+# non-empty plan; this catches the case where the plan is neither empty nor
+# rendered the way this script reads it - a format change, or output that
+# stopped before the change summary - which an absence-of-"Plan:" test alone
+# would read as success.
+#
+# What it replaced: a grep for the launch-configuration/random_pet/
+# autoscaling_group cascade this estate's 2026-08-24 wall consisted of. That
+# check was a strict subset of the per-address check above and so could no
+# longer fire; the cascade's addresses, if they ever came back, are now named
+# by that check along with anything else the plan proposes.
 grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$PLAN_OUT" \
-  || { grep -E '^Plan: |^No changes' <<< "$PLAN_OUT"; fail "live-plan is not reporting \"No changes\" - the plan may not be genuinely empty"; }
+  || { grep -E '^Plan: |^No changes|^Changes to Outputs' <<< "$PLAN_OUT"; fail "live-plan did not print \"No changes. Your infrastructure matches the configuration.\" even though it proposed no resource action - live-plan's own summary is missing or has changed shape, so the plan cannot be read as empty"; }
 log "  Confirmed: live-plan is EMPTY - \"No changes. Your infrastructure"
-log "  matches the configuration.\" - the launch-configuration/random_pet/"
-log "  autoscaling_group cascade is gone"
+log "  matches the configuration.\""
 
 gauntlet_stage test_plan pass "live-plan runs to completion with ZERO Error diagnostics and reports \"No changes. Your infrastructure matches the configuration.\" - the record-backed worker launch configuration's enable_monitoring/root_block_device/user_data all now agree with the config's own desired value (lex00/floci#132 for the first two, configuredAttrsSeed's residue-record pre-read seed in internal/live/projection/build.go for the third)"
 
