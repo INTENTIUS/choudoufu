@@ -49,7 +49,8 @@ root run:
 Explain each step's verdict line to me as it prints. Then run
 BREAK=1 just smoke k8s-records-in-the-cluster and explain why the first two
 controls turn a refusal into a success while the third turns a success into
-a refusal.
+a refusal, and why the last five run a step's own check against a world
+built to fail it.
 ```
 
 The ten steps. The first five measure the store, the next four measure
@@ -149,6 +150,22 @@ becomes the stock backend's read-then-update, which is what
 both writes landed and no conflict named at all. That writer lives in the
 test file and is reached only through an environment variable it reads, so
 no build of choudoufu carries it.
+
+Steps 1, 2, 3, 8 and 9 each have a control of their own
+([#1448](https://github.com/INTENTIUS/choudoufu/issues/1448)). Each step's
+check is one shell function, and the control runs that same function
+against a world built to fail it and requires the failure by name: step
+1's suite run with no cluster to reach, and again with `-run` narrowed so
+one case never runs; step 2's record Secrets stripped of their record-key
+annotation, then of their `tofu-estate` label; a Lease and a Secret named
+`tofu-state-lock` planted in step 3's namespace; step 8's Role given the
+`update` verb it lacked, after which the same apply must go through and
+leave records where step 8 found none; and one annotation written to a
+record between step 9's two `resourceVersion` dumps, then a dump of a
+namespace holding no record. The listings behind steps 3, 8 and 9 are also
+run through a kubeconfig whose server is a port nothing listens on, and
+each must fail rather than read the listing it never got as empty. A run
+under `BREAK=1` ends with one line saying every control held.
 
 Three of the four assertions go unanswered for the identity the docs
 recommend, and one of them goes unanswered for everybody. Whether Secrets
