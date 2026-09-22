@@ -5,7 +5,13 @@
 
 package cloudcontrol
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"sort"
+	"strings"
+)
 
 // The Resource Groups Tagging API's own SigV4 service/host segment and
 // X-Amz-Target namespace, for [NewTagging]. Same AWS JSON RPC shape as
@@ -154,4 +160,66 @@ func tagsOf(wire []wireTag) map[string]string {
 		out[t.Key] = t.Value
 	}
 	return out
+}
+
+// TagResources writes tags onto every resource in arns through the
+// Resource Groups Tagging API's TagResources - an upsert: keys already on
+// the resource take the new value, other keys are left alone. It is the
+// generic tag write GitHub issue #1084 needs for a type whose create call
+// cannot carry tags (live/registry.json's tagging.tag_on_create false):
+// the same store [Client.GetResources] reads for the estate-wide marker
+// sweep, so a marker written here is what the next plan binds on.
+//
+// The API reports per-ARN failures in the response body rather than as an
+// HTTP error, so a call that returned 200 with a non-empty
+// FailedResourcesMap is still a failure here, one error naming every ARN
+// that was not tagged and the code and message the API gave for each.
+func (c *Client) TagResources(ctx context.Context, arns []string, tags map[string]string) error {
+	payload := struct {
+		ResourceARNList []string          `json:"ResourceARNList"`
+		Tags            map[string]string `json:"Tags"`
+	}{ResourceARNList: arns, Tags: tags}
+
+	var resp struct {
+		FailedResourcesMap map[string]struct {
+			StatusCode   int    `json:"StatusCode"`
+			ErrorCode    string `json:"ErrorCode"`
+			ErrorMessage string `json:"ErrorMessage"`
+		} `json:"FailedResourcesMap"`
+	}
+	if err := c.call(ctx, "TagResources", payload, &resp); err != nil {
+		return err
+	}
+	if len(resp.FailedResourcesMap) == 0 {
+		return nil
+	}
+	failed := make([]string, 0, len(resp.FailedResourcesMap))
+	for arn := range resp.FailedResourcesMap {
+		failed = append(failed, arn)
+	}
+	sort.Strings(failed)
+	parts := make([]string, 0, len(failed))
+	for _, arn := range failed {
+		f := resp.FailedResourcesMap[arn]
+		parts = append(parts, fmt.Sprintf("%s: %s (HTTP %d): %s", arn, f.ErrorCode, f.StatusCode, f.ErrorMessage))
+	}
+	return &APIError{
+		Op:         "TagResources",
+		StatusCode: http.StatusOK,
+		Code:       failedResourcesCode(resp.FailedResourcesMap, failed),
+		Message:    "not tagged: " + strings.Join(parts, "; "),
+	}
+}
+
+// failedResourcesCode picks the one error code an *APIError can carry for
+// a partial TagResources failure: the first failed ARN's, in ARN order.
+func failedResourcesCode(m map[string]struct {
+	StatusCode   int    `json:"StatusCode"`
+	ErrorCode    string `json:"ErrorCode"`
+	ErrorMessage string `json:"ErrorMessage"`
+}, sorted []string) string {
+	if len(sorted) == 0 {
+		return ""
+	}
+	return m[sorted[0]].ErrorCode
 }

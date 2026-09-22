@@ -8,6 +8,7 @@ package projection
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -104,7 +105,18 @@ import (
 // writes one for either shape.
 
 // AdjustConfigValue implements internal/tofu.ConfigValueAdjuster.
-func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics) {
+func (n *NodeResolver) AdjustConfigValue(ctx context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics) {
+	return n.adjustConfigValue(ctx, addr, config, schema, false)
+}
+
+// adjustConfigValue is [NodeResolver.AdjustConfigValue] and
+// [NodeResolver.AdjustCreateConfigValue] behind one body. creating is the
+// only difference between the two: a create of a type whose create call
+// cannot carry tags (GitHub issue #1084, [NodeResolver.tagsAfterCreate])
+// is checked for marker conflicts exactly as an update is and then left
+// unstamped, for [NodeResolver.WriteAppliedMarkers] to mark after the
+// provider has created it. See nodetagoncreate.go.
+func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema, creating bool) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if n.Estate == "" {
@@ -204,6 +216,18 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 	newTags, tagDiags := n.stampedTags(addr, tagsVal, address)
 	diags = diags.Append(tagDiags)
 	if tagDiags.HasErrors() {
+		return config, diags
+	}
+	if creating && n.tagsAfterCreate(addr) {
+		// GitHub issue #1084: the create call cannot carry these tags,
+		// so they are withheld from it - the operator's own tags go
+		// through as stock sends them, this fork's markers do not - and
+		// written onto the created object by WriteAppliedMarkers
+		// (nodetagoncreate.go) before the instance is reported complete.
+		// The conflict check above still ran: a hand-written marker that
+		// disagrees with this run is refused whether or not this pass
+		// would have written its own.
+		log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call (tag_on_create false); written after the create", addr)
 		return config, diags
 	}
 
