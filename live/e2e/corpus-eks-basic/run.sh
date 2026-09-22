@@ -421,7 +421,7 @@ set -uo pipefail
 #                does not describe, and it reports no verdict there.
 #   BREAK_MIGRATE_COUNT
 #                set to 1 to run the migrate stage's object-count negative
-#                control (#1497): after live-import has stamped all 25,
+#                control (#1497): after live-import has stamped all 26,
 #                remove tofu-estate from one of the estate's two IAM roles
 #                and assert 25 anyway - the assertion has to fail, at 24.
 #                It is the proof that the IAM leg of that count is
@@ -1266,16 +1266,25 @@ if [ -n "${DUMP_IMPORT:-}" ]; then printf '%s\n' "$IMPORT_OUT" > "$DUMP_IMPORT";
 # taggable); what moved is 29 skipped -> 24 skipped and 0 newly recorded ->
 # 5 newly recorded, which is five state entries that used to fall off the
 # end of the migration now carried across it.
-EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
-EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 5 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 24 skipped."
-EXPECT_MISSING_K8S='kubernetes_config_map.*could not be used'
+#
+# 2026-09-22, choudoufu #1543: 26, not 25. live-import had no provider-
+# configuration data-read phase, so provider.kubernetes - whose host, CA and
+# token all come from data.aws_eks_cluster/data.aws_eks_cluster_auth - could
+# not be configured during a migration at all, and
+# kubernetes_config_map.aws_auth was reported MISSING with "Dynamic value in
+# static context". It is now VERIFIED against kube-system/aws-auth and
+# carries this estate's tofu-estate LABEL. The AWS-side count below stays 25:
+# the 26th marker is a Kubernetes label, which no AWS tagging API can see.
+EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
+EXPECT_STAMPED="26 resource(s) newly stamped, 0 already stamped, 5 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 23 skipped."
+EXPECT_LABELLED_K8S='kubernetes_config_map.*Wrote the tofu-estate label'
 # BREAK=1 mutates BOTH stages, which means it never reaches stage 3: `fail`
 # exits, so a BREAK=1 run proves stage 2's control and leaves stage 3's
 # unexercised. BREAK=3 mutates stage 3 only, and is what proves this script's
 # three negative controls - the ones carrying #326's, sibling_select.go's and
 # #364's fixes - are load-bearing rather than vacuously green.
 if [ "${BREAK:-}" = "1" ]; then
-  EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
+  EXPECT_ELIGIBLE="27 of 54 resource instance(s) are eligible for stamping"
   log "  BREAK=1: expecting \"$EXPECT_ELIGIBLE\" (off by one from the real"
   log "           count). This step must fail."
 fi
@@ -1287,8 +1296,29 @@ grep -qF "$EXPECT_STAMPED" <<< "$IMPORT_OUT" || {
   grep -E 'resource\(s\) newly stamped' <<< "$IMPORT_OUT"
   fail "did not find \"$EXPECT_STAMPED\" in live-import's own output"
 }
-grep -qE "$EXPECT_MISSING_K8S" <<< "$IMPORT_OUT" || fail "kubernetes_config_map.aws_auth no longer reports as MISSING/could-not-be-used in live-import's output - issue #326's fix (or the kubernetes-provider-config wall it exposed) has changed shape; re-check by hand"
-log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), 5 record-backed instances seeded into the implied local record store (#364), kubernetes_config_map.aws_auth correctly MISSING (admitted, but its provider config can't be statically evaluated)"
+grep -qE "$EXPECT_LABELLED_K8S" <<< "$IMPORT_OUT" || {
+  grep -E 'kubernetes_config_map' <<< "$IMPORT_OUT"
+  fail "kubernetes_config_map.aws_auth was not labelled by the migration (see its real lines above) - choudoufu #1543's provider-configuration data-read phase on the migrate path has regressed, and without that label #1108 makes the next live-plan read the object UNOWNED and propose creating one that already exists"
+}
+log "  live-import's own accounting matches: 26 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), 5 record-backed instances seeded into the implied local record store (#364), kubernetes_config_map.aws_auth VERIFIED against kube-system/aws-auth and labelled (#1543)"
+
+# The label read from the CLUSTER, with no tofu in the loop - the same read
+# #1543 was filed on, which found `metadata` with no `labels` key at all.
+# live-import's own report saying it wrote the label is that command marking
+# its own homework; this is the object. k3s carries kubectl, and the cluster
+# is this run's own namespaced sibling container.
+K3S_CONTAINER="$(docker ps --filter "name=floci-${FLOCI_NS}-eks-" --format '{{.Names}}' | head -n1)"
+[ -n "$K3S_CONTAINER" ] || fail "no k3s sibling container for this run's namespace $FLOCI_NS - the cluster-side label check cannot run, and skipping it would leave #1543's whole verdict resting on live-import's own report"
+# `kubectl` and `k3s kubectl` are both tried: which one is on PATH is a
+# property of the k3s image, and a check that cannot run must fail rather
+# than be skipped.
+AWS_AUTH_JSON="$(docker exec "$K3S_CONTAINER" kubectl get configmap -n kube-system aws-auth -o json 2>&1)" \
+  || AWS_AUTH_JSON="$(docker exec "$K3S_CONTAINER" k3s kubectl get configmap -n kube-system aws-auth -o json 2>&1)" \
+  || fail "could not read kube-system/aws-auth from $K3S_CONTAINER with either kubectl or k3s kubectl: $AWS_AUTH_JSON"
+AWS_AUTH_ESTATE="$(printf '%s' "$AWS_AUTH_JSON" | jq -r '.metadata.labels["tofu-estate"] // "<none>"')"
+[ "$AWS_AUTH_ESTATE" = "$ESTATE" ] \
+  || fail "kube-system/aws-auth carries tofu-estate=$AWS_AUTH_ESTATE, read from the cluster, not $ESTATE - the migration did not write the label onto the object (#1543); metadata.labels: $(printf '%s' "$AWS_AUTH_JSON" | jq -c '.metadata.labels')"
+log "  kube-system/aws-auth carries tofu-estate=$AWS_AUTH_ESTATE, read with kubectl against the cluster itself: $(printf '%s' "$AWS_AUTH_JSON" | jq -c '.metadata.labels')"
 
 # gauntlet_estate_objects, not `gauntlet_tagged_count ...
 # resourcegroupstaggingapi get-resources` (issue #1497, the same defect
@@ -1365,8 +1395,8 @@ if [ "${BREAK_MIGRATE_COUNT:-}" = "1" ]; then
   log "           that is the defect, not the control."
 fi
 [ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN)"
-log "  25 of 25 stamped objects confirmed via the AWS CLI directly: GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-role-tags/list-instance-profile-tags $GAUNTLET_ESTATE_IAM_N (#1497 - GetResources does not index IAM in us-west-2, on this emulator or on real AWS)"
-gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI - counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own list-role-tags/list-instance-profile-tags ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)"
+log "  25 of the 26 stamped objects confirmed via the AWS CLI directly (the 26th is kube-system/aws-auth, whose marker is a Kubernetes label and is confirmed with kubectl above): GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-role-tags/list-instance-profile-tags $GAUNTLET_ESTATE_IAM_N (#1497 - GetResources does not index IAM in us-west-2, on this emulator or on real AWS)"
+gauntlet_stage migrate pass "26 of 54 resource instances stamped, 25 of the 26 confirmed via the AWS CLI and the 26th (kube-system/aws-auth's tofu-estate label) confirmed with kubectl against the cluster - counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own list-role-tags/list-instance-profile-tags ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
 # UPDATE 2026-08-24 (issue #396's worker, continuing #391/the eks-splat
@@ -2859,7 +2889,7 @@ log "\"basic\" example - the module virtually everyone reaches for first -"
 log "against choudoufu/floci:"
 log ""
 log "  STAGE 1  PASS  54/54 resources, genuinely cold, genuinely unmarked."
-log "  STAGE 2  PASS  25 of 54 resource instances stamped across the root"
+log "  STAGE 2  PASS  26 of 54 resource instances stamped across the root"
 log "           module, module.vpc and module.eks (issue #59's"
 log "           root-module-only scope is closed), 5 seeded into the implied"
 log "           local record store (choudoufu #364), and of the remaining 24"

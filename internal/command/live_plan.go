@@ -675,7 +675,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// unavailable" diagnostic providerConfigValue has always raised for
 	// what this cannot resolve fires unchanged, later, when something
 	// actually tries to configure that provider.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar, scope)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar, scope, nil)
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -3384,9 +3384,28 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // is a projection read pass built from a [projection.Options], and the day
 // ReadInstances grows the same prefetch, it should inherit the bound the
 // operator set for the run rather than silently take ten.
-func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int, scope identity.Scope) map[string]cty.Value {
+//
+// priorManaged is GitHub issue #1543's leg: managed instance values a caller
+// ALREADY HAS, in the same shape [projection.ReadInstances] returns, seeded
+// into the first analysis and into the read loop's own live map so that
+// neither asks the cloud for what is already in hand. Nil on the plan paths,
+// which have no prior state by construction and read every value they need.
+// live-import is the one caller that does have it: the stock state file it is
+// migrating IS prior state, and it holds a value for every managed instance in
+// the estate, including the record-backed ones whose record the migration has
+// not written yet. That last part is not a saving but the whole point -
+// corpus-eks-basic's data.aws_eks_cluster.cluster reaches
+// module.eks.aws_eks_cluster.this[0], whose own identity is
+// [identity.ClassParentDerived] on random_string.suffix, which is
+// [identity.ClassRecordBacked]; [projection.ReadInstances] materializes a
+// record-backed instance from recordStore, the migration is what SEEDS that
+// store, and at the point this runs it is still empty, so without a seed the
+// read returns nothing and the chain stops one hop short. Measured: the plan
+// path reads both instances and the migrate path read neither, from the same
+// demand list of the same two addresses.
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int, scope identity.Scope, priorManaged map[string]cty.Value) map[string]cty.Value {
 	managedTypes := provs.managedTypesByProvider(ctx)
-	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes, Scope: scope}
+	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes, Scope: scope, LiveManagedResults: priorManaged}
 	confined := func(a *dataread.Analysis) dataread.Providers {
 		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
 	}
@@ -3397,7 +3416,10 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 		log.Printf("[TRACE] live: provider-configuration data reads: %s", d.Description().Summary)
 	}
 
-	live := map[string]cty.Value{}
+	live := make(map[string]cty.Value, len(priorManaged))
+	for addr, val := range priorManaged {
+		live[addr] = val
+	}
 	readOpts := projection.Options{RecordStore: recordStore, ReadParallelism: readPar}
 	const maxProviderDataReadPasses = 5
 	for pass := 1; pass < maxProviderDataReadPasses; pass++ {

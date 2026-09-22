@@ -7,16 +7,23 @@ package command
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	"github.com/mitchellh/cli"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -198,6 +205,13 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		rootOutputStore = projection.NewRootOutputStore(store, args.Estate)
 	}
 
+	// GitHub issue #1543: the provider-configuration data-read phase, which
+	// the plan paths have run since GitHub issue #313 and this one never
+	// did. Placed here because it must be complete before the first
+	// [statelessProviders.ConfiguredProvider] call, and Ratify's own first
+	// instance makes one.
+	liveImportProviderDataReads(ctx, config, provs, recordStore, stateFile.State)
+
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
 		Estate: args.Estate,
 		// GitHub issue #372's remainder: the same configuration this
@@ -228,6 +242,146 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags
+}
+
+// liveImportProviderDataReads runs GitHub issue #313's provider-
+// configuration data-read phase on the migrate path, which until GitHub
+// issue #1543 only live-plan (live_plan.go:678) and a plan or apply under a
+// live block (live_mode.go:1164) ran. Without it
+// [statelessProviders.providerConfigValue] decodes a provider block through
+// the module's bare static evaluator, so `provider "kubernetes" { host =
+// data.aws_eks_cluster.cluster.endpoint }` - corpus-eks-basic's own shape -
+// refuses with "Dynamic value in static context", [ratifyOne]'s
+// ConfiguredProvider call fails, and every instance that provider serves is
+// reported MISSING. An estate could therefore be planned and not migrated,
+// and since GitHub issue #1108 made an unlabelled declared Kubernetes object
+// read UNOWNED rather than bind by natural key, the marker that migration
+// never wrote turned into a proposed create of an object that already
+// exists.
+//
+// Nothing here raises a diagnostic. Every phase it runs is fatal on the plan
+// path and best-effort here, for the reason [liveimport.Ratify] already
+// drops its own [identity.ResolveWith] diagnostics: this is an input to
+// configuring a provider, not a verdict about the estate, and a migration
+// that refused where it used to report would be a new refusal on the one
+// command whose whole job is to get an existing estate onto markers. What a
+// phase cannot supply leaves the provider exactly as unconfigurable as it is
+// today, with the same diagnostic ratifyOne has always printed for it.
+//
+// # What it costs, and who pays it
+//
+// The gate is offline and exact: [dataread.AnalyzeProviderConfigs] over the
+// bare options walks the provider blocks' own argument expressions and
+// records every declared data resource they reach, before any eligibility
+// rule that would want a schema (see [dataread.Analysis.Empty] and
+// analyzer.classify, which stores its record on every path that gets past
+// "no such data resource"). A configuration whose provider blocks name no
+// data source - every estate that migrated before this existed - returns
+// here having started no plugin, read nothing, and resolved nothing, so its
+// report is unchanged by construction rather than by measurement.
+//
+// A configuration that does pay it pays what a live-plan of the same
+// configuration already pays: every provider plugin started for schemas,
+// one ReadDataSource per data block identity demands, a second resolution
+// pass's PlanResourceChange calls when the first pass refused and named a
+// managed block, and then the fixpoint's own reads. Read-only, and the same
+// calls the plan the operator is migrating towards makes anyway.
+//
+// The read-parallelism setting is read for its value and not for its
+// refusal: [projection.ReadInstances] materializes sequentially at every
+// setting (see [statelessProviderDataReads]'s own note), so raising it here
+// would add a refusal to live-import over a knob that cannot change what
+// live-import does. The plan paths still refuse it, where it is load-bearing.
+//
+// The nil [identity.Scope] is live-import having no -target or -exclude flag
+// to honour, and nil means every block is in scope - the same value
+// live-mv and live-ls pass for the same reason.
+func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, recordStore *projection.RecordStore, state *states.State) {
+	if dataread.AnalyzeProviderConfigs(ctx, config, dataread.Options{}).Empty() {
+		return
+	}
+
+	resourceSchemas := provs.resourceSchemas(ctx)
+
+	// GitHub issue #179's identity data-read class, ahead of resolution
+	// exactly as the plan paths run it: the fixpoint below reads a managed
+	// resource a provider-configuration data source names, and it finds
+	// that resource through the resolution map, so an identity that needs a
+	// data source of its own has to be resolvable before the chain can be
+	// followed.
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
+	for _, d := range drDiags {
+		log.Printf("[TRACE] live-import: identity data reads: %s", d.Description().Summary)
+	}
+
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	for _, d := range idDiags {
+		log.Printf("[TRACE] live-import: identity resolution for the provider-configuration data reads: %s", d.Description().Summary)
+	}
+
+	readPar, parDiags := readParallelismSetting()
+	for _, d := range parDiags {
+		log.Printf("[TRACE] live-import: %s", d.Description().Summary)
+	}
+
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
+}
+
+// liveImportPriorManagedValues is the state file being migrated, decoded into
+// [projection.ReadInstances]' own output shape - every managed instance in it,
+// keyed by absolute instance address - for [statelessProviderDataReads]'
+// priorManaged argument.
+//
+// It is the migrate path's whole answer to a question the plan path never has
+// to ask. The fixpoint reads a managed instance a provider-configuration data
+// source names, and it reads a record-backed one out of the estate's record
+// store; a migration is what WRITES that store, so during Ratify the store is
+// empty and such an instance cannot be materialized at all. The state file has
+// had the value the whole time. corpus-eks-basic is the measured case:
+// data.aws_eks_cluster.cluster needs module.eks.aws_eks_cluster.this[0], whose
+// identity is parent-derived from random_string.suffix, which is record-backed
+// - the plan path read both and the migrate path read neither.
+//
+// The state is also the RIGHT source rather than a convenient one. It is the
+// prior state stock OpenTofu would hand its own plan graph for this
+// configuration, which is exactly what [statelessProviderDataReads]' doc
+// comment says the phase reproduces, and it is the file this command's whole
+// job is to migrate from.
+//
+// Silent and partial on purpose, like every other input to that phase: a type
+// this run has no schema for, an instance with only a deposed object, an
+// object that will not decode against the schema it was written with, are each
+// left out rather than raised. What is missing costs the one provider
+// configuration that wanted it, which then fails to configure with the
+// diagnostic it already had.
+func liveImportPriorManagedValues(state *states.State, schemas map[string]providers.Schema) map[string]cty.Value {
+	if state == nil || len(schemas) == 0 {
+		return nil
+	}
+	out := make(map[string]cty.Value)
+	for _, mod := range state.Modules {
+		for _, res := range mod.Resources {
+			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
+				continue
+			}
+			schema, ok := schemas[res.Addr.Resource.Type]
+			if !ok || schema.Block == nil {
+				continue
+			}
+			ty := schema.Block.ImpliedType()
+			for key, inst := range res.Instances {
+				if inst == nil || inst.Current == nil {
+					continue
+				}
+				obj, err := inst.Current.Decode(ty)
+				if err != nil || obj == nil || obj.Value == cty.NilVal {
+					continue
+				}
+				out[res.Addr.Instance(key).String()] = obj.Value
+			}
+		}
+	}
+	return out
 }
 
 func liveImportReport(statePath string, rat *liveimport.Ratification) views.StatelessImportReport {
