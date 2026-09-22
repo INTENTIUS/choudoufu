@@ -22,8 +22,6 @@ cp -R "$ROOT/live/e2e/estate-k8s/." "$SMOKE_WORK/"
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 step "1. a Kubernetes estate, one plain apply"
 explain \
   "The configuration has a live block, a Kubernetes provider, and nothing" \

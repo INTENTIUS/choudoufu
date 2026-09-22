@@ -176,8 +176,6 @@ live_config one
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 # --- steps 8 and 9, a SHARED record store (GitHub issue #1394) ------------
 #
 # Steps 1 to 7 run on the implied local store, where the record that says

@@ -68,8 +68,6 @@ W="$SMOKE_WORK"
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 # no_aws runs a command with every way of reaching AWS taken out of the
 # environment: the variables unset, both config files pointed at /dev/null
 # and the instance metadata service disabled. A run that still succeeds
@@ -355,14 +353,14 @@ kubectl --kubeconfig "$PLANNER_KC" config set-credentials planner --token="$TOK"
 kubectl --kubeconfig "$PLANNER_KC" config set-context --current --user=planner >/dev/null
 
 cmd "kubectl --as the planner get secrets -n $RECORDS_NS   # its own estate's records"
-OWN="$(kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name 2>&1)" \
+OWN="$(kc_as "$PLANNER_KC" get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name 2>&1)" \
   || fail "k8srec" "the scoped identity's read of its OWN estate's records failed, so the refusal below would be a role that reads nothing at all: $OWN"
 echo "$OWN" | evidence
 grep -q 'secret/tofu-record-' <<< "$OWN" \
   || fail "k8srec" "the scoped role cannot read its OWN estate's records, so the refusal below would be a role that reads nothing at all: $OWN"
 
 cmd "kubectl --as the planner get secrets -n $BOB_NS   # the other estate's"
-if CROSS="$(kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$BOB_NS" -o name 2>&1)"; then
+if CROSS="$(kc_as "$PLANNER_KC" get secrets -n "$BOB_NS" -o name 2>&1)"; then
   fail "k8srec" "the scoped role READ another estate's records: $CROSS"
 fi
 awk 'NR<=2' <<< "$CROSS" | evidence
@@ -426,14 +424,14 @@ EDIT
 # says so rather than measuring a write nobody was judging.
 FENCED=""
 for _ in $(seq 1 30); do
-  if ! kubectl --kubeconfig "$PLANNER_KC" replace --dry-run=server -f "$W/target.json" >/dev/null 2>&1; then
+  if ! kc_as "$PLANNER_KC" replace --dry-run=server -f "$W/target.json" >/dev/null 2>&1; then
     FENCED=yes; break
   fi
   sleep 1
 done
 [ -n "$FENCED" ] || fail "k8srec" "30s after the policy was observed, a dry-run cross-estate write on a record Secret was still accepted; the fence is not in force and the assertion below would measure nothing"
 cmd "kubectl --as the planner (bound to estate k8srec-bob) replace -f <Alice's record Secret>"
-if WROTE="$(kubectl --kubeconfig "$PLANNER_KC" replace -f "$W/target.json" 2>&1)"; then
+if WROTE="$(kc_as "$PLANNER_KC" replace -f "$W/target.json" 2>&1)"; then
   fail "k8srec" "an identity bound to estate k8srec-bob wrote estate k8srec-alice's record object: $WROTE"
 fi
 awk 'NR<=3' <<< "$WROTE" | evidence
@@ -712,7 +710,7 @@ for verb in get list create update delete; do
   # is "no", and "no" is what three of these five must answer. Without it
   # this scenario ends here, under set -e, having printed no verdict line at
   # all - which is what the first run of this step did.
-  ANS="$(kubectl --kubeconfig "$PLAN_KC" auth can-i "$verb" secrets -n "$CAROL_NS" 2>&1 || true)"
+  ANS="$(kc_as "$PLAN_KC" auth can-i "$verb" secrets -n "$CAROL_NS" 2>&1 || true)"
   case "$verb:$ANS" in
     get:yes|list:yes|create:no|update:no|delete:no) ;;
     *) fail "k8srec" "the plan identity answers $ANS to $verb on secrets in $CAROL_NS; it is supposed to hold get and list and nothing else" ;;
@@ -859,11 +857,11 @@ if [ "${BREAK:-0}" = "1" ]; then
   kc create clusterrolebinding planner-reads-everything --clusterrole=secrets-everywhere --serviceaccount=default:planner >/dev/null \
     || fail "k8srec" "BREAK: could not widen the planner's reads"
   for _ in $(seq 1 30); do
-    kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$BOB_NS" >/dev/null 2>&1 && break
+    kc_as "$PLANNER_KC" get secrets -n "$BOB_NS" >/dev/null 2>&1 && break
     sleep 1
   done
   cmd "kubectl --as the planner, now cluster-wide, get secrets -n $BOB_NS"
-  CROSS="$(kubectl --kubeconfig "$PLANNER_KC" get secrets -n "$BOB_NS" -l tofu-estate=k8srec-bob -o name 2>&1)" \
+  CROSS="$(kc_as "$PLANNER_KC" get secrets -n "$BOB_NS" -l tofu-estate=k8srec-bob -o name 2>&1)" \
     || fail "k8srec" "BREAK: with cluster-wide reads, the planner still could not list Bob's records: $CROSS"
   echo "$CROSS" | evidence
   grep -q 'secret/tofu-record-' <<< "$CROSS" \
@@ -876,11 +874,11 @@ if [ "${BREAK:-0}" = "1" ]; then
   # Removing a policy propagates the same way installing one does, so the
   # dry run waits the window out here too.
   for _ in $(seq 1 30); do
-    kubectl --kubeconfig "$PLANNER_KC" replace --dry-run=server -f "$W/target.json" >/dev/null 2>&1 && break
+    kc_as "$PLANNER_KC" replace --dry-run=server -f "$W/target.json" >/dev/null 2>&1 && break
     sleep 1
   done
   cmd "kubectl --as the planner replace -f <Alice's record Secret>   # policy gone"
-  WROTE="$(kubectl --kubeconfig "$PLANNER_KC" replace -f "$W/target.json" 2>&1)" \
+  WROTE="$(kc_as "$PLANNER_KC" replace -f "$W/target.json" 2>&1)" \
     || fail "k8srec" "BREAK: with the policy gone, the cross-estate write was still refused: $WROTE"
   echo "$WROTE" | evidence
   kc get secret "$TARGET" -n "$RECORDS_NS" -o jsonpath='{.metadata.annotations.bob}' | grep -q 'was-here' \
@@ -910,13 +908,13 @@ if [ "${BREAK:-0}" = "1" ]; then
   # the contract asks. can-i is the same question from the same identity, so
   # it is what waits the window out.
   for _ in $(seq 1 30); do
-    [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list secrets --all-namespaces 2>/dev/null)" = "yes" ] \
-      && [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list namespaces 2>/dev/null)" = "yes" ] && break
+    [ "$(kc_as "$CAROL_KC" auth can-i list secrets --all-namespaces 2>/dev/null)" = "yes" ] \
+      && [ "$(kc_as "$CAROL_KC" auth can-i list namespaces 2>/dev/null)" = "yes" ] && break
     sleep 1
   done
-  [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list secrets --all-namespaces 2>/dev/null)" = "yes" ] \
+  [ "$(kc_as "$CAROL_KC" auth can-i list secrets --all-namespaces 2>/dev/null)" = "yes" ] \
     || fail "k8srec" "BREAK: Carol's secret reads were never widened, so the refusal below would measure nothing"
-  [ "$(kubectl --kubeconfig "$CAROL_KC" auth can-i list namespaces 2>/dev/null)" = "yes" ] \
+  [ "$(kc_as "$CAROL_KC" auth can-i list namespaces 2>/dev/null)" = "yes" ] \
     || fail "k8srec" "BREAK: Carol still cannot list namespaces, so the other estates' records namespaces are not known to her and the refusal below would measure nothing"
   # A fresh estate, so the run is a first contact and the contract runs. Its
   # name is not a prefix of Carol's: the fixture below is written by
