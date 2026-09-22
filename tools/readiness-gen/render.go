@@ -41,6 +41,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -195,13 +196,11 @@ func renderReadinessTable(a Artifact, stamp string) string {
 // (TestReadinessFiguresInDocsAreCurrent, live/readiness_docs_pin_test.go)
 // but never told a reader when it was last measured.
 func readinessStamp(root string) (string, error) {
-	cmd := exec.Command("git", "log", "-1", "--format=%H%x1f%cI", "--", OutputJSONRel)
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "log", "-1", "--format=%H%x1f%cI", "--", OutputJSONRel)
 	if err != nil {
-		return "", fmt.Errorf("git log -1 -- %s: %w", OutputJSONRel, err)
+		return "", fmt.Errorf("reading when %s was last committed: %w", OutputJSONRel, err)
 	}
-	fields := strings.SplitN(strings.TrimSpace(string(out)), "\x1f", 2)
+	fields := strings.SplitN(out, "\x1f", 2)
 	if len(fields) != 2 || fields[0] == "" {
 		return "", fmt.Errorf("git log -1 -- %s produced no commit (has it ever been committed?): %q", OutputJSONRel, out)
 	}
@@ -414,4 +413,23 @@ func renderSpan(root, rel, span, body string) error {
 	}
 	fmt.Fprintf(os.Stderr, "readiness-gen: rewrote %s's %q span\n", rel, span)
 	return nil
+}
+
+// gitOutput runs git in dir ("" for the working directory) and returns its
+// trimmed stdout. On failure the error carries git's own first line of
+// stderr, not just the bare "exit status 128" that exec.Cmd.Output()'s
+// ExitError formats as (#1220, copied from tools/gauntlet/main.go, #1149).
+func gitOutput(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...) //nolint:gosec // a fixed subcommand list, arguments are internal
+	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }

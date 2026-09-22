@@ -110,7 +110,21 @@ setvar AWS_SECRET_ACCESS_KEY test
 # the generated file beside it, and the .gitlab-ci.yml that includes it.
 log "seeding the project…"
 SEED="$(mktemp -d)"
-trap 'rm -rf "$SEED"' EXIT
+# The status is saved and re-raised, and a run that stops before its last
+# step is refused (#1421, the shape #1419 gave selftest-oidc-bootstrap.sh).
+# Measured on bash 3.2.57, which is what macOS ships: under `set -e` an
+# unbound-variable death hands the EXIT trap $?=0 and the script exits 0,
+# so this one, run to a death injected part way, exited 0 with no "ready."
+# line (bash 5.2 exits 1). Now that reads as a FAIL line and exit 1.
+bootstrap_finished=0
+# shellcheck disable=SC2154 # bootstrap_rc is assigned on the trap's first line
+trap 'bootstrap_rc=$?
+      rm -rf "$SEED"
+      if [ "$bootstrap_finished" != 1 ]; then
+        echo "[bootstrap] FAIL: stopped before the instance was ready, so it is half set up. Read the output above for where." >&2
+        exit 1
+      fi
+      exit $bootstrap_rc' EXIT
 cp "$EXAMPLE"/package.json "$EXAMPLE"/package-lock.json "$EXAMPLE"/chant.config.ts "$SEED/"
 cp -R "$EXAMPLE"/src "$EXAMPLE"/terraform "$SEED/"
 cp "$EXAMPLE"/gitlab/scheduled-ops.gitlab-ci.yml "$SEED/"   # byte-identical to the generated file
@@ -128,3 +142,4 @@ log "ready."
 echo "export GITLAB_E2E_URL=${URL}"
 echo "export GITLAB_E2E_TOKEN=${TOKEN}"
 echo "export GITLAB_E2E_PROJECT_ID=${PROJECT_ID}"
+bootstrap_finished=1

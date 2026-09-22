@@ -18,26 +18,32 @@ import (
 // that a test can stand in for it without an HTTP server. *iam.Client
 // satisfies it.
 //
-// It holds exactly the operations [IAMRoutes] names. Widening it means
-// widening that table, and iam_routes_test.go is what says whether the
-// table is still the right one.
+// It holds exactly the operations [IAMRoutes] and [IAMListRoutes] name.
+// Widening it means widening one of those tables, and iam_routes_test.go
+// is what says whether the table is still the right one.
 type IAMAPI interface {
 	ListInstanceProfileTags(ctx context.Context, params *iam.ListInstanceProfileTagsInput, optFns ...func(*iam.Options)) (*iam.ListInstanceProfileTagsOutput, error)
 	ListMFADeviceTags(ctx context.Context, params *iam.ListMFADeviceTagsInput, optFns ...func(*iam.Options)) (*iam.ListMFADeviceTagsOutput, error)
 	ListPolicyTags(ctx context.Context, params *iam.ListPolicyTagsInput, optFns ...func(*iam.Options)) (*iam.ListPolicyTagsOutput, error)
 	ListRoleTags(ctx context.Context, params *iam.ListRoleTagsInput, optFns ...func(*iam.Options)) (*iam.ListRoleTagsOutput, error)
 	ListUserTags(ctx context.Context, params *iam.ListUserTagsInput, optFns ...func(*iam.Options)) (*iam.ListUserTagsOutput, error)
+	// ListRoles is [IAMListRoutes]'s one operation (GitHub issue #1477),
+	// the enumeration the tag reads above run after.
+	ListRoles(ctx context.Context, params *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error)
 }
 
 // IAMRoutes is which resource types this reader can answer for, and it is
 // not a list of the types IAM CAN tag-read: it is the intersection of that
-// with the types a sweep leg can reach and cannot otherwise read, which is
-// five.
+// with the types an enumeration leg can reach and cannot otherwise read,
+// which is six.
 //
 // The derivation, recomputed from the committed artifacts by
-// TestIAMRoutesMatchTheDerivedSet. There are two arms, one per enumeration
-// leg, and they are disjoint because a type either has a native list
-// resource or it does not.
+// TestIAMRoutesMatchTheDerivedSet. There are three arms, one per
+// enumeration leg, and they are pairwise disjoint: a type either has a
+// native list resource or it does not, and one that does not either has a
+// Cloud Control list handler or is enumerated by this package's own
+// [IAMListRoutes] (GitHub issue #1477), whose derivation requires that it
+// has none.
 //
 // The Cloud Control arm (#1131, the original two):
 //
@@ -83,7 +89,20 @@ type IAMAPI interface {
 // an API that drops tags by design, which is the same permanent fact the
 // Cloud Control arm's missing Tags property is.
 //
-// Five types satisfy one arm or the other, and all five are IAM's. IAM is
+// The service-list arm (#1477, the sixth):
+//
+//   - live/survey-full.json says the provider type IS taggable, for the
+//     same reason as the other two arms;
+//   - live/survey-full.json says the type has NO list resource, and
+//     live/mapping.json plus live/registry.json say its CFN type has no
+//     input-free list handler, so neither leg above ever sees it;
+//   - the type is IAM's, so the tag index cannot stand in for the missing
+//     listing either;
+//   - [IAMListRoutes] enumerates it, and every object it lists needs its
+//     marker read. iam:ListRoles drops tags by the same documented rule as
+//     the native arm's three operations.
+//
+// Six types satisfy one arm or another, and all six are IAM's. IAM is
 // the service wired here because it is the one #1134 measured the Resource
 // Groups Tagging API failing to cover and the one the pinned emulator
 // serves a tag-read operation for. Sixteen more types satisfy the Cloud
@@ -146,6 +165,26 @@ var IAMRoutes = map[string]iamRoute{
 	// what RoleName wants. live/survey-full.json agrees from the other
 	// side: required_for_import ["name"].
 	"aws_iam_role": {action: "iam:ListRoleTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+		out, err := api.ListRoleTags(ctx, &iam.ListRoleTagsInput{
+			RoleName: aws.String(importID),
+			Marker:   markerOrNil(marker),
+		})
+		if err != nil {
+			return nil, nil, false, err
+		}
+		return out.Tags, out.Marker, out.IsTruncated, nil
+	}},
+
+	// iam:ListRoleTags again, for the service-linked role (GitHub issue
+	// #1477). This entry is the one place the identifier the caller hands
+	// [ReadTags] is NOT the type's import identity: aws_iam_service_linked_role
+	// imports by ARN (IdentityAttrs ["arn", "id"], ImportSyntax "ARN"), and
+	// iam:ListRoleTags takes RoleName. The listing that produces these
+	// objects is this package's own ([IAMListRoutes]), and it hands the
+	// caller both strings as [Listed.ImportID] and [Listed.ReadKey]; the
+	// caller reads with the ReadKey. Nothing composes the name from the
+	// ARN here, because the listing already returned it.
+	"aws_iam_service_linked_role": {action: "iam:ListRoleTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
 		out, err := api.ListRoleTags(ctx, &iam.ListRoleTagsInput{
 			RoleName: aws.String(importID),
 			Marker:   markerOrNil(marker),

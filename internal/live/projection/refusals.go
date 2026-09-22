@@ -222,6 +222,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.",
 	},
 	{
+		Summary: SummaryMarkerNotWritten,
+		What:    "GitHub issue #1084: the instance's type cannot carry tags in the call that creates it (live/registry.json: tagging.tag_on_create false - a Route 53 hosted zone, say), so the node writer withheld this fork's ownership markers from the create and the live path wrote them onto the created object immediately after, through the Resource Groups Tagging API's TagResources, and that write failed. The object exists, unmarked, and is named by ARN and id; the diagnostic prints the aws resourcegroupstaggingapi tag-resources command that marks it, which is the same operation this run attempted. The instance is not reported complete.",
+	},
+	{
 		Summary: "Ownership marker is not a legal label value",
 		What:    "GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, \"Kubernetes: one label\".",
 	},

@@ -279,7 +279,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 | Guard | What it holds |
 |---|---|
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2433 rendered identities across 675 configuration directories, pinned by value; 644 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2435 rendered identities across 676 configuration directories, pinned by value; 645 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the site pages and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
@@ -395,7 +395,11 @@ misses a command bash forks in the same instant, and bash then holds the
 trap pending until that command finishes. Measured at 19 losses in 200 runs
 on an idle machine, which at scale would be a `terraform plan`'s worth of
 minutes before teardown started. A `trap_resends` above zero in the run
-record means the first signal was one of those. It never kills a teardown
+record means the first signal was one of those, and `trap_answered_utc`
+beside `trap_resends_utc` says in which order the answer and each re-send
+came: a re-send before the answer is that lost signal being repeated, and
+`trap_resends_after_answer` above zero is a SIGTERM that landed on a
+running teardown, which is the defect (#1464). It never kills a teardown
 on its own, and a second or third signal changes nothing: closing a terminal
 sends SIGHUP and a runner's cancellation sends SIGINT then SIGTERM, and
 neither is a request to abandon an estate. Tearing a scale-128 estate down

@@ -1213,7 +1213,22 @@ func (n *NodeAbstractResourceInstance) plan(
 	// this value instead of a new ContextOpts field of its own.
 	var extraIgnoreChanges []cty.Path
 	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
-		adjustedConfigVal, adjustDiags := adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		// GitHub issue #1084 (CreateConfigValueAdjuster, resource_identity.go):
+		// an instance with no prior object - or a tainted one, which the
+		// priorVal block below turns into a create-then-replace - is being
+		// created, and an adjuster that distinguishes the create call is
+		// given that entry point instead. The condition is the same one
+		// that block reads, evaluated here because the adjuster runs
+		// first.
+		creating := currentState == nil || currentState.Status == states.ObjectTainted ||
+			currentState.Value == cty.NilVal || currentState.Value.IsNull()
+		var adjustedConfigVal cty.Value
+		var adjustDiags tfdiags.Diagnostics
+		if ca, ok := adjuster.(CreateConfigValueAdjuster); ok && creating {
+			adjustedConfigVal, adjustDiags = ca.AdjustCreateConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		} else {
+			adjustedConfigVal, adjustDiags = adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		}
 		diags = diags.Append(adjustDiags)
 		if adjustDiags.HasErrors() {
 			return nil, nil, keyData, diags
@@ -3196,6 +3211,15 @@ func (n *NodeAbstractResourceInstance) apply(
 		if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
 			if v, ok := adjuster.(AppliedMarkerVerifier); ok {
 				diags = diags.Append(v.VerifyAppliedMarkers(ctx, n.Addr, change.Action, change.After, newVal, *schema))
+			}
+			// GitHub issue #1084 (AppliedMarkerWriter, resource_identity.go):
+			// a marker the create call could not carry is written now,
+			// onto the object the provider returned, before the PostApply
+			// hook in this function's caller reports the instance
+			// complete. Only a create that has succeeded so far: an apply
+			// already carrying an error has nothing to mark as done.
+			if w, ok := adjuster.(AppliedMarkerWriter); ok && change.Action == plans.Create && !diags.HasErrors() {
+				diags = diags.Append(w.WriteAppliedMarkers(ctx, n.Addr, n.ResolvedProvider.ProviderConfig, change.Action, newVal, *schema))
 			}
 		}
 	}

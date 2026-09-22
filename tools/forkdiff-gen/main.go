@@ -78,6 +78,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -324,14 +325,32 @@ func (g *git) output(args ...string) (string, error) {
 
 // checkForkPointPresent fails with a directive error - not a fetch of its
 // own - when the fork point is not in the local object database.
+//
+// `rev-parse --verify --quiet <rev>^{commit}` rather than `cat-file -e`:
+// for an abbreviated sha (forkPointCommit is ten characters) cat-file -e
+// exits 128 "Not a valid object name" whether the object is absent or git
+// cannot run at all, while rev-parse --verify --quiet exits 1 for an
+// unknown revision and 128 for everything else. Only exit 1 earns the
+// fetch directive; any other failure is git's own message, because a
+// reader whose git cannot run has nothing to gain from fetching upstream
+// (#1220).
 func (g *git) checkForkPointPresent() error {
-	if err := g.command("cat-file", "-e", forkPointCommit).Run(); err != nil {
+	cmd := g.command("rev-parse", "--verify", "--quiet", forkPointCommit+"^{commit}")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err == nil {
+		return nil
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() == 1 {
 		return fmt.Errorf("fork point %s is not present in this checkout's object database.\n"+
 			"The `upstream` remote (see `git remote -v`) points at opentofu/opentofu precisely so it can be fetched read-only:\n"+
 			"\tgit fetch upstream\n"+
 			"then rerun this tool. It never fetches on its own", forkPointCommit)
 	}
-	return nil
+	return fmt.Errorf("git could not answer whether fork point %s is present: git rev-parse --verify: %w: %s",
+		forkPointCommit, err, strings.TrimSpace(stderr.String()))
 }
 
 // change is one line of `git diff --name-status`.

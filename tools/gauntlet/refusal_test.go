@@ -563,3 +563,40 @@ func TestDescribeScaleWriteNamesWhatItSuperseded(t *testing.T) {
 		t.Errorf("a row that replaced nothing claims to have superseded something:\n%s", got)
 	}
 }
+
+// TestParseProtocolReadsTheIAMRoleHeadroomRefusal pins the line
+// live/live-cert/terralith-scale.sh's iam_role_headroom_check emits (issue
+// #1230), byte for byte as live/live-cert/selftest-iam-headroom.sh case 1
+// observes it, so the harness and the parser cannot drift apart without
+// one of the two tests saying so. limit is the account's remaining
+// headroom, not its quota: needed=33 against limit=10 is the arithmetic
+// a reader checks, and unit=iam-roles is what names it.
+func TestParseProtocolReadsTheIAMRoleHeadroomRefusal(t *testing.T) {
+	out := strings.Join([]string{
+		"GAUNTLET protocol=1",
+		"=== 0c. iam role headroom: room in the account for scale=3's aws_iam_role instances? (#1230) ===",
+		"GAUNTLET refused=1 scale=3 needed=33 limit=10 unit=iam-roles detail=the account holds 990 of its 1000 IAM roles (aws iam get-account-summary Roles/RolesQuota), leaving room for 10, and terralith-gen -scale 3 creates 33 aws_iam_role instances; nothing was created and nothing is torn down (#1230)",
+	}, "\n")
+	res, err := ParseProtocol(strings.NewReader(out))
+	if err != nil {
+		t.Fatalf("ParseProtocol: %v", err)
+	}
+	if res.Refusal == nil {
+		t.Fatal("no refusal parsed from the iam-roles line")
+	}
+	if res.Refusal.Scale != 3 {
+		t.Errorf("scale = %d, want 3", res.Refusal.Scale)
+	}
+	if res.Refusal.Needed == nil || *res.Refusal.Needed != 33 || res.Refusal.Limit == nil || *res.Refusal.Limit != 10 {
+		t.Errorf("arithmetic = %v/%v, want 33/10", res.Refusal.Needed, res.Refusal.Limit)
+	}
+	if res.Refusal.Unit != "iam-roles" {
+		t.Errorf("unit = %q, want iam-roles", res.Refusal.Unit)
+	}
+	if !strings.Contains(res.Refusal.Reason, "990 of its 1000") || !strings.Contains(res.Refusal.Reason, "#1230") {
+		t.Errorf("the reason lost the account's numbers or the issue: %q", res.Refusal.Reason)
+	}
+	if len(res.Stages) != 0 {
+		t.Errorf("a refusal before cold_deploy must speak no stage, got %d", len(res.Stages))
+	}
+}

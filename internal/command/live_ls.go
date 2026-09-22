@@ -18,7 +18,10 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/cli"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
@@ -150,6 +153,15 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 	substrates := liveLsSubstrates(config, cfgDiags)
 
+	// GitHub issue #1044: the region, in the order -region, then DIR's own
+	// provider block (the region live-plan and live-check on the same DIR
+	// read), then the AWS SDK's default chain. The report says which won,
+	// so a listing taken in a different region from the plan's shows it.
+	region := liveLsRegion{Region: args.Region, Source: "flag"}
+	if args.Region == "" {
+		region = liveLsRootRegion(ctx, args.ConfigDir, config, cfgDiags)
+	}
+
 	// The same gate live-plan and live-mv build their own Tagging client
 	// behind (cloudControlTarget, live_plan.go): off during this package's
 	// own offline test suite (TestMain sets TOFU_LIVE_CLOUDCONTROL=off), on
@@ -165,16 +177,28 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	if !substrates.aws {
 		// A Kubernetes-only configuration: no AWS client at all, and no
 		// warning about one, because nothing in DIR could carry an AWS
-		// tag for this listing to find.
+		// tag for this listing to find - and no region to explain, so the
+		// source is cleared and the report prints no region line.
+		region = liveLsRegion{}
 	} else if on {
-		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: args.Region})
 		// No BaseEndpoint override here: aws-sdk-go-v2's own default config
 		// resolution already reads AWS_ENDPOINT_URL / AWS_ENDPOINT_URL_IAM,
 		// the same variables cloudControlTarget reads by hand for the
 		// client above, which is why floci (and any endpoint override) just
 		// works with no extra plumbing - internal/live/projection/store.go's
 		// s3.NewFromConfig call takes the same shortcut for the same reason.
-		if awsCfg, err := liveLsAWSConfig(ctx, args.Region); err != nil {
+		//
+		// The config is loaded before the Tagging client is built because
+		// it is also how the SDK chain's own answer is learned: when neither
+		// -region nor DIR named one, awsCfg.Region is what the chain picked,
+		// and the Tagging client is handed that same value rather than left
+		// to resolve it a second time.
+		awsCfg, err := liveLsAWSConfig(ctx, region.Region)
+		if err == nil && region.Source == "sdk" {
+			region.Region = awsCfg.Region
+		}
+		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region.Region})
+		if err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
 				"IAM listing unavailable",
@@ -184,6 +208,12 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 			iamClient = iam.NewFromConfig(awsCfg)
 		}
 	} else {
+		// The SDK chain was never consulted here, so a region it would have
+		// named is not known and must not be reported as "named none"; a
+		// flag or DIR's block still says what it said.
+		if region.Source == "sdk" {
+			region = liveLsRegion{}
+		}
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
 			"Listing disabled",
@@ -210,13 +240,15 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	rep := &views.LiveLsReport{
-		Estate:     args.Estate,
-		Region:     args.Region,
-		Consistent: args.Consistent,
-		Stabilized: stabilized,
-		Attempts:   attempts,
-		ConfigDir:  args.ConfigDir,
-		Items:      items,
+		Estate:       args.Estate,
+		Region:       region.Region,
+		RegionSource: region.Source,
+		RegionNote:   region.Note,
+		Consistent:   args.Consistent,
+		Stabilized:   stabilized,
+		Attempts:     attempts,
+		ConfigDir:    args.ConfigDir,
+		Items:        items,
 	}
 
 	if args.ConfigDir != "" {
@@ -243,6 +275,135 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	return rep, diags
+}
+
+// liveLsRegion is the listing's region and where it came from - the three
+// values [views.LiveLsReport.RegionSource] documents, with Note as the
+// report's detail.
+type liveLsRegion struct {
+	Region string
+	Source string
+	Note   string
+}
+
+// liveLsRootRegion is the region DIR's own configuration names for its aws
+// provider, read the way live-plan and live-check read it (GitHub issue
+// #1044): the block [providerBlockFor] finds for each aws provider
+// configuration the managed resources use, its `region` argument evaluated
+// by the root's own StaticEvaluator - the one Meta.loadConfig bound to
+// TF_VAR_* and the tfvars files, which is how `region = var.aws_region`
+// resolves here to the same value the plan would configure the provider
+// with.
+//
+// Anything short of one known string for every aws block is the SDK chain
+// (Source "sdk") with Note saying why, never a guess: no DIR, a DIR that
+// did not load (its diagnostics travel to liveLsGaps, which reports them),
+// no aws block, a block with for_each, a block that sets no region, a
+// region this command cannot evaluate statically (an unset variable, a
+// reference to something no static evaluation reaches), a sensitive one,
+// or two blocks that name different regions - the same refusals
+// [identity.resolver.providerRegionAttr] makes for the same argument, for
+// the same reason: a wrong region silently listing the wrong half of the
+// account is worse than saying which region was used and why.
+func liveLsRootRegion(ctx context.Context, configDir string, config *configs.Config, cfgDiags tfdiags.Diagnostics) liveLsRegion {
+	sdk := func(note string) liveLsRegion { return liveLsRegion{Source: "sdk", Note: note} }
+	if configDir == "" {
+		return sdk("")
+	}
+	if config == nil || config.Module == nil || cfgDiags.HasErrors() {
+		return sdk(fmt.Sprintf("%s did not load, so its provider block was not read", configDir))
+	}
+
+	var regions, names []string
+	for _, addr := range statelessManagedResourceProviders(config) {
+		if addr.Provider.Type != "aws" {
+			continue
+		}
+		owner := config.Descendent(addr.Module)
+		if owner == nil || owner.Module == nil {
+			continue
+		}
+		mod := owner.Module
+		name := fmt.Sprintf("provider %q", mod.LocalNameForProvider(addr.Provider))
+		if addr.Alias != "" {
+			name = fmt.Sprintf("provider %q", mod.LocalNameForProvider(addr.Provider)+"."+addr.Alias)
+		}
+		pc := providerBlockFor(mod, addr)
+		if pc == nil || pc.Config == nil {
+			return sdk(fmt.Sprintf("%s declares no %s block", configDir, name))
+		}
+		if pc.ForEach != nil {
+			return sdk(fmt.Sprintf("%s in %s uses for_each, so its region may differ per key", name, configDir))
+		}
+		content, _, hclDiags := pc.Config.PartialContent(&hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{{Name: "region"}},
+		})
+		if hclDiags.HasErrors() {
+			return sdk(fmt.Sprintf("%s in %s could not be read: %s", name, configDir, hclDiags.Error()))
+		}
+		attr, ok := content.Attributes["region"]
+		if !ok {
+			return sdk(fmt.Sprintf("%s in %s sets no region", name, configDir))
+		}
+		ident := configs.StaticIdentifier{
+			Module:    addr.Module,
+			Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
+			DeclRange: attr.Range,
+		}
+		val, evalDiags := mod.StaticEvaluator.Evaluate(ctx, attr.Expr, ident)
+		unresolvable := fmt.Sprintf("%s in %s sets a region this command could not resolve", name, configDir)
+		switch {
+		case evalDiags.HasErrors():
+			return sdk(fmt.Sprintf("%s: %s", unresolvable, liveLsFirstDiag(evalDiags)))
+		case val.IsMarked():
+			return sdk(fmt.Sprintf("%s: it is sensitive", unresolvable))
+		case val.IsNull() || !val.IsWhollyKnown():
+			return sdk(fmt.Sprintf("%s: its value is not known from the configuration alone", unresolvable))
+		}
+		str, err := convert.Convert(val, cty.String)
+		if err != nil || str.AsString() == "" {
+			return sdk(fmt.Sprintf("%s: it is not a non-empty string", unresolvable))
+		}
+		regions = append(regions, str.AsString())
+		names = append(names, name)
+	}
+	if len(regions) == 0 {
+		return sdk(fmt.Sprintf("%s has no aws provider configuration among its managed resources", configDir))
+	}
+	for i := 1; i < len(regions); i++ {
+		if regions[i] != regions[0] {
+			return sdk(fmt.Sprintf("%s's aws provider blocks name different regions (%s is %s, %s is %s)", configDir, names[0], regions[0], names[i], regions[i]))
+		}
+	}
+	note := names[0]
+	if len(names) > 1 {
+		note = fmt.Sprintf("%s and %d more aws block(s) agreeing", names[0], len(names)-1)
+	}
+	return liveLsRegion{Region: regions[0], Source: "provider", Note: note}
+}
+
+// liveLsFirstDiag is one diagnostic's summary and detail as a clause, for a
+// note that has room for one reason. The one rewording: a variable with no
+// value reaches here as Meta.rootModuleCall's "Failed to request input from
+// user for variable var.X", because this command runs with input off and
+// never prompts. A reader is told what is missing and what supplies it,
+// not that a prompt failed.
+func liveLsFirstDiag(diags hcl.Diagnostics) string {
+	const noInput = "Failed to request input from user for variable "
+	for _, d := range diags {
+		if d.Severity != hcl.DiagError {
+			continue
+		}
+		if strings.HasPrefix(d.Summary, noInput) {
+			v := strings.TrimPrefix(d.Summary, noInput)
+			return fmt.Sprintf("%s has no value; set TF_%s or pass -region", v, strings.ToUpper("var_")+strings.TrimPrefix(v, "var."))
+		}
+		if d.Detail != "" {
+			return fmt.Sprintf("%s (%s)", d.Summary, strings.TrimRight(d.Detail, "."))
+		}
+		return d.Summary
+	}
+	return diags.Error()
 }
 
 // liveLsAWSConfig is the ordinary aws-sdk-go-v2 default-config chain, with
@@ -892,9 +1053,17 @@ Options:
 
   -estate=name            The estate to list. Required.
 
-  -region=name            The AWS region to list in. Defaults to the AWS
-                          SDK's own region resolution (AWS_REGION, the shared
-                          config file, or an endpoint override's own region).
+  -region=name            The AWS region to list in. Defaults, with DIR
+                          given, to the region DIR's own aws provider block
+                          names - region = var.aws_region included, read
+                          from TF_VAR_aws_region and the tfvars files the
+                          way live-plan reads it - so this listing and a
+                          plan in DIR read the same region. Without DIR, or
+                          when the block sets no region or one this command
+                          cannot resolve, the AWS SDK's own region
+                          resolution stands (AWS_REGION, the shared config
+                          file, or an endpoint override's own region). The
+                          report's "Region ..." line says which source won.
 
   -consistent             Re-read the listing until two consecutive reads
                           agree, rather than returning the first read as-is.

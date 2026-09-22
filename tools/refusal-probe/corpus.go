@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -77,7 +78,13 @@ type corpusSource struct {
 // because they are written into the sweep output and compared between two
 // sweeps: a diff whose two sides disagree about which sources were present is
 // not a comparison, and comparing the sorted strings is enough to say so.
-func corpusState(root string, m check.Manifest) (sources []corpusSource, problems []string) {
+//
+// The error return is git's third answer (#1220). A fetched source whose
+// checkout git cannot describe - not "absent", not "not a checkout", but
+// git itself failing - is not a problem to record and proceed past with
+// -allow-partial-corpus; it means the drift guard below cannot run at all,
+// and a guard that silently skips is worse than one that refuses.
+func corpusState(root string, m check.Manifest) (sources []corpusSource, problems []string, err error) {
 	seen := map[string]bool{}
 
 	for _, source := range m.Sources {
@@ -117,7 +124,10 @@ func corpusState(root string, m check.Manifest) (sources []corpusSource, problem
 		if f := source.Fetch; f != nil {
 			row.Dir = f.Dir
 			row.Pin = f.Commit
-			row.Checkout = gitHead(filepath.Join(root, f.Dir))
+			row.Checkout, err = gitHead(filepath.Join(root, f.Dir))
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot check %s against the manifest's pin: %w", strings.TrimSuffix(f.Dir, "/"), err)
+			}
 		}
 
 		if row.Matched == 0 {
@@ -132,7 +142,7 @@ func corpusState(root string, m check.Manifest) (sources []corpusSource, problem
 	}
 
 	sort.Strings(problems)
-	return sources, problems
+	return sources, problems, nil
 }
 
 func short(commit string) string {
@@ -178,35 +188,84 @@ func corpusProblemRefusal(root string, sources []corpusSource, problems []string
 }
 
 // gitHead reports the commit a checkout is at, or "" when dir is absent or is
-// not a git checkout. Unknown, not wrong: corpus-fetch is free to stop
+// not inside a git checkout. Unknown, not wrong: corpus-fetch is free to stop
 // leaving a .git behind, and that should not become a refusal.
-func gitHead(dir string) string {
+//
+// What IS an error is git failing to answer about a directory that is a
+// checkout (#1220). Until this returned an error, a git that could not run
+// produced Checkout == "", and the drift guard in corpusState is written
+// to skip an empty Checkout - so a broken toolchain did not fail the drift
+// check, it disabled it, and the sweep measured whatever commit happened to
+// be on disk. Whether dir is a checkout is decided by looking for .git on
+// the filesystem rather than by asking git, precisely so that the question
+// still has an answer when git does not.
+func gitHead(dir string) (string, error) {
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-		return ""
+		return "", nil
 	}
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if !insideGitCheckout(dir) {
+		return "", nil
+	}
+	return gitOutput(dir, "rev-parse", "HEAD")
+}
+
+// insideGitCheckout reports whether dir or any parent holds a .git entry
+// (a directory for a plain clone, a file for a worktree).
+func insideGitCheckout(dir string) bool {
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
+	}
+}
+
+// gitOutput runs git in dir and returns its trimmed stdout. On failure the
+// error carries git's own first line of stderr rather than exec's bare
+// "exit status 128", so a reader is pointed at the toolchain and not at the
+// sweep (the model is tools/gauntlet/main.go's helper of the same name).
+func gitOutput(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...) //nolint:gosec // a fixed subcommand list, arguments are internal
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return ""
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(string(out)), nil
 }
 
 // treeCommit describes the tree a sweep ran against, for the output's own
 // record. Dirty is marked because a sweep of uncommitted work is not a sweep
 // of the commit it names, and that distinction has been lost in a report
 // here before.
-func treeCommit(root string) string {
-	head := gitHead(root)
-	if head == "" {
-		return ""
+//
+// A `git status` that fails is an error, not a clean tree (#1220): the
+// result lands in run.Commit as a bare sha a reader will believe is
+// reproducible, which is exactly the loss the "+dirty" suffix exists to
+// prevent.
+func treeCommit(root string) (string, error) {
+	head, err := gitHead(root)
+	if err != nil || head == "" {
+		return "", err
 	}
 	// --untracked-files=no on purpose: .corpus is untracked and enormous,
 	// and its presence is already recorded per source above.
-	out, err := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=no").Output()
-	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
-		return head + "+dirty"
+	out, err := gitOutput(root, "status", "--porcelain", "--untracked-files=no")
+	if err != nil {
+		return "", err
 	}
-	return head
+	if out != "" {
+		return head + "+dirty", nil
+	}
+	return head, nil
 }
 
 // realPath is root with symlinks resolved.

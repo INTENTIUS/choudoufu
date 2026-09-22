@@ -52,6 +52,10 @@ type registryEntry struct {
 		// below registry-gen's default rather than an upstream answer.
 		Declared bool `json:"declared"`
 		Taggable bool `json:"taggable"`
+		// TagOnCreate is CloudFormation's tagging.tagOnCreate: whether
+		// the type's create handler accepts tags in the create call.
+		// Read through [Roster.TagOnCreateKnown] (GitHub issue #1084).
+		TagOnCreate bool `json:"tag_on_create"`
 	} `json:"tagging"`
 	Handlers struct {
 		List              bool     `json:"list"`
@@ -138,6 +142,10 @@ type Roster struct {
 	// said nothing (issue #1327). 216 of the artifact's 1,683 rows are the
 	// latter.
 	taggingDeclared map[string]bool
+	// tagOnCreate is cfn_type -> live/registry.json's
+	// tagging.tag_on_create, meaningful only where taggingDeclared and
+	// taggable are both true; see [Roster.TagOnCreateKnown].
+	tagOnCreate map[string]bool
 
 	// arity is cfn_type -> len(primary_identifier), the number of "|"-joined
 	// segments a Cloud Control identifier for the type carries.
@@ -206,6 +214,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		listRequiredInput: make(map[string][]string, len(reg.Types)),
 		taggable:          make(map[string]bool, len(reg.Types)),
 		taggingDeclared:   make(map[string]bool, len(reg.Types)),
+		tagOnCreate:       make(map[string]bool, len(reg.Types)),
 		arity:             make(map[string]int, len(reg.Types)),
 		primaryIdentifier: make(map[string][]string, len(reg.Types)),
 	}
@@ -239,6 +248,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		}
 		r.taggable[e.TypeName] = e.Tagging.Taggable
 		r.taggingDeclared[e.TypeName] = e.Tagging.Declared
+		r.tagOnCreate[e.TypeName] = e.Tagging.TagOnCreate
 		r.arity[e.TypeName] = len(e.PrimaryIdentifier)
 		if len(e.PrimaryIdentifier) > 0 {
 			r.primaryIdentifier[e.TypeName] = append([]string(nil), e.PrimaryIdentifier...)
@@ -372,6 +382,52 @@ func (r *Roster) TaggingDeclared(cfnType string) (declared, known bool) {
 	}
 	declared, known = r.taggingDeclared[cfnType]
 	return declared, known
+}
+
+// TagOnCreateKnown reports whether cfnType's create call accepts tags -
+// live/registry.json's tagging.tag_on_create - and whether that answer
+// came from upstream at all. known is false for a type the registry never
+// saw, for a row whose schema declared no tagging block (the
+// [Roster.TaggingDeclared] silence, which registry-gen records as the
+// block's zero value, tag_on_create included), and for a row that is not
+// taggable in the first place, where the flag has nothing to govern.
+//
+// GitHub issue #1084 asked which of three things this field is, and the
+// answer is the create path (the issue's case 2): a type whose row reads
+// taggable=true and tag_on_create=false can carry this fork's ownership
+// marker but cannot be handed it in the call that creates it, so the node
+// writer withholds the marker from that call and the live path writes it
+// immediately after, in the same apply, before the instance is reported
+// complete (internal/live/projection's AdjustCreateConfigValue and
+// WriteAppliedMarkers, keyed on this accessor and nothing else). Ten of
+// the artifact's 1,035 taggable rows read false at the pinned bundle,
+// AWS::Route53::HostedZone among them; the rest read true and take the
+// ordinary path, where the marker rides the create call in the provider's
+// own tags argument.
+//
+// A false with known=true is therefore the only value a caller acts on. A
+// caller that treated the bare bool as an answer would withhold markers
+// from every silent and every untaggable row, which is 648 types the flag
+// says nothing about.
+func (r *Roster) TagOnCreateKnown(cfnType string) (tagOnCreate, known bool) {
+	if r == nil {
+		return false, false
+	}
+	declared, hasRow := r.taggingDeclared[cfnType]
+	if !hasRow || !declared || !r.taggable[cfnType] {
+		return false, false
+	}
+	return r.tagOnCreate[cfnType], true
+}
+
+// TagsAfterCreate reports whether cfnType is a taggable type whose create
+// call cannot carry tags, so its marker must be written after the create
+// - [Roster.TagOnCreateKnown] with the three-way answer collapsed to the
+// one case a writer acts on. False for every type the registry cannot
+// vouch for, which is the ordinary path.
+func (r *Roster) TagsAfterCreate(cfnType string) bool {
+	tagOnCreate, known := r.TagOnCreateKnown(cfnType)
+	return known && !tagOnCreate
 }
 
 // IdentifierArity is the number of "|"-joined segments a Cloud Control

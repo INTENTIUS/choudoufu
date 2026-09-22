@@ -58,6 +58,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -79,6 +82,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -98,6 +104,9 @@
           "id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -131,6 +140,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -152,6 +164,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -173,6 +188,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -216,6 +234,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -237,6 +258,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -258,6 +282,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -279,6 +306,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -300,6 +330,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -333,6 +366,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -355,6 +391,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned revision; taggable, so recoverable by tag-filtered list"
@@ -386,6 +425,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -407,6 +449,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -429,6 +474,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -448,6 +496,9 @@
           "id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -479,6 +530,9 @@
           "name"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -516,6 +570,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -536,6 +593,9 @@
           "role"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -558,6 +618,9 @@
         ],
         "optional_for_import": [
           "account_id"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -577,6 +640,9 @@
           "name"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -599,6 +665,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -620,6 +689,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -652,6 +724,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -673,6 +748,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -694,6 +772,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -717,6 +798,9 @@
           "account_id",
           "qualifier",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -738,6 +822,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -811,6 +898,9 @@
           "port",
           "quic_server_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -832,6 +922,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -856,6 +949,9 @@
           "destination_ipv6_cidr_block",
           "destination_prefix_list_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -879,6 +975,9 @@
         "optional_for_import": [
           "account_id",
           "set_identifier"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -898,6 +997,9 @@
           "zone_id"
         ],
         "optional_for_import": [
+          "account_id"
+        ],
+        "not_resource_attributes": [
           "account_id"
         ]
       },
@@ -919,6 +1021,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -940,6 +1045,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -961,6 +1069,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -982,6 +1093,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1003,6 +1117,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1024,6 +1141,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1045,6 +1165,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1066,6 +1189,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1104,6 +1230,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned version_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
@@ -1124,6 +1253,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -1209,6 +1341,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1230,6 +1365,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "schema",
@@ -1251,6 +1389,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -1272,6 +1413,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "admission": "needs-config-signal",
@@ -1293,6 +1437,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
@@ -1313,6 +1460,9 @@
         "optional_for_import": [
           "account_id",
           "region"
+        ],
+        "not_resource_attributes": [
+          "account_id"
         ]
       },
       "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"

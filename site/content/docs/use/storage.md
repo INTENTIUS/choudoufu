@@ -67,12 +67,12 @@ Every write is conditional and nothing is locked.
 
 A Kubernetes-only estate keeps its records here and needs no AWS account
 ([Kubernetes]({{< relref "/kubernetes" >}})). `record_store "kubernetes"`
-writes each one as a Secret labelled with the estate, in
-`tofu-records-<estate>` or the `namespace` you name, conditional on the
-`resourceVersion` the writer read and with nothing held. Create the namespace
-yourself, one per estate: RBAC cannot condition on a label.
+writes each as an estate-labelled Secret in `tofu-records-<estate>` or the
+`namespace` you name, conditional on the `resourceVersion` it read, with
+nothing held. Create the namespace yourself, one per estate
+([`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)
+does, with the Roles): RBAC cannot condition on a label.
 
 [`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)
-has the rest: the exact requests a run sends, what `destroy` leaves behind,
-how a store that cannot be reached is handled, and why receipts are kept out
-of the record store.
+has the rest: the exact requests, what `destroy` leaves behind, an
+unreachable store, and why receipts stay out.

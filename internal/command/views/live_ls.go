@@ -27,9 +27,21 @@ type LiveLsReport struct {
 	Estate string
 
 	// Region is the region the Tagging API and IAM calls were sent to, or
-	// empty when none was named and the AWS SDK's own default resolution
-	// picked one this command never learns.
+	// empty when the AWS SDK's own default resolution named none.
 	Region string
+
+	// RegionSource is where Region came from (GitHub issue #1044): "flag"
+	// for an explicit -region, "provider" for the root's own provider block
+	// (the region live-plan and live-check on the same DIR would use), "sdk"
+	// for the AWS SDK's default chain. Empty when no AWS listing ran at all
+	// - a Kubernetes-only DIR - and then no source line prints.
+	RegionSource string
+
+	// RegionNote is the source line's detail: for "provider", the block the
+	// region came from (`provider "aws"`); for "sdk" with a DIR, why the
+	// root did not supply one (the block sets no region, or sets one this
+	// command could not resolve, said with its reason); empty otherwise.
+	RegionNote string
 
 	// Consistent is whether -consistent was passed, and Stabilized is
 	// whether two consecutive reads agreed before Attempts ran out - see
@@ -230,12 +242,16 @@ type liveLsJSONGap struct {
 }
 
 type liveLsJSONReport struct {
-	Estate     string `json:"estate"`
-	Region     string `json:"region,omitempty"`
-	Consistent bool   `json:"consistent"`
-	Stabilized bool   `json:"stabilized"`
-	Attempts   int    `json:"attempts"`
-	ConfigDir  string `json:"config_dir,omitempty"`
+	Estate string `json:"estate"`
+	Region string `json:"region,omitempty"`
+	// RegionSource is GitHub issue #1044's "where did the region come
+	// from": "flag", "provider" or "sdk" - see [LiveLsReport.RegionSource].
+	// Omitted only when no AWS listing ran.
+	RegionSource string `json:"region_source,omitempty"`
+	Consistent   bool   `json:"consistent"`
+	Stabilized   bool   `json:"stabilized"`
+	Attempts     int    `json:"attempts"`
+	ConfigDir    string `json:"config_dir,omitempty"`
 
 	// Schemas is GitHub issue #966's "what was this computed from", the
 	// same field and the same two values live-check -json carries - see
@@ -255,14 +271,15 @@ type liveLsJSONReport struct {
 
 func (v *LiveLsJSON) Report(rep LiveLsReport) {
 	out := liveLsJSONReport{
-		Estate:     rep.Estate,
-		Region:     rep.Region,
-		Consistent: rep.Consistent,
-		Stabilized: rep.Stabilized,
-		Attempts:   rep.Attempts,
-		ConfigDir:  rep.ConfigDir,
-		Schemas:    schemaSource(rep.Schemas),
-		Items:      make([]liveLsJSONItem, 0, len(rep.Items)),
+		Estate:       rep.Estate,
+		Region:       rep.Region,
+		RegionSource: rep.RegionSource,
+		Consistent:   rep.Consistent,
+		Stabilized:   rep.Stabilized,
+		Attempts:     rep.Attempts,
+		ConfigDir:    rep.ConfigDir,
+		Schemas:      schemaSource(rep.Schemas),
+		Items:        make([]liveLsJSONItem, 0, len(rep.Items)),
 		// Never nil, for the reason the field's own doc comment gives:
 		// encoding/json renders a nil slice as `null`, and GitHub issue
 		// #966's whole complaint is a reader having to interpret a gaps
@@ -322,6 +339,10 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 		fmt.Fprintf(&b, " in %s", rep.Region)
 	}
 	b.WriteString(".\n")
+	if line := liveLsRegionLine(rep); line != "" {
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
 	if rep.Consistent {
 		if rep.Stabilized {
 			fmt.Fprintf(&b, "Consistent listing: two reads agreed after %d attempt(s).\n", rep.Attempts)
@@ -416,4 +437,33 @@ func tagPairs(tags map[string]string, keys []string) []string {
 		out = append(out, fmt.Sprintf("%s=%s", k, tags[k]))
 	}
 	return out
+}
+
+// liveLsRegionLine is the one line that says where the listing's region came
+// from (GitHub issue #1044), so a run whose region disagrees with live-plan's
+// on the same DIR shows it rather than reporting an estate empty in the
+// wrong region. Empty when no AWS listing ran - a Kubernetes-only DIR has no
+// AWS region to explain.
+//
+//	Region us-west-2 (from -region).
+//	Region eu-west-1 (from provider "aws" in ./estate).
+//	Region us-east-1 (from the AWS SDK's default chain).
+//	Region us-east-1 (from the AWS SDK's default chain; provider "aws" in ./estate sets no region).
+//	Region unresolved (the AWS SDK's default chain named none; pass -region or set AWS_REGION).
+func liveLsRegionLine(rep LiveLsReport) string {
+	switch rep.RegionSource {
+	case "flag":
+		return fmt.Sprintf("Region %s (from -region).", rep.Region)
+	case "provider":
+		return fmt.Sprintf("Region %s (from %s in %s).", rep.Region, rep.RegionNote, rep.ConfigDir)
+	case "sdk":
+		if rep.Region == "" {
+			return "Region unresolved (the AWS SDK's default chain named none; pass -region or set AWS_REGION)."
+		}
+		if rep.RegionNote != "" {
+			return fmt.Sprintf("Region %s (from the AWS SDK's default chain; %s).", rep.Region, rep.RegionNote)
+		}
+		return fmt.Sprintf("Region %s (from the AWS SDK's default chain).", rep.Region)
+	}
+	return ""
 }

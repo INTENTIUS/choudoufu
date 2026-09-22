@@ -41,12 +41,14 @@
 //
 // # What this package is, and is not
 //
-// It is one interface, [Reader], and one implementation of it, [IAM]. It is
-// deliberately not a framework: a service is wired here when a type the
-// sweep actually reaches needs it, and [IAMRoutes] is five entries because
-// five types need it. See iam.go's own comment for the derivation, and
-// iam_routes_test.go, which recomputes that derivation from the committed
-// artifacts rather than trusting the list.
+// It is two interfaces, [Reader] and [Lister], and one implementation of
+// both, [IAM]. It is deliberately not a framework: a service is wired here
+// when a type the sweep actually reaches needs it, and [IAMRoutes] is six
+// entries because six types need it; [IAMListRoutes] (GitHub issue #1477,
+// the enumeration a tag read needs when no other leg lists the type) is one
+// entry because one type needs it. See iam.go's and list.go's own comments
+// for the derivations, and iam_routes_test.go, which recomputes both from
+// the committed artifacts rather than trusting the lists.
 //
 // # What it costs, and why that is not hidden
 //

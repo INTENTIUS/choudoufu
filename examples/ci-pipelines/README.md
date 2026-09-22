@@ -475,9 +475,9 @@ Three roles, not one, which is the whole reason `setup` is a per-Op option:
 | Job | Repository/project variable | What its role needs |
 |---|---|---|
 | `live-check` | none | nothing. It makes no cloud call |
-| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, and discover the account (below) |
-| `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker |
-| `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and the record store bucket's policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
+| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, discover the account (below), and the record store bucket's read-only policy for this estate (`examples/record-store-bucket/iam/render-policy.sh --read-only`, #1370: `live-plan` reads the estate's records and never writes one) |
+| `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker. The record store policy is the same read-only one: adoption writes two tags on the live resource and no record |
+| `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and the record store bucket's full policy for this estate (the same renderer without `--read-only`): the only one of the three that can write a record |
 
 **Discover the account.** Issue #807's first real-AWS dispatch (run
 34632345663) got past `live-check` and then failed `live-plan` with no
@@ -553,9 +553,9 @@ pull-request job no longer holds a credential that can change the estate:
 | Job | Repository secrets | What they can do |
 |---|---|---|
 | `live-check` | none | nothing. It makes no cloud call |
-| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ACCESS_KEY_ID` / `CHOUDOUFU_PLAN_SECRET_ACCESS_KEY` | read: describe the declared types, and `tag:GetResources` |
-| `live-adopt` | `CHOUDOUFU_ADOPT_ACCESS_KEY_ID` / `CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY` | the above, plus the per-service tagging calls that write a marker |
-| `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and the record store bucket's policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
+| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ACCESS_KEY_ID` / `CHOUDOUFU_PLAN_SECRET_ACCESS_KEY` | read: describe the declared types, `tag:GetResources`, and the record store bucket's read-only policy for this estate (`render-policy.sh --read-only`) |
+| `live-adopt` | `CHOUDOUFU_ADOPT_ACCESS_KEY_ID` / `CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY` | the above, plus the per-service tagging calls that write a marker; the same read-only record store policy |
+| `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and the record store bucket's full policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
 
 The two write pairs are not the read pair, and `tests/pipelines.test.ts` asserts as
 much - the same shape the GitHub role table above is asserted by. What is still
@@ -660,10 +660,12 @@ JSON
 # 3. Three roles, three inline policies, least-privilege per the table above:
 #    read (describe the log group and the role by ARN, tag:GetResources/GetTagKeys/
 #    GetTagValues, sts:GetCallerIdentity, and the account-wide DiscoverTheAccount
-#    statement below) for plan; read plus the marker-writing tag calls for adopt;
-#    read plus marker-writing plus create/update/delete on the two resource types
-#    and the record store bucket's rendered policy for apply. The bucket itself
-#    is stood up beforehand: cd examples/record-store-bucket && just up <bucket>.
+#    statement below) plus the record store bucket's READ-ONLY rendered policy
+#    (render-policy.sh --read-only) for plan; the same plus the marker-writing tag
+#    calls for adopt; read plus marker-writing plus create/update/delete on the two
+#    resource types and the record store bucket's FULL rendered policy for apply.
+#    The bucket itself is stood up beforehand: cd examples/record-store-bucket &&
+#    just up <bucket>.
 #    scripts/oidc-bootstrap.sh (below) generates exactly these three documents from
 #    this same terraform root - the commands here are what it runs.
 aws iam create-role --role-name choudoufu-ci-pipelines-plan \
@@ -700,8 +702,10 @@ and `put-role-policy` instead, so it is safe to re-run after a policy change), q
 `StringLike` list above rather than hand-composing it, and refuses to run at all if
 the OIDC provider is missing rather than creating one. It reads the estate name and
 the record store bucket out of `terraform/estate.chdf.hcl`, refuses to run if that
-bucket does not exist, and takes the apply role's record store statements from
-`examples/record-store-bucket/iam/render-policy.sh` rather than keeping a copy:
+bucket does not exist, and takes every role's record store statements from
+`examples/record-store-bucket/iam/render-policy.sh` rather than keeping a copy: the
+full rendering for the apply role, the `--read-only` rendering for the plan and adopt
+roles (#1370, since #1423):
 
 ```bash
 scripts/oidc-bootstrap.sh --dry-run   # prints every aws/gh command it would run
