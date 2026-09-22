@@ -71,12 +71,19 @@ address by ruling, so a team that wants two boundaries makes two estates.
 
 ## What is exempt
 
-The control plane: nodes, the `kube-system` controllers, the scheduler and
-the API server itself, because kubelets write status and controllers write
-the copies a pod template makes. That is the whole exemption, and it is
-what keeps a ReplicaSet's Pods out of the fence: a Deployment whose pod
-template carries the label still gets its ReplicaSet and its Pods, which
-claim 23 measures.
+Only the control plane is exempt, by name: nodes, the API server, the
+scheduler and the controller manager's own controllers. If anything else in
+kube-system is refused with "is not bound to it", grant it the estate:
+
+```
+sed -e 's/ESTATE/app/g' \
+    -e 's/PRINCIPAL_NAMESPACE/kube-system/g' \
+    -e 's/PRINCIPAL/NAME/g' \
+    live/kubernetes/estate-grant.yaml | kubectl apply -f -
+```
+
+Do not add it to the installed policy's list: `estate_boundary` fails a
+cluster whose policy is not the one this release ships.
 
 Owned objects keep their estate ([#1449](https://github.com/INTENTIUS/choudoufu/issues/1449)).
 An object that already carries an `ownerReference` may be updated with no
