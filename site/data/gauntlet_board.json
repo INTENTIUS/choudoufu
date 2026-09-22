@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Estates below were last measured against different emulator pins: 22 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`, 1 against `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81` (last_run.date ranges from 2026-09-10T07:49:05Z to 2026-09-19T16:43:19Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h36m28s, but not from one sweep: 32m5s across 1 estate(s) at commit `266e0e332c`; 2h4m3.5s across 22 estate(s) at commit `3bca740259`; 27m36s across 3 estate(s) at commit `979cabd489`; 5m21.4s across 1 estate(s) at commit `a3864ec9a2`; 10m20.2s across 1 estate(s) at commit `a69ed30cd0`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**29 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful.",
+  "banner": "Estates below were last measured against different emulator pins: 21 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`, 2 against `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81` (last_run.date ranges from 2026-09-10T07:49:05Z to 2026-09-22T03:47:54Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h36m56.6s, but not from one sweep: 32m5s across 1 estate(s) at commit `266e0e332c`; 2h2m41.7s across 21 estate(s) at commit `3bca740259`; 27m36s across 3 estate(s) at commit `979cabd489`; 5m21.4s across 1 estate(s) at commit `a3864ec9a2`; 10m20.2s across 1 estate(s) at commit `a69ed30cd0`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 1m50.4s across 1 estate(s) at commit `f2d687737b`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**30 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "stage_count": 14,
   "stages": [
     {
@@ -1995,32 +1995,30 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "1m21.8s",
-      "runtime_cells": "cold_deploy 6s, migrate 23s, test_plan 1s, test_apply 2s, drift_reconverge 4s, day2_rename 5s, day2_remove 5s, day2_count 13s, day2_replace 5s, plan_approval 8s, greenfield 10s",
-      "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 1m21.8s.",
+      "runtime_total": "1m50.4s",
+      "runtime_cells": "cold_deploy 20s, migrate 26s, test_plan 2s, test_apply 2s, drift_reconverge 4s, day2_rename 6s, day2_remove 5s, day2_count 14s, day2_replace 5s, plan_approval 10s, greenfield 16s",
+      "last_run_note": "Last run at commit `f2d687737b` on 2026-09-22T03:47:54Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 1m50.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "6s",
+          "duration": "20s",
           "detail": "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "23s",
+          "duration": "26s",
           "detail": "2 of 3 stamped (1 skipped, untaggable dashboard), 0 failed; both alarm markers read back via the AWS CLI"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "1s",
+          "duration": "2s",
           "detail": "no resource change proposed; both alarms' tofu-address unchanged, dashboard body re-derived and matches distribution_id"
         },
         {
@@ -2041,7 +2039,7 @@
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "5s",
+          "duration": "6s",
           "detail": "moved block: aws_cloudwatch_metric_alarm.s3_requests_spike renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_cloudwatch_metric_alarm.cf_requests_spike renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
@@ -2055,7 +2053,7 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "14s",
           "detail": "choudoufu: scaling aws_cloudwatch_metric_alarm.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), confirmed genuinely gone via describe-alarms (no server-minted id on this type - see header), leaving count_test[0] and its tofu-address marker unchanged; the local record store's record for count_test[1] read tombstoned (has(\"tombstone\"), no current \"identity\") at that same key, the #398-guard shape; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (name/region/account-derived) with a fresh \"identity\" record entry (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only (confirmed absent via describe-alarms), create it back (confirmed present again), the lower index untouched both times"
         },
         {
@@ -2079,14 +2077,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "8s",
-          "detail": "one argument edited (cf_requests_spike's alarm_description, a config-owned non-ForceNew argument, gains a \"(reviewed)\" suffix), \"plan -out=approved.tfplan\" wrote a 7915-byte stock-format plan file whose whole change set is one update on module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike; the world then moved out of band (S3GetRequestsSpike's alarm_description, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike and the live S3GetRequestsSpike it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - CFRequestsSpike's alarm_description still read as configured through the AWS CLI, rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the description put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and CFRequestsSpike read back with the reviewed description, so the refusal is earned by the drift and not handed out to every plan file. BOTH the plan -out and the apply carry this crossing's own -target set (aws_budgets_budget stays out of the graph - floci still answers UnknownOperationException for AWSBudgetServiceGateway on the pinned image), which is enough because a live-markers apply plans the live system from its OWN arguments rather than replaying the file: no exemption and no Go change was needed for issue #903's -target trap. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "10s",
+          "detail": "one argument edited (cf_requests_spike's alarm_description, a config-owned non-ForceNew argument, gains a \"(reviewed)\" suffix), \"plan -out=approved.tfplan\" wrote a 7923-byte stock-format plan file whose whole change set is one update on module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike; the world then moved out of band (S3GetRequestsSpike's alarm_description, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike and the live S3GetRequestsSpike it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - CFRequestsSpike's alarm_description still read as configured through the AWS CLI, rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the description put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and CFRequestsSpike read back with the reviewed description, so the refusal is earned by the drift and not handed out to every plan file. BOTH the plan -out and the apply carry this crossing's own -target set (aws_budgets_budget stays out of the graph - floci still answers UnknownOperationException for AWSBudgetServiceGateway on the pinned image), which is enough because a live-markers apply plans the live system from its OWN arguments rather than replaying the file: no exemption and no Go change was needed for issue #903's -target trap. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "16s",
           "detail": "3 resources from nothing (2 tagged alarms + the untaggable dashboard), both alarm markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on both alarms"
         },
         {
@@ -2773,6 +2771,8 @@
       "runtime_cells": "cold_deploy 57s, migrate 1m57s, test_plan 2s, test_apply 3s, drift_reconverge 4s, day2_rename 8s, day2_remove 48s, day2_count 1m52s, day2_replace 1m13s, plan_approval 11s, greenfield 3m5s",
       "last_run_note": "Last run at commit `a69ed30cd0` on 2026-09-18T14:49:44Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m20.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sqs-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3415,6 +3415,8 @@
       "runtime_cells": "cold_deploy 2m8s, migrate 38s, test_plan 4s, test_apply 5s, drift_reconverge 24s, day2_rename 19s, day2_remove 6s, day2_count 17s, day2_replace 12s, plan_approval 12s, greenfield 56s, strict -",
       "last_run_note": "Last run at commit `a3864ec9a2` on 2026-09-19T16:43:19Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 5m21.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
