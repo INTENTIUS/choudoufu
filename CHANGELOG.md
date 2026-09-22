@@ -132,6 +132,95 @@ change. They are what moved on main after the store first landed (#1392,
   the `kubectl create namespace` line. An identity that may not `get` the
   namespace cannot ask, and the store's sentinel covers that run.
 
+FORK WORK:
+
+- **Correctness a user hits, five defects and their proofs.** Every one was
+  red before it was fixed, and each proof runs against the pinned emulator or
+  a fake, never a real account.
+  - *A type that cannot be tagged at creation is created, then marked, in the
+    same apply* (#1084, PR #1489). `AWS::Route53::HostedZone` and nine others
+    take no tags in their create call, so the marker used to arrive only
+    through a call the provider made on its own, which this fork could not
+    report on. The node writer now withholds the markers from the create and
+    the live path writes them immediately after, through the Resource Groups
+    Tagging API, before the apply reports the instance complete. A failed
+    write is an apply error naming the unmarked object by ARN with the one
+    `aws resourcegroupstaggingapi tag-resources` line that marks it. Keyed on
+    the registry's own `tag_on_create`, which nothing read until now. The same
+    rule reaches a replace's create half (#1512, PR #1518), which until then
+    failed outright with "Provider produced inconsistent final plan" after the
+    old object had already been destroyed.
+  - *A `-target` run is no longer refused over a block it excludes* (#1470,
+    PR #1494; #1514, PR #1516). An excluded block's non-static `for_each` was
+    raised before the walk and survived the rollback, and the estate sweep
+    took its needs-discovery set from the whole configuration, so a targeted
+    run could be refused as "Unlistable marker-discovered type" for a block it
+    was not acting on. Behind those, the plan's second pass and the
+    provider-configuration fixpoint stop doing provider work for excluded
+    blocks (#1258, PRs #1494 and #1536): on the counting fixture a targeted
+    run goes from nine plans, an import, a read and a data read to one plan
+    and nothing else.
+  - *A least-privilege role gets one warning, not hundreds* (#1052, PR #1498;
+    #1513, PR #1523). Every Cloud Control listing refused with
+    `AccessDeniedException` collapses into a single "Incomplete sweep"
+    warning carrying the count, the first five type names and the IAM action
+    pattern to grant, across every provider configuration in the run. A
+    listing that failed for any other reason keeps its own line, and every
+    denied type and the action it named is in the log under `TF_LOG=WARN`.
+  - *A framework resource's `timeouts` block survives the live path* (#1240,
+    PR #1492). terraform-plugin-framework keeps the block in the resource's
+    own state rather than in the private blob, so the projected prior carried
+    a null and a destroy used the provider's hard-coded default. It is now
+    re-derived from configuration, as #1185 did for SDKv2's carrier, and a
+    prior seeded that way replans as no change.
+  - *A `kubernetes_manifest` that reads another resource binds to its own
+    object* (#1262, PRs #1461 and #1486). Its configured seed is evaluated
+    with the tolerant evaluator, so a refused reference is an unknown rather
+    than a dropped argument, and the estate label can be read back. The
+    reference estate's crash pair takes its edge from that data reference
+    again, and the lane run reads `day2_crash verdict=pass` with it.
+
+- **The guards that could not fail.** Three checks asserted things they could
+  never observe.
+  - *The lookalike guard fires on a plain plan again* (#1480, PR #1533). A
+    declared type is listed with the estate filter on, so a resource whose
+    markers were stripped never crossed the wire and the guard documented in
+    `live/MARKERS.md` as the last line of defense could only be reached
+    through an environment variable. A plan with a pending create of a
+    server-assigned type now makes one widened listing for that type; a
+    steady-state plan makes none, counted rather than argued.
+  - *`selftest-kill` lists the account itself* (#1279, PR #1532). The
+    harness removed the emulator container as teardown's last step, so the
+    driver's "independent verification" never ran and reported an empty
+    estate over a leak. The container now outlives teardown for that driver
+    only, on the emulator only, and a missing verification is a failure
+    rather than a note.
+  - *A killed apply hides nothing it marked* (#1519, PR #1534, claim 42). The
+    first scenario to kill a real apply, pinned on a resource count read from
+    the account rather than a timer. It also measured the window a
+    `tag_on_create: false` object spends unmarked as the provider's whole
+    create step, not the single round trip the code comments claimed (#1535).
+
+- **corpus-eks-basic clears, and two defects it was hiding** (#1527, PR #1544;
+  #1543, PR #1545). The Kubernetes estate sweep never authenticated against a
+  cluster whose token comes from `data.aws_eks_cluster_auth`, because the
+  token is sensitive and the sweep refused to read marked values; it dialled
+  the cluster anonymously and every `kubernetes_*` type read `LIST_FAILED`.
+  Separately, `live-import` had no provider-configuration data-read phase, so
+  a provider configured from data sources could be planned but not migrated,
+  `kube-system/aws-auth` never received its `tofu-estate` label, and the next
+  plan proposed creating an object that already existed. Both are fixed, the
+  estate's `test_plan` assertion now names what the plan proposed instead of
+  guessing at a cause, and the estate passes every active stage.
+
+- **The gate answers for the tree, not the machine** (#1509, #1510, #1511,
+  PR #1522). The identity golden's render downloaded the AWS provider afresh
+  on every run and hit the registry even with the package cached, so a gate
+  could go red on a network blip or on a plugin start that lost a race under
+  load; it now renders offline from the shared cache with byte-identical
+  output. Four `kubesweep` tests waited out a client-go default timeout under
+  load, and a `tools/gauntlet` test read `FLOCI_PORT` out of whoever ran it.
+
 ## choudoufu v0.18.0 (2026-09-19)
 
 Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.18.0.json`](live/history/v0.18.0.json).
