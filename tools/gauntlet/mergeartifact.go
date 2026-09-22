@@ -59,32 +59,34 @@ func mergeArtifactAllowedPath(p string) bool {
 // resolveCommit resolves a git revision (branch, tag, sha, HEAD, ...) to its
 // full commit SHA, so every later step (diff, show, merge-base) operates on
 // a stable, reportable identifier rather than a moving ref.
+//
+// Through gitOutput (#1220): the error quotes git, so "does not resolve to
+// a commit" is distinguishable from a git that could not answer.
 func resolveCommit(root, rev string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--verify", rev+"^{commit}")
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "rev-parse", "--verify", rev+"^{commit}")
 	if err != nil {
 		return "", fmt.Errorf("merge-artifact: %q does not resolve to a commit: %w", rev, err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return out, nil
 }
 
 // changedPaths returns the paths that differ between two commits' trees -
 // exactly `git diff --name-only from to`, a plain tree-to-tree comparison
 // (not a three-dot/merge-base diff), matching "differs between base and
 // either side" literally.
+//
+// Through gitOutput (#1220): this backs checkNoProductCodeMoved, the safety
+// precondition every other check in this file assumes, and its error must
+// say what git said rather than a bare exit status.
 func changedPaths(root, from, to string) ([]string, error) {
-	cmd := exec.Command("git", "diff", "--name-only", from, to)
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "diff", "--name-only", from, to)
 	if err != nil {
-		return nil, fmt.Errorf("git diff --name-only %s %s: %w", from, to, err)
+		return nil, fmt.Errorf("listing paths changed between %s and %s: %w", from, to, err)
 	}
-	s := strings.TrimSpace(string(out))
-	if s == "" {
+	if out == "" {
 		return nil, nil
 	}
-	return strings.Split(s, "\n"), nil
+	return strings.Split(out, "\n"), nil
 }
 
 // checkNoProductCodeMoved enforces the safety precondition: this merge is

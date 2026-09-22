@@ -220,8 +220,15 @@ func recordStoreEnv(t *testing.T, stubDir string, extra ...string) []string {
 // recordStoreRun runs one recipe and returns its exit code and its output.
 func recordStoreRun(t *testing.T, env []string, args ...string) (int, string) {
 	t.Helper()
+	return recordStoreRunIn(t, recordStoreProject, env, args...)
+}
+
+// recordStoreRunIn is recordStoreRun for another example's justfile
+// (record_store_cluster_test.go).
+func recordStoreRunIn(t *testing.T, dir string, env []string, args ...string) (int, string) {
+	t.Helper()
 	cmd := exec.Command("just", args...)
-	cmd.Dir = recordStoreProject
+	cmd.Dir = dir
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	switch e := err.(type) {

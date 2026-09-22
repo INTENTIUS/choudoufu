@@ -245,7 +245,12 @@ func serviceEndpoint(serviceVar, fallback string) string {
 // and the leg's own gate (internal/live/discovery/servicetagread.go) is what
 // decides whether a call is ever made, so a run that builds this and never
 // needs it pays for the struct and nothing else.
-func newServiceTagsReader(region, ep string, fromBlock aws.CredentialsProvider) servicetags.Reader {
+//
+// The concrete type is returned rather than the [servicetags.Reader]
+// interface because the same client is also the [servicetags.Lister]
+// (GitHub issue #1477: iam:ListRoles for the service-linked role, whose
+// markers the reader half then reads), and live-plan wires it as both.
+func newServiceTagsReader(region, ep string, fromBlock aws.CredentialsProvider) *servicetags.IAM {
 	return servicetags.NewIAM(iam.NewFromConfig(
 		aws.Config{
 			Region: region,

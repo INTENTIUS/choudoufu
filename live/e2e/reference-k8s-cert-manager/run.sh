@@ -251,26 +251,32 @@ PY
 # Issuers - namespaced custom kinds behind the same two failurePolicy: Fail
 # webhooks every other custom resource in this root goes through, including
 # the server-side dry run kubernetes_manifest does at PLAN time - and
-# crash_second depends_on crash_first, so the two are a real edge in the
-# graph rather than two independent nodes the walker may reach in either
-# order. That is what makes the interrupt deterministic by construction
-# (#490's discipline, after an external tail/grep/kill race produced a
-# retry lottery on the AWS crash stage): nothing can create crash-second
-# until crash-first has committed, so this script interrupts once and
-# reports what it saw instead of retrying.
+# crash_second's own manifest reads crash_first's name, so the two are a
+# real edge in the graph rather than two independent nodes the walker may
+# reach in either order. That is what makes the interrupt deterministic by
+# construction (#490's discipline, after an external tail/grep/kill race
+# produced a retry lottery on the AWS crash stage): nothing can create
+# crash-second until crash-first has committed, so this script interrupts
+# once and reports what it saw instead of retrying.
 #
-# The lane's other three estates spell that edge as a data reference -
-# crash_second's own data reads crash_first's name. This one cannot, and
-# the reason is #1262, found writing this section: a kubernetes_manifest
-# whose `manifest` argument contains a reference to another resource never
-# binds to its own object again. The configured seed for the read is built
-# with an evaluator that cannot resolve the reference, so the manifest -
-# and the estate label inside it - is dropped, the object reads back
-# "without a manifest.metadata.labels map", and the next plan proposes
-# CREATING an object that already exists. It is #1178's mechanism one case
-# further out, and no crash is needed to produce it. depends_on is the
-# same graph edge with that second variable taken out, so this stage
-# measures crash recovery and #1262 is measured where it belongs.
+# That data reference is how the lane's other three estates spell the
+# edge, and it is how this section was first written. It found #1262: a
+# kubernetes_manifest whose `manifest` argument contains a reference to
+# another resource never bound to its own object again, because the
+# configured seed for the read was built with an evaluator that could not
+# resolve the reference, so the manifest - and the estate label inside it
+# - was dropped, the object read back "without a manifest.metadata.labels
+# map", and the next plan proposed CREATING an object that already
+# existed. The pair took its edge from depends_on while that stood. PR
+# #1461 fixed it: when the strict seed yields no manifest the projection
+# evaluates the argument with the tolerant evaluator, seeds the skeleton
+# configuration can state, and fills each refused leaf from the live
+# object after the read. That fix was shown against a fake provider only,
+# and the issue asked for this pair going back to the data edge as the
+# cluster proof - so the edge is the data reference again, and the replan
+# after the recovery is the assertion: an empty plan here means the
+# annotation that reads crash_first's name did not stop crash_second
+# binding to the object choudoufu itself had applied one command earlier.
 crash_block() {
   if [ "$1" = "first" ]; then
     cat <<EOF
@@ -299,6 +305,9 @@ resource "kubernetes_manifest" "crash_second" {
     "apiVersion" = "cert-manager.io/v1"
     "kind"       = "Issuer"
     "metadata" = {
+      "annotations" = {
+        "after" = kubernetes_manifest.crash_first.manifest.metadata.name
+      }
       "name"      = "crash-second"
       "namespace" = "$NS"
     }
@@ -306,8 +315,6 @@ resource "kubernetes_manifest" "crash_second" {
       "selfSigned" = {}
     }
   }
-
-  depends_on = [kubernetes_manifest.crash_first]
 }
 EOF
   fi
@@ -1001,10 +1008,10 @@ else
     [ "$R_REPLAN_RC" -eq 0 ] || { printf '%s\n' "$R_REPLAN" | tail -30
       R_ERR="$(grep -E '^Error' <<< "$R_REPLAN" | head -1)"
       fail "the replan after the recovery exited $R_REPLAN_RC: ${R_ERR:-no Error: line; the last 30 lines of the plan are above this verdict in the log}"; }
-    grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -30; fail "the replan after the recovery is not empty"; }
+    grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -30; fail "the replan after the recovery is not empty. crash_second's manifest carries an annotation reading kubernetes_manifest.crash_first.manifest.metadata.name - the data edge PR #1461 (#1262) made bindable - so a plan proposing to create crash_second again, or the provider reading it back without its manifest.metadata.labels map, is #1262 on a cluster and not a crash-recovery failure"; }
     C_AFTER="$(count_a)"
     [ "$C_AFTER" = "$((C_BEFORE + 2))" ] || fail "$C_AFTER labelled objects after the recovery, want $((C_BEFORE + 2)) - the estate carried $C_BEFORE before the crash pair was added and the pair is two objects"
-    gauntlet_stage day2_crash pass "an apply creating two CUSTOM RESOURCES was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_manifest.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second depends_on crash_first, so the walker cannot have reached it - kubectl confirms the Issuer crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. Both are cert-manager.io/v1 Issuers, so every write in this graph - the plan-time server-side dry run included - goes through the two failurePolicy: Fail webhooks this estate installs, and the recovery is the counted-manifest binding path #1178 broke, reached from a half-finished apply rather than a replan. The next plan proposed exactly the remainder ($R_LINE, kubernetes_manifest.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the webhook and the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, the plan after it is empty and $C_AFTER objects carry the estate's label, the $C_BEFORE the estate carried before the pair plus exactly the pair. What the record store contributed is read by value rather than counted (#1235, #1288): the interrupted apply durably recorded exactly the one object it had created (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER, #1188 section 3's 7 -> 8 on a type that now has something to carry), and that record says the applied manifest declared metadata.labels [$X_KEYS_L] and metadata.annotations [] - the estate marker this fork stamps in on the configuration's behalf, and the empty set a block declaring no annotations must record rather than leave out (#1211). Recording the marker key as declared is what stops the very next plan proposing its removal, which is the binding the recovery then rests on. The record carries no identity member, so the label is still the whole of the identity binding here. The pair's graph edge is a depends_on rather than the data reference the lane's other three estates use, because #1262 - found writing this section - is that a kubernetes_manifest whose manifest argument references another resource never binds to its own object again, which is a defect of its own and not this stage's subject. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
+    gauntlet_stage day2_crash pass "an apply creating two CUSTOM RESOURCES was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_manifest.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second's own manifest reads crash_first's name, so the walker cannot have reached it - kubectl confirms the Issuer crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. Both are cert-manager.io/v1 Issuers, so every write in this graph - the plan-time server-side dry run included - goes through the two failurePolicy: Fail webhooks this estate installs, and the recovery is the counted-manifest binding path #1178 broke, reached from a half-finished apply rather than a replan. The next plan proposed exactly the remainder ($R_LINE, kubernetes_manifest.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the webhook and the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, the plan after it is empty and $C_AFTER objects carry the estate's label, the $C_BEFORE the estate carried before the pair plus exactly the pair. What the record store contributed is read by value rather than counted (#1235, #1288): the interrupted apply durably recorded exactly the one object it had created (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER, #1188 section 3's 7 -> 8 on a type that now has something to carry), and that record says the applied manifest declared metadata.labels [$X_KEYS_L] and metadata.annotations [] - the estate marker this fork stamps in on the configuration's behalf, and the empty set a block declaring no annotations must record rather than leave out (#1211). Recording the marker key as declared is what stops the very next plan proposing its removal, which is the binding the recovery then rests on. The record carries no identity member, so the label is still the whole of the identity binding here. The pair's graph edge is the data reference the lane's other three estates use - an annotation in crash_second's manifest reading kubernetes_manifest.crash_first.manifest.metadata.name, with no depends_on between the two - which is the shape this section was first written in and which found #1262 (a kubernetes_manifest whose manifest argument references another resource never bound to its own object again). PR #1461 fixed that against a fake provider and asked for this pair as the cluster proof; the empty replan after the recovery is that proof, since the recovered crash_second, whose manifest carries the reference, is bound rather than proposed for a second create. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
   fi
 fi
 gauntlet_end_stage

@@ -41,9 +41,18 @@ ESTATE="${UNIT%%/*}"; STAGE="${UNIT##*/}"
 BRANCH="gauntlet/${ESTATE}-${STAGE}"
 WT="$ROOT/../wt/contribute-${ESTATE}-${STAGE}"
 
-if git -C "$ROOT" show-ref --verify --quiet "refs/heads/$BRANCH"; then
-  echo "contribute: branch $BRANCH already exists locally; finish or delete it first" >&2; exit 2
-fi
+# git has three answers here, not two (#1220): exit 0 "the branch exists",
+# exit 1 "no such branch", and anything else "I could not answer". Only
+# exit 1 means the branch is free; a git that cannot run must stop the
+# script here, with its own words, rather than read as "free" and fall over
+# one line later at `git worktree add` with no diagnosis.
+rc=0
+show_ref_err="$(git -C "$ROOT" show-ref --verify --quiet "refs/heads/$BRANCH" 2>&1 >/dev/null)" || rc=$?
+case "$rc" in
+0) echo "contribute: branch $BRANCH already exists locally; finish or delete it first" >&2; exit 2 ;;
+1) ;;
+*) echo "contribute: git could not answer whether branch $BRANCH exists (git show-ref exit $rc): $show_ref_err" >&2; exit 2 ;;
+esac
 git -C "$ROOT" worktree add "$WT" -b "$BRANCH" main >/dev/null
 git -C "$WT" submodule update --init site/themes/hugo-book >/dev/null 2>&1 || true
 echo "contribute: unit $UNIT in $WT (branch $BRANCH), ceiling \$$MAX_USD"

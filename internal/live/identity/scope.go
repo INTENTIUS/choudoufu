@@ -69,10 +69,8 @@ func (r *resolver) inScope(rc *configs.Resource) bool {
 // referencing instance's own refusal, which is the one the operator can act
 // on anyway.
 func (r *resolver) walkOutOfScope(rc *configs.Resource, result *Result) {
-	diagMark, sibMark := len(r.diags), len(r.pendingSiblingApply)
-	exp, ok := r.expansionFor(rc)
+	exp, ok := r.expansionOutOfScope(rc)
 	if !ok {
-		r.rollback(diagMark, sibMark)
 		return
 	}
 	for _, key := range exp.keys {
@@ -85,6 +83,46 @@ func (r *resolver) walkOutOfScope(rc *configs.Resource, result *Result) {
 		}
 		result.add(res)
 	}
+}
+
+// expansionOutOfScope is [resolver.expansionFor] for a block this run's
+// -target / -exclude filtering has removed from the plan graph: the same
+// expansion, with a failure's diagnostics rolled back and the failure
+// itself forgotten.
+//
+// GitHub issue #1470. Both callers of expansionFor that can meet an
+// out-of-scope block route through here - [resolver.collectSignalInto],
+// which runs over the whole configuration BEFORE the walk, and
+// [resolver.walkOutOfScope]. Before this existed, the collection called
+// expansionFor with no scope at all, so an excluded block's "Non-static
+// for_each expression" was raised ahead of any mark walkOutOfScope could
+// roll back to; expansionFor then memoized the failure, so the walk's own
+// call returned false with no new diagnostic and its rollback removed
+// nothing. The error reached the caller, for a block the run had excluded,
+// and a -target run was refused for it (internal/command's
+// TestLivePlan_targetIsNotRefusedByAnExcludedForEachTheSecondPassCannotSettle).
+//
+// The failure is forgotten (r.expFailed) as well as rolled back, and that
+// is what keeps walkOutOfScope's own promise about an inconsistent scope
+// true. expansionFor's memo exists so two consumers of one failed block
+// share one diagnostic; a consumer that finds the memo returns false
+// SILENTLY ([resolver.resolveResourceRef]'s parentExp branch), on the
+// understanding that the diagnostic is already on r.diags. Here it is not:
+// it was just rolled back. An in-scope block whose for_each reads this one
+// - which a scope [statelessTargetScope] computes cannot produce, since the
+// reference is the graph edge targeting follows, but a hand-built scope can
+// - must re-evaluate the expansion and raise the refusal afresh, in its
+// own context, rather than resolve to nothing with no diagnostic at all.
+// The cost is one extra evaluation of an excluded block's count or
+// for_each per call, and only when it fails.
+func (r *resolver) expansionOutOfScope(rc *configs.Resource) (*expansion, bool) {
+	diagMark, sibMark := len(r.diags), len(r.pendingSiblingApply)
+	exp, ok := r.expansionFor(rc)
+	if !ok {
+		r.rollback(diagMark, sibMark)
+		delete(r.expFailed, r.expKey(rc))
+	}
+	return exp, ok
 }
 
 // rollback drops every diagnostic raised since diagMark, along with the

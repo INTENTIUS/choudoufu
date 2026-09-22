@@ -532,9 +532,16 @@ func sweep(opts sweepOptions) (*run, error) {
 		return nil, err
 	}
 
-	sources, problems := corpusState(opts.root, m)
+	sources, problems, err := corpusState(opts.root, m)
+	if err != nil {
+		return nil, err
+	}
 	if len(problems) > 0 && !opts.allowPartial {
 		return nil, corpusProblemRefusal(realPath(opts.root), sources, problems)
+	}
+	commit, err := treeCommit(opts.root)
+	if err != nil {
+		return nil, fmt.Errorf("cannot record the tree this sweep measured: %w", err)
 	}
 
 	r := &run{
@@ -542,7 +549,7 @@ func sweep(opts sweepOptions) (*run, error) {
 		Manifest:       opts.manifest,
 		Root:           opts.root,
 		RootPath:       realPath(opts.root),
-		Commit:         treeCommit(opts.root),
+		Commit:         commit,
 		ManifestSHA:    fileDigest(manifestPath),
 		Sources:        sources,
 		CorpusProblems: problems,

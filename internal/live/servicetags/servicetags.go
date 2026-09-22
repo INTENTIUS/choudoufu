@@ -38,7 +38,11 @@ type Reader interface {
 	// ReadTags returns the tags carried by the object of typeName whose
 	// import identity is importID - the same identifier
 	// internal/live/discovery composed for the listed object, so the
-	// caller needs no second identity notion.
+	// caller needs no second identity notion. For an object a [Lister]
+	// enumerated the identifier is [Listed.ReadKey] instead, which is the
+	// import identity except where the service's tag API keys on
+	// something else (GitHub issue #1477: a service-linked role imports
+	// by ARN and iam:ListRoleTags takes its name).
 	//
 	// A nil error means the read succeeded and the map is the object's
 	// whole tag set, which may legitimately be empty: an object with no

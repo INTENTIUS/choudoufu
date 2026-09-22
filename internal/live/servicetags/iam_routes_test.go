@@ -143,16 +143,71 @@ func markerUnreadableOnTheCloudControlLeg(t *testing.T) []string {
 	return out
 }
 
-// TestIAMRoutesMatchTheDerivedSet is the check: every IAM type in either
-// arm of the derived set has an entry in [IAMRoutes], and [IAMRoutes] has no
+// serviceListArmIAM recomputes the set of IAM types NO other enumeration leg
+// reaches and whose marker a stamped object nonetheless carries: taggable,
+// with no provider list resource, mapped to no input-free Cloud Control list
+// handler, in the one service the tag index does not serve for roles. That
+// is the population [IAMListRoutes] exists for (GitHub issue #1477), and the
+// tag read for every object it lists is the reason each of these types is
+// also in [IAMRoutes].
+//
+// It is disjoint from the other two arms by construction: the native arm
+// requires list_resource true, and the Cloud Control arm requires
+// EnumerationSource to answer true.
+func serviceListArmIAM(t *testing.T) []string {
+	t.Helper()
+	roster, err := registry.Embedded()
+	if err != nil {
+		t.Fatalf("registry.Embedded: %v", err)
+	}
+	var out []string
+	for _, e := range readSurvey(t).Types {
+		if !strings.HasPrefix(e.Type, "aws_iam_") {
+			continue
+		}
+		if !e.Signals.Taggable || e.Signals.ListResource {
+			continue
+		}
+		if _, listable := roster.EnumerationSource(e.Type); listable {
+			continue
+		}
+		out = append(out, e.Type)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestIAMListRoutesMatchTheDerivedSet is [IAMListRoutes]'s own check, the
+// same shape as the tag-read table's below: every type the service-list arm
+// derives has a list route, and no list route exists for a type it does not
+// derive. Proved red before green both ways: by deleting the
+// aws_iam_service_linked_role entry, and by adding "aws_iam_instance_profile"
+// to the table, which Cloud Control enumerates and so the arm excludes.
+func TestIAMListRoutesMatchTheDerivedSet(t *testing.T) {
+	want := serviceListArmIAM(t)
+	if len(want) == 0 {
+		t.Fatal("the service-list arm derived no IAM type at all, so this test cannot be measuring what it claims: check live/survey-full.json's taggable and list_resource signals and the embedded roster before touching IAMListRoutes")
+	}
+	var got []string
+	for tn := range IAMListRoutes {
+		got = append(got, tn)
+	}
+	sort.Strings(got)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("IAMListRoutes covers %v, and the artifacts derive %v.\nAn entry the derivation does not name is a listing another leg already makes; a derived type with no entry is a stamped object nothing in the run can enumerate - which is #1477, one type over.", got, want)
+	}
+}
+
+// TestIAMRoutesMatchTheDerivedSet is the check: every IAM type in any arm
+// of the derived set has an entry in [IAMRoutes], and [IAMRoutes] has no
 // entry that is not in one of them.
 //
-// Proved red before green three ways: by deleting the
+// Proved red before green three ways when it had two arms: by deleting the
 // aws_iam_instance_profile entry (Cloud Control arm), by deleting the
 // aws_iam_role entry (native arm), and by adding
-// "aws_iam_service_linked_role" to the table - which is taggable per the
-// survey but has no list resource and is not Cloud-Control-listable either,
-// so neither arm derives it.
+// "aws_iam_service_linked_role" to the table - which at the time no arm
+// derived. GitHub issue #1477 added the third arm, which derives exactly
+// that type, and the test was proved red again by deleting its entry.
 func TestIAMRoutesMatchTheDerivedSet(t *testing.T) {
 	inWant := map[string]bool{}
 	for _, tn := range markerUnreadableOnTheCloudControlLeg(t) {
@@ -169,6 +224,13 @@ func TestIAMRoutesMatchTheDerivedSet(t *testing.T) {
 	}
 	if len(inWant) == ccArm {
 		t.Fatal("the native arm derived no IAM type the Cloud Control arm had not already, so #1125's half of this table is unmeasured: check live/survey-full.json's list_resource signal before touching IAMRoutes")
+	}
+	twoArms := len(inWant)
+	for _, tn := range serviceListArmIAM(t) {
+		inWant[tn] = true
+	}
+	if len(inWant) == twoArms {
+		t.Fatal("the service-list arm derived no IAM type the other two had not already, so #1477's entry in this table is unmeasured: check live/survey-full.json and the embedded roster before touching IAMRoutes")
 	}
 	var wantIAM []string
 	for tn := range inWant {

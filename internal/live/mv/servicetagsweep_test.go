@@ -219,6 +219,10 @@ func (a *iamSweepAPI) ListUserTags(context.Context, *iam.ListUserTagsInput, ...f
 	return nil, errors.New("a policy sweep must not reach iam:ListUserTags")
 }
 
+func (a *iamSweepAPI) ListRoles(context.Context, *iam.ListRolesInput, ...func(*iam.Options)) (*iam.ListRolesOutput, error) {
+	return nil, errors.New("a policy sweep must not reach iam:ListRoles")
+}
+
 func iamTag(key, value string) iamtypes.Tag {
 	return iamtypes.Tag{Key: aws.String(key), Value: aws.String(value)}
 }
