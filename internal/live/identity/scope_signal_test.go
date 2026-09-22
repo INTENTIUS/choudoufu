@@ -170,3 +170,39 @@ func renderScopeDiags(diags tfdiags.Diagnostics) string {
 	}
 	return b.String()
 }
+
+// TestAnInconsistentScopeStillRefusesTheInScopeConsumer pins the half of
+// GitHub issue #1470's fix that is about what the fix must NOT do.
+//
+// [resolver.expansionFor] memoizes a failure so that two consumers of one
+// failed block share one diagnostic, and a consumer that finds the memo
+// returns false silently. Rolling back an excluded block's refusal while
+// leaving that memo in place would therefore let an IN-SCOPE block whose
+// for_each reads the excluded one resolve to nothing, with no diagnostic
+// at all - a refusal turned into silence.
+//
+// No scope [statelessTargetScope] computes can hold "mirror" and drop
+// "cert_validation", because the reference is the very edge targeting
+// follows; the scope here is hand-built to be exactly that inconsistent,
+// which is the case [resolver.walkOutOfScope]'s doc promises "the
+// referencing instance's own refusal" for.
+func TestAnInconsistentScopeStillRefusesTheInScopeConsumer(t *testing.T) {
+	cfg := writeScopeFixture(t, signalScopeRoot+`
+resource "aws_route53_record" "mirror" {
+  for_each = aws_route53_record.cert_validation
+
+  zone_id = "Z0423220"
+  name    = each.key
+  type    = "TXT"
+  records = ["ignored"]
+  ttl     = 60
+}
+`, "")
+
+	_, diags := ResolveWith(t.Context(), cfg, Context{
+		Scope: scopeOnly("aws_cloudwatch_log_group.wanted", "aws_route53_record.mirror"),
+	})
+	if !hasErrorSummary(diags, "Non-static for_each expression") {
+		t.Fatalf("an in-scope block whose for_each reads an excluded block that cannot expand resolved with no refusal:\n%s", renderScopeDiags(diags))
+	}
+}

@@ -300,10 +300,29 @@ func (r *resolver) collectSignal(cfg *configs.Config) *ConfigSignal {
 //     doc comment describes finding for the identity walk proper -
 //     without this, a later sibling's own r.mod.ModuleCalls[name] lookup
 //     silently reads an unrelated module's call table.
+//
+// A third thing is mirrored from walkModule since GitHub issue #1470: the
+// scope check. This collection runs over the whole configuration before the
+// walk, and it has to - the signal is the whole configuration's answer, see
+// [resolveWith] - but the diagnostics its expansions raise were not scoped,
+// so an excluded block's for_each refusal was raised here, ahead of the mark
+// [resolver.walkOutOfScope] rolls back to, and memoized past it. An
+// out-of-scope block is still expanded and still contributes its instances
+// to the signal when it can; what changes is that its failure is rolled
+// back and forgotten, exactly as the walk does. See
+// [resolver.expansionOutOfScope].
 func (r *resolver) collectSignalInto(cfg *configs.Config, modInst addrs.ModuleInstance, signal *ConfigSignal) {
 	r.enterModuleAt(cfg, modInst)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
-		exp, ok := r.expansionFor(rc)
+		var (
+			exp *expansion
+			ok  bool
+		)
+		if r.inScope(rc) {
+			exp, ok = r.expansionFor(rc)
+		} else {
+			exp, ok = r.expansionOutOfScope(rc)
+		}
 		if !ok {
 			continue
 		}

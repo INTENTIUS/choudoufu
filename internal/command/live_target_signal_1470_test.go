@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/terminal"
 )
@@ -21,10 +22,10 @@ import (
 // pins the shape on a fixture where [statelessResolve]'s second pass
 // happens to clear the excluded block's refusal, because
 // [projection.PlanInstances] plans the certificate the record reads. This
-// file is the fixture where it cannot: the certificate is a for_each block,
-// which PlanInstances never plans, so the second pass is handed nothing
-// about domain_validation_options and the first pass's verdict is the
-// run's.
+// file is the fixture where it cannot: the source block the record reads is
+// a for_each block, which PlanInstances never plans, so the second pass is
+// handed nothing about validation_options and the first pass's verdict is
+// the run's.
 //
 // The scope is the plan graph's own, computed inside live-plan by
 // [statelessTargetScope], and the assertion is the exit code of the whole
@@ -36,11 +37,11 @@ import (
 const targetSignalFixture = "live-plan-target-signal-1470"
 
 // targetSignalSchemas is [statelessTestSchemas]'s caricature widened by the
-// two types the fixture's excluded pair declares. domain_validation_options
-// is computed and never set by the fake, so a run that DID plan the
-// certificate would still learn nothing from it; the structural reason the
-// second pass cannot settle the record is the certificate's own for_each,
-// and the schema is only here so the provider admits the blocks at all.
+// two types the fixture's excluded pair declares. validation_options on the
+// log group is computed and never set by the fake, so a run that DID plan
+// the source would still learn nothing from it; the structural reason the
+// second pass cannot settle the record is the source's own for_each, and
+// the schema is only here so the provider admits the blocks at all.
 func targetSignalSchemas() map[string]providers.Schema {
 	out := statelessTestSchemas()
 	optionType := cty.Object(map[string]cty.Type{
@@ -49,13 +50,12 @@ func targetSignalSchemas() map[string]providers.Schema {
 		"resource_record_type":  cty.String,
 		"resource_record_value": cty.String,
 	})
-	out["aws_acm_certificate"] = providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
-		"id":                        {Type: cty.String, Computed: true},
-		"arn":                       {Type: cty.String, Computed: true},
-		"domain_name":               {Type: cty.String, Optional: true},
-		"validation_method":         {Type: cty.String, Optional: true},
-		"domain_validation_options": {Type: cty.Set(optionType), Computed: true},
-		"tags":                      {Type: cty.Map(cty.String), Optional: true},
+	out["aws_cloudwatch_log_group"] = providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"id":                 {Type: cty.String, Computed: true},
+		"arn":                {Type: cty.String, Computed: true},
+		"name":               {Type: cty.String, Optional: true},
+		"validation_options": {Type: cty.Set(optionType), Computed: true},
+		"tags":               {Type: cty.Map(cty.String), Optional: true},
 	}}}
 	out["aws_route53_record"] = providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
 		"id":      {Type: cty.String, Computed: true},
@@ -135,19 +135,43 @@ func TestLivePlan_targetIsNotRefusedByAnExcludedForEachTheSecondPassCannotSettle
 // the end-to-end test into TestATargetedRunIsNotRefusedByAnExcludedForEach's
 // twin.
 //
-// The counting cloud is live-target-provider-work's; the scope is the plan
+// The counting cloud is live-target-provider-work's, which admits the
+// source type (so "never planned" is PlanInstances declining a for_each
+// block, not a provider with no schema for it); the scope is the plan
 // graph's, from [statelessTargetScope] over a real [tofu.Context].
+//
+// Untargeted, the first pass refuses the record with a demand on the
+// source, the second pass runs, and the source is still not planned: that
+// arm is what makes "cannot settle" a property of the fixture rather than
+// of the scope.
 func TestTheSecondPassCannotSettleTheTargetSignalFixture(t *testing.T) {
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetSignalFixture))
-	cloud := newTargetWorkCloud()
-	scope := cloud.scopeFor(t, cfg, "aws_s3_bucket.data")
 
-	_, diags := statelessResolve(t.Context(), cfg, cloud, nil, nil, scope)
-	if n := cloud.plans["aws_acm_certificate"]; n != 0 {
-		t.Errorf("PlanInstances planned the for_each certificate %d time(s); this fixture relies on it never being planned (calls were %s)", n, renderCounts(cloud.plans))
-	}
-	if n := errorCount(diags); n != 0 {
-		t.Errorf("-target=aws_s3_bucket.data refused with %d error(s) for blocks the run excludes, and PlanResourceChange calls were %s: %v",
-			n, renderCounts(cloud.plans), renderDiags(diags))
-	}
+	t.Run("untargeted", func(t *testing.T) {
+		cloud := newTargetWorkCloud()
+		first, firstDiags := identity.ResolveWith(t.Context(), cfg, identity.Context{})
+		if got := identity.DemandedManagedReads(first, firstDiags); len(got) != 1 || got[0].Resource.String() != "aws_cloudwatch_log_group.certs" {
+			t.Fatalf("the first pass demands %+v, want exactly aws_cloudwatch_log_group.certs; without a demand the second pass never runs and this fixture proves nothing", got)
+		}
+		_, diags := statelessResolve(t.Context(), cfg, cloud, nil, nil, nil)
+		if got := renderCounts(cloud.plans); got != "1 [aws_s3_bucket=1]" {
+			t.Errorf("PlanResourceChange calls: got %s, want the bucket alone - the for_each source must never be planned", got)
+		}
+		if n := errorCount(diags); n != 1 {
+			t.Errorf("untargeted run refused with %d error(s), want 1 (the record's for_each, which nothing can settle): %v", n, renderDiags(diags))
+		}
+	})
+
+	t.Run("targeting the bucket", func(t *testing.T) {
+		cloud := newTargetWorkCloud()
+		scope := cloud.scopeFor(t, cfg, "aws_s3_bucket.data")
+		_, diags := statelessResolve(t.Context(), cfg, cloud, nil, nil, scope)
+		if n := cloud.plans["aws_cloudwatch_log_group"]; n != 0 {
+			t.Errorf("PlanInstances planned the for_each source %d time(s); this fixture relies on it never being planned (calls were %s)", n, renderCounts(cloud.plans))
+		}
+		if n := errorCount(diags); n != 0 {
+			t.Errorf("-target=aws_s3_bucket.data refused with %d error(s) for blocks the run excludes, and PlanResourceChange calls were %s: %v",
+				n, renderCounts(cloud.plans), renderDiags(diags))
+		}
+	})
 }

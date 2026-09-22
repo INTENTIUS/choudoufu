@@ -374,6 +374,15 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 //	-target=aws_route53_record.cert_..   9        8          1+1+1       1+1+1          1
 //	-target=kubernetes_namespace.app     9        7          1+1+1         0            1
 //
+// Re-read after GitHub issue #1470 scoped [resolver.collectSignal]'s
+// diagnostics: the kubernetes row's PlanResourceChange column is 9 -> 0,
+// excluded 7 -> 0. That row's first resolution pass no longer carries the
+// excluded record's for_each refusal, so it has no demand, and a first pass
+// with no demand never runs PlanInstances at all. The record row does not
+// move: the record is IN scope there, its refusal stands, and PlanInstances
+// still plans every plannable block in the configuration for it. The live
+// reads and data reads are the fixpoint's and are unchanged.
+//
 // "normalize" is the one PlanResourceChange [builder.normalizeIdentityAttrs]
 // makes for each instance it reads (GitHub issue #281). It is a provider-
 // process call like PlanInstances' own, and it is counted with the read
@@ -392,10 +401,11 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 //     managed instance a PROVIDER BLOCK's data source demands, which is one cluster here and in
 //     corpus-eks-basic, the shape the fixpoint exists for.
 //
-// Narrowing either leg was tried against these same readings and both were
+// Narrowing either leg was tried against the first readings and both were
 // found to turn a targeted run that works today into one that does not; see
 // TestATargetedRunIsNotRefusedByAnExcludedForEach for the first, and this
-// function's last paragraph for the second.
+// function's last paragraph for the second. #1470 removed the first
+// obstacle; the second stands.
 //
 // These are today's numbers, pinned so that the change which moves them has
 // to say so. When the excluded columns go to zero, that is the fix landing,
@@ -430,6 +440,11 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 		// made for a managed block the scope drops.
 		plansForExcluded int
 		readsForExcluded int
+
+		// noSecondPass is a row whose first resolution pass is clean, so
+		// statelessResolve returns before PlanInstances and the subtraction
+		// above has nothing to measure: zero calls, in scope or out.
+		noSecondPass bool
 	}{
 		{
 			name:  "untargeted",
@@ -441,9 +456,12 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 			plansForExcluded: 8, readsForExcluded: 1,
 		},
 		{
+			// No plan call at all since #1470: with the excluded record's
+			// refusal rolled back, this run's first pass is clean and
+			// statelessResolve returns before PlanInstances.
 			name: "targeting a kubernetes block", target: "kubernetes_namespace.app",
-			plans: allNinePlans, imports: oneCluster, reads: oneCluster, dataReads: oneCluster,
-			plansForExcluded: 7, readsForExcluded: 0,
+			plans: "0 []", imports: oneCluster, reads: oneCluster, dataReads: oneCluster,
+			noSecondPass: true, readsForExcluded: 0,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -463,7 +481,11 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 			for _, n := range resolveCloud.plans {
 				total += n
 			}
-			if got := total - plannableInScope(cfg, scope); got != tc.plansForExcluded {
+			if tc.noSecondPass {
+				if total != 0 {
+					t.Errorf("PlanInstances made %d PlanResourceChange call(s) on a run whose first pass has been clean since #1470", total)
+				}
+			} else if got := total - plannableInScope(cfg, scope); got != tc.plansForExcluded {
 				t.Errorf("%d PlanResourceChange call(s) were made for blocks the scope excludes, want %d", got, tc.plansForExcluded)
 			}
 			if n := len(resolveCloud.imports) + len(resolveCloud.reads) + len(resolveCloud.dataReads); n != 0 {
@@ -516,25 +538,22 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 	}
 }
 
-// TestATargetedRunIsNotRefusedByAnExcludedForEach is why
-// [projection.PlanInstances] is not narrowed to the target set today, and it
-// fails the day somebody narrows it without fixing what it is covering for.
+// TestATargetedRunIsNotRefusedByAnExcludedForEach was, until GitHub issue
+// #1470, why [projection.PlanInstances] could not be narrowed to the target
+// set; it now guards the fix that let it be.
 //
 // -target=kubernetes_namespace.app drops the certificate and the record from
 // the plan graph. [resolver.walkOutOfScope] promises such a block "cannot
-// refuse the run" and rolls back whatever its own attempt raised. It does
-// not get the chance: [resolver.collectSignal] runs before the walk, calls
-// expansionFor on EVERY block with no scope at all, and the record's
-// "Non-static for_each expression" is raised there. By the time
-// walkOutOfScope takes its diagnostic mark, the error is already behind it.
-//
-// So the first resolution pass of this targeted run carries one error for a
-// block the run excluded (measured at fa890883e9: errorCount 1). What clears
-// it is the second pass - and only because PlanInstances, being unscoped,
-// plans the excluded certificate and hands the record its key set. Narrowed
-// to the scope, PlanInstances plans the cluster and the namespace, the
-// second pass settles nothing, the ratchet keeps the first pass, and the run
-// refuses. Measured with both legs experimentally narrowed:
+// refuse the run" and rolls back whatever its own attempt raised. Before
+// #1470 it did not get the chance: [resolver.collectSignal] runs before the
+// walk and called expansionFor on EVERY block with no scope at all, so the
+// record's "Non-static for_each expression" was raised there and memoized,
+// ahead of any mark walkOutOfScope could roll back to. The first
+// resolution pass of this targeted run carried one error for a block the
+// run excluded (measured at fa890883e9: errorCount 1), and what cleared it
+// was the second pass - only because PlanInstances, being unscoped, planned
+// the excluded certificate and handed the record its key set. Measured
+// then, with both legs experimentally narrowed:
 //
 //	                                   errorCount            downgradedToDiscovery
 //	                                   first  final  final
@@ -543,9 +562,12 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 //	-target=aws_route53_record...        1      0      0        "" both
 //	-target=kubernetes_namespace.app     1      0      1        "" both
 //
-// The order of work is therefore: scope collectSignal's diagnostics (in
-// internal/live/identity, which would make the first pass of this run clean
-// and the second pass unnecessary), and only then narrow PlanInstances.
+// Since #1470 the collection routes an out-of-scope block through
+// [resolver.expansionOutOfScope], the first pass of this run is clean, and
+// no second pass runs at all (TestProviderWorkOverTargetExcludedBlocks'
+// kubernetes row: 0 PlanResourceChange calls). This test's message still
+// names the older cause, because a regression in the collection would
+// present exactly as it did before.
 func TestATargetedRunIsNotRefusedByAnExcludedForEach(t *testing.T) {
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 	cloud := newTargetWorkCloud()
