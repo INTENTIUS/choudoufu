@@ -4314,10 +4314,11 @@ func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.Ab
 }
 
 // kubernetesSweepAttrs reads the connection arguments this sweep understands
-// off the evaluated provider block. A marked value (a sensitive token) is
-// left unread rather than unmarked - the same rule statelessProviders.region
-// applies to a sensitive region - so a token supplied through a sensitive
-// variable falls back to the kubeconfig's own credentials.
+// off the evaluated provider block. A marked value is left unread rather than
+// unmarked - the same rule statelessProviders.region applies to a sensitive
+// region - EXCEPT for the three arguments that are themselves the credential,
+// which are unmarked and read: see secret below, and GitHub issue #1527 for
+// what leaving them unread cost.
 func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
 	var a kubesweep.Attrs
 	if !ok || val == cty.NilVal || val.IsNull() || !val.IsKnown() || !val.Type().IsObjectType() {
@@ -4343,17 +4344,49 @@ func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
 		}
 		return v.True()
 	}
+	// secret is str for the three arguments that ARE the credential
+	// (GitHub issue #1527). They are read whether or not they are marked,
+	// because every ordinary way of supplying one marks it: an EKS root
+	// takes its bearer token from data.aws_eks_cluster_auth, whose token
+	// attribute the AWS provider declares sensitive, and a client
+	// certificate and key come from `sensitive = true` variables. Left
+	// unread, the sweep dialled the cluster anonymously and every
+	// kubernetes_* type read LIST_FAILED under "the cluster refused an
+	// anonymous request and this provider configuration supplies no
+	// credential" - while the provider itself, handed the same value over
+	// RPC and unmarked by internal/plugins/provider.go, read the cluster.
+	//
+	// Unmarked rather than refused, which is where this parts company with
+	// [statelessProviders.region]'s rule (see its own comment): a region
+	// becomes an operator-facing hint string and a secret does not belong
+	// in one, while these three go into a [restclient.Config] and out over
+	// TLS. Nothing renders them - [kubesweep.Credentials] deliberately
+	// keeps only the exec COMMAND for its messages, never a credential.
+	//
+	// The exec block is the one credential surface still dropped on a
+	// mark, pinned by TestKubernetesSweepAttrsDropsAMarkedExecBlock; its
+	// command reaches a diagnostic, so it is a separate ruling.
+	secret := func(name string) string {
+		if !val.Type().HasAttribute(name) {
+			return ""
+		}
+		v, _ := val.GetAttr(name).Unmark()
+		if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+			return ""
+		}
+		return v.AsString()
+	}
 	a.InCluster = boolean("in_cluster_config")
 	a.ConfigPath = str("config_path")
 	a.ConfigContext = str("config_context")
 	a.ConfigContextAuthInfo = str("config_context_auth_info")
 	a.ConfigContextCluster = str("config_context_cluster")
 	a.Host = str("host")
-	a.Token = str("token")
+	a.Token = secret("token")
 	a.Insecure = boolean("insecure")
 	a.ClusterCACertificate = str("cluster_ca_certificate")
-	a.ClientCertificate = str("client_certificate")
-	a.ClientKey = str("client_key")
+	a.ClientCertificate = secret("client_certificate")
+	a.ClientKey = secret("client_key")
 	a.Exec = kubernetesSweepExec(val)
 	if val.Type().HasAttribute("config_paths") {
 		v := val.GetAttr("config_paths")

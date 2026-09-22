@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Estates below were last measured against different emulator pins: 20 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`, 2 against `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81`, 1 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072` (current pin) (last_run.date ranges from 2026-09-10T07:49:05Z to 2026-09-22T18:21:24Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h24m22.8s, but not from one sweep: 32m5s across 1 estate(s) at commit `266e0e332c`; 1h47m7.1s across 20 estate(s) at commit `3bca740259`; 27m36s across 3 estate(s) at commit `979cabd489`; 5m21.4s across 1 estate(s) at commit `a3864ec9a2`; 10m20.2s across 1 estate(s) at commit `a69ed30cd0`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 3m0.8s across 1 estate(s) at commit `d770559366`; 1m50.4s across 1 estate(s) at commit `f2d687737b`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**30 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
+  "banner": "Estates below were last measured against different emulator pins: 20 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`, 2 against `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81`, 1 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072` (current pin) (last_run.date ranges from 2026-09-10T07:49:05Z to 2026-09-22T20:31:33Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h24m13.4s, but not from one sweep: 32m5s across 1 estate(s) at commit `266e0e332c`; 1h47m7.1s across 20 estate(s) at commit `3bca740259`; 2m51.4s across 1 estate(s) at commit `64ec9a661b`; 27m36s across 3 estate(s) at commit `979cabd489`; 5m21.4s across 1 estate(s) at commit `a3864ec9a2`; 10m20.2s across 1 estate(s) at commit `a69ed30cd0`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 1m50.4s across 1 estate(s) at commit `f2d687737b`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**29 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "stage_count": 14,
   "stages": [
     {
@@ -834,34 +834,32 @@
         "stale",
         "not run"
       ],
-      "runtime_total": "3m0.8s",
-      "runtime_cells": "cold_deploy 1m15s, migrate 1m27s, test_plan 18s",
-      "last_run_note": "Last run at commit `d770559366` on 2026-09-22T18:21:24Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 3m0.8s.",
+      "runtime_total": "2m51.4s",
+      "runtime_cells": "cold_deploy 1m10s, migrate 1m20s, test_plan 20s",
+      "last_run_note": "Last run at commit `64ec9a661b` on 2026-09-22T20:31:33Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 2m51.4s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stale_note": "**8 stage verdicts below were carried forward from an earlier run** and show as `stale`, not as the verdict they carry: `test_apply` (pass), `drift_reconverge` (pass), `day2_rename` (pass), `day2_remove` (pass), `day2_count` (pass), `day2_replace` (pass), `plan_approval` (pass), `greenfield` (pass). A run that aborts early leaves the stages it never reached reading whatever the last run to reach them said (#1069); the cell is kept because it is still the best thing known about that stage, and marked because it is not evidence about the run recorded below.",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m15s",
+          "duration": "1m10s",
           "detail": "54 resources, genuinely cold, genuinely unmarked"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m27s",
+          "duration": "1m20s",
           "detail": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI - counted through GetResources (21) AND IAM's own list-role-tags/list-instance-profile-tags (4), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "FAIL",
-          "duration": "18s",
-          "detail": "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed, or issue #313's provider.kubernetes wall is back"
+          "duration": "20s",
+          "detail": "live-plan is not empty, so this estate would not replan clean after migration: Plan: 1 to add, 0 to change, 0 to destroy. - it proposes module.eks.data.null_data_source.node_groups[0] will be read during apply; module.eks.kubernetes_config_map.aws_auth[0] will be created"
         },
         {
           "id": "test_apply",
