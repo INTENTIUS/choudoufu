@@ -140,16 +140,13 @@ func TestTagOnCreateHostedZone(t *testing.T) {
 	t.Logf("phase 1: route53 list-tags-for-resource view (the provider's read; separate store on floci): %v",
 		tocRoute53Tags(t, floci, zoneIDA))
 
-	// The next plan binds the zone by its marker: nothing to add.
-	plan := tofu(t, tofuBin, dirA, "plan")
-	if add, change, destroy, ok := flocitest.PlanSummary(plan); ok {
-		if add != 0 || destroy != 0 {
-			t.Errorf("phase 1: the next plan proposes %d to add / %d to destroy; the zone was not bound by its marker", add, destroy)
-		}
-		t.Logf("phase 1: next plan: %d to add, %d to change, %d to destroy", add, change, destroy)
-	} else if !strings.Contains(plan, "No changes.") {
-		t.Errorf("phase 1: the next plan carries neither a summary line nor \"No changes.\"")
-	}
+	// The next plan binds the zone by its marker: nothing to add. On
+	// floci it also proposes to change the zone - the provider's refresh
+	// reads route53's own tag view, which the emulator keeps apart from
+	// the store the Tagging API wrote, so the markers read as missing and
+	// are re-proposed through the provider. On real AWS the two are one
+	// store and the plan is empty.
+	tocAssertBound(t, "phase 1: the next plan", tofu(t, tofuBin, dirA, "plan"))
 
 	// --- Phase 2: the write is refused ----------------------------------
 
@@ -197,15 +194,31 @@ func TestTagOnCreateHostedZone(t *testing.T) {
 		"tofu-estate":  estateB,
 		"tofu-address": "aws_route53_zone.this",
 	})
-	plan = tofu(t, tofuBin, dirB, "plan")
-	if add, change, destroy, ok := flocitest.PlanSummary(plan); ok {
-		if add != 0 || destroy != 0 {
-			t.Errorf("phase 2: after marking by hand the plan proposes %d to add / %d to destroy; the zone was not bound by its marker", add, destroy)
-		}
-		t.Logf("phase 2: plan after the hand-run command: %d to add, %d to change, %d to destroy", add, change, destroy)
-	} else if !strings.Contains(plan, "No changes.") {
-		t.Errorf("phase 2: the plan after marking carries neither a summary line nor \"No changes.\"")
+	tocAssertBound(t, "phase 2: the plan after the hand-run command", tofu(t, tofuBin, dirB, "plan"))
+}
+
+// tocPlanLine is the plan summary with the import count the harness's own
+// PlanSummary does not read: a zone bound by its marker is "1 to import".
+var tocPlanLine = regexp.MustCompile(`Plan: (?:(\d+) to import, )?(\d+) to add, (\d+) to change, (\d+) to destroy`)
+
+// tocAssertBound reads a plan's summary and fails unless it proposes
+// nothing to add and nothing to destroy: the zone was found by its marker
+// rather than planned a second time. "No changes." passes too.
+func tocAssertBound(t *testing.T, what, plan string) {
+	t.Helper()
+	if strings.Contains(plan, "No changes.") {
+		t.Logf("%s: no changes", what)
+		return
 	}
+	m := tocPlanLine.FindStringSubmatch(plan)
+	if m == nil {
+		t.Errorf("%s carries neither a summary line nor \"No changes.\"", what)
+		return
+	}
+	if m[2] != "0" || m[4] != "0" {
+		t.Errorf("%s proposes %s to add / %s to destroy; the zone was not bound by its marker", what, m[2], m[4])
+	}
+	t.Logf("%s: %s", what, m[0])
 }
 
 // tocWriteFixture writes the one-zone estate.
