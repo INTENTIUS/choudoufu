@@ -8,6 +8,8 @@ ESTATE="smoke-present"
 stack_up
 export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
+AMI="$(awsl ec2 describe-images --query 'Images[0].ImageId' --output text)"
+[ -n "$AMI" ] && [ "$AMI" != "None" ] || fail "present" "the emulator offers no AMI to launch an instance from"
 
 cat > "$SMOKE_WORK/main.tf" <<TFEOF
 terraform {
@@ -39,7 +41,7 @@ resource "aws_subnet" "app" {
 
 resource "aws_security_group" "web" {
   name        = "$ESTATE-web"
-  description = "attached to the estate's network interface"
+  description = "attached to the estate's instance"
   vpc_id      = aws_vpc.main.id
 }
 
@@ -55,25 +57,30 @@ resource "aws_security_group" "spare" {
   vpc_id      = aws_vpc.main.id
 }
 
-resource "aws_network_interface" "app" {
-  subnet_id       = aws_subnet.app.id
-  security_groups = [aws_security_group.web.id]
+resource "aws_instance" "app" {
+  ami                    = "$AMI"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.app.id
+  vpc_security_group_ids = [aws_security_group.web.id]
 }
 TFEOF
 CACHE="$SMOKE_WORK/.terraform/choudoufu-cache.tfstate"
 
 # ask_live prints, one group name per line and sorted, which of this
-# estate's security groups no network interface uses. No choudoufu runs:
-# the estate's groups come from the tagging API by the tofu-estate tag,
-# and what uses them comes from a describe of every network interface in
-# the account, made now.
+# estate's security groups nothing uses. No choudoufu runs: the estate's
+# groups come from the tagging API by the tofu-estate tag, and what uses
+# them comes from a describe, made now, of every instance that is not
+# terminated and every network interface in the account.
 ask_live() {
   local ids used id name
   ids="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" \
     --query 'ResourceTagMappingList[].ResourceARN' --output text | tr '\t' '\n' \
     | sed -n 's|.*:security-group/||p' | sort -u)"
   [ -n "$ids" ] || { echo "ERROR: the tagging API lists no security group tagged $ESTATE"; return 0; }
-  used="$(awsl ec2 describe-network-interfaces --query 'NetworkInterfaces[].Groups[].GroupId' --output text | tr '\t' '\n' | sort -u)"
+  used="$( { awsl ec2 describe-instances --filters Name=instance-state-name,Values=pending,running,stopping,stopped \
+      --query 'Reservations[].Instances[].SecurityGroups[].GroupId' --output text
+    awsl ec2 describe-network-interfaces --query 'NetworkInterfaces[].Groups[].GroupId' --output text; } \
+    | tr '\t' '\n' | grep -v '^None$' | sort -u)"
   for id in $ids; do
     grep -qxF -- "$id" <<< "$used" && continue
     name="$(awsl ec2 describe-security-groups --group-ids "$id" --query 'SecurityGroups[0].GroupName' --output text)"
@@ -82,8 +89,7 @@ ask_live() {
 }
 
 # ask_cache prints the same answer from the state cache alone: the
-# security groups it holds, minus every group a network interface it holds
-# names. It reads a file and calls nothing.
+# security groups it holds, minus every group an instance it holds names. It reads a file and calls nothing.
 ask_cache() {
   python3 - "$CACHE" <<'PYEOF'
 import json, sys
@@ -96,22 +102,22 @@ for r in st.get("resources", []):
         a = inst.get("attributes", {})
         if r["type"] == "aws_security_group":
             groups[a["id"]] = a["name"]
-        elif r["type"] == "aws_network_interface":
+        elif r["type"] == "aws_instance":
+            used.update(a.get("vpc_security_group_ids") or [])
             used.update(a.get("security_groups") or [])
-for gid in sorted(groups):
-    if gid not in used:
-        print(groups[gid])
+for name in sorted(groups[g] for g in groups if g not in used):
+    print(name)
 PYEOF
 }
 oneline() { tr '\n' ' ' <<< "$1" | sed 's/ $//'; }
 
 step "1. stand the estate up and ask the question"
 explain \
-  "Three security groups and one network interface. The interface uses" \
+  "Three security groups and one instance. The instance uses" \
   "web, so the answer to \"which of this estate's security groups are" \
   "attached to nothing\" is db and spare. It is asked two ways. Live:" \
   "the tagging API for the groups carrying tofu-estate=$ESTATE, and a" \
-  "describe of every network interface, with no choudoufu in the loop." \
+  "describe of every instance and interface, with no choudoufu in the loop." \
   "Stored: the state cache the apply just wrote, read as a file. Right" \
   "after the apply the two must agree, or the queries themselves differ."
 cmd "choudoufu init && choudoufu apply -auto-approve"
@@ -140,17 +146,18 @@ fi
 if [ "$MOVE" = "1" ]; then
   step "2. move reality out of band"
   explain \
-    "Someone swaps the network interface from web to db with the AWS CLI." \
+    "Someone swaps the instance's security group from web to db with the" \
+    "AWS CLI." \
     "No choudoufu runs and no apply happens, so the cache is untouched. The" \
     "right answer is now web and spare."
-  ENI="$(python3 -c "import json,sys;st=json.load(open(sys.argv[1]));print([i['attributes']['id'] for r in st['resources'] if r['type']=='aws_network_interface' for i in r['instances']][0])" "$CACHE")"
+  INST="$(python3 -c "import json,sys;st=json.load(open(sys.argv[1]));print([i['attributes']['id'] for r in st['resources'] if r['type']=='aws_instance' for i in r['instances']][0])" "$CACHE")"
   DBSG="$(awsl ec2 describe-security-groups --filters "Name=group-name,Values=$ESTATE-db" --query 'SecurityGroups[0].GroupId' --output text)"
-  cmd "aws ec2 modify-network-interface-attribute --network-interface-id $ENI --groups $DBSG"
-  awsl ec2 modify-network-interface-attribute --network-interface-id "$ENI" --groups "$DBSG" || fail "present" "the out-of-band move failed"
-  NOW="$(awsl ec2 describe-network-interfaces --network-interface-ids "$ENI" --query 'NetworkInterfaces[0].Groups[].GroupName' --output text)"
-  echo "the interface's groups now: $NOW" | evidence
-  [ "$NOW" = "$ESTATE-db" ] || fail "present" "the interface does not use exactly db after the move: $NOW"
-  proof "the interface uses db, and nothing choudoufu keeps has been told."
+  cmd "aws ec2 modify-instance-attribute --instance-id $INST --groups $DBSG"
+  awsl ec2 modify-instance-attribute --instance-id "$INST" --groups "$DBSG" || fail "present" "the out-of-band move failed"
+  NOW="$(awsl ec2 describe-instances --instance-ids "$INST" --query 'Reservations[0].Instances[0].SecurityGroups[].GroupName' --output text)"
+  echo "the instance's groups now: $NOW" | evidence
+  [ "$NOW" = "$ESTATE-db" ] || fail "present" "the instance does not use exactly db after the move: $NOW"
+  proof "the instance uses db, and nothing choudoufu keeps has been told."
 fi
 
 step "3. ask again, both ways"
@@ -159,7 +166,7 @@ explain \
   "the cache answers as of the apply. The estate needs no stored copy to" \
   "answer this, because its tags are on the resources and the platform" \
   "describes them as they are."
-cmd "aws resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=$ESTATE ; aws ec2 describe-network-interfaces"
+cmd "aws resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=$ESTATE ; aws ec2 describe-instances"
 LIVE1="$(ask_live)"; CACHE1="$(ask_cache)"
 echo "live:  $(oneline "$LIVE1")" | evidence
 echo "cache: $(oneline "$CACHE1")" | evidence
@@ -178,12 +185,12 @@ proof "live says spare and web, the answer as it is. The cache still says db and
 step "4. the next plan reads the present too"
 explain \
   "The estate's own run does not consult the cache for this. The next" \
-  "plan reads the interface live, sees db where the configuration says" \
+  "plan reads the instance live, sees db where the configuration says" \
   "web, and proposes the one in-place update that puts it back."
 cmd "choudoufu plan"
 PLAN="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "present" "the plan failed: $PLAN"
-{ grep -E 'aws_network_interface.app will be updated|^Plan:' <<< "$PLAN" || true; } | evidence
-grep -q '# aws_network_interface.app will be updated in-place' <<< "$PLAN" || fail "present" "the plan does not propose updating the moved interface: $PLAN"
+{ grep -E 'aws_instance.app will be updated|^Plan:' <<< "$PLAN" || true; } | evidence
+grep -q '# aws_instance.app will be updated in-place' <<< "$PLAN" || fail "present" "the plan does not propose updating the moved instance: $PLAN"
 grep -q 'Plan: 0 to add, 1 to change, 0 to destroy' <<< "$PLAN" || fail "present" "the plan is not the one in-place change: $PLAN"
 proof "the plan names the move, from the live read."
 
