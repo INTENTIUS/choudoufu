@@ -121,8 +121,14 @@ func TestLiveLsRootRegion_unresolvableFallsThroughAndSaysSo(t *testing.T) {
 	if got.Source != "sdk" {
 		t.Errorf("source = %q, want \"sdk\"", got.Source)
 	}
-	if !strings.Contains(got.Note, `provider "aws"`) || !strings.Contains(got.Note, "could not be resolved") {
+	if !strings.Contains(got.Note, `provider "aws"`) || !strings.Contains(got.Note, "could not resolve") {
 		t.Errorf("note = %q, want it to name the block and say the region could not be resolved", got.Note)
+	}
+	// live-ls never prompts (Meta.input is false), so the variable machinery's
+	// own "Failed to request input from user" is not the reason a reader
+	// needs; the note says the variable has no value and what supplies one.
+	if !strings.Contains(got.Note, "var.aws_region has no value") {
+		t.Errorf("note = %q, want it to say var.aws_region has no value rather than that a prompt failed", got.Note)
 	}
 }
 

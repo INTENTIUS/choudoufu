@@ -101,13 +101,15 @@ func TestLiveLsJSON_SkippedComparisonStatesItsReason(t *testing.T) {
 // told. Do not update it to make a red run green.
 func TestLiveLsDocument_topLevelShapeIsPinned(t *testing.T) {
 	out := renderLiveLsJSON(t, LiveLsReport{
-		Estate:     "dev",
-		Region:     "us-east-1",
-		Consistent: true,
-		Stabilized: true,
-		Attempts:   2,
-		ConfigDir:  "/srv/estate",
-		Schemas:    true,
+		Estate:       "dev",
+		Region:       "us-east-1",
+		RegionSource: "provider",
+		RegionNote:   `provider "aws"`,
+		Consistent:   true,
+		Stabilized:   true,
+		Attempts:     2,
+		ConfigDir:    "/srv/estate",
+		Schemas:      true,
 		Items: []LiveLsItem{{
 			ID:       "arn:aws:s3:::my-bucket",
 			Type:     "aws_s3_bucket",
@@ -128,6 +130,7 @@ func TestLiveLsDocument_topLevelShapeIsPinned(t *testing.T) {
 	const want = `{
   "estate": "dev",
   "region": "us-east-1",
+  "region_source": "provider",
   "consistent": true,
   "stabilized": true,
   "attempts": 2,

@@ -33,6 +33,18 @@ marker to find from one that is genuinely absent. Its `gaps` key is always
 present, and `gaps_skipped` names the reason when the comparison did not run,
 so an empty list is never mistaken for "no gaps".
 
+With DIR given, `live-ls` also lists in the region DIR's own `aws` provider
+block names, `region = var.aws_region` included (read from `TF_VAR_aws_region`
+and the tfvars files, the way `live-plan` and `live-check` read it), so the
+listing and a plan in the same directory read the same region of the account.
+An explicit `-region` still wins. Without DIR, or when the block sets no
+region or one that cannot be resolved from the configuration alone, the AWS
+SDK's own resolution stands (`AWS_REGION`, the shared config file). The
+report's `Region ...` line says which source won, and `-json` carries it as
+`region_source` (`flag`, `provider` or `sdk`), so a listing taken in a
+different region from the plan's is visible rather than read as an empty
+estate.
+
 On Kubernetes, `live-ls` needs DIR for the listing itself. The substrate is
 read off the configuration's provider blocks, and a `kubernetes` provider
 among them gets the cluster listed the way the estate sweep lists it. Each
