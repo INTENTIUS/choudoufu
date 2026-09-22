@@ -62,6 +62,15 @@ set -uo pipefail
 #                 can find $LIVECERT_WORK_DIR/cold_deploy_apply.out to
 #                 synchronize a kill against genuine apply progress rather
 #                 than a fixed sleep.
+#   LIVECERT_KEEP_FLOCI=1  TARGET=floci ONLY: teardown does everything it
+#                 normally does and then leaves the emulator container
+#                 running instead of removing it, so an external driver can
+#                 list the same endpoint itself after this script has
+#                 exited. The caller that sets it owns removing the
+#                 container. Read in exactly one place, inside teardown's
+#                 `if [ "$TARGET" = "floci" ]` branch, so it is inert on the
+#                 paid path: under TARGET=aws there is no container and
+#                 nothing consults the variable. Issue #1279.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
@@ -161,7 +170,16 @@ EOF
   fi
 
   if [ "$TARGET" = "floci" ]; then
-    gauntlet_floci_teardown "$FLOCI_NAME"
+    # LIVECERT_KEEP_FLOCI is read here and nowhere else, inside this
+    # TARGET=floci branch, which is what makes it inert for TARGET=aws:
+    # the paid path never evaluates this line, has no container to keep,
+    # and everything above it - the destroys, livecert_verify_empty,
+    # livecert_sweep - runs identically either way. Issue #1279.
+    if [ "${LIVECERT_KEEP_FLOCI:-0}" = "1" ]; then
+      log "  LIVECERT_KEEP_FLOCI=1: teardown reached its container-removal step and is skipping it - leaving $FLOCI_NAME up so the driver that asked for it can list this endpoint itself; removing the container is that driver's job now"
+    else
+      gauntlet_floci_teardown "$FLOCI_NAME"
+    fi
   fi
   rm -rf "$WORK"
 }
