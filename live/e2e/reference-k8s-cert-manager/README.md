@@ -170,9 +170,14 @@ the whole record store and the cache, and the plan is still `No changes.`
   `manifest.metadata.labels` map" while kubectl shows it carrying
   `tofu-estate`, so the configured seed for the read drops the manifest
   and the marker inside it - #1178's mechanism one case further out, with
-  no crash needed to produce it. The crash pair takes its graph edge from
-  `depends_on` instead, so this stage measures crash recovery; #1262 is
-  where the reference case is recorded.
+  no crash needed to produce it. The crash pair took its graph edge from
+  `depends_on` while that stood, and the 291-second pass above was
+  measured in that shape. PR #1461 fixed the projection against a fake
+  provider and asked for this pair as the cluster proof, so the pair is
+  back on the data edge: `crash_second`'s manifest reads
+  `kubernetes_manifest.crash_first.manifest.metadata.name` and there is
+  no `depends_on` between the two. The empty replan after the recovery is
+  the assertion the fix has not yet had on a cluster.
 
 ## What it found
 
