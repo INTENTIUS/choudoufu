@@ -188,12 +188,15 @@ func TestIAMRoutesMatchTheDerivedSet(t *testing.T) {
 }
 
 // TestDerivedSetBeyondIAMIsNamedNotSilent keeps the OTHER services in the
-// derived set visible. They are not wired, and the reason is the gate in
-// internal/live/discovery rather than anything about them: the Resource
-// Groups Tagging API does index their services, so [markerIndex.servesType]
-// answers and the leg never runs. If that ever stops being true for one of
-// them, it needs its own service wired here - and this test is what puts
-// the list in front of whoever is reading.
+// derived set visible. They are not wired, and the reason is not anything
+// about them: the Resource Groups Tagging API does index their services, so
+// internal/live/discovery's tag-index join answers for this estate's objects
+// of them. Since GitHub issue #1162 the leg's gate is per object, so an
+// unindexed object of one of these types is NOT read - it has no route
+// here - and stays whatever the Cloud Control leg already says about it. If
+// the index proves to lag or miss one of them in a way that matters, it
+// needs its own service wired here - and this test is what puts the list in
+// front of whoever is reading.
 //
 // It asserts the SIZE and the membership of the non-IAM remainder rather
 // than pinning a number in prose, so a provider or artifact bump that

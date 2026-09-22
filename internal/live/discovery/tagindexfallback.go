@@ -45,9 +45,9 @@ import (
 // exactly that path.
 //
 // Nothing is missing from the service-tag-read leg for the us-east-1 run
-// either. Its third gate clause is [markerIndex.servesType], and on a lagged
-// run that clause PASSES: the index answered and holds no object of the type
-// for this estate, so it is not serving it, so the leg is not gated off.
+// either. Its third gate clause is per object since #1162 - the index did
+// not answer for THIS object - and on a lagged run that clause PASSES for
+// every object the index does not hold, so the leg is not gated off.
 // What the run lacks is an ENUMERATION - nothing lists the type, because the
 // type went to the tagging leg instead of to [scanTypeCloudControl], and the
 // leg reads a marker off an object it is handed rather than finding objects.

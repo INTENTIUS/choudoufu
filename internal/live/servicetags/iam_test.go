@@ -8,11 +8,14 @@ package servicetags
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/smithy-go"
 )
 
 // fakeIAM answers the five operations [IAMRoutes] uses, from a script the
@@ -312,5 +315,49 @@ func TestIAMTagsWithNoKeyAreSkipped(t *testing.T) {
 	}
 	if len(got) != 1 || got["tofu-estate"] != "terralith" {
 		t.Fatalf("tags = %v, want just the one well-formed tag", got)
+	}
+}
+
+// TestEveryRouteNamesItsAction: the action is what a refused read's gap
+// tells the operator to grant (#1162), so a route without one would render
+// "Grant , or retry". It is asserted in the form a policy statement uses.
+func TestEveryRouteNamesItsAction(t *testing.T) {
+	r := NewIAM(&fakeIAM{})
+	for typeName, route := range IAMRoutes {
+		if !strings.HasPrefix(route.action, "iam:List") || !strings.HasSuffix(route.action, "Tags") {
+			t.Errorf("%s's route action is %q, want an iam:List*Tags action", typeName, route.action)
+		}
+		if got := r.Action(typeName); got != route.action {
+			t.Errorf("Action(%s) = %q, want the route's %q", typeName, got, route.action)
+		}
+	}
+	if got := r.Action("aws_iam_role_policy_attachment"); got != "" {
+		t.Errorf("Action for an unrouted type = %q, want empty", got)
+	}
+}
+
+type fakeAPIError struct{ code, msg string }
+
+func (e fakeAPIError) Error() string                 { return e.code + ": " + e.msg }
+func (e fakeAPIError) ErrorCode() string             { return e.code }
+func (e fakeAPIError) ErrorMessage() string          { return e.msg }
+func (e fakeAPIError) ErrorFault() smithy.ErrorFault { return smithy.FaultClient }
+
+// TestErrorCodeReadsTheSDKCodeFirst: an SDK error carries its code as
+// smithy.APIError; anything else is read off the message's leading token.
+func TestErrorCodeReadsTheSDKCodeFirst(t *testing.T) {
+	cases := map[string]struct {
+		err  error
+		want string
+	}{
+		"smithy":             {fmt.Errorf("operation error IAM: ListRoleTags, %w", fakeAPIError{"AccessDenied", "not authorized"}), "AccessDenied"},
+		"token before colon": {errors.New("Throttling: Rate exceeded"), "Throttling"},
+		"prose":              {errors.New("dial tcp: connection refused"), "dial tcp: connection refused"},
+		"no colon":           {errors.New("context deadline exceeded"), "context deadline exceeded"},
+	}
+	for name, c := range cases {
+		if got := ErrorCode(c.err); got != c.want {
+			t.Errorf("%s: ErrorCode = %q, want %q", name, got, c.want)
+		}
 	}
 }
