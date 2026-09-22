@@ -131,13 +131,20 @@ func TestSharedPluginCacheInitsAreLocked(t *testing.T) {
 			if strings.HasPrefix(strings.TrimSpace(line), "#") {
 				continue
 			}
-			if !bareTerraformInit.MatchString(line) {
-				continue
+			// Per OCCURRENCE, not per line (#1314). Several scripts carry the
+			// wrapper name inside the same line's fail message
+			// (`fail "plain gauntlet_locked_init terraform init failed"`), and a
+			// per-line Contains check let a genuinely unwrapped init on such a
+			// line pass: proven by unwrapping reference-ec2-vpc's stage-1 init
+			// and watching the old check stay green.
+			for _, m := range bareTerraformInit.FindAllStringIndex(line, -1) {
+				tf := m[0] + strings.Index(line[m[0]:m[1]], "terraform")
+				if strings.HasSuffix(line[:tf], "gauntlet_locked_init ") {
+					continue
+				}
+				violations = append(violations, fmt.Sprintf("%s:%d: %s", rel, i+1, strings.TrimSpace(line)))
+				break
 			}
-			if strings.Contains(line, "gauntlet_locked_init terraform init") {
-				continue
-			}
-			violations = append(violations, fmt.Sprintf("%s:%d: %s", rel, i+1, strings.TrimSpace(line)))
 		}
 	}
 	// A glob that stopped matching, or a rename of the library call, would
