@@ -559,7 +559,9 @@ showing its own checks would have caught it.
   the three names it does accept. The BREAK control rebuilds choudoufu
   so the warning appears on an estate's first run only (go build
   -overlay, needs Go, refuses a release binary) and passes only when run
-  two is caught proceeding in silence (#1340).
+  two is caught proceeding in silence (#1340). The same claim on the
+  Kubernetes record store is step 11 of `k8s-records-in-the-cluster`, which
+  also requires `live-cluster` to ignore the waiver (#1441).
 
 - **a-bulk-read-is-complete-or-it-fails** - *Claim 31: a record read
   that fails mid-fanout fails the read; a short map never reaches a
@@ -584,7 +586,9 @@ showing its own checks would have caught it.
   without the plan-time cross-check, passing only when apply -destroy is
   caught reporting 1 destroyed of two and exiting 0 with the record
   still in the bucket, which is #1355's output, manufactured.
-  Needs python3.
+  Needs python3. The same claim on the Kubernetes record store is step 12
+  of `k8s-records-in-the-cluster`, where `live/smoke/k8sproxy.py` answers
+  the second page of the records listing with 410 Expired (#1441).
 
 - **two-writers-one-record** - *Claim 32: two writers, one record: the
   loser is named, nothing is clobbered, and nothing is held.* Two

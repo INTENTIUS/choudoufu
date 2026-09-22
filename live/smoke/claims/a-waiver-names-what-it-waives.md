@@ -57,3 +57,23 @@ fix differs: one is a bucket change and the other is an IAM grant.
 
 The `BREAK=1` binary warns on run one, so a check that ran the estate
 once would pass it. Step 2 is the step that catches it.
+
+## The same claim on Kubernetes
+
+`record_store "kubernetes"` has a waiver of its own, `allow_insecure`
+over the cluster's four settings, and the same rule: every run names what
+it waives. The proof is step 11 of
+[claim 39's scenario](k8s-records-in-the-cluster.md), on a kind cluster:
+
+```text
+just smoke k8s-records-in-the-cluster
+```
+
+A fresh estate waiving `read_isolation`, `encryption_at_rest` and
+`estate_boundary` names all three, each with its cost, on its first
+apply, a plan and a second apply. `choudoufu live-cluster` reads the
+same block and does not honour it: the two settings kind really fails
+stay FAIL, the verdict stays NOT correct, and each waiver is named apart
+from the verdict. Its `BREAK=1` control is this page's, rebuilt for the
+cluster: a binary that warns on the first run only, whose plan after
+that run the step must refuse.

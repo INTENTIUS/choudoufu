@@ -1,5 +1,5 @@
 # k8s-records-in-the-cluster
-# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, a waiver names what it waives on every run and live-cluster ignores it, a listing that fails after its first page fails the plan and never reads as a short estate, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~17 min.
+# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, a waiver names what it waives on every run and live-cluster ignores it, a listing that fails after its first page fails the plan and never reads as a short estate, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~20 min.
 #
 # GitHub issue #1392, under the #1398 ruling. Until this, a Kubernetes-only
 # estate had two choices for its records: "local", which is one machine's
@@ -1215,7 +1215,9 @@ for CASE in "0 plan" "1 plan" "1 plan -destroy"; do
     grep -q 'Cannot open the record store' <<< "$PX_OUT" \
       && fail "k8srec" "with the open's listing relayed whole, choudoufu $MODE was still refused at opening the store, so the bulk read never met the 410 and this run measured the open again: $PX_OUT"
   fi
-  { grep -A3 -E 'Error:' <<< "$PX_OUT" || true; } | flat | cut -c1-400 | evidence
+  { grep -E 'Error:' <<< "$PX_OUT" || true; } | awk 'NR<=1' | sed 's/^[^A-Za-z]*//' | evidence
+  { flat <<< "$PX_OUT" | grep -oE 'staterecord: kubernetes: listing "[^"]*" in namespace "[^"]*": The provided continue parameter is too old' || true; } \
+    | awk 'NR<=1' | evidence
   echo "choudoufu $MODE, 410 on $WHERE: exit $PX_RC, no plan printed; later pages relayed $RELAYED, answered 410 $EXPIRED" | evidence
 done
 rm -f "$PROXY_WORK/skip"
