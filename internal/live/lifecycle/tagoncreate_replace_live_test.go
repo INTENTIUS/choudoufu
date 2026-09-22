@@ -28,15 +28,18 @@ import (
 //     TagResources runs exactly once, the new zone carries both markers
 //     through both tag views by the end of the apply, and the next plan
 //     binds it by its marker.
+//
 //  2. create_before_destroy: the same, with the lifecycle flag set.
+//
 //  3. refused: the replace's tag writes are refused. The apply error names
 //     the new zone by ARN and prints the command that marks it (#1489's
 //     error); running it and planning again binds the zone.
+//
 //  4. an ordinary type (aws_s3_bucket, tag_on_create true) replaced by a
 //     `bucket` change: the markers still go out through the provider's
 //     own calls, and this fork makes no TagResources call.
 //
-//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestTagOnCreateReplace -v
+//     TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestTagOnCreateReplace -v
 func TestTagOnCreateReplace(t *testing.T) {
 	flocitest.Gate(t, "tag on create, replace (#1512)")
 	flocitest.RequireBinary(t, "docker")
