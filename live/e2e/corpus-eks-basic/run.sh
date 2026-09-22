@@ -547,6 +547,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -569,8 +574,18 @@ awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 # toolbox and choudoufu, terraform and git all want a writable home.
 AS_HOST_USER=(--user "$(id -u):$(id -g)" -e HOME=/work/.home)
 
+# gauntlet_plugin_cache exported the shared provider plugin cache for THIS
+# shell (#1300, #1314), but every terraform and choudoufu here runs inside a
+# container that sees only what is passed in. So each runner mounts the
+# directory at its own host path and forwards the two variables by name, so
+# the library stays the only place the directory is chosen; and every runner
+# runs as the host user (above), so a Linux runner never leaves root-owned
+# provider directories in a cache the host's own terraform shares.
+PLUGIN_CACHE_IN_CONTAINER=(-v "$TF_PLUGIN_CACHE_DIR:$TF_PLUGIN_CACHE_DIR" -e TF_PLUGIN_CACHE_DIR -e TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE)
+
 terraform_run() {
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$PLAIN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -580,6 +595,7 @@ terraform_run() {
 tofu_run() {
   local rel="$1"; shift
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$rel" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -593,6 +609,7 @@ tofu_run() {
 # instead of the main one.
 green_tofu_run() {
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_GREEN_NAME}:4566" \
@@ -601,6 +618,7 @@ green_tofu_run() {
 
 oracle_green_terraform_run() {
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_ORACLE_NAME}:4566" \
@@ -980,7 +998,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ── 3. STAGE 1: cold deploy, real terraform, zero choudoufu awareness ──────
 gauntlet_begin_stage cold_deploy
 log "=== 3. STAGE 1 - cold deploy: real terraform apply, no live block ==="
-terraform_run init -input=false -no-color > /tmp/eks-basic-init.log 2>&1 || {
+gauntlet_locked_init terraform_run init -input=false -no-color > /tmp/eks-basic-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-init.log; fail "terraform init failed"; }
 APPLY_OUT="$(terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -60
@@ -1051,7 +1069,8 @@ ORACLE_REL="oracle/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle/"
 ORACLE_EST="$WORK/$ORACLE_REL"
 oracle_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -1074,7 +1093,7 @@ moved {
   to   = aws_security_group.all_worker_mgmt_renamed
 }
 EOF
-oracle_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-init.log 2>&1 || {
+gauntlet_locked_init oracle_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-oracle-init.log; fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(oracle_terraform_run plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
@@ -1100,14 +1119,15 @@ ORACLE_REMOVE_REL="oracle-remove/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle-remove/"
 ORACLE_REMOVE_EST="$WORK/$ORACLE_REMOVE_REL"
 oracle_remove_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_REMOVE_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
     hashicorp/terraform:1.9 "$@"
 }
 remove_worker_group_mgmt_one "$ORACLE_REMOVE_EST"
-oracle_remove_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-remove-init.log 2>&1 || {
+gauntlet_locked_init oracle_remove_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-remove-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-oracle-remove-init.log; fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(oracle_remove_terraform_run plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -60; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
@@ -1172,7 +1192,8 @@ REPLACE_ORACLE_REL="oracle-replace/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle-replace/"
 REPLACE_ORACLE_EST="$WORK/$REPLACE_ORACLE_REL"
 oracle_replace_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$REPLACE_ORACLE_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -1182,7 +1203,7 @@ sed -i.bak 's/name_prefix = "worker_group_mgmt_two"/name_prefix = "worker_group_
 rm -f "$REPLACE_ORACLE_EST/main.tf.bak"
 grep -q 'worker_group_mgmt_two_v2' "$REPLACE_ORACLE_EST/main.tf" \
   || fail "changing aws_security_group.worker_group_mgmt_two's name_prefix argument in the replace-oracle copy did not match - the corpus pin has moved"
-oracle_replace_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-replace-init.log 2>&1 || {
+gauntlet_locked_init oracle_replace_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-replace-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-oracle-replace-init.log; fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(oracle_replace_terraform_run plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -60; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
@@ -2250,7 +2271,8 @@ EOF
     rm -rf "$ORACLE_COUNT_DIR/.terraform/modules" "$ORACLE_COUNT_DIR/.terraform/terraform.tfstate"
     cp "$PLAIN/.terraform.lock.hcl" "$ORACLE_COUNT_DIR/.terraform.lock.hcl" 2>/dev/null || true
     oracle_count_terraform_run() {
-      docker run --rm --platform linux/amd64 --network "$NET" \
+      docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+        "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
         -v "$WORK:/work" -w "/work/$ORACLE_COUNT_REL" \
         -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
         -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -2296,8 +2318,8 @@ resource "aws_security_group" "count_test" {
 EOF
     }
     write_oracle_count_config 2
-    oracle_count_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-count-init.log 2>&1 || {
-      tail -40 /tmp/eks-basic-oracle-count-init.log; fail "the day2_count stock oracle's terraform init failed"; }
+    gauntlet_locked_init oracle_count_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-count-init.log 2>&1 || {
+      tail -40 /tmp/eks-basic-oracle-count-init.log; fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(oracle_count_terraform_run apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -40; fail "the day2_count stock oracle's baseline apply exited $ORACLE_COUNT_APPLY_RC"; }
     grep -qE 'Apply complete! Resources: 3 added, 0 changed, 0 destroyed' <<< "$ORACLE_COUNT_APPLY_OUT" \
@@ -2674,7 +2696,7 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREE
 log "  No changes."
 
 log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
-oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
+gauntlet_locked_init oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
   tail -60 /tmp/eks-basic-green-oracle-init.log; fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(oracle_green_terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_APPLY_OUT" | grep -E '^Error|^│' | head -60

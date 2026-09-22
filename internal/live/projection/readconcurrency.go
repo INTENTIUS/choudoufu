@@ -162,6 +162,14 @@ type readPrep struct {
 	// reads its deadline from. See [configuredTimeouts].
 	timeouts map[string]int64
 
+	// timeoutsBlock is the same block as a value the prior object can hold
+	// - GitHub issue #1240. Like timeouts it is not sent to the provider on
+	// the way in: it is seeded into the object the read RETURNED, where the
+	// read left the block null and the private carries no SDKv2 meta for
+	// [withConfiguredTimeouts] to take instead. See
+	// [withConfiguredTimeoutsBlock].
+	timeoutsBlock cty.Value
+
 	// manifestKeys is GitHub issue #1211's binding of
 	// [Options.ManifestOwnedKeys] for this instance, or nil when the type
 	// is not manifest-shaped. It is settled here rather than at the read

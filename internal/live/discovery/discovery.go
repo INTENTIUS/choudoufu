@@ -810,6 +810,11 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// settled: see [applyOrphanPolicy].
 	applyOrphanPolicy(req, res)
 
+	// GitHub issue #1052: the one warning for every Cloud Control listing
+	// this run's credential was refused, raised here so the whole sweep's
+	// denials are in hand. See sweepdenied.go.
+	diags = diags.Append(deniedSweepDiag(res))
+
 	res.sortEverything()
 	return res, diags
 }
@@ -4247,6 +4252,13 @@ func collisionOrphanProblem(req Request, res *Result, idx []int) Problem {
 // the whole shape of the coverage at once. A list call that failed is the
 // opposite - a fact about this run, and one that may not repeat - so it says
 // so out loud.
+//
+// One failure is grouped rather than said per type: a Cloud Control
+// listing refused with AccessDeniedException goes through [sweepGapDenied]
+// instead, which records the same gap and defers the warning to
+// [deniedSweepDiag] so that a credential refused on hundreds of types
+// raises one warning (GitHub issue #1052). Every other failure is a
+// different fact per type and keeps its own line here.
 func sweepGapDiag(res *Result, g SweepGap) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	res.SweepGaps = append(res.SweepGaps, g)

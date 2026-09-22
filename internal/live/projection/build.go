@@ -2223,6 +2223,11 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		attrsSeed[name] = val
 	}
 
+	// GitHub issues #1185 and #1240: one decode of the resource's own
+	// `timeouts` block, read by both carriers - the SDKv2 private meta and
+	// the framework value. See [configuredTimeoutsBlock].
+	timeoutsBlock := configuredTimeoutsBlock(ctx, seedEval, modPath, rc, schema)
+
 	return readPrep{
 		rc:             rc,
 		modPath:        modPath,
@@ -2232,7 +2237,8 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		target:         importTarget(w, schema),
 		attrsSeed:      attrsSeed,
 		attrsSeedMarks: attrsSeedMarks,
-		timeouts:       configuredTimeouts(ctx, seedEval, modPath, rc, schema),
+		timeouts:       timeoutsMeta(timeoutsBlock, rc, schema),
+		timeoutsBlock:  timeoutsBlockSeed(timeoutsBlock, schema),
 		// GitHub issue #1211: the record of what this instance's
 		// configuration last declared at metadata.labels and
 		// metadata.annotations, plus the safety rail's hook and the two
@@ -2415,6 +2421,17 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	if updated, changed := withConfiguredTimeouts(obj.Private, f.prep.timeouts); changed {
 		log.Printf("[TRACE] projection: %s carries a timeouts block; re-derived the provider's delete/create/update meta from configuration rather than leaving the import stub's declared defaults", addr)
 		obj.Private = updated
+	}
+	// GitHub issue #1240: the same block for a provider that keeps it in
+	// the state object rather than the private - terraform-plugin-framework
+	// - where the read handed back a null and the private carries no SDKv2
+	// meta for the write above to have taken. This one DOES move obj.Value,
+	// and is measured against a replan for exactly that reason; see
+	// [withConfiguredTimeoutsBlock]. Before [builder.fillResidueFor] so that
+	// configuration, read fresh this run, wins over a stored block.
+	if seeded, ok := withConfiguredTimeoutsBlock(obj.Value, f.prep.timeoutsBlock, schema.Block, obj.Private); ok {
+		log.Printf("[TRACE] projection: %s carries a timeouts block its read returned null for and no SDKv2 meta; seeded the configured block into the prior value", addr)
+		obj.Value = seeded
 	}
 
 	// GitHub issue #275's residue, applied AFTER the ownership check and
