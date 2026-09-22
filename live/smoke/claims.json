@@ -962,7 +962,7 @@
       "providers": {
         "aws": {
           "status": "proven",
-          "note": "The saved plan (-out) and a TF_LOG=debug file are read separately and do hold the value, as they do on stock. Under refuse a changed password is not proposed (#1503), and the scenario prints that replan without asserting its shape."
+          "note": "The saved plan (-out) and a TF_LOG=debug file are read separately and do hold the value, as they do on stock. Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503)."
         },
         "kubernetes": {
           "status": "open",

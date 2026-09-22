@@ -58,9 +58,15 @@ The steps as they print:
    entry that holds it must be the provider plugin's. Stock writes both
    the same way. The record store and data dir from that run still hold
    nothing.
-5. `the replan under refuse, as measured`. The scenario prints this
-   replan's headline and does not assert it (see below). It asserts that
-   the replan prints no password and leaves none on disk.
+5. `the replan under refuse proposes the argument again`. This is what
+   the refusal costs. Nothing the run keeps holds the last-applied
+   password, so the plan has no prior to compare against and proposes
+   sending the value again: `Plan: 0 to add, 1 to change, 0 to destroy`,
+   the one change being `password` on `aws_db_instance.app`. The step
+   runs it twice, unchanged and then with `TF_VAR_db_password` rotated,
+   because the rotation is the case that matters - a rotated password
+   that planned `No changes.` would never be sent. Neither plan prints a
+   password or leaves one on disk.
 6. `the default, honestly`. The same estate with no strict block. The
    scan finds the password in the record and in
    `.terraform/choudoufu-cache.tfstate`. With the cache deleted, the
@@ -78,10 +84,13 @@ The debug log and the saved plan hold the value. They are the operator's
 files, but a reader who turns on `TF_LOG=debug` in CI should know the
 provider logs request bodies.
 
-`use/secrets.md` says the left-out argument "shows as a change on every
-plan". Measured, the replan under `refuse` reads `No changes.`, because
-the projection seeds the prior from the configuration's own value. The
-same seeding means a password changed in the configuration is not
-proposed under `refuse` while it is under `store`. That is #1503, a
-product defect, and it is why step 5 prints the replan and does not pin
-its shape.
+The perpetual diff in step 5 is a cost, not a defect, and the claim does
+not say otherwise: under `refuse` this argument is proposed on every
+plan whether or not it changed, and each apply sends it again. That is
+the same diff stock `terraform import` leaves for an argument no read
+returns. The default trades it for keeping the value in the record.
+
+Until #1503 was fixed the projection seeded the prior from the
+configuration's own value, so the replan read `No changes.` and a
+rotated password was silently never sent. Step 5 printed that replan
+without asserting its shape; it now asserts both arms.

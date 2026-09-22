@@ -30,6 +30,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -2166,7 +2167,12 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		seedEval = seedEval.WithRepetitionData(rd)
 	}
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
-	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources)
+	// GitHub issue #1503: the estate's own secrets setting, read the one
+	// way this package reads it ([identity.SecretsFor], the same call
+	// [builder.fillResidueFor] makes for the post-read half of the same
+	// question). It governs the VALUE of a Sensitive attribute only - see
+	// [configuredAttrsSeed]'s doc comment.
+	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources, identity.SecretsFor(b.cfg))
 	if tagsSeedOK {
 		if attrsSeed == nil {
 			attrsSeed = make(map[string]cty.Value, 1)
@@ -3229,7 +3235,51 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // Each entry's Path is relative to the whole resource object (attribute
 // name first), ready to merge straight into [readImported]'s own
 // schema-mark reconciliation with [combineValueMarks].
-func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, dataSchemas map[string]providers.Schema) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
+//
+// # secrets, and the one attribute class this whole mechanism must not reach
+//
+// GitHub issue #1503. Everything above rests on one claim: for a
+// non-Computed attribute, the configuration's current value is exactly what
+// a persisted state file's PriorState would already hold, so seeding it
+// reconstructs a fact rather than inventing one. Under `strict { secrets =
+// "refuse" }` that claim is false for a Sensitive attribute, and falsely in
+// the one direction that matters.
+//
+// An estate that refuses secrets writes no record for a sensitive argument
+// ([residueCandidates] drops it, [fillResidue] declines to fill it) and no
+// marker carries one either, deliberately. So nothing this fork keeps holds
+// what was LAST APPLIED for such an attribute - which is the very value the
+// seed above claims to be reconstructing. Seeding it from the CURRENT
+// configuration does not reconstruct the last-applied value, it overwrites
+// the question with the answer: the prior and the desired value become the
+// same by construction, and a provider that never reads the attribute back
+// (hashicorp/aws's aws_db_instance never calls d.Set("password", ...),
+// because DescribeDBInstances has no password in its response) hands it
+// straight back out of ReadResource. A rotated master password then plans
+// `No changes.` and is silently never sent.
+//
+// Under the default `secrets = "store"` the claim holds and nothing here
+// changes: the record store carries the last-applied value, [fillResidue]'s
+// #393 branch puts it back when the read only echoed the stub, and the two
+// values can genuinely differ. That is why this is gated on the setting and
+// not applied to every Sensitive attribute.
+//
+// Withholding the value restores the documented behaviour rather than
+// inventing one. site/content/docs/use/secrets.md and live/SECRETS.md both
+// say "A sensitive argument the API never returns is left out of its
+// record, so every plan shows it as a change", and lint's own
+// [residueWarning] on the same attribute promises "Every live plan will
+// therefore propose sending the value again - the same perpetual diff stock
+// `terraform import` produces for this argument. The plan is correct and
+// the apply converges." A null prior is also what stock's own import stub
+// carries for it, so this is the oracle's answer, not a fork-local one.
+//
+// Only the VALUE is withheld. The attribute's configuration MARKS are
+// collected and returned exactly as before, because dropping those is GitHub
+// issue #401 family 3 - a perpetual sensitivity-only diff - which is why the
+// skip sits beside the existing `attr.Computed` one, after
+// [configuredAttrSeed] has already run, rather than at the top of the loop.
+func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, dataSchemas map[string]providers.Schema, secrets strict.Secrets) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
 	if eval == nil || rc == nil || schema.Block == nil {
 		return nil, nil
 	}
@@ -3240,6 +3290,13 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 		Subject:   rc.Addr().String(),
 		DeclRange: rc.DeclRange,
 	}
+
+	// GitHub issue #1503, stated once here rather than re-derived per
+	// attribute: under `secrets = "refuse"` nothing this fork keeps holds a
+	// sensitive attribute's last-applied value, so configuration is not
+	// reconstructing a prior for it, it is answering its own question. See
+	// this function's doc comment.
+	refusesSecrets := !strict.StoresSecrets(secrets)
 
 	var out map[string]cty.Value
 	var marks []cty.PathValueMarks
@@ -3292,6 +3349,17 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			// recording - configuredAttrSeed already ran above and the
 			// marks loop already captured whatever it found, so only the
 			// seed map is skipped here.
+			continue
+		}
+		if attr.Sensitive && refusesSecrets {
+			// GitHub issue #1503, and the same shape as the Computed
+			// exclusion directly above: the VALUE is withheld, the MARKS
+			// the loop above already collected are kept. The attribute's
+			// prior stays whatever [providers.Configured.ImportResourceState]
+			// answered for it - null, for every provider that does not read
+			// it back - which is what makes the plan propose sending the
+			// value again, the perpetual diff this setting's own
+			// documentation and lint warning both promise.
 			continue
 		}
 		if out == nil {
