@@ -328,12 +328,24 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # The exact container, not the prefix: $$ inside the harness is HARNESS_PID
 # (the `exec` above is what makes that true), and a prefix match would also
 # see a concurrent run's emulator.
-FLOCI_NAME="choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID}"
-if ! docker ps --filter "name=^${FLOCI_NAME}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  log "FAIL: the emulator container $FLOCI_NAME is not running, although this driver set LIVECERT_KEEP_FLOCI=1 precisely so that it would be. There is nothing to list, and an endpoint that is gone answers identically for a perfect teardown and for no teardown at all - so this run made NO independent confirmation of anything (#1279)."
+#
+# Named KEPT_CONTAINER rather than FLOCI_NAME, and that is not cosmetic:
+# live/flocipostmortem_test.go's TestFlociTeardownGoesThroughTheLibrary
+# requires every `docker rm` of a `$FLOCI_*` container to go through
+# gauntlet_floci_teardown, so a container's corpse is read before it is
+# discarded (#1299). That rule is about a floci teardown, and this is not
+# one - this driver runs the harness as an external process and does not
+# source the library, the harness's own teardown already went through
+# gauntlet_floci_teardown's call site, and this container is alive and has
+# just answered a listing. The evidence half of #1299 is kept anyway, by
+# ordering: dump_harness_artifacts (which runs `docker logs` on it) happens
+# BELOW, before the removal.
+KEPT_CONTAINER="choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID}"
+if ! docker ps --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "FAIL: the emulator container $KEPT_CONTAINER is not running, although this driver set LIVECERT_KEEP_FLOCI=1 precisely so that it would be. There is nothing to list, and an endpoint that is gone answers identically for a perfect teardown and for no teardown at all - so this run made NO independent confirmation of anything (#1279)."
   pass=0
 elif ! curl -fs "${ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
-  log "FAIL: the emulator container $FLOCI_NAME is up but $ENDPOINT does not answer, so this driver could not make the one listing it exists to make. An unreachable endpoint is not evidence of an empty account (#1279)."
+  log "FAIL: the emulator container $KEPT_CONTAINER is up but $ENDPOINT does not answer, so this driver could not make the one listing it exists to make. An unreachable endpoint is not evidence of an empty account (#1279)."
   pass=0
 else
   N="$(rgta_count tofu-cert-run "$RUN_ID")"
@@ -347,26 +359,28 @@ else
   fi
 fi
 
-# The container outlived teardown only because this driver asked for it, so
-# removing it is this driver's job - on the failing paths above too, where
-# it is if anything more important. cleanup() removes the same name on the
-# way out; this is the ordinary path, so the removal is asserted rather than
-# left to a trap.
-if docker ps -a --filter "name=^${FLOCI_NAME}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
-fi
-if docker ps -a --filter "name=^${FLOCI_NAME}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  log "FAIL: this driver could not remove $FLOCI_NAME, the container it asked the harness to leave behind - it is leaking one, and the leak is this script's own"
-  pass=0
-else
-  log "  floci container removed by this driver (it outlived teardown only because this driver asked it to)"
-fi
-
 if [ "$pass" != "1" ]; then
   # Only on failure: on a passing run the harness log below is the whole
   # story and the redirected step output is noise. On a failing one it is
   # usually the only place the reason exists at all.
   dump_harness_artifacts
+fi
+
+# The container outlived teardown only because this driver asked for it, so
+# removing it is this driver's job - on the failing paths above too, where
+# it is if anything more important. It happens after dump_harness_artifacts
+# deliberately: that dump runs `docker logs` on this container, and on a
+# failing run those logs are often the only place the reason exists.
+# cleanup() removes the same name on the way out, but this is the ordinary
+# path, so the removal is asserted here rather than left to a trap.
+if docker ps -a --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  docker rm -f "$KEPT_CONTAINER" >/dev/null 2>&1 || true
+fi
+if docker ps -a --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "FAIL: this driver could not remove $KEPT_CONTAINER, the container it asked the harness to leave behind - it is leaking one, and the leak is this script's own"
+  pass=0
+else
+  log "  floci container removed by this driver (it outlived teardown only because this driver asked it to)"
 fi
 
 log ""

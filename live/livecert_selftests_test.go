@@ -133,8 +133,9 @@ var liveCertSelftests = []liveCertSelftest{
 			"setup alone. It is the one selftest that needs docker, terraform and the AWS CLI, so it cannot run in this package. Its three " +
 			"waits are bounded: setup by SELFTEST_KILL_SETUP_BOUND_S (600s), the apply by SELFTEST_KILL_APPLY_BOUND_S (180s), " +
 			"and the post-SIGTERM wait for the harness's trap by SELFTEST_KILL_WAIT_BOUND_S (240s, watchdog-enforced). " +
-			"What it proves is narrower than its own PASS line says: #1279 - its \"independent verification\" listing is unreachable on any " +
-			"passing run, because the harness removes the emulator container before the driver gets there.",
+			"Its \"independent verification\" listing was unreachable on any passing run until #1279: the harness removed the emulator " +
+			"container before the driver got there, and the skipped listing logged a line that read like a confirmation. The driver now " +
+			"sets LIVECERT_KEEP_FLOCI=1, lists the endpoint teardown finished with, and removes the container itself.",
 	},
 	{
 		script:   "selftest-prefix-count.sh",
@@ -672,13 +673,14 @@ const killSelftestJobName = "livecert-selftest-kill"
 // see - #1267's own complaint, satisfied a different way. That tier's own
 // breakage is #1280; it is not this test's business.
 //
-// What the job proves is narrower than selftest-kill.sh's PASS line claims.
-// Its emptiness half - the "independent verification" that lists the
-// endpoint itself - is unreachable on any passing run, because the harness
-// removes the emulator container as teardown's last step and the driver
-// then has nothing to list. That is #1279, found while wiring this. The
-// trap, the exit code, the teardown banner and the container's removal are
-// real, and they are what this job guards until #1279 lands.
+// The job's emptiness half was hollow when it was wired: the "independent
+// verification" that lists the endpoint itself was unreachable on any
+// passing run, because the harness removed the emulator container as
+// teardown's last step and the driver then had nothing to list. That was
+// #1279, found while wiring this, and it is closed - the driver sets
+// LIVECERT_KEEP_FLOCI=1 so the endpoint survives long enough to be listed,
+// and removes the container afterwards. TestKillSelftestIndependentListing-
+// CanSeeALeak is the guard on that; this test is the guard on the job.
 func TestCIRunsTheKillSelftest(t *testing.T) {
 	data, err := os.ReadFile(ciWorkflowRel)
 	if err != nil {
@@ -846,5 +848,119 @@ func TestKillSelftestWaitIsBounded(t *testing.T) {
 				"Restoring an unbounded `wait` here makes a hung harness trap stall CI instead of reddening it (#1267 hazard 2).",
 				want.substr, want.why)
 		}
+	}
+}
+
+// TestKillSelftestIndependentListingCanSeeALeak is issue #1279.
+//
+// selftest-kill.sh ends with a section headed "independent verification -
+// THIS driver lists the SAME floci endpoint itself, trusting nothing the
+// harness said". That listing was unreachable on every passing run: the
+// harness removes the emulator container as teardown's last step, so the
+// endpoint was gone by the time the driver reached it and the listing was
+// skipped with "nothing left to list, consistent with a full teardown" - a
+// sentence equally true of a perfect teardown and of no teardown at all.
+// Measured before the fix, with the harness's trusted destroy and its sweep
+// neutered: the harness printed "STILL NOT EMPTY after destroy and sweep"
+// into the driver's own log and the driver exited 0 with PASS.
+//
+// The fix is LIVECERT_KEEP_FLOCI=1, which this test pins from both ends:
+// the driver has to set it, and the harness has to read it inside its
+// TARGET=floci branch and nowhere else, because reference-ec2-vpc.sh is on
+// the paid path and a variable an operator could set on a real account
+// would be a new way to leak one.
+//
+// Red-armed three ways while writing it: deleting the driver's export,
+// moving the harness's read out of the TARGET=floci branch, and restoring
+// the "nothing left to list" excuse.
+func TestKillSelftestIndependentListingCanSeeALeak(t *testing.T) {
+	driverPath := filepath.Join(liveCertSelftestDir, "selftest-kill.sh")
+	driver, err := os.ReadFile(driverPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", driverPath, err)
+	}
+	src := string(driver)
+
+	for _, want := range []struct {
+		substr string
+		why    string
+	}{
+		{"export LIVECERT_KEEP_FLOCI=1", "without it the harness removes the container on its own last step and this driver has no endpoint left to list - which is #1279 exactly"},
+		{`docker rm -f "$KEPT_CONTAINER"`, "the container outlives teardown only because this driver asked for it, so this driver has to remove it; otherwise a passing run leaks an emulator"},
+		{"FAIL: the harness's own self-report does NOT say VERIFIED EMPTY", "a missing VERIFIED EMPTY was logged and waved through, on the grounds that the listing below would catch it; the listing never ran"},
+		{"FAIL: the emulator container", "an endpoint the driver cannot reach when it expected to list one has to be a failure, not a confirmation"},
+	} {
+		if !strings.Contains(src, want.substr) {
+			t.Errorf("live/live-cert/selftest-kill.sh no longer contains %q: %s.\n"+
+				"Issue #1279: the driver's independent listing has to run on every run, or its PASS line claims a confirmation it never made.",
+				want.substr, want.why)
+		}
+	}
+	// The sentence the old code printed instead of listing anything. Its
+	// return would mean the excuse branch is back even if the needles
+	// above all still matched. Code lines only: the header comment quotes
+	// the sentence in order to explain what it was wrong about, and a
+	// needle that matches its own explanation is the pgrep-matches-its-
+	// own-command-line bug wearing a test's clothes.
+	for i, line := range strings.Split(src, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		if strings.Contains(line, "nothing left to list") {
+			t.Errorf("live/live-cert/selftest-kill.sh line %d is back to treating an unreachable endpoint as evidence of an empty account (#1279):\n  %s\n"+
+				"A container that is gone has taken the emulator's state with it, so that reads the same for a full teardown and for no teardown at all.",
+				i+1, strings.TrimSpace(line))
+		}
+	}
+
+	// The harness half: LIVECERT_KEEP_FLOCI must be read inside teardown's
+	// TARGET=floci branch and nowhere else. That containment IS the
+	// guarantee that it is inert for TARGET=aws - the paid path never
+	// evaluates the line, so no value of the variable can change what a
+	// real account's teardown does.
+	harnessPath := filepath.Join(liveCertSelftestDir, "reference-ec2-vpc.sh")
+	harness, err := os.ReadFile(harnessPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", harnessPath, err)
+	}
+	// Containment, by nesting rather than by line range: the ONE
+	// non-comment line that EXPANDS the variable must sit directly inside a
+	// `if [ "$TARGET" = "floci" ]; then`, which is what makes it
+	// unreachable on the paid path. Checking the enclosing branch beats
+	// checking a line range, because the file has several copies of that
+	// same condition and a range would have to guess which one it meant.
+	//
+	// "${LIVECERT_KEEP_FLOCI", not the bare name: the log line teardown
+	// prints in place of the removal carries the name as literal text, and
+	// that line is the needle selftest-kill.sh greps for.
+	lines := strings.Split(string(harness), "\n")
+	read := -1
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") || !strings.Contains(line, "${LIVECERT_KEEP_FLOCI") {
+			continue
+		}
+		if read >= 0 {
+			t.Fatalf("%s expands LIVECERT_KEEP_FLOCI on more than one non-comment line (%d and %d); expected exactly one, directly inside a TARGET=floci branch.\n"+
+				"selftest-kill.sh needs the container to survive teardown; TARGET=aws, the paid path, needs nothing to consult this variable at all.",
+				harnessPath, read+1, i+1)
+		}
+		read = i
+	}
+	if read < 0 {
+		t.Fatalf("%s never expands LIVECERT_KEEP_FLOCI, so selftest-kill.sh's independent listing has no endpoint to run against (#1279).", harnessPath)
+	}
+	prev := read - 1
+	for prev >= 0 && (strings.TrimSpace(lines[prev]) == "" || strings.HasPrefix(strings.TrimSpace(lines[prev]), "#")) {
+		prev--
+	}
+	if prev < 0 || strings.TrimSpace(lines[prev]) != `if [ "$TARGET" = "floci" ]; then` {
+		got := "(start of file)"
+		if prev >= 0 {
+			got = strings.TrimSpace(lines[prev])
+		}
+		t.Errorf("%s line %d expands LIVECERT_KEEP_FLOCI, but the statement it is nested directly inside is:\n  %s\n"+
+			"It has to be `if [ \"$TARGET\" = \"floci\" ]; then`. That nesting is the whole argument that the variable is inert for TARGET=aws: "+
+			"the paid path never evaluates the line, so no value of it can change what a real account's teardown does. A read anywhere else has to be argued for on its own.",
+			harnessPath, read+1, got)
 	}
 }

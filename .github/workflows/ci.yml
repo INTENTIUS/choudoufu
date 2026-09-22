@@ -259,12 +259,13 @@ jobs:
   # money and wall clock rather than a red cell - and until #1267 nothing in
   # this repository ran it.
   #
-  # What it proves is narrower than its own PASS line claims: the
-  # "independent verification" listing at the end of that script is
-  # unreachable on any passing run, because the harness removes the emulator
-  # container as teardown's last step. That is issue #1279, found while
-  # wiring this job. The trap firing, the exit code, the teardown banner and
-  # the container's removal are real and are what this job guards.
+  # The "independent verification" listing at the end of that script was
+  # unreachable on any passing run when this job was written, because the
+  # harness removed the emulator container as teardown's last step and the
+  # skipped listing logged a line that read like a confirmation. That was
+  # issue #1279; the driver now keeps the container up for its own listing
+  # and removes it afterwards, so the emptiness half of this job's verdict
+  # is evidence rather than a sentence.
   #
   # Here rather than in floci-tier.yml, which is the other workflow with
   # docker: that nightly has failed on every run from 2026-09-12 to
