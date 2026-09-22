@@ -749,7 +749,7 @@ gauntlet_begin_stage cold_deploy
 log "=== 1. cold deploy: plain terraform, $INSTANCES real resources ==="
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -849,7 +849,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixe
 # the reproduce and the full refusal list.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. one more floci container, a fresh namespace ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GH=""
 for _ in $(seq 1 45); do
@@ -2307,7 +2307,7 @@ EOF
     gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
     CO_STARTED=""
     for _ in 1 2 3 4 5; do
-      if docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null 2>&1; then
+      if gauntlet_floci_start "$COUNT_ORACLE_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" 2>/dev/null; then
         CO_STARTED=1; break
       fi
       sleep 3

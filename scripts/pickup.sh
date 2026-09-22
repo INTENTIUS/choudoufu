@@ -486,8 +486,33 @@ hr "processes"
 workers=$(pgrep -fl 'claude .*gauntlet-worker' 2>/dev/null | wc -l | tr -d ' ')
 printf 'headless claude workers (just contribute): %s   (Agent-tool workers run inside their parent and are NOT listed here; see each worktree line above)\n' "$workers"
 if have docker && docker info >/dev/null 2>&1; then
+  # Crossing containers are named choudoufu-<estate>-<pid> and carry the
+  # ownership labels live/e2e/lib/gauntlet.sh writes (#1312). The library's
+  # gauntlet_floci_ownership is the one decision about which of them is a
+  # leak, so this reads it rather than repeating it; read-only, the sweeper
+  # is scripts/floci-sweep.sh (and the next run of the same estate).
+  # shellcheck source=live/e2e/lib/gauntlet.sh
+  source "$ROOT/live/e2e/lib/gauntlet.sh"
+  crossing=$(gauntlet_floci_list 2>/dev/null || true)
+  if [ -n "$crossing" ]; then
+    echo 'crossing floci containers (choudoufu-<estate>-<pid>):'
+    for c in $crossing; do
+      own=$(gauntlet_floci_ownership "$c"); verdict=${own%%|*}; reason=${own#*|}
+      ports=$(docker ps -a --filter "name=^${c}\$" --format '{{.Ports}}' 2>/dev/null | sed 's/, .*//' | cut -c1-28)
+      case "$verdict" in
+        owned)          printf '  %-48s %-28s owned: %s\n' "$c" "$ports" "$reason" ;;
+        leaked|stopped) printf '  %-48s %-28s LEAKED: %s\n' "$c" "$ports" "$reason" ;;
+        held)           printf '  %-48s %-28s stopped: %s\n' "$c" "$ports" "$reason" ;;
+        unowned)        printf '  %-48s %-28s unowned: %s\n' "$c" "$ports" "$reason" ;;
+        *)              printf '  %-48s %-28s %s\n' "$c" "$ports" "$own" ;;
+      esac
+    done
+    echo '  rule: LEAKED -> bash scripts/floci-sweep.sh (the next run of that estate does the same); unowned -> look first, then docker rm -f by hand'
+  else
+    echo 'crossing floci containers: none'
+  fi
   floci=$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -i floci || true)
-  if [ -n "$floci" ]; then printf 'floci containers:\n%s\n' "$(echo "$floci" | sed 's/^/  /')"; else echo 'floci containers: none'; fi
+  if [ -n "$floci" ]; then printf 'other floci containers (smoke stack, emulator children):\n%s\n' "$(echo "$floci" | sed 's/^/  /')"; else echo 'other floci containers: none'; fi
 else
   echo 'docker: not running or not installed (crossing scripts cannot run here)'
 fi

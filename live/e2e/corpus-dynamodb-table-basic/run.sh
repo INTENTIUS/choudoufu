@@ -270,7 +270,7 @@ gauntlet_pin_aws_provider "$EX/versions.tf" || fail "gauntlet_pin_aws_provider f
 log "  DELTA  emulator flags added to the provider block; aws provider pinned via gauntlet_pin_aws_provider; no backend, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -536,7 +536,7 @@ EOF
 }
 
 log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and back, in a dedicated always-idle account ==="
-docker run -d -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_COUNT_ORACLE_NAME" -p "${FLOCI_COUNT_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
 COUNT_ORACLE_HEALTH=""
 for _ in $(seq 1 45); do
@@ -1508,9 +1508,9 @@ EOF
 # a path a from-nothing apply never takes.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d -p "${FLOCI_GREEN_ORACLE_PORT}:4566" --name "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_ORACLE_NAME" -p "${FLOCI_GREEN_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$GREEN_ORACLE_ENDPOINT"; do
   GH=""

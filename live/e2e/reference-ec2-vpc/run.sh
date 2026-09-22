@@ -782,7 +782,7 @@ EOF
 # ══════════════════════════════════════════════════════════════════════════
 
 log "=== A0. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 wait_healthy "$ENDPOINT" || fail "floci did not come up healthy (ec2) at $ENDPOINT"
 log "  healthy"
@@ -873,7 +873,7 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 
 log "=== B0. a second floci on :$FLOCI_ADOPT_PORT, standing in for infra nobody marked ==="
-docker run -d -p "${FLOCI_ADOPT_PORT}:4566" --name "$FLOCI_ADOPT_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_ADOPT_NAME" -p "${FLOCI_ADOPT_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ADOPT_NAME failed"
 wait_healthy "$ADOPT_ENDPOINT" || fail "the adoption floci did not come up healthy at $ADOPT_ENDPOINT"
 log "  healthy"

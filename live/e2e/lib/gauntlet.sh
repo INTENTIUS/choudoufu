@@ -1106,10 +1106,11 @@ gauntlet_print_evidence() {
 #   script does, so a SIGKILLed run leaked a RUNNING container before this
 #   change exactly as it does after. The only new residue is a STOPPED
 #   container from a run that both lost its emulator and was SIGKILLed, and
-#   that container is the evidence this change exists to keep. To clear any
-#   that accumulate:
+#   that container is the evidence this change exists to keep, and the
+#   sweeper below (#1312) prints its postmortem before it removes it. To
+#   clear any that accumulate, running or stopped:
 #
-#     docker ps -aq --filter name=choudoufu- --filter status=exited | xargs docker rm
+#     bash scripts/floci-sweep.sh
 #
 # Everything it prints goes to stdout with a FLOCI-POSTMORTEM prefix - never
 # the "GAUNTLET " prefix, which is the runner's own parsed grammar (a
@@ -1156,6 +1157,220 @@ gauntlet_floci_teardown() {
   done
   docker rm -f "$@" >/dev/null 2>&1 || return 0
   return 0
+}
+
+# ── floci ownership, and the sweeper that checks it (#1312) ─────────────────
+#
+# A crossing script SIGKILLed mid-run leaves its floci container RUNNING.
+# The EXIT trap above cannot fire on SIGKILL, `--rm` never covered it (it
+# removes a container when the CONTAINER exits, not when the script does),
+# and the name `choudoufu-<estate>-$$` does not collide, so the containers
+# accumulate, each holding its `-p ${FLOCI_PORT}:4566` publish until an
+# unrelated run of the same estate fails its health check on a taken port.
+#
+# The stopped half of that residue was always safe to sweep by filter. The
+# running half was not: from outside, a leaked container and a concurrent
+# run's container are identical - same image, same name shape, same port
+# range - and two runs of the same estate CAN coexist on different ports
+# (the runner hands each run its own FLOCI_PORT). So the container has to
+# say who owns it, in a way a sweeper can check against the machine:
+#
+#   choudoufu.estate         the <estate> in choudoufu-<estate>-<pid>
+#   choudoufu.owner.pid      $$ of the script that started it
+#   choudoufu.owner.started  that pid's start time, `ps -o lstart=`, taken
+#                            under TZ=UTC with its whitespace collapsed
+#
+# The start time is why this is a proof rather than a hint. Pids are
+# reused, and `kill -0` on a reused pid says "alive" about a stranger; a pid
+# is the owner only if it is alive AND its start time is the one on the
+# label. `ps -o lstart=` prints the same format on macOS bash 3.2 and on
+# procps Linux. The TZ pin is because lstart prints local time, and a
+# container started under one TZ must still be recognised by a sweep run
+# under another - measured: the same pid printed 20:52 and 02:52 here
+# depending on TZ.
+#
+# A running container with no ownership labels - one from a script older
+# than this change, or one somebody started by hand - is never removed. It
+# is listed with the by-hand command instead.
+
+GAUNTLET_FLOCI_LABEL_ESTATE="choudoufu.estate"
+GAUNTLET_FLOCI_LABEL_PID="choudoufu.owner.pid"
+GAUNTLET_FLOCI_LABEL_STARTED="choudoufu.owner.started"
+
+# gauntlet_pid_started <pid>
+#
+# Prints the process's start time in the label's normalised form, or nothing
+# if no such process exists. Exit 0 either way: "nothing" is the answer, not
+# an error, so callers compare the string and never the status.
+gauntlet_pid_started() {
+  [ -n "${1:-}" ] || return 0
+  { TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | awk 'NF { $1=$1; print; exit }'; } || true
+  return 0
+}
+
+# gauntlet_floci_estate_of <container name>
+#
+# The <estate> in choudoufu-<estate>-<pid>: the prefix goes, and so does the
+# trailing -<digits>. A name of another shape comes back whole minus any
+# trailing pid, which is still a usable scope.
+gauntlet_floci_estate_of() {
+  printf '%s\n' "${1#choudoufu-}" | sed -E 's/-[0-9]+$//'
+}
+
+# gauntlet_floci_ownership <container>
+#
+# The one place that decides what a container is. Prints a single line,
+# "<verdict>|<reason>", exit 0 always. gauntlet_sweep_leaked_floci acts on
+# the verdict and scripts/pickup.sh reports it, so the two cannot disagree
+# about which container is a leak. The verdicts:
+#
+#   absent    no such container, or one dockerd is already removing
+#   owned     running; the labelled owner is alive with the labelled start
+#   leaked    running; the labelled owner is dead, or its pid now belongs to
+#             a process with a different start time
+#   unowned   running with no ownership labels: never removed, listed
+#   held      not running, but its owner is alive and will read it at its
+#             own teardown (#1299's evidence, left for the run it belongs to)
+#   stopped   not running and nobody alive owns it: removed, after
+#             gauntlet_floci_teardown has printed its postmortem
+gauntlet_floci_ownership() {
+  local c="$1" info status rest pid started now owner
+  info="$(docker inspect --format \
+    "{{.State.Status}}|{{index .Config.Labels \"$GAUNTLET_FLOCI_LABEL_PID\"}}|{{index .Config.Labels \"$GAUNTLET_FLOCI_LABEL_STARTED\"}}" \
+    "$c" 2>/dev/null)" || { printf 'absent|no such container\n'; return 0; }
+  status="${info%%|*}"; rest="${info#*|}"
+  pid="${rest%%|*}"; started="${rest#*|}"
+  # dockerd is already taking it down (another run's teardown, or a sweep
+  # racing this one); there is nothing to decide and a `docker rm -f` here
+  # would only race the one in flight. Seen once by pickup while another
+  # worker's eks run tore down, reported as a leak for the half-second it
+  # took.
+  if [ "$status" = "removing" ]; then
+    printf 'absent|already being removed\n'; return 0
+  fi
+  if [ -z "$pid" ] || [ -z "$started" ]; then
+    owner=none
+  else
+    now="$(gauntlet_pid_started "$pid")"
+    if [ -z "$now" ]; then owner=dead
+    elif [ "$now" != "$started" ]; then owner=reused
+    else owner=alive
+    fi
+  fi
+  if [ "$status" != "running" ]; then
+    if [ "$owner" = alive ]; then
+      printf 'held|status=%s, but owner pid %s is alive and reads it at its own teardown\n' "$status" "$pid"
+    else
+      printf 'stopped|status=%s\n' "$status"
+    fi
+    return 0
+  fi
+  case "$owner" in
+    none)   printf 'unowned|no ownership labels, so an older script or a hand started it; if nothing is using it: docker rm -f %s\n' "$c" ;;
+    dead)   printf 'leaked|owner pid %s is gone (it started %s)\n' "$pid" "$started" ;;
+    reused) printf 'leaked|owner pid %s is alive but started %s, not %s: the owner died and its pid was reused\n' "$pid" "$now" "$started" ;;
+    alive)  printf 'owned|owner pid %s is alive (started %s)\n' "$pid" "$started" ;;
+  esac
+  return 0
+}
+
+# gauntlet_floci_list [estate]
+#
+# Every container the sweeper and pickup consider: those carrying the
+# estate label (only that estate's when one is given) plus, for the
+# unlabelled ones an older script left behind, those named
+# choudoufu-<estate>-<digits>. Names, one per line, deduplicated.
+gauntlet_floci_list() {
+  local scope="${1:-}"
+  if [ -n "$scope" ]; then
+    { docker ps -a --filter "label=$GAUNTLET_FLOCI_LABEL_ESTATE=$scope" --format '{{.Names}}'
+      docker ps -a --filter "name=^choudoufu-${scope}-[0-9]+\$" --format '{{.Names}}'
+    } 2>/dev/null | sort -u
+  else
+    { docker ps -a --filter "label=$GAUNTLET_FLOCI_LABEL_ESTATE" --format '{{.Names}}'
+      docker ps -a --filter "name=^choudoufu-" --format '{{.Names}}'
+    } 2>/dev/null | sort -u
+  fi
+  return 0
+}
+
+# gauntlet_sweep_leaked_floci [estate]
+#
+# Removes every stopped container nobody alive owns and every running one
+# whose owner is dead, prints one FLOCI-SWEEP line per container saying what
+# was decided and why, and leaves an unowned container alone with the
+# by-hand command in its line. With an estate it looks only at that
+# estate's containers: that is how gauntlet_floci_start calls it, so a leak
+# clears itself on the next run of the same estate, and a concurrent run of
+# the same estate on another port is kept because its owner is alive.
+# Without one it is the whole machine, which is what scripts/floci-sweep.sh
+# runs.
+#
+# A stopped container goes through gauntlet_floci_teardown, so the
+# postmortem #1299 kept it for is printed before it is removed. The prefix
+# is FLOCI-SWEEP for the same reason the teardown's is FLOCI-POSTMORTEM:
+# never "GAUNTLET ", the runner's parsed grammar.
+#
+# Exit 0 always, like the teardown: a sweep that could not remove something
+# says so, and must not turn the run that called it red.
+gauntlet_sweep_leaked_floci() {
+  local scope="${1:-}" c line verdict reason
+  command -v docker >/dev/null 2>&1 || return 0
+  for c in $(gauntlet_floci_list "$scope"); do
+    line="$(gauntlet_floci_ownership "$c")"
+    verdict="${line%%|*}"; reason="${line#*|}"
+    case "$verdict" in
+      absent) ;;
+      stopped)
+        printf 'FLOCI-SWEEP %s: removing - %s and nobody alive owns it; a previous run left it, its postmortem follows\n' "$c" "$reason"
+        gauntlet_floci_teardown "$c" ;;
+      leaked)
+        if docker rm -f "$c" >/dev/null 2>&1; then
+          printf 'FLOCI-SWEEP %s: removed - %s\n' "$c" "$reason"
+        else
+          printf 'FLOCI-SWEEP %s: COULD NOT remove - %s\n' "$c" "$reason"
+        fi ;;
+      *)
+        printf 'FLOCI-SWEEP %s: kept - %s\n' "$c" "$reason" ;;
+    esac
+  done
+  return 0
+}
+
+# gauntlet_floci_start <name> <docker run args...>
+#
+# The one way a crossing script starts a floci container. It sweeps the
+# estate's leaked containers, then runs `docker run -d --name <name>` with
+# the ownership labels above and whatever else the caller passes: its -p,
+# and for corpus-eks-basic its network, socket mount and environment. `-d`
+# is added here, `--rm` never is (#1299), and docker's container-id line
+# goes to /dev/null as the inlined lines' did. Returns docker run's status,
+# so the caller's `|| fail` means what it did.
+#
+# live/flocipostmortem_test.go's TestFlociStartGoesThroughTheLibrary fails
+# on a script that runs `docker run -d` for a FLOCI_* name itself: that
+# container would carry no labels and be unsweepable for the rest of its
+# life.
+#
+# If the start time cannot be read (a ps without lstart), the container is
+# started with the estate label only and a line says so: a sweeper will
+# list it rather than remove it, which is the safe direction.
+gauntlet_floci_start() {
+  local name="$1" estate started
+  shift
+  estate="$(gauntlet_floci_estate_of "$name")"
+  started="$(gauntlet_pid_started $$)"
+  gauntlet_sweep_leaked_floci "$estate"
+  if [ -z "$started" ]; then
+    printf 'FLOCI-SWEEP %s: starting WITHOUT ownership labels - could not read the start time of pid %s, so a sweeper will list this container rather than remove it\n' "$name" "$$"
+    docker run -d --name "$name" --label "$GAUNTLET_FLOCI_LABEL_ESTATE=$estate" "$@" >/dev/null
+    return $?
+  fi
+  docker run -d --name "$name" \
+    --label "$GAUNTLET_FLOCI_LABEL_ESTATE=$estate" \
+    --label "$GAUNTLET_FLOCI_LABEL_PID=$$" \
+    --label "$GAUNTLET_FLOCI_LABEL_STARTED=$started" \
+    "$@" >/dev/null
 }
 
 # ── the shared provider plugin cache (#1300) ────────────────────────────────

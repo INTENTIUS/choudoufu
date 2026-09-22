@@ -728,7 +728,7 @@ log "  DELTA 2  vpc_associations removed                         (EMULATOR GAP, 
 gauntlet_pin_aws_provider "$PLAIN_EST/versions.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN_EST/versions.tf - the corpus pin has moved"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -882,7 +882,7 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources (DELTA 2, lex00/floci#57)"
 gauntlet_begin_stage greenfield
 log ""
 log "=== PART F: 0. one more floci container, a fresh namespace ==="
-docker run -d -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 GREEN_HEALTH=""
 for _ in $(seq 1 45); do

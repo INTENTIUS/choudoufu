@@ -715,7 +715,7 @@ echo "  LIVE_E2E_EXACTNESS: $LIVE_E2E_EXACTNESS"
 # `:latest` so a later push to the fork's main cannot silently change what
 # this harness runs against; FLOCI_IMAGE overrides it (see the header).
 echo "=== 1. Floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "floci" "docker run for $FLOCI_NAME failed"
 # Captured before grep, not "curl | grep -q": grep -q exits (and closes its
 # stdin) the instant it finds a match, same early-exit-consumer shape as the

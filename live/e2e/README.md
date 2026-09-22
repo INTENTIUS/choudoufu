@@ -627,6 +627,71 @@ Mach-O` was blind to a 1000-byte truncation and proved nothing. The lock
 rests on the mechanism above — an in-place unpack with no rename — not on a
 reproduction.
 
+## Floci containers: ownership and cleanup
+
+Every harness here starts its emulator through
+`gauntlet_floci_start <name> <docker run args...>` in `lib/gauntlet.sh`,
+never with its own `docker run -d` (`live/flocipostmortem_test.go` fails a
+script that does). The helper adds `-d`, never `--rm` (#1299: a container
+that dies mid-run must stay inspectable), and writes three labels:
+
+| label | value |
+|---|---|
+| `choudoufu.estate` | the `<estate>` in `choudoufu-<estate>-<pid>` |
+| `choudoufu.owner.pid` | `$$` of the script that started it |
+| `choudoufu.owner.started` | that pid's start time, `TZ=UTC ps -o lstart=`, whitespace collapsed |
+
+The labels exist because of #1312. A script SIGKILLed mid-run leaves its
+container running: the EXIT trap cannot fire on SIGKILL, and `--rm` never
+covered it either, since it removes a container when the *container* exits
+rather than when the script does. The name does not collide, so the
+containers accumulate, each holding its published port until an unrelated
+run of the same estate fails its health check on it. The stopped half of
+that residue was always safe to sweep by filter; the running half was not,
+because two runs of the same estate can coexist on different ports and from
+outside a leaked container and a concurrent run's are identical. The labels
+are what tells them apart: a pid is the owner only if it is alive *and* its
+start time is the one on the label. Pids are reused, and `kill -0` on a
+reused pid says "alive" about a stranger, which is why the start time is
+there.
+
+`gauntlet_sweep_leaked_floci [estate]` decides one container at a time
+(`gauntlet_floci_ownership` is the single decision, shared with
+`scripts/pickup.sh`) and prints one `FLOCI-SWEEP` line per container saying
+what it did and why. It removes a running container whose owner is dead or
+whose pid has been reused, and a stopped container nobody alive owns, after
+`gauntlet_floci_teardown` has printed that container's postmortem. It never
+removes a running container with no ownership labels (a run from before the
+labels, or something started by hand); it lists it with the `docker rm -f`
+to run once you have looked.
+
+Three things run it:
+
+- `gauntlet_floci_start` itself, scoped to its own estate, before every
+  `docker run`. A leak clears itself on the next run of the same estate, and
+  a concurrent run of that estate on another port is kept because its owner
+  is alive. Read the `FLOCI-SWEEP` lines at the top of an estate log to see
+  what a run found waiting for it.
+- `bash scripts/floci-sweep.sh [estate]`, the whole machine by default.
+- `bash scripts/pickup.sh`, read-only: its "crossing floci containers"
+  section prints the same verdicts, `LEAKED: owner pid N is gone` and so on,
+  without acting on them.
+
+`live/e2e/selftest-floci-sweep.sh` proves the sweeper against real
+throwaway containers (a dead owner, a reused pid, a live owner, no labels,
+an exited one, another estate's) and re-runs its first case against a copy
+of the library with the liveness check removed, which must fail.
+`live/flocisweep_test.go` runs it; `make test-floci` is where CI does.
+
+If the sweeper itself cannot be used (a machine without this tree, say), the
+recipe from before it is still correct for the stopped half and still unsafe
+for the running half:
+
+```
+docker ps -aq --filter name=choudoufu- --filter status=exited | xargs docker rm
+docker ps -q  --filter name=choudoufu-                        # inspect before killing these
+```
+
 ## The corpus-crossing harness
 
 `live/e2e/corpus-crossing/run.sh` runs somebody else's production

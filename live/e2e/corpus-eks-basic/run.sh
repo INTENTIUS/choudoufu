@@ -959,12 +959,12 @@ log "  deltas applied identically to both copies; only the live block differs ($
 # ── 2. floci, real EKS mode (needs the Docker socket for k3s) ──────────────
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE), real EKS mode ==="
 [ -S /var/run/docker.sock ] || fail "no /var/run/docker.sock to mount - floci's EKS real mode needs it to spawn k3s"
-docker run -d --network "$NET" -p "${FLOCI_PORT}:4566" \
+gauntlet_floci_start "$FLOCI_NAME" --network "$NET" -p "${FLOCI_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
-  --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -2493,19 +2493,19 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
-docker run -d --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
-  --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
+gauntlet_floci_start "$FLOCI_ORACLE_NAME" --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
-  --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   GH=""
