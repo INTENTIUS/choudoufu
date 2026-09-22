@@ -649,7 +649,9 @@
           "note": ""
         }
       },
-      "evidence": []
+      "evidence": [
+        "live/smoke/evidence/k8s-a-label-is-a-change.lastrun.json"
+      ]
     },
     {
       "id": 28,
@@ -943,7 +945,9 @@
           "note": ""
         }
       },
-      "evidence": []
+      "evidence": [
+        "live/smoke/evidence/k8s-records-in-the-cluster.lastrun.json"
+      ]
     }
   ]
 }
