@@ -131,6 +131,12 @@ type ccServer struct {
 	listErr       map[string]string // CFN type -> error code
 	getResource   map[string]any    // "CFNType identifier" -> *ccResource or string error code
 
+	// listErrMessage, when set for a CFN type in listErr, is the message the
+	// error envelope carries instead of the bare code - the fixture for a
+	// real AccessDeniedException, whose message is what names the IAM
+	// action the type's list handler was refused (GitHub issue #1052).
+	listErrMessage map[string]string
+
 	// listResourcesAfterFirst, when set for a CFN type, is what every
 	// ListResources call after the first for that type returns instead of
 	// listResources[type] - the discovery-level fixture for the
@@ -160,6 +166,7 @@ func newCCServer(t *testing.T) *ccServer {
 		t:                       t,
 		listResources:           map[string][]ccResource{},
 		listErr:                 map[string]string{},
+		listErrMessage:          map[string]string{},
 		getResource:             map[string]any{},
 		listResourcesAfterFirst: map[string][]ccResource{},
 		listCallCount:           map[string]int{},
@@ -184,6 +191,10 @@ func (s *ccServer) handle(w http.ResponseWriter, r *http.Request) {
 	case "CloudApiService.ListResources":
 		s.calls = append(s.calls, "ListResources:"+typeName)
 		if code, ok := s.listErr[typeName]; ok {
+			if msg, ok := s.listErrMessage[typeName]; ok {
+				s.writeErrorMessage(w, code, msg)
+				return
+			}
 			s.writeError(w, code)
 			return
 		}
@@ -232,10 +243,14 @@ func (s *ccServer) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *ccServer) writeError(w http.ResponseWriter, code string) {
+	s.writeErrorMessage(w, code, code)
+}
+
+func (s *ccServer) writeErrorMessage(w http.ResponseWriter, code, message string) {
 	w.WriteHeader(http.StatusBadRequest)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"__type":  "com.amazonaws.cloudformation#" + code,
-		"message": code,
+		"message": message,
 	})
 }
 
