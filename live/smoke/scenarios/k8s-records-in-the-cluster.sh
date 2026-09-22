@@ -1,5 +1,5 @@
 # k8s-records-in-the-cluster
-# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~14 min.
+# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, a waiver names what it waives on every run and live-cluster ignores it, a listing that fails after its first page fails the plan and never reads as a short estate, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~17 min.
 #
 # GitHub issue #1392, under the #1398 ruling. Until this, a Kubernetes-only
 # estate had two choices for its records: "local", which is one machine's
@@ -8,13 +8,14 @@
 # in a namespace, metadata.resourceVersion as the conditional write, and no
 # lock and no Lease.
 #
-# Ten steps, each measuring one of the things that would make the store a
-# bad idea if it were not true. Steps 1 to 5 are the store (#1392); steps 6
-# to 9 are what it checks about the cluster before it writes a record
-# (#1393), which is the bucket contract's shape sized for a cluster; step 10
-# is claim 32 on this store (#1441), which needs the cluster steps 1 to 9
-# already stood up and so comes last rather than beside the other store
-# steps.
+# Twelve steps, each measuring one of the things that would make the store
+# a bad idea if it were not true. Steps 1 to 5 are the store (#1392); steps
+# 6 to 9 are what it checks about the cluster before it writes a record
+# (#1393), which is the bucket contract's shape sized for a cluster; steps
+# 10 to 12 are claims 32, 30 and 31 on this store (#1441), each proven on
+# the bucket by a scenario of its own and each needing the cluster steps 1
+# to 9 already stood up, so they come last rather than beside the other
+# store steps.
 #
 #   1. The Store contract, against this cluster's own API server. The same
 #      suite internal/live/staterecord holds the local and bucket stores to.
@@ -51,6 +52,20 @@
 #      each releasing the parked requests in an order this step picks, and
 #      each requiring one winner, one VersionConflictError naming both
 #      versions, and no trace of the loser's payload in the record.
+#  11. Claim 30 on this store (#1441): a fresh estate under allow_insecure
+#      names every waived setting, with its cost, on its first apply, on a
+#      plan and on a second apply alike, exactly three times per run; and
+#      `choudoufu live-cluster`, reading the same block, ignores the waiver
+#      - the two assertions this cluster fails stay FAIL, the verdict stays
+#      NOT correct, and the waiver is named apart from the verdict as hiding
+#      two failures.
+#  12. Claim 31 on this store (#1441): the store's bulk read is one paged
+#      LIST, and a proxy (live/smoke/k8sproxy.py) answers its second page
+#      with the API server's own 410 Expired. The run must fail, naming the
+#      listing and the reason, and print no plan at all - never one over the
+#      records it did see. The namespace is padded so the first page holds
+#      the store's sentinel and nothing of the estate, and the second page
+#      every record.
 #
 # BREAK=1 takes the three fences away and requires what they refused to go
 # through: the plan role is given cluster-wide secret reads and must then
@@ -67,7 +82,12 @@
 # Dan's Role given the verb it lacked, and a write between step 9's two
 # dumps; each must fail the check by name, and the listings behind steps 3,
 # 8 and 9 are also run through a kubeconfig that reaches no server and must
-# fail rather than read as empty.
+# fail rather than read as empty. Steps 11 and 12 each rebuild choudoufu
+# with go build -overlay, the way claims 30 and 31 do on the bucket: a
+# binary whose waiver warning goes quiet once the estate has a cache, whose
+# second run step 11's check must refuse; and a binary whose paged LIST
+# keeps its first page and drops the error, whose plan - creating every
+# resource that exists - step 12's check must refuse.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-records-in-the-cluster"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -899,6 +919,295 @@ grep -qi 'lock' <<< "$RACE_SECRETS" \
   && fail "k8srec" "an object in the race namespace is named like a lock: $RACE_SECRETS"
 proof "twelve rounds, every one of them with both requests parked on the wire at once, and every one settled by the API server's own optimistic concurrency: one write landed, the other came back as a version conflict naming the version it planned against and the version the store now holds, and the refused payload is not in the record. No Lease and nothing lock-shaped was taken to do it."
 
+### Claims 30 and 31 on this store (#1441). Each is proven on the bucket by
+### a scenario of its own; on the cluster each is a step here, because one
+### promise keeps one claim number and gets a proof per platform (#1112).
+
+# flat undoes the CLI's word wrap, which breaks a diagnostic's sentences
+# across lines and prefixes them with a box-drawing bar wherever the
+# terminal width falls. The bucket scenarios have the same function.
+flat() { tr '\n' ' ' | sed 's/│/ /g' | tr -s ' '; }
+
+step "11. a waiver names what it waives on every run, and live-cluster ignores it"
+explain \
+  "Claim 30 on this store. Steps 2 to 5 ran under allow_insecure naming" \
+  "read_isolation, encryption_at_rest and estate_boundary, and nothing" \
+  "above asserted that a run SAYS so. This does, on a fresh estate: its" \
+  "first apply, a plan and a second apply must each name all three waived" \
+  "settings with what each one costs, and name exactly three. A waiver" \
+  "that goes quiet after the first run looks exactly like a cluster that" \
+  "passes. Then choudoufu live-cluster, run from the same directory so it" \
+  "reads the same block, must leave read_isolation and encryption_at_rest" \
+  "as FAIL and exit non-zero whatever the waiver says, and name the waiver" \
+  "apart from the verdict as hiding a failure. The run does not say" \
+  "whether the cluster really fails what it waives; the report is where" \
+  "that is said, and step 7 measured it saying so."
+WAIVED_NS="tofu-records-k8srec-waived"
+WAIVED="$W/waived"
+kc create namespace "$WAIVED_NS" >/dev/null || fail "k8srec" "could not create the waived estate's records namespace"
+mkdir -p "$WAIVED"
+versions k8srec-waived "$WAIVED_NS" "$WAIVED"
+cat > "$WAIVED/main.tf" <<'TF'
+resource "terraform_data" "effect" {
+  input = "v1"
+}
+TF
+# waiver_cost <setting> is a phrase from the cost clause the warning carries
+# for that setting (staterecord.ClusterWaiverCost), so a warning that names
+# the setting and not what waiving it gives up is caught.
+waiver_cost() {
+  case "$1" in
+    read_isolation) echo "reading another estate's records" ;;
+    encryption_at_rest) echo "encrypt the records in etcd" ;;
+    estate_boundary) echo "overwriting or deleting this estate's records" ;;
+    *) fail "k8srec" "waiver_cost knows no cost for $1" ;;
+  esac
+}
+# waived_named <label> <output> is step 11's check on one run: each of the
+# three waived settings is named as waived, each with its own cost, and the
+# run names exactly three - not the two it would name if one had gone quiet.
+# The BREAK arm runs it against the second run of a binary whose warning
+# goes quiet once the estate has a cache.
+waived_named() {
+  local label="$1" text n setting
+  text="$(flat <<< "$2")"
+  for setting in read_isolation encryption_at_rest estate_boundary; do
+    grep -q "The record store cluster's $setting assertion is waived" <<< "$text" \
+      || fail "k8srec" "[$label] the run said nothing about the $setting waiver it is running under: $2"
+    grep -q "$(waiver_cost "$setting")" <<< "$text" \
+      || fail "k8srec" "[$label] the run names the $setting waiver but not what it costs: $2"
+  done
+  n="$( { grep -o "assertion is waived" <<< "$text" || true; } | wc -l | tr -d ' ')"
+  [ "$n" = "3" ] \
+    || fail "k8srec" "[$label] the run names $n waived assertion(s) and the configuration waives three: $2"
+  echo "$label: 3 waived assertions named, each with its cost" | evidence
+}
+( cd "$WAIVED" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "the waived estate's init failed"
+cmd "choudoufu apply -auto-approve   # allow_insecure = [read_isolation, encryption_at_rest, estate_boundary]; first contact"
+WV1="$( cd "$WAIVED" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
+  || fail "k8srec" "the first apply under the waiver was refused, although every assertion this cluster fails is waived: $WV1"
+grep -q 'Apply complete! Resources: 1 added' <<< "$WV1" || fail "k8srec" "the waived estate's first apply did not report 1 added: $WV1"
+{ grep -E 'assertion is waived' <<< "$WV1" || true; } | sed 's/^[^A-Za-z]*//' | awk 'NR<=3' | evidence
+waived_named "run 1, the first apply" "$WV1"
+cmd "choudoufu plan   # run 2"
+WV2="$( cd "$WAIVED" && no_aws chdf plan -input=false -no-color 2>&1 )" || fail "k8srec" "the plan under the waiver failed: $WV2"
+grep -q 'No changes' <<< "$WV2" || fail "k8srec" "the plan under the waiver proposes changes, so the records were not read back: $WV2"
+waived_named "run 2, a plan" "$WV2"
+sed -i.bak 's/input = "v1"/input = "v2"/' "$WAIVED/main.tf" && rm -f "$WAIVED/main.tf.bak"
+grep -q 'input = "v2"' "$WAIVED/main.tf" || fail "k8srec" "the waived estate's input was not changed, so the second apply below would apply nothing"
+cmd "choudoufu apply -auto-approve   # run 3, a second apply"
+WV3="$( cd "$WAIVED" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" || fail "k8srec" "the second apply under the waiver failed: $WV3"
+grep -q 'Apply complete!' <<< "$WV3" || fail "k8srec" "the second apply under the waiver did not complete: $WV3"
+waived_named "run 3, a second apply" "$WV3"
+cmd "choudoufu live-cluster   # from the estate's directory: the same block is read, and its waiver ignored"
+LC_OUT="$( cd "$WAIVED" && no_aws chdf live-cluster -no-color 2>&1 )" && LC_RC=0 || LC_RC=$?
+{ grep -E '^  (read_isolation|encryption_at_rest|estate_boundary|waiver:)' <<< "$LC_OUT" || true; } | cut -c1-150 | evidence
+grep -q 'reached through the record_store "kubernetes" block' <<< "$LC_OUT" \
+  || fail "k8srec" "live-cluster did not read the estate's record_store block, so the waiver it is supposed to ignore was never in front of it: $LC_OUT"
+[ "$LC_RC" != "0" ] \
+  || fail "k8srec" "live-cluster exited 0 under a waiver, on a cluster that fails two of the waived assertions; the waiver reached the verdict: $LC_OUT"
+grep -q 'NOT correct' <<< "$LC_OUT" \
+  || fail "k8srec" "live-cluster's verdict line does not read NOT correct under the waiver: $LC_OUT"
+for setting in read_isolation encryption_at_rest; do
+  grep -qE "^  $setting +FAIL " <<< "$LC_OUT" \
+    || fail "k8srec" "live-cluster did not report $setting as FAIL although the block it read waives it; the waiver reached the report: $LC_OUT"
+  grep -qF "waiver: allow_insecure names \"$setting\", and the cluster DOES fail it" <<< "$LC_OUT" \
+    || fail "k8srec" "live-cluster does not say that the $setting waiver is hiding a failure: $LC_OUT"
+done
+grep -qF 'waiver: allow_insecure names "estate_boundary". The cluster passes it today' <<< "$LC_OUT" \
+  || fail "k8srec" "live-cluster does not say that the estate_boundary waiver, on a cluster with the policy in force, is hiding nothing: $LC_OUT"
+proof "three runs, three warnings each: a first apply, a plan and a second apply all named read_isolation, encryption_at_rest and estate_boundary as waived, each with what it costs. live-cluster, reading the same block, ignored the waiver: read_isolation and encryption_at_rest are FAIL, the verdict is NOT correct and the exit is non-zero, and the waiver is named apart from the verdict as hiding two failures and, for estate_boundary, nothing."
+
+step "12. a listing that fails after its first page fails the plan, and never reads as a short estate"
+explain \
+  "Claim 31 on this store. The bucket store's bulk read is a LIST and a" \
+  "fan-out of GETs, and claim 31 fails one GET. This store's bulk read is" \
+  "one paged LIST - every Secret's payload rides along with its metadata," \
+  "so there is nothing to fan out - and the page is where it can come" \
+  "back short: the API server hands out a continue token per page, and a" \
+  "token that has outlived the watch cache is answered 410 Gone. A read" \
+  "that kept the first page and dropped the error would read as an" \
+  "estate with fewer records than it has, and a plan over that proposes" \
+  "creating every record it did not see." \
+  "" \
+  "So the LIST has to page. A run lists 200 a page and the store lists" \
+  "the whole namespace with no selector, so 199 plain Secrets in the" \
+  "records namespace, named to sort before every record, make the first" \
+  "page hold the store's sentinel and nothing of the estate, and the" \
+  "second page every record. The estate's name is chosen so its sentinel" \
+  "sorts first: the sentinel (#693) is read back through List when the" \
+  "store opens, and a sentinel on page two would have the BREAK binary" \
+  "refused there, by the sentinel guard, before its short listing ever" \
+  "reached a plan. A proxy (live/smoke/k8sproxy.py) sits between the run" \
+  "and the API server, re-terminating TLS - the run's kubeconfig points" \
+  "at it with insecure-skip-tls-verify, and it speaks to the real API" \
+  "server as the admin - and answers the second page with the API" \
+  "server's own 410 Expired on cue."
+# The estate whose sentinel Secret sorts before its six records and its hint.
+# Names are SHA-256 of the key (staterecord.KubernetesStore.SecretName), the
+# keys are projection's (RecordKeyPrefix, SentinelKey, HintKey), and what
+# this arithmetic produces is checked against the cluster below rather than
+# trusted.
+PAGED_ESTATE="$(python3 - <<'PYEOF'
+import base64, hashlib
+def name(key): return "tofu-record-" + hashlib.sha256(key.encode()).hexdigest()
+addrs = ['terraform_data.effect["%s"]' % k for k in ("a", "b", "c", "d", "e", "f")]
+for n in range(10000):
+    estate = "k8srec-paged-%d" % n
+    sentinel = name("tofu-records/%s/.store-sentinel" % estate)
+    others = [name("tofu-records/%s/terraform_data/%s" % (estate, base64.urlsafe_b64encode(a.encode()).decode().rstrip("="))) for a in addrs]
+    others.append(name("tofu-hints/%s/guided" % estate))
+    if all(sentinel < o for o in others):
+        print(estate)
+        break
+PYEOF
+)"
+[ -n "$PAGED_ESTATE" ] || fail "k8srec" "no estate name in ten thousand put the sentinel's Secret first; the naming arithmetic above is wrong"
+PAGED_NS="tofu-records-$PAGED_ESTATE"
+PAGED="$W/paged"
+kc create namespace "$PAGED_NS" >/dev/null || fail "k8srec" "could not create the paged estate's records namespace"
+mkdir -p "$PAGED"
+versions "$PAGED_ESTATE" "$PAGED_NS" "$PAGED"
+cat > "$PAGED/main.tf" <<'TF'
+resource "terraform_data" "effect" {
+  for_each = toset(["a", "b", "c", "d", "e", "f"])
+  input    = each.key
+}
+TF
+( cd "$PAGED" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "the paged estate's init failed"
+cmd "choudoufu apply -auto-approve   # six record-backed resources, straight to the cluster"
+PG_OUT="$( cd "$PAGED" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
+  || fail "k8srec" "the paged estate's apply failed: $PG_OUT"
+grep -q 'Apply complete! Resources: 6 added' <<< "$PG_OUT" || fail "k8srec" "the paged estate's apply did not report 6 added: $PG_OUT"
+# The layout the fault needs, read back from the cluster: six record Secrets,
+# and the sentinel's Secret first of everything named tofu-record- in name
+# order, which is the order a LIST pages in.
+PAGED_NAMES="$(kc get secrets -n "$PAGED_NS" -o jsonpath='{range .items[*]}{.metadata.name} {.metadata.annotations.choudoufu\.intentius\.io/record-key}{"\n"}{end}' 2>&1)" \
+  || fail "k8srec" "listing the paged estate's Secrets failed, so the page layout below is unknown: $PAGED_NAMES"
+PAGED_RECORDS="$( { grep -c '^tofu-record-.* tofu-records/.*/terraform_data/' <<< "$PAGED_NAMES" || true; } )"
+[ "$PAGED_RECORDS" = "6" ] || fail "k8srec" "the paged estate holds $PAGED_RECORDS record Secrets for its six resources: $PAGED_NAMES"
+FIRST_NAMED="$( { grep '^tofu-record-' <<< "$PAGED_NAMES" || true; } | LC_ALL=C sort | awk 'NR==1')"
+grep -q '/.store-sentinel$' <<< "$FIRST_NAMED" \
+  || fail "k8srec" "the first record-named Secret in name order is not the store's sentinel but $FIRST_NAMED; the estate was named so that it would be, so the store's naming has moved. Page one would then hold a record, or not hold the sentinel, and the control below could be refused by the sentinel guard instead of caught at the plan: $PAGED_NAMES"
+echo "sentinel first in name order: $(cut -d' ' -f1 <<< "$FIRST_NAMED"); records after it: $PAGED_RECORDS" | evidence
+# 199 padding Secrets named to sort before every tofu-record-: page one is
+# then exactly these and the sentinel. They carry no record-key annotation,
+# so the store attributes them to nobody and skips them, the way it skips
+# anything else an operator keeps in the namespace.
+python3 - 199 "$PAGED_NS" > "$W/pad.yaml" <<'PYEOF'
+import sys
+n, ns = int(sys.argv[1]), sys.argv[2]
+docs = ["apiVersion: v1\nkind: Secret\nmetadata:\n  name: pad-%03d\n  namespace: %s\ntype: Opaque\nstringData:\n  pad: \"%d\"\n" % (i, ns, i) for i in range(n)]
+sys.stdout.write("---\n".join(docs))
+PYEOF
+cmd "kubectl create -f pad.yaml   # 199 Secrets named pad-000 to pad-198"
+kc create -f "$W/pad.yaml" >/dev/null || fail "k8srec" "could not create the padding Secrets"
+PAGED_ALL="$(kc get secrets -n "$PAGED_NS" -o name 2>&1)" \
+  || fail "k8srec" "listing the padded namespace failed: $PAGED_ALL"
+PAD_N="$( { grep -c '^secret/pad-' <<< "$PAGED_ALL" || true; } )"
+ALL_N="$( { grep -c '^secret/' <<< "$PAGED_ALL" || true; } )"
+[ "$PAD_N" = "199" ] || fail "k8srec" "$PAD_N padding Secrets exist, want 199: $PAGED_ALL"
+[ "$ALL_N" -gt 200 ] || fail "k8srec" "the namespace holds $ALL_N Secrets, which one page of 200 lists whole; there is no second page to fail"
+echo "Secrets in the namespace: $ALL_N ($PAD_N padding); a LIST of 200 a page needs two pages, and the estate's records are on the second" | evidence
+
+# The proxy. Its upstream identity and trust are the kind admin's, taken out
+# of the kubeconfig; its own certificate is self-signed and the run's
+# kubeconfig skips verifying it.
+PROXY_WORK="$W/proxy"
+mkdir -p "$PROXY_WORK"
+API_SERVER="$(kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.clusters[0].cluster.server}')"
+kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > "$PROXY_WORK/upstream-ca.crt"
+kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.users[0].user.client-certificate-data}' | base64 -d > "$PROXY_WORK/upstream-client.crt"
+kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.users[0].user.client-key-data}' | base64 -d > "$PROXY_WORK/upstream-client.key"
+for f in upstream-ca.crt upstream-client.crt upstream-client.key; do
+  [ -s "$PROXY_WORK/$f" ] || fail "k8srec" "the kind kubeconfig yielded no $f, so the proxy has nothing to reach the API server with"
+done
+[ -n "$API_SERVER" ] || fail "k8srec" "the kind kubeconfig names no server"
+openssl req -x509 -newkey rsa:2048 -nodes -keyout "$PROXY_WORK/proxy.key" -out "$PROXY_WORK/proxy.crt" -days 1 \
+  -subj /CN=smoke-proxy -addext subjectAltName=IP:127.0.0.1 >/dev/null 2>&1 \
+  || fail "k8srec" "openssl could not write the proxy's certificate"
+python3 "$SMOKE_DIR/k8sproxy.py" "$API_SERVER" "$PROXY_WORK" 2>"$SMOKE_WORKROOT/logs/k8srec-proxy.err" &
+PROXY_PID=$!
+trap 'kill "$PROXY_PID" 2>/dev/null || true; cleanup' EXIT
+for _ in $(seq 1 50); do [ -s "$PROXY_WORK/proxy.port" ] && break; sleep 0.1; done
+[ -s "$PROXY_WORK/proxy.port" ] || fail "k8srec" "the proxy never started: $(cat "$SMOKE_WORKROOT/logs/k8srec-proxy.err")"
+PROXY_KC="$W/proxy.kubeconfig"
+cp "$KUBECONFIG" "$PROXY_KC"
+# set-cluster with the insecure flag drops certificate-authority-data as
+# well, which it has to: clientcmd refuses a cluster that carries both.
+kubectl --kubeconfig "$PROXY_KC" config set-cluster "kind-$CLUSTER_NAME" \
+  --server="https://127.0.0.1:$(cat "$PROXY_WORK/proxy.port")" --insecure-skip-tls-verify=true >/dev/null
+[ -z "$(kubectl --kubeconfig "$PROXY_KC" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')" ] \
+  || fail "k8srec" "the proxy kubeconfig still carries the kind CA beside insecure-skip-tls-verify, which clientcmd refuses; every run through the proxy below would fail before it reached it"
+cmd "kubectl --kubeconfig proxy.kubeconfig get secrets -n $PAGED_NS   # the proxy relays, as the admin"
+VIA="$(kc_as "$PROXY_KC" get secrets -n "$PAGED_NS" -o name 2>&1)" \
+  || fail "k8srec" "a listing through the proxy failed, so the proxy does not relay: $VIA. Proxy stderr: $(cat "$SMOKE_WORKROOT/logs/k8srec-proxy.err")"
+[ "$( { grep -c '^secret/' <<< "$VIA" || true; } )" = "$ALL_N" ] \
+  || fail "k8srec" "the listing through the proxy holds $( { grep -c '^secret/' <<< "$VIA" || true; } ) Secrets and the direct one $ALL_N; the proxy changes the answer"
+
+# The control: the plan through the proxy with nothing failing is empty, and
+# the wire shows the listing paging. The state cache would answer the plan
+# without asking the store at all, so it goes first.
+rm -f "$PAGED/.terraform/choudoufu-cache.tfstate" "$PROXY_WORK/expire"
+: > "$PROXY_WORK/proxy.log"
+cmd "choudoufu plan   # through the proxy, nothing failing"
+PC_OUT="$( cd "$PAGED" && as_identity "$PROXY_KC" chdf plan -input=false -no-color 2>&1 )" \
+  || fail "k8srec" "the control plan through the proxy failed, so the proxy itself changes the answer: $PC_OUT. Proxy stderr: $(cat "$SMOKE_WORKROOT/logs/k8srec-proxy.err")"
+grep -q 'No changes' <<< "$PC_OUT" || fail "k8srec" "the control plan through the proxy is not empty, so the proxy itself changes the answer: $PC_OUT"
+LIST_LINES="$( { grep -E "^GET /api/v1/namespaces/$PAGED_NS/secrets\?" "$PROXY_WORK/proxy.log" || true; } )"
+LISTS="$( { grep -c . <<< "$LIST_LINES" || true; } )"
+PAGES="$( { grep -c 'continue=' <<< "$LIST_LINES" || true; } )"
+[ "$PAGES" -ge 1 ] \
+  || fail "k8srec" "the proxy saw $LISTS Secrets LIST(s) in $PAGED_NS and none carried a continue token, so the listing never paged and a failed second page would be a failure of nothing: $LIST_LINES"
+{ grep -v ' 200$' <<< "$LIST_LINES" || true; } | grep -q . \
+  && fail "k8srec" "a Secrets LIST through the proxy was answered something other than 200 with no fault armed: $LIST_LINES"
+echo "Secrets LISTs through the proxy: $LISTS, of which $PAGES carried a continue token, all answered 200; the plan is empty" | evidence
+
+# listing_failed_whole <rc> <output> is step 12's check on a run made with
+# the second page answering 410: the run failed, it named the listing and
+# carried the API server's reason, and it printed no plan at all - not an
+# empty one, not one creating anything, not one destroying anything. The
+# BREAK arm runs the same function against a binary that keeps its first
+# page.
+listing_failed_whole() {
+  local rc="$1" out="$2" text
+  text="$(flat <<< "$out")"
+  [ "$rc" != "0" ] \
+    || fail "k8srec" "the run exited 0 with the second page of its listing answered 410, so a listing that failed part-way read as a listing: $out"
+  grep -qE 'Plan: [0-9]+ to add|will be created|will be destroyed|No changes' <<< "$out" \
+    && fail "k8srec" "the run printed a plan over a listing whose second page failed; whatever that plan says, it says it over fewer records than the estate has: $out"
+  grep -q 'continue parameter is too old' <<< "$text" \
+    || fail "k8srec" "the run failed without carrying the API server's own reason, that the continue parameter is too old: $out"
+  grep -q 'listing' <<< "$text" \
+    || fail "k8srec" "the refusal does not say that a listing failed: $out"
+  grep -q "$PAGED_NS" <<< "$text" \
+    || fail "k8srec" "the refusal does not name the namespace whose listing failed: $out"
+}
+echo "-1" > "$PROXY_WORK/expire"
+for MODE in "plan" "plan -destroy"; do
+  : > "$PROXY_WORK/proxy.log"
+  rm -f "$PAGED/.terraform/choudoufu-cache.tfstate"
+  cmd "choudoufu $MODE   # every second page of a Secrets LIST answers 410 Expired"
+  # MODE is a command and its flags, so it is meant to split.
+  # shellcheck disable=SC2086
+  PX_OUT="$( cd "$PAGED" && as_identity "$PROXY_KC" chdf $MODE -input=false -no-color 2>&1 )" && PX_RC=0 || PX_RC=$?
+  EXPIRED="$( { grep -c ' 410$' "$PROXY_WORK/proxy.log" || true; } )"
+  [ "$EXPIRED" -ge 1 ] \
+    || fail "k8srec" "the proxy answered 410 to nothing during choudoufu $MODE, so this run measured an ordinary plan: $(cat "$PROXY_WORK/proxy.log")"
+  listing_failed_whole "$PX_RC" "$PX_OUT"
+  { grep -E 'Error:' <<< "$PX_OUT" || true; } | awk 'NR<=1' | cut -c1-160 | evidence
+  echo "choudoufu $MODE: exit $PX_RC, no plan printed; second pages answered 410 by the proxy: $EXPIRED" | evidence
+done
+rm -f "$PROXY_WORK/expire"
+# And the estate is whole: the same plan with the fault lifted is empty, so
+# the refusals above were over a store holding every record.
+rm -f "$PAGED/.terraform/choudoufu-cache.tfstate"
+PW_OUT="$( cd "$PAGED" && as_identity "$PROXY_KC" chdf plan -input=false -no-color 2>&1 )" \
+  || fail "k8srec" "the plan after the fault was lifted failed: $PW_OUT"
+grep -q 'No changes' <<< "$PW_OUT" || fail "k8srec" "the plan after the fault was lifted is not empty, so a refused run above changed something: $PW_OUT"
+echo "the fault lifted: the plan is empty again" | evidence
+proof "a plan and a destroy plan, each with the second page of the record listing answered 410 Expired, each failed naming the listing, the namespace and the API server's reason, and neither printed a plan: not an empty one over the records on page one, not a create for the six it never saw. With the fault lifted the plan is empty, so the store held every record the whole time."
+
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - take the two fences away, and what they refused must go through"
   explain \
@@ -1173,6 +1482,109 @@ if [ "${BREAK:-0}" = "1" ]; then
   cmd "kubectl --kubeconfig <server: 127.0.0.1:1> get secrets -n $CAROL_NS -o jsonpath=..."
   must_fail_naming "resourceVersions before the plan failed" rv_snapshot "$NOWHERE_KC" "$CAROL_NS" "$W/rv-nowhere" before "$CAROL_RECORDS"
   proof "caught, three times. One write between the dumps is a moved resourceVersion the diff refuses, a namespace holding no record is a dump too short to diff, and a dump that never reached the server fails by name. Step 9's unchanged pair is a pair that was read."
+
+  ### Steps 11 and 12 (#1441). Each rebuilds choudoufu with go build
+  ### -overlay, the way claims 30 and 31 do on the bucket, and runs the
+  ### step's own check function against what the broken binary does.
+  [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
+    || fail "k8srec" "BREAK=1 rebuilds choudoufu from this checkout for steps 11 and 12; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
+  command -v go >/dev/null 2>&1 || fail "k8srec" "BREAK=1 needs Go to build the broken binaries for steps 11 and 12"
+
+  step "BREAK control - a waiver warning that goes quiet once the estate has a cache must fail step 11's check"
+  explain \
+    "The corruption is in the binary, so it is built with go build" \
+    "-overlay and the source tree is never touched: the same edit claim" \
+    "30's bucket scenario makes, the warning emitted only while the estate" \
+    "has no state cache yet, which is to say on its first run and never" \
+    "again. A fresh estate's first apply under that binary must still" \
+    "warn, and its plan must then be refused by step 11's check for" \
+    "saying nothing. A check that looked at one run would pass it."
+  WSRC="$ROOT/internal/command/live_mode.go"
+  mkdir -p "$W/break30"
+  sed 's|if !r.waiverWarned {|if _, quietErr := os.Stat(".terraform/choudoufu-cache.tfstate"); !r.waiverWarned \&\& quietErr != nil {|' "$WSRC" > "$W/break30/live_mode.go"
+  cmp -s "$WSRC" "$W/break30/live_mode.go" \
+    && fail "k8srec" "BREAK: the break patch changed nothing in $WSRC, so this arm would pass by testing the real binary"
+  printf '{"Replace":{"%s":"%s"}}\n' "$WSRC" "$W/break30/live_mode.go" > "$W/break30/overlay.json"
+  cmd "go build -overlay overlay.json ./cmd/choudoufu   # the waiver warning, first run only"
+  ( cd "$ROOT" && go build -overlay "$W/break30/overlay.json" -o "$W/break30/choudoufu" ./cmd/choudoufu ) \
+    || fail "k8srec" "BREAK: the broken binary for step 11 did not build"
+  QUIET_NS="tofu-records-k8srec-quiet"
+  QUIET="$W/quiet"
+  kc create namespace "$QUIET_NS" >/dev/null || fail "k8srec" "BREAK: could not create the quiet estate's records namespace"
+  mkdir -p "$QUIET"
+  versions k8srec-quiet "$QUIET_NS" "$QUIET"
+  cp "$WAIVED/main.tf" "$QUIET/main.tf"
+  ( cd "$QUIET" && no_aws "$W/break30/choudoufu" init -input=false -no-color >/dev/null ) \
+    || fail "k8srec" "BREAK: the quiet estate's init failed"
+  cmd "choudoufu apply -auto-approve   # the broken binary's first run: no cache yet, so it still warns"
+  BQ1="$( cd "$QUIET" && no_aws "$W/break30/choudoufu" apply -auto-approve -input=false -no-color 2>&1 )" \
+    || fail "k8srec" "BREAK: the broken binary's first apply failed: $BQ1"
+  waived_named "BREAK run 1, the first apply" "$BQ1"
+  [ -f "$QUIET/.terraform/choudoufu-cache.tfstate" ] \
+    || fail "k8srec" "BREAK: the first apply left no state cache at .terraform/choudoufu-cache.tfstate, which is what the broken binary goes quiet on; whatever the plan below says, it says for a reason that is not the break"
+  cmd "choudoufu plan   # the broken binary's second run"
+  BQ2="$( cd "$QUIET" && no_aws "$W/break30/choudoufu" plan -input=false -no-color 2>&1 )" \
+    || fail "k8srec" "BREAK: the broken binary's plan failed: $BQ2"
+  grep -q 'No changes' <<< "$BQ2" || fail "k8srec" "BREAK: the broken binary's plan is not empty: $BQ2"
+  must_fail_naming "said nothing about the read_isolation waiver" waived_named "BREAK run 2, a plan" "$BQ2"
+  proof "caught - the same binary named all three waivers on the estate's first run and none on its second, and step 11's check refused the second run by name. A waiver that goes quiet is what the every-run check exists to see."
+
+  step "BREAK control - a listing that keeps its first page and drops the error must be refused at the plan by step 12's check"
+  explain \
+    "The corruption is in the binary: the store's paged LIST, on a page" \
+    "that fails after the first, breaks out of its loop with the pages it" \
+    "has instead of failing the call. Built with go build -overlay, so the" \
+    "source tree is never touched. With the fault re-armed, that binary's" \
+    "first page holds the sentinel and the 199 padding Secrets, so the" \
+    "sentinel guard is satisfied, and the estate reads as holding no" \
+    "record at all: the plan it prints proposes creating all six" \
+    "resources, which exist. Step 12's check must refuse that run by" \
+    "name; if it did not, step 12 would be passing for a reason other" \
+    "than the listing failing whole."
+  SRC="$ROOT/internal/live/staterecord/kubernetes.go"
+  mkdir -p "$W/break31"
+  python3 - "$SRC" "$W/break31/kubernetes.go" <<'PYEOF'
+import sys
+src = open(sys.argv[1]).read()
+refuse = """\t\tif err != nil {
+\t\t\tif notFoundIsNamespace(err) {
+\t\t\t\treturn nil, nil, &NamespaceMissingError{Namespace: s.namespace, Err: err}
+\t\t\t}
+\t\t\treturn nil, nil, s.classify("listing", keyPrefix, err)
+\t\t}
+"""
+assert src.count(refuse) == 1, "the break patch no longer matches KubernetesStore.list's failed-page branch"
+keep = """\t\tif err != nil {
+\t\t\tif cont != "" {
+\t\t\t\tbreak
+\t\t\t}
+\t\t\tif notFoundIsNamespace(err) {
+\t\t\t\treturn nil, nil, &NamespaceMissingError{Namespace: s.namespace, Err: err}
+\t\t\t}
+\t\t\treturn nil, nil, s.classify("listing", keyPrefix, err)
+\t\t}
+"""
+open(sys.argv[2], "w").write(src.replace(refuse, keep))
+PYEOF
+  [ -s "$W/break31/kubernetes.go" ] || fail "k8srec" "BREAK: the break patch did not apply to $SRC, so this arm would pass by testing the real binary"
+  printf '{"Replace":{"%s":"%s"}}\n' "$SRC" "$W/break31/kubernetes.go" > "$W/break31/overlay.json"
+  cmd "go build -overlay overlay.json ./cmd/choudoufu   # a failed second page keeps the first"
+  ( cd "$ROOT" && go build -overlay "$W/break31/overlay.json" -o "$W/break31/choudoufu" ./cmd/choudoufu ) \
+    || fail "k8srec" "BREAK: the broken binary for step 12 did not build"
+  echo "-1" > "$PROXY_WORK/expire"
+  : > "$PROXY_WORK/proxy.log"
+  rm -f "$PAGED/.terraform/choudoufu-cache.tfstate"
+  cmd "choudoufu plan   # the broken binary, through the proxy, every second page answering 410"
+  BP_OUT="$( cd "$PAGED" && as_identity "$PROXY_KC" "$W/break31/choudoufu" plan -input=false -no-color 2>&1 )" && BP_RC=0 || BP_RC=$?
+  BP_EXPIRED="$( { grep -c ' 410$' "$PROXY_WORK/proxy.log" || true; } )"
+  [ "$BP_EXPIRED" -ge 1 ] \
+    || fail "k8srec" "BREAK: the proxy answered 410 to nothing, so the broken binary's run measured an ordinary plan: $(cat "$PROXY_WORK/proxy.log")"
+  { grep -E 'will be created|^Plan:' <<< "$BP_OUT" || true; } | awk 'NR<=3' | evidence
+  grep -q 'Plan: 6 to add' <<< "$BP_OUT" \
+    || fail "k8srec" "BREAK: the binary built to keep its first page did not propose creating all six resources (exit $BP_RC), so the break did not take and this control proves nothing: $BP_OUT"
+  must_fail_naming "the run exited 0 with the second page of its listing answered 410" listing_failed_whole "$BP_RC" "$BP_OUT"
+  rm -f "$PROXY_WORK/expire"
+  proof "caught - with the error dropped, the first page read as the whole estate: the sentinel was on it, no record was, and the plan proposed creating all six resources that exist. Step 12's check refused that run by name, and that plan is the harm the claim is about."
 
   echo
   echo "BREAK [k8srec]: every control held; each break was caught by the check it was built for"
