@@ -220,6 +220,12 @@ func timeoutsMeta(block cty.Value, rc *configs.Resource, schema providers.Schema
 		if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
 			continue
 		}
+		// [configuredTimeoutsBlock] already stripped every mark; this is
+		// the answer for a caller that did not, and internal/live/marksafe's
+		// proof that the read below cannot panic.
+		if v.IsMarked() {
+			continue
+		}
 		d, err := time.ParseDuration(v.AsString())
 		if err != nil {
 			// The provider's own ConfigDecode would reject this too, with
@@ -262,6 +268,10 @@ func timeoutsBlockSeed(block cty.Value, schema providers.Schema) cty.Value {
 			continue
 		}
 		if !v.IsKnown() || v.Type() != cty.String {
+			return cty.NilVal
+		}
+		if v.IsMarked() {
+			// Same as [timeoutsMeta]: stripped upstream, refused here.
 			return cty.NilVal
 		}
 		if _, err := time.ParseDuration(v.AsString()); err != nil {
