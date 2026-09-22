@@ -1503,6 +1503,15 @@ const (
 	// point lookup by its own address, so "Listed" here counts records
 	// found, not objects returned by one call.
 	SourceRecordStore EnumerationSource = "RECORD_STORE"
+
+	// SourceService is the service's own list API, through
+	// [Request.ServiceList] (GitHub issue #1477): reached only when the
+	// provider offers no native list resource for the type and Cloud
+	// Control cannot enumerate it either, for a type the lister has a
+	// route for. One paginated call per type, no server-side tag filter,
+	// and every listed object's marker read separately (see
+	// servicelist.go).
+	SourceService EnumerationSource = "SERVICE_API"
 )
 
 // TypeScan is what happened for one resource type.
@@ -1641,6 +1650,8 @@ func (s TypeScan) String() string {
 		source = " source=provider"
 	case SourceRecordStore:
 		source = " source=record-store"
+	case SourceService:
+		source = " source=service-api"
 	}
 	joined := ""
 	if s.Joined > 0 {

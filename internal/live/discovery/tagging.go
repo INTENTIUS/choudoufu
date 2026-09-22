@@ -447,8 +447,13 @@ func nativeSweepReaches(req Request, schemas listclient.Schemas, typeName string
 			return true
 		}
 	}
-	_, ccOK := cloudControlSource(req, typeName)
-	return ccOK
+	if _, ccOK := cloudControlSource(req, typeName); ccOK {
+		return true
+	}
+	// GitHub issue #1477: the service's own list API is [scanType]'s
+	// fourth enumeration route, and like the Cloud Control one it is not
+	// !sweep-gated, so the sweep reaches it too. See servicelist.go.
+	return serviceListRoute(req, typeName)
 }
 
 // taggingAPICoverage says where the Resource Groups Tagging API's search
@@ -1429,7 +1434,20 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 // fileTaggingCandidate applies the same per-resource marker rules
 // [scanTypeCloudControl] applies to one Cloud Control ListResources result,
 // to one candidate [sweepViaTagging] already joined and grouped by type.
+// [scanTypeMarkerFallback] files through it too, for the same index.
 func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, typeName string, c taggedCandidate, res *Result) tfdiags.Diagnostics {
+	return fileCandidate(ctx, req, decl, typeName, c, res, " (via the tag sweep)", true)
+}
+
+// fileCandidate is [fileTaggingCandidate] for any leg that holds an import
+// identity and the object's real tags and no listed resource object: the
+// tag sweep, #293's tag-index fallback, and GitHub issue #1477's service
+// list leg ([scanTypeServiceList]). via names the leg in a diagnostic, the
+// way [crossTypeMarkerProblem]'s callers do, and swept is what the leg was
+// doing: it marks an orphan this files ([OwnedResource.Swept]) and decides
+// whether a cross-type marker on an undeclared type is a warning or an
+// error ([undeclaredCrossTypeMarker]).
+func fileCandidate(ctx context.Context, req Request, decl *declared, typeName string, c taggedCandidate, res *Result, via string, swept bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if c.tags[TagEstate] != req.Estate {
@@ -1447,8 +1465,8 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 			TypeName: typeName,
 			LiveIDs:  liveIDs(c.importID),
 			Detail: fmt.Sprintf(
-				"A live %s (via the tag sweep) claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
-				typeName, req.Estate),
+				"A live %s%s claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+				typeName, via, req.Estate),
 		}))
 	}
 	escaped := EscapeAddress(raw)
@@ -1463,8 +1481,8 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 			Marker:   raw,
 			LiveIDs:  liveIDs(c.importID),
 			Detail: fmt.Sprintf(
-				"A live %s (via the tag sweep) claims estate %q but %s. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
-				typeName, req.Estate, what),
+				"A live %s%s claims estate %q but %s. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+				typeName, via, req.Estate, what),
 		}))
 	}
 
@@ -1493,11 +1511,12 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 			return diags
 		}
 		if corrected == typeName {
-			// sweep is true unconditionally: this leg IS the estate-wide
-			// tag sweep, and [partitionSweepTypes] is the only thing that
-			// routes a type to it.
+			// swept is true for the tag sweep, which IS the estate-wide
+			// sweep, and for #293's fallback, which kept that value when
+			// this function was split out; the service list leg passes
+			// its own.
 			return diags.Append(problemDiag(res, crossTypeMarkerProblem(
-				decl, req.Estate, typeName, markerType, raw, liveIDs(c.importID), " (via the tag sweep)", true)))
+				decl, req.Estate, typeName, markerType, raw, liveIDs(c.importID), via, swept)))
 		}
 		bindType = corrected
 		if fixedImportID != "" {
@@ -1576,7 +1595,7 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 		Normalized:   escaped,
 		Slot:         c.tags[TagSlot],
 		Tags:         c.tags,
-		Swept:        true,
+		Swept:        swept,
 	})
 	return diags
 }

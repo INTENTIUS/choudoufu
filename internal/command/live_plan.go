@@ -1741,7 +1741,16 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 			// live_mv.go also calls: #1274 was live-mv missing this exact
 			// leg, and a second construction of it there would have been
 			// the same defect waiting on the next command.
-			req.ServiceTags = newServiceTagsReader(sweepCfg.Region, ep, sweepCreds)
+			svc := newServiceTagsReader(sweepCfg.Region, ep, sweepCreds)
+			req.ServiceTags = svc
+			// GitHub issue #1477: the same client is the service LIST leg
+			// for a type no other route enumerates
+			// (aws_iam_service_linked_role through iam:ListRoles). Wired
+			// beside the reader because every object it lists needs the
+			// reader to establish ownership; see
+			// internal/live/discovery/servicelist.go for the leg and
+			// its cost.
+			req.ServiceList = svc
 		}
 	}
 
