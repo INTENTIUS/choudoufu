@@ -73,6 +73,32 @@ var admissionEvidenceExceptions = map[string]evidenceException{
 	// above); documented import grammar is the DB subnet group name, and the
 	// provider sets id to that same name.
 	"aws_db_subnet_group": {"name is Optional+Computed (name_prefix idiom); documented import grammar is the DB subnet group name"},
+
+	// The eight entries below transcribe pathExceptions (survey_gen_test.go)
+	// rows that were already documented there, row by row, and had no
+	// entry here: this test reported all eight as "no documented exception"
+	// on every run from at least 2026-08-20 (its own last edit; the same
+	// eight fail at that commit) to 2026-09-21, and nothing ran it in CI
+	// until the floci tier gained a terraform binary (#1280, #1316). Each
+	// reason names the evidence the SURVEY.md row and pathExceptions
+	// already carry; none is a new ruling.
+
+	// --- name-prefix idiom (Optional+Computed identifying argument) ---
+	"aws_autoscaling_group":     {"name is Optional+Computed (name_prefix idiom); documented import grammar is the Auto Scaling group name (pathExceptions: cohortNamePrefix)"},
+	"aws_cloudwatch_event_rule": {"name is Optional+Computed (name_prefix idiom); documented import grammar is EVENTBUSNAME/RULENAME, the bus defaulting to \"default\" when omitted (pathExceptions: cohortNamePrefix)"},
+	"aws_ecs_service":           {"cluster and name are Optional+Computed in the schema, the cluster defaulting server-side when omitted; documented import grammar is CLUSTERNAME/SERVICENAME (pathExceptions: cohortNamePrefix)"},
+	"aws_lambda_permission":     {"statement_id is Optional+Computed (statement_id_prefix idiom); documented import grammar is FUNCTIONNAME/STATEMENTID with an optional qualifier (pathExceptions: cohortNamePrefix)"},
+
+	// --- docs tier: no identity schema in the pinned provider ---
+	"aws_iam_group": {"no identity schema in v6.59.0; documented import grammar is the group name (pathExceptions: cohortDocsTier)"},
+	"aws_key_pair":  {"no identity schema in v6.59.0; documented import grammar is key_name; registry-ratified (#40, #44, #65; pathExceptions: cohortDocsTier)"},
+
+	// --- account-derived shape under a client-named hand row ---
+	// Both hand rows say client-named because the operator chooses the
+	// name; both import IDs are ARNs, which is why identity/table.go marks
+	// each ServerAssigned and the strict rule cannot prove client-naming.
+	"aws_iam_policy":            {"name and path are client-chosen but the import ID is the policy ARN (flag F3), which the account-derived mechanism composes from the account and those two arguments (pathExceptions: cohortAccountDerived, choudoufu#26)"},
+	"aws_secretsmanager_secret": {"name is client-chosen but the import ID is the secret ARN with a six-character server-minted suffix (flag F4), which no account/region template reconstructs; the fork recovers the type on the marker path it is taggable for (pathExceptions: cohortAccountDerived, permanent)"},
 }
 
 // admittedParents names the already-admitted parents each composite-wired
@@ -101,6 +127,14 @@ var admittedParents = map[string][]string{
 	// because zone_id is the parent's server-assigned Z-ID (flag F5), so
 	// its admission also rests on the zone staying admitted.
 	"aws_route53_record": {"aws_route53_zone"},
+	// SURVEY.md's hand row is parent-derived ("family + revision"), but the
+	// family is a client-chosen string and the revision is server-assigned
+	// per registration - identity/table.go marks the type ServerAssigned
+	// and no managed resource is its parent (pathExceptions:
+	// cohortForkWrinkle, permanent). An empty list records that the claim
+	// was reviewed and rests on no other type's admission; the test
+	// reported the missing entry on every run since at least 2026-08-20.
+	"aws_ecs_task_definition": {},
 }
 
 // TestAdmissionEvidenceAgainstProviderSchemas re-checks, for every admitted

@@ -253,7 +253,12 @@ func fixtureDir(t *testing.T, rel string) string {
 //
 // The fixture's .terraform.lock.hcl comes along too: it is what lets an init
 // against the shared plugin cache trust the cached package instead of
-// re-downloading it over a copy some other process is executing.
+// re-downloading it over a copy some other process is executing. That trust
+// is per platform: terraform checks the cached package against the lock
+// file's h1: hashes, and a lock file generated on one machine carries only
+// that machine's, so every fixture lock file has to carry one per platform
+// the tier runs on (live/lockfile_platforms_test.go, and the three red
+// nights of #1316 that found it).
 func CopyEstate(t *testing.T) string {
 	t.Helper()
 	return CopyFixtureDir(t, EstateDir(t))

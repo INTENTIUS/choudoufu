@@ -1,0 +1,54 @@
+# Issue #1316: for seventeen nights (2026-09-02 to 2026-09-18) floci-tier
+# ran, failed, and nobody knew, because every failure signal in this
+# repository terminated on the Actions run page. No workflow notified
+# anyone, no workflow reacted to another finishing, and the one read of
+# Actions state (scripts/pickup.sh) read whether the Gauntlet workflow was
+# ENABLED - which a nightly that runs and fails always is.
+#
+# This is the workflow that leaves the run page. It fires when a scheduled
+# workflow completes and keeps one issue per workflow, labelled nightly-red,
+# open while that workflow is red: opened on the first failure with the run
+# link and the failed step names, extended with a comment per red night,
+# and closed by the next green. The issue is the notification: it lands in
+# the issue list every session reads, in `gh issue list --label
+# nightly-red`, and in scripts/pickup.sh's nightly lines.
+#
+# GITHUB_TOKEN can do all of this: the org restriction that once stopped
+# it opening pull requests never applied to issues. scripts/nightly-watch.sh
+# is the whole behaviour, so live/nightly_watch_test.go can drive it against
+# a stubbed gh and prove the open/extend/close branches each fire; the
+# same test derives the `workflows:` list below from every workflow file
+# that has a cron and fails when a nightly is added, renamed or dropped
+# without this list following - a workflow_run trigger naming a workflow
+# that no longer exists is silent, which is the failure mode this file
+# exists to end.
+name: nightly-watch
+
+on:
+  workflow_run:
+    workflows: [Gauntlet, floci-tier, bucket-smoke]
+    types: [completed]
+
+permissions:
+  issues: write
+  actions: read
+
+jobs:
+  report:
+    # Scheduled and dispatched runs only. bucket-smoke also runs on
+    # pull_request, and a PR's own red check is the PR's business.
+    if: github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Open, extend or close the nightly-red issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+        run: scripts/nightly-watch.sh

@@ -181,6 +181,22 @@ case "$wf_state" in
   *) wf_display="$wf_state" ;;
 esac
 printf 'nightly: workflow %s; artifact last measured %s\n' "$wf_display" "$when"
+# #1316: the line above said "active" through twenty consecutive red nights,
+# because enabled/disabled is not red/green. Read each nightly's last
+# SCHEDULED conclusion, and the nightly-red issues nightly-watch.yml keeps
+# open while one is failing. A workflow with no scheduled run in the API's
+# retention window prints UNKNOWN rather than a stale green.
+if have gh; then
+  for wf in gauntlet.yml floci-tier.yml bucket-smoke.yml; do
+    last=$(gh run list -R "$REPO" --workflow "$wf" --event schedule --limit 1 \
+      --json conclusion,createdAt,url -q '.[0] | "\(.conclusion // "in progress") \(.createdAt[:10]) \(.url)"' 2>/dev/null)
+    printf 'nightly %-16s last scheduled run: %s\n' "$wf" "${last:-UNKNOWN (no run in the retention window, or the query failed)}"
+  done
+  red=$(gh issue list -R "$REPO" --state open --label nightly-red --json number,title -q '.[] | "  #\(.number) \(.title)"' 2>/dev/null)
+  if [ -n "$red" ]; then
+    printf 'nightly-red issues open (nightly-watch.yml, #1316):\n%s\n' "$red"
+  fi
+fi
 if have python3 && [ -f live/gauntlet.json ]; then
   python3 - <<'EOF'
 import json

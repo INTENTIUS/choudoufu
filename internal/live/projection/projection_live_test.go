@@ -330,7 +330,10 @@ func verifyIdentityTable(t *testing.T, schema providers.GetProviderSchemaRespons
 // set negotiates protocol 5 or 6, and internal/plugins configures it.
 // P1.4's command will get all of this from the Meta it already has; a test
 // has to spell it out.
-func launchAWSProvider(t *testing.T, dir string) (providers.Interface, providers.GetProviderSchemaResponse) {
+//
+// extra is further provider-block HCL a caller needs beyond the three
+// settings every test here shares; see decodeProviderConfig.
+func launchAWSProvider(t *testing.T, dir string, extra ...string) (providers.Interface, providers.GetProviderSchemaResponse) {
 	t.Helper()
 
 	exe := findProviderBinary(t, dir)
@@ -354,7 +357,7 @@ func launchAWSProvider(t *testing.T, dir string) (providers.Interface, providers
 		t.Fatalf("reading the AWS provider schema: %s", diags.Err())
 	}
 
-	cfgVal := decodeProviderConfig(t, schema)
+	cfgVal := decodeProviderConfig(t, schema, extra...)
 
 	provider, diags := mgr.NewConfiguredProvider(context.Background(), awsAddr, cfgVal)
 	if diags.HasErrors() {
@@ -368,14 +371,19 @@ func launchAWSProvider(t *testing.T, dir string) (providers.Interface, providers
 // region, credentials, and the floci endpoint - reaches the plugin through
 // the environment, exactly as it does when the estate is applied by
 // terraform.
-func decodeProviderConfig(t *testing.T, schema providers.GetProviderSchemaResponse) cty.Value {
+//
+// extra lines are appended verbatim: a test with no emulator behind it
+// (plan_provider_test.go) also needs skip_requesting_account_id, which the
+// emulator-backed tests must NOT set, because the account ID it would skip
+// is one floci answers and some ARNs are built from.
+func decodeProviderConfig(t *testing.T, schema providers.GetProviderSchemaResponse, extra ...string) cty.Value {
 	t.Helper()
 
-	const src = `
+	src := `
 skip_credentials_validation = true
 skip_metadata_api_check     = true
 s3_use_path_style           = true
-`
+` + strings.Join(extra, "\n") + "\n"
 	body, hclDiags := hclsyntax.ParseConfig([]byte(src), "provider.hcl", hcl.Pos{Line: 1, Column: 1})
 	if hclDiags.HasErrors() {
 		t.Fatalf("parsing the provider configuration: %s", hclDiags.Error())

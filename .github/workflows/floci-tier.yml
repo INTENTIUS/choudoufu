@@ -13,11 +13,20 @@
 # by this test but is not on PATH" and not one of them executed a line of
 # its body. The tier presented as a tier and measured nothing.
 #
-# Nothing told anyone, for seventeen nights. That half is issue #1316: the
+# Nothing told anyone, for seventeen nights. That half was issue #1316: the
 # steps below write annotations and a job summary, which is still only the
-# run page. No workflow here notifies a human, and the repository's one
-# read of Actions state (scripts/pickup.sh) reads whether the GAUNTLET
-# workflow is enabled, which a nightly that runs and fails always is.
+# run page. nightly-watch.yml now reacts to this workflow completing and
+# keeps a nightly-red issue open while it is red, and scripts/pickup.sh
+# prints each nightly's last scheduled conclusion rather than only whether
+# the Gauntlet workflow is enabled - which a nightly that runs and fails
+# always is.
+#
+# The three nights after terraform arrived (2026-09-19 to 2026-09-21) were
+# red on something else the tier had never been able to measure: the
+# fixture lock files carried one h1: hash, for darwin_arm64, so on this
+# runner every init served from the shared plugin cache after the first
+# failed its checksum check. live/lockfile_platforms_test.go holds the
+# fixtures to one hash per platform.
 name: floci-tier
 
 on:
