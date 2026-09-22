@@ -288,22 +288,46 @@ echo "what the tool kept from this run, files holding the password: ${FKEPT:-non
 [ -z "$FKEPT" ] || fail "secrets" "the noisy run left the password in what the tool keeps: $FKEPT"
 proof "the saved plan carries the value its apply will send, and the provider's debug lines carry the request it sent, as they do on stock; the record store and data dir from the same run hold none of it."
 
-step "4b. the replan under refuse, as measured"
+step "4b. the replan under refuse proposes the argument again"
 explain \
-  "use/secrets.md says a sensitive argument left out of its record shows" \
-  "as a change on every plan. Measured, it does not: the plan seeds the" \
-  "prior from the configuration's own value, so the replan reads No" \
-  "changes. The same seeding means a password changed in the" \
-  "configuration is not proposed under refuse; that is a defect, filed" \
-  "as #1503, and this step prints the replan without asserting its shape" \
-  "so the scenario does not pin it. What it does assert is the claim:" \
-  "the replan leaves nothing behind."
-cmd "choudoufu plan"
+  "This is what the refusal costs, and use/secrets.md states it: a" \
+  "sensitive argument left out of its record shows as a change on every" \
+  "plan, the same perpetual diff stock terraform import leaves. Nothing" \
+  "the run keeps holds the last-applied password, so the plan has no" \
+  "prior to compare against and proposes sending the value again. Two" \
+  "plans are run: the password unchanged, then rotated. Both must" \
+  "propose the update - a rotation that planned No changes. would never" \
+  "be sent, which is what #1503 was. Neither may print the value or" \
+  "leave it on disk."
+cmd "choudoufu plan   # unchanged, then with TF_VAR_db_password rotated"
 RPLAN="$(cd "$REFUSE" && chdf plan -input=false -no-color 2>&1)" || fail "secrets" "the replan under refuse failed: $RPLAN"
 { grep -E '^Plan:|^No changes' <<< "$RPLAN" || true; } | head -1 | evidence
+grep -q 'Plan: 0 to add, 1 to change, 0 to destroy' <<< "$RPLAN" \
+  || fail "secrets" "the replan under refuse does not propose the password again. use/secrets.md says a sensitive argument left out of its record shows as a change on every plan, and the lint warning on this very attribute promises the same: $RPLAN"
+grep -q 'aws_db_instance.app will be updated in-place' <<< "$RPLAN" \
+  || fail "secrets" "the one proposed change is not the database's: $RPLAN"
+grep -qE '^ *[+~] *password *=' <<< "$RPLAN" \
+  || fail "secrets" "the proposed change does not name password, so something other than the refused argument moved: $RPLAN"
+{ grep -E '^ *[+~] *password *=' <<< "$RPLAN" || true; } | head -1 | evidence
 grep -qF -- "$SECRET" <<< "$RPLAN" && fail "secrets" "the replan printed the password"
 [ -z "$(scan_kept "$REFUSE")" ] || fail "secrets" "the replan left the password in what the tool keeps"
-proof "observed, not asserted: the replan headline above. Asserted: it printed no password and left none on disk."
+
+# The rotation: #1503's own case. The same estate, the same live database,
+# one different value in the environment. Under the seeding this replaced
+# it read No changes. and the new password was silently never sent.
+ROTATED="$SECRET-rotated"
+RROT="$(cd "$REFUSE" && TF_VAR_db_password="$ROTATED" chdf plan -input=false -no-color 2>&1)" \
+  || fail "secrets" "the rotated replan under refuse failed: $RROT"
+{ grep -E '^Plan:|^No changes' <<< "$RROT" || true; } | head -1 | sed 's/^/rotated: /' | evidence
+grep -q 'Plan: 0 to add, 1 to change, 0 to destroy' <<< "$RROT" \
+  || fail "secrets" "a password changed in the configuration is not proposed under refuse, so the rotation would never be sent (GitHub issue #1503): $RROT"
+grep -qF -- "$ROTATED" <<< "$RROT" && fail "secrets" "the rotated replan printed the new password"
+ROTHITS="$(find "$REFUSE" -type f -not -path '*/.terraform/providers/*' -not -name '*.tfplan' -not -name '*-debug.log' -print0 \
+  | xargs -0 grep -l -- "$ROTATED" 2>/dev/null | sed "s|^$REFUSE/||" || true)"
+[ -z "$ROTHITS" ] || fail "secrets" "the rotated plan wrote the new password into what the tool keeps:
+$ROTHITS"
+[ -z "$(scan_kept "$REFUSE")" ] || fail "secrets" "the rotated plan left the old password in what the tool keeps"
+proof "both replans propose the password again, the cost use/secrets.md states; the rotated one proposes it too, so a rotation is sent rather than silently dropped. Neither printed a password or left one on disk."
 
 step "5. the default, honestly"
 explain \

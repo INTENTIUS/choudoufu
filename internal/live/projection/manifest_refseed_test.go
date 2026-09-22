@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -333,8 +334,11 @@ func TestPartialManifestSeedKeepsTheSkeleton(t *testing.T) {
 	schema := manifestSeedSchema()
 	rc := cfg.Module.ManagedResources["kubernetes_manifest.b"]
 
-	strict, _ := configuredAttrsSeed(ctx, cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
-	if _, ok := strict["manifest"]; ok {
+	// Named strictSeed, not strict: the package of that name is what the
+	// seed's own secrets argument comes from, and a local shadowing it
+	// would make the second call below unresolvable.
+	strictSeed, _ := configuredAttrsSeed(ctx, cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil, strict.DefaultSecrets)
+	if _, ok := strictSeed["manifest"]; ok {
 		t.Fatal("the strict seed resolved a reference to another resource; this control must fail, or the test below proves nothing")
 	}
 
@@ -364,7 +368,7 @@ func TestPartialManifestSeedKeepsTheSkeleton(t *testing.T) {
 	// A manifest with nothing unresolvable is not this function's business:
 	// the strict seed answers it and prepareRead never asks.
 	rcA := cfg.Module.ManagedResources["kubernetes_manifest.a"]
-	if strictA, _ := configuredAttrsSeed(ctx, cfg.Module.StaticEvaluator, cfg.Path, rcA, schema, nil); strictA["manifest"] == cty.NilVal {
+	if strictA, _ := configuredAttrsSeed(ctx, cfg.Module.StaticEvaluator, cfg.Path, rcA, schema, nil, strict.DefaultSecrets); strictA["manifest"] == cty.NilVal {
 		t.Error("premise: the strict seed no longer answers a wholly literal manifest")
 	}
 }
