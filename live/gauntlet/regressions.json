@@ -16,5 +16,11 @@
     "stage": "day2_count",
     "reason": "At SCALE=128 (9,477 resources) this stage's STOCK ORACLE fails, not choudoufu: after stock's own scale-down apply reports exactly six destroys, all of them index [1], an `iam list-roles` query still finds the destroyed count_team[1] role. The oracle fixture uses its own `${PREFIX}o-` names, so this is not a collision with the greenfield estate that shares the account. Unverified hypothesis: floci's list-roles pagination over the ~4,200 roles greenfield leaves in GREEN at this scale. The same stage passes at scale 1 and passed at scales 10 and 50 on 2026-09-09/10, where the account holds far fewer roles.",
     "issue": "#1077"
+  },
+  {
+    "estate": "corpus-eks-basic",
+    "stage": "test_plan",
+    "reason": "This stage's committed 'pass' was never a measurement on the current pin. It is from 3bca740259 on 2026-09-10 against sha256:9ec3fa64; f51d0c882b repinned the emulator on 2026-09-11, and from that day every run of this estate exited at migrate on the count #1497 fixes, so test_plan was not reached again until now. Reached, it fails twice on one commit with identical detail (17s and 18s): the Kubernetes sweep reads LIST_FAILED on all 28 kubernetes_* types under 'Warning: Kubernetes sweep unavailable - the cluster's API discovery failed', and the plan proposes creating module.eks.kubernetes_config_map.aws_auth[0] although discovery bound it ADOPTABLE to the live kube-system/aws-auth object in the same run. Not #326 or #313: the log confirms both are clear two lines before the assertion fires. Acknowledged here so #1497's re-measurement of migrate can land with this row's provenance visible; the sweep is #1527 and is a unit of its own.",
+    "issue": "#1527"
   }
 ]

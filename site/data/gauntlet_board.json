@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Estates below were last measured against different emulator pins: 21 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`, 2 against `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81` (last_run.date ranges from 2026-09-10T07:49:05Z to 2026-09-22T03:47:54Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h36m56.6s, but not from one sweep: 32m5s across 1 estate(s) at commit `266e0e332c`; 2h2m41.7s across 21 estate(s) at commit `3bca740259`; 27m36s across 3 estate(s) at commit `979cabd489`; 5m21.4s across 1 estate(s) at commit `a3864ec9a2`; 10m20.2s across 1 estate(s) at commit `a69ed30cd0`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 1m50.4s across 1 estate(s) at commit `f2d687737b`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Estates below were last measured against different emulator pins: 20 against `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`, 8 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`, 2 against `ghcr.io/lex00/floci@sha256:74ffd40ebbcec4293654462726c9d1976cfc2196e505445ec7ba8378c1b65d81`, 1 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072` (current pin) (last_run.date ranges from 2026-09-10T07:49:05Z to 2026-09-22T18:21:24Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 3h24m22.8s, but not from one sweep: 32m5s across 1 estate(s) at commit `266e0e332c`; 1h47m7.1s across 20 estate(s) at commit `3bca740259`; 27m36s across 3 estate(s) at commit `979cabd489`; 5m21.4s across 1 estate(s) at commit `a3864ec9a2`; 10m20.2s across 1 estate(s) at commit `a69ed30cd0`; 2m40.7s across 1 estate(s) at commit `be3c655840`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`; 4m22.4s across 1 estate(s) at commit `d0879cc4cc`; 3m0.8s across 1 estate(s) at commit `d770559366`; 1m50.4s across 1 estate(s) at commit `f2d687737b`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "script_banner": "**30 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "stage_count": 14,
   "stages": [
@@ -810,7 +810,7 @@
       "name": "corpus-eks-basic",
       "set": "core",
       "lane": "terraform-popular",
-      "clear": true,
+      "clear": false,
       "source": "terraform-aws-modules/terraform-aws-eks examples/basic (tag v9.0.0)",
       "url": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
       "pin": "v9.0.0",
@@ -821,87 +821,88 @@
       "cells": [
         "pass",
         "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
+        "FAIL",
+        "stale",
+        "stale",
+        "stale",
+        "stale",
+        "stale",
+        "stale",
         "not run",
         "not run",
-        "pass",
-        "pass",
+        "stale",
+        "stale",
         "not run"
       ],
-      "runtime_total": "15m34.6s",
-      "runtime_cells": "cold_deploy 1m19s, migrate 1m32s, test_plan 18s, test_apply 22s, drift_reconverge 42s, day2_rename 1m16s, day2_remove 1m3s, day2_count 3m41s, day2_replace 1m2s, plan_approval 1m40s, greenfield 2m37s",
-      "last_run_note": "Last run at commit `3bca740259` on 2026-09-10T07:49:05Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:9ec3fa649177f64c17c299e3fd799cc774cc1e1b67db2bc20e27d1bc98d7c264`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 15m34.6s.",
+      "runtime_total": "3m0.8s",
+      "runtime_cells": "cold_deploy 1m15s, migrate 1m27s, test_plan 18s",
+      "last_run_note": "Last run at commit `d770559366` on 2026-09-22T18:21:24Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 3m0.8s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "stale_note": "**8 stage verdicts below were carried forward from an earlier run** and show as `stale`, not as the verdict they carry: `test_apply` (pass), `drift_reconverge` (pass), `day2_rename` (pass), `day2_remove` (pass), `day2_count` (pass), `day2_replace` (pass), `plan_approval` (pass), `greenfield` (pass). A run that aborts early leaves the stages it never reached reading whatever the last run to reach them said (#1069); the cell is kept because it is still the best thing known about that stage, and marked because it is not evidence about the run recorded below.",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m19s",
+          "duration": "1m15s",
           "detail": "54 resources, genuinely cold, genuinely unmarked"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m32s",
-          "detail": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)"
+          "duration": "1m27s",
+          "detail": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI - counted through GetResources (21) AND IAM's own list-role-tags/list-instance-profile-tags (4), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
-          "verdict": "pass",
+          "verdict": "FAIL",
           "duration": "18s",
-          "detail": "live-plan runs to completion with ZERO Error diagnostics and reports \"No changes. Your infrastructure matches the configuration.\" - the record-backed worker launch configuration's enable_monitoring/root_block_device/user_data all now agree with the config's own desired value (lex00/floci#132 for the first two, configuredAttrsSeed's residue-record pre-read seed in internal/live/projection/build.go for the third)"
+          "detail": "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed, or issue #313's provider.kubernetes wall is back"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
-          "verdict": "pass",
-          "duration": "22s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "genuine no-op (0 added, 0 changed, 0 destroyed); 25 tofu-estate-tagged objects before, 25 after"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
-          "verdict": "pass",
-          "duration": "42s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
-          "verdict": "pass",
-          "duration": "1m16s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "moved block: aws_security_group.worker_group_mgmt_two renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_security_group.all_worker_mgmt renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
-          "verdict": "pass",
-          "duration": "1m3s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "choudoufu: deleting aws_security_group.worker_group_mgmt_one's block (plus emptying the one argument that referenced it) proposed 2 resource action(s), address-for-address and action-for-action identical to stock's oracle on cold_deploy's own state; applied cleanly; the security group is genuinely gone from the live account, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other aws_security_group.worker_group_mgmt_one block is declared anywhere in this config; the next plan is empty"
         },
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "pass",
-          "duration": "3m41s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and count_test[0] kept BOTH its live id (sg-51d46dc36d8d51575) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) across it, read back through the AWS CLI rather than choudoufu's own report; the destroyed group (sg-113697a568ccbd35b) is genuinely gone from the account; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a NEW object under a NEW GroupId (sg-cee9f81453ce3ca88, was sg-113697a568ccbd35b) carrying aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; the next plan is empty. Stock oracle (G0): plain terraform, its own working directory, state and VPC, standing the IDENTICAL 2-instance count block up for real against the same idle floci account, shows the identical shape - destroy the higher index only (count_test[1]=sg-787fbb963e0c72e85), create it back under a new id (sg-4a52ba970263e8a8e), count_test[0]=sg-615ff9096ac718a56 unchanged both times - and is torn down again before choudoufu's own side runs. Synthetic block, and why: terraform-aws-eks v9.0.0 has no scalable count knob to drive - every count in the module is a boolean create toggle (var.create_eks ? 1 : 0 and siblings), and the one length-driven knob (local.worker_group_count) drives only aws_autoscaling_group, aws_launch_configuration and aws_iam_role_policy_attachment, all untaggable (no tags argument in the provider schema, so no marker surface for this stage's identity assertion), and dropping a worker group also rewrites kubernetes_config_map.aws_auth, which aggregates every worker role, so the plan would carry changes alongside the destroy. aws_security_group.count_test is the sanctioned fallback per live/GAUNTLET.md #8, of a type this estate already exercises three times, at an address nothing else in the config names. BREAK_COUNT=1 confirms the check is load-bearing: asserting the WRONG instance (count_test[0], the survivor) was destroyed makes this stage report fail."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "pass",
-          "duration": "1m2s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "choudoufu: changing aws_security_group.worker_group_mgmt_two_renamed's ForceNew name_prefix argument proposed a forced replace at the same declared address (Plan: 3 to add, 1 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-0da2a3b1aae14817f) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-c51c62b9b3f4ad64f -\u003e sg-0da2a3b1aae14817f); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 1 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted all_worker_mgmt_renamed (Part D's own live-mv leg) and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 (propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard); see this section's own header comment for the fix and corpus-autoscaling-complete's/corpus-ecs-fargate's matching ones in this same unit. This script was not re-run for #412, so this detail string still describes the pre-#412 run until this estate's next real run."
         },
         {
@@ -917,15 +918,15 @@
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
-          "verdict": "pass",
-          "duration": "1m40s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "one argument edited (aws_security_group.worker_group_mgmt_one gains tags = { Reviewed = \"yes\" }), \"plan -out=approved.tfplan\" wrote a 82168-byte stock-format plan file whose whole change set is one update on aws_security_group.worker_group_mgmt_one; the world then moved out of band (the VPC vpc-b94f704a's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_vpc.this[0] and the live vpc-b94f704a it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-e281a91a92f232d63 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-e281a91a92f232d63 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed change was in-place from end to end: sg-e281a91a92f232d63 kept its live id across the whole part, so PART D/E/F/G below still start from the objects STAGE 2 stamped. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "pass",
-          "duration": "2m37s",
+          "verdict": "stale",
+          "provenance": "**Stale**: this cell reads `pass` as measured at commit `3bca740259` on 2026-09-10T07:49:05Z, not by the run recorded below, which never reached this stage.",
           "detail": "54 resources from nothing, cluster marker verified via the AWS CLI, 54 records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count"
         },
         {

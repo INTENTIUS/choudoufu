@@ -419,6 +419,18 @@ set -uo pipefail
 #                and the only one of them under which PART P runs at all -
 #                the others deliberately leave the estate somewhere PART P
 #                does not describe, and it reports no verdict there.
+#   BREAK_MIGRATE_COUNT
+#                set to 1 to run the migrate stage's object-count negative
+#                control (#1497): after live-import has stamped all 25,
+#                remove tofu-estate from one of the estate's two IAM roles
+#                and assert 25 anyway - the assertion has to fail, at 24.
+#                It is the proof that the IAM leg of that count is
+#                load-bearing. The call this stage used to make reads 21
+#                either way, marked or unmarked, and the run prints both
+#                numbers side by side so the reader can see it. Reached on
+#                the real path only, so it is independent of every BREAK
+#                above; the run reports migrate=fail and exits non-zero,
+#                and never reaches stage 3.
 #   DUMP_PLAN    path to write live-plan's full raw output to, for by-hand
 #                re-verification of stage 3's exact refusal wall shape.
 #   DUMP_IMPORT  path to write live-import's full raw output to, same
@@ -1278,11 +1290,83 @@ grep -qF "$EXPECT_STAMPED" <<< "$IMPORT_OUT" || {
 grep -qE "$EXPECT_MISSING_K8S" <<< "$IMPORT_OUT" || fail "kubernetes_config_map.aws_auth no longer reports as MISSING/could-not-be-used in live-import's output - issue #326's fix (or the kubernetes-provider-config wall it exposed) has changed shape; re-check by hand"
 log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), 5 record-backed instances seeded into the implied local record store (#364), kubernetes_config_map.aws_auth correctly MISSING (admitted, but its provider config can't be statically evaluated)"
 
-MARKED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER"
-log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
-gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1497, the same defect
+# #1271 fixed in corpus-iam-policy). This line used to count all 25 stamped
+# objects through the Resource Groups Tagging API alone, and read 21: the
+# tagging API does not index this estate's four IAM objects - two
+# aws_iam_role and two aws_iam_instance_profile - in us-west-2, so the
+# oracle was asking a question the API cannot answer here and reading the
+# shortfall as a missing stamp. choudoufu stamped all 25; the emulator
+# holds all 25 markers; the count was wrong.
+#
+# MEASURED, no tofu in the loop, one fresh container at the current pin
+# ghcr.io/lex00/floci@sha256:6c3d5c2d, 2026-09-22. A role, an instance
+# profile, a customer-managed policy and a VPC, each created untagged and
+# then tagged through the stamp's own path (TagRole / TagInstanceProfile /
+# TagPolicy / CreateTags):
+#
+#   us-west-2 (THIS estate's region): all four read tofu-estate back
+#   through iam list-role-tags / list-instance-profile-tags /
+#   list-policy-tags / ec2 describe-tags. GetResources filtered on the same
+#   tag returned ONLY the VPC - no role, no instance profile, no policy,
+#   and none under --resource-type-filters iam or unfiltered either.
+#
+#   us-east-1, for contrast: GetResources returns the instance profiles and
+#   the policies, and never a role.
+#
+# That asymmetry is the emulator being RIGHT, not wrong, and it is not the
+# same answer the issue recorded. #1497 was written against
+# sha256:74ffd40e, where GetResources served no IAM at all; the pin has
+# moved twice since (lex00/floci#205, choudoufu #1152), and it now indexes
+# iam:policy and iam:instance-profile in us-east-1 only, matching real
+# AWS's regional tagging index for a global service. us-west-2 is
+# unaffected either way, so the count here reads 21 on both pins and would
+# read 21 on real AWS. Nothing to repin and nothing to file against floci.
+#
+# gauntlet_estate_objects asks IAM's own tag APIs as well and deduplicates
+# by ARN, so it answers 25 and keeps answering 25 if a later pin ever
+# starts serving these types through GetResources - GAUNTLET_ESTATE_BOTH_N
+# is how a reader tells which world the run happened in. Assert on
+# GAUNTLET_ESTATE_N, never on GAUNTLET_ESTATE_RGTA_N.
+#
+# The trailing `2>/dev/null || echo 0` is gone with it: it turned an
+# unreachable endpoint into "0 objects", and 0 is not 25, so it merely
+# swapped one wrong number for another. The helper refuses loudly instead.
+#
+# Proved red: BREAK_MIGRATE_COUNT=1 below.
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE inventory after migration"
+MARKED_AFTER="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_MIGRATE_COUNT:-}" = "1" ]; then
+  # The negative control for THIS line. Untag ONE of the four IAM objects -
+  # the two roles are the types GetResources indexes in no region at all -
+  # and the assertion must catch it as 24. Against the GetResources-only
+  # call this replaced, removing that marker was invisible: the count read
+  # 21 with the role marked and 21 with it unmarked, which is the whole of
+  # #1497. This is how a reader re-runs that proof.
+  BREAK_ROLE="$(awsl iam list-roles --output json \
+    | jq -r '.Roles[].RoleName' \
+    | while IFS= read -r r; do
+        if awsl iam list-role-tags --role-name "$r" --output json 2>/dev/null \
+             | jq -e --arg e "$ESTATE" '[.Tags[]? | select(.Key == "tofu-estate" and .Value == $e)] | length > 0' >/dev/null; then
+          printf '%s\n' "$r"; break
+        fi
+      done)"
+  [ -n "$BREAK_ROLE" ] || fail "BREAK_MIGRATE_COUNT=1 found no role carrying tofu-estate=$ESTATE to unmark - the control cannot run, and the assertion below would have passed for the wrong reason"
+  awsl iam untag-role --role-name "$BREAK_ROLE" --tag-keys tofu-estate >/dev/null
+  OLD_IDIOM="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")"
+  gauntlet_estate_objects "$ESTATE" awsl \
+    || fail "could not re-read the inventory after BREAK_MIGRATE_COUNT unmarked $BREAK_ROLE"
+  MARKED_AFTER="$GAUNTLET_ESTATE_N"
+  log "  BREAK_MIGRATE_COUNT=1: removed tofu-estate from role $BREAK_ROLE - the"
+  log "           assertion below must now fail, and reads $MARKED_AFTER. The call this"
+  log "           line replaced still reads $OLD_IDIOM, unchanged by the removal:"
+  log "           that is the defect, not the control."
+fi
+[ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN)"
+log "  25 of 25 stamped objects confirmed via the AWS CLI directly: GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-role-tags/list-instance-profile-tags $GAUNTLET_ESTATE_IAM_N (#1497 - GetResources does not index IAM in us-west-2, on this emulator or on real AWS)"
+gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI - counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own list-role-tags/list-instance-profile-tags ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
 # UPDATE 2026-08-24 (issue #396's worker, continuing #391/the eks-splat
