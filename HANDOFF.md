@@ -395,7 +395,11 @@ misses a command bash forks in the same instant, and bash then holds the
 trap pending until that command finishes. Measured at 19 losses in 200 runs
 on an idle machine, which at scale would be a `terraform plan`'s worth of
 minutes before teardown started. A `trap_resends` above zero in the run
-record means the first signal was one of those. It never kills a teardown
+record means the first signal was one of those, and `trap_answered_utc`
+beside `trap_resends_utc` says in which order the answer and each re-send
+came: a re-send before the answer is that lost signal being repeated, and
+`trap_resends_after_answer` above zero is a SIGTERM that landed on a
+running teardown, which is the defect (#1464). It never kills a teardown
 on its own, and a second or third signal changes nothing: closing a terminal
 sends SIGHUP and a runner's cancellation sends SIGINT then SIGTERM, and
 neither is a request to abandon an estate. Tearing a scale-128 estate down

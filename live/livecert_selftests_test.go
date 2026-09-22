@@ -137,6 +137,13 @@ var liveCertSelftests = []liveCertSelftest{
 			"passing run, because the harness removes the emulator container before the driver gets there.",
 	},
 	{
+		script:   "selftest-iam-headroom.sh",
+		proves:   "#1230 - IAM role quota exhausted from outside a run failed cold_deploy with LimitExceeded and the record blamed the product; the harness now reads Roles/RolesQuota before cold_deploy and refuses the rung (GAUNTLET refused=1 unit=iam-roles), failing open when the check itself cannot run",
+		runner:   runsHere,
+		bound:    60 * time.Second,
+		measured: "0.6s. Extracts the check and its gate between marker comments and drives eleven runs against a fake `aws` and a fake `terraform` on PATH, with the generator side stubbed; nothing polls, sleeps or waits.",
+	},
+	{
 		script: "selftest-heartbeat.sh",
 		proves: "#1324 - the run log was written at stage boundaries only, so cold_deploy's 5,633s apply left the file unchanged for 1h34m and a wedged stage was byte-identical to a healthy one",
 		runner: runsHere,

@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/live/cohorts"
+	"github.com/intentius/choudoufu/internal/live/pins"
 )
 
 // defaultImage is the emulator every test in this tier runs against:
@@ -737,4 +738,43 @@ func SectionFrom(output, header string) string {
 		return rest[:j]
 	}
 	return rest
+}
+
+// PinnedProviderDir returns a scratch directory whose only configuration
+// pins hashicorp/aws to [pins.AWSProviderVersion] - the release
+// live/survey.json, live/survey-full.json and the generated identity table
+// were produced from. A test that checks those artifacts against the
+// provider's own schemas has to ask THAT release, not the estate fixture's
+// (live/e2e/estate pins an older one): every type the survey pin added
+// since reads as "the provider serves no schema for admitted type" against
+// the fixture's, which is how TestTaggableSetAgainstRealSchemas and the
+// identity-table check spent their first measured nights red (#1316).
+//
+// The provider block carries the three settings that let the plugin be
+// configured with placeholder credentials and no cloud behind it. There is
+// no lock file: init resolves the exact pin against the registry and the
+// shared plugin cache serves it once downloaded (see [PluginCacheDir]).
+func PinnedProviderDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	src := fmt.Sprintf(`terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= %s"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+}
+`, pins.AWSProviderVersion)
+	if err := os.WriteFile(filepath.Join(dir, "versions.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing the pinned provider configuration: %v", err)
+	}
+	return dir
 }
