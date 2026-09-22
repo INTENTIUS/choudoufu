@@ -185,6 +185,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -898,7 +903,7 @@ export AWS_ENDPOINT_URL="$ADOPT_ENDPOINT"
 gauntlet_begin_stage cold_deploy
 log "=== B1. plain terraform stands the estate up, no choudoufu involved ==="
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
-( cd "$PLAIN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "plain terraform init failed"
+( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "plain gauntlet_locked_init terraform init failed"
 PLAIN_APPLY_OUT="$(cd "$PLAIN" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$PLAIN_APPLY_OUT" | tail -30; fail "the plain terraform apply failed"; }
 grep -qE 'Apply complete! Resources: 5 added' <<< "$PLAIN_APPLY_OUT" \
@@ -1097,8 +1102,8 @@ EOF
   echo
   count_test_block 2 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
-( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "the day2_count oracle's terraform init failed"
+( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "the day2_count oracle's gauntlet_locked_init terraform init failed"
 ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count oracle's baseline apply failed"; }
 grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_COUNT_APPLY_OUT" \

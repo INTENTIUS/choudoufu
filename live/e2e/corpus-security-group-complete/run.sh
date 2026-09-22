@@ -550,6 +550,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -741,9 +746,9 @@ log "  healthy"
 export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
-log "=== 1b. terraform init + apply ==="
-( cd "$PLAIN_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "plain terraform init failed"; }
+log "=== 1b. gauntlet_locked_init terraform init + apply ==="
+( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "plain gauntlet_locked_init terraform init failed"; }
 PLAIN_APPLY_OUT="$(cd "$PLAIN_EST" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$PLAIN_APPLY_OUT" | tail -60
   fail "the plain terraform apply failed"; }
@@ -1039,8 +1044,8 @@ mkdir -p "$PLAIN_ORACLE_COUNT"
   count_test_block 2 "aws_vpc.count_oracle.id"
 } > "$PLAIN_ORACLE_COUNT/main.tf"
 gauntlet_pin_aws_provider "$PLAIN_ORACLE_COUNT/main.tf" || fail "gauntlet_pin_aws_provider failed for $PLAIN_ORACLE_COUNT/main.tf"
-( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count oracle's terraform init failed"; }
+( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count oracle's gauntlet_locked_init terraform init failed"; }
 ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count oracle's baseline apply failed"; }
 grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
@@ -1144,8 +1149,8 @@ moved {
   to   = aws_security_group.app_renamed
 }
 EOF
-( cd "$ORACLE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -1171,8 +1176,8 @@ perl -0777 -pi -e 's/\nmodule "postgresql" \{.*?\n\}\n\n################/\n#####
 grep -q 'module "postgresql"' "$ORACLE_REMOVE_EST/main.tf" && fail "removing module.postgresql's block from the oracle copy did not match - the corpus example has moved"
 perl -0777 -pi -e 's/\n# PostgreSQL preset submodule\n.*?\n# Consul preset submodule/\n# Consul preset submodule/s' "$ORACLE_REMOVE_EST/outputs.tf"
 grep -q 'module.postgresql' "$ORACLE_REMOVE_EST/outputs.tf" && fail "removing module.postgresql's outputs from the oracle copy did not match - the corpus example has moved"
-( cd "$ORACLE_REMOVE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_REMOVE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
+( cd "$ORACLE_REMOVE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_REMOVE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$ORACLE_REMOVE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.postgresql\.module\.security_group\.aws_security_group\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -1209,8 +1214,8 @@ sed -i.bak 's/^  name        = local\.name$/  name        = "${local.name}-repla
 rm -f "$ORACLE_REPLACE_EST/main.tf.bak"
 grep -q 'name        = "${local.name}-replaced"' "$ORACLE_REPLACE_EST/main.tf" \
   || fail "changing module.security_group's name argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$ORACLE_REPLACE_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_REPLACE_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+( cd "$ORACLE_REPLACE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_REPLACE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$ORACLE_REPLACE_EST" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.security_group\.aws_security_group\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
