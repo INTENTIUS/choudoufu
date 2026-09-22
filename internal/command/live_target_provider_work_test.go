@@ -146,9 +146,9 @@ func newTargetWorkCloud() *targetWorkCloud {
 	c.kubernetes = &tofu.MockProvider{
 		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
 			Provider: providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
-			"host":  {Type: cty.String, Optional: true},
-			"token": {Type: cty.String, Optional: true},
-		}}},
+				"host":  {Type: cty.String, Optional: true},
+				"token": {Type: cty.String, Optional: true},
+			}}},
 			ResourceTypes: statelessTestIdentitySchemasFrom(map[string]providers.Schema{
 				"kubernetes_namespace":  {Block: &configschema.Block{Attributes: targetWorkAttrs(), BlockTypes: metadata}},
 				"kubernetes_config_map": {Block: &configschema.Block{Attributes: targetWorkAttrs(), BlockTypes: metadata}},
