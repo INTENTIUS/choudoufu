@@ -649,7 +649,9 @@
           "note": ""
         }
       },
-      "evidence": []
+      "evidence": [
+        "live/smoke/evidence/k8s-a-label-is-a-change.lastrun.json"
+      ]
     },
     {
       "id": 28,
@@ -931,7 +933,7 @@
       "minutes": 14,
       "needs_go": true,
       "theme": "gate",
-      "break_mode": "BREAK=1 takes the three fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, the admission policy is removed and the cross-estate write into a record Secret must then land, and the scoped identity whose first contact the cluster contract passed is given cluster-wide secret reads, after which the same first contact must be refused on read_isolation. A fourth control covers step 10: each racing write becomes the stock backend's read-then-update and all twelve rounds must then end with both writes landed and no conflict named",
+      "break_mode": "BREAK=1 takes the three fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, the admission policy is removed and the cross-estate write into a record Secret must then land, and the scoped identity whose first contact the cluster contract passed is given cluster-wide secret reads, after which the same first contact must be refused on read_isolation. A fourth control covers step 10: each racing write becomes the stock backend's read-then-update and all twelve rounds must then end with both writes landed and no conflict named. Steps 1, 2, 3, 8 and 9 each have a control that runs the step's own check function against a world built to fail it and requires the failure by name: the suite skipped and the suite short one case, the record Secrets stripped of their annotation and then their label, a planted Lease and a lock-named Secret, the Role short one verb given that verb so the same apply goes through and leaves records behind, and a write between the two resourceVersion dumps and a dump of a namespace holding no record; the listings behind steps 3, 8 and 9 are also run through a kubeconfig that reaches no server and must fail rather than read as empty",
       "substrate": "kubernetes",
       "providers": {
         "aws": {
@@ -943,7 +945,9 @@
           "note": ""
         }
       },
-      "evidence": []
+      "evidence": [
+        "live/smoke/evidence/k8s-records-in-the-cluster.lastrun.json"
+      ]
     }
   ]
 }

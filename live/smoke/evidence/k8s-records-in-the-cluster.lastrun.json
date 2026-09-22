@@ -1,0 +1,23 @@
+{
+  "claim": "k8s-records-in-the-cluster",
+  "provider": "kubernetes",
+  "target": "kind v0.32.0, Server Version: v1.36.1, one cluster per run, deleted afterwards",
+  "date": "2026-09-21",
+  "commit": "a30eb7cb0d24593bea145b25a7575b1c7b380857",
+  "command": "just smoke k8s-records-in-the-cluster",
+  "verdict": "PASS: smoke scenario 'k8s-records-in-the-cluster' - every claim held (smoke v1.0.0)",
+  "break_commit": "a30eb7cb0d24593bea145b25a7575b1c7b380857",
+  "break_command": "BREAK=1 just smoke k8s-records-in-the-cluster",
+  "break_verdict": "BREAK [k8srec]: every control held; each break was caught by the check it was built for / PASS: smoke scenario 'k8s-records-in-the-cluster' - every claim held (smoke v1.0.0)",
+  "break_controls": [
+    "BREAK control - take the two fences away, and what they refused must go through",
+    "BREAK control - step 6's contract passed because the identity was scoped; widen it and the same run must be refused",
+    "BREAK control - a write that reads the record and updates what it read must lose the race step 10 wins",
+    "BREAK control - step 1's suite run against no cluster, and short one case, must fail step 1's check",
+    "BREAK control - step 2's record Secrets stripped of their annotation, then their label, must fail step 2's check",
+    "BREAK control - a Lease, a Secret named like a lock, and a kubectl that cannot connect must each fail step 3's check",
+    "BREAK control - give step 8's identity the verb it lacked, and the same apply must go through and leave records behind",
+    "BREAK control - a write between step 9's two dumps, an empty namespace, and a kubectl that cannot connect must each fail step 9's check"
+  ],
+  "note": "#1448 section E: recorded from the logs of two runs made in the worker session that added the five controls, on a developer machine, not CI; every field but this note is copied from the log by a script. .github/workflows/k8s-smoke.yml runs this scenario and its BREAK=1 control on every pull request and push to main that touches the code or the smokes, so a green there is the continuous check and this file is the point-in-time record the claims table names. It is stale the moment the scenario or the store changes underneath it. Claim 39's BREAK run falls through to the PASS line after its own BREAK verdict, unlike the scenarios whose BREAK arm exits 0 before it, which is why both are quoted."
+}

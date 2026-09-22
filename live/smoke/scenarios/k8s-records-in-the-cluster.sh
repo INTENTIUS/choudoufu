@@ -60,7 +60,14 @@
 # same first contact must be refused on read_isolation. It adds a fourth
 # control for step 10: each write becomes the stock backend's read-then-update
 # (client.go:86) and the same twelve rounds must then end with both writes
-# landed and nothing named.
+# landed and nothing named. Steps 1, 2, 3, 8 and 9 each have a control of
+# their own, run against the step's own check function (#1448): the suite
+# skipped and the suite short one case, the record Secrets stripped of their
+# annotation and then their label, a planted Lease and a lock-named Secret,
+# Dan's Role given the verb it lacked, and a write between step 9's two
+# dumps; each must fail the check by name, and the listings behind steps 3,
+# 8 and 9 are also run through a kubeconfig that reaches no server and must
+# fail rather than read as empty.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-records-in-the-cluster"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -153,28 +160,35 @@ kc create namespace "$BOB_NS" >/dev/null || fail "k8srec" "could not create Bob'
 # output this step is checking would make it agree with itself whatever
 # happened, which is the failure #1448 found in the `-ge 17` this replaces.
 CONFORMANCE_CASES=18
-cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # against the kind cluster"
-CONF_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
-  go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
-  || fail "k8srec" "the conformance suite failed against the cluster: $( { grep -E '^\s+--- FAIL|FAIL' <<< "$CONF_OUT" || true; } | awk 'NR<=10' )"
+# conformance_verdict <go test output> is step 1's check, and the BREAK arm
+# runs the same function against a suite that never reached the cluster.
+#
 # The guards come BEFORE the evidence line, and every capture carries its own
 # `|| true`. This step used to open with `grep -c ... | evidence`, which exits
 # 1 when nothing matched: under set -euo pipefail a whole-suite SKIP therefore
 # ended the run on that line, with no verdict line at all, and the SKIP guard
 # written to catch exactly that sat on the next line, unreached. #1448.
-grep -qE '^--- SKIP: TestKubernetesStoreConformance ' <<< "$CONF_OUT" \
-  && fail "k8srec" "the conformance suite SKIPPED; a skip is not a pass and this step measured nothing"
-grep -q 'no tests to run' <<< "$CONF_OUT" \
-  && fail "k8srec" "go test matched no test at all, so this step measured nothing: $CONF_OUT"
-# Anchored the way step 10 anchors its own PASS line. `go test -v` indents a
-# subtest's result by four spaces and writes what a test LOGS behind a
-# file:line prefix, so an unanchored --- PASS also counts a log line quoting
-# one.
-CASES="$( { grep -cE '^    --- PASS: TestKubernetesStoreConformance/[A-Za-z][A-Za-z0-9]* \(' <<< "$CONF_OUT" || true; } )"
-echo "conformance cases passed: $CASES of $CONFORMANCE_CASES" | evidence
-[ "$CASES" = "$CONFORMANCE_CASES" ] \
-  || fail "k8srec" "$CASES conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (runConformance in internal/live/staterecord/conformance_test.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
-{ grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$CONF_OUT" || true; } | evidence
+conformance_verdict() {
+  local out="$1" cases
+  ! grep -qE '^--- SKIP: TestKubernetesStoreConformance ' <<< "$out" \
+    || fail "k8srec" "the conformance suite SKIPPED; a skip is not a pass and this step measured nothing"
+  ! grep -q 'no tests to run' <<< "$out" \
+    || fail "k8srec" "go test matched no test at all, so this step measured nothing: $out"
+  # Anchored the way step 10 anchors its own PASS line. `go test -v` indents a
+  # subtest's result by four spaces and writes what a test LOGS behind a
+  # file:line prefix, so an unanchored --- PASS also counts a log line quoting
+  # one.
+  cases="$( { grep -cE '^    --- PASS: TestKubernetesStoreConformance/[A-Za-z][A-Za-z0-9]* \(' <<< "$out" || true; } )"
+  echo "conformance cases passed: $cases of $CONFORMANCE_CASES" | evidence
+  [ "$cases" = "$CONFORMANCE_CASES" ] \
+    || fail "k8srec" "$cases conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (runConformance in internal/live/staterecord/conformance_test.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
+  { grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$out" || true; } | evidence
+}
+cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # against the kind cluster"
+CONF_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
+  go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
+  || fail "k8srec" "the conformance suite failed against the cluster: $( { grep -E '^\s+--- FAIL|FAIL' <<< "$CONF_OUT" || true; } | awk 'NR<=10' )"
+conformance_verdict "$CONF_OUT"
 proof "every case in the shared Store suite passes against a real API server, including the stale-version conflict and the absent-key answers, plus the two Kubernetes-specific ones: the version IS metadata.resourceVersion, and a namespace that does not exist is refused by name rather than read as an empty estate."
 
 step "2. a Kubernetes-only estate applies with no AWS credentials in the environment"
@@ -216,24 +230,33 @@ grep -qE 'Apply complete! Resources: 3 added' <<< "$A_OUT" \
   || fail "k8srec" "the apply did not report 3 added: $A_OUT"
 grep -qiE 'aws|credential' <<< "$A_OUT" \
   && fail "k8srec" "the apply output mentions AWS or credentials: $A_OUT"
-cmd "kubectl get secrets -n $RECORDS_NS -l tofu-estate=k8srec-alice"
-REC_NAMES="$(kc get secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice -o name 2>&1)" \
-  || fail "k8srec" "could not list the record Secrets: $REC_NAMES"
-echo "$REC_NAMES" | evidence
-[ -n "$REC_NAMES" ] || fail "k8srec" "no record Secret carries tofu-estate=k8srec-alice; the estate wrote its records somewhere else, or nowhere"
-grep -q 'secret/tofu-record-' <<< "$REC_NAMES" \
-  || fail "k8srec" "a record Secret is not named tofu-record-<hash>: $REC_NAMES"
+# records_are_secrets <namespace> <estate> is step 2's check on the objects:
+# the estate's records are Secrets carrying its label, named tofu-record-,
+# and the first of them says which record it is. It leaves the listing in
+# REC_NAMES. The BREAK arm runs the same function after stripping the
+# annotation and then the label.
+records_are_secrets() {
+  local ns="$1" estate="$2" one ann
+  cmd "kubectl get secrets -n $ns -l tofu-estate=$estate"
+  REC_NAMES="$(kc get secrets -n "$ns" -l "tofu-estate=$estate" -o name 2>&1)" \
+    || fail "k8srec" "could not list the record Secrets: $REC_NAMES"
+  echo "$REC_NAMES" | evidence
+  [ -n "$REC_NAMES" ] || fail "k8srec" "no record Secret carries tofu-estate=$estate; the estate wrote its records somewhere else, or nowhere"
+  grep -q 'secret/tofu-record-' <<< "$REC_NAMES" \
+    || fail "k8srec" "a record Secret is not named tofu-record-<hash>: $REC_NAMES"
+  one="$(awk 'NR<=1' <<< "$REC_NAMES" | sed 's|^secret/||')"
+  cmd "kubectl get secret $one -n $ns -o jsonpath='{.metadata.annotations}'"
+  ann="$(kc get secret "$one" -n "$ns" -o jsonpath='{.metadata.annotations}' 2>&1)" \
+    || fail "k8srec" "reading the record Secret's annotations failed: $ann"
+  echo "$ann" | evidence
+  grep -q 'choudoufu.intentius.io/record-key' <<< "$ann" \
+    || fail "k8srec" "the record Secret carries no record-key annotation, so nothing says which record it is: $ann"
+}
+records_are_secrets "$RECORDS_NS" k8srec-alice
 # How many record Secrets this estate has, read here where they are checked
 # by name. Step 3 requires a listing of the same namespace to still hold at
 # least this many before it says nothing in it is named like a lock.
 ALICE_RECORDS="$( { grep -c '^secret/tofu-record-' <<< "$REC_NAMES" || true; } )"
-ONE="$(awk 'NR<=1' <<< "$REC_NAMES" | sed 's|^secret/||')"
-cmd "kubectl get secret $ONE -n $RECORDS_NS -o jsonpath='{.metadata.annotations}'"
-ANN="$(kc get secret "$ONE" -n "$RECORDS_NS" -o jsonpath='{.metadata.annotations}' 2>&1)" \
-  || fail "k8srec" "reading the record Secret's annotations failed: $ANN"
-echo "$ANN" | evidence
-grep -q 'choudoufu.intentius.io/record-key' <<< "$ANN" \
-  || fail "k8srec" "the record Secret carries no record-key annotation, so nothing says which record it is: $ANN"
 # The apply is idempotent and the record is what makes it so: a second plan
 # reads the record back and proposes nothing.
 P_OUT="$( cd "$APP" && no_aws chdf plan -input=false -no-color 2>&1 )" || fail "k8srec" "the replan failed: $P_OUT"
@@ -278,23 +301,30 @@ echo "killed with SIGKILL while terraform_data.slow was creating" | evidence
 sed -i.bak 's/exec sleep 120/exec sleep 1/' "$APP/main.tf" && rm -f "$APP/main.tf.bak"
 grep -q 'exec sleep 1"' "$APP/main.tf" || fail "k8srec" "the slow provisioner was not shortened; the next run would wait two minutes"
 cmd "kubectl get leases,secrets -n $RECORDS_NS   # nothing lock-shaped"
-# Both listings are captured with their own exit status checked, and the
-# Secret listing has to still hold the records step 2 read back by name. A
-# `kc get secrets | grep -i lock && fail` reads clean when the kubectl
-# crashed, and a listing that saw nothing reads clean for having seen
-# nothing: either way the absence below would be nobody's absence. Step 10
-# does exactly this; this is the same shape. #1448.
-LOCKS="$(kc get leases -n "$RECORDS_NS" -o name 2>&1)" \
-  || fail "k8srec" "listing Leases in $RECORDS_NS failed, so whether the killed apply left one behind was never answered: $LOCKS"
-SECRETS_NOW="$(kc get secrets -n "$RECORDS_NS" -o name 2>&1)" \
-  || fail "k8srec" "listing Secrets in $RECORDS_NS failed, so whether anything in it is named like a lock was never answered: $SECRETS_NOW"
-RECORDS_NOW="$( { grep -c '^secret/tofu-record-' <<< "$SECRETS_NOW" || true; } )"
-echo "record Secrets in the records namespace: $RECORDS_NOW; leases: ${LOCKS:-none}" | evidence
-[ "$RECORDS_NOW" -ge "$ALICE_RECORDS" ] \
-  || fail "k8srec" "this listing of $RECORDS_NS holds $RECORDS_NOW record Secrets and step 2 read $ALICE_RECORDS of them back by name; a listing that cannot see the estate's own objects cannot say whether one of them is named like a lock: $SECRETS_NOW"
-[ -z "$LOCKS" ] || fail "k8srec" "a Lease exists in the records namespace; this store takes no lock: $LOCKS"
-grep -qi 'lock' <<< "$SECRETS_NOW" \
-  && fail "k8srec" "an object in the records namespace is named like a lock: $SECRETS_NOW"
+# lock_free <kubeconfig> <namespace> <records> is step 3's check: nothing in
+# the namespace is a Lease or named like a lock. Both listings are captured
+# with their own exit status checked, and the Secret listing has to still
+# hold the <records> step 2 read back by name. A `kc get secrets | grep -i
+# lock && fail` reads clean when the kubectl crashed, and a listing that saw
+# nothing reads clean for having seen nothing: either way the absence below
+# would be nobody's absence. Step 10 does exactly this; this is the same
+# shape. #1448. The kubeconfig is a parameter so the BREAK arm can hand it
+# one that reaches no server.
+lock_free() {
+  local cfg="$1" ns="$2" records="$3" locks secrets now
+  locks="$(kc_as "$cfg" get leases -n "$ns" -o name 2>&1)" \
+    || fail "k8srec" "listing Leases in $ns failed, so whether the killed apply left one behind was never answered: $locks"
+  secrets="$(kc_as "$cfg" get secrets -n "$ns" -o name 2>&1)" \
+    || fail "k8srec" "listing Secrets in $ns failed, so whether anything in it is named like a lock was never answered: $secrets"
+  now="$( { grep -c '^secret/tofu-record-' <<< "$secrets" || true; } )"
+  echo "record Secrets in the records namespace: $now; leases: ${locks:-none}" | evidence
+  [ "$now" -ge "$records" ] \
+    || fail "k8srec" "this listing of $ns holds $now record Secrets and step 2 read $records of them back by name; a listing that cannot see the estate's own objects cannot say whether one of them is named like a lock: $secrets"
+  [ -z "$locks" ] || fail "k8srec" "a Lease exists in the records namespace; this store takes no lock: $locks"
+  ! grep -qi 'lock' <<< "$secrets" \
+    || fail "k8srec" "an object in the records namespace is named like a lock: $secrets"
+}
+lock_free "$KUBECONFIG" "$RECORDS_NS" "$ALICE_RECORDS"
 cmd "choudoufu apply -auto-approve   # the very next run, nothing done in between"
 N_OUT="$( cd "$APP" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the run after the killed one failed: $N_OUT"
@@ -665,19 +695,37 @@ scoped_identity dan "$DAN_NS" k8srec-dan "$DAN_KC" get,list,create,delete
 sed -e "s/k8srec-carol/k8srec-dan/g" -e "s|$CAROL_NS|$DAN_NS|g" "$CAROL/versions.tf" > "$DAN/versions.tf"
 cp "$CAROL/main.tf" "$DAN/main.tf"
 ( cd "$DAN" && as_identity "$DAN_KC" chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "Dan's init failed"
+# refused_short_one_verb <kubeconfig> <dir> is step 8's first check: the
+# apply is refused before it starts, naming the assertion and the verb.
+# left_nothing_behind <kubeconfig> <namespace> is its second: the refusal
+# wrote nothing that would make the next run something other than a first
+# contact. The BREAK arm gives the same identity the verb and runs both
+# again, and each must then come out the other way.
+refused_short_one_verb() {
+  local cfg="$1" dir="$2" out
+  if out="$( cd "$dir" && as_identity "$cfg" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
+    fail "k8srec" "an apply under a Role that cannot update a record Secret was allowed to start: $out"
+  fi
+  { grep -E 'namespace_access|may not update' <<< "$out" || true; } | awk 'NR<=3' | evidence
+  grep -q 'fails its namespace_access assertion' <<< "$out" \
+    || fail "k8srec" "the refusal does not name the assertion: $out"
+  grep -q 'may not update secrets' <<< "$out" \
+    || fail "k8srec" "the refusal does not name the verb that is missing, so nobody could act on it: $out"
+}
+left_nothing_behind() {
+  local cfg="$1" ns="$2" left
+  # The listing's own status is checked: an assignment from a kubectl that
+  # crashed ends the run under set -e with no verdict line, the shape #1448
+  # found in step 3.
+  left="$(kc_as "$cfg" get secrets -n "$ns" -o name 2>&1)" \
+    || fail "k8srec" "listing Secrets in $ns failed, so whether the refused first contact left anything behind was never answered: $left"
+  echo "secrets in Dan's records namespace after the refusal: ${left:-none}" | evidence
+  [ -z "$left" ] || fail "k8srec" "the refused first contact left $left behind; the next run would not be a first contact and would proceed against the cluster this one refused"
+}
 cmd "choudoufu apply   # as a Role with get, list, create and delete, and no update"
-if D_OUT="$( cd "$DAN" && as_identity "$DAN_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
-  fail "k8srec" "an apply under a Role that cannot update a record Secret was allowed to start: $D_OUT"
-fi
-{ grep -E 'namespace_access|may not update' <<< "$D_OUT" || true; } | awk 'NR<=3' | evidence
-grep -q 'fails its namespace_access assertion' <<< "$D_OUT" \
-  || fail "k8srec" "the refusal does not name the assertion: $D_OUT"
-grep -q 'may not update secrets' <<< "$D_OUT" \
-  || fail "k8srec" "the refusal does not name the verb that is missing, so nobody could act on it: $D_OUT"
+refused_short_one_verb "$DAN_KC" "$DAN"
 cmd "kubectl get secrets -n $DAN_NS   # the refused first contact left nothing behind"
-LEFT="$(kc get secrets -n "$DAN_NS" -o name 2>&1)"
-echo "secrets in Dan's records namespace after the refusal: ${LEFT:-none}" | evidence
-[ -z "$LEFT" ] || fail "k8srec" "the refused first contact left $LEFT behind; the next run would not be a first contact and would proceed against the cluster this one refused"
+left_nothing_behind "$KUBECONFIG" "$DAN_NS"
 if D2="$( cd "$DAN" && as_identity "$DAN_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
   fail "k8srec" "the run after a refused first contact was allowed through: $D2"
 fi
@@ -721,35 +769,46 @@ done
 # unguarded pair reads "nothing moved" when the kubectl crashed, when the
 # namespace emptied out and when the jsonpath stopped matching - three ways of
 # measuring nothing and calling it a pass. #1448.
-rv_dump() {
-  kc get secrets -n "$CAROL_NS" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}'
+#
+# rv_snapshot <kubeconfig> <namespace> <file> before|after <records> takes
+# one half of the pair and requires it to hold at least <records> lines,
+# leaving the count in RV_N; rv_unchanged <before> <after> is the diff. The
+# BREAK arm runs the same two functions around a write, against an empty
+# namespace, and through a kubeconfig that reaches no server.
+rv_snapshot() {
+  local cfg="$1" ns="$2" file="$3" which="$4" records="$5"
+  if ! kc_as "$cfg" get secrets -n "$ns" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' > "$file"; then
+    case "$which" in
+      before) fail "k8srec" "reading the record Secrets' resourceVersions before the plan failed, so there is nothing for the reading after it to be compared against" ;;
+      *) fail "k8srec" "reading the record Secrets' resourceVersions after the plan failed, so whether one of them moved was never answered" ;;
+    esac
+  fi
+  RV_N="$( { grep -c '=' "$file" || true; } )"
+  [ "$RV_N" -ge "$records" ] \
+    || fail "k8srec" "the $which dump holds $RV_N resourceVersions and this namespace holds $records record Secrets; a short or empty dump diffs clean against anything"
+}
+rv_unchanged() {
+  local before="$1" after="$2"
+  if ! diff "$before" "$after" > "$before.diff" 2>&1; then
+    fail "k8srec" "a record Secret's resourceVersion moved across a plan, so the plan wrote something: $(cat "$before.diff")"
+  fi
 }
 CAROL_SECRETS="$(kc get secrets -n "$CAROL_NS" -o name 2>&1)" \
   || fail "k8srec" "listing Carol's records namespace failed, so the pair of resourceVersion dumps below would be two empty files, and two empty files diff clean: $CAROL_SECRETS"
 CAROL_RECORDS="$( { grep -c '^secret/tofu-record-' <<< "$CAROL_SECRETS" || true; } )"
 [ "$CAROL_RECORDS" -ge 1 ] \
   || fail "k8srec" "Carol's records namespace holds no tofu-record- Secret although step 6 applied her estate into it; there is no record Secret here whose resourceVersion could move or stay put: $CAROL_SECRETS"
-rv_dump > "$W/rv-before" \
-  || fail "k8srec" "reading the record Secrets' resourceVersions before the plan failed, so there is nothing for the reading after it to be compared against"
-RV_BEFORE_N="$( { grep -c '=' "$W/rv-before" || true; } )"
-[ "$RV_BEFORE_N" -ge "$CAROL_RECORDS" ] \
-  || fail "k8srec" "the before dump holds $RV_BEFORE_N resourceVersions and this namespace holds $CAROL_RECORDS record Secrets; a short or empty dump diffs clean against anything"
+rv_snapshot "$KUBECONFIG" "$CAROL_NS" "$W/rv-before" before "$CAROL_RECORDS"
 cmd "choudoufu plan   # as an identity with get and list on secrets, and no create, update or delete"
 P2="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf plan -input=false -no-color 2>&1 )" \
   || fail "k8srec" "a plan under a get/list-only identity was refused: $P2"
 { grep -E 'No changes' <<< "$P2" || true; } | awk 'NR<=1' | evidence
 grep -q 'No changes' <<< "$P2" \
   || fail "k8srec" "the read-only plan did not read the records back, so it proposed changes: $P2"
-rv_dump > "$W/rv-after" \
-  || fail "k8srec" "reading the record Secrets' resourceVersions after the plan failed, so whether one of them moved was never answered"
-RV_AFTER_N="$( { grep -c '=' "$W/rv-after" || true; } )"
-[ "$RV_AFTER_N" -ge "$CAROL_RECORDS" ] \
-  || fail "k8srec" "the after dump holds $RV_AFTER_N resourceVersions and this namespace holds $CAROL_RECORDS record Secrets; a short or empty dump diffs clean against anything"
+rv_snapshot "$KUBECONFIG" "$CAROL_NS" "$W/rv-after" after "$CAROL_RECORDS"
 cmd "diff <(resourceVersions before) <(resourceVersions after)"
-if ! diff "$W/rv-before" "$W/rv-after" > "$W/rv-diff" 2>&1; then
-  fail "k8srec" "a record Secret's resourceVersion moved across a plan, so the plan wrote something: $(cat "$W/rv-diff")"
-fi
-echo "$RV_AFTER_N record Secret resourceVersions, $CAROL_RECORDS of them records, unchanged across the plan" | evidence
+rv_unchanged "$W/rv-before" "$W/rv-after"
+echo "$RV_N record Secret resourceVersions, $CAROL_RECORDS of them records, unchanged across the plan" | evidence
 cmd "choudoufu live-cluster -plan-identity   # and without it, the apply question"
 PI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -plan-identity -no-color 2>&1 )" || true
 AI="$( cd "$CAROL" && as_identity "$PLAN_KC" chdf live-cluster -no-color 2>&1 )" || true
@@ -980,4 +1039,141 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ "$BREAK_RC" != "0" ] \
     || fail "k8srec" "BREAK: the read-then-update write PASSED step 10's assertions, so those assertions cannot fail and step 10 proves nothing"
   proof "caught - twelve rounds, twelve clobbers, no conflict named once. The same rounds and the same assertions that step 10 passes are failed by a write that reads the record and updates what it read, which is what the conditional write exists to prevent."
+
+  ### Steps 1, 2, 3, 8 and 9 (#1448, section E). Each of these arms breaks
+  ### the world one way and runs the step's OWN check function against it,
+  ### so what is proved is that the line the step stands on can fail. They
+  ### come after the three arms above because the first of those took the
+  ### boundary policy down and wrote to Alice's record Secret from a copy
+  ### read in step 5; the strips below would move that object's
+  ### resourceVersion out from under it.
+
+  # must_fail_naming <words> <check> <args...> runs one of the step checks
+  # in a subshell against the broken world, requires it to fail, and
+  # requires its FAIL line to carry <words>: a check that failed for some
+  # other reason proves nothing about the break. Its own FAIL line is the
+  # evidence.
+  must_fail_naming() {
+    local words="$1" out; shift
+    if out="$( "$@" 2>&1 )"; then
+      fail "k8srec" "BREAK: $1 passed against a world built to fail it, so the step it belongs to cannot fail: $out"
+    fi
+    { grep -E '^FAIL \[' <<< "$out" || true; } | cut -c1-220 | evidence
+    grep -qF -- "$words" <<< "$out" \
+      || fail "k8srec" "BREAK: $1 failed, but not by the name expected (\"$words\"): $out"
+  }
+  # A kubeconfig whose server is a port nothing listens on, for the arms
+  # that need a kubectl to crash. `kubectl config` only edits the file.
+  NOWHERE_KC="$W/nowhere.kubeconfig"
+  cp "$KUBECONFIG" "$NOWHERE_KC"
+  kubectl --kubeconfig "$NOWHERE_KC" config set-cluster "kind-$CLUSTER_NAME" --server=https://127.0.0.1:1 >/dev/null
+
+  step "BREAK control - step 1's suite run against no cluster, and short one case, must fail step 1's check"
+  explain \
+    "Step 1 counts the conformance cases that passed against the cluster." \
+    "Here the same go test is run with the kubeconfig variable unset, so" \
+    "the suite skips, and again with -run narrowed so one case never runs." \
+    "Step 1's own check must refuse each by name. If it passed either," \
+    "step 1 would pass on a suite that measured nothing."
+  cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # CHOUDOUFU_K8S_RECORD_KUBECONFIG unset"
+  SKIP_OUT="$( cd "$ROOT" && env -u CHOUDOUFU_K8S_RECORD_KUBECONFIG -u CHOUDOUFU_K8S_RECORD_NAMESPACE \
+    go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
+    || fail "k8srec" "BREAK: the suite with no cluster to reach did not exit 0, so this is not the skip the control was built to catch: $SKIP_OUT"
+  must_fail_naming "the conformance suite SKIPPED" conformance_verdict "$SKIP_OUT"
+  cmd "go test ./internal/live/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]'   # the cases named D... left out"
+  SHORT_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
+    go test ./internal/live/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]' -count=1 -v 2>&1 )" \
+    || fail "k8srec" "BREAK: the narrowed suite failed, so this is not the short run the control was built to catch: $SHORT_OUT"
+  must_fail_naming "conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES" conformance_verdict "$SHORT_OUT"
+  proof "caught, twice. A suite that skipped and a suite short of its cases each fail step 1's check by name, so the count step 1 prints is a count of cases that ran against this cluster."
+
+  step "BREAK control - step 2's record Secrets stripped of their annotation, then their label, must fail step 2's check"
+  explain \
+    "Step 2 reads the estate's records back as Secrets: listed by the" \
+    "tofu-estate label, named tofu-record-, and each saying which record" \
+    "it is in an annotation. Here the record-key annotation is stripped" \
+    "from every one of them and step 2's check must say so; then the" \
+    "label is stripped and the same check must find no record at all."
+  cmd "kubectl annotate secrets -n $RECORDS_NS -l tofu-estate=k8srec-alice choudoufu.intentius.io/record-key-"
+  kc annotate secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice choudoufu.intentius.io/record-key- >/dev/null \
+    || fail "k8srec" "BREAK: could not strip the record-key annotation"
+  must_fail_naming "carries no record-key annotation" records_are_secrets "$RECORDS_NS" k8srec-alice
+  cmd "kubectl label secrets -n $RECORDS_NS -l tofu-estate=k8srec-alice tofu-estate-"
+  kc label secrets -n "$RECORDS_NS" -l tofu-estate=k8srec-alice tofu-estate- >/dev/null \
+    || fail "k8srec" "BREAK: could not strip the estate label"
+  must_fail_naming "no record Secret carries tofu-estate=k8srec-alice" records_are_secrets "$RECORDS_NS" k8srec-alice
+  proof "caught, twice. Without the annotation the Secret no longer says which record it is, and without the label it is no longer the estate's; step 2 notices each, so its reading of the records is a reading of these objects."
+
+  step "BREAK control - a Lease, a Secret named like a lock, and a kubectl that cannot connect must each fail step 3's check"
+  explain \
+    "Step 3 says nothing in the records namespace is a Lease or named like" \
+    "a lock. Here a Lease is put there, then a Secret whose name says lock," \
+    "and step 3's check must find each. Then the same check is run through" \
+    "a kubeconfig that reaches no server and must fail rather than read the" \
+    "listing it never got as clean."
+  cmd "kubectl apply -f - <<< 'kind: Lease ... name: tofu-lock'   # in $RECORDS_NS"
+  printf 'apiVersion: coordination.k8s.io/v1\nkind: Lease\nmetadata:\n  name: tofu-lock\n  namespace: %s\nspec:\n  holderIdentity: break\n' "$RECORDS_NS" \
+    | kc apply -f - >/dev/null || fail "k8srec" "BREAK: could not plant the Lease"
+  must_fail_naming "a Lease exists in the records namespace" lock_free "$KUBECONFIG" "$RECORDS_NS" "$ALICE_RECORDS"
+  kc delete lease tofu-lock -n "$RECORDS_NS" >/dev/null || fail "k8srec" "BREAK: could not remove the planted Lease"
+  cmd "kubectl create secret generic tofu-state-lock -n $RECORDS_NS"
+  kc create secret generic tofu-state-lock -n "$RECORDS_NS" >/dev/null || fail "k8srec" "BREAK: could not plant the lock-named Secret"
+  must_fail_naming "is named like a lock" lock_free "$KUBECONFIG" "$RECORDS_NS" "$ALICE_RECORDS"
+  kc delete secret tofu-state-lock -n "$RECORDS_NS" >/dev/null || fail "k8srec" "BREAK: could not remove the lock-named Secret"
+  cmd "kubectl --kubeconfig <server: 127.0.0.1:1> get leases -n $RECORDS_NS"
+  must_fail_naming "listing Leases in $RECORDS_NS failed" lock_free "$NOWHERE_KC" "$RECORDS_NS" "$ALICE_RECORDS"
+  proof "caught, three times. A planted Lease and a planted lock-named Secret are each found by name, and a listing that never reached the server fails instead of reading as an empty namespace; step 3's absence is an absence somebody looked for."
+
+  step "BREAK control - give step 8's identity the verb it lacked, and the same apply must go through and leave records behind"
+  explain \
+    "Step 8's refusal names update as the missing verb, and its second half" \
+    "says the refusal left nothing behind. Here Dan's Role gains update and" \
+    "nothing else changes: step 8's refusal check must find the apply" \
+    "allowed to start, and its left-nothing-behind check must then find the" \
+    "records the apply wrote. If the apply were still refused, the verb was" \
+    "never what refused it. The same listing is then run through a" \
+    "kubeconfig that reaches no server and must fail rather than read" \
+    "nothing as nothing left behind."
+  kc create role dan-records-update -n "$DAN_NS" --verb=update --resource=secrets >/dev/null \
+    || fail "k8srec" "BREAK: could not create Dan's update Role"
+  kc create rolebinding dan-records-update -n "$DAN_NS" --role=dan-records-update --serviceaccount=default:dan >/dev/null \
+    || fail "k8srec" "BREAK: could not bind Dan's update Role"
+  for _ in $(seq 1 30); do
+    [ "$(kc_as "$DAN_KC" auth can-i update secrets -n "$DAN_NS" 2>/dev/null)" = "yes" ] && break
+    sleep 1
+  done
+  [ "$(kc_as "$DAN_KC" auth can-i update secrets -n "$DAN_NS" 2>/dev/null)" = "yes" ] \
+    || fail "k8srec" "BREAK: Dan still may not update secrets, so the apply below would be refused for the reason step 8 already measured"
+  cmd "choudoufu apply   # as Dan, now holding all five verbs"
+  must_fail_naming "was allowed to start" refused_short_one_verb "$DAN_KC" "$DAN"
+  cmd "kubectl get secrets -n $DAN_NS   # the apply that went through left its records"
+  must_fail_naming "the refused first contact left secret/" left_nothing_behind "$KUBECONFIG" "$DAN_NS"
+  cmd "kubectl --kubeconfig <server: 127.0.0.1:1> get secrets -n $DAN_NS"
+  must_fail_naming "listing Secrets in $DAN_NS failed" left_nothing_behind "$NOWHERE_KC" "$DAN_NS"
+  proof "caught, three times. With update granted the identical apply is allowed to start and leaves record Secrets in Dan's namespace, which step 8's two checks each refuse; and a listing that never reached the server fails by name. Step 8's refusal was the missing verb and its empty namespace was an emptiness somebody read."
+
+  step "BREAK control - a write between step 9's two dumps, an empty namespace, and a kubectl that cannot connect must each fail step 9's check"
+  explain \
+    "Step 9 diffs the record Secrets' resourceVersions before and after a" \
+    "plan and requires both dumps to be as long as the namespace's record" \
+    "count. Here a record is annotated between the two dumps and the diff" \
+    "must fail; a namespace holding no record is dumped and the length" \
+    "guard must fail by name; and the dump is taken through a kubeconfig" \
+    "that reaches no server and must fail rather than dump nothing."
+  rv_snapshot "$KUBECONFIG" "$CAROL_NS" "$W/rv-break-before" before "$CAROL_RECORDS"
+  cmd "kubectl annotate secrets -n $CAROL_NS -l tofu-estate=k8srec-carol moved=between-the-dumps   # then dump again"
+  kc annotate secrets -n "$CAROL_NS" -l tofu-estate=k8srec-carol moved=between-the-dumps --overwrite >/dev/null \
+    || fail "k8srec" "BREAK: could not write to Carol's record Secrets"
+  rv_snapshot "$KUBECONFIG" "$CAROL_NS" "$W/rv-break-after" after "$CAROL_RECORDS"
+  must_fail_naming "resourceVersion moved across a plan" rv_unchanged "$W/rv-break-before" "$W/rv-break-after"
+  EMPTY_NS="tofu-records-k8srec-empty"
+  kc create namespace "$EMPTY_NS" >/dev/null || fail "k8srec" "BREAK: could not create the empty records namespace"
+  cmd "kubectl get secrets -n $EMPTY_NS -o jsonpath=...   # a namespace holding no record"
+  must_fail_naming "the before dump holds 0 resourceVersions" rv_snapshot "$KUBECONFIG" "$EMPTY_NS" "$W/rv-empty" before "$CAROL_RECORDS"
+  cmd "kubectl --kubeconfig <server: 127.0.0.1:1> get secrets -n $CAROL_NS -o jsonpath=..."
+  must_fail_naming "resourceVersions before the plan failed" rv_snapshot "$NOWHERE_KC" "$CAROL_NS" "$W/rv-nowhere" before "$CAROL_RECORDS"
+  proof "caught, three times. One write between the dumps is a moved resourceVersion the diff refuses, a namespace holding no record is a dump too short to diff, and a dump that never reached the server fails by name. Step 9's unchanged pair is a pair that was read."
+
+  echo
+  echo "BREAK [k8srec]: every control held; each break was caught by the check it was built for"
 fi

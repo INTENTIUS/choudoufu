@@ -1,0 +1,10 @@
+{
+  "claim": "k8s-a-label-is-a-change",
+  "provider": "kubernetes",
+  "target": "kind v0.32.0, Server Version: v1.36.1, one cluster per run, deleted afterwards; step 9 against the pinned floci emulator; the stock oracle of step 2 was Terraform v1.15.8 on PATH where CI pins the version in live/oracle-versions.json",
+  "date": "2026-09-21",
+  "commit": "a30eb7cb0d24593bea145b25a7575b1c7b380857",
+  "command": "just smoke k8s-a-label-is-a-change",
+  "verdict": "PASS: smoke scenario 'k8s-a-label-is-a-change' - every claim held (smoke v1.0.0)",
+  "note": "#1448 section E: recorded from the log of one run made in the worker session that gave claim 39 its remaining controls, on a developer machine, not CI; every field but this note is copied from the log by a script. The BREAK=1 control was not run in that session, so this file carries no break_verdict. .github/workflows/k8s-smoke.yml runs this scenario and its BREAK=1 control on every pull request and push to main that touches the code or the smokes, so a green there is the continuous check and this file is the point-in-time record the claims table names. It is stale the moment the scenario or the provider changes underneath it."
+}
