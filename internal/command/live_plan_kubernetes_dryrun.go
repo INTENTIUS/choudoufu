@@ -246,6 +246,13 @@ func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 // (GitHub issue #1002's untag releases), since this is the one hook the
 // backend calls between the plan existing and the plan being rendered.
 func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
+	// GitHub issue #1184: the plan's Kubernetes deletes, kept for
+	// AfterApply. Read here because this is the last moment the plan still
+	// holds them; nothing is asked of any cluster until an apply has run.
+	if r.resolver != nil {
+		r.kubeDeletes = statelessKubernetesDeletes(r.kubeSweepers, plan, schemas, r.resolver.MarkerIndex)
+	}
+
 	// GitHub issue #1002: the declared_tagged = "untag" releases the walk
 	// just made, reported here for the reason live_plan.go's own identical
 	// call gives - this is the first point in the run they exist.
