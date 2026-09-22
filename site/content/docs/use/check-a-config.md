@@ -29,19 +29,21 @@ tell the accurate answer from the pessimistic one.
 
 `choudoufu live-ls -json DIR` carries the same field for the same reason: its
 declared-instance comparison needs DIR's schemas to tell an instance with no
-marker to find from one that is genuinely absent. Its `gaps` key is always
-present, and `gaps_skipped` names the reason when the comparison did not run,
-so an empty list is never mistaken for "no gaps".
+marker from one that is genuinely absent. Its `gaps` key is always present,
+and `gaps_skipped` names why a comparison did not run, so an empty list never
+reads as "no gaps".
 
-On Kubernetes, `live-ls` needs DIR for the listing itself. The substrate is
-read off the configuration's provider blocks, and a `kubernetes` provider
-among them gets the cluster listed the way the estate sweep lists it. Each
-object prints with the provider type it is filed under, its natural key
-(`NAMESPACE/NAME`, or `NAME` for a cluster-scoped kind), its kind and API
-version, every label it carries, and the block in DIR that declares it. A
-configuration with both providers lists both substrates. A cluster the run
-cannot reach is the sweep's own warning, `Kubernetes sweep unavailable`,
-and the rest of the listing stands
+With DIR, `live-ls` lists in the region DIR's `aws` provider block names, as
+`live-plan` does; `-region` still wins, and the report's `Region ...` line
+says which source won.
+
+On Kubernetes, `live-ls` needs DIR. A `kubernetes` provider among DIR's
+provider blocks gets the cluster listed the way the estate sweep lists it.
+Each object prints with its provider type, natural key (`NAMESPACE/NAME`, or
+`NAME` for a cluster-scoped kind), kind, API version, labels, and the block
+in DIR that declares it. A configuration with both providers lists both
+substrates. A cluster the run cannot reach is the sweep's own warning,
+`Kubernetes sweep unavailable`, and the rest of the listing stands
 ([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}}) runs it on kind).
 
 ## What it does not check

@@ -35,6 +35,24 @@ type fakeIAM struct {
 	roleNames    []string
 	userNames    []string
 	markers      []string
+
+	// listPages and listInputs are [IAMListRoutes]'s half (GitHub issue
+	// #1477): the ListRoles pages to serve, in order, and every input the
+	// fake was called with, so a test can assert the PathPrefix and the
+	// continuation marker each call carried.
+	listPages  []*iam.ListRolesOutput
+	listInputs []*iam.ListRolesInput
+	listErr    error
+}
+
+func (f *fakeIAM) ListRoles(_ context.Context, in *iam.ListRolesInput, _ ...func(*iam.Options)) (*iam.ListRolesOutput, error) {
+	f.listInputs = append(f.listInputs, in)
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	out := f.listPages[0]
+	f.listPages = f.listPages[1:]
+	return out, nil
 }
 
 func (f *fakeIAM) ListInstanceProfileTags(_ context.Context, in *iam.ListInstanceProfileTagsInput, _ ...func(*iam.Options)) (*iam.ListInstanceProfileTagsOutput, error) {

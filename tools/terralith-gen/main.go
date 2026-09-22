@@ -37,6 +37,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -58,12 +59,34 @@ func main() {
 	out := flag.String("out", "", "output directory (required)")
 	prefix := flag.String("prefix", "tl", "short name prefix for every generated resource, so more than one generated terralith can coexist in one account without name collisions")
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary used to canonicalize the generated *.tf files' formatting, recursively (terraform, tofu or choudoufu); skipped when not on PATH, but a binary that runs and rejects the generated HCL fails the generation")
+	iamRoles := flag.Bool("iam-roles", false, "print how many aws_iam_role instances the estate at -scale declares (the number an IAM role quota is charged for) and exit; generates nothing, so -out is not needed (issue #1230)")
 	flag.Parse()
+
+	if *iamRoles {
+		if err := printIAMRoles(os.Stdout, *scale); err != nil {
+			fmt.Fprintf(os.Stderr, "terralith-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if err := run(*scale, *out, *prefix, *fmtBin); err != nil {
 		fmt.Fprintf(os.Stderr, "terralith-gen: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// printIAMRoles is the -iam-roles flag: one integer, one newline, nothing
+// else on stdout, so live/live-cert/terralith-scale.sh can read the roles-
+// per-scale formula from the generator that owns it rather than carrying a
+// typed copy that drifts (issue #1230). Everything the generator says about
+// itself goes to stderr, as run() already does.
+func printIAMRoles(w io.Writer, scale int) error {
+	if scale < 1 {
+		return fmt.Errorf("-scale must be >= 1, got %d", scale)
+	}
+	_, err := fmt.Fprintf(w, "%d\n", IAMRoleInstances(scale))
+	return err
 }
 
 func run(scale int, out, prefix, fmtBin string) error {

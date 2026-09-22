@@ -69,6 +69,30 @@ type surveySignals struct {
 type surveyIdentity struct {
 	RequiredForImport []string `json:"required_for_import"`
 	OptionalForImport []string `json:"optional_for_import"`
+
+	// NotResourceAttributes are the identity attributes the resource schema
+	// has no top-level attribute for - tools/survey-gen's own field of the
+	// same name, computed where the resource schema is in hand. They are
+	// identity-object names, not resource attributes, so they never belong
+	// in [identity.TypeIdentity.IdentityAttrs]; see [notResourceAttr].
+	NotResourceAttributes []string `json:"not_resource_attributes"`
+}
+
+// notResourceAttr reports whether the provider's identity schema names attr
+// and its resource schema does not, per live/survey-full.json's
+// not_resource_attributes. A type with no identity schema, or one the
+// survey does not cover, answers false: the survey then has no vocabulary
+// to compare against and this rule makes no claim.
+func (e surveyEntry) notResourceAttr(attr string) bool {
+	if e.Identity == nil {
+		return false
+	}
+	for _, name := range e.Identity.NotResourceAttributes {
+		if name == attr {
+			return true
+		}
+	}
+	return false
 }
 
 // identityAttrs is every attribute name the provider's identity schema

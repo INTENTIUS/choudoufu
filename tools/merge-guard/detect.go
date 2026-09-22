@@ -519,7 +519,10 @@ func grepSurvivors(r *repo, tree string, cands map[string]bool) (map[string]bool
 	}
 	tmp.Close()
 
-	out, _ := r.gitOK("grep", "-E", "-I", "-h", "--no-color", "-f", tmp.Name(), tree)
+	out, err := r.gitNoMatchOK("grep", "-E", "-I", "-h", "--no-color", "-f", tmp.Name(), tree)
+	if err != nil {
+		return nil, fmt.Errorf("checking which candidate lines survive in %s: %w", tree, err)
+	}
 	hits := map[string]bool{}
 	for _, line := range strings.Split(out, "\n") {
 		if n, ok := normLine(line, 1); ok {

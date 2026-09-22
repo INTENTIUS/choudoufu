@@ -97,7 +97,21 @@ type Tagging struct {
 	// the row's tagging block came from upstream.
 	Declared bool `json:"declared"`
 
-	Taggable     bool `json:"taggable"`
+	Taggable bool `json:"taggable"`
+
+	// TagOnCreate is CloudFormation's tagging.tagOnCreate: whether the
+	// type's create handler accepts tags in the create call. GitHub issue
+	// #1084 asked which of three things this field is - inert, the create
+	// path, or an ABAC limit - and it is the create path (the issue's case
+	// 2). internal/live/registry.Roster.TagOnCreateKnown reads it; for a
+	// taggable row that reads false the node writer withholds this fork's
+	// ownership marker from the create call and the live path writes it
+	// immediately after, in the same apply, so the object is never
+	// reported complete while unmarked. Ten taggable rows read false at
+	// the pinned bundle (AWS::Route53::HostedZone, AWS::Route53::HealthCheck,
+	// the AWS::Cases::* and AWS::Connect::* families). Meaningful only
+	// where Declared and Taggable are both true: a silent schema records
+	// the block's zero value here exactly as it does for Taggable.
 	TagOnCreate  bool `json:"tag_on_create"`
 	TagUpdatable bool `json:"tag_updatable"`
 }

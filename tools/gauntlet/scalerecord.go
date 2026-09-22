@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -1616,12 +1615,14 @@ func cmdScaleBackfill(root string, args []string) error {
 // resolveRev returns rev's full commit sha, so a ScaleRecord's Source names
 // something a reader can `git show` themselves even when the caller passed
 // a short or symbolic rev (HEAD, an abbreviated sha).
+//
+// Through gitOutput, so the error carries git's own words (#1220): a bare
+// "resolving revision "HEAD": exit status 128" names the record builder
+// and says nothing about a toolchain that cannot run.
 func resolveRev(root, rev string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", rev)
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "rev-parse", rev)
 	if err != nil {
 		return "", fmt.Errorf("resolving revision %q: %w", rev, err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return out, nil
 }

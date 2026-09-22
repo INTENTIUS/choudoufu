@@ -47,6 +47,24 @@ set -uo pipefail
 #      (IAM role/policy/instance-profile, ECS cluster/service/task-def,
 #      Route 53 zone/record, plus the VPC/subnet/SG reference-ec2-vpc.sh
 #      already covers).
+#   4. Asserts its own IAM role headroom before cold_deploy spends anything
+#      (issue #1230, #1150's third item). Quota exhausted from OUTSIDE the
+#      run - a leaked estate, another estate's live-cert, a console session
+#      - used to surface as cold_deploy failing with LimitExceeded, i.e. as
+#      "choudoufu could not deploy this estate", blaming the product for
+#      the account. iam_role_headroom_check below reads Roles/RolesQuota
+#      from `aws iam get-account-summary`, asks tools/terralith-gen
+#      (-iam-roles, the generator's own test-pinned formula: 11 roles per
+#      scale, never a constant typed here) how many aws_iam_role INSTANCES
+#      this SCALE creates, and on insufficient room emits a `GAUNTLET
+#      refused=1 ... unit=iam-roles` line and exits 2 before anything is
+#      created - recorded by tools/gauntlet as outcome: refused on its own
+#      rung (#1151), never as a failed certification. It fails OPEN,
+#      loudly, if the check itself cannot run (the CLI errors, prints a
+#      non-integer, or the generator does): an AWS blip must not become a
+#      refusal on the ladder, and cold_deploy's own failure is still there
+#      to catch the case the check missed. LIVECERT_RESUME skips it along
+#      with cold_deploy: a resumed estate already holds its roles.
 #
 # Env (beyond what reference-ec2-vpc.sh reads - see that file's own doc
 # comment for TARGET/REGION/RUN_ID/TOFU_BIN/TF_COLD_BIN/FLOCI_PORT/
@@ -567,10 +585,45 @@ ssm_prefix_count() {
 # ever wrote to, and teardown's "remaining after delete" would report one
 # phantom object forever. `|| `[]`` makes the empty case an empty list,
 # which --output text renders as nothing at all.
+#
+# A listing that FAILS is not a count of zero (#1421). This used to be
+# `2>/dev/null ... || true`, which read a throttled, denied or
+# unauthenticated list-objects-v2 as 0. In the values check that is a false
+# failure, which is loud; in teardown it is the quiet direction: "0
+# object(s) to delete", the `s3 rm` skipped, and the run's records left in
+# the operator's bucket under a line that reads clean. Now the count reaches
+# stdout only when the listing succeeded and every line of it is a key
+# under the prefix. Otherwise a FATAL line on stderr names the bucket, the
+# prefix and what went wrong, nothing goes to stdout, and the status is
+# non-zero, so a caller that ignores the status gets an empty string and a
+# caller that checks it can refuse by name. Every caller checks it.
 s3_prefix_count() {
-  livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1" \
-    --query 'Contents[].Key || `[]`' --output text 2>/dev/null \
-    | tr '\t' '\n' | grep -c . || true
+  local raw rc n key
+  raw="$(livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1" \
+    --query 'Contents[].Key || `[]`' --output text 2>&1)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'FATAL: s3_prefix_count: list-objects-v2 on s3://%s/%s exited %s: %s\n' \
+      "$RECORD_STORE_BUCKET" "$1" "$rc" "$(printf '%s' "$raw" | tr '\n' ' ' | cut -c1-400)" >&2
+    return 1
+  fi
+  # A key listed under --prefix starts with that prefix. Anything else on
+  # stdout - the literal "None", a warning the CLI put there, an HTML page
+  # from a proxy - is not a listing, and a count of its lines would be a
+  # number that measured nothing.
+  n=0
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    case "$key" in
+      "$1"*) n=$((n + 1)) ;;
+      *)
+        printf 'FATAL: s3_prefix_count: list-objects-v2 on s3://%s/%s printed a line that is not a key under that prefix: %s\n' \
+          "$RECORD_STORE_BUCKET" "$1" "$(printf '%s' "$key" | cut -c1-200)" >&2
+        return 1
+        ;;
+    esac
+  done <<< "$(printf '%s\n' "$raw" | tr '\t' '\n')"
+  printf '%s\n' "$n"
 }
 
 teardown() {
@@ -706,17 +759,38 @@ EOF
       # backend exists for. It exits 0 on a prefix that matches nothing.
       # The BUCKET is the operator's and is never deleted - only the two key
       # namespaces this run wrote.
-      rs_left="$(s3_prefix_count "$S3_PREFIX")"
-      log "  record store (s3 s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rs_left object(s) to delete"
-      if [ "${rs_left:-0}" -gt 0 ]; then
-        livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$S3_PREFIX" --recursive >/dev/null 2>&1
-        log "    remaining after delete: $(s3_prefix_count "$S3_PREFIX")"
+      #
+      # Each count is taken only if s3_prefix_count could list the prefix
+      # (#1421). When it could not, this arm stops for that prefix with a
+      # line that says so: no "0 object(s) to delete", no "remaining after
+      # delete: 0", no `s3 rm` fired at a prefix nothing enumerated, and
+      # the command that cleans it by hand. verify_empty below lists the
+      # same store and refuses its own EMPTY verdict on the same failure.
+      if rs_left="$(s3_prefix_count "$S3_PREFIX")"; then
+        log "  record store (s3 s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rs_left object(s) to delete"
+        if [ "$rs_left" -gt 0 ]; then
+          livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$S3_PREFIX" --recursive >/dev/null 2>&1
+          if rs_after="$(s3_prefix_count "$S3_PREFIX")"; then
+            log "    remaining after delete: $rs_after"
+          else
+            log "    remaining after delete: NOT KNOWN - the listing after the delete failed (FATAL above); the delete ran, and what it left cannot be told from here"
+          fi
+        fi
+      else
+        log "  record store (s3 s3://$RECORD_STORE_BUCKET/$S3_PREFIX): NOT CLEANED UP - could not list the prefix (FATAL above), so nothing was deleted and nothing here says it is empty; whatever this run wrote is still there until: aws s3 rm s3://$RECORD_STORE_BUCKET/$S3_PREFIX --recursive"
       fi
-      hint_left="$(s3_prefix_count "$HINT_S3_PREFIX")"
-      log "  guided-discovery hint (s3 s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX): $hint_left object(s) to delete"
-      if [ "${hint_left:-0}" -gt 0 ]; then
-        livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX" --recursive >/dev/null 2>&1
-        log "    remaining after delete: $(s3_prefix_count "$HINT_S3_PREFIX")"
+      if hint_left="$(s3_prefix_count "$HINT_S3_PREFIX")"; then
+        log "  guided-discovery hint (s3 s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX): $hint_left object(s) to delete"
+        if [ "$hint_left" -gt 0 ]; then
+          livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX" --recursive >/dev/null 2>&1
+          if hint_after="$(s3_prefix_count "$HINT_S3_PREFIX")"; then
+            log "    remaining after delete: $hint_after"
+          else
+            log "    remaining after delete: NOT KNOWN - the listing after the delete failed (FATAL above); the delete ran, and what it left cannot be told from here"
+          fi
+        fi
+      else
+        log "  guided-discovery hint (s3 s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX): NOT CLEANED UP - could not list the prefix (FATAL above), so nothing was deleted and nothing here says it is empty; whatever this run wrote is still there until: aws s3 rm s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX --recursive"
       fi
       ;;
     *)
@@ -897,6 +971,91 @@ generate_estate() {
   # accurately - it is just no longer what actually gets applied here).
   sed -i.bak -E "s/arn:aws:iam::1[0-9]{11}:root/arn:aws:iam::${CALLER_ACCOUNT_ID}:root/g" "$dir/iam.tf" && rm -f "$dir/iam.tf.bak"
 }
+
+# ── IAM role headroom (issue #1230) ─────────────────────────────────────
+#
+# The one quota this estate is known to have run into from outside a run
+# (#1150: "their combined 1,100 IAM roles"), checked before cold_deploy has
+# created anything, so exhaustion reads as a refusal of this rung rather
+# than as the product failing to deploy. See the header's item 4 for the
+# framing; this comment is about the mechanics.
+#
+# The need side is NOT a constant in this file. EXPECTED/VERIFIED above are
+# formulas that track tools/terralith-gen by hand and carry a MUST-update
+# note; a roles-per-scale constant typed here from the incident's numbers
+# would be exactly the false-verdict hazard #1230 names, in the other
+# direction. iam_roles_needed asks the generator (`-iam-roles`, backed by
+# IAMRoleInstances and TestIAMRoleInstancesMatchGeneratedHCL, which
+# expands the generated HCL's count/for_each and pins the result), so the
+# number here moves when the generator's does and nowhere else.
+#
+# The account side is `aws iam get-account-summary`, one free call, whose
+# SummaryMap carries Roles and RolesQuota. `--output text` on a two-element
+# projection prints them tab-separated on one line; a missing key prints
+# "None", which the integer checks below turn into fail-open.
+#
+# Fail OPEN, loudly, on anything that stops the check from running. A
+# refusal is recorded on the ladder as this scale's outcome (#1151), and a
+# refusal minted from a throttled or misconfigured IAM call would be a
+# false record of the same kind cold_deploy's LimitExceeded was. The check
+# exists to catch the case that happened, not to gate every run on a second
+# API being up. The line it prints when it steps aside is deliberately
+# hard to miss and says why, so a later LimitExceeded has its explanation
+# in the same log.
+#
+# Two functions rather than one so live/live-cert/selftest-iam-headroom.sh
+# can extract iam_role_headroom_check between the markers below and drive
+# it with a stubbed iam_roles_needed and a fake `aws` on PATH: no go build,
+# no account, and - per #1380 - never by executing this script. The gate
+# that calls it sits between its own markers just before cold_deploy, and
+# the selftest runs that span too, with a fake `terraform` behind it that
+# must never be reached on the refusal arm.
+# >>> iam role headroom check
+iam_roles_needed() {
+  ( cd "$ROOT" && env -u PWD go run ./tools/terralith-gen -scale "$SCALE" -iam-roles ) 2>"$WORK/iam_roles_needed.err"
+}
+
+iam_role_headroom_check() {
+  local need summary roles quota headroom why=""
+  log "=== 0c. iam role headroom: room in the account for scale=$SCALE's aws_iam_role instances? (#1230) ==="
+  need="$(iam_roles_needed)" \
+    || why="terralith-gen -iam-roles exited non-zero: $(tr '\n' ' ' < "$WORK/iam_roles_needed.err" 2>/dev/null)"
+  if [ -z "$why" ]; then
+    case "$need" in
+      ''|*[!0-9]*) why="terralith-gen -iam-roles printed '$need', not an integer" ;;
+    esac
+  fi
+  if [ -z "$why" ]; then
+    summary="$(livecert_aws iam get-account-summary --query 'SummaryMap.[Roles,RolesQuota]' --output text 2>&1)" \
+      || why="aws iam get-account-summary failed: $(printf '%s' "$summary" | tr '\n' ' ')"
+  fi
+  if [ -z "$why" ]; then
+    read -r roles quota _ <<< "$(printf '%s' "$summary" | tr '\t\n' '  ')"
+    case "${roles:-}" in
+      ''|*[!0-9]*) why="aws iam get-account-summary printed Roles='${roles:-}', not an integer (raw: $(printf '%s' "$summary" | tr '\t\n' '  '))" ;;
+    esac
+  fi
+  if [ -z "$why" ]; then
+    case "${quota:-}" in
+      ''|*[!0-9]*) why="aws iam get-account-summary printed RolesQuota='${quota:-}', not an integer (raw: $(printf '%s' "$summary" | tr '\t\n' '  '))" ;;
+    esac
+  fi
+  if [ -n "$why" ]; then
+    log "  IAM ROLE HEADROOM CHECK COULD NOT RUN - $why"
+    log "  failing OPEN: continuing into cold_deploy without it, so an AWS blip cannot become a refusal on the ladder (#1230); if cold_deploy fails on LimitExceeded for roles, this is why it was not caught here"
+    return 0
+  fi
+  headroom=$(( quota - roles ))
+  if [ "$headroom" -lt 0 ]; then headroom=0; fi
+  if [ "$need" -gt "$headroom" ]; then
+    gauntlet_refused "$SCALE" "$need" "$headroom" iam-roles \
+      "the account holds $roles of its $quota IAM roles (aws iam get-account-summary Roles/RolesQuota), leaving room for $headroom, and terralith-gen -scale $SCALE creates $need aws_iam_role instances; nothing was created and nothing is torn down (#1230)"
+    return 1
+  fi
+  log "  ok: the account holds $roles of its $quota IAM roles, room for $headroom; scale=$SCALE needs $need"
+  return 0
+}
+# <<< iam role headroom check
 
 # verify_empty lists, independently of any destroy command's exit code,
 # whether anything this run created still exists - scoped by name PREFIX
@@ -1528,6 +1687,20 @@ instrumented_plan() {
   printf '%s %s %s %s %s\n' "$label" "$_b" "$_t" "$_r" "$_p" >> "$WORK/plan_throttle_by_label.txt"
 }
 
+# The IAM role headroom gate (#1230): before cold_deploy, and only on a run
+# that is about to do one. A resumed run (RESUMED=1) skips cold_deploy and
+# so skips this - its roles already exist and are its own. Exit 2 rather
+# than fail(): fail() would speak a `GAUNTLET stage=cold_deploy fail` line
+# for a stage that never started, and the refusal line is the whole record
+# (#1151). The EXIT trap still runs teardown(), which finds no state to
+# destroy, lists the (empty) prefix, stops the emulator on a floci run and
+# removes WORK - the cleanup a refusal wants, and nothing else.
+# >>> iam role headroom gate
+if [ "$RESUMED" = "0" ]; then
+  iam_role_headroom_check || exit 2
+fi
+# <<< iam role headroom gate
+
 # ══════════════════════════════════════════════════════════════════════
 # cold_deploy + migrate: stock applies the unmodified (AZ/provider-corrected)
 # generator output for real, then choudoufu adopts it. Wrapped in "if not
@@ -1954,7 +2127,12 @@ fi
 # entirely and said the reason was a backend it was not using.
 case "$RECORD_STORE_BACKEND" in
   s3)
-    rec_n="$(s3_prefix_count "$S3_PREFIX")"
+    # A listing that failed is a FATAL line and a non-zero status from
+    # s3_prefix_count, never a 0 (#1421): "could not look" is not "declared
+    # and never written", and this check must not say the second when it
+    # means the first.
+    rec_n="$(s3_prefix_count "$S3_PREFIX")" \
+      || fail "values piece not checked: could not list s3://$RECORD_STORE_BUCKET/$S3_PREFIX (the FATAL line above says why) - refusing to report a state-model verdict for a store this harness could not list"
     log "  values (record_store s3 at s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rec_n object(s) in the bucket"
     [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"s3\" but s3://$RECORD_STORE_BUCKET/$S3_PREFIX holds no objects - the store was declared and never written"
     # No read-side check: a grep of the plan log for the store's name was

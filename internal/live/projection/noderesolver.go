@@ -13,6 +13,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -167,6 +168,24 @@ type NodeResolver struct {
 	// hand-written marker value anywhere else, and untag is not an
 	// exception").
 	PolicyUntag map[string]string
+
+	// Roster is live/mapping.json joined against live/registry.json
+	// (registry.Embedded in production), read for one fact: whether an
+	// instance's type can carry tags in its create call (GitHub issue
+	// #1084, [NodeResolver.tagsAfterCreate], nodetagoncreate.go). Nil is
+	// an ordinary value - a run that could not parse the embedded
+	// artifacts - and reads as "every type takes tags at create", the
+	// path every type took before #1084.
+	Roster *registry.Roster
+
+	// Tagger builds the client [NodeResolver.WriteAppliedMarkers] writes a
+	// withheld marker through, for the provider configuration the
+	// instance was applied under - so a two-account estate marks each
+	// object as the principal that created it. The command layer supplies
+	// it (internal/command's statelessProviders.markerTagger); nil, or a
+	// nil result, is a failed write for the instances that need one, and
+	// is reported as such rather than left silent.
+	Tagger func(provider addrs.AbsProviderConfig) MarkerTagger
 
 	// releases collects which of PolicyUntag's instances the writer
 	// actually released a key from, during the walk (GitHub issue #1002).

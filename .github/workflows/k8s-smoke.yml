@@ -9,7 +9,11 @@
 # admission policy template, the honesty of a plan over a terminating
 # object or what a run says when admission rewrites what it wrote is
 # caught on the pull request that makes it rather than on the
-# maintainer's laptop. One job per scenario; each is a few minutes.
+# maintainer's laptop. One job per scenario; each is a few minutes. The
+# record-store-cluster job below is not a claim: it applies
+# examples/record-store-cluster to a kind cluster and reads its two
+# identities back through the authorizer (#1442), and lives here because it
+# needs a cluster.
 #
 # kind and kubectl come from helm/kind-action at a pinned release, with
 # install_only so the scenario, not the action, owns the cluster's life;
@@ -58,6 +62,7 @@ on:
       - "live/kubernetes/**"
       - "live/e2e/lib/**"
       - "live/e2e/estate-k8s/**"
+      - "examples/record-store-cluster/**"
       - "go.mod"
       - "go.sum"
   push:
@@ -70,6 +75,7 @@ on:
       - "live/kubernetes/**"
       - "live/e2e/lib/**"
       - "live/e2e/estate-k8s/**"
+      - "examples/record-store-cluster/**"
   workflow_dispatch:
 permissions:
   contents: read
@@ -93,6 +99,59 @@ jobs:
             echo "selftest-bounds.sh did not reach its own PASS verdict line in this job."
             exit 1
           }
+  # examples/record-store-cluster (issue #1442): the shipped `just up` and
+  # `just down` applied to a kind cluster, and the two identities read back
+  # with the API server's own authorizer, verb by verb. It is here and not
+  # in ci.yml because it needs a cluster. The verdict is the script's own
+  # PASS line, read from the log; the control removes one verb from the
+  # apply Role and must print "-> caught". live/record_store_cluster_test.go
+  # holds this job to the script.
+  record-store-cluster:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: kind and kubectl, pinned
+        uses: helm/kind-action@v1.15.0
+        with:
+          version: v0.33.0
+          kubectl_version: v1.34.0
+          install_only: true
+      - name: just, which the selftest runs the shipped recipes with
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq just
+      - name: the selftest
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/rsc-logs"
+          bash examples/record-store-cluster/selftest.sh 2>&1 | tee "$RUNNER_TEMP/rsc-logs/selftest.log"
+          grep -q -- '^PASS: record-store-cluster selftest - ' "$RUNNER_TEMP/rsc-logs/selftest.log" || {
+            echo "selftest.sh did not reach its own PASS verdict line in this job."
+            exit 1
+          }
+      - name: the BREAK=1 control
+        shell: bash
+        env:
+          BREAK: "1"
+        run: |
+          set -o pipefail
+          bash examples/record-store-cluster/selftest.sh 2>&1 | tee "$RUNNER_TEMP/rsc-logs/break.log"
+          grep -q -- '^  -> caught' "$RUNNER_TEMP/rsc-logs/break.log" || {
+            echo "the control never printed its '-> caught' line, so nothing shows the mutant was caught."
+            exit 1
+          }
+          grep -q -- '^PASS: record-store-cluster selftest (BREAK=1) - ' "$RUNNER_TEMP/rsc-logs/break.log" || {
+            echo "the control did not reach its own PASS verdict line."
+            exit 1
+          }
+      - name: the selftest logs, whatever happened to the job
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: record-store-cluster-logs
+          path: ${{ runner.temp }}/rsc-logs
+          if-no-files-found: warn
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 40
