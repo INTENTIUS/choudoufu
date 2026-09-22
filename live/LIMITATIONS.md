@@ -2414,6 +2414,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Content match found more than one live candidate | error | `internal/live/discovery` | "Content match found more than one live candidate" |
 | - | - | discovery | Cross-type marker on an undeclared type | warning | `internal/live/discovery` | "Cross-type marker on an undeclared type" |
+| - | - | discovery | Delete accepted, object not gone | warning | `internal/live/discovery` | "Delete accepted, object not gone" |
 | - | - | discovery | Direct read could not settle a tag-index-lagged instance | error | `internal/live/discovery` | "Direct read could not settle a tag-index-lagged instance" |
 | - | - | discovery | Failed to list a resource type | error | `internal/live/discovery` | "Failed to list a resource type" |
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
@@ -2617,7 +2618,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**239 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**240 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2874,6 +2875,14 @@ reserved for the limits wing's fixture directories, and
 #### Cross-type marker on an undeclared type
 
 **What.** The estate-wide sweep found a live resource of a type this configuration declares no instance of, carrying this estate's ownership marker for an address of another type - ordinarily a tag AWS copied from a marked resource onto a dependent object it created for it. A warning: nothing in the run binds it, destroys it or retags it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Delete accepted, object not gone
+
+**What.** An apply deleted a Kubernetes object and the API server accepted the delete without finishing it (GitHub issue #1184): a finalizer turns DELETE into a request, so the server sets metadata.deletionTimestamp, answers success, and the object stays until the controller that owns the finalizer removes it. A provider delete that does not wait then prints "Destruction complete" and the run counts the object destroyed, exactly as stock does, and both lines are left as they are. After the apply, for each kind the run deleted anything of, the estate's objects of that kind are listed once by the tofu-estate label, and every object this run deleted that is still there with a deletionTimestamp is named in this one warning with its finalizers. A warning, never an error: the exit code is the apply's. A terminating object keeps its label, so the next plan proposes destroying it again until it is gone. A run that deleted no Kubernetes object asks the cluster nothing. It is raised after an apply that finished without errors, never by a plan, and only for Kubernetes: no other API reports an accepted, unfinished delete in a listing this fork already makes.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

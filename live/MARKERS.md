@@ -356,10 +356,15 @@ rename within one estate has nothing to write on this surface and
 # the fence is write-only where an IAM condition can fence a describe. It
 # fences the object, not its subresources: a scale or a status write
 # arrives as a Scale or a status object carrying no label, and RBAC on
-# deployments/scale is the fence for those. The control plane is exempt
-# (nodes, the kube-system controllers, the scheduler and the API server
-# itself), which is what keeps a ReplicaSet's Pods out of the fence: the
-# copies a template makes are written by kube-system controllers.
+# deployments/scale is the fence for those. The control plane is exempt,
+# by name: nodes, the API server, the scheduler, and the controllers of
+# the kube-controller-manager that write objects. That is what keeps a
+# ReplicaSet's Pods out of the fence: the copies a template makes are
+# written by those controllers. Nothing else in kube-system is exempt
+# (#1448). An add-on installed there (a CNI, coredns, kube-proxy, a
+# third-party operator) and any other system:kube- name is judged like
+# every other caller, and one that writes labelled objects needs "use" on
+# that estate, one binding from live/kubernetes/estate-grant.yaml.
 #
 # Owned objects keep their estate (the ruling on #1449). An object that
 # already carries an ownerReference may be updated with no grant at all,
@@ -395,12 +400,50 @@ spec:
         - key: tofu-estate
           operator: Exists
   matchConditions:
+    # The control plane, by name: the API server, the controller manager,
+    # the scheduler, and the controller manager's controllers that write
+    # objects. One name per line. Extend it here in the repository, never
+    # in the installed copy.
     - name: not-the-control-plane
       expression: >-
         !('system:nodes' in request.userInfo.groups)
-        && !request.userInfo.username.startsWith('system:serviceaccount:kube-system:')
-        && !request.userInfo.username.startsWith('system:kube-')
-        && request.userInfo.username != 'system:apiserver'
+        && !(request.userInfo.username in [
+        'system:apiserver',
+        'system:kube-controller-manager',
+        'system:kube-scheduler',
+        'system:serviceaccount:kube-system:attachdetach-controller',
+        'system:serviceaccount:kube-system:bootstrap-signer',
+        'system:serviceaccount:kube-system:certificate-controller',
+        'system:serviceaccount:kube-system:clusterrole-aggregation-controller',
+        'system:serviceaccount:kube-system:cronjob-controller',
+        'system:serviceaccount:kube-system:daemon-set-controller',
+        'system:serviceaccount:kube-system:deployment-controller',
+        'system:serviceaccount:kube-system:device-taint-eviction-controller',
+        'system:serviceaccount:kube-system:endpoint-controller',
+        'system:serviceaccount:kube-system:endpointslice-controller',
+        'system:serviceaccount:kube-system:endpointslicemirroring-controller',
+        'system:serviceaccount:kube-system:ephemeral-volume-controller',
+        'system:serviceaccount:kube-system:expand-controller',
+        'system:serviceaccount:kube-system:generic-garbage-collector',
+        'system:serviceaccount:kube-system:job-controller',
+        'system:serviceaccount:kube-system:legacy-service-account-token-cleaner',
+        'system:serviceaccount:kube-system:namespace-controller',
+        'system:serviceaccount:kube-system:node-controller',
+        'system:serviceaccount:kube-system:persistent-volume-binder',
+        'system:serviceaccount:kube-system:pod-garbage-collector',
+        'system:serviceaccount:kube-system:pv-protection-controller',
+        'system:serviceaccount:kube-system:pvc-protection-controller',
+        'system:serviceaccount:kube-system:replicaset-controller',
+        'system:serviceaccount:kube-system:replication-controller',
+        'system:serviceaccount:kube-system:resource-claim-controller',
+        'system:serviceaccount:kube-system:root-ca-cert-publisher',
+        'system:serviceaccount:kube-system:service-cidrs-controller',
+        'system:serviceaccount:kube-system:statefulset-controller',
+        'system:serviceaccount:kube-system:token-cleaner',
+        'system:serviceaccount:kube-system:ttl-after-finished-controller',
+        'system:serviceaccount:kube-system:ttl-controller',
+        'system:serviceaccount:kube-system:volumeattributesclass-protection-controller'
+        ])
     - name: not-an-owned-object-keeping-its-estate
       expression: >-
         !(request.operation == 'UPDATE'
@@ -467,6 +510,9 @@ spec:
 # does not exempt a write that changes the label (#1449). An operator that
 # only updates a labelled object a controller already owns, and leaves its
 # tofu-estate label alone, needs nothing here.
+#
+# An add-on in kube-system needs this grant too; only the control plane's
+# own controllers are exempt.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -504,11 +550,12 @@ admin installs it and any cluster admin can remove it. The fence is also
 per estate, never per address, because the label carries no address; a
 team that wants two boundaries makes two estates.
 
-**What is exempt.** The control plane (`system:nodes`, the `kube-system`
-ServiceAccounts, `system:kube-*` and the API server itself), because
-kubelets write status and controllers write the copies a template makes.
-That is what keeps a ReplicaSet's Pods out of the fence, and it is
-measured in claim 23. Owned objects keep their estate (#1449): an object
+**What is exempt.** Only the control plane, by name: nodes, the API
+server, the scheduler and the controller manager's own controllers, which
+keeps a ReplicaSet's Pods out of the fence (claim 23). If anything else in
+kube-system is refused with "is not bound to it", grant it the estate
+with `estate-grant.yaml`; never add it to the installed policy's list.
+Owned objects keep their estate (#1449): an object
 carrying a non-empty `metadata.ownerReferences` may be updated with no
 grant while its `tofu-estate` label stays exactly as it was, so a
 third-party operator's status-like writes on a labelled child are let

@@ -777,3 +777,67 @@ func TestEstateBoundaryFailsAClusterStillRunningTheOldPolicy(t *testing.T) {
 		t.Fatalf("the policy the file ships today failed, so the test above measured the fixture and not the upgrade: %s", g.Found)
 	}
 }
+
+// prefixControlPlaneCondition is the not-the-control-plane condition
+// live/kubernetes/estate-boundary.yaml carried until #1448's section C
+// narrowed it: every ServiceAccount in kube-system and every username
+// beginning system:kube- was exempt, so an add-on installed there held
+// every estate. Like preFence1449MatchConditions it is an INSTALLED policy
+// from before an upgrade, which is the only reason it is spelled out here.
+const prefixControlPlaneCondition = "!('system:nodes' in request.userInfo.groups) " +
+	"&& !request.userInfo.username.startsWith('system:serviceaccount:kube-system:') " +
+	"&& !request.userInfo.username.startsWith('system:kube-') " +
+	"&& request.userInfo.username != 'system:apiserver'"
+
+// TestEstateBoundaryFailsAClusterStillExemptingAllOfKubeSystem is the second
+// upgrade of the same kind. This time no condition is added or removed: the
+// cluster declares both of the shipped policy's match conditions by name, and
+// one of them says something else. The finding has to name that one, and only
+// that one, and carry the re-apply line.
+func TestEstateBoundaryFailsAClusterStillExemptingAllOfKubeSystem(t *testing.T) {
+	const name = "not-the-control-plane"
+	installed := boundaryPolicy()
+	replaced := false
+	for i := range installed.Spec.MatchConditions {
+		if installed.Spec.MatchConditions[i].Name != name {
+			continue
+		}
+		if normalizeCEL(installed.Spec.MatchConditions[i].Expression) == normalizeCEL(prefixControlPlaneCondition) {
+			t.Fatalf("the shipped %s is the prefix expression this test installs as the OLD one, so it measures nothing", name)
+		}
+		installed.Spec.MatchConditions[i].Expression = prefixControlPlaneCondition
+		replaced = true
+	}
+	if !replaced {
+		t.Fatalf("the shipped policy declares no match condition named %q; this test's fixture is that condition with its old text", name)
+	}
+
+	cs := withDetailedReviews(fake.NewClientset(installed, boundaryBinding(admissionv1.Deny)),
+		estateUseAnswers(contractNamespace, true))
+	f := findingFor(t, check(t, cs, ClusterContractOptions{NamespaceKnownToExist: true, Estate: "alice"}), ClusterEstateBoundary)
+	t.Logf("estate_boundary: %s", f.Found)
+
+	if f.Outcome != Failed {
+		t.Fatalf("outcome %v, want Failed: a cluster whose policy still exempts all of kube-system is not running the fence this store asserts: %s", f.Outcome, f.Found)
+	}
+	if want := `the match condition "not-the-control-plane" is not the expression the shipped policy declares`; !strings.Contains(f.Found, want) {
+		t.Errorf("the finding does not say which match condition differs (%q): %s", want, f.Found)
+	}
+	if strings.Contains(f.Found, "not-an-owned-object-keeping-its-estate") {
+		t.Errorf("the finding names a match condition that does not differ: %s", f.Found)
+	}
+	want := "If the installed policy is from an earlier release, re-apply the shipped one: `kubectl apply -f live/kubernetes/estate-boundary.yaml`"
+	if !strings.Contains(f.Found, want) {
+		t.Errorf("the finding does not say how to upgrade the policy (%q): %s", want, f.Found)
+	}
+	if _, detail := ClusterContractRefusal(contractNamespace, f); !strings.Contains(detail, want) {
+		t.Errorf("the refusal an apply prints does not carry the upgrade line: %q", detail)
+	}
+
+	// The control: the shipped policy, untouched, passes on the same cluster.
+	ok := withDetailedReviews(fake.NewClientset(boundaryPolicy(), boundaryBinding(admissionv1.Deny)),
+		estateUseAnswers(contractNamespace, true))
+	if g := findingFor(t, check(t, ok, ClusterContractOptions{NamespaceKnownToExist: true, Estate: "alice"}), ClusterEstateBoundary); !g.OK() {
+		t.Fatalf("the policy the file ships today failed, so the test above measured the fixture and not the upgrade: %s", g.Found)
+	}
+}

@@ -39,7 +39,98 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.19.0 (Unreleased)
 
-Nothing recorded yet.
+UPGRADE NOTES:
+
+Kubernetes:
+
+- Re-apply the boundary policy, as a cluster admin, on every cluster that
+  installed it from v0.18.0 or earlier:
+
+  ```
+  kubectl apply -f live/kubernetes/estate-boundary.yaml
+  ```
+
+  `record_store "kubernetes"` is new in this release, and its
+  `estate_boundary` assertion compares the installed policy with the one the
+  release ships (#1452). An estate that keeps its records in the cluster is
+  refused on any run that writes a record until the policy is re-applied.
+  The refusal carries the line above and names the match condition that
+  differs, and `choudoufu live-cluster` reports the same. An identity that
+  may not read a ValidatingAdmissionPolicy sees `estate_boundary` "could not
+  be checked" and is not refused, so run `live-cluster` as a cluster admin
+  to find out. Two changes to the policy make this necessary:
+  - An object with an ownerReference is no longer exempt (#1449, PR #1451).
+    Only an UPDATE of an already-owned object that leaves its `tofu-estate`
+    label alone is skipped. Every create and every delete is judged.
+  - The control plane is exempt by name (#1448, PR #1472): nodes, the API
+    server, the scheduler and the kube-controller-manager's own controllers.
+    Living in `kube-system` exempts nothing.
+
+- Any other ServiceAccount in `kube-system`, and any other `system:kube-*`
+  username, that writes objects labelled `tofu-estate` now needs `use` on
+  that estate (#1448, PR #1472). That covers an add-on, a CNI, a load
+  balancer controller, a third-party operator and `system:kube-proxy`. The
+  denial names the username. The fix is one binding, here for estate `app`
+  and a ServiceAccount called `NAME`:
+
+  ```
+  sed -e 's/ESTATE/app/g' \
+      -e 's/PRINCIPAL_NAMESPACE/kube-system/g' \
+      -e 's/PRINCIPAL/NAME/g' \
+      live/kubernetes/estate-grant.yaml | kubectl apply -f -
+  ```
+
+  The named list was measured on kind (kubeadm, Kubernetes 1.36.1). A
+  managed control plane may run its controllers under other identities,
+  and the denial will name them.
+
+- A third-party operator that creates objects carrying a `tofu-estate`
+  label (cert-manager, an ingress controller) needs `use` on that estate,
+  the same binding with its own namespace and ServiceAccount (#1449, PR
+  #1451). One that only updates labelled objects it already owns, and
+  leaves the label alone, needs nothing.
+
+The rest of this section is about `record_store "kubernetes"`, which no
+tagged release has carried. Nobody upgrading from v0.18.0 meets these as a
+change. They are what moved on main after the store first landed (#1392,
+#1393), for anyone who ran a build from main.
+
+- `insecure = true` on the block is the `tls_verification` finding (#1448,
+  PR #1465). It is refused unless `allow_insecure = ["tls_verification"]`
+  names it, and a waived one warns on every run. To fix it, remove
+  `insecure = true` and set `cluster_ca_certificate`.
+- `read_isolation` is no longer a pass when namespaces cannot be listed
+  (#1448, PR #1452). An identity scoped to its own records namespace sees
+  three "could not be checked" warnings on a run that writes records, where
+  it saw two: `read_isolation`, `encryption_at_rest` and `estate_boundary`.
+  `choudoufu live-cluster -namespace=<ns>`, run by an identity that may
+  list namespaces and Secrets, answers it.
+- `encryption_at_rest` is NOT CHECKED when the API server carries
+  `--encryption-provider-config`, where it passed (PR #1452). The file the
+  flag names cannot be read through the API. The finding carries the
+  `sudo cat <path>` line that reads it. A visible API server with no flag
+  is still a failure.
+- Two estates configured with the same `namespace` are refused by
+  `read_isolation`, naming the other estate (PR #1452). Give each estate
+  its own namespace, or waive it with `allow_insecure = ["read_isolation"]`.
+- `live-mv` and `live-import -approve` assert the record store's contract
+  before they write, as an apply does, for a bucket and for a cluster
+  (#1448, PR #1456). `live-mv -dry-run` and `live-import` without `-approve`
+  write nothing and are not checked.
+- `live-cluster -namespace` uses the block's connection (`host`,
+  `config_context`, `exec`) and overrides the namespace only, where it fell
+  through to the ambient kubeconfig (PR #1456). The report and `-json` now
+  say which cluster answered.
+- `live-cluster` exits 0 on a warning, as it did. Its help said otherwise
+  and is corrected (PR #1456).
+- A record Secret that lost its `app.kubernetes.io/managed-by` or
+  `tofu-estate` label is refused by name, where the listing left it out
+  and the next plan proposed creating the resource again (#1448, PR #1450).
+  The refusal carries the `kubectl label` line that puts the labels back.
+- A records namespace that does not exist, or is being deleted, is refused
+  by name where it read as an empty estate (PR #1450). The refusal carries
+  the `kubectl create namespace` line. An identity that may not `get` the
+  namespace cannot ask, and the store's sentinel covers that run.
 
 ## choudoufu v0.18.0 (2026-09-19)
 

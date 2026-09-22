@@ -148,3 +148,70 @@ func TestKubernetesGateTemplatesAreShipped(t *testing.T) {
 		}
 	}
 }
+
+// controlPlaneName is one quoted username inside the policy's
+// not-the-control-plane match condition.
+var controlPlaneName = regexp.MustCompile(`'([^']+)'`)
+
+// TestKubernetesGateExemptsTheControlPlaneByName: the first match condition
+// exempts named identities and nothing wider (#1448, section C). It used to
+// exempt every ServiceAccount in kube-system and every username beginning
+// system:kube-, which handed every estate to any add-on installed there.
+// The controls the list has to keep are on kind, in claim 23: a labelled
+// Deployment, Service, Job and StatefulSet still roll out and are still
+// collected.
+//
+// Proving it red: put a startsWith back into the expression, or add
+// 'system:serviceaccount:kube-system:coredns' to the list.
+func TestKubernetesGateExemptsTheControlPlaneByName(t *testing.T) {
+	policy := yamlDocs(t, k8sBoundaryTemplate)[0]
+	spec, _ := policy["spec"].(map[string]any)
+	conds, _ := spec["matchConditions"].([]any)
+	expr := ""
+	for _, c := range conds {
+		cond, _ := c.(map[string]any)
+		if cond["name"] == "not-the-control-plane" {
+			expr, _ = cond["expression"].(string)
+		}
+	}
+	if expr == "" {
+		t.Fatalf("%s declares no match condition named not-the-control-plane", k8sBoundaryTemplate)
+	}
+	for _, wide := range []string{"startsWith", "endsWith", "matches", "contains"} {
+		if strings.Contains(expr, wide+"(") {
+			t.Errorf("not-the-control-plane calls %s: the exemption is a list of names, and a pattern exempts identities nobody listed", wide)
+		}
+	}
+
+	const sa = "system:serviceaccount:kube-system:"
+	named := map[string]bool{}
+	for _, m := range controlPlaneName.FindAllStringSubmatch(expr, -1) {
+		named[m[1]] = true
+	}
+	// What a labelled workload cannot roll out or be deleted without.
+	for _, need := range []string{
+		"system:nodes", "system:apiserver", "system:kube-scheduler", "system:kube-controller-manager",
+		sa + "deployment-controller", sa + "replicaset-controller", sa + "statefulset-controller",
+		sa + "daemon-set-controller", sa + "job-controller", sa + "cronjob-controller",
+		sa + "endpointslice-controller", sa + "generic-garbage-collector", sa + "namespace-controller",
+		sa + "pvc-protection-controller", sa + "persistent-volume-binder",
+	} {
+		if !named[need] {
+			t.Errorf("not-the-control-plane does not name %s", need)
+		}
+	}
+	// What the ruling takes out: an add-on is judged like everyone else.
+	for _, addon := range []string{sa + "default", sa + "coredns", sa + "kube-proxy", sa + "kindnet", "system:kube-proxy"} {
+		if named[addon] {
+			t.Errorf("not-the-control-plane names %s, which is not one of the control plane's own controllers; it gets a binding from %s instead", addon, k8sGrantTemplate)
+		}
+	}
+	for name := range named {
+		if name == "system:nodes" || name == "system:apiserver" || name == "system:kube-scheduler" || name == "system:kube-controller-manager" {
+			continue
+		}
+		if !strings.HasPrefix(name, sa) {
+			t.Errorf("not-the-control-plane names %q, which is neither a control-plane username nor a kube-system ServiceAccount", name)
+		}
+	}
+}

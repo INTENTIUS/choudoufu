@@ -59,8 +59,10 @@ stripped, and swept when its block is removed.
 [Claim 25](../smoke/claims/k8s-a-held-delete-is-not-gone.md)
 runs a held delete. A finalizer holds an object's delete, so the API
 accepts it and the object stays, terminating, with its label. The run's
-own summary says destroyed. The sweep on the next plan still reports the
-object, and keeps reporting it until the object is really gone. Its
+own summary says destroyed, and one warning after it names the object
+that is still there and the finalizer holding it. The sweep on the next
+plan still reports the object, and keeps reporting it until the object is
+really gone. Its
 `BREAK=1` takes the finalizer off before the destroying apply and requires
 the object to go in one apply.
 

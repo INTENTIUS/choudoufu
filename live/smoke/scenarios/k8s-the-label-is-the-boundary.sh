@@ -39,8 +39,13 @@
 # grant at all, which is what a third-party operator's writes on a
 # labelled child need. Step 10 is the cost of that, measured rather than
 # assumed: a Deployment whose pod template carries the label still gets
-# its ReplicaSet and its Pods, because those copies are written by
-# kube-system controllers, which the first match condition exempts.
+# its ReplicaSet and its Pods, because those copies are written by the
+# control plane's own controllers, which the first match condition exempts
+# by name. Step 10b is #1448's ruling on that list: living in kube-system
+# exempts nothing. A ServiceAccount in kube-system that is not one of those
+# controllers, and a user named system:kube-proxy, are each refused a
+# labelled create, beside an unlabelled create that goes through, and the
+# BREAK arm requires both labelled creates to land with the policy gone.
 #
 # The carve is live-mv's Kubernetes leg (#1081's fifth item): with no
 # address on the object a rename within one estate has nothing governed to
@@ -122,11 +127,13 @@ versions data > "$DATA/versions.tf"
 cluster_up
 
 # principal makes one ServiceAccount, mints it a token, and writes it a
-# kubeconfig of its own beside the admin's, so a step can run as it.
+# kubeconfig of its own beside the admin's, so a step can run as it. $2 is
+# its namespace, $PNS unless given.
 principal() {
-  kc create serviceaccount "$1" -n "$PNS" >/dev/null || fail "boundary" "could not create ServiceAccount $1"
+  local ns="${2:-$PNS}"
+  kc create serviceaccount "$1" -n "$ns" >/dev/null || fail "boundary" "could not create ServiceAccount $1"
   local tok
-  tok="$(kc create token "$1" -n "$PNS" --duration=2h)" || fail "boundary" "could not mint a token for $1"
+  tok="$(kc create token "$1" -n "$ns" --duration=2h)" || fail "boundary" "could not mint a token for $1"
   cp "$KUBECONFIG" "$W/$1.kubeconfig"
   kubectl --kubeconfig "$W/$1.kubeconfig" config set-credentials "$1" --token="$tok" >/dev/null
   kubectl --kubeconfig "$W/$1.kubeconfig" config set-context --current --user="$1" >/dev/null
@@ -147,12 +154,14 @@ grant() {
 }
 # can_use asks the API server's own authorizer the exact question the
 # policy asks: may principal $1 "use" estate $2. Prints true or false.
-can_use() {
+can_use() { user_can_use "system:serviceaccount:$PNS:$1" "$2"; }
+# user_can_use is the same question about a full username.
+user_can_use() {
   kc create -o jsonpath='{.status.allowed}' -f - <<EOF
 apiVersion: authorization.k8s.io/v1
 kind: SubjectAccessReview
 spec:
-  user: system:serviceaccount:$PNS:$1
+  user: $1
   resourceAttributes:
     group: choudoufu.intentius.io
     resource: estates
@@ -292,6 +301,39 @@ EOF
 # namespace.
 obj_labels() { kc get "$1" "$2" -n "$3" -o jsonpath='{.metadata.labels}{"\n"}'; }
 
+# The two identities #1448 took out of the exemption, set up in step 2 and
+# used in step 10b and in the BREAK arm. ADDON_USER is a ServiceAccount in
+# kube-system that is not one of the control plane's controllers, with a
+# token of its own. PROXY_USER is a username, reached by impersonation
+# under the admin. Both hold edit in namespace addons and no estate.
+# twin_kc runs kc as one of them: $1 is addon or kube-proxy.
+ADDON_USER="system:serviceaccount:kube-system:addon"
+PROXY_USER="system:kube-proxy"
+twin_kc() {
+  local who="$1"; shift
+  if [ "$who" = addon ]; then as_role addon kc "$@"; else kc --as="$PROXY_USER" "$@"; fi
+}
+# twin_cm_yaml prints a ConfigMap for namespace addons carrying
+# tofu-estate=app: $1 name.
+twin_cm_yaml() { cat <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: $1
+  namespace: addons
+  labels:
+    tofu-estate: app
+data:
+  greeting: $1
+EOF
+}
+# failed_creates prints what a controller was refused in namespace $1. A
+# controller's refusal never reaches the caller; it lands in an event, and
+# the policy's message in it names the username the list is missing.
+failed_creates() {
+  kc get events -n "$1" --field-selector reason=FailedCreate -o jsonpath='{range .items[*]}{.involvedObject.kind}/{.involvedObject.name}: {.message}{"\n"}{end}' 2>&1 | head -5
+}
+
 step "the claim"
 explain \
   "In stock, who owns an object is a line in a state file, and no policy" \
@@ -320,8 +362,8 @@ explain \
   "the object it would produce, and asks the authorizer whether the caller" \
   "may \"use\" estates.choudoufu.intentius.io/<that estate>. No such" \
   "resource exists; the verb lives only in RBAC, which is the point. The" \
-  "control plane is exempt - nodes, the kube-system controllers, the" \
-  "scheduler and the API server itself - and an object that already" \
+  "control plane is exempt by name - nodes, the API server, the scheduler" \
+  "and the controller manager's own controllers - and an object that already" \
   "carries an ownerReference may be updated with no grant while its" \
   "tofu-estate label stays as it was. Nothing else is exempt."
 cmd "kubectl apply -f live/kubernetes/estate-boundary.yaml   # as the cluster admin"
@@ -363,10 +405,13 @@ rules:
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
-    resources: ["namespaces", "configmaps", "secrets"]
+    resources: ["namespaces", "configmaps", "secrets", "services"]
     verbs: ["create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
     verbs: ["create", "update", "patch", "delete"]
 EOF
 for who in alice bob; do
@@ -386,7 +431,18 @@ done
 [ "$(can_use alice data)" = "false" ] || fail "boundary" "alice already holds data; the carve below would prove nothing"
 WHO="$(as_role alice kc auth whoami -o jsonpath='{.status.userInfo.username}')" || fail "boundary" "alice's token cannot identify itself"
 echo "$WHO" | evidence
-proof "two ServiceAccounts hold two estates, and the authorizer answers the exact question the policy will ask: alice may use app, bob may not."
+# Step 10b's two identities, made here so the BREAK arm has them too.
+kc create namespace addons >/dev/null || fail "boundary" "could not create namespace addons"
+principal addon kube-system
+kc create rolebinding addon-edit -n addons --clusterrole=edit --serviceaccount=kube-system:addon >/dev/null \
+  || fail "boundary" "could not bind edit to $ADDON_USER in addons"
+kc create rolebinding kube-proxy-edit -n addons --clusterrole=edit --user="$PROXY_USER" >/dev/null \
+  || fail "boundary" "could not bind edit to $PROXY_USER in addons"
+for who in "$ADDON_USER" "$PROXY_USER"; do
+  [ "$(user_can_use "$who" app)" = "false" ] || fail "boundary" "$who holds app; step 10b would prove nothing"
+  echo "may $who use estate app: false" | evidence
+done
+proof "two ServiceAccounts hold two estates, and the authorizer answers the exact question the policy will ask: alice may use app, bob may not. Neither does a ServiceAccount in kube-system, nor a user named system:kube-proxy."
 
 step "3. each principal stands its own estate up"
 explain \
@@ -484,6 +540,18 @@ if [ "${BREAK:-0}" = "1" ]; then
   labels_of database boundary | evidence
   grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "BREAK: Alice's live-mv did not land"
   proof "caught - with the policy gone, live-mv relabelled the object into an estate Alice was never granted. The refusal the main run shows at this step is the policy's, not the tool's."
+
+  step "BREAK control (cont'd) - step 10b's two labelled creates go through too"
+  for who in addon kube-proxy; do
+    if [ "$who" = addon ]; then NAME="$ADDON_USER"; else NAME="$PROXY_USER"; fi
+    cmd "kubectl apply -f - <<< (ConfigMap planted-$who, tofu-estate=app)   # as $NAME, policy gone"
+    OUT="$(twin_cm_yaml "planted-$who" | twin_kc "$who" apply -f - 2>&1)" || fail "boundary" "BREAK: with no policy, the labelled create by $NAME was still refused: $OUT"
+    denied "$OUT" && fail "boundary" "BREAK: the create succeeded but the output still carries a refusal: $OUT"
+    grep -q '"tofu-estate":"app"' <<< "$(labels_of "planted-$who" addons)" || fail "boundary" "BREAK: the labelled create by $NAME did not land"
+    labels_of "planted-$who" addons | evidence
+  done
+  proof "caught - with the policy gone, a ServiceAccount in kube-system and a user named system:kube-proxy each planted an object in estate app. RBAC let them write all along; the policy was what refused them."
+  kc delete configmap planted-addon planted-kube-proxy -n addons >/dev/null || true
 
   ( cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   ( cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
@@ -666,17 +734,22 @@ GONE="$(kc get configmap -n boundary -o name)" || fail "boundary" "could not lis
 grep -qE 'configmap/(owned|unowned)$' <<< "$GONE" && fail "boundary" "the step's scratch objects survived the cleanup: $GONE"
 proof "and the same deletes under the ServiceAccount that does hold app go through, owned object included. What the fence reads is the estate, never the owner."
 
-step "10. what the exemption costs: a Deployment's ReplicaSet and Pods are still made"
+step "10. what the exemption costs: a labelled workload's copies are still made, and still cleaned up"
 explain \
   "The first match condition exempts the control plane by who is asking," \
   "and that is what keeps a controller's copies out of the fence. Alice" \
   "applies a Deployment whose pod template carries tofu-estate=app. She" \
-  "never creates the ReplicaSet or the Pod; the kube-system deployment and" \
-  "replicaset controllers do, under their own ServiceAccounts, and both" \
-  "copies carry the label. If the owner exemption had been what let them" \
-  "through, tightening it would have broken every labelled workload on the" \
-  "cluster. Deleting the Deployment then has the garbage collector remove" \
-  "the labelled ReplicaSet and Pod, which it may do for the same reason."
+  "never creates the ReplicaSet or the Pod; the deployment and replicaset" \
+  "controllers do, under their own ServiceAccounts, and both copies carry" \
+  "the label. If the owner exemption had been what let them through," \
+  "tightening it would have broken every labelled workload on the cluster." \
+  "The exemption is a list of names (#1448), so a name missing from it" \
+  "breaks a workload the same way. Alice therefore also makes a labelled" \
+  "namespace holding a Service, a Job and a StatefulSet with a labelled" \
+  "volumeClaimTemplate: the EndpointSlice, the Job's Pod and the" \
+  "PersistentVolumeClaim are each a named controller's labelled copy. Then" \
+  "she deletes the Deployment and the namespace, and the garbage collector" \
+  "and the namespace controller remove what is left, labelled or not."
 cmd "kubectl apply -f - <<< (Deployment fanout, tofu-estate=app on the object and on the pod template)   # as alice"
 cat <<EOF | as_role alice kc apply -f - >/dev/null || fail "boundary" "Alice could not create the fanout Deployment on her own estate"
 apiVersion: apps/v1
@@ -718,6 +791,106 @@ grep -q '"tofu-estate":"app"' <<< "$(obj_labels replicaset "$RS" boundary)" \
 grep -q '"tofu-estate":"app"' <<< "$(obj_labels pod "$POD" boundary)" \
   || fail "boundary" "the Pod does not carry the label, so this step would not be measuring the fence at all: $(obj_labels pod "$POD" boundary)"
 obj_labels pod "$POD" boundary | evidence
+
+cmd "kubectl apply -f - <<< (Namespace fanout, and in it Service store, Job once, StatefulSet store with a volumeClaimTemplate; tofu-estate=app on every object and every template)   # as alice"
+cat <<EOF | as_role alice kc apply -f - >/dev/null || fail "boundary" "Alice could not create the labelled namespace and its workloads on her own estate"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fanout
+  labels:
+    tofu-estate: app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: store
+  namespace: fanout
+  labels:
+    tofu-estate: app
+spec:
+  selector:
+    app: store
+  ports:
+    - port: 80
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: once
+  namespace: fanout
+  labels:
+    tofu-estate: app
+spec:
+  template:
+    metadata:
+      labels:
+        tofu-estate: app
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: once
+          image: registry.k8s.io/pause:3.10
+          command: ["/pause", "-v"]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: store
+  namespace: fanout
+  labels:
+    tofu-estate: app
+spec:
+  serviceName: store
+  replicas: 1
+  selector:
+    matchLabels:
+      app: store
+  template:
+    metadata:
+      labels:
+        app: store
+        tofu-estate: app
+    spec:
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          tofu-estate: app
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 8Mi
+EOF
+# One bounded wait for all three. Each probe is empty until its controller
+# has written its labelled copy and the copy has come good: the PVC Bound,
+# the Job succeeded, the EndpointSlice carrying an address (which needs the
+# StatefulSet's Pod Ready, which needs the PVC). The label selector is part
+# of each probe, so an unlabelled copy never satisfies one.
+PVC=""; JOBPOD=""; SLICE=""
+DEADLINE=$(( $(date +%s) + 180 ))
+while :; do
+  PVC="$(kc get pvc -n fanout -l tofu-estate=app -o jsonpath='{range .items[?(@.status.phase=="Bound")]}{.metadata.name}{end}' 2>/dev/null || true)"
+  JOBPOD="$(kc get pod -n fanout -l tofu-estate=app,job-name=once -o jsonpath='{range .items[?(@.status.phase=="Succeeded")]}{.metadata.name}{end}' 2>/dev/null || true)"
+  SLICE="$(kc get endpointslice -n fanout -l tofu-estate=app,kubernetes.io/service-name=store -o jsonpath='{range .items[*]}{.metadata.name}={.endpoints[*].addresses[0]}{end}' 2>/dev/null || true)"
+  if [ -n "$PVC" ] && [ -n "$JOBPOD" ] && [ "${SLICE#*=}" != "" ] && [ -n "$SLICE" ]; then break; fi
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then break; fi
+  sleep 1
+done
+[ -n "$PVC" ] || fail "boundary" "no labelled PersistentVolumeClaim of StatefulSet store is Bound after 180s: $(failed_creates fanout)"
+[ -n "$JOBPOD" ] || fail "boundary" "Job once has no labelled Pod that succeeded after 180s: $(failed_creates fanout)"
+[ -n "$SLICE" ] && [ "${SLICE#*=}" != "" ] || fail "boundary" "Service store has no labelled EndpointSlice carrying an address after 180s (got '$SLICE'): $(failed_creates fanout)"
+[ "$(kc get job once -n fanout -o jsonpath='{.status.succeeded}')" = "1" ] || fail "boundary" "Job once did not record its Pod's success: $(kc get job once -n fanout -o jsonpath='{.status}')"
+echo "pvc/$PVC Bound; pod/$JOBPOD Succeeded, job/once succeeded=1; endpointslice/$SLICE" | evidence
+obj_labels pvc "$PVC" fanout | evidence
+
 cmd "kubectl delete deployment fanout -n boundary   # as alice; the collector removes the labelled copies"
 as_role alice kc delete deployment fanout -n boundary >/dev/null || fail "boundary" "Alice could not delete her own Deployment"
 COLLECTED=no
@@ -726,9 +899,48 @@ for i in $(seq 1 60); do
   if [ -z "$REMAINING" ]; then COLLECTED=yes; break; fi
   sleep 1
 done
-[ "$COLLECTED" = "yes" ] || fail "boundary" "the garbage collector still had not removed the labelled ReplicaSet and Pod after 60s ($REMAINING); a delete of a labelled object needs the estate, and the collector holds none - it is exempt as a kube-system ServiceAccount, and that is what this waits on"
+[ "$COLLECTED" = "yes" ] || fail "boundary" "the garbage collector still had not removed the labelled ReplicaSet and Pod after 60s ($REMAINING); a delete of a labelled object needs the estate, and the collector holds none - it is exempt by name, and that is what this waits on"
 echo "replicasets and pods labelled app=fanout after the delete: none" | evidence
-proof "a labelled pod template still fans out into a labelled ReplicaSet and a labelled Pod, and the collector still cleans them up. Those writes are the control plane's, exempt by who is asking, which is the only exemption a caller cannot forge."
+cmd "kubectl delete namespace fanout --wait=false   # as alice; the namespace controller deletes every labelled object in it"
+as_role alice kc delete namespace fanout --wait=false >/dev/null || fail "boundary" "Alice could not delete her own labelled namespace"
+GONE=no
+START=$(date +%s); DEADLINE=$(( START + 180 ))
+while :; do
+  LEFT="$(kc get namespace fanout -o name --ignore-not-found)" || fail "boundary" "could not read namespace fanout while waiting for it to terminate"
+  if [ -z "$LEFT" ]; then GONE=yes; break; fi
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then break; fi
+  sleep 1
+done
+[ "$GONE" = "yes" ] || fail "boundary" "namespace fanout is still terminating after 180s: $(kc get namespace fanout -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}: {.message} {end}' 2>&1)"
+echo "namespace fanout (tofu-estate=app) finished terminating in $(( $(date +%s) - START ))s" | evidence
+proof "a labelled template still fans out into labelled copies - a ReplicaSet and its Pod, a Job's Pod, a StatefulSet's claim, a Service's EndpointSlice - and the collector and the namespace controller still clean them up. Those writes are the control plane's, exempt by who is asking, which is the only exemption a caller cannot forge."
+
+step "10b. living in kube-system exempts nothing: a ServiceAccount there, and a system:kube- name, are judged like anyone"
+explain \
+  "The exemption step 10 measured is a list of names. It used to be two" \
+  "prefixes - every ServiceAccount in kube-system and every username" \
+  "beginning system:kube- - so an add-on installed there held every estate" \
+  "(#1448). Two callers that are on neither list: a ServiceAccount named" \
+  "addon in kube-system, and a user named system:kube-proxy, reached by" \
+  "impersonation. Both hold edit in namespace addons and no estate. Each" \
+  "first creates an unlabelled ConfigMap, which must go through, so RBAC" \
+  "is not what says no; then one carrying tofu-estate=app, which the" \
+  "policy must refuse in its own words, naming the caller. The fix for a" \
+  "real add-on is one binding from live/kubernetes/estate-grant.yaml."
+for who in addon kube-proxy; do
+  if [ "$who" = addon ]; then NAME="$ADDON_USER"; else NAME="$PROXY_USER"; fi
+  cmd "kubectl create configmap plain-$who -n addons --from-literal=greeting=plain   # as $NAME - the control, no label"
+  OUT="$(twin_kc "$who" create configmap "plain-$who" -n addons --from-literal=greeting=plain 2>&1)" \
+    || fail "boundary" "$NAME could not create an unlabelled ConfigMap, so the refusal below would not be the policy's: $OUT"
+  echo "$OUT" | evidence
+  cmd "kubectl apply -f - <<< (ConfigMap planted-$who, tofu-estate=app)   # as $NAME"
+  OUT="$(twin_cm_yaml "planted-$who" | twin_kc "$who" apply -f - 2>&1)" || true
+  refused_by_policy "a labelled create by $NAME, which holds no estate" "$OUT" "$NAME is not bound to it"
+done
+PLANTED="$(kc get configmap -n addons -l tofu-estate=app -o name)" || fail "boundary" "could not list namespace addons"
+[ -z "$PLANTED" ] || fail "boundary" "a refused labelled create landed all the same: $PLANTED"
+echo "objects labelled tofu-estate=app in namespace addons: none" | evidence
+proof "two callers the old prefixes exempted, each let through with no label and refused with one, by name. Nothing about kube-system or a system:kube- name is a grant; the list is the control plane's own controllers and nobody else."
 
 step "11. Bob's own estate, tool-less, and the API server lets it through - the next plan sees it"
 explain \

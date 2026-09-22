@@ -18,6 +18,9 @@
 # does not exempt a write that changes the label (#1449). An operator that
 # only updates a labelled object a controller already owns, and leaves its
 # tofu-estate label alone, needs nothing here.
+#
+# An add-on in kube-system needs this grant too; only the control plane's
+# own controllers are exempt.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

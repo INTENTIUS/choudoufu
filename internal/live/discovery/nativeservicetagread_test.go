@@ -191,12 +191,16 @@ func TestNativeServiceTagReadAnswersEmptyForSomebodyElsesRole(t *testing.T) {
 }
 
 // TestNativeServiceTagReadStaysOffWhenTheIndexServesTheType is clause 3 of
-// [serviceTagRead]'s gate, exercised on the native leg. On a target whose
-// GetResources does index the type - real AWS us-east-1 for iam:policy and
+// [serviceTagRead]'s gate, exercised on the native leg: an object the index
+// answered for costs no ListRoleTags. On a target whose GetResources does
+// index the type - real AWS us-east-1 for iam:policy and
 // iam:instance-profile (#1134), and every floci pin before lex00/floci#202 -
-// the index has already answered for the whole sweep in one call, and paying
-// one ListRoleTags per role to re-derive it is exactly the flatness #1037
-// and #1039 bought.
+// the join supplies the marker from the one call the sweep already paid for.
+//
+// GitHub issue #1162 made the clause per object, so the fixture carries a
+// sibling the index does NOT hold, and the assertion is that the reader was
+// asked about the sibling and only the sibling. "Stays off" is about the
+// indexed role; nativeperobjectgate_test.go holds what happens to the other.
 func TestNativeServiceTagReadStaysOffWhenTheIndexServesTheType(t *testing.T) {
 	const (
 		typeName    = "aws_iam_role"
@@ -218,19 +222,31 @@ func TestNativeServiceTagReadStaysOffWhenTheIndexServesTheType(t *testing.T) {
 	tagServer := tagSrv.start(t)
 	defer tagServer.Close()
 
+	// The sibling: listed, tagless, absent from the index, somebody else's.
+	const siblingName = "someone-elses-role"
+	cloud.own(typeName, siblingName, typeName+".theirs")
+	stripTags(t, cloud, typeName, siblingName)
+
 	reader := &fakeServiceTags{
 		routes: map[string]bool{typeName: true},
 		tags: map[string]map[string]string{
-			liveName: {TagEstate: estateName, TagAddress: deletedAddr},
+			liveName:    {TagEstate: estateName, TagAddress: deletedAddr},
+			siblingName: {TagEstate: "some-other-estate", TagAddress: typeName + ".theirs"},
 		},
 	}
 	res, diags := discoverFixture(t, cloud, nativeServiceTagReadRequest(t, typeName, tagServer.URL, reader))
 	assertNoErrors(t, diags)
 
-	if _, ok := removalsByAddr(res)[deletedAddr]; !ok {
-		t.Fatalf("the index-served path stopped proposing the destroy it always proposed, so this test is measuring a broken fixture rather than the gate:\n%s", res)
+	if got := sortedRemovalAddrs(res); len(got) != 1 || got[0] != deletedAddr {
+		t.Fatalf("destroys proposed for %v, want [%s] only - the index-served role is this estate's orphan and the sibling's tag read names another estate:\n%s", got, deletedAddr, res)
 	}
-	if reader.calls != 0 {
-		t.Errorf("the service tag reader was called %d time(s) (%v) although the estate's tag index serves this type - one GetResources for the whole sweep became one ListRoleTags per role", reader.calls, reader.askedFor)
+	for _, asked := range reader.askedFor {
+		if asked == typeName+" "+liveName {
+			t.Errorf("the service tag reader was asked about %s although the estate's tag index had already answered for it - the join's one GetResources became a ListRoleTags as well", liveName)
+		}
+	}
+	wantAsked := typeName + " " + siblingName
+	if reader.calls != 1 || len(reader.askedFor) != 1 || reader.askedFor[0] != wantAsked {
+		t.Errorf("the service tag reader was asked %v (%d call(s)), want exactly [%q]", reader.askedFor, reader.calls, wantAsked)
 	}
 }

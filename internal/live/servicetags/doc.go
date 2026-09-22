@@ -43,8 +43,8 @@
 //
 // It is one interface, [Reader], and one implementation of it, [IAM]. It is
 // deliberately not a framework: a service is wired here when a type the
-// sweep actually reaches needs it, and [IAMRoutes] is two entries because
-// two types need it. See iam.go's own comment for the derivation, and
+// sweep actually reaches needs it, and [IAMRoutes] is five entries because
+// five types need it. See iam.go's own comment for the derivation, and
 // iam_routes_test.go, which recomputes that derivation from the committed
 // artifacts rather than trusting the list.
 //
@@ -57,7 +57,7 @@
 // sweep flat in estate size and that flatness is a published claim
 // (live/costs/plan-cost.md); this leg does not preserve it for
 // the types it covers, and the call sites in internal/live/discovery are
-// gated so that it runs only where the run has already established, on this
-// target, that nothing else can answer. The gate is
-// discovery.serviceTagRead's, not this package's.
+// gated per object (GitHub issue #1162): the read runs only for an object
+// whose own listing and whose own tag-index join both produced no marker.
+// The gate is the call sites', not this package's.
 package servicetags
