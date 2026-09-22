@@ -1083,6 +1083,14 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// run's guided sweep reads them back. Enabled here rather than in
 		// statelessBegin because the store and the settled estate name both
 		// exist only now. A plan never persists, so a plan never writes one.
+		// The exception is an interrupted plan: the local backend's opWait
+		// (internal/backend/local/backend.go) answers a stop signal with a
+		// PersistState on the operation's state manager, which is this
+		// runner's mgr (StateMgr below), so the hint can be written once
+		// there. That write is warning-only at both ends - opWait reports
+		// a failed PersistState as a diagnostic and carries on, and the
+		// hint write itself never fails PersistState (HintWarning) - so an
+		// interrupted plan can at most warn about the hint.
 		r.mgr.EnableHint(store, estate, time.Now)
 	}
 

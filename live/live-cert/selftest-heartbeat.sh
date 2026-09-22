@@ -33,7 +33,23 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC_ARG="${TERRALITH_SCALE_SH:-$ROOT/live/live-cert/terralith-scale.sh}"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The status is saved and re-raised, and a run that stops before its last
+# case is refused (#1421, the shape #1419 gave selftest-oidc-bootstrap.sh).
+# Measured on bash 3.2.57: an unbound-variable death under `set -e` hands
+# the EXIT trap $?=0 and the script exits 0, which is how that one read as
+# a pass when it died part way. This script runs without -e and such a
+# death already exits 1; the flag is for the other way a run can stop early
+# with status 0 - an exit reached inside code run in this shell, or an -e
+# added later - and it turns that into a FAIL line and exit 1 as well.
+selftest_finished=0
+# shellcheck disable=SC2154 # selftest_rc is assigned on the trap's first line
+trap 'selftest_rc=$?
+      rm -rf "$WORK"
+      if [ "$selftest_finished" != 1 ]; then
+        echo "FAIL: this selftest stopped before its last case, so most of it never ran. Read the output above for where." >&2
+        exit 1
+      fi
+      exit $selftest_rc' EXIT
 
 log() { printf '%s\n' "$*"; }
 pass=1
@@ -235,6 +251,7 @@ else
 fi
 
 log ""
+selftest_finished=1
 if [ "$pass" = "1" ]; then
   log "=== selftest-heartbeat: PASS ==="
 else

@@ -137,6 +137,13 @@ var liveCertSelftests = []liveCertSelftest{
 			"passing run, because the harness removes the emulator container before the driver gets there.",
 	},
 	{
+		script:   "selftest-prefix-count.sh",
+		proves:   "#1421 - s3_prefix_count read a FAILED list-objects-v2 as a count of 0, so teardown printed `0 object(s) to delete`, skipped the delete and left the run's records in the operator's bucket under a line that read clean",
+		runner:   runsHere,
+		bound:    60 * time.Second,
+		measured: "About 6s on a 2026-09-21 laptop, 2s inside this package. Extracts s3_prefix_count() and teardown() and drives them against a stub `aws` whose listing is picked by a mode file; six cases, no sleep, poll or wait.",
+	},
+	{
 		script:   "selftest-iam-headroom.sh",
 		proves:   "#1230 - IAM role quota exhausted from outside a run failed cold_deploy with LimitExceeded and the record blamed the product; the harness now reads Roles/RolesQuota before cold_deploy and refuses the rung (GAUNTLET refused=1 unit=iam-roles), failing open when the check itself cannot run",
 		runner:   runsHere,
