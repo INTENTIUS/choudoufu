@@ -3358,10 +3358,9 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // is where nearly all of the saving is: a source the plan will not read is
 // one whose value would sit in front of a diff that cannot match it, the
 // same rule [analyzer.classify] already applies to the other two demand
-// classes. Underneath it [statelessInScopeResolutions] drops an out-of-scope
-// managed instance from the demand list, because
-// [identity.DemandedManagedReads] reads the whole resolution list on purpose
-// and the list deliberately keeps out-of-scope blocks.
+// classes. The demand list underneath it needs no second filter, which is
+// the one thing GitHub issue #1258 asked for that turned out not to be
+// there; the loop below says why.
 //
 // What it gives up, on the one run that can notice: a provider whose own
 // configuration needs a source this now declines to read cannot be
@@ -3414,16 +3413,21 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 				}
 			}
 		}
-		// GitHub issue #1258's second narrowing, the demand list rather
-		// than the pass: [identity.DemandedManagedReads] reads the whole
-		// resolution list on purpose ([identity.Scope]'s own doc comment -
-		// that list is also the sweep's declared set), so an instance a
-		// -target run leaves out of the plan graph could still reach
-		// [projection.ReadInstances] here. Narrowed BEFORE
-		// expandFormulaParents, never after: a parent is not read for its
-		// own sake but to render an in-scope child's formula, and the
-		// child's own scope is what has already been decided above.
-		instances = statelessInScopeResolutions(instances, scope)
+		// No statelessInScopeResolutions here, deliberately: GitHub issue
+		// #1258 names it for this list and it is unreachable. Every entry
+		// comes from analysis.ManagedRefusals(), and both sites that record
+		// one ([analyzer.recordManagedRefusal] and [analyzer.classify]'s
+		// own CategoryManagedResource arm) sit PAST the out-of-scope early
+		// return the option above installs, so an out-of-scope source
+		// demands nothing at all. An in-scope source's own managed
+		// dependency is in scope by construction - it is a reference edge,
+		// and the plan graph this scope is read off keeps a kept node's
+		// dependencies and drops an excluded node's dependents. The one
+		// state that would need the filter, an in-scope block reading an
+		// out-of-scope one, is the state this file's own instrument says
+		// targeting cannot produce. Reverting the filter changes no count
+		// on the fixture; reverting the option above turns the record row
+		// red.
 		instances = expandFormulaParents(resolutions, instances)
 		if len(instances) == 0 {
 			// Nothing new demanded that a prior pass has not already read;

@@ -133,12 +133,22 @@ func newTargetWorkCloud() *targetWorkCloud {
 					"name":     {Type: cty.String, Required: true},
 					"endpoint": {Type: cty.String, Computed: true},
 				}}},
+				// The fixture's second provider-configuration source, with
+				// no argument at all: readable on the first pass, so the
+				// only thing that can stop it being read is the scope.
+				"aws_region": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+					"id":   {Type: cty.String, Computed: true},
+					"name": {Type: cty.String, Computed: true},
+				}}},
 			},
 		},
 	}
 	c.kubernetes = &tofu.MockProvider{
 		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
-			Provider: providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"host": {Type: cty.String, Optional: true}}}},
+			Provider: providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+			"host":  {Type: cty.String, Optional: true},
+			"token": {Type: cty.String, Optional: true},
+		}}},
 			ResourceTypes: statelessTestIdentitySchemasFrom(map[string]providers.Schema{
 				"kubernetes_namespace":  {Block: &configschema.Block{Attributes: targetWorkAttrs(), BlockTypes: metadata}},
 				"kubernetes_config_map": {Block: &configschema.Block{Attributes: targetWorkAttrs(), BlockTypes: metadata}},
@@ -190,6 +200,13 @@ func newTargetWorkCloud() *targetWorkCloud {
 		}
 		p.ReadDataSourceFn = func(req providers.ReadDataSourceRequest) (resp providers.ReadDataSourceResponse) {
 			c.count(c.dataReads, req.TypeName)
+			if req.TypeName == "aws_region" {
+				resp.State = cty.ObjectVal(map[string]cty.Value{
+					"id":   cty.StringVal("us-east-1"),
+					"name": cty.StringVal("us-east-1"),
+				})
+				return resp
+			}
 			name := req.Config.GetAttr("name")
 			resp.State = cty.ObjectVal(map[string]cty.Value{
 				"id":       name,
@@ -431,9 +448,23 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 //	                                   PlanInstances' own    live managed reads       data reads
 //	                                   PlanResourceChange    import+read+normalize
 //	                                   total   excluded      total      excluded      total
-//	untargeted                           9        0          1+1+1         0            1
+//	untargeted                           9        0          1+1+1         0            3
 //	-target=aws_route53_record.cert_..   1        0          0+0+0         0            0
-//	-target=kubernetes_namespace.app     0        0          1+1+1         0            1
+//	-target=kubernetes_namespace.app     0        0          1+1+1         0            3
+//
+// The data-read column is against a fixture that gained a second provider-
+// configuration source in the same commit, data.aws_region.current, and the
+// two readings above it are not comparable to it for that column alone.
+// The second source is what makes the record row's zeros mean anything.
+// The cluster source is refused for a managed value it cannot have before
+// the plan, so its own read stops the moment the demand underneath it does,
+// for reasons that have nothing to do with a scope. data.aws_region.current
+// has no managed demand at all: it is readable on the first pass, so the
+// only thing that can stop it being read is [dataread.Options.Scope], and
+// its zero on the record row is that option's and nothing else's. Take the
+// option out and this test goes red on that one count. It is read twice on
+// the rows that read it at all, once per analysis pass, which is what a
+// second pass costs a source the first pass already answered.
 //
 // Only the record row moves, and it moves to zero. Targeting the record
 // drops data.aws_eks_cluster.cluster from the plan graph, so
@@ -466,6 +497,14 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 
 	const allNinePlans = "9 [aws_acm_certificate=1 aws_cloudwatch_log_group=1 aws_eks_cluster=1 aws_s3_bucket=2 aws_sns_topic=1 aws_sqs_queue=1 kubernetes_config_map=1 kubernetes_namespace=1]"
 	const oneCluster = "1 [aws_eks_cluster=1]"
+	// Both provider-configuration sources, and aws_region twice: the first
+	// analysis pass reads it (nothing in its arguments waits on a managed
+	// value) and the pass that follows the cluster read re-reads every
+	// source it classifies, the cluster included. So the cluster's own read
+	// is what a pass BUYS and aws_region's second is what a pass COSTS -
+	// both are the fixpoint's, and this counts them rather than quietly
+	// choosing one.
+	const bothSources = "3 [aws_eks_cluster=1 aws_region=2]"
 
 	for _, tc := range []struct {
 		name   string
@@ -497,7 +536,7 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 	}{
 		{
 			name:  "untargeted",
-			plans: allNinePlans, imports: oneCluster, reads: oneCluster, dataReads: oneCluster, readPlans: oneCluster,
+			plans: allNinePlans, imports: oneCluster, reads: oneCluster, dataReads: bothSources, readPlans: oneCluster,
 		},
 		{
 			// The certificate alone since #1258's first leg: the one
@@ -517,7 +556,7 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 			// plan graph keeps that provider's data source and the cluster
 			// the data source names.
 			name: "targeting a kubernetes block", target: "kubernetes_namespace.app",
-			plans: "0 []", imports: oneCluster, reads: oneCluster, dataReads: oneCluster, readPlans: oneCluster,
+			plans: "0 []", imports: oneCluster, reads: oneCluster, dataReads: bothSources, readPlans: oneCluster,
 			noSecondPass: true, readsForExcluded: 0,
 		},
 	} {
