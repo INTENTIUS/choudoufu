@@ -706,8 +706,8 @@ showing its own checks would have caught it.
   default run keeps it in the record and the cache and still plans
   `No changes.` with the cache deleted. The BREAK control applies the same
   estate under `secrets = "store"`, and the same scan must find the value.
-  The replan under refuse is printed and not asserted, because a changed
-  password is not proposed there (#1503).
+  The replan under refuse proposes the password again, rotated or not,
+  which is what the refusal costs (#1503).
 - **the-estate-answers-in-the-present-tense** - *Claim 41: the estate
   answers in the present tense.* "Which of this estate's security groups
   are attached to nothing" is asked from the `tofu-estate` tag plus a live

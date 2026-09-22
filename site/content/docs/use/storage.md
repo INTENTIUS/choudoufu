@@ -33,7 +33,7 @@ record_store "s3" {
 | `kubernetes` | Secrets in a namespace you already own | `namespace` (default `tofu-records-<estate>`), and the connection arguments of stock's `kubernetes` backend |
 
 An estate that declares no `record_store` gets the local one. Use a bucket or
-a cluster for anything more than one person shares. On a CI runner the local
+a cluster for anything more than one person shares: on a CI runner the local
 store is empty on every run, so a record-backed resource is proposed for
 create again.
 

@@ -131,16 +131,67 @@ banner() {
   echo
 }
 
+# smoke_log_dir is where a run's side logs go, and it has two answers on
+# purpose. ci-run.sh exports SMOKE_LOG_DIR as the directory holding the
+# scenario log, which is the directory the CI job uploads whole, so a file
+# written there rides out in the artifact next to scenario.log. With nothing
+# set - a local `just smoke <name>` - it is the run's own workroot, which
+# cleanup deletes on the way out; there the tail printed on failure is the
+# copy that lasts, in the terminal where the operator already is.
+smoke_log_dir() { printf '%s\n' "${SMOKE_LOG_DIR:-$SMOKE_WORKROOT/logs}"; }
+
+# logged runs a command with its whole output kept in a file under
+# smoke_log_dir and, when it fails, prints that file's tail before the FAIL
+# line, so the cause is in the job log and not only in the artifact.
+#
+# Issue #1521 is why it exists. `docker compose up -d floci >/dev/null 2>&1
+# || fail "stack" "docker compose up floci failed"` left the smoke job on PR
+# #1507 (run 35753172138) reading that one line and nothing else, forty
+# seconds in; a re-run of the same job passed. An image that would not pull,
+# a published port already taken and a daemon that had gone away all print
+# that line, so the failure could not be told from a regression - which is
+# the one thing a smoke run is for.
+#
+#   logged <name> <tag> <message> -- <command> [args...]
+#
+# <name> names the file (<name>.log) and <tag> is fail's bracketed tag.
+SMOKE_LOG_TAIL="${SMOKE_LOG_TAIL:-40}"
+logged() {
+  local name="$1" tag="$2" msg="$3"; shift 3
+  [ "${1:-}" = "--" ] && shift
+  local dir file
+  dir="$(smoke_log_dir)"; mkdir -p "$dir"
+  file="$dir/$name.log"
+  "$@" > "$file" 2>&1 && return 0
+  smoke_log_tail "$file" "$name"
+  fail "$tag" "$msg. Its output is above, and whole in $file"
+}
+
+# smoke_log_tail prints the end of a kept log to stderr, fenced, so a reader
+# scrolling a job log can see where the borrowed output starts and stops.
+smoke_log_tail() { # <file> <what>
+  {
+    echo "--- last $SMOKE_LOG_TAIL lines of $1 ($2) ---"
+    tail -n "$SMOKE_LOG_TAIL" "$1" 2>/dev/null || echo "  (nothing was captured)"
+    echo "--- end of $1 ---"
+  } >&2
+}
+
 stack_up() {
-  "${COMPOSE[@]}" up -d floci >/dev/null 2>&1 || fail "stack" "docker compose up floci failed"
+  logged compose-up-floci stack "docker compose up floci failed" \
+    -- "${COMPOSE[@]}" up -d floci
   # Resolve the port the kernel actually assigned (or the pinned one).
   # The endpoint host is localhost ON PURPOSE, not 127.0.0.1: the AWS
   # provider composes account-qualified hostnames for a few services
   # (S3 Control: 000000000000.<host>), and subdomains of localhost
   # resolve to loopback by convention where subdomains of a raw IP
   # cannot resolve at all - swapping in 127.0.0.1 broke exactly that.
-  FLOCI_PORT="$("${COMPOSE[@]}" port floci 4566 2>/dev/null | sed 's/.*://')"
-  [ -n "$FLOCI_PORT" ] || fail "stack" "could not resolve floci's published port"
+  local portlog
+  portlog="$(smoke_log_dir)/compose-port-floci.log"
+  FLOCI_PORT="$("${COMPOSE[@]}" port floci 4566 2>"$portlog" | sed 's/.*://')"
+  # An empty answer is either a container that is no longer up or a compose
+  # that said why on stderr, and that stderr used to go to /dev/null.
+  [ -n "$FLOCI_PORT" ] || fail "stack" "could not resolve floci's published port; docker compose port said: $(tr '\n' ' ' < "$portlog")"
   export FLOCI_PORT
   SMOKE_ENDPOINT="http://localhost:${FLOCI_PORT}"
   export SMOKE_ENDPOINT
@@ -151,9 +202,27 @@ stack_up() {
     curl -fsS "${SMOKE_ENDPOINT}/" >/dev/null 2>&1 && return 0
     sleep 1
   done
-  fail "stack" "floci never answered on :${FLOCI_PORT}"
+  # The probes above are discarded on purpose - up to thirty of them are
+  # meant to fail while the emulator boots, and their curl errors say only
+  # "connection refused". What names the cause is the container itself: a
+  # floci that came up and then died, or one still unpacking, reads off its
+  # own log and nowhere else (#1521).
+  # The container's state goes in the FAIL line and not into the tailed
+  # file: "Exited (1)" is the first thing worth knowing, and a chatty image
+  # can push 40 lines of its own startup over anything printed above it.
+  local upinfo state
+  upinfo="$(smoke_log_dir)/floci-container.log"
+  state="$("${COMPOSE[@]}" ps -a --format '{{.State}} - {{.Status}}' floci 2>&1 | tr '\n' ';')"
+  "${COMPOSE[@]}" logs --no-color --tail 200 floci > "$upinfo" 2>&1 || true
+  smoke_log_tail "$upinfo" "the floci container"
+  fail "stack" "floci never answered on :${FLOCI_PORT} after 30 probes over 30s; the container is [${state:-unknown}]. Its log is above, and whole in $upinfo"
 }
 
+# stack_down and cluster_down keep their `>/dev/null 2>&1 || true`. Both run
+# from smoke.sh's EXIT trap on every run, passed or failed, after the verdict
+# line has already been printed: they cannot fail a run, so they have no
+# cause to report, and a compose teardown's chatter on the happy path would
+# print under the PASS line every single time.
 stack_down() { "${COMPOSE[@]}" down --remove-orphans >/dev/null 2>&1 || true; }
 
 # cluster_up stands up a kind cluster for a Kubernetes scenario (#1057):
@@ -169,11 +238,16 @@ cluster_up() {
   command -v kubectl >/dev/null 2>&1 || fail "cluster" "kubectl is not installed"
   CLUSTER_NAME="chdf-smoke-$(echo "$SMOKE_ID" | tr -c 'a-z0-9-\n' '-' | cut -c1-30)"
   export KUBECONFIG="$SMOKE_WORKROOT/kubeconfig" KUBE_CONFIG_PATH="$SMOKE_WORKROOT/kubeconfig"
-  kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG" --wait 120s >"$SMOKE_WORKROOT/logs/kind.log" 2>&1 \
-    || fail "cluster" "kind create cluster failed: $(tail -5 "$SMOKE_WORKROOT/logs/kind.log")"
+  # This already kept kind's output; what it did not do was keep it anywhere
+  # a CI job could read afterwards - SMOKE_WORKROOT is deleted by cleanup and
+  # was never uploaded - or print more than five lines of it. Through logged
+  # it lands beside the scenario log (#1521).
+  logged kind cluster "kind create cluster failed" \
+    -- kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG" --wait 120s
   echo "  cluster up: kind $CLUSTER_NAME ($(kc version 2>/dev/null | grep -i server | head -1 || echo 'server version unknown'))"
 }
 
+# See stack_down above for why this one stays quiet.
 cluster_down() {
   [ -n "$CLUSTER_NAME" ] || return 0
   kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
@@ -361,7 +435,8 @@ k8s_wait_condition() {
 ORACLE_READY=0
 oracle_up() {
   [ "$ORACLE_READY" = "1" ] && return 0
-  "${COMPOSE[@]}" run --rm --user 0 --entrypoint sh opentofu     -c "chown -R $(id -u):$(id -g) /plugins" >/dev/null 2>&1     || fail "stack" "could not prepare the oracle's plugin volume"
+  logged compose-oracle-plugins stack "could not prepare the oracle's plugin volume" \
+    -- "${COMPOSE[@]}" run --rm --user 0 --entrypoint sh opentofu -c "chown -R $(id -u):$(id -g) /plugins"
   ORACLE_READY=1
 }
 

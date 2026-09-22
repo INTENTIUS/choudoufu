@@ -285,6 +285,26 @@ type LiveStrict struct {
 	ProviderChangeSet   bool
 	ProviderChangeRange hcl.Range
 
+	// SSM is the optional nested "ssm" block: where the secret values go
+	// under `strict { secrets = "ssm" }`, GitHub issue #1515's ruling 2.
+	// Nil when the strict block declares no such block, which for any
+	// other secrets setting is the only correct shape - a block naming a
+	// KMS key for an estate that keeps its secrets in its records
+	// configures nothing, and internal/live/lint refuses it rather than
+	// leaving an operator to believe their key is in the write path.
+	//
+	// A nested block rather than three more `strict` arguments because the
+	// three belong together and to one setting: they mean nothing under
+	// "store" or "refuse", and a flat kms_key_id beside marker_repair
+	// would read as an estate-wide key rather than as this setting's.
+	//
+	// Like every other field here this is the raw decode, with no opinion
+	// on whether the key ARN is well formed, whether the path is a legal
+	// parameter hierarchy, or whether the record store this pairs with is
+	// the S3 one. Those judgements need internal/live/strict's vocabulary
+	// and the rest of the live block, and belong to internal/live/lint.
+	SSM *LiveStrictSSM
+
 	// MarkersRecord is the optional nested `markers "record"` block: which
 	// resources hold their identity in the estate's record store instead of
 	// in an ownership marker tag, HANDOFF.md's "per-type or per-address
@@ -307,6 +327,52 @@ type LiveStrict struct {
 	MarkersRecord *LiveStrictMarkers
 
 	// DeclRange is the "strict" block's own header.
+	DeclRange hcl.Range
+}
+
+// LiveStrictSSM is the "ssm" block nested inside a strict block: the
+// customer managed KMS key and the parameter path that
+// `strict { secrets = "ssm" }` writes its SecureString parameters under.
+// See [LiveStrict.SSM] and GitHub issue #1515.
+type LiveStrictSSM struct {
+	// KMSKeyID is the customer managed KMS key the parameters are
+	// encrypted under: a key ID, an ARN or an alias, whichever spelling
+	// SSM's KeyId argument takes. Required by internal/live/lint, and
+	// required rather than defaulted because the default SSM key,
+	// alias/aws/ssm, is readable by every principal in the account that
+	// holds ssm:GetParameter - which would leave the values no better
+	// protected than the bucket they came out of, while looking like they
+	// were. #1515 settles that the default key is refused at first
+	// contact too, so the refusal is in two places on purpose.
+	KMSKeyID      string
+	KMSKeyIDSet   bool
+	KMSKeyIDRange hcl.Range
+
+	// Path is the parameter hierarchy the estate's secrets live under, as
+	// an absolute SSM path. Optional; empty means the caller's own default,
+	// derived from the estate name the way the S3 store derives its key
+	// prefix from it.
+	Path      string
+	PathSet   bool
+	PathRange hcl.Range
+
+	// Region overrides the AWS region the SSM client talks to. Optional;
+	// empty means the region the record store itself uses, and failing
+	// that the ordinary AWS SDK default-config chain - the same deferral
+	// [LiveRecordStore.Region] makes.
+	//
+	// It is a separate argument rather than always following the bucket
+	// because a bucket is global and a parameter is regional: an estate
+	// whose bucket is in one region may well want its parameters beside
+	// the resources they belong to, and the 10,000-parameter ceiling is
+	// per region, so the choice has a capacity consequence an operator may
+	// need to make deliberately.
+	Region      string
+	RegionSet   bool
+	RegionRange hcl.Range
+
+	// DeclRange is the "ssm" block's own header, which is what a
+	// diagnostic about the block as a whole points at.
 	DeclRange hcl.Range
 }
 
@@ -698,6 +764,15 @@ var liveStrictSchema = &hcl.BodySchema{
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "markers", LabelNames: []string{"kind"}},
+		{Type: "ssm"},
+	},
+}
+
+var liveStrictSSMSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "kms_key_id"},
+		{Name: "path"},
+		{Name: "region"},
 	},
 }
 
@@ -1113,6 +1188,30 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 	// two blocks rather than a duplicate. Two blocks with the SAME label are
 	// the duplicate, and get the same diagnostic the policy and record_store
 	// blocks give for theirs.
+	// The ssm block is counted rather than collected by label: it has no
+	// label, and unlike markers it names no family a second block could
+	// belong to. Two of them are the duplicate, and get the diagnostic
+	// every other duplicate nested block in this file gives.
+	var ssmBlocks []*hcl.Block
+	for _, block := range content.Blocks {
+		if block.Type == "ssm" {
+			ssmBlocks = append(ssmBlocks, block)
+		}
+	}
+	if len(ssmBlocks) > 1 {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate ssm block",
+			Detail:   "A strict block may have at most one ssm block. Put the key, the path and the region in the one block.",
+			Subject:  ssmBlocks[1].DefRange.Ptr(),
+		})
+	}
+	if len(ssmBlocks) > 0 {
+		sm, smDiags := decodeStrictSSMBlock(ssmBlocks[0])
+		diags = append(diags, smDiags...)
+		st.SSM = sm
+	}
+
 	seen := make(map[string]*hcl.Block, len(content.Blocks))
 	for _, block := range content.Blocks {
 		if block.Type != "markers" {
@@ -1156,6 +1255,49 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 // what it MEANS; this one only has to recognize the spelling, the same
 // division decodeRecordStoreBlock's three backend names already have.
 const strictMarkersRecord = "record"
+
+// decodeStrictSSMBlock decodes a strict block's nested "ssm" block: the
+// three literal strings that say where `strict { secrets = "ssm" }` puts a
+// secret value. See [LiveStrictSSM].
+//
+// Like [decodeStrictBlock] it records what was written and judges none of
+// it. That an omitted kms_key_id is a refusal, and that this block means
+// nothing beside any secrets setting but "ssm", are both
+// internal/live/lint's, for the same reason the strict block's own
+// spellings are checked there: this package does not depend on that one,
+// and a decode error cannot say "but your record_store is local" because
+// the record_store block may not have been decoded yet.
+func decodeStrictSSMBlock(block *hcl.Block) (*LiveStrictSSM, hcl.Diagnostics) {
+	sm := &LiveStrictSSM{DeclRange: block.DefRange}
+
+	content, diags := block.Body.Content(liveStrictSSMSchema)
+
+	for _, f := range []struct {
+		name string
+		val  *string
+		set  *bool
+		rng  *hcl.Range
+	}{
+		{"kms_key_id", &sm.KMSKeyID, &sm.KMSKeyIDSet, &sm.KMSKeyIDRange},
+		{"path", &sm.Path, &sm.PathSet, &sm.PathRange},
+		{"region", &sm.Region, &sm.RegionSet, &sm.RegionRange},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		*f.rng = attr.Range
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		*f.val = val
+		*f.set = true
+	}
+
+	return sm, diags
+}
 
 // decodeStrictMarkersBlock decodes one `markers "<kind>"` block: the two
 // literal lists that say which resources it covers. See [LiveStrictMarkers].

@@ -132,7 +132,13 @@ var Toggles = []Toggle{
 		Default: string(DefaultSecrets),
 		Relaxes: `"refuse" tightens the compatible-by-default answer (store secret material the way stock's ` +
 			`state file does) into HANDOFF.md's first principle: a secret-generating logical type is refused ` +
-			`outright and a sensitive settable argument is never recorded.`,
+			`outright and a sensitive settable argument is never recorded. "ssm" keeps the same material ` +
+			`"store" keeps and relaxes that principle too - it moves the values to Parameter Store under a ` +
+			`customer managed key rather than keeping none - but no build implements the write path yet ` +
+			`(GitHub issue #1515), so it is refused unconditionally and is not counted among this toggle's ` +
+			`declared Values below, for the reason [MarkerRepair]'s "report" is not. Everything AROUND it is ` +
+			`built: the nested ssm block decodes, an arrangement that could not work is refused by name, and ` +
+			`the state cache is already off under the setting.`,
 		Doc:       `live/LIMITATIONS.md, "strict-secrets"`,
 		Pinnable:  true,
 		SafeValue: string(Refuse),

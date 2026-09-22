@@ -112,18 +112,12 @@ tagged-or-not, plus marker key overrides and the delete guard.
 | `tag_key`, `tag_value` | Override the marker tag names. |
 | `threshold` | Guard for a delete quadrant: the run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number; lint refuses zero. |
 
-The `undeclared_untagged = "delete"` quadrant reconciles a whole account and
-needs a nested `scope` block bounding the sweep, through `services`, `types`
-and `regions`, each a list. Other delete verbs need none, including
-`undeclared_tagged`'s estate-scoped sweep.
-
 ### `strict` block
 
 The principles this fork exists for, each as a toggle whose default is what
-stock OpenTofu does, so an estate that sets none behaves like stock plus
-markers. A configuration with no `strict` block behaves exactly like one
-whose `strict` block sets nothing, which makes "compatible out of the box"
-true by construction. Turning a toggle on is the setup step.
+stock OpenTofu does. A block that sets nothing and no block at all mean the
+same thing, so an estate that sets none behaves like stock plus markers.
+Turning a toggle on is the setup step.
 
 <!-- toggles-gen:begin strict-toggles -->
 | Argument | Values | Default | Meaning |

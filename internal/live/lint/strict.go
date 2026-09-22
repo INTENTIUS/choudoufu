@@ -69,6 +69,7 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	st := mod.Live.Strict
 
 	checkStrictSecrets(st, path, issues)
+	checkStrictSecretsSSM(mod, st, path, issues)
 	checkStrictNoSourceCreate(st, path, issues)
 	checkStrictProviderChange(st, path, issues)
 
@@ -161,6 +162,16 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 				Detail:    detail,
 				Subject:   st.SecretsRange,
 			})
+			return
+		}
+		if !strict.SecretsImplemented(strict.Secrets(st.Secrets)) {
+			*issues = append(*issues, Issue{
+				Rule:      RuleStrictSecrets,
+				Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+				Module:    path,
+				Detail:    unimplementedSecretsDetail(strict.Secrets(st.Secrets)),
+				Subject:   st.SecretsRange,
+			})
 		}
 		return
 	}
@@ -181,6 +192,184 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 		),
 		Subject: st.SecretsRange,
 	})
+}
+
+// unimplementedSecretsDetail is the sentence for a secrets setting this
+// fork's schema defines and this build cannot act on yet. It is
+// [unimplementedRepairDetail]'s twin, and it is deliberately specific about
+// what accepting the setting would actually do, because "not implemented"
+// on a marker_repair setting means tags keep being written and on this one
+// means secrets keep being written in clear.
+func unimplementedSecretsDetail(v strict.Secrets) string {
+	return fmt.Sprintf(
+		"%q is a secrets setting this fork's schema defines and this build does not implement yet (GitHub "+
+			"issue #1515). It would put the values at a record's sensitive paths, and the provider's private "+
+			"data, into AWS Systems Manager Parameter Store as SecureString parameters under the customer "+
+			"managed key an ssm block names, leaving a reference in the record - and nothing in this build "+
+			"writes a parameter or resolves a reference. Accepting it would report an estate's secrets as held "+
+			"under its own KMS key while every one of them went on being written into its records in clear, "+
+			"with no parameter anywhere to notice was missing, so it is refused instead. Settings this build "+
+			"implements: %s. The rest of the arrangement is already here and is checked before this refusal - "+
+			"the nested ssm block decodes, an arrangement that could not work is refused by name, and no local "+
+			"state cache is written under the setting - so a configuration written for it today needs no change "+
+			"when the write path lands.",
+		v, strict.SecretsImplementedNames(),
+	)
+}
+
+// checkStrictSecretsSSM validates the arrangement `strict { secrets = "ssm" }`
+// stands on: GitHub issue #1515, splitting #1244's section 3.
+//
+// [checkStrictSecrets] has already said whether the spelling is in the
+// vocabulary. This function assumes it is and asks the next question, which
+// that one cannot: "ssm" is the only secrets setting that needs anything
+// else in the live block to be true, and everything it needs is somewhere
+// else - a nested block, and the record_store the reference is committed
+// with. Four shapes are refused and each is somebody's whole arrangement
+// being wrong, so all four are refusals rather than warnings.
+//
+// # Why the record store is checked here rather than at the store
+//
+// Because a run that reached the store has already written parameters. The
+// whole of ruling 1 is that S3's If-Match decides the race: a secret value
+// goes to a new SSM name with Overwrite false, and the record's
+// compare-and-swap is what commits the reference to it. A local directory
+// and a Kubernetes Secret have no If-Match, so under either of them the
+// reference is written by something that cannot fail on a concurrent write,
+// and the loser's record ends up naming a parameter the winner deleted. The
+// estate would look configured and would lose a secret to the first race.
+// Refusing at the configuration, before the first parameter exists, is the
+// same "refuse before the first write, never a half-written store" shape
+// GitHub issue #1309's capacity refusal has.
+//
+// # Why an ssm block under any other setting is refused too
+//
+// It is the reverse mistake and it fails silently, which is worse. An
+// operator who writes the block, names their customer managed key, and
+// leaves secrets at its default has a configuration that reads as though the
+// key were protecting something. Nothing would be encrypted under it: every
+// value would go into the record in clear, exactly as before, and the only
+// evidence would be the absence of parameters nobody was watching for.
+func checkStrictSecretsSSM(mod *configs.Module, st *configs.LiveStrict, path addrs.Module, issues *[]Issue) {
+	inSSM := st.SecretsSet && strict.Secrets(st.Secrets) == strict.SSM
+
+	// A block for a setting that is not on. Skipped when the argument is
+	// set to something outside the vocabulary altogether, because
+	// [checkStrictSecrets] is already refusing that line and telling an
+	// author their block is in the wrong place on top of it would describe
+	// an arrangement they may well have meant.
+	if st.SSM != nil && !inSSM {
+		if !st.SecretsSet || strict.SecretsValid(strict.Secrets(st.Secrets)) {
+			*issues = append(*issues, Issue{
+				Rule:      RuleStrictSecretsSSM,
+				Construct: "strict.ssm",
+				Module:    path,
+				Detail: fmt.Sprintf(
+					"This strict block declares an ssm block, which says where secret values go, but its secrets "+
+						"setting is %s - so no secret value goes there. The block is refused rather than ignored "+
+						"because ignoring it is invisible: every value would be written into the estate's records "+
+						"in clear, exactly as it is today, while this configuration names a KMS key that reads as "+
+						"though it were protecting them. Set secrets = %q to turn the arrangement on, or remove "+
+						"this block.",
+					settingAsWritten(st), strict.SSM,
+				),
+				Subject: st.SSM.DeclRange,
+			})
+		}
+	}
+
+	if !inSSM {
+		return
+	}
+
+	// The setting with no block. There is nothing to default here: a
+	// customer managed key is the whole point of the arrangement (#1515),
+	// and SSM's own default key, alias/aws/ssm, is readable by every
+	// principal in the account holding ssm:GetParameter.
+	if st.SSM == nil {
+		*issues = append(*issues, Issue{
+			Rule:      RuleStrictSecretsSSM,
+			Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"secrets = %q sends the values at a record's sensitive paths, and the provider's private data, to "+
+					"AWS Systems Manager Parameter Store as SecureString parameters - and nothing here says which "+
+					"key encrypts them. Add a nested block naming a customer managed KMS key:\n\n"+
+					"    strict {\n      secrets = %q\n      ssm { kms_key_id = \"arn:aws:kms:...\" }\n    }\n\n"+
+					"There is no default to fall back on. SSM's own alias/aws/ssm key is readable by every "+
+					"principal in the account that holds ssm:GetParameter, which is no narrower than the read on "+
+					"the bucket these values are being moved out of, so defaulting to it would move the secrets "+
+					"and protect nothing.",
+				strict.SSM, strict.SSM,
+			),
+			Subject: st.SecretsRange,
+		})
+	} else if !st.SSM.KMSKeyIDSet || st.SSM.KMSKeyID == "" {
+		*issues = append(*issues, Issue{
+			Rule:      RuleStrictSecretsSSM,
+			Construct: "strict.ssm",
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"This ssm block names no kms_key_id, and secrets = %q has no key to encrypt a parameter under "+
+					"without one. It is required rather than defaulted: leaving it out would fall back on SSM's "+
+					"own alias/aws/ssm key, which every principal in the account holding ssm:GetParameter can "+
+					"decrypt - the same breadth of read this setting exists to narrow. Name a customer managed "+
+					"key by ID, ARN or alias.",
+				strict.SSM,
+			),
+			Subject: st.SSM.DeclRange,
+		})
+	}
+
+	// The store that commits the reference. See this function's doc comment
+	// for why a store without compare-and-swap is refused rather than
+	// supported.
+	rs := mod.Live.RecordStore
+	switch {
+	case rs == nil || rs.Implied:
+		*issues = append(*issues, Issue{
+			Rule:      RuleStrictSecretsSSM,
+			Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"secrets = %q leaves a reference in each record and puts the value in Parameter Store, and the "+
+					"record's own compare-and-swap is the only thing that decides which of two concurrent writers "+
+					"wins. This live block declares no record_store, so its records go to the implied local "+
+					"directory, which has no compare-and-swap to decide anything: the loser of a race would keep a "+
+					"record naming a parameter the winner had already deleted, and that secret would be gone. "+
+					"Declare record_store \"s3\", which is the one store this setting pairs with.",
+				strict.SSM,
+			),
+			Subject: st.SecretsRange,
+		})
+	case rs.Type != "s3":
+		*issues = append(*issues, Issue{
+			Rule:      RuleStrictSecretsSSM,
+			Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"secrets = %q pairs with record_store \"s3\" and with nothing else, and this live block declares "+
+					"record_store %q. The reference a record carries in place of a secret value is committed by "+
+					"that record's own conditional write, which is what decides a race between two writers; the "+
+					"%s store has no such write, so the loser of a race would keep a record naming a parameter the "+
+					"winner had already deleted. Either move this estate's records to a bucket, or set "+
+					"secrets = %q, which keeps no secret material anywhere this run can write.",
+				strict.SSM, rs.Type, rs.Type, strict.Refuse,
+			),
+			Subject: st.SecretsRange,
+		})
+	}
+}
+
+// settingAsWritten names the secrets setting in force for a diagnostic
+// about some OTHER line - quoted when the author wrote it, and named as the
+// default when they did not, because "secrets is "store"" reads as an
+// accusation to an author who never wrote the word.
+func settingAsWritten(st *configs.LiveStrict) string {
+	if st.SecretsSet {
+		return fmt.Sprintf("%q", st.Secrets)
+	}
+	return fmt.Sprintf("omitted, which means %q", strict.SecretsDefault())
 }
 
 // checkStrictNoSourceCreate validates the strict block's no_source_create

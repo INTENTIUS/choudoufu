@@ -77,7 +77,10 @@ object you mean:
 ## Reconciling a whole account
 
 `undeclared_untagged = "delete"` destroys resources your configuration has
-never mentioned. It requires a `scope` block, the only setting that does.
+never mentioned. It requires a `scope` block bounding the sweep through
+`services`, `types` and `regions`, each a list. It is the only setting that
+does; other delete verbs need none, `undeclared_tagged`'s estate-scoped
+sweep included.
 
 Re-read the two orphan cases in [How to stop managing or destroy a
 resource]({{< relref "/docs/use/remove-a-resource" >}}) before enabling it.
