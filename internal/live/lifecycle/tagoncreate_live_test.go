@@ -125,13 +125,17 @@ func TestTagOnCreateHostedZone(t *testing.T) {
 			t.Errorf("phase 1: ChangeTagsForResource request %d carried an ownership marker; the marker went through the provider's own follow-up call, not this fork's:\n%s", i, body)
 		}
 	}
-	// The applied object, as the provider returned it and as the cache
-	// stored it, carries no marker either: this run never sent one to the
-	// provider.
+	// The proxy check above is the proof that the create carried no marker.
+	// The cache is the other half, and it used to assert the opposite of
+	// this: until #1316 the cache kept the provider's pre-marker copy of the
+	// zone, and a -refresh=false plan, which reads the cache instead of the
+	// cloud, proposed writing the markers again onto a zone that already had
+	// them (TestSteadyStateCostAgainstFloci's refresh-false column). The
+	// stored object is now the object as it stands, marker included.
 	cacheTags := tocCacheTags(t, dirA)
 	for _, k := range []string{"tofu-estate", "tofu-address"} {
-		if _, has := cacheTags[k]; has {
-			t.Errorf("phase 1: the cache's zone tags carry %s; the marker was sent through the provider's create (cache tags: %v)", k, cacheTags)
+		if _, has := cacheTags[k]; !has {
+			t.Errorf("phase 1: the cache's zone tags lack %s although the write landed; a -refresh=false plan will propose it again (cache tags: %v)", k, cacheTags)
 		}
 	}
 

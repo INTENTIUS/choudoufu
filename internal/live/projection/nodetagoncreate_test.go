@@ -193,7 +193,8 @@ func TestWriteAppliedMarkers_writesTheWithheldMarkers(t *testing.T) {
 	applied := tocApplied("arn:aws:after:::thing/T1", "T1", nil)
 
 	after := locatedTestAddr(t, "aws_after_thing", "x")
-	if diags := n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema()); diags.HasErrors() {
+	stored, diags := n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema())
+	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %s", diags.Err())
 	}
 	if len(tagger.calls) != 1 {
@@ -213,12 +214,35 @@ func TestWriteAppliedMarkers_writesTheWithheldMarkers(t *testing.T) {
 		}
 	}
 
+	// #1316: the object core stores is the object as it now stands. The
+	// provider returned it from a create with no marker; the state and the
+	// cache a -refresh=false plan reads must carry what the write stored,
+	// in both maps, or that plan proposes the markers all over again.
+	for _, attr := range []string{"tags", "tags_all"} {
+		got := stored.GetAttr(attr)
+		if got.IsNull() || !got.IsKnown() {
+			t.Fatalf("stored %s is %#v, want the written markers", attr, got)
+		}
+		gm := got.AsValueMap()
+		for k, v := range want {
+			if e, ok := gm[k]; !ok || e.AsString() != v {
+				t.Errorf("stored %s[%q] = %#v, want %q: the state would contradict the object it describes", attr, k, e, v)
+			}
+		}
+	}
+	if stored.GetAttr("arn").AsString() != "arn:aws:after:::thing/T1" {
+		t.Errorf("the rest of the object changed: arn = %#v", stored.GetAttr("arn"))
+	}
+	if !stored.Type().Equals(tocSchema().Block.ImpliedType()) {
+		t.Errorf("the stored object no longer conforms to the schema: %#v", stored.Type())
+	}
+
 	tagger.calls = nil
 	ordinary := locatedTestAddr(t, "aws_ordinary_thing", "x")
-	_ = n.WriteAppliedMarkers(ctx, ordinary, tocProvider(), plans.Create, applied, tocSchema())
-	_ = n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Update, applied, tocSchema())
+	_, _ = n.WriteAppliedMarkers(ctx, ordinary, tocProvider(), plans.Create, applied, tocSchema())
+	_, _ = n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Update, applied, tocSchema())
 	noEstate := &NodeResolver{Roster: tocRoster(t), Tagger: n.Tagger}
-	_ = noEstate.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema())
+	_, _ = noEstate.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema())
 	if len(tagger.calls) != 0 {
 		t.Errorf("a write was made where none was due: %v", tagger.calls)
 	}
@@ -235,7 +259,7 @@ func TestWriteAppliedMarkers_refusedWriteIsAnErrorNamingTheObjectAndTheCommand(t
 	after := locatedTestAddr(t, "aws_after_thing", "x")
 	applied := tocApplied("arn:aws:after:::thing/T1", "T1", nil)
 
-	diags := n.WriteAppliedMarkers(context.Background(), after, tocProvider(), plans.Create, applied, tocSchema())
+	_, diags := n.WriteAppliedMarkers(context.Background(), after, tocProvider(), plans.Create, applied, tocSchema())
 	if !diags.HasErrors() {
 		t.Fatalf("a refused tag write did not fail the apply")
 	}
@@ -270,14 +294,14 @@ func TestWriteAppliedMarkers_noClientAndNoARNAreFailuresToo(t *testing.T) {
 	ctx := context.Background()
 
 	noClient := tocResolver(t, nil)
-	diags := noClient.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema())
+	_, diags := noClient.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema())
 	if !diags.HasErrors() || !strings.Contains(diags[0].Description().Detail, "this run has no tagging client") {
 		t.Errorf("no client: want a failed write naming the missing client, got %v", diags.Err())
 	}
 
 	tagger := &fakeTagger{}
 	noARN := tocResolver(t, tagger)
-	diags = noARN.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("", "T1", nil), tocSchema())
+	_, diags = noARN.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("", "T1", nil), tocSchema())
 	if !diags.HasErrors() {
 		t.Fatalf("no arn: the write was reported as done")
 	}
@@ -309,5 +333,54 @@ func TestMarkerTagsArgument_keyedInstanceSurvivesAShell(t *testing.T) {
 	}
 	if !strings.Contains(got, "tofu-address="+markers.EscapeAddress(addr.String())) {
 		t.Errorf("the escaped address is not in the argument: %s", got)
+	}
+}
+
+// TestWithWrittenMarkers_keepsExistingTagsAndNeverTouchesAMark: the merge
+// adds the written markers to whatever tags the provider returned, and a
+// tag map carrying a mark (a sensitive value) is left exactly as it was,
+// since nothing here may read inside it.
+func TestWithWrittenMarkers_keepsExistingTagsAndNeverTouchesAMark(t *testing.T) {
+	written := map[string]string{markers.TagEstate: "prod"}
+
+	obj := tocApplied("arn:aws:after:::thing/T1", "T1", map[string]string{"team": "platform"})
+	got := withWrittenMarkers(obj, written)
+	tags := got.GetAttr("tags").AsValueMap()
+	if tags["team"].AsString() != "platform" || tags[markers.TagEstate].AsString() != "prod" {
+		t.Errorf("merged tags = %#v, want team=platform and the written marker", tags)
+	}
+
+	sensitive := cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("T1"),
+		"arn":      cty.StringVal("arn:aws:after:::thing/T1"),
+		"name":     cty.StringVal("thing"),
+		"tags":     cty.MapVal(map[string]cty.Value{"team": cty.StringVal("platform")}).Mark("sensitive"),
+		"tags_all": cty.NullVal(cty.Map(cty.String)),
+	})
+	out := withWrittenMarkers(sensitive, written)
+	if !out.GetAttr("tags").HasMark("sensitive") {
+		t.Fatal("the sensitive mark on tags was lost")
+	}
+	if v, _ := out.GetAttr("tags").Unmark(); len(v.AsValueMap()) != 1 {
+		t.Errorf("a marked tags map was rewritten: %#v", v)
+	}
+	if ta := out.GetAttr("tags_all"); ta.IsNull() || ta.AsValueMap()[markers.TagEstate].AsString() != "prod" {
+		t.Errorf("an unmarked null tags_all should take the written markers, got %#v", ta)
+	}
+}
+
+// TestWriteAppliedMarkers_aRefusedWriteStoresTheProvidersObject: when the
+// write fails, nothing landed, so the stored object must be the one the
+// provider returned - claiming markers the cloud refused would be a worse
+// lie than the one #1316 fixes.
+func TestWriteAppliedMarkers_aRefusedWriteStoresTheProvidersObject(t *testing.T) {
+	n := tocResolver(t, &fakeTagger{err: errors.New("AccessDeniedException (HTTP 403): refused by test")})
+	applied := tocApplied("arn:aws:after:::thing/T1", "T1", nil)
+	stored, diags := n.WriteAppliedMarkers(context.Background(), locatedTestAddr(t, "aws_after_thing", "x"), tocProvider(), plans.Create, applied, tocSchema())
+	if !diags.HasErrors() {
+		t.Fatal("a refused write must be an error")
+	}
+	if !stored.RawEquals(applied) {
+		t.Errorf("a refused write stored %#v, want the provider's object unchanged", stored)
 	}
 }
