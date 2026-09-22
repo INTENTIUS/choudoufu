@@ -54,6 +54,13 @@ is_control() {
 rc=0
 if [ "$CHECK_ONLY" = "0" ]; then
   mkdir -p "$(dirname "$LOG")"; : > "$LOG"
+  # SMOKE_LOG_DIR is the log's own directory, and lib.sh's logged() writes
+  # the side logs there - docker compose's output, kind's - so the artifact
+  # step, which uploads this directory whole, carries them out with
+  # scenario.log (#1521). Without it those files go to the run's workroot
+  # and are deleted with it.
+  SMOKE_LOG_DIR="$(cd "$(dirname "$LOG")" && pwd)"
+  export SMOKE_LOG_DIR
   tail -f "$LOG" & tail_pid=$!
   bash "$HERE/smoke.sh" "$SCENARIO" >> "$LOG" 2>&1 || rc=$?
   sleep 2; kill "$tail_pid" 2>/dev/null || true
