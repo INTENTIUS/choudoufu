@@ -52,12 +52,21 @@ func (a *withholdingAdjuster) AdjustCreateConfigValue(_ context.Context, _ addrs
 	return config, nil
 }
 
-func (a *withholdingAdjuster) WriteAppliedMarkers(_ context.Context, _ addrs.AbsResourceInstance, _ addrs.AbsProviderConfig, action plans.Action, _ cty.Value, _ providers.Schema) tfdiags.Diagnostics {
+func (a *withholdingAdjuster) WriteAppliedMarkers(_ context.Context, _ addrs.AbsResourceInstance, _ addrs.AbsProviderConfig, action plans.Action, applied cty.Value, _ providers.Schema) (cty.Value, tfdiags.Diagnostics) {
 	a.mu.Lock()
 	a.writes = append(a.writes, action)
 	a.mu.Unlock()
-	return nil
+	return applied, nil
 }
+
+// The stub is found by type assertion at the call site, so a signature that
+// drifts from the interface makes it silently absent rather than a build
+// error: the writes assertion below then reads zero calls. These make the
+// drift a compile error instead.
+var (
+	_ CreateConfigValueAdjuster = (*withholdingAdjuster)(nil)
+	_ AppliedMarkerWriter       = (*withholdingAdjuster)(nil)
+)
 
 // TestContext2Apply_createConfigValueAdjusterOnReplace is GitHub issue
 // #1512. A replace's create half must be planned with the value
