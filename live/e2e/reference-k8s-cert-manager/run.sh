@@ -166,6 +166,11 @@ TOFU_CRASH="$WORK/bin/choudoufu-e2e"
 log "  built $TOFU_CRASH (e2eTestingFeatures=yes, for day2_crash's interrupt)"
 
 # ── the shape ────────────────────────────────────────────────────────────
+# The hashicorp/kubernetes requirement is live/oracle-versions.json's
+# kubernetes_provider_version, read once behind one fail (#1252).
+K8S_REQUIRED_PROVIDER="$(gauntlet_kubernetes_required_provider)" \
+  || fail "could not read the hashicorp/kubernetes pin from live/oracle-versions.json"
+
 # The committed root is what runs: every working copy is a plain cp of
 # root/, plus a versions.tf this script writes (the bundle carries no
 # provider block, and only choudoufu's side gets a live block). Nothing
@@ -175,10 +180,7 @@ versions_block() { # $1 = "live" for the live block, anything else for stock
   cat <<EOF
 terraform {
   required_providers {
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "= 3.2.1"
-    }
+$K8S_REQUIRED_PROVIDER
   }
 EOF
   if [ "$1" = "live" ]; then cat <<EOF
