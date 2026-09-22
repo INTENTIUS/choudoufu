@@ -718,6 +718,20 @@ showing its own checks would have caught it.
   next plan proposes the one update that puts it back. The BREAK control
   skips the move, and both answers must agree. The estate's own resources
   only; it is not account-wide gap analysis.
+- **a-killed-apply-hides-nothing** - *Claim 42: a killed apply hides
+  nothing it marked.* A real apply is killed with SIGKILL at a point
+  pinned by a count read off the account - hosted zones named
+  `killed-apply.example.`, 0 then 1 - never by a timer. The VPC it
+  created carries its markers, because they rode the create call, so the
+  next plan proposes nothing for it and the re-run binds it. The hosted
+  zone does not: `aws_route53_zone` reads `tag_on_create: false`, so the
+  markers land only when the provider's create step returns, measured
+  15.0s after the zone appeared. The next plan proposes a second zone,
+  the re-run builds it, and the orphan is deleted by hand - the only
+  surgery in the run. The record-carried `terraform_data` had already run
+  its provisioner with no record saying so, so the plan names it as a
+  create and the effect runs twice. The BREAK control strips every marker
+  and requires a duplicate VPC.
 
 ## Knobs
 

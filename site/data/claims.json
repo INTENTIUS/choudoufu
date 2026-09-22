@@ -994,6 +994,29 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 42,
+      "slug": "a-killed-apply-hides-nothing",
+      "title": "A killed apply hides nothing it marked: after a SIGKILL mid-apply every marked object is named by the next plan and bound by the re-run with no duplicate, and the two windows in which something can still be hidden - the marker write that follows a tag_on_create=false create, and the record written after the walk - are measured here rather than assumed",
+      "scenario": "live/smoke/scenarios/a-killed-apply-hides-nothing.sh",
+      "command": "just smoke a-killed-apply-hides-nothing",
+      "minutes": 4,
+      "needs_go": false,
+      "theme": "adopt",
+      "break_mode": "BREAK=1 strips the ownership markers off everything the killed apply created, leaving the same objects in the same account with no ownership on them; the re-run must then be unable to bind and must build a duplicate VPC, which is stock's behaviour, and a strip that left a marker behind fails the control rather than passing it",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "Scoped to what the dead apply MARKED. An object killed between its create call and the marker write that follows it is not named by the next plan, and for a tag_on_create=false type that window is the whole of the provider's create step: 15.0s for a hosted zone against the pinned emulator. The re-run then duplicates it and the orphan is removed by hand. Ten types read tag_on_create false in live/registry.json (#1084); for every other type the markers ride the create call and the window does not exist. A record-carried instance's effect is at-least-once: the record is written after the whole walk, so a killed run leaves an effect that ran and no record of it, and the next plan names it as a create."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not stated for Kubernetes yet. Claim 39 kills an apply on a cluster to show it leaves no lock behind, but what a killed apply leaves in the cluster and what the next plan names has not been measured there."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }
