@@ -245,10 +245,10 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 		RegionSource: region.Source,
 		RegionNote:   region.Note,
 		Consistent:   args.Consistent,
-		Stabilized: stabilized,
-		Attempts:   attempts,
-		ConfigDir:  args.ConfigDir,
-		Items:      items,
+		Stabilized:   stabilized,
+		Attempts:     attempts,
+		ConfigDir:    args.ConfigDir,
+		Items:        items,
 	}
 
 	if args.ConfigDir != "" {

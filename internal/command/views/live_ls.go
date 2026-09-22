@@ -249,9 +249,9 @@ type liveLsJSONReport struct {
 	// Omitted only when no AWS listing ran.
 	RegionSource string `json:"region_source,omitempty"`
 	Consistent   bool   `json:"consistent"`
-	Stabilized bool   `json:"stabilized"`
-	Attempts   int    `json:"attempts"`
-	ConfigDir  string `json:"config_dir,omitempty"`
+	Stabilized   bool   `json:"stabilized"`
+	Attempts     int    `json:"attempts"`
+	ConfigDir    string `json:"config_dir,omitempty"`
 
 	// Schemas is GitHub issue #966's "what was this computed from", the
 	// same field and the same two values live-check -json carries - see
@@ -275,11 +275,11 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 		Region:       rep.Region,
 		RegionSource: rep.RegionSource,
 		Consistent:   rep.Consistent,
-		Stabilized: rep.Stabilized,
-		Attempts:   rep.Attempts,
-		ConfigDir:  rep.ConfigDir,
-		Schemas:    schemaSource(rep.Schemas),
-		Items:      make([]liveLsJSONItem, 0, len(rep.Items)),
+		Stabilized:   rep.Stabilized,
+		Attempts:     rep.Attempts,
+		ConfigDir:    rep.ConfigDir,
+		Schemas:      schemaSource(rep.Schemas),
+		Items:        make([]liveLsJSONItem, 0, len(rep.Items)),
 		// Never nil, for the reason the field's own doc comment gives:
 		// encoding/json renders a nil slice as `null`, and GitHub issue
 		// #966's whole complaint is a reader having to interpret a gaps
