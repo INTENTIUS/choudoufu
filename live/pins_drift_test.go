@@ -214,6 +214,11 @@ var (
 	speaksGauntletProtocol = regexp.MustCompile(`(?m)^gauntlet_begin\b`)
 	copiesACorpusModule    = regexp.MustCompile(`\.corpus/`)
 	declaresHashicorpAWS   = regexp.MustCompile(`hashicorp/aws`)
+	// declaresHashicorpKubernetes widens the version-literal rule to the
+	// kind-substrate estates once live/oracle-versions.json carries a
+	// kubernetes_provider_version for their literals to be a copy of
+	// (#1252).
+	declaresHashicorpKubernetes = regexp.MustCompile(`hashicorp/kubernetes`)
 )
 
 // gauntletCrossingScriptsThatDeclareAWS lists, relative to live/, every
@@ -456,12 +461,13 @@ var exactVersionPinLiteral = regexp.MustCompile(`version\s*=\s*"\s*=\s*[0-9]+\.[
 //     requirement for a hand-authored root, so the scope below is no longer
 //     "calls the helper" but "is a registered crossing script that declares
 //     hashicorp/aws at all", whichever half of the pin it uses.
-//   - A script that declares no hashicorp/aws is still not checked, and that
-//     is deliberate rather than an oversight: the three reference-k8s
-//     estates each pin hashicorp/kubernetes at an exact release of their
-//     own, which live/oracle-versions.json says nothing about, so there is
-//     no second copy of anything for such a literal to drift from. This rule
-//     stays a rule about the aws pin.
+//   - A registered script declaring hashicorp/kubernetes is checked too
+//     (#1252). Until live/oracle-versions.json carried a
+//     kubernetes_provider_version, the three reference-k8s estates each
+//     spelled "= 3.2.1" out themselves and were deliberately out of scope,
+//     since a literal is only a second copy if there is a first; the field
+//     is that first copy, and gauntlet_kubernetes_required_provider prints
+//     it. A script declaring neither provider is still not checked.
 func TestGauntletCrossingScriptsCarryNoVersionLiteral(t *testing.T) {
 	scripts := gauntletScriptsCheckedForVersionLiterals(t)
 	if len(scripts) == 0 {
@@ -511,7 +517,7 @@ func exactProviderVersionLiterals(src string) []versionLiteralHit {
 }
 
 func versionLiteralViolationMessage(rel string, hit versionLiteralHit) string {
-	return fmt.Sprintf("live/%s:%d spells an exact provider version out itself (%s) - that literal is a second copy of live/oracle-versions.json's aws_provider_version and stops agreeing with it at the next bump. Match the version field by shape (version = \"[^\"]*\") in a rewrite, write the placeholder \"PINNED-BY-GAUNTLET\" in a heredoc and let gauntlet_pin_aws_provider fill it in, or - for a hand-authored root with no corpus module to rewrite - interpolate gauntlet_aws_required_provider's output (issues #1207, #1216)",
+	return fmt.Sprintf("live/%s:%d spells an exact provider version out itself (%s) - that literal is a second copy of live/oracle-versions.json's aws_provider_version or kubernetes_provider_version and stops agreeing with it at the next bump. Match the version field by shape (version = \"[^\"]*\") in a rewrite, write the placeholder \"PINNED-BY-GAUNTLET\" in a heredoc and let gauntlet_pin_aws_provider fill it in, or - for a hand-authored root with no corpus module to rewrite - interpolate gauntlet_aws_required_provider's or gauntlet_kubernetes_required_provider's output (issues #1207, #1216, #1252)",
 		rel, hit.line, hit.literal)
 }
 
@@ -547,8 +553,9 @@ func gauntletScriptsCheckedForVersionLiterals(t *testing.T) []string {
 			t.Fatalf("reading live/%s: %v", rel, err)
 		}
 		src := string(data)
-		registeredAndDeclaresAWS := speaksGauntletProtocol.MatchString(src) && declaresHashicorpAWS.MatchString(src)
-		if callsGauntletPinAWSProvider(src) || registeredAndDeclaresAWS {
+		registeredAndDeclaresAPin := speaksGauntletProtocol.MatchString(src) &&
+			(declaresHashicorpAWS.MatchString(src) || declaresHashicorpKubernetes.MatchString(src))
+		if callsGauntletPinAWSProvider(src) || registeredAndDeclaresAPin {
 			matches = append(matches, rel)
 		}
 	}
@@ -560,11 +567,11 @@ func gauntletScriptsCheckedForVersionLiterals(t *testing.T) []string {
 // red-before-green proof, run on every `go test` rather than once by hand.
 //
 // The three things it asserts are the three ways #1216 could be undone:
-// reference-ec2-vpc back in scope but clean (the fix), the same script with
-// its pre-#1216 text restored and loudly not clean (the defect, proved red
-// against the real file rather than a manufactured one), and the
-// hashicorp/kubernetes estates still out of scope (the widening did not
-// quietly take authority over a pin live/oracle-versions.json does not own).
+// reference-ec2-vpc back in scope but clean (the fix), and the same script
+// with its pre-#1216 text restored and loudly not clean (the defect, proved
+// red against the real file rather than a manufactured one). #1252 adds the
+// same two for each hashicorp/kubernetes estate, which used to be asserted
+// OUT of scope while live/oracle-versions.json held no kubernetes pin.
 func TestVersionLiteralGuardIsRedOnAHandAuthoredRoot(t *testing.T) {
 	const rel = "e2e/reference-ec2-vpc/run.sh"
 
@@ -576,9 +583,31 @@ func TestVersionLiteralGuardIsRedOnAHandAuthoredRoot(t *testing.T) {
 	if !inScope[rel] {
 		t.Fatalf("live/%s is not in the version-literal rule's scope - #1216's widening is what puts it there (scope today: %v)", rel, scope)
 	}
+	// #1252: the kind-substrate estates are in scope now that
+	// live/oracle-versions.json carries the first copy their literal would
+	// be a second of. Each must be clean as it stands and red with its
+	// pre-#1252 literal put back, checked against the real file.
+	const usesK8sHelper = "$K8S_REQUIRED_PROVIDER\n"
+	const k8sHandPinned = "    kubernetes = {\n      source  = \"hashicorp/kubernetes\"\n      version = \"= 3.2.1\"\n    }\n"
 	for _, k8s := range []string{"e2e/reference-k8s/run.sh", "e2e/reference-k8s-stateful/run.sh", "e2e/reference-k8s-cert-manager/run.sh"} {
-		if inScope[k8s] {
-			t.Errorf("live/%s is in the version-literal rule's scope, but it pins hashicorp/kubernetes, not hashicorp/aws - live/oracle-versions.json holds no kubernetes pin for such a literal to be a second copy of, so this rule has nothing to say about it", k8s)
+		if !inScope[k8s] {
+			t.Errorf("live/%s is not in the version-literal rule's scope - #1252 put the hashicorp/kubernetes estates there", k8s)
+			continue
+		}
+		data, err := os.ReadFile(k8s)
+		if err != nil {
+			t.Fatalf("reading live/%s: %v", k8s, err)
+		}
+		src := string(data)
+		if hits := exactProviderVersionLiterals(src); len(hits) != 0 {
+			t.Errorf("live/%s carries %d exact provider-version literal(s) (first: line %d, %s) - it must interpolate gauntlet_kubernetes_required_provider instead (#1252)", k8s, len(hits), hits[0].line, hits[0].literal)
+		}
+		if n := strings.Count(src, usesK8sHelper); n != 1 {
+			t.Errorf("live/%s interpolates $K8S_REQUIRED_PROVIDER %d time(s), want 1 - this proof rewrites the real script's text, so it must fail rather than silently test an unedited original", k8s, n)
+			continue
+		}
+		if hits := exactProviderVersionLiterals(strings.Replace(src, usesK8sHelper, k8sHandPinned, 1)); len(hits) != 1 {
+			t.Errorf("the pre-#1252 text of live/%s produces %d literal violation(s), want 1 - the rule is not seeing the literal #1252 removed", k8s, len(hits))
 		}
 	}
 
@@ -1420,5 +1449,32 @@ gauntlet_pin_aws_provider "$COUNT_ORACLE_DIR/main.tf" || fail "gauntlet_pin_aws_
 					gotKinds, tc.wantKinds, cov.copyPoints, cov.pinPoints, cov.exempted, cov.deficit(), cov.uncovered())
 			}
 		})
+	}
+}
+
+// TestKubernetesProviderPinIsARelease is #1252's half of the check
+// TestGauntletCrossingScriptsPinOneAWSProvider makes for the aws field:
+// live/oracle-versions.json's kubernetes_provider_version exists and reads
+// as a release, and the library prints it through
+// gauntlet_kubernetes_required_provider rather than a literal of its own.
+// The three scripts' side of it - no literal, one interpolation each - is
+// TestVersionLiteralGuardIsRedOnAHandAuthoredRoot's.
+//
+// Proving it red: set the field to "v3.2.1", or delete it.
+func TestKubernetesProviderPinIsARelease(t *testing.T) {
+	var oracle struct {
+		KubernetesProviderVersion string `json:"kubernetes_provider_version"`
+	}
+	decodeInto(t, "oracle-versions.json", &oracle)
+	if !awsProviderPinPattern.MatchString(oracle.KubernetesProviderVersion) {
+		t.Fatalf("live/oracle-versions.json's kubernetes_provider_version is %q, which is not a bare X.Y.Z release - a human hand-edits this field the way aws_provider_version is maintained (#1252)",
+			oracle.KubernetesProviderVersion)
+	}
+	lib, err := os.ReadFile("e2e/lib/gauntlet.sh")
+	if err != nil {
+		t.Fatalf("reading live/e2e/lib/gauntlet.sh: %v", err)
+	}
+	if !strings.Contains(codeOnlyLines(string(lib)), "gauntlet_required_provider kubernetes hashicorp/kubernetes kubernetes_provider_version") {
+		t.Fatal("live/e2e/lib/gauntlet.sh's gauntlet_kubernetes_required_provider does not read kubernetes_provider_version - the three reference-k8s estates would have no pin to interpolate (#1252)")
 	}
 }

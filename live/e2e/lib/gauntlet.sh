@@ -223,7 +223,15 @@ gauntlet_refused() {
 # applied.
 gauntlet_aws_pin_version() {
   : "${ROOT:?gauntlet_aws_pin_version needs $ROOT set (every crossing script sets it before sourcing this file)}"
-  python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['aws_provider_version'])" 2>/dev/null
+  gauntlet_oracle_pin aws_provider_version
+}
+
+# gauntlet_oracle_pin <field>: prints one field of live/oracle-versions.json,
+# or nothing when the field is absent or the file unreadable. The caller
+# decides what an empty answer means; every caller here treats it as fatal.
+gauntlet_oracle_pin() {
+  : "${ROOT:?gauntlet_oracle_pin needs \$ROOT set}"
+  python3 -c "import json,sys;print(json.load(open(sys.argv[1]))[sys.argv[2]])" "$ROOT/live/oracle-versions.json" "$1" 2>/dev/null
 }
 
 gauntlet_pin_aws_provider() {
@@ -286,10 +294,27 @@ gauntlet_pin_aws_provider() {
 # hashicorp/aws spells an exact provider version out itself, which is what
 # makes this the only way a hand-authored root gets one.
 gauntlet_aws_required_provider() {
-  local indent="${1:-    }" pin
-  pin="$(gauntlet_aws_pin_version)"
-  [ -n "$pin" ] || { printf 'gauntlet_aws_required_provider: could not read aws_provider_version from %s/live/oracle-versions.json\n' "$ROOT" >&2; return 1; }
-  printf '%saws = {\n%s  source  = "hashicorp/aws"\n%s  version = "= %s"\n%s}\n' "$indent" "$indent" "$indent" "$pin" "$indent"
+  gauntlet_required_provider aws hashicorp/aws aws_provider_version "${1:-    }"
+}
+
+# gauntlet_kubernetes_required_provider [indent]: the same for
+# hashicorp/kubernetes, from live/oracle-versions.json's
+# kubernetes_provider_version (#1252). The kind-substrate estates hand-author
+# their roots exactly the way reference-ec2-vpc does, so the same rule
+# applies: read it once into a variable, behind one `|| fail`.
+gauntlet_kubernetes_required_provider() {
+  gauntlet_required_provider kubernetes hashicorp/kubernetes kubernetes_provider_version "${1:-    }"
+}
+
+# gauntlet_required_provider <local-name> <source> <field> [indent]: prints
+# one required_providers entry pinned exactly to live/oracle-versions.json's
+# <field>. The two functions above are the only callers; a third provider
+# pin would be a third field and a third one-line wrapper.
+gauntlet_required_provider() {
+  local name="$1" source="$2" field="$3" indent="${4:-    }" pin
+  pin="$(gauntlet_oracle_pin "$field")"
+  [ -n "$pin" ] || { printf 'gauntlet_required_provider: could not read %s from %s/live/oracle-versions.json\n' "$field" "$ROOT" >&2; return 1; }
+  printf '%s%s = {\n%s  source  = "%s"\n%s  version = "= %s"\n%s}\n' "$indent" "$name" "$indent" "$source" "$indent" "$pin" "$indent"
 }
 
 # gauntlet_kind_up <name> <kubeconfig>: the kind substrate (#1067). A
