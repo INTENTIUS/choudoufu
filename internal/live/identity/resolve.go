@@ -2877,6 +2877,18 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 		// attribute gets the same refusal any other reference gets.
 		return r.parentPart(instAddr.Absolute(r.modInst), attrName, rng, ident)
 	}
+	if leaf, ok := manifestObjectMetaTraversal(ref.Remaining); ok {
+		// kubernetes_manifest.x.object.metadata.name or .namespace (GitHub
+		// issue #1116): object is the provider's computed read-back, but
+		// those two keys are the ones the manifest itself wrote, and the
+		// same two the manifest's own identity is built from (manifest.go's
+		// Component.Path). They are read out of the parent's manifest
+		// argument without evaluating it; anything else under object is the
+		// server's and falls through to the refusal below.
+		if parts, ok, applicable := r.manifestObjectKeyPart(instAddr.Absolute(r.modInst), leaf, rng, ident); applicable {
+			return parts, ok
+		}
+	}
 	if len(ref.Remaining) != 1 {
 		r.errorf(rng, "Identity not resolvable from configuration",
 			"%s refers to %s, but an identity can only be built from a single attribute of another resource (its identity attribute).",
@@ -5429,6 +5441,55 @@ func objectMetaTraversal(rest hcl.Traversal) (string, bool) {
 		return "", false
 	}
 	return leaf.Name, true
+}
+
+// manifestObjectMetaTraversal reports whether rest - the steps of a
+// reference past the resource instance - is exactly object.metadata.name or
+// object.metadata.namespace, and which of the two (GitHub issue #1116).
+func manifestObjectMetaTraversal(rest hcl.Traversal) (string, bool) {
+	if len(rest) != 3 || !isAttrStep(rest[0], "object") || !isAttrStep(rest[1], "metadata") {
+		return "", false
+	}
+	leaf, ok := rest[2].(hcl.TraverseAttr)
+	if !ok || (leaf.Name != "name" && leaf.Name != "namespace") {
+		return "", false
+	}
+	return leaf.Name, true
+}
+
+// manifestObjectKeyPart answers kubernetes_manifest.x.object.metadata.<leaf>
+// from the parent's own manifest argument, narrowed to metadata.<leaf> the
+// way a manifest's own [Component.Path] is. applicable is false, and the
+// caller's refusal stands unchanged, when the parent is not the manifest
+// shape, no schemas were supplied, or the key is not written where it can
+// be found without applying (a cluster-scoped manifest has no namespace; a
+// yamldecode'd one has no readable keys at all).
+func (r *resolver) manifestObjectKeyPart(parent addrs.AbsResourceInstance, leaf string, rng hcl.Range, ident configs.StaticIdentifier) (parts []Part, ok, applicable bool) {
+	if r.schemas == nil {
+		return nil, false, false
+	}
+	if typeSchema, has := r.schemas[parent.Resource.Resource.Type]; !has || !ManifestShape(typeSchema.Block) {
+		return nil, false, false
+	}
+	if _, resolved := r.instance(parent, rng); !resolved {
+		r.errorf(rng, "Unresolvable identity",
+			"%s depends on the identity of %s, which could not be resolved (see the other error).",
+			ident.Subject, parent.String())
+		return nil, false, true
+	}
+	expr, scope, found := r.siblingLiteralExpr(parent, "manifest")
+	if !found {
+		return nil, false, false
+	}
+	trav := pathTraversal([]string{"metadata", leaf})
+	if narrowed, narrowOK := r.selectStaticExpr(expr, trav, scope, ident, 0); narrowOK {
+		parts, ok := r.resolveExpr(narrowed, scope, ident)
+		return parts, ok, true
+	}
+	if chased, chasedOK, chaseApplies := r.selectStatic(expr, trav, scope, ident, 0); chaseApplies {
+		return chased, chasedOK, true
+	}
+	return nil, false, false
 }
 
 // pathTraversal is [Component.Path] as the traversal steps
