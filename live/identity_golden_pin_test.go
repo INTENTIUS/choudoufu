@@ -3120,7 +3120,16 @@ const (
 	// internal/live/discovery/testdata/iam-service-linked-role-named.
 	// fixture-dirs 644 -> 645 on the same row; the cohort pins are
 	// untouched.
-	identityGoldenPinDirs = 676
+	// 676 -> 683 for #1515: seven new fixture directories for the
+	// strict { secrets = "ssm" } configuration surface - six under
+	// internal/live/lint/testdata/strict-secrets-ssm-* and
+	// live/e2e/limits/strict-secrets-ssm. Every one of them declares a
+	// live block and no resource block, so instances does NOT move with
+	// them and body-sha256 is byte-identical: the whole change is the
+	// directory count. fixture-dirs 645 -> 652 on the same row; the cohort
+	// pins are untouched, which is what says the addition landed in the
+	// committed half and not in the generated one.
+	identityGoldenPinDirs = 683
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
