@@ -122,7 +122,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			if cloudcontrol.HasCode(err, cloudcontrol.CodeAccessDenied) {
 				// GitHub issue #1052: the credential itself, reported once
 				// for every type it was refused on rather than per type.
-				return diags.Append(sweepGapDenied(res, gap, cfnType, err))
+				return diags.Append(sweepGapDenied(req, res, gap, cfnType, err))
 			}
 			return diags.Append(sweepGapDiag(res, gap))
 		}

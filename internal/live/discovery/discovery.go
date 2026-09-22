@@ -329,6 +329,16 @@ type Request struct {
 	// which costs reads and never correctness.
 	VouchProvider addrs.AbsProviderConfig
 
+	// DeferDeniedSweepWarning leaves GitHub issue #1052's one "Incomplete
+	// sweep" warning for AccessDenied listings to the caller: the denials
+	// are still recorded on the Result, and the caller raises one warning
+	// for all of its passes with [DeniedSweepWarning]. A live-plan runs
+	// Discover once per provider configuration and sets it, so an estate
+	// with two AWS configurations gets one warning rather than one per
+	// configuration (GitHub issue #1513). False, the zero value, keeps
+	// Discover's own raise: a caller that runs one pass needs nothing else.
+	DeferDeniedSweepWarning bool
+
 	// ---------------------------------------------------------------------
 	// Guided discovery (issue #64's second leg)
 	// ---------------------------------------------------------------------
@@ -819,7 +829,11 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// GitHub issue #1052: the one warning for every Cloud Control listing
 	// this run's credential was refused, raised here so the whole sweep's
 	// denials are in hand. See sweepdenied.go.
-	diags = diags.Append(deniedSweepDiag(res))
+	// A caller running several passes (GitHub issue #1513) raises it once
+	// for all of them instead, through [DeniedSweepWarning].
+	if !req.DeferDeniedSweepWarning {
+		diags = diags.Append(deniedSweepDiag(res.sweepDenied))
+	}
 
 	res.sortEverything()
 	return res, diags

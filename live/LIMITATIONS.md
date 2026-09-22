@@ -2907,7 +2907,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Incomplete sweep for undeclared resources
 
-**What.** The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation. When the cause is the run's own credential - Cloud Control answered AccessDeniedException for a type's list handler - every such type is reported in one warning naming the count, the first five types and the IAM action pattern to grant, with every denied type and action in the log at TF_LOG=WARN (GitHub issue #1052); a listing that failed for any other reason keeps its own warning.
+**What.** The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation. When the cause is the run's own credential - Cloud Control answered AccessDeniedException for a type's list handler - every such type, across every provider configuration the run sweeps through, is reported in one warning naming the count, the first five types and the IAM action pattern to grant, with every denied type, its provider configuration and its action in the log at TF_LOG=WARN (GitHub issues #1052, #1513); a listing that failed for any other reason keeps its own warning.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
