@@ -148,3 +148,48 @@ func TestLookalikeRelistCosts(t *testing.T) {
 		}
 	})
 }
+
+// TestLookalikeRelistDoesNotDoubleReport is the defect the first draft of
+// #1480's fix shipped with, found by internal/command's
+// TestLivePlan_bindCandidateIsOfferedNotTaken rather than by anything here.
+//
+// The premise everyone gets wrong first: a config-driven scan files an
+// unmarked object into Result.Unclaimed whether or not CollectUnclaimed was
+// set - read scanType's `case estate == ""`, whose skip is gated on `sweep`
+// alone. What ordinarily leaves the list empty on a plain plan is the
+// server-side estate filter, not the flag. So against a provider that
+// accepts that filter and does not apply it, the first listing already
+// filed the object and the widened second listing hands it over again: the
+// same live resource reported foreign twice, and - because
+// internal/live/foreign matches every unclaimed resource against every slot
+// - matching the one declared address "equally well" as itself, which turns
+// a clean adoption offer into an ambiguity refusal.
+func TestLookalikeRelistDoesNotDoubleReport(t *testing.T) {
+	req, cloud := lookalikeRelistFixture(t, true)
+	cloud.ignoreFilter["aws_security_group"] = true
+
+	res, diags := Discover(context.Background(), req)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+
+	// The control: this fixture must really make both calls, or the
+	// assertion below passes for the wrong reason.
+	if n := listCallsFor(cloud, "aws_security_group"); n != 2 {
+		t.Fatalf("this fixture made %d list calls for aws_security_group, want 2 - it is not exercising the widening at all", n)
+	}
+
+	n := 0
+	for _, u := range res.Unclaimed {
+		if u.ImportID == "sg-stripped" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("the stripped security group is in Result.Unclaimed %d times, want 1:\n%s", n, res)
+	}
+	scan, _ := res.ScanFor("aws_security_group")
+	if scan.Unclaimed != 1 {
+		t.Errorf("the scan row counts %d unclaimed resources, want 1", scan.Unclaimed)
+	}
+}

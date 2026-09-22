@@ -172,6 +172,22 @@ func relistOneForLookalikes(ctx context.Context, req Request, schemas listclient
 
 	log.Printf("[DEBUG] stateless/discovery: %s has a declared instance nothing claimed, so the plan proposes creating one; listing the type unfiltered once so the lookalike guard can see a stripped marker (issue #1480)", typeName)
 
+	// Everything of this type the first listing already filed. A
+	// config-driven scan (sweep=false) files an unmarked object into
+	// Result.Unclaimed whatever collectUnclaimed said - the estate filter,
+	// not that flag, is what ordinarily leaves the list empty - so a
+	// provider that answers a filtered list with unfiltered results
+	// delivers the same object twice, once per call. That is not a
+	// hypothetical: internal/command's own fake cloud does exactly this,
+	// and without this set an unmarked VPC was reported foreign twice and
+	// matched the one declared address "equally well" as itself.
+	already := make(map[string]bool)
+	for i := range res.Unclaimed {
+		if u := &res.Unclaimed[i]; u.TypeName == typeName {
+			already[unclaimedKey(u.ImportID, u.DisplayName)] = true
+		}
+	}
+
 	results, listDiags := listclient.List(ctx, req.Provider, typeName, config, true)
 	if listDiags.HasErrors() {
 		log.Printf("[WARN] stateless/discovery: the lookalike guard's widened list of %s failed (%s); the plan's create of it goes unchecked against unmarked live resources", typeName, listDiags.Err())
@@ -202,6 +218,9 @@ func relistOneForLookalikes(ctx context.Context, req Request, schemas listclient
 			continue
 		}
 		importID, idAttr, _ := importIdentity(typeName, r)
+		if already[unclaimedKey(importID, r.DisplayName)] {
+			continue
+		}
 		scan.Unclaimed++
 		res.Unclaimed = append(res.Unclaimed, UnclaimedResource{
 			TypeName:     typeName,
@@ -215,4 +234,13 @@ func relistOneForLookalikes(ctx context.Context, req Request, schemas listclient
 	}
 
 	return diags
+}
+
+// unclaimedKey identifies one unmarked live object within its type, for the
+// deduplication [relistOneForLookalikes] does against what the estate-scoped
+// listing already filed. The display name is folded in because a type whose
+// identity the provider did not serve has an empty import ID, and two
+// distinct objects in that state must not collapse into one.
+func unclaimedKey(importID, displayName string) string {
+	return importID + "\x00" + displayName
 }
