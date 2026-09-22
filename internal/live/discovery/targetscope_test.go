@@ -188,3 +188,55 @@ func TestClassifyOrphansWithholdsARemovalTargetingExcludes(t *testing.T) {
 		}
 	})
 }
+
+// TestDiscoverDoesNotRefuseAnUnlistableTypeTargetingExcludes is GitHub
+// issue #1514 at the discovery layer: [TestDiscoverTypeNotListable]'s
+// estate, run under a scope that excludes the unlistable block. The block
+// is declared, so it stays in the sweep's declared set, but this run does
+// not look for it, so the type the provider cannot list must not refuse
+// the run.
+//
+// The second half is the safety property the declared set exists for: a
+// listable excluded block whose live object carries its marker must not
+// come back as an orphan. Dropping the out-of-scope resolution from the
+// input instead of from the binding demand would fail there.
+func TestDiscoverDoesNotRefuseAnUnlistableTypeTargetingExcludes(t *testing.T) {
+	t.Run("excluded unlistable type", func(t *testing.T) {
+		cloud := newFakeCloud()
+		cloud.unlistable("aws_route_table")
+		cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
+
+		res, diags := discoverFixture(t, cloud, Request{Scope: scopeExcluding("aws_route_table.main")})
+		assertNoErrors(t, diags)
+		if problems := res.ProblemsOfKind(ProblemTypeNotListable); len(problems) != 0 {
+			t.Fatalf("a -target run refused a type only an excluded block declares:\n%s", res)
+		}
+		if _, ok := res.BindingFor(mustAddr(t, `aws_vpc.main`)); !ok {
+			t.Errorf("the in-scope VPC did not bind:\n%s", res)
+		}
+	})
+
+	t.Run("in scope still refuses", func(t *testing.T) {
+		cloud := newFakeCloud()
+		cloud.unlistable("aws_route_table")
+		cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
+
+		res, _ := discoverFixture(t, cloud, Request{Scope: scopeExcluding("aws_vpc.main")})
+		if problems := res.ProblemsOfKind(ProblemTypeNotListable); len(problems) != 1 || problems[0].TypeName != "aws_route_table" {
+			t.Fatalf("excluding a different block silenced the in-scope unlistable type:\n%s", res)
+		}
+	})
+
+	t.Run("excluded live object is not an orphan", func(t *testing.T) {
+		cloud := newFakeCloud()
+		cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
+
+		res, diags := discoverFixture(t, cloud, Request{Sweep: true, Scope: scopeExcluding("aws_vpc.main")})
+		assertNoErrors(t, diags)
+		for _, o := range res.Orphans {
+			if o.ImportID == "vpc-1" {
+				t.Fatalf("the excluded block's live object read as an orphan (withheld %q):\n%s", o.Withheld, res)
+			}
+		}
+	})
+}

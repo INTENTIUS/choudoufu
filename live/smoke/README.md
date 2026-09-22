@@ -693,6 +693,32 @@ showing its own checks would have caught it.
   so a denied sentinel write is returned rather than carried past to the
   List, and the read-only plan must then fail (#1370). Needs jq and Go.
 
+- **no-secret-survives-in-what-the-tool-keeps** - *Claim 40: no secret
+  the run generates or sets survives in what the tool keeps.* Under
+  `strict { secrets = "refuse" }` a `random_password` and an
+  `aws_iam_access_key` are refused by name and nothing is written. A
+  database's master password, passed only through `TF_VAR_db_password`,
+  is then applied and grepped for by value in every file the run kept
+  (the record, the data dir, the lock file, the configuration), with zero
+  hits and no cache file. A saved plan and a `TF_LOG=debug` file are read
+  on their own: the plan's `tfplan` member and the provider's
+  `CreateDBInstance` request line hold it, as they do on stock. The
+  default run keeps it in the record and the cache and still plans
+  `No changes.` with the cache deleted. The BREAK control applies the same
+  estate under `secrets = "store"`, and the same scan must find the value.
+  The replan under refuse is printed and not asserted, because a changed
+  password is not proposed there (#1503).
+- **the-estate-answers-in-the-present-tense** - *Claim 41: the estate
+  answers in the present tense.* "Which of this estate's security groups
+  are attached to nothing" is asked from the `tofu-estate` tag plus a live
+  describe with no choudoufu in the loop, and from the state cache. Both
+  answer `db spare` after the apply. An out-of-band
+  `modify-instance-attribute` moves the instance from `web` to `db`. The
+  live answer becomes `spare web` and the cache still says `db spare`. The
+  next plan proposes the one update that puts it back. The BREAK control
+  skips the move, and both answers must agree. The estate's own resources
+  only; it is not account-wide gap analysis.
+
 ## Knobs
 
 | Variable | Effect |

@@ -209,9 +209,19 @@ type CreateConfigValueAdjuster interface {
 // the object exists, its state is saved, and the run does not report a
 // success it does not have. Any request this makes is the implementation's
 // own; this package issues none on its behalf.
+//
+// It returns the object to store in state: applied itself when nothing was
+// written, and applied with the written marker merged into it when
+// something was. Without that the state, and the state cache a
+// -refresh=false plan reads, kept the object as the provider returned it
+// from a create that carried no marker, and that plan proposed writing the
+// marker again onto an object that already had it (floci tier, 2026-09-22,
+// TestSteadyStateCostAgainstFloci's refresh-false column, #1316). The
+// returned value is stored as-is and must conform to schema; it is used
+// only when the diagnostics carry no error.
 type AppliedMarkerWriter interface {
 	// WriteAppliedMarkers writes whatever marker the create call was not
-	// given onto applied, and reports a failure to do so. A nil result
-	// says nothing and changes nothing.
-	WriteAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, action plans.Action, applied cty.Value, schema providers.Schema) tfdiags.Diagnostics
+	// given onto applied, reports a failure to do so, and returns the
+	// object as it now stands.
+	WriteAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, action plans.Action, applied cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics)
 }

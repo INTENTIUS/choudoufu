@@ -948,6 +948,52 @@
       "evidence": [
         "live/smoke/evidence/k8s-records-in-the-cluster.lastrun.json"
       ]
+    },
+    {
+      "id": 40,
+      "slug": "no-secret-survives-in-what-the-tool-keeps",
+      "title": "No secret the run generates or sets survives in what the tool keeps: under strict { secrets = \"refuse\" } a random_password and an aws_iam_access_key are refused by name, and a database's master password is in no file the run keeps on its own, while the default keeps it in the record and the cache the way a stock state file does",
+      "scenario": "live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh",
+      "command": "just smoke no-secret-survives-in-what-the-tool-keeps",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 applies the same estate under secrets = \"store\" and runs the identical scan over the identical set of files, which must then find the password (it finds it in the record and the cache); a scan that finds nothing there fails the run, because its zero under refuse would prove nothing",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "The saved plan (-out) and a TF_LOG=debug file are read separately and do hold the value, as they do on stock. Under refuse a changed password is not proposed (#1503), and the scenario prints that replan without asserting its shape."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not stated for Kubernetes yet. Under refuse no cache is written and a kubernetes_secret's record holds none of its data because the API returns it, but no scenario has measured that on a cluster."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
+    },
+    {
+      "id": 41,
+      "slug": "the-estate-answers-in-the-present-tense",
+      "title": "The estate answers in the present tense: after a change made out of band, its own tags and a live describe give the answer as it is now, and the state cache gives it as of the last apply",
+      "scenario": "live/smoke/scenarios/the-estate-answers-in-the-present-tense.sh",
+      "command": "just smoke the-estate-answers-in-the-present-tense",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "cache",
+      "break_mode": "BREAK=1 leaves the world unmoved and asks both ways again; the live answer and the cache's must agree, and the run fails if it still reports a divergence",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "The estate's own resources only. This is not account-wide gap analysis, which is outside the promise."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not stated for Kubernetes yet: on a cluster the same question is a label-selected list and a live read, and no scenario asks it there."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }
