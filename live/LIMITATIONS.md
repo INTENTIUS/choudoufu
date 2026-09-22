@@ -91,10 +91,11 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `strict-no-source-create` | No-source-create setting is not one this fork's schema defines | error | "strict-no-source-create" | `live/e2e/limits/strict-no-source-create/` |
 | `strict-provider-change` | Provider-change setting is not one this fork's schema defines | error | "strict-provider-change" | `live/e2e/limits/strict-provider-change/` |
 | `strict-secrets` | Secrets setting is not one this fork's schema defines | error | "strict-secrets" | `live/e2e/limits/strict-secrets/` |
+| `strict-secrets-ssm` | Secrets in SSM is not configured as it has to be | error | "strict-secrets-ssm" | `live/e2e/limits/strict-secrets-ssm/` |
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**29 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 26 of the 29 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**30 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 27 of the 30 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1769,7 +1770,7 @@ selection they cannot verify.
 ### strict-secrets
 
 **Construct.** A `strict { secrets = "..." }` argument naming something
-outside this fork's vocabulary. The two settings are:
+outside this fork's vocabulary. The three settings are:
 
 ```hcl
 terraform {
@@ -1787,7 +1788,10 @@ terraform {
 or sets the way stock OpenTofu keeps it: in the estate's record store rather
 than in a state file, with its sensitivity travelling beside it. `"refuse"`
 keeps none of it — a secret-generating logical type is refused outright, and
-a sensitive settable argument is never recorded as residue.
+a sensitive settable argument is never recorded as residue. `"ssm"` keeps
+what `"store"` keeps and puts the values somewhere else; it needs an
+arrangement of its own, and "strict-secrets-ssm" is what refuses a
+configuration that asks for it without one.
 
 **Why bounded.** The two settings are opposites, so a spelling that is
 neither is a question this package cannot answer. `secrets = "none"` could
@@ -1937,6 +1941,73 @@ and nothing else - so `internal/live/liveimport`'s `ratifyOne` is the only
 thing standing between `"refuse"` and a stock state file's generated password
 landing in the record store, and what that path writes is the instance's
 whole prior object rather than an identity.
+
+### strict-secrets-ssm
+
+**Construct.** A live block that asks for `strict { secrets = "ssm" }`
+without the arrangement that setting stands on, or that builds the
+arrangement without asking for the setting. Four shapes, one rule:
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    record_store "s3" { bucket = "my-records-bucket" }
+    strict {
+      secrets = "ssm"
+      ssm { kms_key_id = "arn:aws:kms:eu-west-1:111122223333:key/abc" }
+    }
+  }
+}
+```
+
+That is the whole of what the setting needs. Each refusal is one piece of it
+missing:
+
+- `secrets = "ssm"` with **no `ssm` block**, so nothing names the key.
+- An `ssm` block with **no `kms_key_id`**.
+- `secrets = "ssm"` with **no `record_store`**, or one that is not `"s3"`.
+- An **`ssm` block under any other secrets setting**, where it configures
+  nothing.
+
+**Why the key is required rather than defaulted.** SSM has a default key,
+`alias/aws/ssm`, and every principal in the account holding
+`ssm:GetParameter` can decrypt a parameter written under it. That is no
+narrower than the read on the bucket the values are being moved out of, so a
+default would move the secrets and protect nothing while a configuration sat
+there looking as though a key were in the write path. A customer managed key
+is the arrangement, not an option within it: the second gate and the
+revocation that does not go through IAM are the reason to pay for a second
+service at all. The `aws/ssm` key is refused again at first contact, where
+the key this configuration names is read; the refusal is in two places on
+purpose, because a configuration can name a key that turns out to be the
+default one by alias.
+
+**Why `record_store "s3"` and nothing else.** A secret value is written to a
+parameter name no other write uses, with `Overwrite: false`, and then the
+record's own conditional write commits the reference to it. That conditional
+write is the only thing deciding which of two concurrent writers wins —
+`PutParameter` cannot decide it, which is what retired the `record_store
+"ssm"` backend (`"record-store-ssm-retired"`) and what GitHub issue #1244
+warned about. A local directory and a Kubernetes Secret have no conditional
+write to commit with, so under either of them the loser of a race keeps a
+record naming a parameter the winner has already deleted, and that secret is
+gone. The refusal is at the configuration rather than at the store because a
+run that reached the store has already written parameters: same shape as the
+capacity refusal, which fires before the first write rather than leaving a
+half-written store behind.
+
+**Why a block with no setting is refused rather than ignored.** It is the
+reverse mistake and it fails silently. An operator who writes the block,
+names their customer managed key and leaves `secrets` at its default has a
+configuration that reads as though the key were protecting something.
+Nothing would be encrypted under it — every value would go into the record
+in clear, exactly as before — and the only evidence would be the absence of
+parameters nobody was watching for.
+
+**Forwarding address.** `secrets = "refuse"`, with the secret passed in by
+reference, keeps secret values out of the record store with no second
+service in the write path. See "strict-secrets" and `live/SECRETS.md`.
 
 ### strict-secrets-refusal
 
@@ -2551,6 +2622,7 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-no-source-create | error | `internal/live/lint` | "strict-no-source-create" |
 | - | - | lint | strict-provider-change | error | `internal/live/lint` | "strict-provider-change" |
 | - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
+| - | - | lint | strict-secrets-ssm | error | `internal/live/lint` | "strict-secrets-ssm" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | A removed label or annotation cannot be removed | error | `internal/live/projection` | "A removed label or annotation cannot be removed" |
 | - | - | projection | An admission policy refused this run's record write | error | `internal/live/projection` | "An admission policy refused this run's record write" |
@@ -2619,7 +2691,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**241 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**242 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

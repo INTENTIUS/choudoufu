@@ -167,6 +167,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleRetry:                     {ruleWholeConfig, "the live block's retry setting"},
 	RuleStrictMarkerRepair:        {ruleWholeConfig, "the live block's strict settings"},
 	RuleStrictSecrets:             {ruleWholeConfig, "same block"},
+	RuleStrictSecretsSSM:          {ruleWholeConfig, "same block, and the arrangement it refuses - a key with no setting, a setting with no key, a store with no compare-and-swap - is wrong for the estate on every run, whatever this one names"},
 	RuleStrictNoSourceCreate:      {ruleWholeConfig, "same block"},
 	RuleStrictProviderChange:      {ruleWholeConfig, "same block"},
 	RuleStrictMarkers:             {ruleWholeConfig, "the markers selection is a declaration about the estate, malformed on every run whatever this one touches; checkStrictMarkers runs once over the whole tree, outside checkConfig"},
