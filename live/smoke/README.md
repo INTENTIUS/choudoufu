@@ -126,7 +126,12 @@ requires the replan not to list the object, then deletes the object and
 requires the replan to propose creating it. Removing the block for real
 (step 5) has the sweep, which lists every kind the cluster serves under
 `kubernetes_manifest` (#1079's third unit), find the CronTab by its label
-and propose destroying exactly it.
+and propose destroying exactly it. Its last step (#1396, #1434) migrates
+two stock-made ConfigMaps under a 64-character estate name and requires
+the read-only `live-import` to refuse once, naming `2 resource instances`
+and the 63-character cap, with no per-object line, exit 1 and nothing
+changed on the cluster; `BREAK=1`'s last control runs the same migration
+under a 60-character name and requires the report and exit 0.
 
 `k8s-a-held-delete-is-not-gone` is claim 25 (#1110's first fault): a
 finalizer added out of band holds a ConfigMap's delete, so the API accepts
