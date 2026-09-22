@@ -20,6 +20,7 @@ import (
 	goPlugin "github.com/hashicorp/go-plugin"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/plugincache"
 	"github.com/intentius/choudoufu/internal/logging"
 	tfplugin "github.com/intentius/choudoufu/internal/plugin"
 	tfplugin6 "github.com/intentius/choudoufu/internal/plugin6"
@@ -57,9 +58,15 @@ func acquireSchemas(initBin, workdir string, log io.Writer) (providers.GetProvid
 		return none, err
 	}
 
-	fmt.Fprintf(log, "estate-gen: %s init (downloading %s %s if not cached)\n", initBin, providerSource, providerVersion)
-	cmd := exec.Command(initBin, "init", "-backend=false", "-input=false", "-no-color")
+	args, offline := initArgs(initBin)
+	if offline != "" {
+		fmt.Fprintf(log, "estate-gen: %s init from the plugin cache %s (%s %s is there; no registry lookup)\n", initBin, offline, providerSource, providerVersion)
+	} else {
+		fmt.Fprintf(log, "estate-gen: %s init (downloading %s %s: %s does not hold it)\n", initBin, providerSource, providerVersion, plugincache.EnvDir)
+	}
+	cmd := exec.Command(initBin, args...) //nolint:gosec // caller-provided binary name, see main.go's -init-bin
 	cmd.Dir = workdir
+	cmd.Env = initEnv(os.Environ(), offline)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return none, fmt.Errorf("%s init: %w\n%s", initBin, err, out)
 	}
@@ -106,10 +113,89 @@ func acquireSchemas(initBin, workdir string, log io.Writer) (providers.GetProvid
 		time.Sleep(time.Duration(attempt) * 250 * time.Millisecond)
 	}
 	if diags.HasErrors() {
-		return none, fmt.Errorf("reading the provider schema: %w", diags.Err())
+		return none, fmt.Errorf("reading the provider schema: %w", explainStartTimeout(diags.Err()))
 	}
 	fmt.Fprintf(log, "estate-gen: %d resource types\n", len(schema.ResourceTypes))
 	return schema, nil
+}
+
+// initArgs is the init command line for initBin, and the plugin cache
+// directory it installs from when that is offline.
+//
+// When TF_PLUGIN_CACHE_DIR already holds the pinned release for this
+// platform, init runs with -plugin-dir over the cache: every installation
+// source is replaced by that one directory, so init asks no registry
+// anything. With the cache merely set, init still queries the registry for
+// the version list before linking the cached package, which is how
+// TestIdentityGolden went red on "lookup registry.terraform.io: no such
+// host" with the release sitting in the cache (#1509). The install is a
+// symlink to the cached package, the same bytes a registry install unpacks
+// (its h1: hash is the one a network install records), so the schema read
+// from it - and every file rendered from the schema - is unchanged.
+//
+// When the cache does not hold it, init runs exactly as before and downloads
+// it; with no network that fails, loudly, as init's own error.
+func initArgs(initBin string) (args []string, offline string) {
+	args = []string{"init", "-backend=false", "-input=false", "-no-color"}
+	namespace, typ, _ := strings.Cut(providerSource, "/")
+	dir, ok := plugincache.FromEnv(plugincache.DefaultHost(initBin), namespace, typ, providerVersion)
+	if !ok {
+		return args, ""
+	}
+	return append(args, "-plugin-dir="+dir), dir
+}
+
+// initEnv is init's environment. Installing from the cache with
+// -plugin-dir while TF_PLUGIN_CACHE_DIR names that same directory makes
+// terraform try to copy the cached package into the cache, and it refuses:
+// "cannot install existing provider directory ... to itself". So the
+// offline init runs with TF_PLUGIN_CACHE_DIR removed, and the install is a
+// symlink straight to the cached package. (With
+// TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE set, as the test tier sets
+// it, terraform happens to take a path that does not hit this; the tool
+// must not depend on that.)
+func initEnv(environ []string, offline string) []string {
+	if offline == "" {
+		return environ
+	}
+	out := make([]string, 0, len(environ))
+	for _, kv := range environ {
+		if !strings.HasPrefix(kv, plugincache.EnvDir+"=") {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+// pluginStartTimeout bounds how long go-plugin waits for the provider to
+// print its handshake line, in place of go-plugin's own default of one
+// minute.
+//
+// One minute is what fired in #1509 ("timeout while waiting for plugin to
+// start") while seven `just ci` runs shared an 18-core machine. The time is
+// not the provider's own startup, which is under 0.1s for an executable the
+// machine has run before. It is the first exec of an executable at a new
+// path: macOS scans the 812MB hashicorp/aws binary before running it, about
+// ten seconds each on an idle machine, and concurrent first execs queue (three
+// fresh copies launched together measured 13s, 21s and 29s to the handshake).
+// Every render used to download a fresh copy into a temp directory, so every
+// render paid that scan and queued behind every other gate's. initArgs
+// removes the cause where the cache is warm, since the install is then a
+// symlink to one file the machine scans once. This bound covers the cold
+// path: five minutes admits about thirty queued first-exec scans at the
+// measured rate, which is more than several concurrent gates launch at once,
+// and still fails a provider that genuinely never starts well inside go
+// test's default ten-minute package timeout.
+const pluginStartTimeout = 5 * time.Minute
+
+// explainStartTimeout names machine load in go-plugin's start-timeout error,
+// so the failure reads as what it is rather than as a schema or golden
+// mismatch further down.
+func explainStartTimeout(err error) error {
+	if err == nil || !strings.Contains(err.Error(), "timeout while waiting for plugin to start") {
+		return err
+	}
+	return fmt.Errorf("%w (the provider did not complete go-plugin's handshake within %s; that is machine load or a stuck first-exec scan of a freshly downloaded provider, not the tree: see pluginStartTimeout)", err, pluginStartTimeout)
 }
 
 // isTransientLaunchError reports whether err is go-plugin's own handshake
@@ -215,6 +301,7 @@ func pluginFactory(exe string) providers.Factory {
 			Managed:          true,
 			Cmd:              exec.Command(exe), //nolint:gosec // the path comes from init in a temp dir
 			AutoMTLS:         true,
+			StartTimeout:     pluginStartTimeout,
 			VersionedPlugins: tfplugin.VersionedPlugins,
 			SyncStdout:       logging.PluginOutputMonitor("aws:stdout"),
 			SyncStderr:       logging.PluginOutputMonitor("aws:stderr"),
