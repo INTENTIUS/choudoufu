@@ -169,6 +169,18 @@ set -uo pipefail
 #                 carries no slot, so its break has to be a wrongly-present
 #                 tag rather than a missing one. The stage must report fail.
 #   BREAK_STAGE3  set to 1 to corrupt stage 3's expected inline-policy name.
+#   BREAK_APPLY_COUNT
+#                 set to 1 to run stage 4's object-count negative control
+#                 (#1549): after live-import has stamped both objects,
+#                 remove tofu-estate from the IAM role and assert 2 anyway
+#                 - the assertion has to fail, at 1. It is the proof that
+#                 the IAM leg of that count is load-bearing. The call this
+#                 stage used to make reads 0 either way, marked or
+#                 unmarked, and the run prints both numbers side by side so
+#                 the reader can see it. Reached on the real path only, so
+#                 it is independent of every BREAK above; the run reports
+#                 test_apply=fail and exits non-zero, and never reaches
+#                 stage 5.
 #   BREAK_STAGE5  set to 1 to tamper a second object before stage 5's replan.
 #   BREAK_APPROVAL
 #                 set to 1 to run plan_approval's own negative control
@@ -397,15 +409,25 @@ grep -qE 'additional_policy_attachments' <<< "$COLD_OUT" \
   && fail "aws_iam_role_policy_attachment.additional_policy_attachments produced an instance - the module's additional_policies_arns default is no longer empty"
 log "  confirmed: the toset()-keyed for_each on additional_policy_attachments resolves to zero instances"
 
-UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  2>/dev/null || echo 0)"
-[ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing"
-log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (#1549, the shape #1271 and #1497
+# already fixed elsewhere). Every object this estate owns is an IAM object,
+# and GetResources does not index IAM in us-west-2 - measured against the
+# pin below, it returns nothing here at all, filtered on the estate tag,
+# filtered with --resource-type-filters iam, or unfiltered. So this check
+# read "0 objects are marked, good" for every possible state of the world,
+# including one where plain tofu HAD marked them, which is the whole reason
+# the check is here. The helper asks IAM's own tag APIs as well, so a
+# pre-marked role or managed policy is now actually seen.
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE_NAME inventory before migration"
+UNMARKED="$GAUNTLET_ESTATE_N"
+[ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N)"
+log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration, counted through GetResources AND IAM's own list-role-tags/list-policy-tags (#1549)"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
-gauntlet_stage cold_deploy pass "6 resource instances added, 0 already tofu-estate-marked before migration"
+gauntlet_stage cold_deploy pass "6 resource instances added, 0 already tofu-estate-marked before migration - counted through GetResources AND IAM's own list-role-tags/list-policy-tags (#1549), since the tagging API indexes neither of this estate's two taggable objects in us-west-2 and the check read 0 for every state of the world before"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -807,20 +829,91 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  2>/dev/null || echo 0)"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (#1549, the same defect #1271
+# fixed in corpus-iam-policy and #1497 in corpus-eks-basic). This line used
+# to count both stamped objects through the Resource Groups Tagging API
+# alone, and read 0: this estate's only two taggable objects are an IAM
+# role and a customer-managed IAM policy, and the tagging API does not
+# index either of them in us-west-2, so the oracle was asking a question
+# the API cannot answer here and reading the shortfall as a missing stamp.
+# choudoufu stamped both; the emulator holds both markers; the count was
+# wrong.
+#
+# MEASURED, no tofu in the loop, on the estate's own container at the
+# current pin ghcr.io/lex00/floci@sha256:6c3d5c2d, 2026-09-22, with the run
+# held open by DEBUG_KEEP=1 at exactly this point:
+#
+#   iam list-role-tags giantswarm-gsprereqs-crossplane and iam
+#   list-policy-tags on arn:aws:iam::000000000000:policy/
+#   giantswarm-gsprereqs-crossplane BOTH return
+#   tofu-estate=giantswarm-crossplane-crossing alongside the module's own
+#   installation and source tags.
+#
+#   resourcegroupstaggingapi get-resources in us-west-2 returned an EMPTY
+#   list - filtered on that tag, filtered with --resource-type-filters iam,
+#   and unfiltered. The same call in us-east-1 returned the managed policy
+#   and never the role, which is lex00/floci#205 (#1152) matching real
+#   AWS's regional tagging index for a global service.
+#
+# So the emulator is right and would answer the same way on real AWS. The
+# helper unions the two routes and deduplicates by ARN, so it answers 2
+# today and still 2 if a later pin starts serving these types through
+# GetResources - GAUNTLET_ESTATE_BOTH_N is how a reader tells which world
+# the run happened in. Assert on GAUNTLET_ESTATE_N, never on
+# GAUNTLET_ESTATE_RGTA_N.
+#
+# The trailing `2>/dev/null || echo 0` is gone with it: it turned an
+# unreachable endpoint into "0 objects", and on this estate 0 was also what
+# a reachable endpoint said, so it hid two different failures behind one
+# number.
+#
+# Proved red: BREAK_APPLY_COUNT=1 below.
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE_NAME inventory before the no-op apply"
+BEFORE_N="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_APPLY_COUNT:-}" = "1" ]; then
+  # The negative control for THIS line. Untag ONE of the two IAM objects -
+  # the role, the type GetResources indexes in no region at all - and the
+  # assertion must catch it as 1. Against the GetResources-only call this
+  # replaced, removing that marker was invisible: the count read 0 with the
+  # role marked and 0 with it unmarked, which is the whole of #1549. This
+  # is how a reader re-runs that proof.
+  BREAK_ROLE="$(awsl iam list-roles --output json \
+    | jq -r '.Roles[].RoleName' \
+    | while IFS= read -r r; do
+        if awsl iam list-role-tags --role-name "$r" --output json 2>/dev/null \
+             | jq -e --arg e "$ESTATE_NAME" '[.Tags[]? | select(.Key == "tofu-estate" and .Value == $e)] | length > 0' >/dev/null; then
+          printf '%s\n' "$r"; break
+        fi
+      done)"
+  [ -n "$BREAK_ROLE" ] || fail "BREAK_APPLY_COUNT=1 found no role carrying tofu-estate=$ESTATE_NAME to unmark - the control cannot run, and the assertion below would have passed for the wrong reason"
+  awsl iam untag-role --role-name "$BREAK_ROLE" --tag-keys tofu-estate >/dev/null
+  OLD_IDIOM="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME")"
+  gauntlet_estate_objects "$ESTATE_NAME" awsl \
+    || fail "could not re-read the inventory after BREAK_APPLY_COUNT unmarked $BREAK_ROLE"
+  BEFORE_N="$GAUNTLET_ESTATE_N"
+  log "  BREAK_APPLY_COUNT=1: removed tofu-estate from role $BREAK_ROLE - the"
+  log "           assertion below must now fail, and reads $BEFORE_N. The call this"
+  log "           line replaced still reads $OLD_IDIOM, unchanged by the removal:"
+  log "           that is the defect, not the control."
+fi
 [ "$BEFORE_N" = "2" ] \
-  || fail "expected 2 objects carrying tofu-estate=$ESTATE_NAME before the no-op apply (the role and the managed policy), got $BEFORE_N"
+  || fail "expected 2 objects carrying tofu-estate=$ESTATE_NAME before the no-op apply (the role and the managed policy), got $BEFORE_N (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN)"
+# Keep the before-read's split: the globals are overwritten by the
+# after-read below, and the verdict line has to say which route found what.
+BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
+BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
+BEFORE_BOTH_N="$GAUNTLET_ESTATE_BOTH_N"
 
 APPLY2_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  2>/dev/null || echo 0)"
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not re-read the account's tofu-estate=$ESTATE_NAME inventory after the no-op apply"
+AFTER_N="$GAUNTLET_ESTATE_N"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "a state file exists after the apply"
 
@@ -834,11 +927,12 @@ STILL_ATTACHED="$(awsl iam list-attached-role-policies --role-name "$ROLE_NAME" 
 [ "$STILL_ATTACHED" = "$POLICY_ARN" ] \
   || fail "the role's attached policy set is [$STILL_ATTACHED] after the no-op apply, not [$POLICY_ARN]"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+log "  both counts taken through GetResources ($BEFORE_RGTA_N before, $GAUNTLET_ESTATE_RGTA_N after) AND IAM's own list-role-tags/list-policy-tags ($BEFORE_IAM_N before, $GAUNTLET_ESTATE_IAM_N after), deduplicated by ARN - $BEFORE_BOTH_N returned by both routes (#1549: the tagging API indexes neither an IAM role nor a customer-managed policy in us-west-2)"
 log "  both exclusive sets unchanged across the apply - neither enforcer touched another role"
 
 log ""
 log "STAGE 4 (test apply): PASS"
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at $BEFORE_N, both exclusive sets unchanged"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at $BEFORE_N - counted through GetResources ($BEFORE_RGTA_N) AND IAM's own list-role-tags/list-policy-tags ($BEFORE_IAM_N), deduplicated by ARN, $BEFORE_BOTH_N returned by both, because the tagging API indexes neither this estate's IAM role nor its customer-managed policy in us-west-2 (#1549); both exclusive sets unchanged"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
