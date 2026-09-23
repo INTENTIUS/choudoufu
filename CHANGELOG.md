@@ -37,7 +37,41 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.19.0 (Unreleased)
+## choudoufu v0.20.0 (Unreleased)
+
+## choudoufu v0.19.0 (2026-09-23)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.19.0.json`](live/history/v0.19.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.18.0.json live/history/v0.19.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+- Emulator repinned from `ghcr.io/lex00/floci@sha256:74ffd40e...` to `ghcr.io/lex00/floci@sha256:6c3d5c2d...`
+
+The numbers did not move and the evidence behind them did. v0.18.0's own notes
+said its board had not been re-measured as a whole, and that turned out to
+matter: measured against this release's pin, four estates failed a count they
+had been recorded as passing, and a fifth had carried a `test_plan` pass from
+before a change that invalidated it. None was a product regression. Four were
+counting tagged objects through the Resource Groups Tagging API alone, which
+does not index IAM in the region these estates use, so the count asked a
+question the API cannot answer (#1549); the fifth needed two real fixes and
+then cleared (#1527, #1543).
+
+So every row in this snapshot was measured against the pinned image above, and
+that is the first time a release can say so. It is affordable now because the
+board is measured one estate per job: about 50 minutes of wall clock against
+the four and a half hours a serial run took, after two consecutive runs
+measured every estate and published nothing when the job hit its own time
+limit (#1550).
+
+What that leaves open is the rule rather than the fact. Nothing makes carried
+evidence fail, so a future board can read clear from rows measured against an
+image that has since moved, exactly as this one did before it was re-measured.
+That is filed as #1558.
 
 UPGRADE NOTES:
 
