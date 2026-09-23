@@ -143,6 +143,22 @@ set -uo pipefail
 #                 inventory; the comparison must fail"). Independent of the
 #                 other BREAK flags - greenfield runs before all of them,
 #                 right after STAGE 1's cold deploy.
+#   BREAK_GREEN_COUNT
+#                 set to 1 to run the greenfield stage's OBJECT-COUNT
+#                 negative control (#1549, #1497's BREAK_MIGRATE_COUNT
+#                 shape): remove tofu-estate from the greenfield IAM user
+#                 and assert 2 taggable objects anyway - the assertion has
+#                 to fail, at 1. It is the proof that the IAM leg of that
+#                 count is load-bearing, which BREAK_GREEN above does not
+#                 give: BREAK_GREEN decrements a local total and never
+#                 touches a marker, so it went red for years while the
+#                 count it sat beside was blind to the user entirely. The
+#                 call this stage used to make reads 1 either way, marked
+#                 or unmarked, and the run prints both numbers side by side
+#                 so the reader can see it. Independent of every other
+#                 BREAK flag, for BREAK_GREEN's reason; the run reports
+#                 greenfield=fail, exits non-zero and reaches no later
+#                 stage.
 #   BREAK_COUNT   set to 1 to run day2_count's own break control instead of
 #                 the real scale-down checks: after the real scale-down
 #                 plan, assert the WRONG instance (count_test[0] rather
@@ -595,13 +611,67 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREE
 log "  No changes, with zero local memory of the run that created them"
 
 log "=== PART GREENFIELD 6. object-by-object against stock's own cold-deploy container (STAGE 1, untouched since) ==="
-# resourcegroupstaggingapi only ever returns TAGGABLE objects (the bucket and
-# the user) - the untaggable inline policy is never in that count, so it is
-# counted separately, by whether its content comes back readable at all.
-GREEN_TAGGABLE_COUNT="$(gauntlet_tagged_count awslg resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME" \
-  2>/dev/null || echo 0)"
-[ "$GREEN_TAGGABLE_COUNT" = "2" ] || fail "the greenfield estate has $GREEN_TAGGABLE_COUNT taggable objects, expected 2 (the bucket and the user)"
+# The count covers the TAGGABLE objects only (the bucket and the user) -
+# the untaggable inline policy can carry no marker at all, so it is counted
+# separately below, by whether its content comes back readable.
+#
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1549, #1497's shape on
+# this estate). That call read 1 and the stage failed with "the greenfield
+# estate has 1 taggable objects, expected 2 (the bucket and the user)".
+# choudoufu had stamped the user: PART GREENFIELD 2 above reads
+# tofu-address off it through `iam list-user-tags` and the stage got that
+# far. The Resource Groups Tagging API does not index IAM in us-west-2,
+# this estate's region, so the oracle was asking a question the API cannot
+# answer here and reading the shortfall as a missing stamp.
+#
+# MEASURED on this estate's own greenfield container, no tofu in the loop,
+# ghcr.io/lex00/floci@sha256:6c3d5c2d, 2026-09-22: `iam list-user-tags
+# --user-name $USER_NAME` returns tofu-estate=$GREEN_ESTATE_NAME and
+# tofu-address=module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user,
+# while `resourcegroupstaggingapi get-resources` returns ONLY the bucket -
+# filtered on that tag, unfiltered, and under --resource-type-filters iam
+# alike. Real AWS indexes only some IAM types in the tagging API (floci#205),
+# so this is the emulator being right, not a gap to wait on.
+#
+# The helper reads IAM's own tag APIs as well and deduplicates by ARN, so
+# it answers 2 today and still 2 if a later pin starts serving IAM users
+# through GetResources - GAUNTLET_ESTATE_BOTH_N is how a reader tells which
+# world the run happened in. Assert on GAUNTLET_ESTATE_N, never on
+# GAUNTLET_ESTATE_RGTA_N. The estate it counts is the GREENFIELD one
+# ($GREEN_ESTATE_NAME) read through the greenfield container ($awslg), not
+# the crossing.
+#
+# The trailing `2>/dev/null || echo 0` is gone with it: it turned an
+# unreachable endpoint into "0 objects", which is not 2 either, so it only
+# swapped one wrong number for another. The helper refuses loudly instead.
+#
+# Proved red: BREAK_GREEN_COUNT=1 below.
+gauntlet_estate_objects "$GREEN_ESTATE_NAME" awslg \
+  || fail "could not read the greenfield account's tofu-estate=$GREEN_ESTATE_NAME inventory"
+GREEN_TAGGABLE_COUNT="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_GREEN_COUNT:-}" = "1" ]; then
+  # The negative control for THIS line, in #1497's BREAK_MIGRATE_COUNT
+  # shape. Remove tofu-estate from the one object of this estate the
+  # tagging API cannot see - the IAM user - and the assertion must catch it
+  # as 1. Against the GetResources-only call this replaced, that removal
+  # was invisible: the count read 1 with the user marked and 1 with it
+  # unmarked, and the run prints both numbers side by side so the reader
+  # can see it. This is how a reader re-runs that proof.
+  OLD_IDIOM_MARKED="$(gauntlet_tagged_count awslg resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME")"
+  awslg iam untag-user --user-name "$USER_NAME" --tag-keys tofu-estate >/dev/null
+  OLD_IDIOM_UNMARKED="$(gauntlet_tagged_count awslg resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE_NAME")"
+  gauntlet_estate_objects "$GREEN_ESTATE_NAME" awslg \
+    || fail "could not re-read the greenfield inventory after BREAK_GREEN_COUNT unmarked $USER_NAME"
+  GREEN_TAGGABLE_COUNT="$GAUNTLET_ESTATE_N"
+  log "  BREAK_GREEN_COUNT=1: removed tofu-estate from user $USER_NAME - the"
+  log "           assertion below must now fail, and reads $GREEN_TAGGABLE_COUNT. The call this"
+  log "           line replaced read $OLD_IDIOM_MARKED with the marker and $OLD_IDIOM_UNMARKED without it,"
+  log "           unchanged by the removal: that is the defect, not the control."
+fi
+[ "$GREEN_TAGGABLE_COUNT" = "2" ] || fail "the greenfield estate has $GREEN_TAGGABLE_COUNT taggable objects, expected 2 (the bucket and the user) - GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-user-tags $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN"
 GREEN_POLICY_DOC="$(awslg iam get-user-policy --user-name "$USER_NAME" --policy-name "$POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
 COLD_POLICY_DOC="$(awsl iam get-user-policy --user-name "$USER_NAME" --policy-name "$POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
 GREEN_TOTAL_COUNT=2
@@ -619,11 +689,11 @@ COLD_BUCKET_LOCATION="$(awsl s3api get-bucket-location --bucket "$BUCKET_NAME" -
 GREEN_USER_PATH="$(awslg iam get-user --user-name "$USER_NAME" --query 'User.Path' --output text)"
 COLD_USER_PATH="$(awsl iam get-user --user-name "$USER_NAME" --query 'User.Path' --output text)"
 [ "$GREEN_USER_PATH" = "$COLD_USER_PATH" ] || fail "the user's path differs between the greenfield estate and stock's cold deploy"
-log "  2 taggable objects plus the inline policy match stock's cold-deploy container object by object (policy document, bucket location, user path), marker tags never compared"
+log "  2 taggable objects (GetResources $GAUNTLET_ESTATE_RGTA_N - the bucket - plus IAM's own list-user-tags $GAUNTLET_ESTATE_IAM_N - the user - $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN) plus the inline policy match stock's cold-deploy container object by object (policy document, bucket location, user path), marker tags never compared"
 
 log ""
 log "PART GREENFIELD (greenfield): PASS"
-gauntlet_stage greenfield pass "3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared"
+gauntlet_stage greenfield pass "3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 2 taggable objects counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own list-user-tags ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's IAM user in us-west-2 (#1549)"
 log ""
 gauntlet_end_stage
 # $FLOCI_GREEN_NAME/$GREEN_ENDPOINT is deliberately kept alive past this
@@ -854,7 +924,7 @@ log ""
 # it reports no verdict at all and the runner records the stage as not_run,
 # never as a pass.
 if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_GREEN:-}" ] \
-   && [ -z "${BREAK_COUNT:-}" ]; then
+   && [ -z "${BREAK_GREEN_COUNT:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
   gauntlet_begin_stage plan_approval
   log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
 

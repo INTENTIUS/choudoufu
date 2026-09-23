@@ -43,6 +43,11 @@ type stubWorld struct {
 	policies map[string]string
 	roles    map[string]string // role name -> tofu-estate value
 	profiles map[string]string // instance-profile name -> tofu-estate value
+	// users is the fourth leg, added for #1549. The comment on
+	// gauntlet_estate_objects used to say IAM users were NOT covered and
+	// that an estate holding one would be undercounted; two estates hold
+	// one, and both were.
+	users map[string]string // user name -> tofu-estate value
 	// rgtaServesIAM is the world lex00/floci#206 / #1152 will create: the
 	// Tagging API starts returning IAM objects that the native APIs have
 	// always returned. The count must not move when it does.
@@ -116,6 +121,17 @@ case "$svc $op" in
 		fmt.Fprintf(&b, "\"iam list-instance-profiles\")\n  cat <<'J'\n{\"InstanceProfiles\":[%s]}\nJ\n  ;;\n", strings.Join(profs, ","))
 		b.WriteString("\"iam list-instance-profile-tags\")\n  case \"$(argval --instance-profile-name \"$@\")\" in\n")
 		for name, est := range w.profiles {
+			fmt.Fprintf(&b, "  %q) cat <<'J'\n%s\nJ\n  ;;\n", name, tagsJSON(est))
+		}
+		b.WriteString("  *) printf 'NoSuchEntity\\n' >&2; exit 254 ;;\n  esac\n  ;;\n")
+
+		var users []string
+		for name := range w.users {
+			users = append(users, fmt.Sprintf(`{"UserName":%q,"Arn":"arn:aws:iam::000000000000:user/hm/%s"}`, name, name))
+		}
+		fmt.Fprintf(&b, "\"iam list-users\")\n  cat <<'J'\n{\"Users\":[%s]}\nJ\n  ;;\n", strings.Join(users, ","))
+		b.WriteString("\"iam list-user-tags\")\n  case \"$(argval --user-name \"$@\")\" in\n")
+		for name, est := range w.users {
 			fmt.Fprintf(&b, "  %q) cat <<'J'\n%s\nJ\n  ;;\n", name, tagsJSON(est))
 		}
 		b.WriteString("  *) printf 'NoSuchEntity\\n' >&2; exit 254 ;;\n  esac\n  ;;\n")
@@ -333,6 +349,84 @@ func TestGauntletEstateObjectsReadsRolesAndInstanceProfiles(t *testing.T) {
 	}
 }
 
+// TestGauntletEstateObjectsReadsIAMUsers is #1549's red proof, and the
+// fourth leg's own. gauntlet_estate_objects covered policies, roles and
+// instance profiles; its comment said in as many words that an estate
+// holding an IAM user "will otherwise be undercounted the same way this
+// issue describes". corpus-hongbomiao-harbor holds exactly one, and was.
+//
+// The world below is a recording of that estate's greenfield container -
+// ghcr.io/lex00/floci@sha256:6c3d5c2d, us-west-2, read on 2026-09-22 with
+// the AWS CLI and no tofu in the loop. The bucket and the user both carry
+// tofu-estate=hongbomiao-harbor-greenfield; `iam list-user-tags` returns
+// the pair for the user, and GetResources returns ONLY the bucket -
+// filtered on the tag, unfiltered, and under --resource-type-filters iam
+// alike.
+func TestGauntletEstateObjectsReadsIAMUsers(t *testing.T) {
+	requireShellTools(t)
+	world := stubWorld{
+		estate: est,
+		bucket: "arn:aws:s3:::probe-bucket-1549",
+		users:  map[string]string{"probe-user": est, "unrelated-user": ""},
+	}
+	stub := writeAWSStub(t, world)
+
+	// BREAK arm first: the call both greenfield stages made. It reads 1 -
+	// the bucket - with the user marked, and would read 1 with it unmarked
+	// too, which is why "expected 2, got 1" was a wrong oracle rather than
+	// a missing stamp.
+	out, err := runBashScript(t, fmt.Sprintf(`
+set -uo pipefail
+source %q
+N="$(gauntlet_tagged_count %q resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=%s")"
+printf 'old=%%s\n' "$N"
+`, gauntletLibPath(t), stub, est))
+	if err != nil {
+		t.Fatalf("break arm: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "old=1") {
+		t.Fatalf("the stub no longer reproduces #1549: GetResources must return the bucket and not the user, so the call the greenfield stages made reads 1:\n%s", out)
+	}
+	unmarked := writeAWSStub(t, stubWorld{estate: est, bucket: world.bucket,
+		users: map[string]string{"probe-user": "", "unrelated-user": ""}})
+	out2, err := runBashScript(t, fmt.Sprintf(`
+set -uo pipefail
+source %q
+N="$(gauntlet_tagged_count %q resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=%s")"
+printf 'old=%%s\n' "$N"
+`, gauntletLibPath(t), unmarked, est))
+	if err != nil {
+		t.Fatalf("break arm, unmarked: %v\n%s", err, out2)
+	}
+	if !strings.Contains(out2, "old=1") {
+		t.Fatalf("the old call is supposed to read the SAME number whether the user carries the marker or not - that is the defect. It moved:\n%s", out2)
+	}
+
+	// GREEN arm: the helper sees both, and the unmarked user is excluded.
+	n, rgta, iam, both, arns, err := runEstateObjects(t, stub, est)
+	if err != nil {
+		t.Fatalf("green arm: %v", err)
+	}
+	if n != 2 || rgta != 1 || iam != 1 || both != 0 {
+		t.Errorf("counted N=%d RGTA=%d IAM=%d BOTH=%d; want 2/1/1/0 (the bucket through GetResources, the user through iam:ListUserTags). ARNs: %s", n, rgta, iam, both, arns)
+	}
+	if !strings.Contains(arns, "probe-user") {
+		t.Errorf("the marked IAM user is missing from %s", arns)
+	}
+	if strings.Contains(arns, "unrelated-user") {
+		t.Errorf("a user carrying no tofu-estate tag was counted: %s", arns)
+	}
+
+	// And it moves when the world does, which the old call did not.
+	n2, _, _, _, arns2, err := runEstateObjects(t, unmarked, est)
+	if err != nil {
+		t.Fatalf("unmarked arm: %v", err)
+	}
+	if n2 != 1 {
+		t.Errorf("with the user unmarked the helper counted %d, want 1 (the bucket alone). ARNs: %s", n2, arns2)
+	}
+}
+
 // TestGauntletEstateObjectsRefusesAnUnreachableTarget: the idiom this
 // replaces ended in `2>/dev/null || echo 0`, so a target that could not be
 // reached read back as "0 objects carry the estate tag" and every one of
@@ -360,7 +454,11 @@ func TestGauntletEstateObjectsIsDocumentedWhereItLives(t *testing.T) {
 		"#1152",
 		"SETS GLOBALS",
 		"GAUNTLET_ESTATE_BOTH_N",
-		"NOT IAM users",
+		// The boundary the comment draws, which moved with #1549: users
+		// are covered now, groups and the provider objects are not. The
+		// string this replaced was "NOT IAM users".
+		"NOT\n# IAM groups",
+		"IAM users",
 	} {
 		if !strings.Contains(head, want) {
 			t.Errorf("gauntlet_estate_objects's comment does not mention %q", want)
