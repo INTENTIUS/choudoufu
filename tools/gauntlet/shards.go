@@ -219,7 +219,7 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 		}
 	}
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("combine-shards: refusing - no shard for %s; a job that died cannot shrink the board silently, so re-run those jobs (the rest of this run's shards are kept)", strings.Join(missing, ", "))
+		return nil, fmt.Errorf("combine-shards: refusing - no shard for %s; a job that died cannot shrink the board silently, so re-run those jobs - the shards that did upload are still in this run's artifacts", strings.Join(missing, ", "))
 	}
 
 	rows := make([]EstateResult, 0, len(baseRows))
