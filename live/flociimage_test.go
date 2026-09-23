@@ -169,7 +169,6 @@ var staleFlociMeasurements = map[string]string{
 	// state of, and replans all 31 estate-gen cohorts under
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
-	"cohort-acceptance.json": "measured against the pre-#672 pin, now six repins back; re-measuring costs a full `TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance` sweep across all 31 cohorts, out of scope for three repin rulings that named corpus-vpc-complete, then corpus-alb-complete, then corpus-alb-complete again specifically",
 	// gauntlet-scale.json's top-level emulator field is NOT rewritten by
 	// `gauntlet render` the way gauntlet.json's is - render leaves the
 	// scale ladder's committed bytes alone (tools/gauntlet/render.go's own
