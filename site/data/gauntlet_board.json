@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Estates below were last measured against different emulator pins: 30 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072` (current pin), 1 against `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d` (last_run.date ranges from 2026-09-18T12:12:25Z to 2026-09-23T20:54:50Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h42m42.7s, but not from one sweep: 4h32m43.9s across 30 estate(s) at commit `bfbebd754a`; 9m58.8s across 1 estate(s) at commit `cf2b5c7787`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "Every row below was measured against the estate files and the shared protocol library that are in the tree now. 1 more cannot be checked from this checkout: corpus-mastino-dns.",
+  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-09-23T22:13:39Z. Each row below carries its own `last_run` date; they are not all the same run.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h43m13s, but not from one sweep: 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 4h32m43.9s across 30 estate(s) at commit `bfbebd754a`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "Every row below was measured against the estate files and the shared protocol library that are in the tree now.",
   "stage_count": 14,
   "stages": [
     {
@@ -3491,25 +3491,23 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "9m58.8s",
-      "runtime_cells": "cold_deploy 1m55s, migrate 40s, test_plan 5s, test_apply 7s, drift_reconverge 27s, day2_rename 17s, day2_remove 30s, day2_count 55s, day2_replace 45s, plan_approval 26s, greenfield 3m52s",
-      "last_run_note": "Last run at commit `cf2b5c7787` on 2026-09-18T12:12:25Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m58.8s.",
-      "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
-      "script_stale": "unknown",
-      "script_note": "**Unverified**: whether `live/e2e/corpus-mastino-dns` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - git could not place commit `cf2b5c7787` in this checkout's history - a shallow clone, a commit rebased away, or git itself unavailable (exit status 128). The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "runtime_total": "10m29.1s",
+      "runtime_cells": "cold_deploy 2m15s, migrate 41s, test_plan 5s, test_apply 8s, drift_reconverge 27s, day2_rename 18s, day2_remove 30s, day2_count 57s, day2_replace 45s, plan_approval 26s, greenfield 3m57s",
+      "last_run_note": "Last run at commit `58d3e89ec3` on 2026-09-23T22:13:39Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m29.1s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m55s",
+          "duration": "2m15s",
           "detail": "63 resources from stock terraform; 4 live zones confirmed unmarked"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "40s",
+          "duration": "41s",
           "detail": "4 of 63 stamped, 59 skipped as untaggable, 0 failed; 59 identity records written (#364), 14 of them also carrying residue (#341), DataCite's own tags survived"
         },
         {
@@ -3523,7 +3521,7 @@
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "7s",
+          "duration": "8s",
           "detail": "genuine no-op: 4 zones / 63 record sets unchanged, all 4 markers unmoved, all 59 identity records intact (14 residue-bearing)"
         },
         {
@@ -3537,7 +3535,7 @@
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "17s",
+          "duration": "18s",
           "detail": "moved block: aws_route53_zone.production renamed with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, none of its 45 record children moved; live-mv: aws_route53_zone.internal renamed with zero churn, marker rewritten in place; stock oracle over the same two-zone rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live zone ids unchanged, read via the AWS CLI"
         },
         {
@@ -3551,15 +3549,15 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "55s",
-          "detail": "choudoufu: scaling DataCite's own real, already-live aws_route53_record.wp-prod-staging count block (count.index + 3 in the name, header point 3) from 10 to 9 destroyed exactly wp-prod-staging[9] (staging12.datacite.org, 0 add, 0 change, 1 destroy; confirmed gone via the AWS CLI, and its local record file correctly tombstoned rather than left claiming a live identity - the #398-guard shape, confirmed by reading the file directly rather than assumed), leaving wp-prod-staging[0] (staging3.datacite.org)'s live TTL and record-store import_id unchanged; scaling back from 9 to 10 created exactly wp-prod-staging[9] again (0 add -\u003e 1 add, 0 change, 0 destroy), TTL=300 and record import_id=Z8H87YIH3OXCV14_staging12.datacite.org_A (identical string to before - Route 53 hands back no system id for a record set, so realness of the destroy was proved by the AWS CLI absence check and the tombstone, not a changed id), while wp-prod-staging[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 10-instance count block, plan-only against cold_deploy's own state (applying would disturb the live objects migrate/stage 3-5 depend on), shows the identical shape: destroy the highest index only, create it back under the same name, every lower index untouched both times. aws_route53_record carries no tags at all (header point 2), so this type's own 'every surviving instance keeps its identity' is proved through the record store's ZONEID_NAME_TYPE identity string and a direct AWS CLI read, never a tofu-address tag value - the colon-vs-bracket tag-value escaping trap live/MARKERS.md documents does not apply to an untaggable type. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
+          "duration": "57s",
+          "detail": "choudoufu: scaling DataCite's own real, already-live aws_route53_record.wp-prod-staging count block (count.index + 3 in the name, header point 3) from 10 to 9 destroyed exactly wp-prod-staging[9] (staging12.datacite.org, 0 add, 0 change, 1 destroy; confirmed gone via the AWS CLI, and its local record file correctly tombstoned rather than left claiming a live identity - the #398-guard shape, confirmed by reading the file directly rather than assumed), leaving wp-prod-staging[0] (staging3.datacite.org)'s live TTL and record-store import_id unchanged; scaling back from 9 to 10 created exactly wp-prod-staging[9] again (0 add -\u003e 1 add, 0 change, 0 destroy), TTL=300 and record import_id=ZJMWOYJR0VCB5N2_staging12.datacite.org_A (identical string to before - Route 53 hands back no system id for a record set, so realness of the destroy was proved by the AWS CLI absence check and the tombstone, not a changed id), while wp-prod-staging[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the identical 10-instance count block, plan-only against cold_deploy's own state (applying would disturb the live objects migrate/stage 3-5 depend on), shows the identical shape: destroy the highest index only, create it back under the same name, every lower index untouched both times. aws_route53_record carries no tags at all (header point 2), so this type's own 'every surviving instance keeps its identity' is proved through the record store's ZONEID_NAME_TYPE identity string and a direct AWS CLI read, never a tofu-address tag value - the colon-vs-bracket tag-value escaping trap live/MARKERS.md documents does not apply to an untaggable type. BREAK_COUNT=1 confirms the wrong-instance assertion correctly fails to hold."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
           "duration": "45s",
-          "detail": "choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object (Z8H87YIH3OXCV14_status2.datacite.org_CNAME) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one (Z8H87YIH3OXCV14_status.datacite.org_CNAME -\u003e Z8H87YIH3OXCV14_status2.datacite.org_CNAME); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+          "detail": "choudoufu: changing aws_route53_record.status's ForceNew name argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (status.datacite.org./CNAME) is confirmed gone and the new object (ZJMWOYJR0VCB5N2_status2.datacite.org_CNAME) exists, both via the AWS CLI; the local record store's record at the same address now names the new object's identity, not the destroyed one (ZJMWOYJR0VCB5N2_status.datacite.org_CNAME -\u003e ZJMWOYJR0VCB5N2_status2.datacite.org_CNAME); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); F-ORACLE also confirms the four apex NS records this estate's DELTA 5 manages can never take this same path (Route 53 refuses to delete the NS/SOA record at a zone's apex), which is why status was chosen instead; BREAK=replace confirms a manufactured identity collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
         },
         {
           "id": "day2_crash",
@@ -3576,13 +3574,13 @@
           "title": "Plan, review, apply",
           "verdict": "pass",
           "duration": "26s",
-          "detail": "one argument edited (aws_route53_zone.production's tags gain Reviewed=yes - a tag, so in-place, moving no live id), \"plan -out=approved.tfplan\" wrote a 19885-byte stock-format plan file whose own totals are \"Plan: 0 to add, 1 to change, 0 to destroy\" and whose whole change set is that one update; the world then moved out of band (staging3.datacite.org's TTL 300-\u003e77 in zone Z8H87YIH3OXCV14, this estate's own STAGE 5 upsert lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming the extra row as \"  aws_route53_record.wp-prod-staging[0]  Update  Z8H87YIH3OXCV14_staging3.datacite.org_A\" - both aws_route53_record.wp-prod-staging[0] and the live composed identity Z8H87YIH3OXCV14_staging3.datacite.org_A it was computed against, an UNTAGGABLE record whose identity comes from the local record store rather than a marker tag - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - zone Z8H87YIH3OXCV14 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the TTL put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the zone read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. Reverted and reconverged in P5 (tag gone, tofu-address marker intact, 63 record sets still there, next plan proposes no resource action) so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "detail": "one argument edited (aws_route53_zone.production's tags gain Reviewed=yes - a tag, so in-place, moving no live id), \"plan -out=approved.tfplan\" wrote a 19956-byte stock-format plan file whose own totals are \"Plan: 0 to add, 1 to change, 0 to destroy\" and whose whole change set is that one update; the world then moved out of band (staging3.datacite.org's TTL 300-\u003e77 in zone ZJMWOYJR0VCB5N2, this estate's own STAGE 5 upsert lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming the extra row as \"  aws_route53_record.wp-prod-staging[0]  Update  ZJMWOYJR0VCB5N2_staging3.datacite.org_A\" - both aws_route53_record.wp-prod-staging[0] and the live composed identity ZJMWOYJR0VCB5N2_staging3.datacite.org_A it was computed against, an UNTAGGABLE record whose identity comes from the local record store rather than a marker tag - with \"Exit status 3\" spelled out for a pipeline; nothing was applied - zone ZJMWOYJR0VCB5N2 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the TTL put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the zone read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. Reverted and reconverged in P5 (tag gone, tofu-address marker intact, 63 record sets still there, next plan proposes no resource action) so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "3m52s",
+          "duration": "3m57s",
           "detail": "63 resources from nothing (4 tagged zones + 59 untaggable records), the production zone's marker verified via the AWS CLI, 63 records in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches on zone count (4) and total record-set count (63)"
         },
         {
