@@ -174,6 +174,9 @@ jobs:
         run: |
           echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
           echo "tofu=$(jq -r .tofu_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+          # The provider pin (#1034) is the third fact in that file, and the
+          # provider mirror below is keyed on it.
+          echo "aws=$(jq -r .aws_provider_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -199,6 +202,39 @@ jobs:
           # these scripts and the real binary's stdout/stderr/exit code.
           tofu_version: ${{ steps.oracle.outputs.tofu }}
           tofu_wrapper: false
+      # The shared provider plugin cache, keyed on the provider pin so a
+      # bump of aws_provider_version starts a new entry rather than
+      # restoring the old one. Every estate inits the AWS provider, so a hit
+      # saves the download in all thirty shards; the warm step below is a
+      # stat when it hits and two cold inits when it does not.
+      #
+      # On the first run after a bump every shard misses and races to save
+      # the same key: one wins and the rest log "Unable to reserve cache",
+      # which is a warning, not a failure. The entry's exact contents then
+      # depend on which shard won (each has installed whatever its own
+      # estate needed on top), so read the key as "aws at this pin is in
+      # here", which every shard's directory satisfies after the warm step.
+      - name: The provider mirror, cached across shards
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: plugin-mirror-${{ runner.os }}-aws-${{ steps.oracle.outputs.aws }}
+      - name: Warm the provider mirror (#1550)
+        # corpus-simpleinfra-dns consumes the shared cache as a -plugin-dir
+        # filesystem MIRROR, which is read-only to the installer, so
+        # something else has to fill it. In the old serial run that was an
+        # accident of ordering - an earlier estate's ordinary init had
+        # already populated the cache. One estate per job removed the
+        # accident, and that shard failed at its own stage-0 assertion on an
+        # empty runner (run 35896010698). The script reads the version from
+        # live/oracle-versions.json and the directory from the crossing
+        # library, so nothing here spells either one out.
+        #
+        # Deliberately NOT exported as TF_PLUGIN_CACHE_DIR for the job:
+        # terraform refuses to install a provider from a -plugin-dir that is
+        # also its cache ("cannot install existing provider directory to
+        # itself"), which is exactly what setting it here would produce.
+        run: bash scripts/warm-plugin-cache.sh
       - name: Materialise the corpus
         run: go run ./tools/corpus-fetch
       # The kubernetes lane (issue #1080): its estates run against kind
