@@ -304,6 +304,18 @@ set -uo pipefail
 #   BREAK         set to 1 to corrupt stage 2's identity assertion.
 #   BREAK_STAGE5  set to 1 to tamper a second live object ahead of stage 5,
 #                 proving its single-object assertion is load-bearing.
+#   BREAK_APPLY_COUNT
+#                 set to 1 to run stage 4's object-count negative control
+#                 (#1549): after live-import has stamped all 16, remove
+#                 tofu-estate from one of the estate's three IAM roles and
+#                 assert 16 anyway - the assertion has to fail, at 15. It
+#                 is the proof that the IAM leg of that count is
+#                 load-bearing. The call this stage used to make reads 12
+#                 either way, marked or unmarked, and the run prints both
+#                 numbers side by side so the reader can see it. Reached on
+#                 the real path only, so it is independent of every BREAK
+#                 above; the run reports test_apply=fail and exits
+#                 non-zero, and never reaches stage 5.
 #   BREAK_COUNT   set to 1 to run day2_count's own negative control instead
 #                 of its real checks: after the real scale-down plan, assert
 #                 the WRONG instance (count_test[0] rather than
@@ -537,16 +549,22 @@ grep -qE 'Apply complete! Resources: 26 added, 0 changed, 0 destroyed' <<< "$COL
 log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
 [ -f "$PLAIN/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
 
-UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  2>/dev/null || echo 0)"
-[ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing"
-log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (#1549). The tagging API does not
+# index this estate's three IAM roles or its instance profile in us-west-2,
+# so a pre-existing marker on any of the four would have been invisible to
+# this check. The helper asks IAM's own tag APIs as well, so all 16 of the
+# objects stage 2 goes on to stamp are in scope of "nothing is marked yet".
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE_NAME inventory before migration"
+UNMARKED="$GAUNTLET_ESTATE_N"
+[ "$UNMARKED" = "0" ] || fail "plain tofu's own objects already carry tofu-estate=$ESTATE_NAME before migration - this crossing proves nothing (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N)"
+log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migration, counted through GetResources AND IAM's own list-role-tags/list-instance-profile-tags (#1549)"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
-gauntlet_stage cold_deploy pass "26 resources, genuinely cold, genuinely unmarked"
+gauntlet_stage cold_deploy pass "26 resources, genuinely cold, genuinely unmarked - the unmarked count taken through GetResources AND IAM's own list-role-tags/list-instance-profile-tags (#1549), so the three roles and the instance profile the tagging API does not index in us-west-2 are in scope of it"
 
 # ══════════════════════════════════════════════════════════════════════════
 # GREENFIELD (greenfield, live/GAUNTLET.md #13, active)
@@ -1116,37 +1134,57 @@ gauntlet_end_stage
 # FIXED by floci commit c212d9e84 ("fix(resourcegroupstagging): index
 # CloudWatch Logs log groups in GetResources"), on the path to the pin
 # ghcr.io/lex00/floci@sha256:0afd2648...: re-measured against this pin, the
-# cross-service search alone now returns all 16 objects. The count below is
-# the cross-service search alone, with the log group's presence in it
-# asserted directly (not inferred from a count matching by coincidence) -
-# keeping the old "+1 direct read" workaround after this fix would silently
-# double-count the log group instead of under-reporting it, which is
-# exactly the failure this pin bump surfaced (BEFORE_N=17, not 16).
+# cross-service search alone now returns all 16 objects. The log group's
+# presence in it is still asserted directly below (not inferred from a
+# count matching by coincidence) - keeping the old "+1 direct read"
+# workaround after that fix would silently double-count the log group
+# instead of under-reporting it, which is exactly the failure that pin bump
+# surfaced (BEFORE_N=17, not 16).
+#
+# THE COUNT ITSELF IS NO LONGER THE CROSS-SERVICE SEARCH ALONE (#1549).
+# That sentence held for 12 of the 16 and was wrong about the other four:
+# this estate owns three IAM roles and an IAM instance profile, and the
+# tagging API does not index IAM in us-west-2, so the assertion below read
+# 12 and called it a missing stamp. choudoufu stamped all 16; the emulator
+# holds all 16 markers; the count was wrong.
+#
+# MEASURED, no tofu in the loop, on the estate's own container at the
+# current pin ghcr.io/lex00/floci@sha256:6c3d5c2d, 2026-09-22, with the run
+# held open by DEBUG_KEEP=1 at exactly this point:
+#
+#   GetResources filtered on tofu-estate=overture-tiles-crossing returned
+#   12 ARNs - batch (3), cloudfront, ec2 (5), logs, s3 - and no IAM.
+#
+#   iam list-role-tags on all three roles and iam
+#   list-instance-profile-tags on the profile each returned
+#   tofu-estate=overture-tiles-crossing and the resource's own
+#   tofu-address. 12 + 4 = 16, with nothing returned by both routes.
+#
+# That asymmetry is lex00/floci#205 (#1152) matching real AWS's regional
+# tagging index for a global service - us-east-1 indexes iam:policy and
+# iam:instance-profile, us-west-2 indexes no IAM at all - so this count
+# would read 12 on real AWS too. gauntlet_estate_objects unions the two
+# routes and deduplicates by ARN, so it answers 16 today and still 16 if a
+# later pin starts serving these types through GetResources;
+# GAUNTLET_ESTATE_BOTH_N is how a reader tells which world the run happened
+# in. Assert on GAUNTLET_ESTATE_N, never on GAUNTLET_ESTATE_RGTA_N.
+#
+# Proved red: BREAK_APPLY_COUNT=1 below.
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count and identities unchanged) ==="
 
 LOGGROUP_NAME="/aws/batch/${ESTATE_NAME}"
 
-# tagged_object_count: resourcegroupstaggingapi's own cross-service count,
-# now that lex00/floci#98 is fixed and the log group is part of it (see
-# header above). Prints the raw ARN list on the first line and the count on
-# the second, so the caller can assert the log group's presence directly
-# (not called from inside a command substitution itself, since fail() must
-# be able to report and exit the whole script, not just a subshell).
+# assert_log_group_indexed keeps floci#98's own regression guard: the log
+# group IS one of the 12 the cross-service search returns, so its absence
+# from that search would be a floci regression rather than the IAM shape
+# #1549 describes, and the two are worth telling apart. The count itself
+# goes through gauntlet_estate_objects.
 tagged_object_count_raw() {
   awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
     --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null || true
-}
-tagged_object_count() {
-  local resources
-  resources="$(tagged_object_count_raw)"
-  if [ -z "$resources" ]; then
-    printf '0\n'
-  else
-    wc -w <<< "$resources" | tr -d ' '
-  fi
 }
 assert_log_group_indexed() {
   local resources
@@ -1156,8 +1194,41 @@ assert_log_group_indexed() {
 }
 
 assert_log_group_indexed
-BEFORE_N="$(tagged_object_count)"
-[ "$BEFORE_N" = "16" ] || fail "expected 16 tagged objects before the no-op apply (the 16 stamped in stage 2, all via resourcegroupstaggingapi now that floci#98 is fixed), got $BEFORE_N"
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE_NAME inventory before the no-op apply"
+BEFORE_N="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_APPLY_COUNT:-}" = "1" ]; then
+  # The negative control for THIS line. Untag ONE of the four IAM objects -
+  # a role, the type GetResources indexes in no region at all - and the
+  # assertion must catch it as 15. Against the GetResources-only call this
+  # replaced, removing that marker was invisible: the count read 12 with
+  # the role marked and 12 with it unmarked, which is the whole of #1549.
+  # This is how a reader re-runs that proof.
+  BREAK_ROLE="$(awsl iam list-roles --output json \
+    | jq -r '.Roles[].RoleName' \
+    | while IFS= read -r r; do
+        if awsl iam list-role-tags --role-name "$r" --output json 2>/dev/null \
+             | jq -e --arg e "$ESTATE_NAME" '[.Tags[]? | select(.Key == "tofu-estate" and .Value == $e)] | length > 0' >/dev/null; then
+          printf '%s\n' "$r"; break
+        fi
+      done)"
+  [ -n "$BREAK_ROLE" ] || fail "BREAK_APPLY_COUNT=1 found no role carrying tofu-estate=$ESTATE_NAME to unmark - the control cannot run, and the assertion below would have passed for the wrong reason"
+  awsl iam untag-role --role-name "$BREAK_ROLE" --tag-keys tofu-estate >/dev/null
+  OLD_IDIOM="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME")"
+  gauntlet_estate_objects "$ESTATE_NAME" awsl \
+    || fail "could not re-read the inventory after BREAK_APPLY_COUNT unmarked $BREAK_ROLE"
+  BEFORE_N="$GAUNTLET_ESTATE_N"
+  log "  BREAK_APPLY_COUNT=1: removed tofu-estate from role $BREAK_ROLE - the"
+  log "           assertion below must now fail, and reads $BEFORE_N. The call this"
+  log "           line replaced still reads $OLD_IDIOM, unchanged by the removal:"
+  log "           that is the defect, not the control."
+fi
+[ "$BEFORE_N" = "16" ] || fail "expected 16 tagged objects before the no-op apply (the 16 stamped in stage 2), got $BEFORE_N (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN)"
+# Keep the before-read's split: the globals are overwritten by the
+# after-read below, and the verdict line has to say which route found what.
+BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
+BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
+BEFORE_BOTH_N="$GAUNTLET_ESTATE_BOTH_N"
 
 NOOP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
 [ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -40; fail "the no-op apply exited $NOOP_APPLY_RC"; }
@@ -1165,7 +1236,9 @@ grep -qE 'Resources: 0 added, 0 changed, 0 destroyed|No changes' <<< "$NOOP_APPL
   || { grep -E 'Apply complete|Plan: ' <<< "$NOOP_APPLY_OUT"; fail "the no-op apply was not a genuine no-op"; }
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
 
-AFTER_N="$(tagged_object_count)"
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not re-read the account's tofu-estate=$ESTATE_NAME inventory after the no-op apply"
+AFTER_N="$GAUNTLET_ESTATE_N"
 [ "$AFTER_N" = "$BEFORE_N" ] || fail "the tagged object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
 
 # The same two identities stage 3 checked, re-checked one more time, fresh off
@@ -1184,13 +1257,13 @@ GOT_OAC_ID3="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "
 [ -d "$ESTATE/.tofu-records" ] || fail "the record store directory is gone after the no-op apply"
 [ -n "$(find "$ESTATE/.tofu-records" -type f 2>/dev/null)" ] || fail "the record store holds no files after the no-op apply"
 
-log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed), no state file"
+log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after - GetResources $BEFORE_RGTA_N/$GAUNTLET_ESTATE_RGTA_N (the log group among them, floci#98 fixed) plus IAM's own list-role-tags/list-instance-profile-tags $BEFORE_IAM_N/$GAUNTLET_ESTATE_IAM_N, deduplicated by ARN, $BEFORE_BOTH_N returned by both (#1549), no state file"
 log "  identities re-checked: bucket $GOT_BUCKET_ADDR3, OAC $GOT_OAC_ID3; record store intact"
 
 log ""
 log "STAGE 4 (test apply): PASS - genuine no-op; object count and identities unchanged"
 log ""
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed); S3 bucket and OAC identities unchanged; record store intact"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after - counted through resourcegroupstaggingapi's cross-service search ($BEFORE_RGTA_N, the log group among them, floci#98 fixed) AND IAM's own list-role-tags/list-instance-profile-tags ($BEFORE_IAM_N), deduplicated by ARN, $BEFORE_BOTH_N returned by both, because the tagging API does not index this estate's three roles or its instance profile in us-west-2 (#1549); S3 bucket and OAC identities unchanged; record store intact"
 gauntlet_end_stage
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1701,9 +1774,14 @@ else
     'aws_s3_bucket.tiles[0]'
     'aws_cloudfront_distribution.tiles[0]'
   )
-  BEFORE_RENAME_N="$(tagged_object_count)"
-  [ "$BEFORE_RENAME_N" = "16" ] || fail "expected 16 tagged objects ahead of the rename, got $BEFORE_RENAME_N"
-  log "  $BEFORE_RENAME_N tagged objects, read via resourcegroupstaggingapi"
+  # Both tag routes, same as stage 4 (#1549): four of these sixteen are IAM
+  # objects the tagging API does not index in us-west-2, so GetResources
+  # alone answers 12 here whatever the markers say.
+  gauntlet_estate_objects "$ESTATE_NAME" awsl \
+    || fail "could not read the account's tofu-estate=$ESTATE_NAME inventory ahead of the rename"
+  BEFORE_RENAME_N="$GAUNTLET_ESTATE_N"
+  [ "$BEFORE_RENAME_N" = "16" ] || fail "expected 16 tagged objects ahead of the rename, got $BEFORE_RENAME_N (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N)"
+  log "  $BEFORE_RENAME_N tagged objects, read via resourcegroupstaggingapi ($GAUNTLET_ESTATE_RGTA_N) and IAM's own tag APIs ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN"
 
   if [ "${BREAK:-}" = "2" ]; then
     log "=== D1 (BREAK=2). rename module.overture_tiles -> module.overture_tiles_final WITHOUT a moved block ==="
@@ -1823,8 +1901,10 @@ EOF
     grep -qE 'Resources: 0 added, 16 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly sixteen in-place changes"; }
 
-    AFTER_D1_N="$(tagged_object_count)"
-    [ "$AFTER_D1_N" = "16" ] || fail "the tagged object count changed across the moved-block rename: 16 -> $AFTER_D1_N"
+    gauntlet_estate_objects "$ESTATE_NAME" awsl \
+      || fail "could not re-read the account's tofu-estate=$ESTATE_NAME inventory after the moved-block rename"
+    AFTER_D1_N="$GAUNTLET_ESTATE_N"
+    [ "$AFTER_D1_N" = "16" ] || fail "the tagged object count changed across the moved-block rename: 16 -> $AFTER_D1_N (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N)"
     GOT_BUCKET_ADDR_D1="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
     [ "$GOT_BUCKET_ADDR_D1" = "module.overture_tiles_moved.aws_s3_bucket.tiles:0" ] \
       || fail "the S3 bucket carries tofu-address=$GOT_BUCKET_ADDR_D1 after the rename, not module.overture_tiles_moved.aws_s3_bucket.tiles:0"
@@ -1936,8 +2016,10 @@ EOF
       || fail "the instance profile carries tofu-address=$INSTANCE_PROFILE_ADDR, not module.overture_tiles_final.aws_iam_instance_profile.ecs"
     log "  live-mv: ${#LIVE_MV_ADDRS[@]} of sixteen taggable children renamed, one call each, zero churn; the other ${#NO_LIVE_MV[@]} (${NO_LIVE_MV[*]}, both server-/provider-assigned identities with no List support in the provider - internal/live/mv/mv.go's own correct refusal) renamed via their own moved blocks instead, applied cleanly (0 add, ${#NO_LIVE_MV[@]} change, 0 destroy)"
 
-    AFTER_D2_N="$(tagged_object_count)"
-    [ "$AFTER_D2_N" = "16" ] || fail "the tagged object count changed across live-mv: 16 -> $AFTER_D2_N"
+    gauntlet_estate_objects "$ESTATE_NAME" awsl \
+      || fail "could not re-read the account's tofu-estate=$ESTATE_NAME inventory after live-mv"
+    AFTER_D2_N="$GAUNTLET_ESTATE_N"
+    [ "$AFTER_D2_N" = "16" ] || fail "the tagged object count changed across live-mv: 16 -> $AFTER_D2_N (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N)"
     GOT_BUCKET_ADDR_D2="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
     [ "$GOT_BUCKET_ADDR_D2" = "module.overture_tiles_final.aws_s3_bucket.tiles:0" ] \
       || fail "the S3 bucket carries tofu-address=$GOT_BUCKET_ADDR_D2 after live-mv, not module.overture_tiles_final.aws_s3_bucket.tiles:0"
