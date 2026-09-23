@@ -103,7 +103,14 @@ jobs:
     # succeeded (an approved, completed run), not merely to be absent.
     if: always() && (github.event_name != 'workflow_dispatch' || needs.dispatch-approval.result == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    # Two runs in a row measured every estate and published nothing. The
+    # corpus leg alone takes over four hours, so the job hit the old
+    # 300-minute limit in the kubernetes lane (run 35778888961) and then in
+    # the cohort acceptance pass (run 35819120887), and a job cancelled by
+    # its own limit skips the steps that write the board. Raised with room
+    # for the whole sequence, and the acceptance pass below is bounded so
+    # it cannot spend what the publish needs (#1550).
+    timeout-minutes: 420
     steps:
       - uses: actions/checkout@v7
         with:
@@ -200,6 +207,12 @@ jobs:
       - name: Render
         run: go run ./tools/gauntlet render
       - name: Run the cohort acceptance pass
+        # Bounded (#1550): the verdicts this job exists to publish are
+        # written by the steps below, so this pass may cost its own result
+        # and never theirs. The go test call already carries -timeout 60m;
+        # this is the same bound one level up, where a hung binary or a
+        # stuck container is also covered.
+        timeout-minutes: 70
         # Same reasoning as "Run the gauntlet" above: enforceRatchet reports
         # a regression with t.Error, not t.Fatal, so the artifact is written
         # even when the test run exits nonzero (main.go's cmdRun comment
@@ -221,6 +234,12 @@ jobs:
             gauntlet-run-k8s.log
             live/gauntlet/logs/
             cohort-acceptance-run.log
+            live/gauntlet.json
+            live/gauntlet/estates.json
+            live/GAUNTLET.md
+            site/data/gauntlet.json
+            site/data/gauntlet_board.json
+            live/cohort-acceptance.json
           if-no-files-found: ignore
       - name: Open a pull request with the new verdicts
         id: open_pr
