@@ -395,3 +395,45 @@ func TestLoadShardArtifactsReadsTheUploadedLayout(t *testing.T) {
 		t.Errorf("refusal does not name alpha: %v", err)
 	}
 }
+
+// TestShardEstatesCarriesTheKubernetesLaneOfThisRepository is the half of
+// TestKubernetesLaneRunsNightly (live/k8s_ci_test.go) that moved here when
+// the nightly stopped naming the lane's four estates by hand: against THIS
+// repository's manifest, a `-set core` run - what the nightly dispatches -
+// must still measure every kubernetes-lane estate, or a lane row goes stale
+// against every repin with nothing re-measuring it.
+func TestShardEstatesCarriesTheKubernetesLaneOfThisRepository(t *testing.T) {
+	root := testRoot(t)
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nightly := ShardEstates(m, SetCore)
+	lane := 0
+	for _, e := range m.Estates {
+		if e.Lane != LaneKubernetes {
+			continue
+		}
+		lane++
+		if !contains(nightly, e.Name) {
+			t.Errorf("a `-set core` run does not measure %q (lane %s, set %s)", e.Name, e.Lane, e.Set)
+		}
+	}
+	if lane == 0 {
+		t.Fatal("the manifest has no kubernetes-lane estate; this guard is checking nothing")
+	}
+	// And every core estate, which is the other thing the nightly is for.
+	core := 0
+	for _, e := range m.Estates {
+		if e.Set != SetCore {
+			continue
+		}
+		core++
+		if !contains(nightly, e.Name) {
+			t.Errorf("a `-set core` run does not measure core estate %q", e.Name)
+		}
+	}
+	if len(nightly) != core+lane {
+		t.Errorf("a `-set core` run measures %d estates; the manifest has %d core and %d lane estates", len(nightly), core, lane)
+	}
+}

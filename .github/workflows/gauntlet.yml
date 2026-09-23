@@ -4,37 +4,54 @@ name: Gauntlet
 # emulator, nightly and on demand, and opens a pull request with the
 # regenerated artifact and docs when anything changed. live/GAUNTLET.md is
 # the contract; tools/gauntlet is the runner. The underlying command is the
-# one a human would type locally:
+# one a human would type locally, once per estate:
 #
-#   go run ./tools/gauntlet run -set core
+#   go run ./tools/gauntlet run <estate>
 #
 # and CLAUDE.md's "Heavy and paid runs are the maintainer's, by hand" rule
-# makes that command the maintainer's to start (no agent starts a whole-set
-# run on its own initiative; the mechanical allow-file gate was removed by
-# #1102 on 2026-09-14), so this workflow, not a laptop, is the normal way
-# it runs. The nightly `schedule` trigger is unaffected (it always was
-# unattended CI, never a local session); a manual `workflow_dispatch` run
-# additionally waits at the `dispatch-approval` job below for the
-# maintainer's own approval on the `corpus` environment before `run` starts -
-# see HANDOFF.md "Heavy runs are dispatched, approved and never local".
+# makes a whole-set run the maintainer's to start (no agent starts one on
+# its own initiative; the mechanical allow-file gate was removed by #1102 on
+# 2026-09-14), so this workflow, not a laptop, is the normal way it runs.
+# The nightly `schedule` trigger is unaffected (it always was unattended CI,
+# never a local session); a manual `workflow_dispatch` run additionally
+# waits at the `dispatch-approval` job below for the maintainer's own
+# approval on the `corpus` environment before anything starts - see
+# HANDOFF.md "Heavy runs are dispatched, approved and never local".
 # This workflow's own `workflow_dispatch` (inputs `set`/`estates`) already
 # was the dispatch path issue #1032/#807's brief for "the corpus, gated"
-# describes, so that gate extends this job rather than a separate
-# gauntlet-corpus.yml duplicating its ~15 steps - see that section of
+# describes, so that gate extends this workflow rather than a separate
+# gauntlet-corpus.yml duplicating its steps - see that section of
 # HANDOFF.md for why.
 #
-# The same run also carries the cohort acceptance pass (issue #433): 663
-# distinct AWS types for the cost of an apply and a replan per cohort, the
-# cheap breadth instrument alongside the gauntlet's deep per-estate one. The
-# same command runs locally:
+# ONE ESTATE PER JOB (#1550, second act). The run used to be one job that
+# ran every estate in sequence, and it twice measured the whole board and
+# published nothing: the corpus leg alone takes over four hours, so the job
+# hit its own limit before `Render` and the verdicts pull request ever ran
+# (runs 35778888961 and 35819120887, about fifteen hours of CI and two
+# approval clicks for an untouched live/gauntlet.json). #1554 raised the
+# limit to 420 minutes, which bought time and changed nothing structural.
+#
+# So the run is sharded instead: `plan` computes the estate list FROM THE
+# MANIFEST (`gauntlet estates`, never a hand-written list - the kubernetes
+# lane used to be four names typed into a step here), `estate` is a matrix
+# job per estate with `fail-fast: false`, and `collect` folds the shards
+# back into one artifact with `gauntlet combine-shards` and publishes. The
+# wall clock is now the SLOWEST estate rather than their sum, and a leg that
+# runs long can no longer take the publish with it.
+#
+# The cohort acceptance pass (issue #433) moved to a job of its own for the
+# same reason: 663 distinct AWS types for the cost of an apply and a replan
+# per cohort, and it is independent of every estate, so it runs beside them
+# rather than after them. It is what run 35819120887 died inside. The same
+# command runs locally:
 #
 #   TF_FLOCI_TEST=1 TF_FLOCI_ACCEPTANCE_ARTIFACT=1 go test ./internal/live/acceptance -run TestCohortAcceptance -v -timeout 6h
 #
-# Needs Docker (the emulator image), the AWS CLI, a stock terraform binary
-# and a real OpenTofu (tofu) binary for the cold deploy - some estates are an
-# OpenTofu-native lane (real .tofu-suffixed source) and hard-require tofu on
-# PATH with no terraform fallback - and the corpus materialised by
-# tools/corpus-fetch.
+# A shard needs Docker (the emulator image), the AWS CLI, a stock terraform
+# binary and a real OpenTofu (tofu) binary for the cold deploy - some
+# estates are an OpenTofu-native lane (real .tofu-suffixed source) and
+# hard-require tofu on PATH with no terraform fallback - and the corpus
+# materialised by tools/corpus-fetch.
 #
 # Opening the pull request wants a GAUNTLET_PR_TOKEN secret: a fine-grained
 # PAT whose RESOURCE OWNER is the INTENTIUS organization (not the user
@@ -45,13 +62,13 @@ name: Gauntlet
 # night from 2026-09-13 to 2026-09-21 did (issue #496, second act).
 #
 # So the "Check the PR token" step below proves the secret can reach THIS
-# repository before the five-hour run, and when it cannot, the PR step falls
-# back to GITHUB_TOKEN. The org policy that once blocked GITHUB_TOKEN from
-# opening pull requests is gone (2026-09-21: can_approve_pull_request_reviews
-# is true at both the org and the repo level), so the fallback opens the PR;
-# its cost is issue #948 - a PR authored by the Actions app waits for a human
-# to approve its CI run. That is one click. The alternative was a measurement
-# computed nightly and discarded.
+# repository, and when it cannot, the PR step falls back to GITHUB_TOKEN.
+# The org policy that once blocked GITHUB_TOKEN from opening pull requests
+# is gone (2026-09-21: can_approve_pull_request_reviews is true at both the
+# org and the repo level), so the fallback opens the PR; its cost is issue
+# #948 - a PR authored by the Actions app waits for a human to approve its
+# CI run. That is one click. The alternative was a measurement computed
+# nightly and discarded.
 
 on:
   schedule:
@@ -80,7 +97,7 @@ jobs:
   # `gh api` calls that create it). `environment:` pauses the job it is set
   # on at the very first step until a reviewer approves it in the Actions
   # UI, so a trivial one-step job here is enough - the actual heavy work
-  # stays entirely in `run` below, unduplicated.
+  # stays entirely in the jobs below, unduplicated.
   #
   # `if:` scopes this to workflow_dispatch so the nightly cron keeps running
   # unattended, exactly as it does today: the maintainer's rule is about a
@@ -93,7 +110,13 @@ jobs:
     steps:
       - run: echo "approved by the corpus environment's required reviewer"
 
-  run:
+  # Which estates does this run measure? Answered once, from the manifest,
+  # and handed to both the matrix below and the collect job's expectation,
+  # so a name can never be in one and not the other - and so an estate added
+  # to live/gauntlet/estates.json cannot silently drop out of the board.
+  # `gauntlet estates` is the same selection `gauntlet run` makes, plus the
+  # kubernetes lane (tools/gauntlet/shards.go).
+  plan:
     needs: [dispatch-approval]
     # always() because `needs` on a job that only conditionally runs
     # (dispatch-approval, above) otherwise makes THIS job skip too on a
@@ -103,30 +126,49 @@ jobs:
     # succeeded (an approved, completed run), not merely to be absent.
     if: always() && (github.event_name != 'workflow_dispatch' || needs.dispatch-approval.result == 'success')
     runs-on: ubuntu-latest
-    # Two runs in a row measured every estate and published nothing. The
-    # corpus leg alone takes over four hours, so the job hit the old
-    # 300-minute limit in the kubernetes lane (run 35778888961) and then in
-    # the cohort acceptance pass (run 35819120887), and a job cancelled by
-    # its own limit skips the steps that write the board. Raised with room
-    # for the whole sequence, and the acceptance pass below is bounded so
-    # it cannot spend what the publish needs (#1550).
-    timeout-minutes: 420
+    timeout-minutes: 15
+    outputs:
+      estates: ${{ steps.list.outputs.json }}
+      names: ${{ steps.list.outputs.names }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: List the estates this run measures
+        id: list
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.estates }}" ]; then
+            JSON=$(go run ./tools/gauntlet estates -json ${{ github.event.inputs.estates }})
+          else
+            JSON=$(go run ./tools/gauntlet estates -json -set "${{ github.event.inputs.set || 'core' }}")
+          fi
+          echo "json=$JSON" >> "$GITHUB_OUTPUT"
+          echo "names=$(printf '%s' "$JSON" | jq -r 'join(" ")')" >> "$GITHUB_OUTPUT"
+          echo "sharding $(printf '%s' "$JSON" | jq -r 'length') estate(s): $(printf '%s' "$JSON" | jq -r 'join(" ")')" >> "$GITHUB_STEP_SUMMARY"
+
+  # One estate, one job. fail-fast: false because a failing estate is a ROW
+  # in the artifact, not a broken pipeline (the same reason the run step
+  # below ends in `|| true`), and cancelling its siblings would throw away
+  # measurements that are already paid for.
+  estate:
+    needs: [plan]
+    if: needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        estate: ${{ fromJSON(needs.plan.outputs.estates) }}
+    # The slowest estate on record is under 35 minutes of script
+    # (live/gauntlet.json's last_run.duration_s). This is the bound one
+    # level up, generous enough for a cold runner and small enough that a
+    # hung script costs one estate rather than the board.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: true
-      # Issue #496: is the secret a token this repository accepts a push
-      # from? Answered here, in seconds, rather than five hours later at the
-      # bottom of the PR step's log. `usable` selects the PR step's token;
-      # `reason` is quoted in the PR body and the job summary either way.
-      # scripts/gauntlet-pr-token-check.sh is exercised by
-      # live/gauntlet_pr_token_test.go against a stubbed gh, so the branch
-      # that says "unusable" is proven to fire.
-      - name: Check the PR token (issue #496)
-        id: prtoken
-        env:
-          PAT: ${{ secrets.GAUNTLET_PR_TOKEN }}
-        run: scripts/gauntlet-pr-token-check.sh
       - name: Read the pinned stock oracle versions (issue #544)
         id: oracle
         run: |
@@ -161,9 +203,10 @@ jobs:
         run: go run ./tools/corpus-fetch
       # The kubernetes lane (issue #1080): its estates run against kind
       # clusters their scripts create, not the emulator. kind and kubectl
-      # are pinned the way k8s-smoke.yml pins them; live/k8s_ci_test.go
-      # holds the estate list in the step below to the manifest's
-      # kubernetes lane.
+      # are pinned the way k8s-smoke.yml pins them, and installed in EVERY
+      # shard rather than only the lane's: install_only creates no cluster,
+      # costs seconds, and a conditional here would be one more thing that
+      # can be wrong about an estate whose lane changed.
       - name: kind and kubectl, pinned (the kubernetes lane)
         uses: helm/kind-action@v1.15.0
         with:
@@ -179,41 +222,68 @@ jobs:
         # while passing on every laptop. choudoufu needs no cgo; a static
         # binary runs on the host and in the container alike.
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
-      - name: Run the gauntlet
+      - name: Run the estate
         # `|| true` here is deliberate, not a swallow of an infra failure:
-        # `gauntlet run` exits 1 whenever any estate script exits nonzero or
+        # `gauntlet run` exits 1 whenever the estate script exits nonzero or
         # an unacknowledged regression is found (tools/gauntlet/main.go), and
         # that happens routinely - a still-failing estate is a row in the
-        # artifact, not a broken pipeline. Aborting the job here would drop
-        # Render and the PR step (and the log upload) on every night some
-        # estate does not clear, which is most nights. The signal this
-        # workflow actually needs loud is the "Open a pull request" step
-        # below, which is not supposed to fail routinely (issue #496).
+        # artifact, not a broken pipeline. Failing here would drop the
+        # upload below, and this shard's measurement with it.
         env:
           TOFU_BIN: ${{ runner.temp }}/choudoufu
         run: |
           set -o pipefail
-          if [ -n "${{ github.event.inputs.estates }}" ]; then
-            go run ./tools/gauntlet run ${{ github.event.inputs.estates }} | tee gauntlet-run.log || true
-          else
-            go run ./tools/gauntlet run -set "${{ github.event.inputs.set || 'core' }}" | tee gauntlet-run.log || true
-          fi
-      - name: Run the kubernetes lane
-        env:
-          TOFU_BIN: ${{ runner.temp }}/choudoufu
-        run: |
-          set -o pipefail
-          go run ./tools/gauntlet run reference-k8s reference-k8s-stateful corpus-quickpizza reference-k8s-cert-manager | tee gauntlet-run-k8s.log || true
-      - name: Render
-        run: go run ./tools/gauntlet render
+          go run ./tools/gauntlet run "${{ matrix.estate }}" | tee "gauntlet-run-${{ matrix.estate }}.log" || true
+      - name: Name this shard's artifact
+        # always(), and a plain copy of whatever live/gauntlet.json says:
+        # a shard cancelled before its estate ran uploads the committed row,
+        # which carries another run's commit, and `combine-shards` refuses
+        # it by name. Uploading nothing would be refused too - the point is
+        # that neither case can be mistaken for a measurement.
+        if: always()
+        run: cp live/gauntlet.json "shard-${{ matrix.estate }}.json"
+      - name: Keep this shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gauntlet-shard-${{ matrix.estate }}
+          path: |
+            shard-${{ matrix.estate }}.json
+            gauntlet-run-${{ matrix.estate }}.log
+            live/gauntlet/logs/
+          if-no-files-found: ignore
+
+  # The cohort acceptance pass (issue #433), beside the estates rather than
+  # after them. It shares nothing with a shard but the emulator image, and
+  # it is what run 35819120887 spent the publish's budget inside.
+  acceptance:
+    needs: [plan]
+    if: needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    # The go test call already carries -timeout 60m; this is the same bound
+    # one level up, where a hung binary or a stuck container is also
+    # covered. It no longer costs the verdicts if it overruns - collect
+    # runs on always() and publishes the board without this artifact.
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Read the pinned stock oracle versions (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # Stock applies every cohort; the pass then replans it with
+          # choudoufu, which internal/live/flocitest builds itself. No tofu
+          # and no corpus: this pass reads live/e2e/estates, not .corpus.
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
       - name: Run the cohort acceptance pass
-        # Bounded (#1550): the verdicts this job exists to publish are
-        # written by the steps below, so this pass may cost its own result
-        # and never theirs. The go test call already carries -timeout 60m;
-        # this is the same bound one level up, where a hung binary or a
-        # stuck container is also covered.
-        timeout-minutes: 70
-        # Same reasoning as "Run the gauntlet" above: enforceRatchet reports
+        # Same reasoning as "Run the estate" above: enforceRatchet reports
         # a regression with t.Error, not t.Fatal, so the artifact is written
         # even when the test run exits nonzero (main.go's cmdRun comment
         # calls out the same choice) - a still-failing cohort is ground
@@ -224,15 +294,78 @@ jobs:
         run: |
           set -o pipefail
           go test ./internal/live/acceptance -run TestCohortAcceptance -v -timeout 60m | tee cohort-acceptance-run.log || true
+      - name: Keep the acceptance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gauntlet-acceptance
+          path: |
+            live/cohort-acceptance.json
+            cohort-acceptance-run.log
+          if-no-files-found: ignore
+
+  # Fold the shards back into one artifact and publish. Everything from
+  # here down is what the single job used to do from `Render` onward.
+  collect:
+    needs: [plan, estate, acceptance]
+    # always(), so a failing estate job (routine) or an acceptance pass that
+    # overran (its whole point) still publishes what was measured. `plan`
+    # succeeding is the one real precondition: without its list, `collect`
+    # cannot tell a missing shard from an estate this run never measured.
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # Issue #496: is the secret a token this repository accepts a push
+      # from? `usable` selects the PR step's token; `reason` is quoted in
+      # the PR body and the job summary either way.
+      # scripts/gauntlet-pr-token-check.sh is exercised by
+      # live/gauntlet_pr_token_test.go against a stubbed gh, so the branch
+      # that says "unusable" is proven to fire.
+      - name: Check the PR token (issue #496)
+        id: prtoken
+        env:
+          PAT: ${{ secrets.GAUNTLET_PR_TOKEN }}
+        run: scripts/gauntlet-pr-token-check.sh
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Download the shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: gauntlet-shard-*
+          path: shards
+      - name: Combine the shards
+        # Refuses rather than guesses: a missing shard (named), a shard from
+        # another commit or another emulator pin, a shard carrying a row it
+        # did not run. A refusal means re-run THAT estate's job, which is
+        # minutes - see tools/gauntlet/shards.go. The aggregates are
+        # recomputed by Rebuild, the same call `run` makes, so the headline
+        # cannot contradict its own rows.
+        run: |
+          go run ./tools/gauntlet combine-shards \
+            -shards shards \
+            -estates "${{ needs.plan.outputs.names }}" \
+            -commit "${{ github.sha }}"
+      - name: Render
+        run: go run ./tools/gauntlet render
+      - name: Download the acceptance artifact
+        # continue-on-error: an acceptance pass that overran or died leaves
+        # live/cohort-acceptance.json as committed, so the PR below simply
+        # does not move that file. The board is not held back for it.
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: gauntlet-acceptance
+          path: .
       - name: Keep the logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: gauntlet-logs
           path: |
-            gauntlet-run.log
-            gauntlet-run-k8s.log
-            live/gauntlet/logs/
+            shards/
             cohort-acceptance-run.log
             live/gauntlet.json
             live/gauntlet/estates.json
@@ -259,9 +392,10 @@ jobs:
           title: "gauntlet: nightly verdicts"
           commit-message: "gauntlet: nightly verdicts"
           body: |
-            Regenerated by the Gauntlet workflow. Read the per-estate lines in
-            the attached run log, not the exit code; the site bars follow from
-            `live/gauntlet.json` once this merges. Also carries the cohort
+            Regenerated by the Gauntlet workflow, one estate per job. Read the
+            per-estate lines in the attached run logs (`shards/` in the
+            gauntlet-logs artifact), not the exit code; the site bars follow
+            from `live/gauntlet.json` once this merges. Also carries the cohort
             acceptance pass (`live/cohort-acceptance.json`, issue #433): read
             the cohort-acceptance-run.log lines the same way, and its
             enforceRatchet failure (if any) means a previously-passing cohort
@@ -269,7 +403,7 @@ jobs:
 
             ${{ steps.prtoken.outputs.usable != 'true' && format('Opened with GITHUB_TOKEN because GAUNTLET_PR_TOKEN was unusable: {0}. A pull request authored by the Actions app waits for a human to approve its CI run (issue #948): `gh run list --branch gauntlet/nightly --workflow CI`, then `gh api -X POST repos/INTENTIUS/choudoufu/actions/runs/<id>/approve`. A fine-grained PAT with resource owner INTENTIUS stops this (issue #496).', steps.prtoken.outputs.reason) || '' }}
           # Every file `gauntlet render` writes (tools/gauntlet/render.go)
-          # plus the cohort acceptance artifact this job also writes.
+          # plus the cohort acceptance artifact the acceptance job writes.
           # TestGauntletWorkflowCarriesEveryFileTheCommandWrites holds this
           # list to Render's output; it named neither board file for eleven
           # days (issue #1310), so a night that moved a verdict opened a PR
