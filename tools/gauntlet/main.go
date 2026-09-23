@@ -16,6 +16,8 @@
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale; always prints which rows predate their own estate script (#1264, reported, never fatal)
+//	go run ./tools/gauntlet estates [-set core|all] [-json] [name...] # the estates one CI run measures, from the manifest: the matrix the board is sharded over (#1550)
+//	go run ./tools/gauntlet combine-shards -shards <dir> [-set core|all | -estates 'a b'] # fold one shard-per-estate CI run back into one live/gauntlet.json (#1550)
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
 //	go run ./tools/gauntlet merge-rendered <path> <ours-file> # git merge driver for the rendered files: keep ours whole, re-render after (#1308)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
@@ -30,6 +32,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,6 +83,10 @@ func main() {
 		fatalIf(cmdScalePatchSeconds(root, os.Args[2:]))
 	case "backfill-stage-provenance":
 		fatalIf(cmdBackfillStageProvenance(root, os.Args[2:], os.Stdout))
+	case "estates":
+		fatalIf(cmdEstates(root, os.Args[2:], os.Stdout))
+	case "combine-shards":
+		fatalIf(cmdCombineShards(root, os.Args[2:], os.Stdout))
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
@@ -104,7 +111,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -1094,4 +1101,131 @@ func boardsDifferOnlyInScriptStaleness(want, got []byte) bool {
 		return false
 	}
 	return bytes.Equal(a, b)
+}
+
+// cmdEstates prints the estates one CI run measures (#1550): the list
+// .github/workflows/gauntlet.yml builds its shard matrix from, and the
+// list the collect job expects a shard for.
+//
+// It exists because the alternative is a hand-written list in the
+// workflow, which is what the kubernetes lane had, and a hand-written list
+// is what an estate drops out of without anyone noticing the board got
+// smaller. Positional names override -set exactly the way `gauntlet run`'s
+// do, so a dispatch that names estates shards those and expects those.
+func cmdEstates(root string, args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("estates", flag.ContinueOnError)
+	set := fs.String("set", "all", "which set to list when no names are given: core or all")
+	asJSON := fs.Bool("json", false, "print a JSON array of names, for a workflow matrix")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	names := fs.Args()
+	if len(names) > 0 {
+		// A name that is not in the manifest fails HERE, in a job that
+		// costs seconds, rather than in the shard job it would have
+		// spawned - `gauntlet run` refuses it either way (RunEstates).
+		for _, n := range names {
+			if _, ok := m.ByName(n); !ok {
+				return fmt.Errorf("estate %q is not in %s", n, ManifestPath)
+			}
+		}
+	} else {
+		names = ShardEstates(m, *set)
+	}
+	if len(names) == 0 {
+		return fmt.Errorf("no estates selected: %s has no estate in set %q", ManifestPath, *set)
+	}
+	if *asJSON {
+		b, err := json.Marshal(names)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(out, string(b))
+		return nil
+	}
+	for _, n := range names {
+		fmt.Fprintln(out, n)
+	}
+	return nil
+}
+
+// cmdCombineShards folds a shard-per-estate CI run back into one artifact
+// (#1550). See shards.go for the rules and why they are refusals.
+//
+// It deliberately does NOT render: the workflow's own `gauntlet render`
+// step follows it, so the rendered files are produced by the same command
+// a human would run, and a combine that refuses has written nothing.
+func cmdCombineShards(root string, args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("combine-shards", flag.ContinueOnError)
+	dir := fs.String("shards", "", "directory holding the shard-<estate>.json files the shard jobs uploaded (searched recursively)")
+	set := fs.String("set", "", "expect a shard for every estate in this set: core or all")
+	estates := fs.String("estates", "", "space-separated estate names this run measured; overrides -set")
+	commit := fs.String("commit", "", "the commit every shard must have measured (default: HEAD)")
+	emulator := fs.String("emulator", "", "the emulator digest every shard must have measured against (default: live/floci-image)")
+	outPath := fs.String("out", "", "where to write the combined artifact (default: "+ArtifactPath+")")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" {
+		return fmt.Errorf("combine-shards needs -shards <dir>")
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	expect := strings.Fields(*estates)
+	if len(expect) == 0 {
+		if *set == "" {
+			return fmt.Errorf("combine-shards needs -set core|all or -estates \"a b\": without one it cannot tell a missing shard from an estate this run never measured")
+		}
+		expect = ShardEstates(m, *set)
+	}
+	if *commit == "" {
+		// #1149's rule: no provenance, no run. A combine that cannot
+		// name the commit it is combining for cannot check a shard
+		// against it either.
+		c, err := headCommit(root)
+		if err != nil {
+			return err
+		}
+		*commit = c
+	}
+	if *emulator == "" {
+		*emulator = emulatorPin(root)
+	}
+	base, err := LoadArtifact(root)
+	if err != nil {
+		return err
+	}
+	shards, err := LoadShardArtifacts(*dir)
+	if err != nil {
+		return err
+	}
+	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator)
+	if err != nil {
+		return err
+	}
+	if *outPath == "" {
+		if err := SaveArtifact(root, combined); err != nil {
+			return err
+		}
+	} else {
+		b, err := combined.Canonical()
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(*outPath, b, 0o644); err != nil {
+			return err
+		}
+	}
+	core, all := combined.Sets["core"], combined.Sets["all"]
+	fmt.Fprintf(out, "combined %d shard(s) at %s: core %d of %d clear, all %d of %d clear\n", len(shards), *commit, core.Clear, core.Estates, all.Clear, all.Estates)
+	for lane, sum := range combined.Lanes {
+		fmt.Fprintf(out, "lane %s: %d of %d clear\n", lane, sum.Clear, sum.Estates)
+	}
+	return nil
 }

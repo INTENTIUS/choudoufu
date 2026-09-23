@@ -468,8 +468,12 @@ the "dispatched and approved" half:
 
 `gauntlet-corpus.yml` was not created as a second file: `gauntlet.yml`'s own
 `workflow_dispatch` (inputs `set` core/all, `estates`) already ran the corpus
-the way a new file would have, so the approval gate extends that job instead
-of duplicating its ~15 steps. See that workflow's own header comment.
+the way a new file would have, so the approval gate extends that workflow -
+`dispatch-approval` gates the `plan` job, and every other job needs `plan` -
+instead of duplicating its steps. Since #1550 the run is one job per estate
+(`plan`, a matrix `estate` job, `acceptance`, `collect`), so a leg that runs
+long can no longer take the verdicts pull request with it. See that
+workflow's own header comment.
 
 Dispatching one:
 
