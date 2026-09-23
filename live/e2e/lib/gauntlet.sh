@@ -742,12 +742,24 @@ gauntlet_first_match() {
 # not be written.
 #
 # WHAT THE NATIVE LEG COVERS, exactly: customer-managed IAM policies
-# (`--scope Local`), IAM roles, and IAM instance profiles. NOT IAM users,
-# groups, OIDC/SAML providers or server certificates - an estate holding
-# any of those needs a fourth leg added here, and will otherwise be
+# (`--scope Local`), IAM roles, IAM instance profiles, and IAM users. NOT
+# IAM groups, OIDC/SAML providers or server certificates - an estate
+# holding any of those needs a fifth leg added here, and will otherwise be
 # undercounted the same way this issue describes. AWS-managed policies are
 # excluded on purpose: floci serves 1568 of them and none can carry an
 # ownership marker.
+#
+# The user leg is #1549's, and the sentence above is why it exists: this
+# comment said "NOT IAM users ... will otherwise be undercounted", and
+# corpus-hongbomiao-harbor's greenfield stage was undercounting exactly
+# that way - "the greenfield estate has 1 taggable objects, expected 2 (the
+# bucket and the user)" against a user that carried both markers. Recorded
+# from that estate's own greenfield container, ghcr.io/lex00/floci@
+# sha256:6c3d5c2d, us-west-2, 2026-09-22, AWS CLI only, no tofu in the
+# loop: `iam list-user-tags` returned tofu-estate and tofu-address for the
+# user, and `resourcegroupstaggingapi get-resources` returned only the
+# bucket - filtered on the tag, unfiltered, and under
+# `--resource-type-filters iam` alike.
 #
 # SETS GLOBALS, does not print. Call it as a statement, never in a command
 # substitution - `$(...)` runs it in a subshell and the split counts are
@@ -842,6 +854,14 @@ _gauntlet_iam_estate_arns() {
     _gauntlet_iam_tag_hit "$estate" "$@" iam list-instance-profile-tags --instance-profile-name "$name" \
       && found="$found$arn"$'\n'
   done < <(jq -r '.InstanceProfiles[] | .InstanceProfileName + "\t" + .Arn' <<< "$out")
+
+  out="$("$@" iam list-users --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-users` failed against this target\n' >&2; return 1; }
+  while IFS=$'\t' read -r name arn; do
+    [ -n "$name" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-user-tags --user-name "$name" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.Users[] | .UserName + "\t" + .Arn' <<< "$out")
 
   printf '%s' "$found" | awk 'NF' | sort -u
 }
