@@ -20,7 +20,8 @@ import (
 
 // The completeness guard of GitHub issue #1118: every function in the tree
 // that asks a schema which marker surface it carries, reads a marker off an
-// object or names a marker's path must handle every surface this package
+// object, names a marker's path, or acts on a Surface value by naming its
+// constants must handle every surface this package
 // declares, or be listed in surfaceSeamExemptions (or, for what was found
 // on the day the guard landed, surfaceSeamUntriaged) with exactly the
 // surfaces it handles.
@@ -100,6 +101,8 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/projection/residue.go:residueStubIdentityAttrs": {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's identity attributes on a residue stub, not a marker read"},
 	"internal/live/projection/build.go:readImported":               {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's import read-back, not a marker read"},
 	"internal/live/projection/build.go:configuredTagsSeed":         {Handles: []Surface{SurfaceTags}, Why: "AWS default_tags: the tags_all merge exists only on the tag surface"},
+	"internal/live/substrate/aws.go":                               {Handles: []Surface{SurfaceTags}, Why: "the AWS substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
+	"internal/live/substrate/kubernetes.go":                        {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
 	"tools/estate-gen/gen.go":                                      {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/classify.go":                                 {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/governance_render.go":                        {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
@@ -258,6 +261,9 @@ func TestSurfaceSeamGuardSeesTheFixture(t *testing.T) {
 		// caller elsewhere takes only what Deep references itself.
 		"seams.Deep":         "{manifest}",
 		"seams/caller.mixed": "{labels,tags}",
+		// A caller acting on a Surface value by naming its constants
+		// (#1118's Substrate seam returns one).
+		"seams.actOn": "{labels,tags}",
 	}
 	for k, w := range want {
 		if got[k] != w {
@@ -632,8 +638,8 @@ func resolveSeamRefs(fn *seamFunc, pkg *seamPkg, pkgs map[string]*seamPkg, marke
 
 // readSurfaceDecls reads the Surface constants and the //markers:surface
 // directives off the markers package's own source, recording anything
-// inconsistent in g.declProblems. It returns member function name ->
-// surface.
+// inconsistent in g.declProblems. It returns member name -> surface: the
+// directive-carrying functions and the Surface constants.
 func readSurfaceDecls(dir string, g *seamGraph) (map[string]Surface, error) {
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(dir)
@@ -641,6 +647,7 @@ func readSurfaceDecls(dir string, g *seamGraph) (map[string]Surface, error) {
 		return nil, err
 	}
 	consts := map[Surface]bool{}
+	constNames := map[string]Surface{}
 	type member struct {
 		name      string
 		surface   Surface
@@ -668,10 +675,13 @@ func readSurfaceDecls(dir string, g *seamGraph) (map[string]Surface, error) {
 					if id, ok := vs.Type.(*ast.Ident); !ok || id.Name != "Surface" {
 						continue
 					}
-					for _, v := range vs.Values {
+					for i, v := range vs.Values {
 						if lit, ok := v.(*ast.BasicLit); ok && lit.Kind == token.STRING {
 							s, _ := strconv.Unquote(lit.Value)
 							consts[Surface(s)] = true
+							if i < len(vs.Names) {
+								constNames[vs.Names[i].Name] = Surface(s)
+							}
 						}
 					}
 				}
@@ -714,6 +724,14 @@ func readSurfaceDecls(dir string, g *seamGraph) (map[string]Surface, error) {
 		if m.predicate {
 			hasPredicate[m.surface] = true
 		}
+	}
+	// A Surface constant is a member of its surface too. Since #1118's
+	// Substrate seam, a dispatch answers with a Surface value and its
+	// callers act on it by naming the constants: a caller that switches
+	// on SurfaceTags and SurfaceLabels and forgets SurfaceManifest is the
+	// #1104 shape one layer down, and without this it would be invisible.
+	for name, s := range constNames {
+		out[name] = s
 	}
 	for s := range consts {
 		g.surfaces = append(g.surfaces, s)

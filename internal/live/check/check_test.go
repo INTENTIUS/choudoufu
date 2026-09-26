@@ -117,6 +117,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"liveimport": true, // the bulk migration command's engine
 		"markerkey":  true,
 		"markers":    true, // the marker vocabulary itself
+		// GitHub issue #1118's Substrate seam: each provider family's
+		// answers over the marker vocabulary (which surface a schema
+		// carries, how a marker is read and written, which sweep client a
+		// provider block builds). It refuses nothing; every verdict made on
+		// its answers is its caller's, and classified there.
+		"substrate": true,
 		// GitHub issue #613's detection: does a plan built from a STATE
 		// FILE propose removing an estate's ownership markers? It is the
 		// only package here that runs on the state-backed path and never
