@@ -1017,6 +1017,29 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 43,
+      "slug": "two-estates-at-once",
+      "title": "Two estates in one account apply at the same moment and both finish clean: the estate boundary is what keeps them apart, not a queue",
+      "scenario": "live/smoke/scenarios/two-estates-at-once.sh",
+      "command": "just smoke two-estates-at-once",
+      "minutes": 2,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 gives both roots the same tofu-estate value while everything else - the account, the shared data-source read, the resource address - stays identical; the concurrent applies still finish, but the next plan must name both live roles rather than reading clean",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": ""
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not stated for Kubernetes yet: no scenario measures two labelled estates applying to one cluster at once."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }
