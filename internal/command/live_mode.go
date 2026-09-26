@@ -423,6 +423,15 @@ type statelessSurface int
 // literal value "off" disables persistence entirely - for a run that must
 // leave no file behind, such as an audit from a read-only working copy.
 //
+// Ruled on issue #1170 (maintainer, 2026-09-26): the cache stays local, by
+// ruling rather than by default. It is disposable, it belongs to one
+// working copy, and it is never consulted for ownership (#685); a shared
+// cache would make a thing the ruling calls disposable look durable and
+// shared, which is a different feature with its own name, not something
+// this path grows into. Records - what an estate must remember beyond what
+// a marker can hold - are what record_store is for; the cache is not a
+// second, smaller record store.
+//
 // The estate's secrets setting is taken into account. offForSecrets is true
 // only when the cache is off BECAUSE of the secrets setting, so the caller
 // can say so; an operator who set CHOUDOUFU_STATE_CACHE=off already knows.
