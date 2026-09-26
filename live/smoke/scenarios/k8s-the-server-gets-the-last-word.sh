@@ -569,12 +569,13 @@ proof "\"1 added\", says the run, and the object really was added. What it also 
 step "7. what the next run says, and what the remedy it names is worth"
 explain \
   "The plan does not pretend. It reads the cluster, finds an object at" \
-  "the name this block declares that carries no marker, and says so - so" \
-  "the estate is not silently wrong. But it is wrong about whose object" \
-  "it is: this is the estate's own object, created seconds ago by this" \
-  "estate, read back as somebody else's. The apply then wedges on the" \
-  "name the API server will not let it take twice. Both remedies the" \
-  "warning names - write the label with kubectl, or set" \
+  "the name this block declares that carries no marker, and stops with" \
+  "an error - so the estate is not silently wrong, and no plan proposes" \
+  "the create the API server would answer with 409 (#1546). But it is" \
+  "wrong about whose object it is: this is the estate's own object," \
+  "created seconds ago by this estate, read back as somebody else's." \
+  "The apply stops at the same refusal. Both remedies the" \
+  "error names - write the label with kubectl, or set" \
   "declared_untagged = adopt - are writes, and the policy strips them" \
   "too. The kubectl relabel vanishes. The adopting run used to report" \
   "\"0 added, 1 changed, 0 destroyed\" and exit 0 over a label that was" \
@@ -586,15 +587,22 @@ explain \
   "object is exactly as it was before the run, and step 8 adopts it in" \
   "one apply once the policy allows the label."
 cmd "choudoufu plan && choudoufu apply -auto-approve && kubectl label ... && (declared_untagged = \"adopt\") choudoufu apply -auto-approve"
-PLAN7="$(cd "$SMOKE_WORK" && chdf_bounded plan -input=false -no-color 2>&1)" \
-  || fail "$SCEN" "plan after the stripped create failed: $PLAN7"
-grep -E '^Plan:|Live resource outside this estate' <<< "$PLAN7" | head -2 | evidence
-grep -q 'Live resource outside this estate' <<< "$PLAN7" \
-  || fail "$SCEN" "the plan says nothing about the unmarked object at the declared name: $PLAN7"
-grep -q 'carries no tofu-estate label' <<< "$PLAN7" \
-  || fail "$SCEN" "the warning does not name the missing marker: $(grep -A4 'outside this estate' <<< "$PLAN7" | head -6)"
-grep -qE 'Plan: 1 to add, 0 to change, 0 to destroy' <<< "$PLAN7" \
-  || fail "$SCEN" "the plan does not fall back to proposing the create: $PLAN7"
+PLAN7_RC=0
+PLAN7="$(cd "$SMOKE_WORK" && chdf_bounded plan -input=false -no-color 2>&1)" || PLAN7_RC=$?
+PLAN7_FLAT="$(tr '\n' ' ' <<< "$PLAN7" | tr -s ' ')"
+grep -E '^Plan:|^Error: ' <<< "$PLAN7" | head -2 | evidence
+echo "plan exit: $PLAN7_RC" | evidence
+[ "$PLAN7_RC" = "1" ] \
+  || fail "$SCEN" "the plan after the stripped create exited $PLAN7_RC, want 1: an unlabelled object read at the declared name must stop the plan (#1546): $PLAN7"
+grep -q 'Error: Unlabelled live object holds the declared name' <<< "$PLAN7" \
+  || fail "$SCEN" "the plan does not refuse the unmarked object at the declared name by name: $PLAN7"
+grep -q 'carries no tofu-estate label' <<< "$PLAN7_FLAT" \
+  || fail "$SCEN" "the refusal does not name the missing marker: $(grep -A6 'holds the declared name' <<< "$PLAN7" | head -8)"
+grep -q 'policy { declared_untagged = "adopt" }' <<< "$PLAN7_FLAT" \
+  || fail "$SCEN" "the refusal does not name the setting that adopts the object: $PLAN7"
+if grep -qE '^Plan:' <<< "$PLAN7"; then
+  fail "$SCEN" "a plan was produced alongside the refusal, proposing a create the API server answers with 409: $(grep -E '^Plan:' <<< "$PLAN7")"
+fi
 LS7="$(cd "$SMOKE_WORK" && chdf_bounded live-ls -estate="$ESTATE" -no-color . 2>&1)" \
   || fail "$SCEN" "live-ls failed: $LS7"
 grep -E 'carry its marker' <<< "$LS7" | evidence
@@ -604,14 +612,17 @@ WEDGE_RC=0
 WEDGE="$(cd "$SMOKE_WORK" && chdf_bounded apply -auto-approve -input=false -no-color 2>&1)" || WEDGE_RC=$?
 grep -E '^Error: ' <<< "$WEDGE" | head -1 | evidence
 [ "$WEDGE_RC" != "0" ] \
-  || fail "$SCEN" "the second apply exited 0; it was supposed to hit the name the unmarked object holds: $WEDGE"
-grep -q 'configmaps "app-config" already exists' <<< "$WEDGE" \
-  || fail "$SCEN" "the second apply did not wedge on the name: $(grep -E '^Error' <<< "$WEDGE" | head -2)"
+  || fail "$SCEN" "the apply exited 0; it was supposed to stop at the unmarked object holding the name: $WEDGE"
+grep -q 'Error: Unlabelled live object holds the declared name' <<< "$WEDGE" \
+  || fail "$SCEN" "the apply did not stop at the refusal: $(grep -E '^Error' <<< "$WEDGE" | head -2)"
+if grep -q 'configmaps "app-config" already exists' <<< "$WEDGE"; then
+  fail "$SCEN" "the apply reached the API server and was refused there; the plan was supposed to stop it first (#1546): $WEDGE"
+fi
 kc label configmap app-config -n "$NS" "tofu-estate=$ESTATE" --overwrite >/dev/null 2>&1 || true
 HAND="$(kc get configmap app-config -n "$NS" -o jsonpath='{.metadata.labels.tofu-estate}')"
 echo "after kubectl label: tofu-estate=${HAND:-<none>}" | evidence
 [ -z "$HAND" ] \
-  || fail "$SCEN" "the by-hand relabel survived the policy; the remedy the warning names would work and this step is wrong: $HAND"
+  || fail "$SCEN" "the by-hand relabel survived the policy; the remedy the refusal names would work and this step is wrong: $HAND"
 versions_block adopt
 # resourceVersion is the API server's own answer to "did this write change
 # the stored object": it is set to the etcd revision of the object's last
@@ -648,7 +659,7 @@ echo "resourceVersion: $RV_BEFORE before, ${RVS[0]} after adopt run 1, ${RVS[1]}
 [ "${RVS[0]}" = "${RVS[1]}" ] \
   || fail "$SCEN" "the second adopting run changed the stored object; it was supposed to be the same write landing on nothing, for ever: ${RVS[0]} -> ${RVS[1]}"
 kc get configmap app-config -n "$NS" -o jsonpath='labels={.metadata.labels}{"\n"}' | evidence
-proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, which is the compatible default doing its job. The adopting run is now honest too: it names the marker the server did not store and exits non-zero, with no completion line. resourceVersion ${RVS[0]} after the first adopting run and ${RVS[1]} after the second, so the run repeats a write the server keeps nothing of - and reporting \"0 added, 1 changed, 0 destroyed\" and exit 0 over that, on every run forever, was #1192."
+proof "the plan is honest that no marker is there and refuses to treat the object as the estate's, stopping with exit 1 rather than proposing a create the server would answer with 409. The adopting run is now honest too: it names the marker the server did not store and exits non-zero, with no completion line. resourceVersion ${RVS[0]} after the first adopting run and ${RVS[1]} after the second, so the run repeats a write the server keeps nothing of - and reporting \"0 added, 1 changed, 0 destroyed\" and exit 0 over that, on every run forever, was #1192."
 
 step "8. the policy is lifted - the adoption lands and the estate is whole"
 explain \

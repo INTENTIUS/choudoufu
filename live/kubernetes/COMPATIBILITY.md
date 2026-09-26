@@ -150,5 +150,13 @@ The common shape is an EKS module that also manages the `aws-auth`
 ConfigMap. The AWS resources carry two tags and fall under your IAM; the
 ConfigMap carries the one label and falls under the cluster's admission
 policy, and each substrate's sweep lists its own. `live-check` reports
-that root as not blocked. A root made only of refused types is blocked as a whole, and the
+that root as not blocked.
+
+EKS creates `aws-auth` itself, so the first plan of such a root reads an
+object at `kube-system/aws-auth` carrying no `tofu-estate` label. Under
+`declared_untagged`'s default the plan stops there with "Unlabelled live
+object holds the declared name" and exit 1, because the create it would
+otherwise propose is one the API server answers with 409 (#1546).
+`policy { declared_untagged = "adopt" }`, or writing the label by hand,
+adopts it; a plan where no such object exists still proposes the create. A root made only of refused types is blocked as a whole, and the
 report says which root and why.
