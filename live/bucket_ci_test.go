@@ -55,9 +55,11 @@ func bucketSmokeScenarios(t *testing.T) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The provider of the cell whose scenario it is (#1112): a scenario
+	// proves one promise on one provider.
 	substrate := map[string]string{}
-	for _, c := range readSmokeClaims(t).Claims {
-		substrate[c.Slug] = c.Substrate
+	for _, s := range smokeScenarioCells(readSmokeClaims(t)) {
+		substrate[s.Name] = s.Provider
 	}
 	var out []string
 	for _, e := range entries {

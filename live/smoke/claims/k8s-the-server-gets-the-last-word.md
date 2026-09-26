@@ -196,7 +196,7 @@ The first fault uses a real webhook; the other two use
 `MutatingAdmissionPolicy`, the API server's own in-process admission chain,
 because it produces the identical effect on the stored object with no
 certificate, no image and no pod to go wrong - the same choice
-[claim 23](k8s-the-label-is-the-boundary.md) and
+[claim 13 on Kubernetes](the-tag-is-the-boundary.md#on-kubernetes) and
 claim 24 already make. What a webhook can do that a policy cannot is not be
 there, and that is exactly what the first fault covers.
 

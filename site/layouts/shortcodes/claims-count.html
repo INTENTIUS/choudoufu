@@ -1,1 +1,2 @@
+{{- /* The number of claims: promises, one per row of site/data/claims.json. A retired number (#1112) is a proof filed inside another promise and is not counted. */ -}}
 {{- with hugo.Data.claims }}{{ len .claims }}{{ else }}?{{ end -}}

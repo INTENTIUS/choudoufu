@@ -1,5 +1,5 @@
 # stock-when-you-need-it
-# CLAIM 8 - Stock when you need it: stock behavior is the fallback, whole and exact - measured, not promised - and the live backend prices by your estate, not your account. ~3 min.
+# CLAIM 8 (aws) - Stock when you need it: stock behavior is the fallback, whole and exact - measured, not promised - and the live backend prices by your estate, not your account. ~3 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/parity"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

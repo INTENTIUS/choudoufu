@@ -60,6 +60,6 @@ above, run in the destination's configuration. It rewrites the label
 through the provider under your own credential, so the cluster's admission
 policy judges it as it judges a plain `kubectl label`: you must hold both
 the estate the object is leaving and the one it is entering
-([claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})).
+([claim 13 on Kubernetes]({{< relref "/docs/claims/the-tag-is-the-boundary" >}})).
 An object declared through a manifest block is refused by name with the
 equivalent `kubectl label` command.
