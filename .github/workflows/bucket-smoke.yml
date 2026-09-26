@@ -3,7 +3,9 @@
 # floci emulator - 28 a-name-prefix-shares-no-keys, 29
 # a-wrong-bucket-is-refused, 30 a-waiver-names-what-it-waives, 31
 # a-bulk-read-is-complete-or-it-fails, 32 two-writers-one-record - runs
-# here with its BREAK=1 control, one job per scenario.
+# here with its BREAK=1 control, one job per scenario. So does claim 44,
+# an-estate-reads-another-by-declaring-it, the cross-estate output read of
+# #1371, which keeps its records in the same kind of bucket.
 #
 # Nothing ran them before this. That is how claim 28 stayed red from #1351
 # to #1369, across several merges: the scenario was written against a bare
@@ -64,6 +66,7 @@ jobs:
           - a-waiver-names-what-it-waives
           - a-bulk-read-is-complete-or-it-fails
           - two-writers-one-record
+          - an-estate-reads-another-by-declaring-it
     steps:
       - uses: actions/checkout@v7
         with:

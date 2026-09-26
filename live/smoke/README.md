@@ -732,6 +732,16 @@ showing its own checks would have caught it.
   its provisioner with no record saying so, so the plan names it as a
   create and the effect runs twice. The BREAK control strips every marker
   and requires a duplicate VPC.
+- **an-estate-reads-another-by-declaring-it** - *Claim 44: an estate
+  reads another estate's outputs only by declaring the read.* Estate
+  `network` applies and records one root output. Estate `app` declares
+  `data "terraform_estate_outputs"` naming `network`, and its role is
+  rendered with `--reads-outputs-of network`; its plan uses the value and
+  warns that it is as of network's last apply. `network` is destroyed, its
+  `tofu-outputs/network/` object goes, and `app`'s plan then stops with
+  `Another estate has not recorded this output`. The BREAK control renders
+  `app`'s role without the flag and requires the plan to refuse naming
+  estate `network`. Emulator; the tag-conditioned half is claim 35's.
 
 ## Knobs
 

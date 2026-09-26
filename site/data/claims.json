@@ -1017,6 +1017,29 @@
       },
       "evidence": [],
       "substrate": "aws"
+    },
+    {
+      "id": 44,
+      "slug": "an-estate-reads-another-by-declaring-it",
+      "title": "An estate reads another estate's outputs only by declaring the read: the plan says how old the value is, a destroyed producer's values are gone, and without the grant the plan refuses naming the other estate",
+      "scenario": "live/smoke/scenarios/an-estate-reads-another-by-declaring-it.sh",
+      "command": "just smoke an-estate-reads-another-by-declaring-it",
+      "minutes": 3,
+      "needs_go": false,
+      "theme": "operate",
+      "break_mode": "BREAK=1 renders the consumer's role without --reads-outputs-of network and leaves its configuration declaring the read; the plan must then refuse with \"This estate may not read another estate's outputs\", naming estate network and the flag, and a plan that shows network's value fails the control",
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "note": "On the pinned emulator with its IAM filter on. The emulator does not evaluate s3:prefix, s3:RequestObjectTag or s3:ExistingObjectTag, so the Allow statements run without their conditions and the tag Denies do not fire; the refusal here comes from the resource scope of the one statement --reads-outputs-of adds. Claim 35 measures the tag-conditioned half on real AWS. Only non-sensitive, wholly known root outputs are recorded, so only those cross."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Not stated for Kubernetes yet. With the records in the cluster (claim 39) the grant would be RBAC on the other estate's output objects, and no scenario reads across estates there."
+        }
+      },
+      "evidence": [],
+      "substrate": "aws"
     }
   ]
 }

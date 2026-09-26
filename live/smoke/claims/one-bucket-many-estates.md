@@ -62,8 +62,10 @@ As the run prints them:
    is also written wrong, because `b`'s tag is accepted under `b`'s
    outputs prefix and nowhere else. What the grant exposes is what `b`
    wrote under `tofu-outputs/`, and an output marked `sensitive` is never
-   written there. No choudoufu run makes this read; the grant is for a
-   reader you write yourself
+   written there. The read that uses this grant is a consumer's
+   `data "terraform_estate_outputs"` block naming `smoke-b`, which refuses
+   naming the other estate when the grant is missing; claim 44
+   (`an-estate-reads-another-by-declaring-it`) runs it end to end
    ([Reading a value from another estate](https://intentius.io/choudoufu/docs/use/cross-estate/)).
 
 The `BREAK=1` run has two arms.
