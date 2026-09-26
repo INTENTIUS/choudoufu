@@ -9,9 +9,10 @@ deeper:
 
 # Proof
 
-Eight claims run on a real API server, a kind cluster in Docker, each with a
-`BREAK=1` run that corrupts what the claim guards and must be caught. They run
-in CI on every pull request that touches the Kubernetes code.
+Eight scenarios run on a real API server, a kind cluster in Docker, each with
+a `BREAK=1` run that corrupts what the claim guards and must be caught. Three
+are the Kubernetes proofs of claims 1, 7 and 13. They run in CI on every pull
+request that touches the Kubernetes code. An open cell is a missing proof.
 
 ```
 just smoke k8s-greenfield

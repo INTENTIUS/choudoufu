@@ -1,5 +1,5 @@
 # an-estate-reads-another-by-declaring-it
-# CLAIM 44 - An estate reads another estate's outputs only by declaring the read: the plan says how old the value is, a destroyed producer's values are gone, and without the grant the plan refuses naming the other estate. ~3 min.
+# CLAIM 44 (aws) - An estate reads another estate's outputs only by declaring the read: the plan says how old the value is, a destroyed producer's values are gone, and without the grant the plan refuses naming the other estate. ~3 min.
 
 W="$SMOKE_WORKROOT/estateoutputs"; PRODUCER="$W/network"; CONSUMER="$W/app"
 mkdir -p "$PRODUCER" "$CONSUMER"

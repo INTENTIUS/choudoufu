@@ -1,5 +1,5 @@
 # a-bulk-read-is-complete-or-it-fails
-# CLAIM 31 - A record read that fails mid-fanout fails the read; a short map never reaches a plan. ~2 min.
+# CLAIM 31 (aws) - A record read that fails mid-fanout fails the read; a short map never reaches a plan. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/bulkread"
 BUCKET="smoke-bulkread-records"

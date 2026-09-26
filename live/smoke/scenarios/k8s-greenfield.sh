@@ -1,5 +1,5 @@
 # k8s-greenfield
-# CLAIM 21 - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, live-ls lists the estate by that label alone, a stripped label takes the object out of the estate and the next plan refuses it by name, and the estate lives its whole life without a state file. ~2 min.
+# CLAIM 7 (kubernetes) - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, live-ls lists the estate by that label alone, a stripped label takes the object out of the estate and the next plan refuses it by name, and the estate lives its whole life without a state file. ~2 min.
 #
 # The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
 # label; #1057's harness made it a demo first). The marker is ONE label,
@@ -243,4 +243,4 @@ proof "an empty inventory, read from the cluster: the estate is gone and the lis
 echo "  What you watched: a Kubernetes estate live its whole life on a real"
 echo "  cluster without an authoritative state file, its ownership carried as"
 echo "  one label any tool can read, and live-ls reading that label back as"
-echo "  the estate's inventory. The sweep and the gate are claims 22 and 23."
+echo "  the estate's inventory. The sweep and the gate are claims 1 and 13 on Kubernetes."

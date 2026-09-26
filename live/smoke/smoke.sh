@@ -93,8 +93,12 @@ scenario_bound_secs() {
   if [ -n "${SMOKE_TIMEOUT_SECS:-}" ]; then echo "$SMOKE_TIMEOUT_SECS"; return 0; fi
   python3 - "$HERE/claims.json" "$SCENARIO" <<'PY'
 import json, sys
-minutes = [c.get("minutes", 0) for c in json.load(open(sys.argv[1]))["claims"]
-           if c.get("scenario", "").endswith("/" + sys.argv[2] + ".sh")]
+# A scenario is one provider's proof of one claim (#1112), so its minutes
+# sit on that provider's cell, not on the row.
+minutes = [cell.get("minutes", 0)
+           for c in json.load(open(sys.argv[1]))["claims"]
+           for cell in c["providers"].values()
+           if cell.get("scenario", "").endswith("/" + sys.argv[2] + ".sh")]
 print(max(600, 2 * 60 * max(minutes + [0])))
 PY
 }
