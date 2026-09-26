@@ -90,6 +90,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/docsref"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mdspan"
+	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
 const (
@@ -232,6 +233,8 @@ func key(r check.Refusal) string { return string(r.Layer) + "/" + r.ID }
 //   - discovery, whose refusal ID is the diagnostic Summary and whose
 //     [discovery.SeverityForRefusal] is the same call the diagnostic itself
 //     is built from - five of its refusals are warnings;
+//   - projection, whose registry entries can declare Warning
+//     ([projection.IsWarning]; GitHub issue #1371's as-of notice);
 //   - dataread, which serves two demand classes with opposite contracts
 //     ([dataread.StopsTheRun]): an identity demand it cannot meet refuses
 //     the run, and a root-output demand it cannot meet costs one output its
@@ -258,6 +261,12 @@ func severityLabel(r check.Refusal) string {
 		}
 	case check.LayerDataread:
 		if !dataread.StopsTheRun(r.ID) {
+			return "warning"
+		}
+	case check.LayerProjection:
+		// GitHub issue #1371's as-of notice on a cross-estate output read,
+		// declared in the registry entry itself ([projection.IsWarning]).
+		if projection.IsWarning(r.ID) {
 			return "warning"
 		}
 	}
@@ -313,12 +322,14 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		"`internal/live/discovery`'s. A refusal blocking nothing is not an "+
 		"error in this table - it is the interesting end of it, and a set "+
 		"assembled by watching output could never contain one. **Severity** "+
-		"is `error` (fatal, stops the run) unless marked `warning`. Three "+
+		"is `error` (fatal, stops the run) unless marked `warning`. Four "+
 		"layers can declare `warning` today: a lint rule (GitHub issue "+
 		"#214's `state-backend`), a discovery refusal, whose severity is "+
-		"read from the same call the diagnostic is built from, and a "+
+		"read from the same call the diagnostic is built from, a "+
 		"dataread refusal belonging to the root-output demand class, which "+
-		"costs one output its prior value rather than the run. A `warning` "+
+		"costs one output its prior value rather than the run, and a "+
+		"projection registry entry marked as a warning (GitHub issue #1371's "+
+		"notice that a value read from another estate is as of its last apply). A `warning` "+
 		"does not stop the run - it says this run saw less than the whole "+
 		"picture, or found something outside its own coverage - so it is not "+
 		"a blocker and should not be ranked as one.\n", len(catalog))

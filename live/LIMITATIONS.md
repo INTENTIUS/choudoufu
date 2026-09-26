@@ -2644,6 +2644,8 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | A removed label or annotation cannot be removed | error | `internal/live/projection` | "A removed label or annotation cannot be removed" |
 | - | - | projection | An admission policy refused this run's record write | error | `internal/live/projection` | "An admission policy refused this run's record write" |
+| - | - | projection | An estate cannot read its own outputs this way | error | `internal/live/projection` | "An estate cannot read its own outputs this way" |
+| - | - | projection | Another estate has not recorded this output | error | `internal/live/projection` | "Another estate has not recorded this output" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a deposed object | error | `internal/live/projection` | "Cannot encode a deposed object" |
@@ -2659,6 +2661,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot read a parent's identity from the projection | error | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
 | - | - | projection | Cannot read a persisted record | error | `internal/live/projection` | "Cannot read a persisted record" |
 | - | - | projection | Cannot read a recorded deposed object | error | `internal/live/projection` | "Cannot read a recorded deposed object" |
+| - | - | projection | Cannot read another estate's outputs | error | `internal/live/projection` | "Cannot read another estate's outputs" |
 | - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
 | - | - | projection | Cannot record a located identity | error | `internal/live/projection` | "Cannot record a located identity" |
 | - | - | projection | Cannot set ownership markers on a marked configuration value | error | `internal/live/projection` | "Cannot set ownership markers on a marked configuration value" |
@@ -2705,11 +2708,13 @@ refused, and each says so in its own entry.
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
 | - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
 | - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
+| - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
+| - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**242 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**247 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3931,6 +3936,22 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### An estate cannot read its own outputs this way
+
+**What.** A data "terraform_estate_outputs" block names the estate the configuration itself is.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Another estate has not recorded this output
+
+**What.** A data "terraform_estate_outputs" block names an output the other estate has no record of: it has not applied since declaring it, it declares no such output, or the output is sensitive or not wholly known, neither of which is ever recorded.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Argument values could not be recorded
 
 **What.** An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.
@@ -4046,6 +4067,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot read a recorded deposed object
 
 **What.** GitHub issue #361's crash-window recovery could not read, live, a deposed object discovery matched against this estate's record - the provider errored. The deposed object is left recorded but not folded into this plan; a later run tries again.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot read another estate's outputs
+
+**What.** Another estate's recorded outputs could not be read for a reason other than a missing grant: the record store is not open, its KMS key refused or cannot be used, a record would not decode, or the estate name is outside the marker grammar.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4419,9 +4448,25 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### This estate may not read another estate's outputs
+
+**What.** A data "terraform_estate_outputs" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Unsupported resource type for the provider
 
 **What.** A resource's type is not one the configured provider serves.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Values from another estate are as of its last apply
+
+**What.** A warning on every successful cross-estate output read: the values are a copy as of the other estate's last apply, with the time it recorded them.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

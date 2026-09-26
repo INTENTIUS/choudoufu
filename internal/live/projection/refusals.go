@@ -37,6 +37,22 @@ type Refusal struct {
 	// Doc overrides where it is documented. Empty means the generated
 	// entry under its own Summary; see identity.Refusal.Doc.
 	Doc string
+
+	// Warning marks an entry whose diagnostic is a warning, which does not
+	// stop the run. tools/limits-gen reads it through [IsWarning] so the
+	// generated table does not rank a warning as a blocker.
+	Warning bool
+}
+
+// IsWarning reports whether the registered refusal with this summary is a
+// warning rather than an error.
+func IsWarning(summary string) bool {
+	for _, r := range refusals {
+		if r.Summary == summary {
+			return r.Warning
+		}
+	}
+	return false
 }
 
 // DocsRef is where a user is sent to read about this refusal.
@@ -304,6 +320,28 @@ var refusals = []Refusal{
 	{
 		Summary: "Unsupported resource type for the provider",
 		What:    "A resource's type is not one the configured provider serves.",
+	},
+	// GitHub issue #1371: the cross-estate output read (estateoutputs.go).
+	{
+		Summary: SummaryEstateOutputsDenied,
+		What:    "A data \"terraform_estate_outputs\" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of).",
+	},
+	{
+		Summary: SummaryEstateOutputsUnreadable,
+		What:    "Another estate's recorded outputs could not be read for a reason other than a missing grant: the record store is not open, its KMS key refused or cannot be used, a record would not decode, or the estate name is outside the marker grammar.",
+	},
+	{
+		Summary: SummaryEstateOutputNotRecorded,
+		What:    "A data \"terraform_estate_outputs\" block names an output the other estate has no record of: it has not applied since declaring it, it declares no such output, or the output is sensitive or not wholly known, neither of which is ever recorded.",
+	},
+	{
+		Summary: SummaryEstateOutputsSelf,
+		What:    "A data \"terraform_estate_outputs\" block names the estate the configuration itself is.",
+	},
+	{
+		Summary: SummaryEstateOutputsAsOf,
+		What:    "A warning on every successful cross-estate output read: the values are a copy as of the other estate's last apply, with the time it recorded them.",
+		Warning: true,
 	},
 }
 

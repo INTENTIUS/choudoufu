@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"time"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -154,7 +155,22 @@ type rootOutputPayload struct {
 
 	// Value is the value itself, ctyjson-encoded against Type.
 	Value json.RawMessage `json:"value"`
+
+	// RecordedAt is when the run that wrote this record wrote it, RFC 3339
+	// in UTC: the end of the apply (or the migration) whose final state
+	// settled the value. GitHub issue #1371: another estate reading this
+	// value through terraform_estate_outputs is told how old it is, because
+	// a copy is as of the producer's last apply and does not move until the
+	// producer applies again. Empty on a record written before the field
+	// existed, which a reader reports as "not recorded" rather than
+	// guessing. Adding it did not need a format bump: every reader of v1
+	// decodes with encoding/json, which ignores a field it does not know.
+	RecordedAt string `json:"recordedAt,omitempty"`
 }
+
+// rootOutputNow is the clock [RootOutputStore.Put] stamps RecordedAt from,
+// a seam so a test can pin it.
+var rootOutputNow = time.Now
 
 // RootOutputStore is the point-lookup view of an estate's remembered root
 // output values.
@@ -210,35 +226,51 @@ func NewRootOutputStore(store staterecord.Store, estate string) *RootOutputStore
 // [ApplyRootOutputValues]'s stated reason - a pre-plan probe over a
 // deliberately partial state must never be the thing that refuses an estate.
 func (s *RootOutputStore) Get(ctx context.Context, name string) (val cty.Value, version string, exists bool, err error) {
+	val, _, version, exists, err = s.get(ctx, name)
+	return val, version, exists, err
+}
+
+// get is [RootOutputStore.Get] with the record's RecordedAt as well, which
+// only the cross-estate reader ([ReadEstateOutputs]) needs. recordedAt is the
+// zero time for a record written before the field existed.
+func (s *RootOutputStore) get(ctx context.Context, name string) (cty.Value, time.Time, string, bool, error) {
+	var none time.Time
 	if s == nil {
-		return cty.NilVal, "", false, nil
+		return cty.NilVal, none, "", false, nil
 	}
 	payload, version, exists, err := s.store.Get(ctx, RootOutputKey(s.estate, name))
 	if err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("reading the remembered value of the root output %q: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("reading the remembered value of the root output %q: %w", name, err)
 	}
 	if !exists {
-		return cty.NilVal, "", false, nil
+		return cty.NilVal, none, "", false, nil
 	}
 	var stored rootOutputPayload
 	if err := json.Unmarshal(payload, &stored); err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("decoding the remembered value of the root output %q: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("decoding the remembered value of the root output %q: %w", name, err)
 	}
 	if stored.FormatVersion != rootOutputFormatVersion {
-		return cty.NilVal, "", false, fmt.Errorf("the remembered value of the root output %q names format %q, which this version of choudoufu does not understand", name, stored.FormatVersion)
+		return cty.NilVal, none, "", false, fmt.Errorf("the remembered value of the root output %q names format %q, which this version of choudoufu does not understand", name, stored.FormatVersion)
 	}
 	if stored.Name != name {
-		return cty.NilVal, "", false, fmt.Errorf("the record stored for the root output %q says it is for %q; refusing to answer about one output from another output's value", name, stored.Name)
+		return cty.NilVal, none, "", false, fmt.Errorf("the record stored for the root output %q says it is for %q; refusing to answer about one output from another output's value", name, stored.Name)
 	}
 	ty, err := ctyjson.UnmarshalType(stored.Type)
 	if err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("the remembered type of the root output %q could not be read: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("the remembered type of the root output %q could not be read: %w", name, err)
 	}
-	val, err = ctyjson.Unmarshal(stored.Value, ty)
+	val, err := ctyjson.Unmarshal(stored.Value, ty)
 	if err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("the remembered value of the root output %q could not be read: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("the remembered value of the root output %q could not be read: %w", name, err)
 	}
-	return val, version, true, nil
+	var recordedAt time.Time
+	if stored.RecordedAt != "" {
+		// A timestamp that will not parse costs the reader its age and
+		// nothing else: the value itself decoded, and "not recorded" is
+		// what a record from before the field existed says too.
+		recordedAt, _ = time.Parse(time.RFC3339, stored.RecordedAt)
+	}
+	return val, recordedAt, version, true, nil
 }
 
 // Put records val as the value of one root output, conditional on the key's
@@ -278,6 +310,7 @@ func (s *RootOutputStore) Put(ctx context.Context, name string, val cty.Value, e
 		Name:          name,
 		Type:          ty,
 		Value:         encoded,
+		RecordedAt:    rootOutputNow().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return "", fmt.Errorf("encoding the record for the root output %q: %w", name, err)
