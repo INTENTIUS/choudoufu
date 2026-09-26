@@ -35,7 +35,7 @@ commands follow.
 | `choudoufu plan` / `apply` | Ordinary plan and apply. With a `live` block present, these run against markers. |
 | `choudoufu live-mv <old> <new>` | Rewrites the `tofu-address` tag. The replacement for `moved` blocks. |
 | `choudoufu live-import` | Bulk migration. Reads an existing state file once, verifies each entry, stamps markers on what verifies. |
-| `choudoufu live-plan` | The live plan, invoked directly. |
+| `choudoufu live-plan` | The live plan, invoked directly; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows its report. |
 | `choudoufu plan -adoption-only` | The adoption ledger alone: what this estate can adopt, what it cannot, and why. |
 | `choudoufu force-unlock` | Refused, with the true reason: there is no lock to force open. Contention settles at the platform API, never in a lock this tool holds - the no-self-managed-locks claim demonstrates it. |
 

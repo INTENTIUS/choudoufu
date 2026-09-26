@@ -1170,6 +1170,7 @@ func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resoluti
 		values:      recordFirstStubValues(rec),
 		undeclared:  r.Undeclared,
 		recordFirst: true,
+		declaredKey: r.ImportID != "" && r.ImportID == rec.ImportID,
 	})
 }
 
@@ -1288,6 +1289,14 @@ type wanted struct {
 	// carry a marker has nothing to check the record against and is trusted
 	// exactly as [located] is.
 	recordFirst bool
+
+	// declaredKey is set only alongside recordFirst: true when the record's
+	// import id is the one the configuration itself computes for this
+	// instance ([identity.Resolution.ImportID]), so reading an object there
+	// is reading the key this block's create would send. GitHub issue
+	// #1546's refusal asks exactly that and nothing else of it - see
+	// [builder.checkOwnershipAt].
+	declaredKey bool
 }
 
 // importTarget picks the form this instance's import is asked in.
@@ -2404,7 +2413,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// does not set Undeclared for it - and that is the same block-level
 	// coarsening internal/live/stamp's PolicyUntag already documents,
 	// rather than a new one.
-	switch b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located, w.recordFirst) {
+	switch b.checkOwnershipAt(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located, w.recordFirst, !w.recordFirst || w.declaredKey) {
 	case ownershipStale:
 		// The record's binding did not survive being checked against the
 		// live object's own marker; checkOwnership has already logged the
