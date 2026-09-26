@@ -6,9 +6,7 @@ weight: 9
 # Reading a value from another estate
 
 An estate reads another estate's value from the **live resource**, with an
-ordinary data source filtered by the producer's marker tags. Nothing in the
-record store is involved, and no run ever reads another estate's objects in
-the bucket.
+ordinary data source filtered by the producer's marker tags.
 
 ```hcl
 data "aws_vpc" "network" {
@@ -37,21 +35,32 @@ runs it with two estates and an ordered pipeline.
 
 ## Why not an output
 
-Stock passes values between roots with `terraform_remote_state`, which reads
-the producer's state file. A live root has no state file of record, and a
-file left over from before a migration still resolves, returning a snapshot
-frozen on that day with nothing to say so. The live resource is already the
-authority, so that is what the consumer reads.
-
-Each estate does record its own root outputs, under `tofu-outputs/<estate>/`,
-so that its own plan can show a change as a change. No choudoufu command reads
-another estate's.
+Stock passes values with `terraform_remote_state`, which reads the
+producer's state file. A live root has no state file of record, and one left
+from before a migration returns a snapshot frozen on that day. The live
+resource is the authority, so the consumer reads it.
 
 ## What it needs
 
 The consumer's role needs permission to describe the producer's resource
 type, and nothing on the record store beyond its own estate's policy.
 
-The data source reads what exists when the consumer plans. If the producer
-has not applied yet, the plan fails with the data source's own error. Order
-the two in the pipeline, producer first, as the example does.
+The data source reads what exists when the consumer plans, so a producer
+that has not applied fails the plan. Order the pipeline producer first, as
+the example does.
+
+## A value no live resource holds
+
+Such a value, like a name the producer chose, is read from the root outputs
+the producer recorded at its last apply:
+
+```hcl
+data "terraform_estate_outputs" "cluster" {
+  estate = "cluster-infrastructure"
+  names  = ["services_namespace"]
+}
+```
+
+The plan warns that it is as of that apply. Sensitive outputs never cross.
+The bucket policy needs `--reads-outputs-of cluster-infrastructure`, or the
+plan stops naming that estate.

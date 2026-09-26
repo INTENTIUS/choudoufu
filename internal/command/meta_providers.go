@@ -358,9 +358,13 @@ func (m *Meta) providerFactoriesIn(rootDir string, cacheDirPath string) (map[add
 }
 
 func (m *Meta) internalProviders() map[string]providers.Factory {
+	// GitHub issue #1371: the provider reads terraform_estate_outputs
+	// through this command's holder, which a live run fills in once its
+	// record store is open.
+	estateOutputs := m.liveEstateOutputs()
 	return map[string]providers.Factory{
 		"terraform": func() (providers.Interface, error) {
-			return terraformProvider.NewProvider(), nil
+			return terraformProvider.NewProviderWithEstateOutputs(estateOutputs), nil
 		},
 	}
 }

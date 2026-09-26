@@ -26,12 +26,12 @@ ci:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> gofmt (fork-owned packages)"
-    out="$(gofmt -l internal/live cmd site tools live internal/backend internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
+    out="$(gofmt -l internal/live cmd site tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
     if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
     echo "==> build"
     go build ./cmd/choudoufu
     echo "==> fast test tier"
-    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
+    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/ ./internal/builtin/providers/tf/
     echo "==> docs site build"
     cp live/iam-reference.json site/data/iamref.json
     # --cacheDir scopes Hugo's cache to this worktree. Left unset, it

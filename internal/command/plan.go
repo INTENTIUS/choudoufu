@@ -183,7 +183,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	}
 
 	if statelessCfg != nil {
-		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly, args.Filter,
+		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly, args.Filter, c.liveEstateOutputs(),
 			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {

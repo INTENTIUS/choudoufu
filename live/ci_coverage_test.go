@@ -127,6 +127,9 @@ var forkOwnedRoots = []string{"internal/live", "tools", "live", "cmd", "site"}
 // every declared root, so the next one lands red instead of invisible.
 var forkOwnedMixedRoots = []string{
 	"internal/backend",
+	// GitHub issue #1371: data_source_estate_outputs.go, the builtin
+	// terraform provider's terraform_estate_outputs.
+	"internal/builtin/providers/tf",
 	"internal/command",
 	"internal/configs",
 	"internal/engine/applying",
