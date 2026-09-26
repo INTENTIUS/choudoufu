@@ -31,7 +31,8 @@ type wfStep struct {
 }
 
 type wfJob struct {
-	Needs    any `yaml:"needs"`
+	Needs    any    `yaml:"needs"`
+	If       string `yaml:"if"`
 	Strategy struct {
 		FailFast *bool          `yaml:"fail-fast"`
 		Matrix   map[string]any `yaml:"matrix"`
@@ -135,4 +136,45 @@ func containsString(xs []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// TestGauntletJobsCheckingNeedsResultUseAStatusFunction: issue #1563.
+//
+// A job's `if:` that compares `needs.<job>.result` but calls none of
+// always()/success()/failure()/cancelled() still gets an implicit
+// success() ANDed onto it by GitHub Actions - and job-level success()
+// looks at the run's WHOLE transitive dependency graph, not just this
+// job's own `needs`, so it comes back false whenever anything upstream was
+// skipped. `dispatch-approval` is *always* skipped on the nightly
+// `schedule` trigger (it exists only to gate a manual `workflow_dispatch`),
+// so every job downstream of `plan` that checked `needs.plan.result`
+// without also calling a status function was silently skipped every
+// night: `estate` and `acceptance` (zero shards ever uploaded, so
+// `collect`'s "Combine the shards" step had nothing to combine and died on
+// a bare directory read - runs 35975528292, 36115165483, 36230331089).
+// `plan` and `collect` already called always() for the same
+// needs.dispatch-approval / needs.plan check and ran fine every night;
+// `estate` and `acceptance` did not, and that is the entire difference.
+//
+// Red before #1563's fix: comment out `always() && ` in either job's `if:`
+// in gauntlet.yml and this fails, naming the job.
+func TestGauntletJobsCheckingNeedsResultUseAStatusFunction(t *testing.T) {
+	jobs := loadGauntletWorkflow(t)
+	statusFuncs := []string{"always()", "success()", "failure()", "cancelled()"}
+
+	for name, j := range jobs {
+		if j.If == "" || !strings.Contains(j.If, "needs.") || !strings.Contains(j.If, ".result") {
+			continue
+		}
+		hasStatusFunc := false
+		for _, f := range statusFuncs {
+			if strings.Contains(j.If, f) {
+				hasStatusFunc = true
+				break
+			}
+		}
+		if !hasStatusFunc {
+			t.Errorf("job %q's if condition (%q) compares needs.<job>.result without calling always()/success()/failure()/cancelled(); GitHub ANDs an implicit success() onto it, which is false whenever ANYTHING upstream was skipped - not just this job's own needs - and dispatch-approval is always skipped on the nightly schedule (#1563)", name, j.If)
+		}
+	}
 }

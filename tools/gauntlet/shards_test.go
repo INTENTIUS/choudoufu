@@ -344,6 +344,56 @@ func TestCombineShardsRefusesAnUnexpectedShard(t *testing.T) {
 	}
 }
 
+// TestLoadShardArtifactsTreatsAMissingDirectoryAsNoShards: issue #1563.
+// actions/download-artifact never creates its destination directory when
+// the pattern it was given matches zero artifacts (this is exactly what
+// happened on 2026-09-24/25/26, runs 35975528292/36115165483/36230331089:
+// the estate and acceptance jobs were skipped every night - #1563's own
+// root cause, a separate bug in the workflow - so zero shards were ever
+// uploaded). combine-shards then called LoadShardArtifacts on a path that
+// plain does not exist, and WalkDir's first callback fired with that
+// lstat error and nothing turned it into a refusal: "gauntlet: lstat
+// shards: no such file or directory" on stderr, exit 1, no estate named,
+// no hint to re-run anything. An existing-but-empty directory (a shard job
+// that ran and uploaded nothing) already came back as zero shards with no
+// error - a missing directory is the same fact from the collect job's
+// side and must read the same way, so CombineShards's own "no shard for
+// <names>" refusal gets the chance to fire instead of a raw path error.
+func TestLoadShardArtifactsTreatsAMissingDirectoryAsNoShards(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "does-not-exist")
+	got, err := LoadShardArtifacts(dir)
+	if err != nil {
+		t.Fatalf("LoadShardArtifacts(%q) = %v, want no error - a directory download-artifact never created holds zero shards, not a failure", dir, err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("LoadShardArtifacts(%q) = %v, want zero shards", dir, got)
+	}
+}
+
+// TestCombineShardsRefusesCleanlyWhenNoShardsUploaded reproduces #1563's
+// collect-job failure end to end: every estate this run expected a shard
+// for, and none uploaded (the shards directory does not exist), must
+// refuse by naming every missing estate - the same shape as a partial
+// miss (TestCombineShardsRefusesAMissingShard) - rather than crash on the
+// directory read before CombineShards ever sees the list.
+func TestCombineShardsRefusesCleanlyWhenNoShardsUploaded(t *testing.T) {
+	root := shardTestRoot(t, shardTestManifest())
+	base := shardBase(t, root)
+	dir := filepath.Join(t.TempDir(), "shards")
+
+	shards, err := LoadShardArtifacts(dir)
+	if err != nil {
+		t.Fatalf("LoadShardArtifacts(%q) = %v, want no error", dir, err)
+	}
+
+	msg := combineErr(t, root, base, shards, []string{"alpha", "beta", "kube"})
+	for _, want := range []string{"alpha", "beta", "kube", "no shard for"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("refusal does not mention %q: %s", want, msg)
+		}
+	}
+}
+
 // TestLoadShardArtifactsReadsTheUploadedLayout: download-artifact puts each
 // shard in its own directory, so the loader walks, and two files claiming
 // the same estate are a refusal rather than a coin flip.
