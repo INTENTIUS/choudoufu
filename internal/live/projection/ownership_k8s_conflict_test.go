@@ -193,6 +193,25 @@ func TestK8sConflict_whatTheRuleDoesNotReach(t *testing.T) {
 		}
 	})
 
+	// hashicorp/kubernetes's *_default_* types adopt the object the
+	// cluster already made rather than creating one: the create of a
+	// kubernetes_default_service_account waits for the namespace's
+	// "default" ServiceAccount and updates it. That create never meets a
+	// 409, so the ruling's first half does not hold for it, and refusing
+	// it would refuse a configuration that works. The same
+	// "<provider>_default_" adopter convention internal/live/discovery
+	// keys aws_default_* on.
+	for _, typ := range []string{"kubernetes_default_service_account", "kubernetes_default_service_account_v1"} {
+		t.Run(typ+" adopts on create", func(t *testing.T) {
+			b := k8sOwnershipBuilder(&Ownership{Estate: k8sOwnershipEstate})
+			b.checkOwnership(k8sConfigMapAddr(t), typ, "smoke-k8s/default",
+				configMapTypeSchema(), k8sLiveConfigMap(nil), true, false, false)
+			if b.diags.HasErrors() {
+				t.Errorf("%s was refused, but its create adopts the existing object and never meets a 409:\n%s", typ, renderDiags(b.diags))
+			}
+		})
+	}
+
 	t.Run("an undeclared object is not declared_untagged", func(t *testing.T) {
 		b := k8sOwnershipBuilder(&Ownership{Estate: k8sOwnershipEstate})
 		b.checkOwnership(k8sConfigMapAddr(t), configMapTestType, "smoke-k8s/app-config",

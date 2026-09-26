@@ -8,6 +8,7 @@ package projection
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -438,7 +439,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		return ownershipOK
 	}
 
-	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && surface.createCollidesOnKey() {
+	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && surface.createCollidesOnKey() && !adoptsOnCreate(typeName) {
 		// GitHub issue #1546, ruled 2026-09-26: refuse, narrowly. Both of
 		// the ruling's halves hold by the time control is here.
 		//
@@ -903,7 +904,9 @@ func (s markerSurface) carriesAddress() bool { return s == surfaceTags }
 //     (kubernetes_labels, kubernetes_annotations,
 //     kubernetes_config_map_v1_data, kubernetes_env, kubernetes_node_taint)
 //     have no metadata.labels in their schema, so they are surfaceNone and
-//     never reach this question.
+//     never reach this question. Nor does kubernetes_default_service_account,
+//     whose create adopts the existing object: see [adoptsOnCreate], which
+//     the caller checks beside this.
 //   - surfaceManifest has the same key, and already has the server's own
 //     answer at plan time: the dry run (#1081,
 //     discovery.DryRunKubernetesManifests) submits the planned create with
@@ -914,6 +917,20 @@ func (s markerSurface) carriesAddress() bool { return s == surfaceTags }
 //     existing object often succeeds, renames or is idempotent rather than
 //     conflicting, and that is per type and unmeasured.
 func (s markerSurface) createCollidesOnKey() bool { return s == surfaceLabels }
+
+// adoptsOnCreate reports whether typeName follows the providers'
+// "<provider>_default_<kind>" convention for a type whose create adopts an
+// object the platform already made instead of creating one - the same
+// convention internal/live/discovery's defaultAdopterPrefix keys
+// aws_default_* on. On Kubernetes that is kubernetes_default_service_account
+// and its _v1 spelling: the create waits for the namespace's "default"
+// ServiceAccount and updates it, so it never meets the 409 GitHub issue
+// #1546's refusal exists to get ahead of, and refusing it would refuse a
+// configuration that works.
+func adoptsOnCreate(typeName string) bool {
+	_, rest, ok := strings.Cut(typeName, "_")
+	return ok && strings.HasPrefix(rest, "default_")
+}
 
 // carrierPhrase names where the marker map lives, for the one refusal that
 // has to tell an operator the provider returned no such map. The tags

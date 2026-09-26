@@ -303,7 +303,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryNameHeld,
-		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.",
+		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.",
 	},
 	{
 		Summary: "Unsupported resource type for the provider",
