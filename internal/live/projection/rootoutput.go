@@ -384,10 +384,12 @@ func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *c
 //
 // # What is deliberately not written
 //
-// A SENSITIVE output is skipped, and the skip is scope rather than
-// squeamishness. HANDOFF.md's default is that secrets are stored the way
-// stock stores them, with refusal as the strict toggle - and that toggle
-// ("no secrets stored by the tool") has no wiring that reaches this file yet.
+// A SENSITIVE output is skipped, and a record left from before it was
+// marked sensitive is deleted (GitHub issue #1371: another estate may read
+// this namespace). The skip is scope rather than squeamishness.
+// HANDOFF.md's default is that secrets are stored the way stock stores
+// them, with refusal as the strict toggle - and that toggle ("no secrets
+// stored by the tool") has no wiring that reaches this file yet.
 // Writing sensitive output values here first and adding the toggle afterwards
 // would put material into a store that an operator who had turned the toggle
 // on believed was free of it. So the strict answer is the one taken until the
@@ -432,7 +434,16 @@ func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *s
 
 	for _, name := range names {
 		ov := root.OutputValues[name]
-		if ov == nil || ov.Sensitive {
+		if ov == nil {
+			continue
+		}
+		if ov.Sensitive {
+			// GitHub issue #1371: another estate can read this namespace,
+			// and only non-sensitive values may cross. A record left from
+			// before the output was marked sensitive would keep crossing,
+			// so it is removed. Best-effort like every write here; a
+			// failure is logged and the next apply tries again.
+			store.forget(ctx, name)
 			continue
 		}
 		val := ov.Value
@@ -464,6 +475,18 @@ func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *s
 		if _, err := store.Put(ctx, name, val, version); err != nil {
 			log.Printf("[WARN] live: the value of the root output %q could not be remembered, so it will render as newly created on the next live plan: %s", name, err)
 		}
+	}
+}
+
+// forget deletes name's record if there is one, conditional on the version
+// just read, so a concurrent writer's newer record is not removed blind.
+func (s *RootOutputStore) forget(ctx context.Context, name string) {
+	version := s.rawVersion(ctx, name)
+	if version == "" {
+		return
+	}
+	if err := s.store.Delete(ctx, RootOutputKey(s.estate, name), version); err != nil {
+		log.Printf("[WARN] live: the old record of the root output %q, now sensitive, could not be removed, so another estate can still read its earlier value: %s", name, err)
 	}
 }
 

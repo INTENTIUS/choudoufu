@@ -190,3 +190,25 @@ func TestReadEstateOutputsRefusesItselfABadNameAndNoStore(t *testing.T) {
 		}
 	}
 }
+
+// TestAnOutputMadeSensitiveStopsCrossing is the "only non-sensitive
+// outputs cross" bound over time. A value recorded while the output was
+// plain must not stay readable by another estate after the producer marks
+// the output sensitive: the next apply removes the old record.
+func TestAnOutputMadeSensitiveStopsCrossing(t *testing.T) {
+	raw := producerStore(t)
+	producer := NewRootOutputStore(raw, "network")
+
+	before := states.NewState()
+	before.EnsureModule(nil).SetOutputValue("token", cty.StringVal("was-plain"), false, "")
+	WriteRootOutputValues(t.Context(), producer, before)
+
+	after := states.NewState()
+	after.EnsureModule(nil).SetOutputValue("token", cty.StringVal("now-secret"), true, "")
+	WriteRootOutputValues(t.Context(), producer, after)
+
+	_, diags := ReadEstateOutputs(t.Context(), EstateOutputsSource{Store: raw, Estate: "app"}, "network", []string{"token"})
+	if desc := onlyError(t, diags); desc.Summary != SummaryEstateOutputNotRecorded {
+		t.Fatalf("an output made sensitive still crosses: %q %s", desc.Summary, desc.Detail)
+	}
+}
