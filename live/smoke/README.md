@@ -211,8 +211,9 @@ the marker untouched. The third is the boundary case: a policy that strips
 `tofu-estate` on the way in, which is what a label-scheme enforcer does to
 a key it does not recognise. The object is created and no marker is stored,
 so the next plan reads the estate's own object as somebody else's,
-`live-ls` reports the estate empty and the next apply wedges on
-`configmaps "app-config" already exists`. #1192 was that the run making it
+`live-ls` reports the estate empty, and plan and apply both stop with
+`Unlabelled live object holds the declared name` (#1546) rather than
+proposing a create the API server would refuse. #1192 was that the run making it
 said nothing: `Apply complete! Resources: 1 added` with no mention of the
 marker, and `declared_untagged = "adopt"` reporting `0 added, 1 changed, 0
 destroyed` and exit 0 over a label it never wrote, on every run for ever.
