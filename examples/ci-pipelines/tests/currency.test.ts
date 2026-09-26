@@ -76,12 +76,29 @@ function filesIn(dir: string): string[] {
 describe("the checked-in workflows are current", () => {
   const scratch = mkdtempSync(join(tmpdir(), "choudoufu-ci-pipelines-"));
 
+  // Every assertion below that wants "forge X regenerated with no
+  // overrides" wants the identical output, so it is generated once per
+  // forge and reused rather than once per assertion (issue #1577): the two
+  // per-forge tests below and the stamp test further down all read the same
+  // `scratch` tree a plain `generate(forge, scratch)` would produce, and
+  // regenerating it again says nothing a second time that it did not already
+  // say the first. `generate()` spawns a process (see its doc comment for
+  // why), and on a loaded machine that spawn is the expensive part of this
+  // file by a wide margin - this cuts the file's spawn count from nine to
+  // five with no assertion removed.
+  const generatedForges = new Set<Forge>();
+  function generateOnce(forge: Forge): void {
+    if (generatedForges.has(forge)) return;
+    generate(forge, scratch);
+    generatedForges.add(forge);
+  }
+
   for (const [forge, workflowDir] of Object.entries(FORGE_WORKFLOWS) as [Forge, string][]) {
     const committed = join(exampleDir, workflowDir);
     const regenerated = join(scratch, workflowDir);
 
     it(`${forge}: regenerating produces the same files`, () => {
-      generate(forge, scratch);
+      generateOnce(forge);
       assert.deepEqual(
         filesIn(committed),
         filesIn(regenerated),
@@ -91,7 +108,7 @@ describe("the checked-in workflows are current", () => {
     });
 
     it(`${forge}: and the same bytes`, () => {
-      generate(forge, scratch);
+      generateOnce(forge);
       for (const name of filesIn(regenerated)) {
         const want = readFileSync(join(regenerated, name), "utf8");
         const got = readFileSync(join(committed, name), "utf8");
@@ -110,7 +127,7 @@ describe("the checked-in workflows are current", () => {
   // Here it is checked the same way a workflow is - regenerate, diff - so a
   // committed stamp that no run would write fails on the node side too.
   it("and the stamp records the inputs today's run reads", () => {
-    generate("github", scratch);
+    generateOnce("github");
     assert.equal(
       readFileSync(join(exampleDir, "generated-from.json"), "utf8"),
       readFileSync(join(scratch, "generated-from.json"), "utf8"),
