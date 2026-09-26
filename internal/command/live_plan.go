@@ -650,6 +650,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			return 1, false, diags
 		}
 		hintStore = store
+		// GitHub issue #1371: terraform_estate_outputs reads through the
+		// same store. A store this command went on without refuses every
+		// such read, naming why, rather than answering "not recorded".
+		unavailable := ""
+		if store == nil {
+			unavailable = "this live-plan could not open the record store (see the warning about it)"
+		}
+		c.liveEstateOutputs().open(store, config.Module.Live.RecordStore, estate, unavailable)
 	}
 	// recordStoreForReads is the same wrapper [statelessDiscover] gets below
 	// as recordShrinkStore, built once here and unconditionally (unlike

@@ -65,7 +65,7 @@ jobs:
       # true, and says what to do if an upstream sync ever breaks it.
       - name: gofmt (fork-owned files)
         run: |
-          out="$(gofmt -l internal/live cmd site tools live internal/backend internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
+          out="$(gofmt -l internal/live cmd site tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"
@@ -149,7 +149,7 @@ jobs:
         working-directory: examples/record-store-bucket
         run: npm ci
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/ ./internal/builtin/providers/tf/
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'

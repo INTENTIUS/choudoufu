@@ -132,6 +132,7 @@ func statelessBegin(
 	settings *configs.Live,
 	view *views.View,
 	adoptionOnly bool,
+	estateOutputs *liveEstateOutputs,
 	rejections tfdiags.Diagnostics,
 ) tfdiags.Diagnostics {
 	diags := rejections
@@ -240,6 +241,9 @@ func statelessBegin(
 		// plan graph keeps is finally in hand.
 		targets:  opReq.Targets,
 		excludes: opReq.Excludes,
+		// GitHub issue #1371: filled in by PriorState once the record store
+		// is open, and read by terraform_estate_outputs during the walk.
+		estateOutputs: estateOutputs,
 	}
 	if testStatelessRunner != nil {
 		testStatelessRunner(runner)
@@ -692,6 +696,11 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 // statelessRunner is the stateless pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
 type statelessRunner struct {
+	// estateOutputs is the command's terraform_estate_outputs holder
+	// (GitHub issue #1371), opened over this run's record store in
+	// PriorState. Nil only in a test that builds a runner by hand.
+	estateOutputs *liveEstateOutputs
+
 	// settings is the live block this run was started from. The whole block
 	// is kept, not just its estate name, so that a diagnostic raised once the
 	// run is under way can still point at the configuration that asked for
@@ -1085,6 +1094,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// later, from the backend, and needs the values then.
 		r.rootOutputStore = projection.NewRootOutputStore(store, estate)
 		r.recordedRootOutputs = projection.ReadRootOutputValues(ctx, r.rootOutputStore, config)
+		// GitHub issue #1371: another estate's recorded outputs are read
+		// from this same store, by the terraform_estate_outputs data source
+		// during the plan walk. Unlike the read above, every failure there
+		// is a diagnostic; see [projection.ReadEstateOutputs].
+		r.estateOutputs.open(store, recordStoreCfg, estate, "")
 		r.liveConfig = config
 		// Guided discovery's hint (issue #109) rides the same store: from
 		// the apply's final persist onward, the estate's type roster and a
@@ -1101,6 +1115,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// hint write itself never fails PersistState (HintWarning) - so an
 		// interrupted plan can at most warn about the hint.
 		r.mgr.EnableHint(store, estate, time.Now)
+	} else {
+		r.estateOutputs.open(nil, nil, estate, "this configuration's live block has no record store")
 	}
 
 	// GitHub issue #179's data-read phase, exactly as live-plan runs it:
