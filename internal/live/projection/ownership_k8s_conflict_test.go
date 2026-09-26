@@ -72,6 +72,7 @@ func TestK8sConflict_unlabelledReadObjectIsAnError(t *testing.T) {
 			detail := errs[0].Description().Detail
 			for _, want := range []string{
 				"smoke-k8s/app-config",
+				addr.String(),
 				configMapTestType,
 				"carries no " + markers.TagEstate + " label",
 				"409",
@@ -304,8 +305,10 @@ func TestK8sConflict_awsAuthThroughBuild(t *testing.T) {
 		if len(errorDiagsWith(diags, conflictSummary)) != 1 {
 			t.Fatalf("want one Error %q naming the object:\n%s", conflictSummary, renderDiags(diags))
 		}
-		if !strings.Contains(errorDiagsWith(diags, conflictSummary)[0].Description().Detail, id) {
-			t.Errorf("the error does not name %s:\n%s", id, renderDiags(diags))
+		for _, want := range []string{id, addr.String()} {
+			if !strings.Contains(errorDiagsWith(diags, conflictSummary)[0].Description().Detail, want) {
+				t.Errorf("the error does not name %s:\n%s", want, renderDiags(diags))
+			}
 		}
 		if res != nil && res.Has(addr) {
 			t.Errorf("the unlabelled object entered the prior state")
