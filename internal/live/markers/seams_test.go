@@ -21,33 +21,38 @@ import (
 // The completeness guard of GitHub issue #1118: every function in the tree
 // that asks a schema which marker surface it carries, reads a marker off an
 // object or names a marker's path must handle every surface this package
-// declares, or be listed in surfaceSeamExemptions with the surfaces it
-// deliberately handles and why.
+// declares, or be listed in surfaceSeamExemptions (or, for what was found
+// on the day the guard landed, surfaceSeamUntriaged) with exactly the
+// surfaces it handles.
 //
-// Nothing here is typed by hand except that exemption list. The surfaces
-// are this package's Surface constants; which function belongs to which
-// surface is the //markers:surface directive on it; the seams are every
-// non-test function under the scanned roots that references one of those
-// functions, directly or through one call to a function that does
-// (liveimport's taggable, labelSurface and manifestSurface wrappers are
-// the reason for the second clause: #1109's hole was a dispatch that only
-// ever called wrappers). What a seam handles is the transitive closure of
-// the surfaces its body and its callees reference, resolved syntactically
-// within the scanned packages.
+// Nothing else here is typed by hand. The surfaces are this package's
+// Surface constants; which function belongs to which surface is the
+// //markers:surface directive on it; the seams are every non-test function
+// under the scanned roots that references a member, directly or through
+// one call to a wrapper that does (liveimport's taggable, labelSurface and
+// manifestSurface are the reason for the second clause: #1109's hole was a
+// dispatch that only ever called wrappers). What a seam handles is what
+// its body references, plus what its callees in the same package handle,
+// transitively, plus what callees in other packages reference themselves.
 //
 // The three holes of 2026-09-13 are the ones this has to name, and the
-// scratch reverts in PR for #1118 show it naming each: checkOwnership
-// reading markers.TagsOf and nothing else (#1108), ratifyOne asking
-// taggable and labelSurface but not manifestSurface (#1109), and live-mv's
-// surfaceOf without its ManifestSurface arm (#1104).
+// PR that added it shows it naming each against a scratch revert:
+// checkOwnership reading markers.TagsOf and nothing else (#1108),
+// ratifyOne asking taggable and labelSurface but not manifestSurface
+// (#1109), and live-mv's surfaceOf without its ManifestSurface arm
+// (#1104).
 //
-// It reads source with go/parser alone: no type checking, no build, so it
-// costs well under a second and sees a package that does not compile. The
-// price is that a method call x.m() is resolved to every method named m in
-// the calling package. That over-approximates what a seam reaches, which
-// can only hide a hole behind an unrelated same-named method, never invent
-// one; TestSurfaceSeamGuardSeesTheFixture pins that the resolution the
-// guard does rely on is live.
+// It reads source with go/parser alone: no type checking and no build, so
+// it costs about a second and sees a package that does not compile. The
+// price is that resolution is syntactic: x.m() resolves to every method
+// named m in the calling package, and an identifier to the package-level
+// function of that name. That can only over-approximate what a seam
+// handles. It also cannot see a surface asked without a member - a raw
+// block.Attributes["tags"] lookup, or identity.ObjectMetaShape, which is
+// a label-shape predicate of its own - which is why the ownership read's
+// tag arm became markers.HasTagsAttribute when this landed.
+// TestSurfaceSeamGuardSeesTheFixture pins every resolution rule the guard
+// relies on against a tree whose answers are known.
 
 // surfaceSeamRoots are the directories scanned for seams, relative to the
 // module root.
@@ -87,6 +92,7 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/liveimport/tags.go":                             {Handles: []Surface{SurfaceTags}, Why: "the tag carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
 	"internal/live/mv/label.go":                                    {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when surfaceOf answered SurfaceLabel"},
 	"internal/live/mv/rewrite.go:mover.rewrite":                    {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go refuses SurfaceManifest by name (SummaryManifestMoveUnsupported) before rewrite runs; #1104 replaces that refusal with the label patch"},
+	"internal/live/mv/mv.go:mover.locateByIdentity":                {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in the same file before a locate runs (SummaryManifestMoveUnsupported); #1104 replaces that refusal"},
 	"internal/live/mv/rewrite.go:tagsFromObject":                   {Handles: []Surface{SurfaceTags}, Why: "the tag path's reader, reached only on SurfaceTags"},
 	"internal/live/projection/manifestkeys.go":                     {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's declared-key lookup (#1079)"},
 	"internal/live/projection/manifestpartialseed.go":              {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's partial seed"},
@@ -121,7 +127,7 @@ var surfaceSeamUntriaged = map[string][]Surface{
 	"internal/live/identity/resolve.go:resolver.recordFallback":                    {SurfaceTags},
 	"internal/live/identity/resolve.go:resolver.manifestObjectKeyPart":             {SurfaceManifest, SurfaceTags},
 	"internal/live/lint/ignore_changes.go:checkIgnoreChanges":                      {SurfaceTags},
-	"internal/live/lint/lint.go:checkManagedResources":                             {SurfaceManifest, SurfaceTags},
+	"internal/live/lint/lint.go:checkManagedResources":                             {SurfaceTags},
 	"internal/live/markerstrip/markerstrip.go":                                     {SurfaceTags},
 	"internal/live/projection/build.go:builder.prepareRead":                        {SurfaceManifest, SurfaceTags},
 	"internal/live/projection/readconcurrency.go":                                  {SurfaceManifest, SurfaceTags},
@@ -157,27 +163,33 @@ func TestEverySurfaceSeamHandlesEverySurface(t *testing.T) {
 	seen := map[string]bool{}
 	for _, s := range g.seams {
 		missing := s.missing(g.surfaces)
-		key := s.file + ":" + s.name
-		handles, exempt := exemptionFor(key)
-		if !exempt && len(missing) == 0 {
-			// Complete. A file's exemption speaks for its partial seams
-			// only; a complete one beside them needs nothing.
-			continue
-		}
-		if !exempt {
-			key = s.file
-			handles, exempt = exemptionFor(key)
-		}
-		if exempt {
-			seen[key] = true
+
+		// An exemption for this one function bounds it exactly, complete
+		// or not: a seam that learned a surface has outgrown its entry.
+		fnKey := s.file + ":" + s.name
+		if handles, ok := exemptionFor(fnKey); ok {
+			seen[fnKey] = true
 			if want := surfaceSet(handles); want != s.handledString() {
-				t.Errorf("%s (%s): exempted by %q as handling %s, measured handling %s. Revisit the exemption: a seam that learned or lost a surface is no longer the seam it excuses.", s.key, s.pos, key, want, s.handledString())
+				t.Errorf("%s (%s): exempted by %q as handling %s, measured handling %s. Revisit the exemption: a seam that learned or lost a surface is no longer the seam it excuses.", s.key, s.pos, fnKey, want, s.handledString())
 			}
 			continue
 		}
-		if len(missing) > 0 {
-			t.Errorf("%s (%s) handles the %s marker surface but never %s. Handle it, or exempt it in surfaceSeamExemptions with the reason it does not need to.", s.key, s.pos, s.handledString(), joinSurfaces(missing))
+		if len(missing) == 0 {
+			continue
 		}
+
+		// A file's exemption speaks for the partial seams in it that
+		// handle exactly what it says, and for nothing else.
+		note := ""
+		if handles, ok := exemptionFor(s.file); ok {
+			seen[s.file] = true
+			want := surfaceSet(handles)
+			if want == s.handledString() {
+				continue
+			}
+			note = fmt.Sprintf(" (the exemption for %s covers seams handling exactly %s)", s.file, want)
+		}
+		t.Errorf("%s (%s) handles the %s marker surface but never %s%s. Handle it, or exempt it in surfaceSeamExemptions with the reason it does not need to.", s.key, s.pos, s.handledString(), joinSurfaces(missing), note)
 	}
 	for key := range surfaceSeamExemptions {
 		if !seen[key] {
@@ -242,6 +254,10 @@ func TestSurfaceSeamGuardSeesTheFixture(t *testing.T) {
 		// Reached through a package-qualified call from a package that
 		// never imports markers.
 		"seams/caller.viaOtherPackage": "{labels,tags}",
+		// Deep handles manifest through its own package's wrapper; a
+		// caller elsewhere takes only what Deep references itself.
+		"seams.Deep":         "{manifest}",
+		"seams/caller.mixed": "{labels,tags}",
 	}
 	for k, w := range want {
 		if got[k] != w {
@@ -452,10 +468,31 @@ func measureSurfaceSeams(root, modulePath, markersDir string, roots []string) (*
 			fn.handled[s] = true
 		}
 	}
+	//
+	// The closure runs through callees in the seam's own package only. A
+	// callee in another package counts for what it references itself (and
+	// a wrapper there for its member), not for everything behind it: that
+	// is a service the seam uses, and following it lets an unrelated use
+	// of a member stand in for the seam's own answer. The case that set
+	// this: before #1109's fix, liveimport's ratifyOne reached
+	// ManifestSurface through identity's manifest-shape identity synthesis,
+	// which says nothing about carrying a marker.
+	for _, fn := range all {
+		for _, c := range fn.callees {
+			if c.pkg != fn.pkg {
+				for s := range c.direct {
+					fn.handled[s] = true
+				}
+			}
+		}
+	}
 	for changed := true; changed; {
 		changed = false
 		for _, fn := range all {
 			for _, c := range fn.callees {
+				if c.pkg != fn.pkg {
+					continue
+				}
 				for s := range c.handled {
 					if !fn.handled[s] {
 						fn.handled[s] = true

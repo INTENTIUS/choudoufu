@@ -10,3 +10,5 @@ import "example.com/fixture/seams"
 func viaOtherPackage(b *configschema.Block) string { return seams.SurfaceOf(b) }
 
 func notASeam() string { return "nothing here" }
+
+func mixed(b *configschema.Block) bool { return seams.SurfaceOf(b) != "" && seams.Deep(b) }

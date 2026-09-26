@@ -62,3 +62,7 @@ func (r reader) labels(obj cty.Value) {
 	_, _ = markers.AnnotationsOf(obj)
 	_ = manifested(r.b)
 }
+
+// Deep reaches the manifest surface only through a same-package wrapper,
+// so it handles it; a caller in another package does not inherit that.
+func Deep(b *configschema.Block) bool { return manifested(b) && len("x") > 0 }
