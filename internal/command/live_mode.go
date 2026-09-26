@@ -132,6 +132,7 @@ func statelessBegin(
 	settings *configs.Live,
 	view *views.View,
 	adoptionOnly bool,
+	filter arguments.ReportFilter,
 	estateOutputs *liveEstateOutputs,
 	rejections tfdiags.Diagnostics,
 ) tfdiags.Diagnostics {
@@ -233,7 +234,8 @@ func statelessBegin(
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
-		view:         statelessPlanView(view, adoptionOnly),
+		view:         statelessPlanView(view, adoptionOnly, filter),
+		filter:       filter,
 		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
 		// -exclude addresses; PriorState is where they turn into a scope,
@@ -426,6 +428,15 @@ type statelessSurface int
 // recorded on issue #685. CHOUDOUFU_STATE_CACHE overrides the path, and the
 // literal value "off" disables persistence entirely - for a run that must
 // leave no file behind, such as an audit from a read-only working copy.
+//
+// Ruled on issue #1170 (maintainer, 2026-09-26): the cache stays local, by
+// ruling rather than by default. It is disposable, it belongs to one
+// working copy, and it is never consulted for ownership (#685); a shared
+// cache would make a thing the ruling calls disposable look durable and
+// shared, which is a different feature with its own name, not something
+// this path grows into. Records - what an estate must remember beyond what
+// a marker can hold - are what record_store is for; the cache is not a
+// second, smaller record store.
 //
 // The estate's secrets setting is taken into account. offForSecrets is true
 // only when the cache is off BECAUSE of the secrets setting, so the caller
@@ -755,6 +766,12 @@ type statelessRunner struct {
 	// account-inventory question at all. See [collectUnclaimedSetting],
 	// which this is the default argument to.
 	adoptionOnly bool
+
+	// filter is GitHub issue #1197's -filter, kept as well as folded into
+	// view above for one reason: a run that swept nothing never calls
+	// view.Foreign, and a filter that asked for adoptable or foreign must
+	// still get an answer rather than silence. See [statelessNoSweepAnswer].
+	filter arguments.ReportFilter
 
 	// envelopeVouch is issue #692 increment 2's capture of the operation
 	// SHAPE, alongside cacheServesReads' capture of its refresh setting:
@@ -1433,6 +1450,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		}
 		r.view.Foreign(statelessForeignReport(classified, disco))
 		r.view.GuidedFallback(disco.GuidedFallback)
+	} else {
+		statelessNoSweepAnswer(r.view, r.filter)
 	}
 
 	// GitHub issue #587's adoption ledger, built from the three values just

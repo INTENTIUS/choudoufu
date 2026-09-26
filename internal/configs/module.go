@@ -394,11 +394,16 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 	// contradiction about where the truth lives, not a redundant setting.
 	// Refusing it here, in the decoder, means no command can reach a state
 	// manager while markers are the record of ownership.
+	//
+	// Ruled on issue #1170 (maintainer, 2026-09-26): the refusal stays, and
+	// the diagnostic says what a live-mode module actually keeps - its
+	// cache locally, its records in record_store - rather than say a live
+	// block removes state, which was the over-rotation #685 unwound.
 	if m.Live != nil && m.Backend != nil {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Both a backend and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, where markers on the resources are the record of ownership and any local state is a disposable cache (choudoufu-cache.tfstate), OR one 'backend' block making a state file the authoritative record instead. A module cannot have two authoritative homes for state. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
+			Detail:   fmt.Sprintf("A live-mode module keeps its state cache locally (choudoufu-cache.tfstate) and its records in record_store; that is why a 'backend' block, a second authoritative home for state, is refused. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
 			Subject:  &m.Backend.DeclRange,
 		})
 	}
@@ -406,7 +411,7 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Both a cloud and a live configuration are present",
-			Detail:   fmt.Sprintf("A module may declare either one 'live' block, where markers on the resources are the record of ownership and any local state is a disposable cache (choudoufu-cache.tfstate), OR one 'cloud' block making a state file the authoritative record instead. A module cannot have two authoritative homes for state. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
+			Detail:   fmt.Sprintf("A live-mode module keeps its state cache locally (choudoufu-cache.tfstate) and its records in record_store; that is why a 'cloud' block, a second authoritative home for state, is refused. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
 			Subject:  &m.CloudConfig.DeclRange,
 		})
 	}
