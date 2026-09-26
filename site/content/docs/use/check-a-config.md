@@ -44,7 +44,8 @@ Each object prints with its provider type, natural key (`NAMESPACE/NAME`, or
 in DIR that declares it. A configuration with both providers lists both
 substrates. A cluster the run cannot reach is the sweep's own warning,
 `Kubernetes sweep unavailable`, and the rest of the listing stands
-([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}}) runs it on kind).
+([claim 7 on Kubernetes]({{< relref "/docs/claims/identity-is-a-tag" >}})
+runs it on kind).
 
 ## What it does not check
 

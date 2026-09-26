@@ -1,5 +1,5 @@
 # k8s-the-server-gets-the-last-word
-# CLAIM 26 - Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads and the estate keeps its marker, and a mutation that strips the marker on the way in is named by the run that made it - the create warns that the marker it sent is not on the object the server stored, and the adopting update that follows fails rather than reporting a change nothing kept. ~4 min.
+# CLAIM 26 (kubernetes) - Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads and the estate keeps its marker, and a mutation that strips the marker on the way in is named by the run that made it - the create warns that the marker it sent is not on the object the server stored, and the adopting update that follows fails rather than reporting a change nothing kept. ~4 min.
 #
 # The second fault of #1110. Everything a plan says is a statement about
 # what the API server will accept, made before it was asked. Admission is
@@ -13,7 +13,7 @@
 # admission POLICY rather than a webhook server, because the API server's
 # in-process admission chain produces the identical effect on the stored
 # object with no certificate, no image and no pod to go wrong - the same
-# choice claim 23 and claim 24 already make. The one thing a policy cannot
+# choice claim 13 on Kubernetes and claim 24 already make. The one thing a policy cannot
 # reproduce is a webhook that is not there, so the first fault uses a real
 # ValidatingWebhookConfiguration with failurePolicy: Fail pointing at a
 # Service that does not exist. That is the webhook fault operators

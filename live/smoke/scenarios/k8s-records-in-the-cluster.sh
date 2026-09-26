@@ -1,5 +1,5 @@
 # k8s-records-in-the-cluster
-# CLAIM 39 - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, a waiver names what it waives on every run and live-cluster ignores it, a listing that fails after its first page fails the plan and never reads as a short estate, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~20 min.
+# CLAIM 39 (kubernetes) - Records live in the cluster: a Kubernetes-only estate keeps its records as Secrets under resourceVersion with no AWS in the environment, two writers held on the wire with one resourceVersion between them settle with one winner and one named conflict, a waiver names what it waives on every run and live-cluster ignores it, a listing that fails after its first page fails the plan and never reads as a short estate, an apply killed with SIGKILL leaves no lock behind, a role scoped to one records namespace cannot read another estate's records, and the store checks that namespace, its RBAC scope, encryption at rest and the estate boundary once, on first contact, before it writes a record. ~20 min.
 #
 # GitHub issue #1392, under the #1398 ruling. Until this, a Kubernetes-only
 # estate had two choices for its records: "local", which is one machine's
@@ -430,8 +430,8 @@ explain \
 kc apply -f "$ROOT/live/kubernetes/estate-boundary.yaml" >/dev/null \
   || fail "k8srec" "could not install the estate boundary policy"
 # The API server has to observe the policy and type-check its CEL before it
-# enforces anything, and a write sent in that window goes through. Claim 23
-# waits for observedGeneration for the same reason.
+# enforces anything, and a write sent in that window goes through. Claim 13's
+# Kubernetes scenario waits for observedGeneration for the same reason.
 for _ in $(seq 1 30); do
   OBS="$(kc get validatingadmissionpolicy choudoufu-estate-boundary -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)"
   [ -n "$OBS" ] && break; sleep 1

@@ -1,5 +1,5 @@
 # recovery-is-a-rerun
-# CLAIM 5 - Recovery is a re-run, never surgery: a crashed apply re-applies to completion, and losing every local file costs nothing. ~2 min.
+# CLAIM 5 (aws) - Recovery is a re-run, never surgery: a crashed apply re-applies to completion, and losing every local file costs nothing. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/recovery"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

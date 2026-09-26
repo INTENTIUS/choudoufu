@@ -12,8 +12,8 @@ object: `live-mv -from-estate=<old>` in the destination's configuration
 makes it through the provider, and `kubectl label --overwrite` makes the
 same write tool-less. With the admission policy installed either is a
 governed one: the caller must hold both the estate the object is leaving
-and the one it is entering ([claim
-23](../smoke/claims/k8s-the-label-is-the-boundary.md)).
+and the one it is entering ([claim 13 on
+Kubernetes](../smoke/claims/the-tag-is-the-boundary.md#on-kubernetes)).
 Handing a whole estate over is an RBAC change, the grant's binding moving
 to the receiving principal, and nothing on the objects changes.
 
@@ -23,7 +23,7 @@ most kinds under two spellings, such as `kubernetes_config_map` and
 is written against. Both spellings render the same `NAMESPACE/NAME`, the
 sweep files both under the one kind, and the label carries no address to
 rewrite, so a block that changes spelling with the same metadata replans
-empty. [Claim 21](../smoke/claims/k8s-greenfield.md)'s step 6
+empty. [Claim 7 on Kubernetes](../smoke/claims/identity-is-a-tag.md#on-kubernetes), step 6,
 measures this on kind: it rewrites the ConfigMap block from the plain
 spelling to `_v1` with no `moved` block and the plan is `No changes.`
 ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). On AWS the
@@ -106,7 +106,7 @@ objects claiming one address.
 
 An object carrying this estate's marker that no block declares is
 proposed for deletion under the default policy, on Kubernetes as on AWS
-([claim 22](../smoke/claims/k8s-no-silent-orphans.md)). Two
+([claim 1 on Kubernetes](../smoke/claims/no-silent-orphans.md#on-kubernetes)). Two
 exclusions run before anything reaches a delete quadrant, and either is
 sufficient. One is an object with a non-empty `metadata.ownerReferences`,
 such as a ReplicaSet's from its Deployment or a PVC's from its

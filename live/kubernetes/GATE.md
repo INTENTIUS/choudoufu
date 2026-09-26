@@ -64,7 +64,8 @@ Three things are true of this fence that are not true of the AWS one:
   `deployments/scale` is the fence for those.
 - The policy is one shared cluster object with a wider blast radius than
   two IAM changes. A cluster admin installs it and any cluster admin can
-  remove it, which is exactly what claim 23's `BREAK=1` run does.
+  remove it, which is exactly what the `BREAK=1` run of claim 13 on
+  Kubernetes does.
 
 The fence is also per estate, never per address: the label carries no
 address by ruling, so a team that wants two boundaries makes two estates.

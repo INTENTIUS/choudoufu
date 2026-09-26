@@ -1,5 +1,5 @@
 # no-self-managed-locks
-# CLAIM 2 - No self-managed locks: contention settles at the platform API, never in a lock this tool holds. ~2 min.
+# CLAIM 2 (aws) - No self-managed locks: contention settles at the platform API, never in a lock this tool holds. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/no-locks"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"; export SMOKE_WORK

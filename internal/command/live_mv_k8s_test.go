@@ -25,7 +25,7 @@ import (
 )
 
 // live-mv on a Kubernetes object (GitHub issue #1081's fifth item; the
-// smoke that proves it on a kind cluster is claim 23,
+// smoke that proves it on a kind cluster is claim 13 on Kubernetes,
 // live/smoke/scenarios/k8s-the-label-is-the-boundary.sh). The marker is one
 // label and carries no address, so the command's two halves come apart: a
 // rename within one estate reports nothing to write and exits 0, and

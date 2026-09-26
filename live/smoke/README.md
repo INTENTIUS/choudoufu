@@ -84,9 +84,9 @@ with no cluster and no Docker, and reads the scenarios for a bare kubectl;
 `.github/workflows/k8s-smoke.yml` runs it on every pull request that touches
 the smokes.
 
-It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
-one `tofu-estate` label, written on the create and read back with kubectl in
-step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
+It is claim 7 on Kubernetes (#1061): the ConfigMap and the namespace it
+creates carry one `tofu-estate` label, written on the create and read back
+with kubectl in step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
 from the provider block, one label-selected list per kind, each object
 joined to its block on the kind and the natural key - with the listing
 empty again after the destroy; its `BREAK=1` strips the label and requires
@@ -98,8 +98,7 @@ the ConfigMap block from `kubernetes_config_map` to
 to plan no create and no destroy (#1081, item 2: an `api_version` change
 is not a move).
 
-`k8s-no-silent-orphans` is claim 22 (#1065), the Kubernetes sibling of
-claim 1: a ConfigMap's block is deleted and the next plan proposes exactly
+`k8s-no-silent-orphans` is claim 1 on Kubernetes (#1065): a ConfigMap's block is deleted and the next plan proposes exactly
 that object's removal, found by one cluster-wide, label-selected list per
 kind, while the ReplicaSet and Pod a Deployment's template gave the same
 label to are never touched. Its `BREAK=1` strips the orphan's label and
@@ -228,9 +227,8 @@ in the run, `live-ls` listing the object and the second apply not wedging -
 without it the whole third part would read the same if choudoufu never
 wrote a label at all.
 
-`k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
-sibling of claim 13: the cluster admin installs
-`live/kubernetes/estate-boundary.yaml`, one `ValidatingAdmissionPolicy`
+`k8s-the-label-is-the-boundary` is claim 13 on Kubernetes (#1066): the cluster
+admin installs `live/kubernetes/estate-boundary.yaml`, one `ValidatingAdmissionPolicy`
 whose CEL reads the estate label off the object and asks the authorizer
 whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`;
 two ServiceAccounts hold two estates through
