@@ -1,5 +1,5 @@
 # the-tag-is-the-boundary
-# CLAIM 13 - The tag is the boundary: ownership is a tag, so the cloud's own policy engine governs who may act on what, per resource, and a carve is a governed tag write instead of state surgery nothing can gate. ~4 min.
+# CLAIM 13 (aws) - The tag is the boundary: ownership is a tag, so the cloud's own policy engine governs who may act on what, per resource, and a carve is a governed tag write instead of state surgery nothing can gate. ~4 min.
 #
 # Two roles on one estate, each fenced to its half by a condition on the
 # ownership tag. Then one of them carves her half out into an estate of its

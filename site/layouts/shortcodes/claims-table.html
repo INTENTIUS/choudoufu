@@ -1,15 +1,16 @@
 {{- /*
   Renders site/data/claims.json - the copy of live/smoke/claims.json that
   live/smoke_claims_test.go holds to the scenario directory (#1055) - as the
-  claims index: one row per claim, the scenario that runs it, its time, and
-  one column per provider saying whether the claim is proven there,
-  restated, not applicable, or still open. A non-proven cell carries its
-  note as a title and, when the page has room, inline. The "Run it" cell
-  also carries what a reader needs to have installed before the command
-  works: Go, the floci emulator (needs_floci, for a claim that runs on one
-  substrate and keeps its records on another), or a real AWS account.
+  claims index: one row per claim, which is a promise, and one column per
+  provider saying whether the promise is proven there, restated, not
+  applicable, or still open. Proof is per provider (#1112), so each cell
+  carries its own scenario: the command that runs it, its time, and what a
+  reader needs installed first (Go, the floci emulator for a proof that
+  runs on one substrate and keeps its records on another, or a real AWS
+  account). A cell proven by a step of another claim's scenario names that
+  claim and its command. A cell's note is its title.
 
-    {{< claims-table >}}              every claim, grouped by theme
+    {{< claims-table >}}              every claim
     {{< claims-table provider="kubernetes" >}}  only the rows whose status for that provider is not "open"
     {{< claims-table theme="gate" >}}  only one theme
 */ -}}
@@ -21,7 +22,7 @@
 {{- else -}}
 <div class="table-wrap">
 <table class="claims">
-<thead><tr><th>#</th><th>Claim</th><th>Run it</th><th>~min</th>{{ range $d.provider_order }}<th class="provider-{{ . }}">{{ . | upper }}</th>{{ end }}</tr></thead>
+<thead><tr><th>#</th><th>Claim</th>{{ range $d.provider_order }}<th class="provider-{{ . }}">{{ . | upper }}</th>{{ end }}</tr></thead>
 <tbody>
 {{- range $d.claims }}
 {{- $row := . -}}
@@ -29,10 +30,13 @@
 {{- if and $onlyTheme (ne $onlyTheme $row.theme) }}{{ $show = false }}{{ end -}}
 {{- if $onlyProvider }}{{ with index $row.providers $onlyProvider }}{{ if eq .status "open" }}{{ $show = false }}{{ end }}{{ end }}{{ end -}}
 {{- if $show }}
-<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td><a href="https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/{{ $row.slug }}.md">{{ $row.title }}</a></td><td><code>{{ $row.command }}</code>{{ if $row.needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if $row.needs_floci }} <span class="needs-go">needs the emulator</span>{{ end }}{{ if $row.real_aws }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}</td><td>{{ $row.minutes }}</td>
-{{- range $d.provider_order }}
-{{- $pv := index $row.providers . }}
-<td class="status status-{{ replace $pv.status "/" "-" }}"{{ with $pv.note }} title="{{ . }}"{{ end }}>{{ $pv.status }}</td>
+<tr class="theme-{{ $row.theme }}"><td>{{ $row.id }}</td><td><a href="https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/{{ $row.slug }}.md">{{ $row.title }}</a></td>
+{{- range $p := $d.provider_order }}
+{{- $pv := index $row.providers $p }}
+<td class="status status-{{ replace $pv.status "/" "-" }}"{{ with $pv.note }} title="{{ . }}"{{ end }}>{{ $pv.status }}
+{{- with $pv.scenario }}<br><code>{{ $pv.command }}</code> ~{{ $pv.minutes }} min{{ if $pv.needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if $pv.needs_floci }} <span class="needs-go">needs the emulator</span>{{ end }}{{ if $pv.real_aws }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}{{ end }}
+{{- with $pv.proven_by }}{{ $by := index (where $d.claims "id" .) 0 }}{{ $byCell := index $by.providers $p }}<br>in claim {{ . }}: <code>{{ $byCell.command }}</code>{{ end -}}
+</td>
 {{- end }}
 </tr>
 {{- end }}

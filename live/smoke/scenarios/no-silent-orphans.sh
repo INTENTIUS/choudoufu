@@ -1,5 +1,5 @@
 # no-silent-orphans
-# CLAIM 1 - No Silent Orphans: a resource this estate owns cannot fall out of its plans unnoticed. ~2 min.
+# CLAIM 1 (aws) - No Silent Orphans: a resource this estate owns cannot fall out of its plans unnoticed. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/no-silent-orphans"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

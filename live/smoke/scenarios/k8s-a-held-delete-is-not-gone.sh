@@ -1,5 +1,5 @@
 # k8s-a-held-delete-is-not-gone
-# CLAIM 25 - A delete the platform accepted but has not finished leaves an object the estate still owns: the API returns success, the object stays with a deletionTimestamp and its tofu-estate label, and the sweep finds it and proposes the same one destroy on every plan until it is really gone, at which point the plan is empty with no surgery. ~3 min.
+# CLAIM 25 (kubernetes) - A delete the platform accepted but has not finished leaves an object the estate still owns: the API returns success, the object stays with a deletionTimestamp and its tofu-estate label, and the sweep finds it and proposes the same one destroy on every plan until it is really gone, at which point the plan is empty with no surgery. ~3 min.
 #
 # The first fault of #1110, and the one operators hit weekly. A finalizer
 # on an object turns DELETE into a request: the API server sets

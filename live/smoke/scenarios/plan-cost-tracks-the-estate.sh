@@ -1,5 +1,5 @@
 # plan-cost-tracks-the-estate
-# CLAIM 14 - A plan costs its estate, not its account: one estate of a many-estate terralith plans as if it were alone, however large the rest of the account grows. ~2 min.
+# CLAIM 14 (aws) - A plan costs its estate, not its account: one estate of a many-estate terralith plans as if it were alone, however large the rest of the account grows. ~2 min.
 
 WORK="$SMOKE_WORKROOT/plancost"
 mkdir -p "$WORK/net" "$WORK/data"

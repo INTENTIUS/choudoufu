@@ -1,5 +1,5 @@
 # the-recommended-secure-configuration
-# CLAIM 37 - The recommended secure configuration works end to end, including recovering a deleted record (REAL AWS, maintainer-run). ~10 min.
+# CLAIM 37 (aws) - The recommended secure configuration works end to end, including recovering a deleted record (REAL AWS, maintainer-run). ~10 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/secureconfig"
 mkdir -p "$SMOKE_WORK/est"; export SMOKE_WORK

@@ -1,5 +1,5 @@
 # a-waiver-names-what-it-waives
-# CLAIM 30 - A bucket waiver waives only the assertion it names, and says so on every run. ~2 min.
+# CLAIM 30 (aws) - A bucket waiver waives only the assertion it names, and says so on every run. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/waiver"
 BUCKET="smoke-waived-records"

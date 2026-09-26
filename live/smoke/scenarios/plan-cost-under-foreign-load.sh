@@ -1,5 +1,5 @@
 # plan-cost-under-foreign-load
-# CLAIM 20 - Scale: a plan costs its estate when the account around it is a terralith, and the one account-wide list is named rather than hidden. Needs Go. ~5 min.
+# CLAIM 20 (aws) - Scale: a plan costs its estate when the account around it is a terralith, and the one account-wide list is named rather than hidden. Needs Go. ~5 min.
 
 # Issue #1032 unit 4. This is claim 14 run against a generated terralith
 # instead of against eight hand-written log groups: the estate under test is
