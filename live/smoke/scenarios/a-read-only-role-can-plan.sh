@@ -1,5 +1,5 @@
 # a-read-only-role-can-plan
-# CLAIM 38 - A role with the read-only policy plans an established estate and writes nothing, and a store with no sentinel is still refused by name (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 38 (aws) - A role with the read-only policy plans an established estate and writes nothing, and a store with no sentinel is still refused by name (REAL AWS, maintainer-run). ~6 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/readonlyplan"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
