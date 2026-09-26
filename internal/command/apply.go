@@ -168,7 +168,7 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		// a plan, and there is no such thing as applying only the adoption
 		// question. arguments.Apply does not carry it and this passes false
 		// rather than plumbing one.
-		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false,
+		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false, nil,
 			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, "", "", "")))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
 		if approved != nil {
