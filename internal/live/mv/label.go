@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -84,21 +85,22 @@ const (
 const SummaryManifestMoveUnsupported = "Moving a manifest-declared object between estates"
 
 // surfaceOf reads the marker surface off the resource type's schema, never
-// off its name: the same predicates the stamp and the label carrier use,
-// asked in the order those packages ask them (a taggable type is never a
-// label surface, by [markers.LabelSurface]'s own construction).
+// off its name: [substrate.SurfaceOf], the question live-import's carrier
+// choice asks too (GitHub issue #1118). Every surface is named below, so the
+// completeness guard reports one this switch has not learned. A type that carries no marker surface at all reads as
+// SurfaceTags, the path it has always taken here, where the tag path finds
+// no tags map to read ("Resource type with no tags").
 func surfaceOf(block *configschema.Block) Surface {
-	switch {
-	case markers.Taggable(block):
+	surface, _ := substrate.SurfaceOf(block)
+	switch surface {
+	case markers.SurfaceTags:
 		return SurfaceTags
-	case markers.ManifestSurface(block):
+	case markers.SurfaceManifest:
 		return SurfaceManifest
-	default:
-		if _, ok := markers.LabelSurface(block); ok {
-			return SurfaceLabel
-		}
-		return SurfaceTags
+	case markers.SurfaceLabels:
+		return SurfaceLabel
 	}
+	return SurfaceTags
 }
 
 // locateLabelled is [mover.locateByIdentity]'s label-surface half: the

@@ -81,6 +81,8 @@ const (
 // map and no AWS type has a metadata block, and a caller checks
 // [TagSurface] first so that the AWS shape keeps every behaviour it has.
 // The returned attribute is the labels map's schema.
+//
+//markers:surface labels
 func LabelSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 	if block == nil {
 		return nil, false
@@ -114,6 +116,8 @@ func LabelSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 // LabelSurfacePath is the cty.Path of one label key on a label-surface
 // resource: metadata[0].labels["<key>"], the path an operator's own
 // `ignore_changes = [metadata[0].labels["<key>"]]` would name.
+//
+//markers:surface labels
 func LabelSurfacePath(key string) cty.Path {
 	return cty.Path{
 		cty.GetAttrStep{Name: LabelSurfaceBlock},
@@ -127,6 +131,8 @@ func LabelSurfacePath(key string) cty.Path {
 // label-surface type: metadata[0].labels, the sibling of [TagsOf] for the
 // Kubernetes shape. The second return distinguishes "this object has no
 // metadata.labels at all" from "the object carries no labels".
+//
+//markers:surface labels
 func LabelsOf(obj cty.Value) (map[string]string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
 		return nil, false
@@ -187,6 +193,8 @@ func NotALabelValue(estate string) string {
 // provider unmarked, so a mark here is a bug upstream of the write), and
 // a metadata block that is not exactly one element is not the shape
 // [LabelSurface] admitted.
+//
+//markers:surface labels
 func WithLabels(block *configschema.Block, obj cty.Value, labels map[string]string) (cty.Value, error) {
 	nested, ok := block.BlockTypes[LabelSurfaceBlock]
 	if !ok || nested == nil {

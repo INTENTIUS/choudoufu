@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -727,20 +728,37 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	selected := selection.Selects(addr.ConfigResource()) &&
 		identity.SelectedLocatedType(typeName, map[string]providers.Schema{typeName: schema})
 
-	// GitHub issue #1073: a Kubernetes type carries its marker as a label,
-	// not a tag, and was UNTAGGABLE here until the label surface became a
-	// carrier too. Checked after the tags map, which [markers.LabelSurface]
-	// itself refuses to double-count.
-	labelled := !selected && !taggable(schema.Block) && labelSurface(schema.Block)
-
-	// GitHub issue #1109: the manifest shape is the third carrier, and was
-	// not one here, so every kubernetes_manifest entry in a stock state
-	// file - every custom resource an estate declares - was ratified
-	// UNTAGGABLE and migrated without its label. Checked after the other
-	// two, which [markers.ManifestSurface] itself refuses to double-count.
-	manifested := !selected && !taggable(schema.Block) && !labelled && manifestSurface(schema.Block)
-	if !selected && !taggable(schema.Block) && !labelled && !manifested {
-		return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+	// The carrier is how the substrate writes a marker onto an object that
+	// already exists (GitHub issue #1118 moved the choice into
+	// internal/live/substrate):
+	//
+	//   - a tags-only plan on the AWS tag map;
+	//   - a labels-only plan on metadata[0].labels (GitHub issue #1073: a
+	//     Kubernetes type was UNTAGGABLE here until the label surface
+	//     became a carrier too);
+	//   - an API patch on manifest.metadata.labels (GitHub issue #1109: the
+	//     manifest shape was not a carrier, so every kubernetes_manifest
+	//     entry in a stock state file - every custom resource an estate
+	//     declares - was ratified UNTAGGABLE and migrated without its
+	//     label).
+	//
+	// A type with no marker surface at all is untaggable.
+	//
+	// Each carrier is named here, so a surface this switch has not learned
+	// is one the completeness guard (internal/live/markers/seams_test.go)
+	// reports rather than one a migration silently leaves unmarked.
+	var labelled, manifested bool
+	surface, _ := substrate.SurfaceOf(schema.Block)
+	switch surface {
+	case markers.SurfaceTags:
+	case markers.SurfaceLabels:
+		labelled = !selected
+	case markers.SurfaceManifest:
+		manifested = !selected
+	default:
+		if !selected {
+			return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+		}
 	}
 
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())

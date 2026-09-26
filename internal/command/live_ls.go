@@ -32,6 +32,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -829,10 +830,11 @@ func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) live
 	}
 	var s liveLsSubstrateSet
 	for _, addr := range statelessManagedResourceProviders(config) {
-		switch addr.Provider.Type {
-		case "aws":
+		sub, _ := substrate.ForProvider(addr.Provider.Type)
+		switch sub {
+		case substrate.AWS:
 			s.aws = true
-		case "kubernetes":
+		case substrate.Kubernetes:
 			s.kubernetes = true
 		}
 	}
@@ -855,7 +857,7 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
 	for _, addr := range statelessManagedResourceProviders(config) {
-		if addr.Provider.Type != "kubernetes" {
+		if sub, ok := substrate.ForProvider(addr.Provider.Type); !ok || sub.Sweep() != substrate.SweepLabelList {
 			continue
 		}
 		if _, err := provs.ConfiguredProvider(ctx, addr); err != nil {
