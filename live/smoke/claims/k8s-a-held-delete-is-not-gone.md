@@ -110,6 +110,6 @@ timer rather than this claim's subject, and paying it twice a run buys
 nothing. It is recorded on #1184.
 
 That the destroy proposal in steps 3 and 5 is the *marker's* doing is
-proved by [claim 22](k8s-no-silent-orphans.md),
+proved by [claim 1 on Kubernetes](no-silent-orphans.md#on-kubernetes),
 whose control strips the label from an orphan and requires the replan to
 leave it alone.

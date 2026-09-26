@@ -93,8 +93,9 @@ describes below, and it is correct - but it means the removal is true for
 one directory and silently absent everywhere else.
 
 [#1394](https://github.com/INTENTIUS/choudoufu/issues/1394) found that no
-Kubernetes claim had ever run against a shared store: claims 21 to 27 were
-all on the implied local one, and the bucket backend's claims are all AWS.
+Kubernetes proof had ever run against a shared store: those of claims 1,
+7, 13 and 24 to 27 were all on the implied local one, and the bucket
+backend's claims are all AWS.
 So the path a Kubernetes estate writes a record by had not been measured at
 all. The same two working directories now run it twice, once on each store
 two directories can actually share, and each prints what it reads rather

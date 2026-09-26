@@ -85,10 +85,12 @@ writing something the API server rejects.
 
 The label is written into `metadata.labels` as part of the create, so a
 created object carries it. A label stripped out of band takes the object
-out of the estate, exactly as a stripped `tofu-estate` tag does on AWS: the
-next plan refuses the object by name and proposes creating what the block
-declares, and writing the label back is an operator's own adoption
-(#1108). `marker_repair` governs the other repair, a `tofu-address` that
+out of the estate, exactly as a stripped `tofu-estate` tag does on AWS, and
+writing the label back is an operator's own adoption (#1108). Where AWS then
+plans the create the block declares, a Kubernetes plan stops with
+"Unlabelled live object holds the declared name": the API server would
+answer that create with 409 while the unlabelled object holds the name
+(#1546). `policy { declared_untagged = "adopt" }` adopts it instead. `marker_repair` governs the other repair, a `tofu-address` that
 is missing while `tofu-estate` is present, which cannot arise here because
 the Kubernetes marker is the estate label alone.
 A configuration that sets `tofu-estate` to another estate's name is the
@@ -187,7 +189,8 @@ A change of type between the two spellings of a kind
 needs no `moved` block (#1081, item 2): the suffix is the API version the
 block is written against, both spellings render the same natural key, the
 sweep files both under the one kind, and the label carries no address to
-rewrite, so the replan is empty. Claim 21's step 5 measures it.
+rewrite, so the replan is empty. Claim 7's Kubernetes scenario measures
+it, step 6.
 
 `helm_release` is refused, by the ordinary unadmitted-type refusal, with
 or without hashicorp/helm's schema (#1081, item 4): the provider serves no
@@ -326,7 +329,7 @@ a virtual resource named after each estate,
 `estates.choudoufu.intentius.io/<estate>`. That verb exists nowhere but in
 RBAC, which is the point: granting an estate is an ordinary ClusterRole,
 handover is a binding moving from one principal to another, and the policy
-is never edited for either. Claim 23
+is never edited for either. Claim 13 on Kubernetes
 (`live/smoke/scenarios/k8s-the-label-is-the-boundary.sh`) runs it on a
 kind cluster with two ServiceAccounts, and `BREAK=1` removes the policy to
 show the refusals were its doing. `live-mv -from-estate` is the governed
@@ -552,7 +555,7 @@ team that wants two boundaries makes two estates.
 
 **What is exempt.** Only the control plane, by name: nodes, the API
 server, the scheduler and the controller manager's own controllers, which
-keeps a ReplicaSet's Pods out of the fence (claim 23). If anything else in
+keeps a ReplicaSet's Pods out of the fence (claim 13 on Kubernetes). If anything else in
 kube-system is refused with "is not bound to it", grant it the estate
 with `estate-grant.yaml`; never add it to the installed policy's list.
 Owned objects keep their estate (#1449): an object
@@ -569,7 +572,8 @@ account root does on AWS.
 
 **The grant is the fence only.** A principal still needs ordinary RBAC for
 the kinds its estate declares (create, update, patch, delete) and `list`
-on every kind the estate sweep asks for. Claim 23 gives its two principals
+on every kind the estate sweep asks for. Claim 13's Kubernetes scenario
+gives its two principals
 reads on everything and writes on namespaces and ConfigMaps, beside the
 estate grant.
 

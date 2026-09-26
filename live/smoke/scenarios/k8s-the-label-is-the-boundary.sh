@@ -1,5 +1,5 @@
 # k8s-the-label-is-the-boundary
-# CLAIM 23 - The label is the boundary: the plan refuses a block that declares another estate's object before any cluster is consulted, and one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~5 min.
+# CLAIM 13 (kubernetes) - The label is the boundary: the plan refuses a block that declares another estate's object before any cluster is consulted, and one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~5 min.
 #
 # The Kubernetes sibling of claim 13 (#1066, under #1016's ruling). RBAC has
 # no attribute predicate, so the label is advisory until something fences on

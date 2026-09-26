@@ -1,5 +1,5 @@
 # a-killed-apply-hides-nothing
-# CLAIM 42 - A killed apply hides nothing it marked: after a SIGKILL mid-apply every marked object is named by the next plan and bound by the re-run with no duplicate, and the two windows in which something can still be hidden - the marker write that follows a tag_on_create=false create, and the record written after the walk - are measured here rather than assumed. ~4 min.
+# CLAIM 42 (aws) - A killed apply hides nothing it marked: after a SIGKILL mid-apply every marked object is named by the next plan and bound by the re-run with no duplicate, and the two windows in which something can still be hidden - the marker write that follows a tag_on_create=false create, and the record written after the walk - are measured here rather than assumed. ~4 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/killed"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -1,8 +1,9 @@
 # The Kubernetes smokes on a real API server in CI (issue #1080). Every
-# Kubernetes claim scenario (21 k8s-greenfield, 22 k8s-no-silent-orphans,
-# 23 k8s-the-label-is-the-boundary, 24 k8s-custom-resource, 25
-# k8s-a-held-delete-is-not-gone, 26 k8s-the-server-gets-the-last-word, 27
-# k8s-a-label-is-a-change, 39 k8s-records-in-the-cluster)
+# Kubernetes proof scenario (k8s-greenfield, k8s-no-silent-orphans and
+# k8s-the-label-is-the-boundary, the Kubernetes proofs of claims 7, 1 and
+# 13; 24 k8s-custom-resource, 25 k8s-a-held-delete-is-not-gone, 26
+# k8s-the-server-gets-the-last-word, 27 k8s-a-label-is-a-change, 39
+# k8s-records-in-the-cluster)
 # runs against a kind cluster that
 # live/smoke/lib.sh's cluster_up creates per run, each followed by its
 # BREAK=1 control, so a regression in the label carrier, the sweep, the

@@ -140,6 +140,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"statelessUnownedReport":              {notAPass, "renders"},
 	"statelessUntagTargets":               {notAPass, "reads discovery's result"},
 	"statelessReleasedReport":             {notAPass, "renders untag.Release's outcome"},
+	"statelessNoSweepAnswer":              {notAPass, "renders -filter's answer for a run that swept nothing (#1197); reads no resource"},
 }
 
 // TestEveryLiveOrchestratorCallIsClassifiedForTargeting is GitHub issue
