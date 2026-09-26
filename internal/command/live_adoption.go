@@ -8,6 +8,7 @@ package command
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -72,11 +73,11 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 // statelessPlanView picks the renderer for a stateless run: the ordinary one,
 // or GitHub issue #587's adoption-only one. Both satisfy
 // [views.StatelessPlan], so this is the only branch either mode needs.
-func statelessPlanView(view *views.View, adoptionOnly bool) views.StatelessPlan {
+func statelessPlanView(view *views.View, adoptionOnly bool, filter arguments.ReportFilter) views.StatelessPlan {
 	if adoptionOnly {
 		return views.NewStatelessAdoption(view)
 	}
-	return views.NewStatelessPlan(view)
+	return views.NewStatelessPlanFiltered(view, filter)
 }
 
 // statelessAdoptionReport builds the adoption ledger for one run.

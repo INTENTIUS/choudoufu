@@ -377,6 +377,15 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// this file's own rule for exactly this shape of conflict (see
 	// planRejectAdoptionOnly's doc comment, "ignoring it would be worse
 	// than refusing it") rather than letting one flag silently win.
+	// GitHub issue #1197. This form has no live block by definition (see
+	// the alias above), but it IS a live-markers run, so only the
+	// -adoption-only conflict can apply.
+	if moreDiags := planRejectReportFilter(args.Filter, args.AdoptionOnly, true); moreDiags.HasErrors() {
+		diags = diags.Append(moreDiags)
+		view.Diagnostics(diags)
+		return 1
+	}
+
 	if jsonRequested && args.AdoptionOnly {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -406,7 +415,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	case jsonRequested:
 		statelessView = views.NewStatelessPlanJSON(c.View)
 	default:
-		statelessView = statelessPlanView(c.View, args.AdoptionOnly)
+		statelessView = statelessPlanView(c.View, args.AdoptionOnly, args.Filter)
 		if args.AdoptionOnly {
 			view = views.NewAdoptionOnlyPlan(view, c.View)
 		}
@@ -933,6 +942,8 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		}
 		statelessView.Foreign(statelessForeignReport(classified, disco))
 		statelessView.GuidedFallback(disco.GuidedFallback)
+	} else {
+		statelessNoSweepAnswer(statelessView, args.Filter)
 	}
 
 	// GitHub issue #587's adoption ledger, built from the three values just
@@ -1086,7 +1097,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	if jsonRequested {
 		foreignReport := statelessForeignReport(classified, disco)
 		adoptable, swept := livePlanAdoptable(foreignReport)
-		statelessView.Document(views.LivePlanDocument{
+		statelessView.Document(livePlanFilterDocument(views.LivePlanDocument{
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
 			UpstreamVersion:  tfversion.String(),
@@ -1097,7 +1108,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Adoptable:        adoptable,
 			Swept:            swept,
 			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
-		})
+		}, args.Filter))
 	} else {
 		view.Operation().Plan(plan, schemas)
 	}
@@ -4121,6 +4132,20 @@ Options:
                           than an ordinary plan rather than less. Set
                           TOFU_LIVE_COLLECT_UNCLAIMED=1 to ask it on an
                           ordinary plan, or 0 to skip it here.
+
+  -filter=category        Print only the named report sections: unowned,
+                          adoptable or foreign, the same words as the -json
+                          document's keys. Repeat the flag to show several;
+                          the categories union. Read-only: the plan, the
+                          resource diff and the exit code are the same with
+                          or without it, and the omissions, removals and
+                          other sections still print. A category that
+                          matches nothing says so ("No unowned resources.")
+                          rather than printing nothing. Under -json the
+                          document gains a "filter" key naming the kept
+                          categories, and each one left out is null. Any
+                          other word is a usage error. Cannot be combined
+                          with -adoption-only.
 
   -estate=name            The estate whose ownership markers this run looks
                           for, matching the tofu-estate tag grammar in

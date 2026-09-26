@@ -132,6 +132,7 @@ func statelessBegin(
 	settings *configs.Live,
 	view *views.View,
 	adoptionOnly bool,
+	filter arguments.ReportFilter,
 	rejections tfdiags.Diagnostics,
 ) tfdiags.Diagnostics {
 	diags := rejections
@@ -232,7 +233,8 @@ func statelessBegin(
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
-		view:         statelessPlanView(view, adoptionOnly),
+		view:         statelessPlanView(view, adoptionOnly, filter),
+		filter:       filter,
 		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
 		// -exclude addresses; PriorState is where they turn into a scope,
@@ -746,6 +748,12 @@ type statelessRunner struct {
 	// account-inventory question at all. See [collectUnclaimedSetting],
 	// which this is the default argument to.
 	adoptionOnly bool
+
+	// filter is GitHub issue #1197's -filter, kept as well as folded into
+	// view above for one reason: a run that swept nothing never calls
+	// view.Foreign, and a filter that asked for adoptable or foreign must
+	// still get an answer rather than silence. See [statelessNoSweepAnswer].
+	filter arguments.ReportFilter
 
 	// envelopeVouch is issue #692 increment 2's capture of the operation
 	// SHAPE, alongside cacheServesReads' capture of its refresh setting:
@@ -1417,6 +1425,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		}
 		r.view.Foreign(statelessForeignReport(classified, disco))
 		r.view.GuidedFallback(disco.GuidedFallback)
+	} else {
+		statelessNoSweepAnswer(r.view, r.filter)
 	}
 
 	// GitHub issue #587's adoption ledger, built from the three values just

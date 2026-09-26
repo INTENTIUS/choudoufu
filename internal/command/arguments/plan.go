@@ -66,6 +66,14 @@ type Plan struct {
 	// -adoption-only" against a state file say so, instead of "flag provided
 	// but not defined".
 	AdoptionOnly bool
+
+	// Filter narrows the live-markers report to the named categories
+	// (GitHub issue #1197): see [ReportFilter]. It sits on Plan for
+	// -adoption-only's reason - under a live block plain "choudoufu plan" is
+	// the live-markers pipeline, and only [ParsePlan] parses that command's
+	// flags - and a stock, state-backed plan refuses it the same way
+	// (planRejectReportFilter in the command package).
+	Filter ReportFilter
 }
 
 // ParsePlan processes CLI arguments, returning a Plan value, a closer function, and errors.
@@ -99,6 +107,7 @@ func parsePlan(args []string, extraFlags func(*flag.FlagSet)) (*Plan, func(), tf
 	cmdFlags.BoolVar(&plan.ShowSensitive, "show-sensitive", false, "displays sensitive values")
 	cmdFlags.BoolVar(&plan.Verbose, "verbose", false, "verbose")
 	cmdFlags.BoolVar(&plan.AdoptionOnly, "adoption-only", false, "adoption-only")
+	cmdFlags.Var(reportFilterFlag{dst: &plan.Filter}, "filter", "filter")
 
 	plan.ViewOptions.AddFlags(cmdFlags, true)
 

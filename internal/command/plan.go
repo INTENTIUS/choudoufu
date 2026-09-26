@@ -155,6 +155,13 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	// operation request and the hooks all get the wrapper. See
 	// [views.AdoptionOnlyPlan] for what it drops and what it deliberately
 	// does not.
+	// GitHub issue #1197's -filter, refused where it would do nothing. See
+	// planRejectReportFilter.
+	if moreDiags := planRejectReportFilter(args.Filter, args.AdoptionOnly, statelessCfg != nil); moreDiags.HasErrors() {
+		diags = diags.Append(moreDiags)
+		view.Diagnostics(diags)
+		return 1
+	}
 	if args.AdoptionOnly {
 		view = views.NewAdoptionOnlyPlan(view, c.View)
 	}
@@ -176,7 +183,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	}
 
 	if statelessCfg != nil {
-		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly,
+		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly, args.Filter,
 			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
@@ -402,6 +409,17 @@ Other Options:
                                ask it on an ordinary plan, or 0 to skip it
                                here. Refused on a state-backed plan, which has
                                no adoption question.
+
+  -filter=category             Under live resource markers only, print only
+                               the named report sections: unowned, adoptable
+                               or foreign. Repeat the flag to show several;
+                               the categories union. Read-only: the plan, the
+                               resource diff and the exit code are the same
+                               with or without it, and every other section
+                               still prints. A category that matches nothing
+                               says so rather than printing nothing. Any other
+                               word is a usage error. Refused on a state-backed
+                               plan and with -adoption-only.
 
   -out=path                    Write a plan file to the given path. This can be
                                used as input to the "apply" command.
