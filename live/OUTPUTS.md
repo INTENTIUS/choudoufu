@@ -178,13 +178,17 @@ the resource out of band, so those values stay on data sources. A value that
 comes from the producer's configuration can change only when the producer
 applies, so its record is as current as the value can be.
 
-If the read is built, #1371 carries the checklist. The dependency is
-declared in configuration, so that the IAM grant and the declaration name
-the same estate. A missing grant refuses and names the other estate. That
-rules out reusing `ReadRootOutputValues`, which logs and skips every read
-error. What crosses is what is written: root outputs that are non-sensitive
-and wholly known. The consumer's plan says the value is as of the producer's
-last apply.
+The read is built (#1371, ruled 2026-09-26) as the builtin terraform
+provider's `data "terraform_estate_outputs"`, with `estate` and `names`
+arguments and a `values` object. The block is the declaration: it names the
+producer, as `render-policy.sh --reads-outputs-of` does on the IAM side. Its
+reader is `internal/live/projection`'s `ReadEstateOutputs`, not
+`ReadRootOutputValues`, which logs and skips every read error: a missing
+grant refuses and names the other estate, and a name the producer never
+recorded refuses and names both. What crosses is what is written: root
+outputs that are non-sensitive and wholly known. The consumer's plan warns
+that the value is as of the producer's last apply, with the time the record
+was written. `site/content/docs/use/cross-estate.md` is the operator's page.
 
 An output read is never for a value a data source can read.
 
