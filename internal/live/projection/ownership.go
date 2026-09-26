@@ -752,8 +752,8 @@ const (
 // [markers.Taggable] and [markers.LabelSurface] are read that way.
 //
 // The tags arm is deliberately the looser "is there a tags or tags_all
-// attribute at all" this function has always asked, rather than
-// [markers.TagSurface]: narrowing it would change which AWS types the
+// attribute at all" this function has always asked
+// ([markers.HasTagsAttribute]), rather than [markers.TagSurface]: narrowing it would change which AWS types the
 // ownership rule covers, which is not this issue's question. The two
 // Kubernetes arms are disjoint from it and from each other by construction
 // - [markers.LabelSurface] refuses a taggable type and
@@ -763,10 +763,8 @@ func markerSurfaceOf(block *configschema.Block) markerSurface {
 	if block == nil {
 		return surfaceNone
 	}
-	for _, name := range []string{"tags", "tags_all"} {
-		if _, ok := block.Attributes[name]; ok {
-			return surfaceTags
-		}
+	if markers.HasTagsAttribute(block) {
+		return surfaceTags
 	}
 	if _, ok := markers.LabelSurface(block); ok {
 		return surfaceLabels
