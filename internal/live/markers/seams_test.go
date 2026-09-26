@@ -115,7 +115,7 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 // type as having "no tags map", and the record-fallback route asks only
 // Taggable of types that include kubernetes_config_map - which is exactly
 // what this guard exists to surface. Each moves to surfaceSeamExemptions
-// with a reason, or is fixed, under the follow-up issue #1118 names; the
+// with a reason, or is fixed, under GitHub issue #1565; the
 // list is checked exactly like an exemption, so it can only shrink by a
 // deliberate edit, and it never grows: a new partial seam fails.
 var surfaceSeamUntriaged = map[string][]Surface{
