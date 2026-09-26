@@ -329,6 +329,37 @@ func TestModule_liveConflicts(t *testing.T) {
 // the estate.chdf.hcl sidecar file instead. The sidecar's body is the live
 // block's content, decoded by the same decoder, so nested blocks come
 // through identically.
+// TestModule_liveBackendRefusalNamesWhatIsKept pins the ruling on issue
+// #1170 (maintainer, 2026-09-26): the backend and cloud refusals must say
+// what a live-mode module actually keeps - a local cache and its records in
+// record_store - rather than leave the reader to infer it. The older,
+// over-rotated wording #685 unwound is guarded separately and repo-wide by
+// live/no_state_absence_claims_test.go; this test is deliberately not a
+// second copy of that check, since quoting that wording here - even to
+// assert its absence - would itself trip the repo-wide scan.
+func TestModule_liveBackendRefusalNamesWhatIsKept(t *testing.T) {
+	for _, tc := range []struct {
+		dir string
+	}{
+		{"testdata/invalid-modules/live-and-backend"},
+		{"testdata/invalid-modules/live-and-cloud"},
+	} {
+		t.Run(tc.dir, func(t *testing.T) {
+			_, diags := testModuleFromDir(tc.dir)
+			if !diags.HasErrors() {
+				t.Fatal("no diagnostics")
+			}
+			got := diags.Error()
+			if !strings.Contains(got, "record_store") {
+				t.Errorf("does not say records live in record_store:\n%s", got)
+			}
+			if !strings.Contains(strings.ToLower(got), "locally") {
+				t.Errorf("does not say the cache is kept locally:\n%s", got)
+			}
+		})
+	}
+}
+
 func TestModule_liveSidecar(t *testing.T) {
 	mod, diags := testModuleFromDir("testdata/valid-modules/live-sidecar")
 	if diags.HasErrors() {
