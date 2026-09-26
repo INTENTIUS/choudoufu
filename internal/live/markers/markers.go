@@ -761,6 +761,8 @@ func decodeInstanceKey(escaped string) (addrs.InstanceKey, bool) {
 // The second return distinguishes "this object has no tags attribute at
 // all" - an untaggable type, or a list result that came back without its
 // object - from "the object is tagged with nothing".
+//
+//markers:surface tags
 func TagsOf(obj cty.Value) (map[string]string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() {
 		return nil, false
@@ -831,9 +833,33 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 // fifteen-line predicate is a second answer waiting to happen. This package
 // is the one both can import: it is the marker vocabulary, and "which types
 // can carry a marker" is part of it.
+//
+//markers:surface tags
 func Taggable(block *configschema.Block) bool {
 	_, ok := TagSurface(block)
 	return ok
+}
+
+// HasTagsAttribute reports whether a resource type's schema has a "tags" or
+// a "tags_all" attribute at all, settable or not: the looser question the
+// projection's ownership read has always asked before reading [TagsOf],
+// kept separate from [TagSurface] because narrowing it would change which
+// AWS types the ownership rule covers. It moved here from
+// internal/live/projection for GitHub issue #1118, so that the ownership
+// read's tag arm is a member of the tag surface the completeness guard can
+// see rather than a string lookup it cannot.
+//
+//markers:surface tags
+func HasTagsAttribute(block *configschema.Block) bool {
+	if block == nil {
+		return false
+	}
+	for _, name := range []string{"tags", "tags_all"} {
+		if _, ok := block.Attributes[name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // TagSurface is [Taggable] with its reasoning, for a caller that has to
@@ -841,6 +867,8 @@ func Taggable(block *configschema.Block) bool {
 // attribute schema when the type can carry a marker.
 //
 // [NotAMarkerSurface] turns the failing case into a sentence.
+//
+//markers:surface tags
 func TagSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 	if block == nil {
 		return nil, false
@@ -881,6 +909,8 @@ func TagSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 //
 // The returned string is a clause, not a sentence: a caller fits it after
 // naming the resource.
+//
+//markers:surface tags
 func NotAMarkerSurface(block *configschema.Block, resourceType string) string {
 	if reason, refused := RefusedTagSurface(block); refused {
 		return fmt.Sprintf(
@@ -905,6 +935,8 @@ func NotAMarkerSurface(block *configschema.Block, resourceType string) string {
 //
 // The reason is a clause with no terminating punctuation, so a caller can
 // set it in a sentence of its own.
+//
+//markers:surface tags
 func RefusedTagSurface(block *configschema.Block) (string, bool) {
 	if block == nil {
 		return "", false

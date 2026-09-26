@@ -85,6 +85,8 @@ var ManifestComputedMetadataAttrs = []string{LabelSurfaceAttr, AnnotationSurface
 // A type that is [Taggable] or a [LabelSurface] is never also a manifest
 // surface, by construction: those two require a tags map or a metadata
 // block, and this one refuses both.
+//
+//markers:surface manifest
 func ManifestSurface(block *configschema.Block) bool {
 	if block == nil {
 		return false
@@ -109,6 +111,8 @@ func ManifestSurface(block *configschema.Block) bool {
 // ManifestLabelPath is the cty.Path of one label key on a manifest-surface
 // resource: manifest.metadata.labels["<key>"], the path an operator's own
 // `ignore_changes = [manifest.metadata.labels["<key>"]]` would name.
+//
+//markers:surface manifest
 func ManifestLabelPath(key string) cty.Path {
 	return cty.Path{
 		cty.GetAttrStep{Name: ManifestSurfaceAttr},
@@ -125,6 +129,8 @@ func ManifestLabelPath(key string) cty.Path {
 // are read. The second return distinguishes "no manifest, or no
 // metadata.labels inside it, this function can read" from "the object
 // carries no labels".
+//
+//markers:surface manifest
 func ManifestLabelsOf(obj cty.Value) (map[string]string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
 		return nil, false
@@ -167,6 +173,8 @@ func (k ManifestKey) Complete() bool {
 // The second return is false when neither attribute yields all three
 // required components, which is the only condition a caller can act on:
 // an object this pass cannot name cannot be found on the cluster either.
+//
+//markers:surface manifest
 func ManifestKeyOf(obj cty.Value) (ManifestKey, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
 		return ManifestKey{}, false
