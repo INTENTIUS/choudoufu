@@ -158,9 +158,10 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 	// A create that loses its marker has still added a real object, and
 	// the run's "1 added" is true about the object even though it is
 	// silent about the marker. The next plan is loud on its own: it finds
-	// an unmarked object at the declared name, says so, and the apply
-	// after that fails on the name. A warning is enough to name what the
-	// wedge will be about.
+	// an unmarked object at the declared name and says so - for a built-in
+	// Kubernetes type as an error that stops the plan (#1546), since the
+	// create it would otherwise propose is one the API server refuses. A
+	// warning is enough to name what that next plan will be about.
 	//
 	// An update that loses the estate marker has changed nothing that
 	// lasted and will be re-proposed identically on every future run. That
@@ -177,7 +178,7 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 		did = "updated"
 	}
 	severity := tfdiags.Warning
-	consequence := fmt.Sprintf("The object exists and is otherwise as the configuration describes; what it does not carry is the marker that would make it this estate's. The next plan will read it as a resource outside estate %q at this block's name, and the apply after that will fail on the name it already holds.", n.Estate)
+	consequence := fmt.Sprintf("The object exists and is otherwise as the configuration describes; what it does not carry is the marker that would make it this estate's. The next plan will find it at this block's name carrying no marker for estate %q and will not treat it as this estate's until it is adopted.", n.Estate)
 	if action == plans.Update && estateLost {
 		severity = tfdiags.Error
 		consequence = fmt.Sprintf("Nothing this run wrote to that object lasted: it carries no marker naming estate %q, so this estate does not own it, and every run from here will propose and apply this same write and report it as a change that happened. This run does not report one.", n.Estate)

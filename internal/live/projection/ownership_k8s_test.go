@@ -223,7 +223,9 @@ func TestK8sOwnership_thisEstatesObjectIsAdmitted(t *testing.T) {
 // estate label is the declared_untagged quadrant, refused by default with
 // the sentence that says how to adopt it - and, per #1016, that sentence
 // names one label and no address, because the Kubernetes marker is the
-// estate alone.
+// estate alone. Since #1546 that refusal is an Error rather than a warning
+// (TestK8sConflict_* pin the severity); the wording pinned here is the
+// part the two share.
 func TestK8sOwnership_unlabelledObjectIsDeclaredUntagged(t *testing.T) {
 	b := k8sOwnershipBuilder(&Ownership{Estate: k8sOwnershipEstate})
 
@@ -239,7 +241,7 @@ func TestK8sOwnership_unlabelledObjectIsDeclaredUntagged(t *testing.T) {
 	detail := b.unownedList[0].Detail
 	for _, want := range []string{
 		"carries no " + markers.TagEstate + " label",
-		"Adopt it by writing the label " + markers.TagEstate + "=\"" + k8sOwnershipEstate + "\"",
+		"write the label " + markers.TagEstate + "=\"" + k8sOwnershipEstate + "\"",
 		`policy { declared_untagged = "adopt" }`,
 	} {
 		if !strings.Contains(detail, want) {

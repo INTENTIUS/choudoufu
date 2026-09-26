@@ -210,6 +210,19 @@ const (
 // the live object's own tofu-address before trusting it - see
 // [ownershipStale].
 func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst bool) ownershipVerdict {
+	return b.checkOwnershipAt(addr, typeName, importID, schema, obj, declared, located, recordFirst, !recordFirst)
+}
+
+// checkOwnershipAt is [builder.checkOwnership] with the one fact GitHub issue
+// #1546's refusal needs and the caller alone has: atDeclaredKey, true when
+// importID is the identity this instance's own configuration computes rather
+// than one a record supplied. Every path but the record-first read binds a
+// Kubernetes object by the namespace and name its block declares, so
+// [builder.checkOwnership] passes !recordFirst; [builder.materialize] passes
+// the record-first read's own comparison (see [wanted.declaredKey]). A
+// record naming some other key is evidence about an object at THAT key, and
+// a create at the declared one would not collide with it.
+func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst, atDeclaredKey bool) ownershipVerdict {
 	own := b.opts.Ownership
 	surface := markerSurfaceOf(schema.Block)
 	switch {
@@ -425,6 +438,31 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		return ownershipOK
 	}
 
+	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && surface.createCollidesOnKey() {
+		// GitHub issue #1546, ruled 2026-09-26: refuse, narrowly. Both of
+		// the ruling's halves hold by the time control is here.
+		//
+		// The object was positively read on the cluster this run. Reaching
+		// this line means [builder.materialize] got a materialized status
+		// (an absence returns before ownership is asked, and so does a
+		// failed read), and a state-cache answer never gets this far: the
+		// cache serves only an instance the sweep verified or the record
+		// envelope vouched, and both of those return ownershipOK above.
+		// The labels map was read off that object and holds no
+		// tofu-estate at all - not another estate's, which returned above.
+		//
+		// And the create this configuration declares would be refused by
+		// the API server: see [markerSurface.createCollidesOnKey] for which
+		// shapes that is true of, and atDeclaredKey for why the key read is
+		// the key the create would send.
+		//
+		// Only under the default verb. "adopt" and "converge" admitted the
+		// object above; "keep" and "report" are an operator's explicit
+		// choice of a softer refusal and keep their meaning.
+		b.conflictsOnKey(addr, typeName, importID)
+		return ownershipUnowned
+	}
+
 	var detail string
 	switch {
 	case own.Estate == "":
@@ -473,6 +511,30 @@ const (
 	SummaryOutsideEstate = "Live resource outside this estate"
 	SummaryWrongAddress  = "Live resource marked for another address"
 )
+
+// SummaryNameHeld is the Error GitHub issue #1546's refusal carries.
+const SummaryNameHeld = "Unlabelled live object holds the declared name"
+
+// conflictsOnKey records #1546's refusal: the same Unowned entry and
+// omission [builder.unowned] records, under an Error of its own instead of
+// the [SummaryOutsideEstate] warning. An Error, because the plan the warning
+// used to sit beside proposed a create the API server answers with 409
+// AlreadyExists, and a plan that is wrong before the server sees it is one a
+// human should be stopped at rather than asked to approve.
+func (b *builder) conflictsOnKey(addr addrs.AbsResourceInstance, typeName, importID string) {
+	own := b.opts.Ownership
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q and carries no %s label, so this estate does not own it. The API server keys this object by its kind, namespace and name, so the create this configuration declares would be refused with 409 AlreadyExists while that object holds the name; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the label %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using.",
+		typeName, importID, markers.TagEstate, markers.TagEstate, own.Estate)
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:     addr,
+		TypeName: typeName,
+		ImportID: importID,
+		Detail:   detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNameHeld, detail))
+	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
 
 // anotherEstateDetail is the refusal an object carrying a DIFFERENT
 // estate's tofu-estate gets (GitHub issue #1166).
@@ -819,6 +881,39 @@ func (s markerSurface) markersOf(obj cty.Value) (map[string]string, bool) {
 // of a label that is not supposed to exist and reading its absence as a
 // finding.
 func (s markerSurface) carriesAddress() bool { return s == surfaceTags }
+
+// createCollidesOnKey reports whether, for a declared resource of this
+// surface, an object read at its identity means the resource's own create
+// would be refused by the server as a duplicate - the first half of GitHub
+// issue #1546's ruling, "its identity is a server-enforced unique key".
+//
+// True for the label surface only, and each exclusion is deliberate:
+//
+//   - surfaceLabels is every built-in Kubernetes type whose schema carries
+//     metadata[0].labels: ConfigMap, Secret, Deployment, Service,
+//     Namespace, ServiceAccount, the RBAC kinds and the rest. The API
+//     server stores each object under (group, resource, namespace, name) -
+//     or (group, resource, name) for a cluster-scoped kind - and answers a
+//     create at a key already held with 409 AlreadyExists. The provider's
+//     import id for these types is that namespace/name (or name), and it
+//     comes from the block's own metadata.name and metadata.namespace:
+//     metadata.generate_name, the one way a Kubernetes create does not
+//     name its key, is refused by internal/live/lint before a plan runs
+//     (#1064). The types that patch an object someone else created
+//     (kubernetes_labels, kubernetes_annotations,
+//     kubernetes_config_map_v1_data, kubernetes_env, kubernetes_node_taint)
+//     have no metadata.labels in their schema, so they are surfaceNone and
+//     never reach this question.
+//   - surfaceManifest has the same key, and already has the server's own
+//     answer at plan time: the dry run (#1081,
+//     discovery.DryRunKubernetesManifests) submits the planned create with
+//     dryRun=All and turns the 409 into an Error quoting the server. A
+//     second refusal ahead of it would stop the plan before the dry run
+//     runs and replace the server's words with this tool's.
+//   - surfaceTags is AWS, out of scope by the ruling: there a create of an
+//     existing object often succeeds, renames or is idempotent rather than
+//     conflicting, and that is per type and unmeasured.
+func (s markerSurface) createCollidesOnKey() bool { return s == surfaceLabels }
 
 // carrierPhrase names where the marker map lives, for the one refusal that
 // has to tell an operator the provider returned no such map. The tags
