@@ -190,6 +190,14 @@ outputs that are non-sensitive and wholly known. The consumer's plan warns
 that the value is as of the producer's last apply, with the time the record
 was written. `site/content/docs/use/cross-estate.md` is the operator's page.
 
+A record goes when nothing stands behind it. A destroy of the whole estate
+(no `-target`, no `-exclude`) deletes every record under
+`tofu-outputs/<estate>/`, and an apply after an `output` block is removed
+deletes that output's record, so a consumer naming either is refused with
+"Another estate has not recorded this output" rather than served the last
+value. A scoped apply deletes nothing it did not evaluate. This is
+`PruneRootOutputValues`, called from the apply's write-back.
+
 An output read is never for a value a data source can read.
 
 ## Demonstrated

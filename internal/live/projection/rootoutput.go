@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/zclconf/go-cty/cty"
@@ -100,10 +101,11 @@ const rootOutputNamespaceRoot = "tofu-outputs"
 // internal/command's store construction and this package's own
 // namespace-safety tests both have to name one definition.
 //
-// It ends in "/" for [RecordKeyPrefix]'s reason (GitHub issue #1335). Nothing
-// lists this namespace today; the delimiter is there so that the day
-// something does, or an IAM policy scopes s3:prefix to it, "prod" does not
-// also mean "prod-eu".
+// It ends in "/" for [RecordKeyPrefix]'s reason (GitHub issue #1335). One
+// thing lists this namespace, [PruneRootOutputValues], and only to delete:
+// the delimiter is what stops its listing of "prod" from also returning
+// "prod-eu"'s keys, and what an IAM policy's s3:prefix condition on it
+// rests on.
 func RootOutputKeyPrefix(estate string) string {
 	return rootOutputNamespaceRoot + "/" + estate + "/"
 }
@@ -119,9 +121,10 @@ func RootOutputKeyPrefix(estate string) string {
 // its four siblings means nobody has to re-check that.
 //
 // There is deliberately no reverse of this function, for [ProvisionedKey]'s
-// reason: a reverse exists so a LISTING can recover a name, and building one
-// would be building the first half of an enumeration this namespace is
-// defined by not having.
+// reason: nothing reads a value by a name recovered from a listing. The one
+// listing of this namespace, [PruneRootOutputValues], compares keys against
+// the keys of the names the configuration declares and deletes the rest; it
+// never needs to know what a key it deletes was for.
 func RootOutputKey(estate, name string) string {
 	return RootOutputKeyPrefix(estate) + recordKeyEncoding.EncodeToString([]byte(name))
 }
@@ -182,9 +185,12 @@ var rootOutputNow = time.Now
 // CONFIGURATION declares. "What else is in here" is not a question this type
 // can be asked.
 //
-// That is also what makes a removed `output` block cost nothing: its key sits
-// inert, unread because the configuration no longer names it, and no sweep
-// exists that could mistake it for something with a live object behind it.
+// A removed `output` block's key is never read by this estate, because the
+// configuration no longer names it. It is still deleted, by
+// [PruneRootOutputValues] at the next apply, because ANOTHER estate may name
+// it (GitHub issue #1371). That deletion is the one listing of this
+// namespace, it lives outside this type, and it never proposes destroying
+// anything: a root output has no live object.
 type RootOutputStore struct {
 	store  staterecord.Store
 	estate string
@@ -321,8 +327,9 @@ func (s *RootOutputStore) Put(ctx context.Context, name string, val cty.Value, e
 // ReadRootOutputValues reads back what this estate remembers for every root
 // output the CONFIGURATION declares, for [ApplyRootOutputValues] to fall back
 // on. The configuration is what bounds the read: this namespace has no
-// listing, so a name nothing declares is never asked for and a key left
-// behind by a deleted `output` block is never seen.
+// listing, so a name nothing declares is never asked for. A key left by a
+// deleted `output` block is deleted at the next apply
+// ([PruneRootOutputValues]); until then it is never seen here.
 //
 // Cost: one point lookup per DECLARED root output, per plan or apply, and
 // none at all for a configuration that declares none - which is every estate
@@ -402,22 +409,15 @@ func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *c
 // output values always are, so this is a guard on the type rather than a case
 // with a name.
 //
-// # The one corner this leaves, stated rather than left to be rediscovered
+// # What this does not delete
 //
-// Nothing here DELETES. After a destroy the final state carries no output
-// values, so every key this estate wrote stays where it is, and the plan that
-// follows a destroy diffs a recomputed "after" against a remembered "before"
-// where stock - whose state file the destroy emptied - would show the output
-// as new. The result is one output line reading "~ old -> (known after
-// apply)" instead of "+ name = (known after apply)", on a plan that is
-// already proposing to rebuild the whole estate.
-//
-// Deleting instead was considered and not taken, because the two cases are
-// not distinguishable from here: a final state missing an output because a
-// destroy removed it looks exactly like one missing it because this apply was
-// scoped and never evaluated it, and deleting on the second would throw away
-// a value that is still correct. A cosmetic line on a plan that is rebuilding
-// everything is the cheaper of the two errors.
+// Apart from a now-sensitive output's record, nothing here DELETES. A final
+// state missing an output because a destroy removed it looks exactly like
+// one missing it because this apply was scoped and never evaluated it, and
+// deleting on the second would throw away a value that is still correct.
+// The deletes that are safe are made by [PruneRootOutputValues], from facts
+// this function does not have: the plan's mode and scope, and the
+// configuration's list of outputs.
 func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *states.State) {
 	if store == nil || state == nil {
 		return
@@ -509,6 +509,78 @@ func (s *RootOutputStore) rawVersion(ctx context.Context, name string) string {
 	return version
 }
 
+// PruneRootOutputValues deletes the recorded root outputs another estate
+// must no longer read. GitHub issue #1371: a consumer reads these records
+// through data "terraform_estate_outputs", so a record with nothing behind
+// it any more is a value served from an estate that no longer says it.
+//
+// Two cases, each decided from a fact the final state does not carry:
+//
+//   - wholeDestroy (a destroy plan with no -target and no -exclude): every
+//     record this estate holds is deleted. The estate is gone.
+//   - otherwise, a record whose output the configuration no longer declares
+//     is deleted. A removed `output` block is removed whatever the apply's
+//     scope, so this holds under -target too. A declared output missing
+//     from the final state is left alone: that is what a scoped apply looks
+//     like, and its record is still correct.
+//
+// A nil configuration outside a whole destroy deletes nothing, since with no
+// list of declared outputs no record can be shown to be stale.
+//
+// The keys to delete are found by listing this estate's prefix, the one
+// listing this namespace has. The listing only ever feeds a delete: it
+// recovers no name and reads no value. A key the listing returns that is not
+// the shape [RootOutputKey] builds (a nested path, a name that is not the
+// encoding's alphabet) is left alone, since it is not a record this code
+// wrote. The IAM policy render-policy.sh writes grants s3:ListBucket and
+// s3:DeleteObject on the estate's own tofu-outputs/ prefix, so no new grant
+// is needed.
+//
+// Best-effort like every write in this file: a list or a delete that fails
+// is logged, and the next apply tries again.
+func PruneRootOutputValues(ctx context.Context, store *RootOutputStore, config *configs.Config, wholeDestroy bool) {
+	if store == nil {
+		return
+	}
+	keep := map[string]bool{}
+	if !wholeDestroy {
+		if config == nil || config.Module == nil {
+			return
+		}
+		for name := range config.Module.Outputs {
+			keep[RootOutputKey(store.estate, name)] = true
+		}
+	}
+	prefix := RootOutputKeyPrefix(store.estate)
+	keys, err := store.store.List(ctx, prefix)
+	if err != nil {
+		log.Printf("[WARN] live: the recorded root outputs of estate %q could not be listed, so none that should be deleted were: %s", store.estate, err)
+		return
+	}
+	for _, key := range keys {
+		if keep[key] {
+			continue
+		}
+		rest, ok := strings.CutPrefix(key, prefix)
+		if !ok || rest == "" || strings.Contains(rest, "/") {
+			continue
+		}
+		if _, err := recordKeyEncoding.DecodeString(rest); err != nil {
+			continue
+		}
+		_, version, exists, err := store.store.Get(ctx, key)
+		if err != nil || !exists {
+			if err != nil {
+				log.Printf("[WARN] live: the recorded root output at %q could not be read before deleting it, so another estate may still read it: %s", key, err)
+			}
+			continue
+		}
+		if err := store.store.Delete(ctx, key, version); err != nil {
+			log.Printf("[WARN] live: the recorded root output at %q could not be deleted, so another estate may still read it: %s", key, err)
+		}
+	}
+}
+
 // writeBackRootOutputs is [WriteBack]'s root-output half: the apply that just
 // finished settled these values, so the next stateless plan should diff
 // against them rather than call every one of them new.
@@ -519,4 +591,5 @@ func (s *RootOutputStore) rawVersion(ctx context.Context, name string) string {
 // final state says what the value is, and that is the whole of it.
 func writeBackRootOutputs(ctx context.Context, req WriteBackRequest) {
 	WriteRootOutputValues(ctx, req.RootOutputStore, req.FinalState)
+	PruneRootOutputValues(ctx, req.RootOutputStore, req.Config, req.WholeDestroy)
 }

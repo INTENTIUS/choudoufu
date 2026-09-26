@@ -190,6 +190,17 @@ type WriteBackRequest struct {
 	// outcome here: the winner wrote a value from a state at least as new
 	// as this one.
 	RootOutputStore *RootOutputStore
+
+	// WholeDestroy is true when this apply ran a destroy plan with no
+	// -target and no -exclude. GitHub issue #1371: the estate is gone, so
+	// every root output it recorded is deleted, and another estate reading
+	// one through data "terraform_estate_outputs" is told it is not
+	// recorded instead of reading a destroyed estate's last values.
+	//
+	// It comes from the plan because the final state cannot say it: a
+	// destroy's final state carries no outputs, and neither does a scoped
+	// apply that never evaluated them. See [PruneRootOutputValues].
+	WholeDestroy bool
 }
 
 // WriteBack persists every managed instance's post-apply record to
