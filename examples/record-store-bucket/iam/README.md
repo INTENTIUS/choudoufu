@@ -397,20 +397,28 @@ namespace is refused when the configuration loads, not here. See
 
 ## Reading another estate's outputs
 
-No choudoufu run reads another estate's objects. An estate reads a value from
-another one off the live resource, with a data source
-([Reading a value from another estate](https://intentius.io/choudoufu/docs/use/cross-estate/)),
-and needs nothing extra on the bucket for it. This flag is for a reader you
-write yourself, such as a script or a dashboard that shows one estate's
-outputs from a role scoped to another. The isolation above denies that read,
-and the policy has to grant it back explicitly:
+An estate reads another estate's recorded root outputs with a
+`data "terraform_estate_outputs"` block
+([Reading a value from another estate](https://intentius.io/choudoufu/docs/use/cross-estate/)).
+The isolation above denies that read, so the reading estate's policy has to
+grant it, naming the same estate the block names:
+
+```hcl
+data "terraform_estate_outputs" "network" {
+  estate = "network"
+  names  = ["cluster_services_namespace"]
+}
+```
 
 ```
 render-policy.sh prod <bucket> --reads-outputs-of network
 ```
 
-That changes four statements, which is why it is a flag and not an edit:
-the list prefixes gain `tofu-outputs/network/*`, a statement allows
+Without the flag the read is refused, and the refusal names the estate and
+the command above: `This estate may not read another estate's outputs`.
+
+The flag changes four statements, which is why it is a flag and not an
+edit: the list prefixes gain `tofu-outputs/network/*`, a statement allows
 `s3:GetObject` there, the read Deny steps around that one prefix, and a
 second Deny accepts `network`'s tag beside `prod`'s under that prefix and
 nowhere else. `network`'s tag used to be accepted across the whole bucket,
@@ -420,3 +428,8 @@ What the grant exposes is everything the other estate wrote under
 `tofu-outputs/`: its root output values. An output marked `sensitive` is
 never written there, and neither is one whose value is not wholly known, so
 neither can be read this way. The other estate's records stay denied.
+
+Most values an estate needs from another are attributes of a live resource,
+and those are read with a data source on that resource, which needs
+describe permission on its service and nothing on the bucket. The output
+read is for a value no live resource holds.
