@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/format"
 )
 
@@ -665,6 +666,13 @@ type LivePlanDocument struct {
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is how to ask.
 	Swept []string `json:"swept"`
 
+	// Filter is the -filter categories this document was narrowed to
+	// (GitHub issue #1197), in unowned, adoptable, foreign order. Absent
+	// when no filter was given. When present, a category it does not name
+	// is null above: left out by the filter, not found empty. A selected
+	// category that matched nothing is [].
+	Filter []string `json:"filter,omitempty"`
+
 	// Diagnostics is every warning and error this run raised outside the
 	// three sections above - a state file present but not consulted, a
 	// provider version skew warning, and so on. It exists so that -json
@@ -865,11 +873,29 @@ func NewStatelessPlan(view *View) StatelessPlan {
 	return &StatelessPlanHuman{view: view}
 }
 
+// NewStatelessPlanFiltered is [NewStatelessPlan] narrowed to the report
+// categories filter names (GitHub issue #1197's -filter). An empty filter is
+// exactly [NewStatelessPlan].
+//
+// Only the three category sections are narrowed - Unowned, Adoptable and the
+// foreign items - and a selected category with nothing in it says so in a
+// line of its own, so that a filter matching nothing never reads as silence.
+// Everything else the report prints (omissions, removals, sweep gaps, renames,
+// policy, lookalikes) and the resource diff itself are untouched: a filter
+// narrows the report, never the plan.
+func NewStatelessPlanFiltered(view *View, filter arguments.ReportFilter) StatelessPlan {
+	return &StatelessPlanHuman{view: view, filter: filter}
+}
+
 // StatelessPlanHuman writes the omissions section as a titled block above the
 // plan, in the same stream and with the same width and colouring rules as the
 // plan renderer itself.
 type StatelessPlanHuman struct {
 	view *View
+
+	// filter is -filter's category set; empty renders every category. See
+	// [NewStatelessPlanFiltered].
+	filter arguments.ReportFilter
 }
 
 var _ StatelessPlan = (*StatelessPlanHuman)(nil)
@@ -1110,7 +1136,17 @@ const statelessUnownedIntro = `Each of these is a live resource sitting at the i
 // unlike the sweep behind the foreign section, this check runs on every
 // instance the projection reads, so an empty list is not a coverage question.
 func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
+	if !v.filter.Shows(arguments.ReportUnowned) {
+		return
+	}
 	if len(items) == 0 {
+		// Unfiltered, an empty list stays silent for the reason above. A
+		// run that asked for this category by name gets an answer, so that
+		// "-filter unowned" matching nothing is distinguishable from a
+		// filter that never ran.
+		if v.filter.Active() {
+			v.view.streams.Print(v.view.colorize.Color("\n[reset][bold]No unowned resources.[reset]\n"))
+		}
 		return
 	}
 
@@ -1223,7 +1259,13 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		}
 	}
 
+	showForeign := v.filter.Shows(arguments.ReportForeign)
+	showAdoptable := v.filter.Shows(arguments.ReportAdoptable)
+
 	switch {
+	case !showForeign:
+		// -filter left this category out (#1197). The sweep still ran and
+		// the plan is the same; only the section is not printed.
 	case len(rep.Items) > 0:
 		colored("\n[reset][bold]Foreign resources: %d live %s not owned by estate %s[reset]\n\n",
 			len(rep.Items), noun(len(rep.Items), "resource", "resources"), rep.Estate)
@@ -1244,7 +1286,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		colored("\n[reset][bold]Foreign resources: nothing was swept[reset]\n\n")
 		wrapped("No resource type was listed in full during this run, so nothing is known about live resources that carry no ownership marker. This is not a report that there are none.", 0)
 	}
-	if rep.NativeSweepSkipped > 0 {
+	if rep.NativeSweepSkipped > 0 && (showForeign || showAdoptable) {
 		out("\n")
 		wrapped(fmt.Sprintf("This run did not ask which live resources carry no ownership marker at all, so %d admitted %s this estate has no record of ever having used %s not listed. Every resource this estate owns was still swept for. Run \"choudoufu plan -adoption-only\" for the account-wide question.",
 			rep.NativeSweepSkipped,
@@ -1252,7 +1294,22 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 			noun(rep.NativeSweepSkipped, "was", "were")), 0)
 	}
 
-	if len(rep.Candidates) > 0 {
+	switch {
+	case !showAdoptable:
+		// Left out by -filter (#1197); see the foreign case above.
+	case len(rep.Candidates) == 0 && v.filter.Active():
+		// Unfiltered, no candidates means no section. Asked for by name,
+		// the answer is printed, with what it covers: an empty sweep
+		// is not a report that nothing matches.
+		if len(rep.Swept) > 0 {
+			colored("\n[reset][bold]No adoptable resources.[reset]\n\n")
+			wrapped(fmt.Sprintf("Nothing among the %d %s swept matches a declared resource by content.",
+				len(rep.Swept), noun(len(rep.Swept), "type", "types")), 0)
+		} else {
+			colored("\n[reset][bold]No adoptable resources: nothing was swept.[reset]\n\n")
+			wrapped("No resource type was listed in full during this run, so nothing was matched against the configuration. This is not a report that there are none.", 0)
+		}
+	case len(rep.Candidates) > 0:
 		colored("\n[reset][bold]Adoptable: %d live %s matches a declared resource[reset]\n\n",
 			len(rep.Candidates), noun(len(rep.Candidates), "resource", "resources"))
 		wrapped(statelessAdoptIntro, 0)
