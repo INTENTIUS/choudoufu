@@ -85,10 +85,12 @@ writing something the API server rejects.
 
 The label is written into `metadata.labels` as part of the create, so a
 created object carries it. A label stripped out of band takes the object
-out of the estate, exactly as a stripped `tofu-estate` tag does on AWS: the
-next plan refuses the object by name and proposes creating what the block
-declares, and writing the label back is an operator's own adoption
-(#1108). `marker_repair` governs the other repair, a `tofu-address` that
+out of the estate, exactly as a stripped `tofu-estate` tag does on AWS, and
+writing the label back is an operator's own adoption (#1108). Where AWS then
+plans the create the block declares, a Kubernetes plan stops with
+"Unlabelled live object holds the declared name": the API server would
+answer that create with 409 while the unlabelled object holds the name
+(#1546). `policy { declared_untagged = "adopt" }` adopts it instead. `marker_repair` governs the other repair, a `tofu-address` that
 is missing while `tofu-estate` is present, which cannot arise here because
 the Kubernetes marker is the estate label alone.
 A configuration that sets `tofu-estate` to another estate's name is the

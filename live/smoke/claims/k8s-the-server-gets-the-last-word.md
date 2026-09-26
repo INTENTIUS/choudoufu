@@ -96,30 +96,30 @@ whole ownership model rests on was gone with no trace in the output.
 
 The plan does not pretend. It reads the cluster, finds an object at the
 name the block declares carrying no marker, and refuses to treat it as the
-estate's:
+estate's. It also refuses to propose the create, because the API server
+would answer a create at a name an existing object holds with 409
+([#1546](https://github.com/INTENTIUS/choudoufu/issues/1546)):
 
 ```text
-Warning: Live resource outside this estate
-A live kubernetes_config_map already exists with identity
-"smoke-k8s/app-config" and carries no tofu-estate label, so this estate
-does not own it ...
-Plan: 1 to add, 0 to change, 0 to destroy.
+Error: Unlabelled live object holds the declared name
+
+A live kubernetes_config_map already exists at "smoke-k8s/app-config", the
+namespace and name kubernetes_config_map.app declares, and carries no
+tofu-estate label, so this estate does not own it. ...
 ```
 
-`live-ls` agrees, and the next apply wedges on the name the API server will
-not hand out twice:
+Plan and apply both exit 1 there, and the apply never reaches the server.
+`live-ls` agrees the estate owns nothing:
 
 ```text
 Estate "smoke-k8s": 0 resource(s) carry its marker.
 Nothing found.
-
-Error: configmaps "app-config" already exists
 ```
 
 So the estate is not silently wrong - it is stuck, which is far better. But
 it is wrong about *whose* object this is. It was created seconds earlier by
 this estate, and it reads back as somebody else's. Both remedies the
-warning names are writes, and the policy strips them too: a `kubectl label`
+refusal names are writes, and the policy strips them too: a `kubectl label`
 leaves no label behind, and `policy { declared_untagged = "adopt" }` prints
 
 ```text

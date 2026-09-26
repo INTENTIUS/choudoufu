@@ -112,11 +112,11 @@ if [ "${BREAK:-0}" = "1" ]; then
     "would make. If live-ls still lists the ConfigMap, the inventory is" \
     "not reading the label; if the next plan is still empty, the marker" \
     "is not what the plan reads and this whole scenario is scenery." \
-    "What the plan must do instead is what AWS does with a stripped" \
-    "tofu-estate tag (#1108): an object with no marker is nobody's, so it" \
-    "is refused by name and the plan proposes creating what the block" \
-    "declares, rather than relabelling an object this estate can no" \
-    "longer show it owns. Adoption is a write an operator makes."
+    "An object with no marker is nobody's (#1108), so it is refused by" \
+    "name rather than relabelled. And because the API server would" \
+    "answer the create of an existing namespace and name with 409, the" \
+    "plan stops with an error instead of proposing that create (#1546)." \
+    "Adoption is a write an operator makes."
   cmd "kubectl label configmap app-config -n smoke-k8s tofu-estate-"
   kc label configmap app-config -n smoke-k8s tofu-estate- >/dev/null || fail "k8s-greenfield" "BREAK: could not strip the label"
   cmd "choudoufu live-ls -estate=smoke-k8s ."
@@ -127,26 +127,34 @@ if [ "${BREAK:-0}" = "1" ]; then
   fi
   grep -q 'Estate "smoke-k8s": 3 resource(s) carry its marker' <<< "$BLS" \
     || fail "k8s-greenfield" "BREAK: live-ls should list the 3 objects that still carry the label: $BLS"
-  BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"
+  BRC=0
+  BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || BRC=$?
   printf '%s\n' "$BOUT" > "$SMOKE_WORKROOT/logs/k8s-greenfield-break.plan"
+  BFLAT="$(tr '\n' ' ' <<< "$BOUT" | tr -s ' ')"
   if grep -q "No changes." <<< "$BOUT"; then
     fail "k8s-greenfield" "BREAK: the plan is still empty after the label was stripped - the marker is not what the plan reads"
   fi
-  grep -E 'carries no tofu-estate label|adopt by writing|^Plan:' <<< "$BOUT" | head -3 | evidence
-  grep -q 'kubernetes_config_map.app' <<< "$BOUT" \
-    || fail "k8s-greenfield" "BREAK: the plan does not name the ConfigMap whose label was stripped: $BOUT"
-  grep -q 'carries no tofu-estate label' <<< "$BOUT" \
-    || fail "k8s-greenfield" "BREAK: the plan does not refuse the unlabelled object by name - it was adopted in silence (full plan in $SMOKE_WORKROOT/logs/k8s-greenfield-break.plan): $(grep -E '^Plan:|~ ' <<< "$BOUT" | head -5)"
-  grep -q 'adopt by writing: tofu-estate=smoke-k8s$' <<< "$BOUT" \
-    || fail "k8s-greenfield" "BREAK: the adoption hint is not the one label write that would adopt it: $(grep -n 'adopt by writing' <<< "$BOUT")"
+  grep -E '^Error: |^Plan:' <<< "$BOUT" | head -2 | evidence
+  echo "plan exit: $BRC" | evidence
+  [ "$BRC" = "1" ] \
+    || fail "k8s-greenfield" "BREAK: the plan exited $BRC, want 1: an unlabelled object holding the declared name must stop the plan (#1546) (full plan in $SMOKE_WORKROOT/logs/k8s-greenfield-break.plan)"
+  grep -q 'Error: Unlabelled live object holds the declared name' <<< "$BOUT" \
+    || fail "k8s-greenfield" "BREAK: the plan does not refuse the unlabelled object by name - it was adopted in silence, or planned as a create the server will refuse (full plan in $SMOKE_WORKROOT/logs/k8s-greenfield-break.plan): $(grep -E '^Plan:|^Error|~ ' <<< "$BOUT" | head -5)"
+  grep -q 'kubernetes_config_map.app declares, and carries no tofu-estate label' <<< "$BFLAT" \
+    || fail "k8s-greenfield" "BREAK: the refusal does not name the block and the missing label: $BOUT"
+  grep -q 'policy { declared_untagged = "adopt" }' <<< "$BFLAT" \
+    || fail "k8s-greenfield" "BREAK: the refusal does not name the setting that adopts the object: $BOUT"
+  grep -q 'write the label tofu-estate="smoke-k8s"' <<< "$BFLAT" \
+    || fail "k8s-greenfield" "BREAK: the refusal does not offer the one label write that would adopt it: $BOUT"
   if grep -q 'tofu-address' <<< "$BOUT"; then
     fail "k8s-greenfield" "BREAK: the plan names a tofu-address on a Kubernetes object; the marker here is the estate label alone (#1016): $BOUT"
   fi
-  grep -qE '^Plan: 1 to add, 0 to change, 0 to destroy' <<< "$BOUT" \
-    || fail "k8s-greenfield" "BREAK: the plan does not propose creating exactly the declared ConfigMap: $(grep -E '^Plan:' <<< "$BOUT")"
+  if grep -qE '^Plan:' <<< "$BOUT"; then
+    fail "k8s-greenfield" "BREAK: a plan was produced alongside the refusal; the create it proposes is one the API server answers with 409: $(grep -E '^Plan:' <<< "$BOUT")"
+  fi
   kc get configmap app-config -n smoke-k8s >/dev/null 2>&1 \
     || fail "k8s-greenfield" "BREAK: the unlabelled ConfigMap is gone - a refused object must be left alone"
-  proof "caught, twice. The stripped label took the ConfigMap out of the listing AND out of the estate: the plan refuses it by name, proposes creating what the block declares, and offers the one label write that would adopt it. The inventory and every empty-plan claim in this scenario are real checks, and nothing here leans on the cluster - no admission policy is installed."
+  proof "caught, twice. The stripped label took the ConfigMap out of the listing AND out of the estate: the plan refuses it by name with exit 1, rather than proposing a create the API server would answer with 409, and names both ways to adopt it. The inventory and every empty-plan claim in this scenario are real checks, and nothing here leans on the cluster - no admission policy is installed."
   exit 0
 fi
 

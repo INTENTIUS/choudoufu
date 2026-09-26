@@ -29,6 +29,6 @@ kind the cluster does not serve is refused by name, with the CRD to install.
 
 ## Mixed estates
 
-An EKS module that also manages the `aws-auth` ConfigMap works. The AWS
-resources carry two tags under your IAM, and the ConfigMap carries one label
-under the cluster's admission policy.
+An EKS module managing the `aws-auth` ConfigMap works. EKS creates it
+unlabelled; the plan stops until `declared_untagged = "adopt"` claims it. AWS
+resources carry two tags, the ConfigMap one label.

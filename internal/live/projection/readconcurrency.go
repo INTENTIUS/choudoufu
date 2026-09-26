@@ -428,6 +428,7 @@ func (b *builder) startRecordFirstPrefetch(ctx context.Context, resolutions []id
 			values:      recordFirstStubValues(rec),
 			undeclared:  r.Undeclared,
 			recordFirst: true,
+			declaredKey: r.ImportID != "" && r.ImportID == rec.ImportID,
 		})
 	}
 	return b.startReadPrefetch(ctx, ws)
