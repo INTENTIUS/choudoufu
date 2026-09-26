@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -748,31 +749,44 @@ const (
 )
 
 // markerSurfaceOf reads a type's marker carrier off the provider's own
-// schema for it, never off a list of type names, for the same reason
-// [markers.Taggable] and [markers.LabelSurface] are read that way.
-//
-// The tags arm is deliberately the looser "is there a tags or tags_all
-// attribute at all" this function has always asked
-// ([markers.HasTagsAttribute]), rather than [markers.TagSurface]: narrowing it would change which AWS types the
-// ownership rule covers, which is not this issue's question. The two
-// Kubernetes arms are disjoint from it and from each other by construction
-// - [markers.LabelSurface] refuses a taggable type and
-// [markers.ManifestSurface] refuses both a taggable type and one with a
-// metadata block - so the order of the arms cannot decide an answer.
+// schema for it, never off a list of type names. It is
+// [substrate.OwnershipSurfaceOf], the question this function asked before
+// GitHub issue #1118 moved it there: its tag arm is the looser "is there a
+// tags or tags_all attribute at all", not [markers.Taggable], and that
+// function's doc comment says why.
 func markerSurfaceOf(block *configschema.Block) markerSurface {
-	if block == nil {
-		return surfaceNone
-	}
-	if markers.HasTagsAttribute(block) {
+	surface, _ := substrate.OwnershipSurfaceOf(block)
+	return markerSurfaceFor(surface)
+}
+
+// markerSurfaceFor is this package's name for a [markers.Surface], and
+// surfaceNone for one it has no name for. That last case is the one
+// [checkOwnership] admits without a check, so a surface added to
+// internal/live/substrate without an arm here would be admitted by
+// default; TestMarkerSurfaceForNamesEverySubstrateSurface fails first.
+func markerSurfaceFor(surface markers.Surface) markerSurface {
+	switch surface {
+	case markers.SurfaceTags:
 		return surfaceTags
-	}
-	if _, ok := markers.LabelSurface(block); ok {
+	case markers.SurfaceLabels:
 		return surfaceLabels
-	}
-	if markers.ManifestSurface(block) {
+	case markers.SurfaceManifest:
 		return surfaceManifest
 	}
 	return surfaceNone
+}
+
+// surface is the [markers.Surface] s names, "" for surfaceNone.
+func (s markerSurface) surface() markers.Surface {
+	switch s {
+	case surfaceTags:
+		return markers.SurfaceTags
+	case surfaceLabels:
+		return markers.SurfaceLabels
+	case surfaceManifest:
+		return markers.SurfaceManifest
+	}
+	return ""
 }
 
 // markerCapable reports whether a resource type has anywhere to carry an
@@ -784,39 +798,32 @@ func markerCapable(block *configschema.Block) bool {
 }
 
 // markersOf reads the marker map off the live object the provider handed
-// back, from whichever place this type's surface keeps it. The second
-// return is the surface reader's own: false means "this object has no such
-// map at all", which is a provider bug on a type whose schema declares one
-// and is never a licence to adopt.
+// back, from whichever place this type's surface keeps it
+// ([substrate.MarkersOf]). The second return is the surface reader's own:
+// false means "this object has no such map at all", which is a provider
+// bug on a type whose schema declares one and is never a licence to adopt.
+//
+// On the manifest surface it reads the prior manifest, which
+// [mirrorManifestMarker] has already carried the live object's own answer
+// for [markers.TagEstate] into - see that function's doc comment, and
+// #1079's reason for it: the provider's computed_fields default makes the
+// live labels the truth of metadata.labels, so this is where the live
+// object's estate label is readable on this shape.
 func (s markerSurface) markersOf(obj cty.Value) (map[string]string, bool) {
-	switch s {
-	case surfaceTags:
-		return markers.TagsOf(obj)
-	case surfaceLabels:
-		return markers.LabelsOf(obj)
-	case surfaceManifest:
-		// The prior manifest [mirrorManifestMarker] has already carried
-		// the live object's own answer for [markers.TagEstate] into -
-		// see that function's doc comment, and #1079's reason for it:
-		// the provider's computed_fields default makes the live labels
-		// the truth of metadata.labels, so this is where the live
-		// object's estate label is readable on this shape.
-		return markers.ManifestLabelsOf(obj)
-	}
-	return nil, false
+	return substrate.MarkersOf(s.surface(), obj)
 }
 
 // carriesAddress reports whether this surface carries a tofu-address
-// marker beside the estate one. Only the AWS tag map does: #1016's ruling
-// is that the Kubernetes marker is the estate label alone, because the
-// object's own group, kind, namespace and name are the join key back to
-// configuration and nearly half of real addresses are illegal as a label
-// value anyway. So the second half of the ownership question
-// ([builder.addressNames]) and the stale-record check that shares its rule
-// are asked on the tag surface and nowhere else, rather than being asked
-// of a label that is not supposed to exist and reading its absence as a
-// finding.
-func (s markerSurface) carriesAddress() bool { return s == surfaceTags }
+// marker beside the estate one ([substrate.CarriesAddress]). Only the AWS
+// tag map does: #1016's ruling is that the Kubernetes marker is the estate
+// label alone, because the object's own group, kind, namespace and name
+// are the join key back to configuration and nearly half of real addresses
+// are illegal as a label value anyway. So the second half of the ownership
+// question ([builder.addressNames]) and the stale-record check that shares
+// its rule are asked on the tag surface and nowhere else, rather than
+// being asked of a label that is not supposed to exist and reading its
+// absence as a finding.
+func (s markerSurface) carriesAddress() bool { return substrate.CarriesAddress(s.surface()) }
 
 // carrierPhrase names where the marker map lives, for the one refusal that
 // has to tell an operator the provider returned no such map. The tags

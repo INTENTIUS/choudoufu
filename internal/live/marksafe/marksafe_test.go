@@ -138,6 +138,12 @@ var guardedPackages = []string{
 	// imports no cty at all, so like "onboard" and "noimporter" above it is
 	// held to zero rather than deferred: it has nothing to defer.
 	"servicetags",
+	// GitHub issue #1118's Substrate seam. Its one reader of a
+	// configuration value is the Kubernetes provider block's connection
+	// arguments, moved here from internal/command, which tests every
+	// argument for a mark before reading it and unmarks only the three
+	// that are the credential (#1527).
+	"substrate",
 	"uniquename",
 }
 

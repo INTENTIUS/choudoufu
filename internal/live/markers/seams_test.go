@@ -101,6 +101,8 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/projection/residue.go:residueStubIdentityAttrs": {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's identity attributes on a residue stub, not a marker read"},
 	"internal/live/projection/build.go:readImported":               {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's import read-back, not a marker read"},
 	"internal/live/projection/build.go:configuredTagsSeed":         {Handles: []Surface{SurfaceTags}, Why: "AWS default_tags: the tags_all merge exists only on the tag surface"},
+	"internal/live/substrate/aws.go":                               {Handles: []Surface{SurfaceTags}, Why: "the AWS substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
+	"internal/live/substrate/kubernetes.go":                        {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
 	"tools/estate-gen/gen.go":                                      {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/classify.go":                                 {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/governance_render.go":                        {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
