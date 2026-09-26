@@ -243,4 +243,4 @@ proof "an empty inventory, read from the cluster: the estate is gone and the lis
 echo "  What you watched: a Kubernetes estate live its whole life on a real"
 echo "  cluster without an authoritative state file, its ownership carried as"
 echo "  one label any tool can read, and live-ls reading that label back as"
-echo "  the estate's inventory. The sweep and the gate are claims 22 and 23."
+echo "  the estate's inventory. The sweep and the gate are claims 1 and 13 on Kubernetes."

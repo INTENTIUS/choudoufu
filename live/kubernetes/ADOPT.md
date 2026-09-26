@@ -17,16 +17,16 @@ to install, at the plan's first contact with the cluster ([claim
 
 Every one of them carries the marker: one label, `tofu-estate`, written on
 the create. Strip it with kubectl and the next plan proposes restoring it.
-[Claim 21](../smoke/claims/k8s-greenfield.md) runs that on a
+[Claim 7 on Kubernetes](../smoke/claims/identity-is-a-tag.md#on-kubernetes) runs that on a
 real cluster with a namespace, a ConfigMap, a ServiceAccount and a Service.
 
 Delete one of those blocks from source and the next plan finds the live
 object by its label, one cluster-wide list per kind, and proposes its
-removal, with a controller's copies of the label excluded first ([claim
-22](../smoke/claims/k8s-no-silent-orphans.md)). And once a
+removal, with a controller's copies of the label excluded first ([claim 1
+on Kubernetes](../smoke/claims/no-silent-orphans.md#on-kubernetes)). And once a
 cluster admin has installed the one admission policy, every write to one
-of them is fenced by the label it carries ([claim
-23](../smoke/claims/k8s-the-label-is-the-boundary.md); [the
+of them is fenced by the label it carries ([claim 13 on
+Kubernetes](../smoke/claims/the-tag-is-the-boundary.md#on-kubernetes); [the
 gate](https://intentius.io/choudoufu/kubernetes/gate/) says what that fence does not
 reach).
 

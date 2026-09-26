@@ -430,8 +430,8 @@ explain \
 kc apply -f "$ROOT/live/kubernetes/estate-boundary.yaml" >/dev/null \
   || fail "k8srec" "could not install the estate boundary policy"
 # The API server has to observe the policy and type-check its CEL before it
-# enforces anything, and a write sent in that window goes through. Claim 23
-# waits for observedGeneration for the same reason.
+# enforces anything, and a write sent in that window goes through. Claim 13's
+# Kubernetes scenario waits for observedGeneration for the same reason.
 for _ in $(seq 1 30); do
   OBS="$(kc get validatingadmissionpolicy choudoufu-estate-boundary -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)"
   [ -n "$OBS" ] && break; sleep 1

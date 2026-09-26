@@ -1,13 +1,18 @@
 # Proof
 
-Eight claims are proven on a real cluster: the marker itself, the sweep
-that finds a deleted block's object by it, the admission policy that
-fences a write by it (through which claim 13's Kubernetes cell is proven
-too), a custom resource bound by the natural key inside its manifest,
-carrying the label and swept by it, a delete the platform has accepted and
+Eight scenarios run on a real cluster. Three are the Kubernetes proofs of
+promises first proven on AWS: the marker itself (claim 7), the sweep that
+finds a deleted block's object by it (claim 1), and the admission policy
+that fences a write by it (claim 13, and claim 12's carve through it).
+Five are Kubernetes promises of their own: a custom resource bound by the
+natural key inside its manifest, carrying the label and swept by it, a delete the platform has accepted and
 not finished, admission getting the last word over a plan, a label edit as
-an ordinary change, and records kept in the cluster. The rest are stated
-per claim in the claims data rather than left implicit. The table
+an ordinary change, and records kept in the cluster (whose steps also
+prove six of the bucket store's promises on Kubernetes). A claim is a
+promise and proof is per provider
+([#1112](https://github.com/INTENTIUS/choudoufu/issues/1112)), so every
+other Kubernetes cell is stated in the claims data rather than left
+implicit, and an open one is a missing proof. The table
 below shows only the claims whose Kubernetes cell is not still open; hover a
 cell for its note.
 
@@ -16,7 +21,7 @@ https://intentius.io/choudoufu/kubernetes/proof/.
 
 ## In CI
 
-The eight Kubernetes claims run on a kind cluster in GitHub Actions on
+The eight Kubernetes scenarios run on a kind cluster in GitHub Actions on
 every pull request that touches the Kubernetes surface, each with its
 `BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
 lane's estates on the same cadence as the AWS rows
@@ -34,16 +39,16 @@ against a kind cluster in Docker, which is a real API server, and the
 scenario shape is the same: a verdict line per step, exit 0 only when
 every claim held, and `BREAK=1` to manufacture the fault.
 
-[Claim 21](../smoke/claims/k8s-greenfield.md) applies a
+[Claim 7 on Kubernetes](../smoke/claims/identity-is-a-tag.md#on-kubernetes) applies a
 namespace and a ConfigMap under a `live` block with no AWS provider
 anywhere, reads the `tofu-estate` label back with kubectl, replans empty,
 loses its cache without consequence, and destroys exactly. Its `BREAK=1`
 strips the label and requires the replan to refuse the object by name,
 because an object carrying no marker is nobody's.
 
-[Claim 22](../smoke/claims/k8s-no-silent-orphans.md) runs the
+[Claim 1 on Kubernetes](../smoke/claims/no-silent-orphans.md#on-kubernetes) runs the
 sweep on the same harness.
-[Claim 23](../smoke/claims/k8s-the-label-is-the-boundary.md)
+[Claim 13 on Kubernetes](../smoke/claims/the-tag-is-the-boundary.md#on-kubernetes)
 runs the gate. The plan refuses a block declaring another estate's object
 before any cluster is consulted. With two ServiceAccounts and two estates,
 the API server refuses a plain `kubectl label` across the boundary, and
@@ -171,7 +176,7 @@ account" holds in weakened form. And because the universe of kinds is asked
 rather than tabulated, an admitted type the generated table did not know
 about cannot be owned, orphaned and unreachable. `live-ls DIR` is the same
 listing printed as an inventory, each object joined to the block that
-declares it ([claim 21](../smoke/claims/k8s-greenfield.md)).
+declares it ([claim 7 on Kubernetes](../smoke/claims/identity-is-a-tag.md#on-kubernetes)).
 
 What does not survive is "one call", and the claims page marks claim 14
 restated rather than pretending otherwise.

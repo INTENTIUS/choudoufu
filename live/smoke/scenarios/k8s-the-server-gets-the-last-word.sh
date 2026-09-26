@@ -13,7 +13,7 @@
 # admission POLICY rather than a webhook server, because the API server's
 # in-process admission chain produces the identical effect on the stored
 # object with no certificate, no image and no pod to go wrong - the same
-# choice claim 23 and claim 24 already make. The one thing a policy cannot
+# choice claim 13 on Kubernetes and claim 24 already make. The one thing a policy cannot
 # reproduce is a webhook that is not there, so the first fault uses a real
 # ValidatingWebhookConfiguration with failurePolicy: Fail pointing at a
 # Service that does not exist. That is the webhook fault operators

@@ -21,7 +21,7 @@ import (
 // cluster admin installs once) and live/kubernetes/estate-grant.yaml (the
 // ClusterRole that grants one estate), inlined verbatim in
 // live/MARKERS.md under "Granting a Kubernetes estate" the way the IAM
-// grant is, and applied by claim 23's scenario. The policy asks the
+// grant is, and applied by claim 13's Kubernetes scenario. The policy asks the
 // authorizer for one virtual triple, group/resource/verb, and the grant
 // allows exactly that triple; nothing but this test holds the two to each
 // other, since the resource exists nowhere a cluster could check.
@@ -121,7 +121,7 @@ func TestKubernetesGateTemplatesAgree(t *testing.T) {
 }
 
 // TestKubernetesGateTemplatesAreShipped: MARKERS.md inlines both templates
-// byte for byte, and claim 23's scenario applies the shipped files rather
+// byte for byte, and claim 13's Kubernetes scenario applies the shipped files rather
 // than a copy of its own.
 func TestKubernetesGateTemplatesAreShipped(t *testing.T) {
 	markers, err := os.ReadFile(k8sMarkersDoc)
@@ -157,7 +157,7 @@ var controlPlaneName = regexp.MustCompile(`'([^']+)'`)
 // exempts named identities and nothing wider (#1448, section C). It used to
 // exempt every ServiceAccount in kube-system and every username beginning
 // system:kube-, which handed every estate to any add-on installed there.
-// The controls the list has to keep are on kind, in claim 23: a labelled
+// The controls the list has to keep are on kind, in claim 13 on Kubernetes: a labelled
 // Deployment, Service, Job and StatefulSet still roll out and are still
 // collected.
 //
