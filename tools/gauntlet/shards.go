@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -104,7 +105,18 @@ func ShardEstates(m *Manifest, set string) []string {
 // they are two measurements of the same estate and nothing here can say
 // which is current. That is the same rule MergeArtifact applies to an
 // estate changed on both sides.
+//
+// A dir that does not exist on disk holds zero shards, not an error:
+// actions/download-artifact never creates its destination when the
+// pattern it was given matches nothing (issue #1563 - every estate and
+// acceptance job skipped on the nightly cron, so the "shards" directory
+// was never created, and this function's raw lstat error reached the
+// job's console instead of CombineShards's own "no shard for <names>"
+// refusal naming every estate the run expected).
 func LoadShardArtifacts(dir string) ([]ShardArtifact, error) {
+	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
+		return nil, nil
+	}
 	byEstate := map[string]string{}
 	var out []ShardArtifact
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {

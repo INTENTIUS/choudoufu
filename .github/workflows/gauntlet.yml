@@ -154,7 +154,18 @@ jobs:
   # measurements that are already paid for.
   estate:
     needs: [plan]
-    if: needs.plan.result == 'success'
+    # always(): a bare `needs.plan.result == 'success'` has no status check
+    # function in it, so GitHub Actions ANDs an implicit success() onto it -
+    # and job-level success() looks at the WHOLE transitive graph, not just
+    # this job's own `needs`, so it is false whenever anything upstream was
+    # skipped, including dispatch-approval, which is *always* skipped on
+    # the nightly `schedule` trigger by design (it only gates
+    # workflow_dispatch). That silently skipped this job every night
+    # (#1563: runs 35975528292, 36115165483, 36230331089 - zero shards ever
+    # uploaded, so `collect` had nothing to combine). `plan` and `collect`
+    # already carry `always()` for the same reason; this job and
+    # `acceptance` below did not.
+    if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -294,7 +305,12 @@ jobs:
   # it is what run 35819120887 spent the publish's budget inside.
   acceptance:
     needs: [plan]
-    if: needs.plan.result == 'success'
+    # always(): see the identical comment on the estate job above (#1563) -
+    # without it, the implicit success() GitHub ANDs onto a bare
+    # needs.plan.result comparison fails whenever dispatch-approval (always
+    # skipped on the nightly schedule) sits anywhere upstream, and this job
+    # was skipped every night as a result.
+    if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     # The go test call already carries -timeout 60m; this is the same bound
     # one level up, where a hung binary or a stuck container is also

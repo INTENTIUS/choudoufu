@@ -56,9 +56,12 @@ import (
 //
 // The block is also why a live-mode module cannot have a backend today: a
 // "backend" or "cloud" block alongside it is refused here, in the
-// configuration decoder, rather than only by the lint. The refusal is
-// aimed at a second authoritative home for state; #685's direction is to
-// narrow it to exactly that, so a disposable local cache never trips it.
+// configuration decoder, rather than only by the lint. Ruled on issue
+// #1170 (maintainer, 2026-09-26): the refusal stays. A live-mode module
+// keeps its cache locally (choudoufu-cache.tfstate) and its records in
+// record_store; a backend or cloud block would be a second authoritative
+// home for state, and that - not the cache's existence - is what gets
+// refused.
 type Live struct {
 	// Estate is the name of the estate this configuration owns, as it appears
 	// in the tofu-estate marker described by live/MARKERS.md. It is
