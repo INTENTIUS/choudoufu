@@ -145,7 +145,13 @@ type StatelessRun interface {
 	// replace - so `replaced` above is empty for it and the object it
 	// really did terminate would otherwise be recorded nowhere. See
 	// [projection.WriteBackRequest.DestroyedDeposed].
-	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics
+	//
+	// wholeDestroy is true when this run's plan was a destroy with no
+	// -target and no -exclude: the estate as a whole was destroyed, so its
+	// recorded root outputs go with it (GitHub issue #1371). A scoped
+	// destroy is false, because the estate and its outputs remain. See
+	// [projection.WriteBackRequest.WholeDestroy].
+	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics
 
 	// AfterPlan runs once the plan exists and before it is rendered, saved
 	// or approved, on a plan and on an apply alike: whatever evidence the

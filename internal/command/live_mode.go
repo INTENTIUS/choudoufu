@@ -1517,7 +1517,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // anything it does see: the record-side evidence it holds ("the identity
 // changed") is exactly the evidence that cannot tell a replace from an
 // import or a live-mv, which is the defect #854 fixes.
-func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {
+func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// Issue #275's residue classifier is the one write-back half that needs
@@ -1568,6 +1568,11 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		// Issue #349's half. The apply just settled these values, and this
 		// is the moment stock writes them into its state file.
 		RootOutputStore: r.rootOutputStore,
+
+		// Issue #1371: a destroy of the whole estate deletes its recorded
+		// outputs, so another estate cannot read a destroyed estate's
+		// values. Derived by the caller from the plan, like the two above.
+		WholeDestroy: wholeDestroy,
 	}))
 
 	if provs != nil {

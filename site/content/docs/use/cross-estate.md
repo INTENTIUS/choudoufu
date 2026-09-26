@@ -37,17 +37,15 @@ runs it with two estates and an ordered pipeline.
 
 Stock passes values with `terraform_remote_state`, which reads the
 producer's state file. A live root has no state file of record, and one left
-from before a migration returns a snapshot frozen on that day. The live
-resource is the authority, so the consumer reads it.
+from before a migration returns a snapshot frozen on that day.
 
 ## What it needs
 
 The consumer's role needs permission to describe the producer's resource
 type, and nothing on the record store beyond its own estate's policy.
 
-The data source reads what exists when the consumer plans, so a producer
-that has not applied fails the plan. Order the pipeline producer first, as
-the example does.
+A producer that has not applied fails the consumer's plan, so order the
+pipeline producer first, as the example does.
 
 ## A value no live resource holds
 
@@ -61,6 +59,7 @@ data "terraform_estate_outputs" "cluster" {
 }
 ```
 
-The plan warns that it is as of that apply. Sensitive outputs never cross.
+The plan warns that it is as of that apply. The producer's destroy deletes
+it. Sensitive outputs never cross.
 The bucket policy needs `--reads-outputs-of cluster-infrastructure`, or the
 plan stops naming that estate.

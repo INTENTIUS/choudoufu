@@ -429,6 +429,10 @@ func (b *Local) opApply(
 	// Issue #938's other half, read HERE for the identical reason: a
 	// deposed destroy is drained out of plan.Changes as it applies too.
 	deposedDestroys := destroyedDeposedInstances(plan)
+	// GitHub issue #1371: whether this apply destroys the whole estate,
+	// read off the plan's mode and scope. A -target or -exclude destroy
+	// leaves the estate standing, and its recorded outputs with it.
+	wholeDestroy := plan.UIMode == plans.DestroyMode && len(plan.TargetAddrs) == 0 && len(plan.ExcludeAddrs) == 0
 
 	// Set up our hook for continuous state updates
 	stateHook.StateMgr = opState
@@ -485,7 +489,7 @@ func (b *Local) opApply(
 	// resource failed still deserves its record, so the next plan does not
 	// propose creating it again.
 	if b.Stateless != nil {
-		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys)
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys, wholeDestroy)
 		diags = diags.Append(wbDiags)
 		if wbDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)
