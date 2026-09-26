@@ -35,9 +35,8 @@ commands follow.
 | `choudoufu plan` / `apply` | Ordinary plan and apply. With a `live` block present, these run against markers. |
 | `choudoufu live-mv <old> <new>` | Rewrites the `tofu-address` tag. The replacement for `moved` blocks. |
 | `choudoufu live-import` | Bulk migration. Reads an existing state file once, verifies each entry, stamps markers on what verifies. |
-| `choudoufu live-plan` | The live plan, invoked directly. |
+| `choudoufu live-plan` | The live plan, invoked directly; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows its report. |
 | `choudoufu plan -adoption-only` | The adoption ledger alone: what this estate can adopt, what it cannot, and why. |
-| `choudoufu plan -filter=<category>` | The live report narrowed to `unowned`, `adoptable` or `foreign`. Read-only: the plan is unchanged. |
 | `choudoufu force-unlock` | Refused, with the true reason: there is no lock to force open. Contention settles at the platform API, never in a lock this tool holds - the no-self-managed-locks claim demonstrates it. |
 
 ### `-adoption-only`
@@ -51,31 +50,6 @@ takes the full sweep, so it costs more than an ordinary plan.
 classes, and
 [`live/ADOPTION-ONLY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/ADOPTION-ONLY.md)
 has the measurements.
-
-### `-filter`
-
-`choudoufu plan -filter=foreign` (or `live-plan -filter=foreign`) prints
-only the named sections of the live report. The categories are the ones
-the report and the `-json` document already carry:
-
-| Category | What it selects |
-|---|---|
-| `unowned` | Live resources at an identity this configuration declares that carry no marker for this estate |
-| `adoptable` | Live resources the estate-wide sweep matched to a declared instance by content |
-| `foreign` | Live resources the sweep found that nothing in this estate claims |
-
-Repeat the flag to show more than one; they union. The filter narrows the
-report and nothing else: the planned changes, the resource diff, the
-omissions and removals, and the meaning of `-detailed-exitcode` are the same
-with or without it. A filter cannot make an apply partial.
-
-A category that matches nothing prints a line saying so, for example
-`No unowned resources.`, so an empty result never looks like a filter that
-did nothing. Any other word, such as `-filter=drifted`, is a usage error
-naming the three accepted ones. Under `-json` the document gains a `filter`
-key listing the kept categories, and each category left out is `null`; a
-kept one with nothing in it is `[]`. `-filter` is refused on a state-backed
-plan and alongside `-adoption-only`.
 
 ## The live configuration
 
