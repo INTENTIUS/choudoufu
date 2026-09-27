@@ -83,7 +83,7 @@ func boardMergeFixture(t *testing.T) (base, ours, theirs Board, names []string) 
 		}
 		return out
 	}
-	return buildBoard(m, a, st()), buildBoard(m, a, st("alpha")), buildBoard(m, a, st("foxtrot")), names
+	return buildBoard(m, a, st(), ""), buildBoard(m, a, st("alpha"), ""), buildBoard(m, a, st("foxtrot"), ""), names
 }
 
 func canonBoard(t *testing.T, b Board) []byte {

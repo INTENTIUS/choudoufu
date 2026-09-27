@@ -184,7 +184,14 @@ type BoardLiveCert struct {
 // caller rendering into a temp directory still reports the real checkout's
 // answer. A nil map is "no checkout was read", and every field it feeds
 // stays empty rather than claiming every row is current.
-func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness) Board {
+// kindImage is the current kind-node-image pin (live/kind-node-image,
+// #1594) - the kind substrate's counterpart to a.Emulator, read by the
+// caller (Render) rather than carried on Artifact, the same "root is a
+// rendering-time fact, not derived-artifact state" reason st is passed in
+// rather than read from a. It is lastRunNote's only use (#1700): a
+// kind-substrate row's provenance sentence needs it to say whether that
+// row's recorded LastRun.SubstrateImage still matches the current pin.
+func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, kindImage string) Board {
 	b := Board{
 		Schema:         1,
 		Emulator:       a.Emulator,
@@ -218,7 +225,7 @@ func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness) Board {
 		return rows[i].Name < rows[j].Name
 	})
 	for _, r := range rows {
-		b.Estates = append(b.Estates, boardEstate(r, a, st[r.Name]))
+		b.Estates = append(b.Estates, boardEstate(r, a, st[r.Name], kindImage))
 	}
 	certs := append([]LiveCertResult(nil), a.LiveCert...)
 	sort.SliceStable(certs, func(i, j int) bool { return certs[i].Estate < certs[j].Estate })
@@ -233,7 +240,7 @@ func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness) Board {
 
 // boardEstate is one estate's display row and page fields. s is this row's
 // script staleness (#1264); its zero value renders nothing.
-func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness) BoardEstate {
+func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, kindImage string) BoardEstate {
 	e := BoardEstate{
 		Name: r.Name, Set: r.Set, Lane: r.Lane, Substrate: r.Substrate, Clear: r.Clear,
 		Source: r.Source, URL: r.URL, Pin: r.Pin, Reason: r.Reason,
@@ -276,17 +283,26 @@ func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness) BoardEstate {
 		}
 		e.StageRows = append(e.StageRows, row)
 	}
-	e.LastRunNote, e.LegacyNote = lastRunNote(r, a)
+	e.LastRunNote, e.LegacyNote = lastRunNote(r, a, kindImage)
 	e.OracleNote = oracleNote(r, a)
 	return e
 }
 
 // lastRunNote is the estate page's provenance sentence: commit, date, exit
-// code, the emulator image the run actually used, and a **Stale** marker
+// code, the substrate image the run actually used, and a **Stale** marker
 // when that image is no longer the pin. The second return is the sentence
 // for a row that predates the protocol; exactly one of the two is set for
 // any row that has recorded anything.
-func lastRunNote(r EstateResult, a *Artifact) (note, legacy string) {
+//
+// A kind-substrate row (#1067) never launches floci, so it leaves
+// LastRun.Emulator empty on purpose and records what it actually ran
+// against in LastRun.SubstrateImage instead (#1594); this function used to
+// switch only on Emulator, so every kind-lane row read as "was not
+// recorded" even when SubstrateImage was set (#1700). kindImage is the
+// current live/kind-node-image pin, providerNote's own
+// r.Substrate == SubstrateKind branch mirrored for the image rather than
+// the provider version.
+func lastRunNote(r EstateResult, a *Artifact, kindImage string) (note, legacy string) {
 	durationNote := ""
 	if r.LastRun != nil && r.LastRun.DurationS > 0 {
 		durationNote = " Total run time " + formatDuration(r.LastRun.DurationS) + "."
@@ -296,6 +312,16 @@ func lastRunNote(r EstateResult, a *Artifact) (note, legacy string) {
 	}
 	if r.LastRun == nil {
 		return "", ""
+	}
+	if r.Substrate == SubstrateKind {
+		switch {
+		case r.LastRun.SubstrateImage == "":
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d. This run's substrate image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote), ""
+		case r.LastRun.SubstrateImage == kindImage:
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, durationNote), ""
+		default:
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`. **Stale**: the current pin is `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, kindImage, durationNote), ""
+		}
 	}
 	switch {
 	case r.LastRun.Emulator == "":
