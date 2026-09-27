@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -256,8 +259,8 @@ func liveLsLoadConfig(t *testing.T, hcl string) *configs.Config {
 
 // TestLiveLsSubstrates: the substrates are read off the configuration's
 // managed resources' providers, and everything that is not a
-// configuration - no DIR, a failed load - or names neither provider is
-// the AWS listing this command has always been.
+// configuration - no DIR, a failed load - or names no substrate in
+// [substrate.All] is the AWS listing this command has always been.
 func TestLiveLsSubstrates(t *testing.T) {
 	kubernetesOnly := liveLsLoadConfig(t, `
 provider "kubernetes" {}
@@ -277,22 +280,82 @@ resource "null_resource" "x" {}
 	var loadFailed tfdiags.Diagnostics
 	loadFailed = loadFailed.Append(tfdiags.Sourceless(tfdiags.Error, "Unreadable", "not a configuration"))
 
+	awsOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true}}
+	kubeOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepLabelList: true}}
+	awsAndKube := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true, substrate.SweepLabelList: true}}
+
 	for name, tc := range map[string]struct {
 		config *configs.Config
 		diags  tfdiags.Diagnostics
 		want   liveLsSubstrateSet
 	}{
-		"no DIR":             {nil, nil, liveLsSubstrateSet{aws: true}},
-		"load failed":        {kubernetesOnly, loadFailed, liveLsSubstrateSet{aws: true}},
-		"kubernetes only":    {kubernetesOnly, nil, liveLsSubstrateSet{kubernetes: true}},
-		"aws and kubernetes": {both, nil, liveLsSubstrateSet{aws: true, kubernetes: true}},
-		"neither":            {neither, nil, liveLsSubstrateSet{aws: true}},
+		"no DIR":             {nil, nil, awsOnly},
+		"load failed":        {kubernetesOnly, loadFailed, awsOnly},
+		"kubernetes only":    {kubernetesOnly, nil, kubeOnly},
+		"aws and kubernetes": {both, nil, awsAndKube},
+		"neither":            {neither, nil, awsOnly},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := liveLsSubstrates(tc.config, tc.diags); got != tc.want {
+			if got := liveLsSubstrates(tc.config, tc.diags); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("liveLsSubstrates = %+v, want %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+// fakeThirdSubstrate stands in for a family that is neither AWS nor
+// Kubernetes - GitHub issue #1583's red proof - registered into
+// [substrate.All] only for the duration of
+// TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm. Its methods
+// beyond Name and Sweep are never asked by [liveLsSubstrates]; they exist
+// only to satisfy [substrate.Substrate].
+type fakeThirdSubstrate struct{}
+
+func (fakeThirdSubstrate) Name() string                { return "fake" }
+func (fakeThirdSubstrate) Surfaces() []markers.Surface { return nil }
+func (fakeThirdSubstrate) Sweep() substrate.Sweep      { return substrate.Sweep("fake-sweep") }
+func (fakeThirdSubstrate) CarriesAddress() bool        { return false }
+func (fakeThirdSubstrate) SurfaceOf(*configschema.Block) (markers.Surface, bool) {
+	return "", false
+}
+func (fakeThirdSubstrate) OwnershipSurfaceOf(*configschema.Block) (markers.Surface, bool) {
+	return "", false
+}
+func (fakeThirdSubstrate) MarkersOf(markers.Surface, cty.Value) (map[string]string, bool) {
+	return nil, false
+}
+func (fakeThirdSubstrate) Writes(markers.Surface) substrate.Writes { return substrate.Writes{} }
+func (fakeThirdSubstrate) NewSweeper(cty.Value, bool) (substrate.Sweeper, error) {
+	return nil, nil
+}
+func (fakeThirdSubstrate) CreateCollidesOnKey(markers.Surface) bool { return false }
+func (fakeThirdSubstrate) CarrierPhrase(markers.Surface) string     { return "" }
+func (fakeThirdSubstrate) NotACarrier(*configschema.Block, string) string {
+	return ""
+}
+
+// TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm is GitHub issue
+// #1583's own red proof: a third substrate registered in [substrate.All],
+// used by a managed resource and nothing else, must be reflected in
+// [liveLsSubstrates]'s answer - not silently folded into the AWS default,
+// which is what a switch naming only [substrate.AWS] and
+// [substrate.Kubernetes] does to anything else. Before the fix, this test
+// does not compile: liveLsSubstrateSet had an aws/kubernetes bool pair
+// with nowhere to record a third family at all.
+func TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm(t *testing.T) {
+	orig := substrate.All
+	substrate.All = append(append([]substrate.Substrate{}, orig...), fakeThirdSubstrate{})
+	t.Cleanup(func() { substrate.All = orig })
+
+	config := liveLsLoadConfig(t, `
+resource "fake_thing" "x" {}
+`)
+	got := liveLsSubstrates(config, nil)
+	if !got.has(fakeThirdSubstrate{}.Sweep()) {
+		t.Errorf("liveLsSubstrates(config with only a fake_thing resource) = %+v, want the fake substrate's sweep listed", got)
+	}
+	if got.has(substrate.SweepTaggingIndex) {
+		t.Errorf("liveLsSubstrates(config with only a fake_thing resource) = %+v, want no AWS tagging-index listing (there is no aws provider here)", got)
 	}
 }
 
