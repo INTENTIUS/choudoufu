@@ -1629,7 +1629,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 		return diags
 	}
 
-	result, releaseDiags := untag.Release(ctx, provider, r.untagKey, r.untagTargets)
+	result, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, r.untagProvider), r.untagKey, r.untagTargets)
 	diags = diags.Append(releaseDiags)
 	diags = diags.Append(provs.close(ctx))
 

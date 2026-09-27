@@ -14,6 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -329,6 +330,28 @@ func statelessUntagTargets(disco *discovery.Result) []untag.Target {
 		})
 	}
 	return out
+}
+
+// statelessUntagCluster is the cluster client [untag.Release] releases a
+// manifest-shape orphan through (GitHub issue #1656): the one the marker
+// sweep built for the same provider configuration the release runs
+// through, or nil when that configuration built none - not a Kubernetes
+// configuration, or one this run could not connect with - in which case
+// the release refuses such a target by name and touches nothing. It never
+// borrows another configuration's client: a label release sent to the
+// wrong cluster is a write on an object this run never read.
+func statelessUntagCluster(sweepers map[string]kubesweep.Sweeper, provider addrs.AbsProviderConfig) kubesweep.LabelReleaser {
+	sweeper := sweepers[providerCacheKey(provider)]
+	if sweeper == nil {
+		return nil
+	}
+	releaser, _ := sweeper.(kubesweep.LabelReleaser)
+	if c, isClient := releaser.(*kubesweep.Client); isClient && c == nil {
+		// A typed nil in an interface is not a nil interface; see
+		// live_import_kubernetes.go's LabelPatcher for the same guard.
+		return nil
+	}
+	return releaser
 }
 
 // statelessReleasedReport turns one [untag.Result] - the apply-time record
