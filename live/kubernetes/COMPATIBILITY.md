@@ -152,6 +152,17 @@ opt-in that brings a release inside the boundary: the ruling deferred it,
 because a label written by a post-renderer is one an out-of-band
 `helm upgrade` strips.
 
+The annotation alone is not trusted forever: the sweep also checks that
+the release it names still has a history secret
+(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
+release's namespace ([#1625](https://github.com/INTENTIUS/choudoufu/issues/1625)).
+Moving an object off Helm without re-creating it - adopting it into a
+`kubernetes_manifest` block by import, then removing the release's
+bookkeeping - leaves the annotation in place, because server-side apply
+only touches fields its own writer claims. Once no release by that name
+exists, the object is an ordinary `tofu-estate`-labelled object again:
+swept, adoptable, and no longer reported under "Controller-held".
+
 ## Mixed estates
 
 The common shape is an EKS module that also manages the `aws-auth`
