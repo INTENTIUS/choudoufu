@@ -113,7 +113,7 @@ func (n *NodeResolver) AdjustConfigValue(ctx context.Context, addr addrs.AbsReso
 // adjustConfigValue is [NodeResolver.AdjustConfigValue] and
 // [NodeResolver.AdjustCreateConfigValue] behind one body. creating is the
 // only difference between the two: a create of a type whose create call
-// cannot carry tags (GitHub issue #1084, [NodeResolver.tagsAfterCreate])
+// cannot carry tags (GitHub issue #1084, [NodeResolver.postCreateNeeded])
 // is checked for marker conflicts exactly as an update is and then left
 // unstamped, for [NodeResolver.WriteAppliedMarkers] to mark after the
 // provider has created it. See nodetagoncreate.go.
@@ -235,7 +235,7 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if tagDiags.HasErrors() {
 			return config, diags
 		}
-		if creating && n.tagsAfterCreate(addr) {
+		if creating && n.withholdsAtCreate(addr, markers.SurfaceTags) {
 			// GitHub issue #1084: the create call cannot carry these tags,
 			// so they are withheld from it - the operator's own tags go
 			// through as stock sends them, this fork's markers do not - and

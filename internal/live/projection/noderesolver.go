@@ -173,7 +173,7 @@ type NodeResolver struct {
 	// Roster is live/mapping.json joined against live/registry.json
 	// (registry.Embedded in production), read for one fact: whether an
 	// instance's type can carry tags in its create call (GitHub issue
-	// #1084, [NodeResolver.tagsAfterCreate], nodetagoncreate.go). Nil is
+	// #1084, [NodeResolver.postCreateNeeded], nodetagoncreate.go). Nil is
 	// an ordinary value - a run that could not parse the embedded
 	// artifacts - and reads as "every type takes tags at create", the
 	// path every type took before #1084.

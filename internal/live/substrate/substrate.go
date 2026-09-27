@@ -149,6 +149,9 @@ type Substrate interface {
 
 	// markerWriting is GitHub issue #1587's block, below.
 	markerWriting
+
+	// postCreateNeed is GitHub issue #1642's block, below.
+	postCreateNeed
 }
 
 // All is every family, in the order a surface question asks them.
@@ -373,4 +376,51 @@ type markerWriting interface {
 	// this family builds a client for: [WriteNeverNeeded] for a family
 	// whose every surface rides the create call.
 	MarkerWriter(provider addrs.AbsProviderConfig) Write
+}
+
+// ---- GitHub issue #1642: whether a create needs the post-create write ----
+//
+// Kept in its own block, like #1587's above.
+//
+// #1587 let the family name the post-create writer and #1638 handed that
+// writer the created instance, but whether a create needs the write at all
+// was still asked of the AWS CloudFormation registry alone
+// (internal/live/projection's tagsAfterCreate read live/mapping.json and
+// live/registry.json's tag_on_create). A type with no CloudFormation
+// counterpart read false, so no other family's type ever reached its
+// writer. The question is now the family's: AWS answers from the registry
+// exactly as before, Kubernetes answers never, and a family whose marker is
+// written after the create (a GCP tag binding, say) answers for its own
+// types.
+
+// CreateTagFacts is the registry read the AWS family answers from:
+// live/mapping.json's Terraform-to-CloudFormation join and
+// live/registry.json's tagging.tag_on_create. *internal/live/registry.Roster
+// implements it, nil included (every answer false). An interface so this
+// package stays below the registry.
+type CreateTagFacts interface {
+	CloudControlTypeOrService(tfType string) (string, bool)
+	TagsAfterCreate(cfnType string) bool
+}
+
+// postCreateNeed is the part of [Substrate] #1642 added.
+type postCreateNeed interface {
+	// PostCreateNeeded reports whether a create of typeName, whose schema
+	// carries surface (one of this family's), cannot carry the marker in
+	// its create call, so the marker is withheld from the create and
+	// written once it returns through [Writes.PostCreate]. The reason is
+	// the sentence an operator reads when that write fails, naming the
+	// fact the answer came from; empty when the answer is false. facts may
+	// hold nothing for a family that does not read it.
+	PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (reason string, needed bool)
+}
+
+// PostCreateNeeded is [Substrate.PostCreateNeeded] asked of surface's
+// family. False for the zero Surface.
+func PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (string, bool) {
+	s := For(surface)
+	if s == nil {
+		return "", false
+	}
+	return s.PostCreateNeeded(surface, typeName, facts)
 }
