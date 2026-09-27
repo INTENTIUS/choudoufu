@@ -72,6 +72,62 @@ proof() {
   echo; echo "  -> $*"; echo
 }
 
+# strip_incomplete_sweep_warning removes the estate-wide sweep's own gap
+# reporting from a captured CLI transcript, so a scenario's own
+# denied()-style grep over "the rest of what a step printed" does not
+# false-positive on it (GitHub issue #1636). A sweep gap's Detail sometimes
+# quotes the denied read's own raw provider error verbatim - an
+# emulator-restricted role missing iam:ListPolicies, say - which reads
+# "AccessDenied" or "not authorized to perform" despite naming a read this
+# scenario never asked for and a call site (Bob's tag write, on his own
+# grant) that has nothing to do with it. Confirmed against a real captured
+# run (BREAK=1 against this claim, unfixed), that text leaks in through TWO
+# distinct places, both traced to internal/command:
+#
+#  1. "Not swept for removal: N resource types" - live_plan.go's own
+#     pre-diff coverage report, printed as part of every plan/apply that
+#     renders a diff, itemizing each [OBJECT_UNTAGGED] and
+#     [TAG_INDEX_COVERAGE_UNCONFIRMED] gap with the SAME Detail text. This
+#     always ends where format.HorizontalRule's rule of "-" characters
+#     opens the diff that follows, since both live only inside the same
+#     pre-diff renderer - so everything from this section's own header
+#     through that rule is dropped, rule line kept.
+#  2. The "Incomplete sweep for undeclared resources" diagnostic itself,
+#     raised once more after apply. Every scenario here passes -no-color,
+#     which renders a diagnostic through format.DiagnosticPlain rather than
+#     format.Diagnostic: no box-drawing rule characters at all, just
+#     "Warning: <summary>", a blank line, then the wrapped Detail (one
+#     paragraph, so no blank line of its own), ended by the blank line the
+#     CLI always prints before whatever comes next.
+#
+# Both are always Warning severity (SeverityForRefusal returns
+# SeverityWarning for SummaryIncompleteSweep unconditionally) - a genuine
+# refusal of the call under test is an Error that fails the command outright
+# - but that distinction is not exploited here because #1's coverage report
+# carries no "Warning:"/"Error:" prefix of its own to key on.
+#
+# format.Diagnostic's boxed form (the literal characters ╷ and ╵), used when
+# a caller omits -no-color, is handled for #2 as well, though it does not
+# occur in this file's own captures.
+strip_incomplete_sweep_warning() {
+  awk '
+    /^(Foreign resources: nothing was swept|Not swept for removal: )/ { report = 1; next }
+    report { if ($0 ~ /^─+$/) { report = 0 } else { next } }
+
+    /^╷[[:space:]]*$/ { hold = $0; getline nxt
+      if (nxt ~ /Incomplete sweep for undeclared resources/) { boxed = 1; next }
+      print hold; print nxt; next
+    }
+    boxed { if ($0 ~ /^╵[[:space:]]*$/) boxed = 0; next }
+
+    /^Warning: Incomplete sweep for undeclared resources[[:space:]]*$/ { plain = 1; next }
+    plain == 1 { plain = 2; next }
+    plain == 2 { if ($0 ~ /^[[:space:]]*$/) plain = 0; next }
+
+    { print }
+  '
+}
+
 # destroyed_exactly <tag> <n> <output> asserts that a destroy reported
 # exactly n resources destroyed, and prints the destroy's WHOLE output when
 # it did not.
@@ -347,11 +403,27 @@ smoke_stall() {
 # sets SMOKE_TIMER_PID. Its own output goes to the stderr smoke.sh started
 # with and never to a pipe the caller is capturing: a `$(...)` does not
 # return while anything still holds its write end.
+#
+# The trap goes on before sleep is forked, not after (#1593, measured under
+# CPU pressure that starves this subshell of scheduling): a TERM landing in
+# the gap between the fork and installing the trap left the sleep behind as
+# a live orphan when this subshell exited without it. Reordering only
+# narrows that gap - a TERM can still land between the fork completing and
+# `nap=$!` running, since bash only checks for one at a command boundary -
+# so the sleep also has SMOKE_ERR_FD explicitly closed: it is smoke.sh's
+# real fd 9, inherited into every child by default, and an orphan holding
+# it open blocks any `$(...)` capturing smoke.sh's output for up to the
+# full bound, seconds after the scenario itself already printed its
+# verdict and exited. Measured live under stress-ng: reordering alone still
+# left the sleep as a pipe-holding orphan; closing its copy of fd 9 does
+# not, however it is left behind. nap is empty until the fork returns;
+# killing an empty pid is a no-op.
 smoke_timer() { # <secs> <before> <after>, the two halves of smoke_stall's verdict
   (
-    sleep "$1" >/dev/null 2>&1 &
-    nap=$!
+    nap=""
     trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    sleep "$1" >/dev/null 2>&1 9>&- &
+    nap=$!
     wait "$nap" || exit 0
     smoke_stall "$2" "$3"
   ) >/dev/null 2>&"${SMOKE_ERR_FD:-2}" &

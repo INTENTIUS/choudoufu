@@ -49,6 +49,21 @@ const (
 // directory must have both.
 var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true}
 
+// smokeSlugReadabilityPrefixes are the prefixes a slug may carry for
+// readability (the file's _comment: "k8s- for a Kubernetes proof").
+var smokeSlugReadabilityPrefixes = []string{"k8s-"}
+
+// unprefixedSlug is slug with its readability prefix removed, or slug
+// itself when it carries none.
+func unprefixedSlug(slug string) string {
+	for _, p := range smokeSlugReadabilityPrefixes {
+		if rest, ok := strings.CutPrefix(slug, p); ok {
+			return rest
+		}
+	}
+	return slug
+}
+
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
 var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes"}
 
@@ -79,16 +94,16 @@ type smokeClaim struct {
 }
 
 type smokeClaimProviderCell struct {
-	Status     string   `json:"status"`
-	Note       string   `json:"note"`
-	Scenario   string   `json:"scenario"`
-	Command    string   `json:"command"`
-	Minutes    int      `json:"minutes"`
-	NeedsGo    bool     `json:"needs_go"`
-	NeedsFloci bool     `json:"needs_floci"`
-	RealAWS    bool     `json:"real_aws"`
-	BreakMode  string   `json:"break_mode"`
-	Evidence   []string `json:"evidence"`
+	Status        string   `json:"status"`
+	Note          string   `json:"note"`
+	Scenario      string   `json:"scenario"`
+	Command       string   `json:"command"`
+	Minutes       int      `json:"minutes"`
+	NeedsGo       bool     `json:"needs_go"`
+	NeedsEmulator bool     `json:"needs_emulator"`
+	RealService   bool     `json:"real_service"`
+	BreakMode     string   `json:"break_mode"`
+	Evidence      []string `json:"evidence"`
 	// ProvenBy names the claim whose cell for the same provider carries the
 	// scenario that proves this one, for a proof that is a step of another
 	// claim's scenario rather than a scenario of its own.
@@ -139,12 +154,12 @@ var scenarioHeader = regexp.MustCompile(`^# CLAIM (\d+) \(([a-z0-9]+)\) - .*~(\d
 // the sentence it states as the claim, and its minutes.
 var scenarioHeaderTitle = regexp.MustCompile(`^# CLAIM (\d+) \(([a-z0-9]+)\) - (.*?)\.?\s*~(\d+) min\.?\s*$`)
 
-// realAWSHeaderSuffix is what a real-AWS scenario's header adds to the
-// claims.json title, so `just smoke` lists it as one only the maintainer
-// starts. TestSmokeClaimsRealAWSSaysSo requires the header to say REAL AWS;
-// this is the one spelling of that which also leaves the two titles
-// comparable.
-const realAWSHeaderSuffix = " (REAL AWS, maintainer-run)"
+// realServiceHeaderSuffix is what a real-service scenario's header adds to
+// the claims.json title, so `just smoke` lists it as one only the
+// maintainer starts. TestSmokeClaimsRealServiceSaysSo requires the header
+// to say REAL AWS; this is the one spelling of that which also leaves the
+// two titles comparable.
+const realServiceHeaderSuffix = " (REAL AWS, maintainer-run)"
 
 // smokeCellKey names one (claim, provider) cell.
 type smokeCellKey struct {
@@ -274,11 +289,20 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		if want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, s.Name+".sh")); cell.Scenario != want {
 			t.Errorf("%s: scenario is %q, want %q", s, cell.Scenario, want)
 		}
-		// The scenario is named for the promise, or it is a retired claim's
+		// The scenario is named for the promise, or for the promise with
+		// its readability prefix taken off, or it is a retired claim's
 		// scenario that moved into exactly this cell.
-		if s.Name != c.Slug {
+		//
+		// The second form is #1599's. A claim born on Kubernetes carries
+		// the k8s- prefix in its slug, and its Kubernetes proof already
+		// holds <slug>.sh; its proof on another provider cannot share that
+		// file, and the slug is a URL that must not move. So that proof is
+		// named for the slug without the prefix. This reads the prefix off
+		// the slug, never a provider off a file name: which provider a
+		// scenario proves is still the providers.<name> key of its cell.
+		if s.Name != c.Slug && s.Name != unprefixedSlug(c.Slug) {
 			if r, ok := retiredBySlug[s.Name]; !ok || r.Claim != c.ID || r.Provider != s.Provider {
-				t.Errorf("%s: a cell's scenario is named for its claim's slug (%s.sh), or for a retired claim whose retired entry names this claim and provider", s, c.Slug)
+				t.Errorf("%s: a cell's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), or for a retired claim whose retired entry names this claim and provider", s, c.Slug, unprefixedSlug(c.Slug))
 			}
 		}
 		if want := "just smoke " + s.Name; cell.Command != want {
@@ -301,7 +325,7 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			if cell.Scenario != "" {
 				continue
 			}
-			if cell.Command != "" || cell.Minutes != 0 || cell.BreakMode != "" || cell.NeedsGo || cell.NeedsFloci || cell.RealAWS || len(cell.Evidence) > 0 {
+			if cell.Command != "" || cell.Minutes != 0 || cell.BreakMode != "" || cell.NeedsGo || cell.NeedsEmulator || cell.RealService || len(cell.Evidence) > 0 {
 				t.Errorf("claim %d (%s): the cell carries no scenario and still carries a command, minutes, break mode, flag or evidence; those describe a scenario", c.ID, p)
 			}
 		}
@@ -384,8 +408,8 @@ func TestSmokeClaimScenarioHeadersStateTheClaim(t *testing.T) {
 		}
 		got := m[3]
 		want := c.Title
-		if s.Cell.RealAWS {
-			want += realAWSHeaderSuffix
+		if s.Cell.RealService {
+			want += realServiceHeaderSuffix
 		}
 		reason, listed := scenarioTitleDiffers[key]
 		switch {
@@ -446,9 +470,9 @@ func TestSmokeClaimsNeedGoExactlyWhenTheyRunIt(t *testing.T) {
 // smokeStackUp is the call that starts the pinned floci emulator.
 var smokeStackUp = regexp.MustCompile(`\bstack_up\b`)
 
-// TestSmokeClaimsNeedFlociExactlyWhenTheySaySo: needs_floci is what the
-// claims table prints as "needs the emulator", and it is for the proof whose
-// scenario runs on one substrate and keeps its records on another. A
+// TestSmokeClaimsNeedEmulatorExactlyWhenTheySaySo: needs_emulator is what
+// the claims table prints as "needs the emulator", and it is for the proof
+// whose scenario runs on one substrate and keeps its records on another. A
 // Kubernetes proof that brings up floci needs Docker and the AWS CLI on top
 // of kind and kubectl, and a reader who has only the second pair finds that
 // out from a failure halfway through a ten-minute run otherwise (#1394).
@@ -456,9 +480,9 @@ var smokeStackUp = regexp.MustCompile(`\bstack_up\b`)
 // An aws cell is not asked to carry the flag: there the emulator IS the
 // substrate, which the column already says.
 //
-// Proving it red: set claim 27's needs_floci to false, or delete the
+// Proving it red: set claim 27's needs_emulator to false, or delete the
 // stack_up call from its scenario. Both were run on 2026-09-19.
-func TestSmokeClaimsNeedFlociExactlyWhenTheySaySo(t *testing.T) {
+func TestSmokeClaimsNeedEmulatorExactlyWhenTheySaySo(t *testing.T) {
 	f := readSmokeClaims(t)
 	withStackUp := 0
 	for _, s := range smokeScenarioCells(f) {
@@ -477,16 +501,16 @@ func TestSmokeClaimsNeedFlociExactlyWhenTheySaySo(t *testing.T) {
 			withStackUp++
 		}
 		if s.Provider == "aws" {
-			if s.Cell.NeedsFloci {
-				t.Errorf("%s: needs_floci is true on an aws cell, where the emulator is what the proof runs on; the flag is for a proof that runs on one substrate and keeps its records on another", s)
+			if s.Cell.NeedsEmulator {
+				t.Errorf("%s: needs_emulator is true on an aws cell, where the emulator is what the proof runs on; the flag is for a proof that runs on one substrate and keeps its records on another", s)
 			}
 			continue
 		}
-		if len(calls) > 0 && !s.Cell.NeedsFloci {
-			t.Errorf("%s starts the emulator, and %s says needs_floci is false, so the claims table tells a reader with kind and no Docker that they can run it:\n  %s", s, smokeClaimsPath, strings.Join(calls, "\n  "))
+		if len(calls) > 0 && !s.Cell.NeedsEmulator {
+			t.Errorf("%s starts the emulator, and %s says needs_emulator is false, so the claims table tells a reader with kind and no Docker that they can run it:\n  %s", s, smokeClaimsPath, strings.Join(calls, "\n  "))
 		}
-		if len(calls) == 0 && s.Cell.NeedsFloci {
-			t.Errorf("%s: %s says needs_floci is true and no executable line in the scenario calls stack_up", s, smokeClaimsPath)
+		if len(calls) == 0 && s.Cell.NeedsEmulator {
+			t.Errorf("%s: %s says needs_emulator is true and no executable line in the scenario calls stack_up", s, smokeClaimsPath)
 		}
 	}
 	if withStackUp == 0 {
@@ -586,14 +610,14 @@ func smokeRefusalLine(exec []string) (idx int, wired bool) {
 	return -1, false
 }
 
-// TestSmokeClaimsRealAWSSaysSo: a claim that needs a real AWS account says so
-// in the index, and its scenario refuses to start without SMOKE_REAL_AWS=1.
-// The bucket backend epic (#1332) has five such claims, and its rule is that
-// the index states it rather than leaving a cell nobody can explain. The
-// other direction matters as much: a scenario that reaches for real AWS
-// without the refusal would spend a maintainer's money from a paste-and-go
-// prompt, and CLAUDE.md's rule is that such a run is never started by
-// anything but the maintainer.
+// TestSmokeClaimsRealServiceSaysSo: a claim that needs a real AWS account
+// says so in the index, and its scenario refuses to start without
+// SMOKE_REAL_AWS=1. The bucket backend epic (#1332) has five such claims,
+// and its rule is that the index states it rather than leaving a cell
+// nobody can explain. The other direction matters as much: a scenario that
+// reaches for real AWS without the refusal would spend a maintainer's money
+// from a paste-and-go prompt, and CLAUDE.md's rule is that such a run is
+// never started by anything but the maintainer.
 //
 // The audit in #1379 showed the substring form of this test green against a
 // commented-out refusal, a refusal moved below every resource the scenario
@@ -602,14 +626,14 @@ func smokeRefusalLine(exec []string) (idx int, wired bool) {
 // refusal sits in the file bash would run: an executable line, wired to
 // `fail`, above the first line that can reach an account.
 
-// TestSmokeClaimsRealAWSSaysSo: a proof that needs a real AWS account says so
-// in the index, and its scenario refuses to start without SMOKE_REAL_AWS=1.
-// The bucket backend epic (#1332) has five such claims, and its rule is that
-// the index states it rather than leaving a cell nobody can explain. The
-// other direction matters as much: a scenario that reaches for real AWS
-// without the refusal would spend a maintainer's money from a paste-and-go
-// prompt, and CLAUDE.md's rule is that such a run is never started by
-// anything but the maintainer.
+// TestSmokeClaimsRealServiceSaysSo: a proof that needs a real AWS account
+// says so in the index, and its scenario refuses to start without
+// SMOKE_REAL_AWS=1. The bucket backend epic (#1332) has five such claims,
+// and its rule is that the index states it rather than leaving a cell
+// nobody can explain. The other direction matters as much: a scenario that
+// reaches for real AWS without the refusal would spend a maintainer's money
+// from a paste-and-go prompt, and CLAUDE.md's rule is that such a run is
+// never started by anything but the maintainer.
 //
 // The audit in #1379 showed the substring form of this test green against a
 // commented-out refusal, a refusal moved below every resource the scenario
@@ -617,7 +641,7 @@ func smokeRefusalLine(exec []string) (idx int, wired bool) {
 // real_aws_begin with no refusal at all. So what is checked is where the
 // refusal sits in the file bash would run: an executable line, wired to
 // `fail`, above the first line that can reach an account.
-func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
+func TestSmokeClaimsRealServiceSaysSo(t *testing.T) {
 	f := readSmokeClaims(t)
 	for _, s := range smokeScenarioCells(f) {
 		name := s.Name + ".sh"
@@ -630,7 +654,7 @@ func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
 		refusalAt, wired := smokeRefusalLine(exec)
 		awsAt, awsLine := smokeFirstAWSLine(exec)
 
-		if !s.Cell.RealAWS {
+		if !s.Cell.RealService {
 			// An emulator claim's aws calls go to the emulator endpoint, so
 			// they prove nothing either way. What it must not do is reach for
 			// the real-AWS helpers: real_aws_begin unsets that endpoint, and
@@ -638,12 +662,12 @@ func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
 			// account whose credentials are in the environment. #1379's third
 			// mutation was exactly this file, with no refusal in it.
 			if refusalAt >= 0 {
-				t.Errorf("%s: real_aws is false in %s, but line %d refuses to start without SMOKE_REAL_AWS=1", name, smokeClaimsPath, refusalAt+1)
+				t.Errorf("%s: real_service is false in %s, but line %d refuses to start without SMOKE_REAL_AWS=1", name, smokeClaimsPath, refusalAt+1)
 			}
 			for i, line := range exec {
 				for _, banned := range []string{"real_aws_begin", "bucket-iam.sh", "bucket_up", "role_with_policy"} {
 					if strings.Contains(line, banned) {
-						t.Errorf("%s: real_aws is false in %s, but line %d uses %s, which only runs against a real account: %s", name, smokeClaimsPath, i+1, banned, line)
+						t.Errorf("%s: real_service is false in %s, but line %d uses %s, which only runs against a real account: %s", name, smokeClaimsPath, i+1, banned, line)
 					}
 				}
 			}
@@ -651,15 +675,15 @@ func TestSmokeClaimsRealAWSSaysSo(t *testing.T) {
 		}
 
 		if s.Provider != "aws" {
-			t.Errorf("%s: real_aws is true on a %s cell; the flag says the aws proof runs against a real account", s, s.Provider)
+			t.Errorf("%s: real_service is true on a %s cell; today only an aws proof reaches a real account (SMOKE_REAL_AWS)", s, s.Provider)
 		}
 		// Without this the ordering check below is vacuous: a scenario no
 		// pattern matches would pass it however the refusal is placed.
 		if awsAt < 0 {
-			t.Errorf("%s: real_aws is true in %s and no line in the scenario matches any of the ways this test knows to reach an account, so the ordering check below would prove nothing; either the cell is wrong or smokeTouchesAWS is out of date", s, smokeClaimsPath)
+			t.Errorf("%s: real_service is true in %s and no line in the scenario matches any of the ways this test knows to reach an account, so the ordering check below would prove nothing; either the cell is wrong or smokeTouchesAWS is out of date", s, smokeClaimsPath)
 		}
 		if refusalAt < 0 {
-			t.Errorf("%s: real_aws is true in %s and no executable line tests exactly %s; a refusal sitting in a comment, or one whose default is not 0, is not one", s, smokeClaimsPath, smokeRefusal)
+			t.Errorf("%s: real_service is true in %s and no executable line tests exactly %s; a refusal sitting in a comment, or one whose default is not 0, is not one", s, smokeClaimsPath, smokeRefusal)
 		} else {
 			if !wired {
 				t.Errorf("%s: line %d tests %s and does not follow it with `|| fail`, so the scenario runs on regardless", s, refusalAt+1, smokeRefusal)

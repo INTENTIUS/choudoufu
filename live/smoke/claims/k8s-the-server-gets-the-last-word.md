@@ -5,6 +5,40 @@ claim: k8s-the-server-gets-the-last-word
 
 # Claim 26: The server gets the last word
 
+## On AWS
+
+This proof is restated rather than proven: it covers the first of the
+three parts. A plan is saved under a role that may do anything. Before
+the apply, an explicit Deny on `sqs:SetQueueAttributes` lands on that
+role, standing in for a service control policy, which reaches the caller
+as the same AccessDenied. The apply fails quoting AWS's own `not
+authorized to perform: sqs:SetQueueAttributes`. The queue is unchanged
+and still marked, and the same approved plan file applies unchanged once
+the Deny is lifted.
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
+(docker info) and the AWS CLI is installed. If Go is not installed,
+export CHOUDOUFU_VERSION=<latest tag from
+https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+
+  just smoke the-server-gets-the-last-word
+
+Explain each step's verdict line to me as it prints. Then run
+BREAK=1 just smoke the-server-gets-the-last-word and report the "caught"
+line: the control puts the same Deny on an action the apply never calls,
+and the approved plan must then apply on the first try.
+```
+
+The other two parts are not measured on AWS. The one AWS mechanism that
+can refuse or rewrite `tofu-estate` on the way in is an AWS Organizations
+tag policy, and the pinned emulator enforces none
+([lex00/floci#217](https://github.com/lex00/floci/issues/217)). No service
+it emulates rewrites a declared field on write in a way stock reads as
+perpetual drift.
+
+## On Kubernetes
+
 Every plan is a statement about what the API server will accept, made
 before the server is asked. Admission is the gap between the two. A
 validating webhook can refuse the write a reviewer already approved; a

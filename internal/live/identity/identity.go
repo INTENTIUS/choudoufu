@@ -247,6 +247,30 @@ type Resolution struct {
 	// ordinary tag verification is exactly what should run for it.
 	RecordRooted bool
 
+	// RecordFallback marks a [ClassRecordLocated] resolution reached
+	// through [resolver.recordFallback] (GitHub issue #1675): THIS
+	// instance's own identity component could not be folded from
+	// configuration this run, and [RecordFallbackType] says the type has
+	// nowhere to carry a marker either, so the record this pass writes is
+	// the ONLY place the object's identity survives.
+	//
+	// It is false for the other two doors that also produce
+	// ClassRecordLocated - [LocatedType]'s whole-type route and the
+	// operator's `markers = record` selection - even though both share the
+	// same "no marker, record only" property: those two are decided once
+	// per TYPE (or once per selected address) from the schema and the
+	// configuration alone, with no dependency on whether this particular
+	// instance's own component resolution needed discovery, so a caller
+	// that already asks [LocatedType] or the selection question again does
+	// not need this field to reach the same instances a second time.
+	// [internal/live/projection.WriteBack] is the one caller that does need
+	// it: unlike the other two doors, RecordFallbackType is a type-level
+	// eligibility test that also admits instances whose identity folds
+	// straight from configuration (an explicit `name`, an explicit ARN
+	// reference) and for which the record is redundant bookkeeping, not the
+	// only carrier - this field is what tells those two shapes apart.
+	RecordFallback bool
+
 	// cloudScope disambiguates two instances that would otherwise resolve to
 	// the same import identity string but do not name the same live object,
 	// because they are not pointed at the same account and region: a module

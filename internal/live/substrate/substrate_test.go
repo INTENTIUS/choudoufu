@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
@@ -40,18 +41,32 @@ func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 				t.Errorf("For(%q) is not %s", surface, s.Name())
 			}
 			w := WritesOf(surface)
-			if w.Create == "" || w.Adopt == "" {
-				t.Errorf("%s surface %q: writes %+v, want both occasions named", s.Name(), surface, w)
+			if w.Create == "" || w.Adopt == "" || w.PostCreate == "" {
+				t.Errorf("%s surface %q: writes %+v, want every occasion named", s.Name(), surface, w)
+			}
+			// GitHub issue #1587: a surface's post-create write is either
+			// never needed or the one its family's provider
+			// configurations build a writer for.
+			if w.PostCreate != WriteNeverNeeded && w.PostCreate != s.MarkerWriter(addrs.AbsProviderConfig{}) {
+				t.Errorf("%s surface %q: post-create write %q, but the family's provider configurations build %q", s.Name(), surface, w.PostCreate, s.MarkerWriter(addrs.AbsProviderConfig{}))
 			}
 			if CarriesAddress(surface) != s.CarriesAddress() {
 				t.Errorf("CarriesAddress(%q) disagrees with %s", surface, s.Name())
+			}
+			if AddressInMarkers(surface) != s.AddressInMarkers() {
+				t.Errorf("AddressInMarkers(%q) disagrees with %s", surface, s.Name())
+			}
+			// GitHub issue #1641: an address in the marker map is an
+			// address carried; the converse is Kubernetes' annotation.
+			if AddressInMarkers(surface) && !CarriesAddress(surface) {
+				t.Errorf("%s surface %q holds tofu-address in its marker map but says it carries no address", s.Name(), surface)
 			}
 			if CarrierPhrase(surface) == "" {
 				t.Errorf("%s surface %q has no carrier phrase, so a missing marker map on it would be reported without saying which map", s.Name(), surface)
 			}
 		}
 	}
-	if For("") != nil || CarriesAddress("") || WritesOf("") != (Writes{}) || CreateCollidesOnKey("") || CarrierPhrase("") != "" {
+	if For("") != nil || CarriesAddress("") || AddressInMarkers("") || WritesOf("") != (Writes{}) || CreateCollidesOnKey("") || CarrierPhrase("") != "" {
 		t.Error("the zero Surface belongs to a family")
 	}
 	if _, ok := MarkersOf("", cty.EmptyObjectVal); ok {
@@ -106,31 +121,26 @@ func manifestBlock() *configschema.Block {
 	}}
 }
 
-// TestSurfaceOfAndOwnershipSurfaceOf pins both questions, including the
-// one place they differ: a tags attribute the configuration cannot set is
-// an ownership surface (the projection has always read it) and not a
-// surface a marker is written to (live-mv and live-import never wrote
-// one). The extraction kept each caller on the question it asked.
-func TestSurfaceOfAndOwnershipSurfaceOf(t *testing.T) {
+// TestSurfaceOf pins the one question every caller now asks, including the
+// dispatch package: live-mv's surface switch, live-import's carrier choice,
+// and (GitHub issue #1589) the projection's ownership read all ask this
+// same [SurfaceOf], not a second, looser question of their own.
+func TestSurfaceOf(t *testing.T) {
 	cases := map[string]struct {
-		block          *configschema.Block
-		surface, owner markers.Surface
+		block   *configschema.Block
+		surface markers.Surface
 	}{
-		"nil":                {nil, "", ""},
-		"settable tags":      {tagsBlock(true, true), markers.SurfaceTags, markers.SurfaceTags},
-		"computed-only tags": {tagsBlock(false, true), "", markers.SurfaceTags},
-		"metadata labels":    {labelsBlock(), markers.SurfaceLabels, markers.SurfaceLabels},
-		"manifest":           {manifestBlock(), markers.SurfaceManifest, markers.SurfaceManifest},
-		"no surface":         {&configschema.Block{}, "", ""},
+		"nil":                {nil, ""},
+		"settable tags":      {tagsBlock(true, true), markers.SurfaceTags},
+		"computed-only tags": {tagsBlock(false, true), ""},
+		"metadata labels":    {labelsBlock(), markers.SurfaceLabels},
+		"manifest":           {manifestBlock(), markers.SurfaceManifest},
+		"no surface":         {&configschema.Block{}, ""},
 	}
 	for name, tc := range cases {
 		got, ok := SurfaceOf(tc.block)
 		if got != tc.surface || ok != (tc.surface != "") {
 			t.Errorf("%s: SurfaceOf = %q, %v; want %q", name, got, ok, tc.surface)
-		}
-		got, ok = OwnershipSurfaceOf(tc.block)
-		if got != tc.owner || ok != (tc.owner != "") {
-			t.Errorf("%s: OwnershipSurfaceOf = %q, %v; want %q", name, got, ok, tc.owner)
 		}
 		if tc.surface != "" {
 			if fam, ok := For(tc.surface).SurfaceOf(tc.block); !ok || fam != tc.surface {
@@ -208,6 +218,48 @@ func TestSurfaceWording(t *testing.T) {
 		typeName := map[string]string{"aws": "aws_thing", "kubernetes": "kubernetes_labels", "google": "google_thing"}[provider]
 		if got := NotACarrier(provider, block, typeName); got != want {
 			t.Errorf("NotACarrier(%q):\n got %q\nwant %q", provider, got, want)
+		}
+	}
+}
+
+// TestPostCreateWrites pins #1587's answers: AWS marks a type whose create
+// call cannot carry tags through the Tagging API, and Kubernetes never
+// needs a post-create write because the label rides the create.
+func TestPostCreateWrites(t *testing.T) {
+	provider := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
+	if got := WritesOf(markers.SurfaceTags).PostCreate; got != WriteTaggingAPI {
+		t.Errorf("tags surface post-create write %q, want %q", got, WriteTaggingAPI)
+	}
+	if got := AWS.MarkerWriter(provider); got != WriteTaggingAPI {
+		t.Errorf("AWS marker writer %q, want %q", got, WriteTaggingAPI)
+	}
+	for _, surface := range Kubernetes.Surfaces() {
+		if got := WritesOf(surface).PostCreate; got != WriteNeverNeeded {
+			t.Errorf("%s surface post-create write %q, want %q", surface, got, WriteNeverNeeded)
+		}
+	}
+	if got := Kubernetes.MarkerWriter(provider); got != WriteNeverNeeded {
+		t.Errorf("Kubernetes marker writer %q, want %q", got, WriteNeverNeeded)
+	}
+}
+
+// TestEveryFamilyCarriesTheAddress is GitHub issue #1641's flip, pinned
+// per surface: both families carry the block address (#1605's ruling), and
+// only the AWS tag map holds it as a marker key.
+func TestEveryFamilyCarriesTheAddress(t *testing.T) {
+	for _, tc := range []struct {
+		surface           markers.Surface
+		carries, inTheMap bool
+	}{
+		{markers.SurfaceTags, true, true},
+		{markers.SurfaceLabels, true, false},
+		{markers.SurfaceManifest, true, false},
+	} {
+		if got := CarriesAddress(tc.surface); got != tc.carries {
+			t.Errorf("CarriesAddress(%q) = %v, want %v", tc.surface, got, tc.carries)
+		}
+		if got := AddressInMarkers(tc.surface); got != tc.inTheMap {
+			t.Errorf("AddressInMarkers(%q) = %v, want %v", tc.surface, got, tc.inTheMap)
 		}
 	}
 }
