@@ -33,10 +33,11 @@
 #                              require the scenario to CATCH it - proof the
 #                              assertions are load-bearing, never scenery
 #
-# Bounds, for the k8s-* scenarios (issue #1457). Each fails the scenario by
-# name, with the step it was in, and the cluster is still deleted:
-#   SMOKE_TIMEOUT_SECS=600     seconds before a k8s-* scenario with no verdict
-#                              is killed (default max(600, 2 x claims.json
+# Bounds, for every scenario except the real-AWS ones (issue #1457, #1593).
+# Each fails the scenario by name, with the step it was in, and the cluster
+# is still deleted:
+#   SMOKE_TIMEOUT_SECS=600     seconds before a scenario with no verdict is
+#                              killed (default max(600, 2 x claims.json
 #                              minutes))
 #   CHDF_TIMEOUT_SECS=300      one choudoufu call made behind a failing or
 #                              rewriting admission chain
@@ -100,6 +101,22 @@ minutes = [cell.get("minutes", 0)
            for cell in c["providers"].values()
            if cell.get("scenario", "").endswith("/" + sys.argv[2] + ".sh")]
 print(max(600, 2 * 60 * max(minutes + [0])))
+PY
+}
+
+# scenario_is_real_aws prints 1 when this scenario's claims.json cell(s) are
+# marked real_aws, the one carve-out from the bound below (#1593). It reads
+# the flag off the claim, not a slug prefix: most bounded scenarios carry no
+# k8s- prefix at all, since they run against the floci emulator rather than
+# a kind cluster, and stall exactly the same way a k8s-* one does.
+scenario_is_real_aws() {
+  python3 - "$HERE/claims.json" "$SCENARIO" <<'PY'
+import json, sys
+found = any(cell.get("real_aws", False)
+            for c in json.load(open(sys.argv[1]))["claims"]
+            for cell in c["providers"].values()
+            if cell.get("scenario", "").endswith("/" + sys.argv[2] + ".sh"))
+print("1" if found else "0")
 PY
 }
 
@@ -194,21 +211,21 @@ trap 'if [ -d "$SMOKE_WORKROOT/stalled" ]; then exit 124; else exit 143; fi' TER
 resolve_choudoufu
 banner "$SCENARIO"
 
-# Only the k8s-* scenarios are bounded. The real-AWS scenarios tear down in
-# EXIT traps of their own that run before cleanup stops the watchdog, and a
-# bound firing in the middle of one would kill the calls that delete what
-# the run created.
-case "$SCENARIO" in
-  k8s-*)
-    BOUND="$(scenario_bound_secs)"
-    # The verdict's two halves, in variables so the call below stays on one
-    # line: selftest-bounds.sh builds its mutant by replacing that line.
-    STALL_BEFORE="stalled"
-    STALL_AFTER="and killed after ${BOUND}s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>."
-    smoke_timer "$BOUND" "$STALL_BEFORE" "$STALL_AFTER"
-    WATCHDOG_PID="$SMOKE_TIMER_PID"
-    ;;
-esac
+# Every scenario is bounded except the real-AWS ones (#1593). Those tear
+# down in EXIT traps of their own that run before cleanup stops the
+# watchdog, and a bound firing in the middle of one would kill the calls
+# that delete what the run created. real_aws is read from claims.json
+# (scenario_is_real_aws), not from a k8s- prefix: most bounded scenarios run
+# against the floci emulator and carry no prefix at all.
+if [ "$(scenario_is_real_aws)" != "1" ]; then
+  BOUND="$(scenario_bound_secs)"
+  # The verdict's two halves, in variables so the call below stays on one
+  # line: selftest-bounds.sh builds its mutant by replacing that line.
+  STALL_BEFORE="stalled"
+  STALL_AFTER="and killed after ${BOUND}s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>."
+  smoke_timer "$BOUND" "$STALL_BEFORE" "$STALL_AFTER"
+  WATCHDOG_PID="$SMOKE_TIMER_PID"
+fi
 
 # shellcheck source=/dev/null
 . "$HERE/scenarios/$SCENARIO.sh"
