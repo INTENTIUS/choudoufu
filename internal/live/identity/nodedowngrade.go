@@ -59,3 +59,31 @@ type warningOverride struct {
 }
 
 func (warningOverride) Severity() tfdiags.Severity { return tfdiags.Warning }
+
+// InstanceRefusals is every per-instance identity refusal in diags, keyed
+// by the [InstanceFailure] address it is tagged with: exactly the
+// diagnostics [DowngradeForNodeResolution] would turn into warnings. A
+// caller reads it BEFORE downgrading, so the plan-node seam can tell an
+// instance the static evaluator gave up on apart from one it never had to
+// resolve (a greenfield parent-derived instance, say), and hand that fact
+// to the node resolver. GitHub issue #1539: on a marker surface that
+// carries no address, the node refuses such an instance rather than
+// planning a create, because no live listing can bind it back to the
+// block. Nil when nothing was refused.
+func InstanceRefusals(diags tfdiags.Diagnostics) map[string]tfdiags.Diagnostics {
+	var out map[string]tfdiags.Diagnostics
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		addr := tfdiags.ExtraInfo[InstanceFailure](d).Addr
+		if addr == "" {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]tfdiags.Diagnostics)
+		}
+		out[addr] = out[addr].Append(d)
+	}
+	return out
+}
