@@ -114,7 +114,7 @@ func TestLiveLsKubernetesList(t *testing.T) {
 		liveLsK8sResolution(t, "kubernetes_manifest", "crontab", "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-k8s,name=my-crontab"),
 	}
 
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "kubernetes_manifest", resolutions)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "kubernetes_manifest", resolutions, nil)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
@@ -184,7 +184,7 @@ func boolWord(declared bool) string {
 // the AWS listing's own severity for an unreachable tagging index.
 func TestLiveLsKubernetesList_discoveryFailureIsTheSweepsWarning(t *testing.T) {
 	sweeper := &liveLsStubSweeper{kindsErr: errors.New("dial tcp 127.0.0.1:6443: connection refused")}
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_namespace"}, "", nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_namespace"}, "", nil, nil)
 	if len(items) != 0 {
 		t.Errorf("items = %+v, want none", items)
 	}
@@ -426,7 +426,7 @@ func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
 			"ConfigMap": {{Kind: "ConfigMap", Namespace: "web", Name: "web-greeting", Labels: map[string]string{"tofu-estate": "smoke-k8s"}, HeldBy: "Helm release web/web"}},
 		},
 	}
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
@@ -437,4 +437,92 @@ func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
 	if it.ID != "web/web-greeting" || it.HeldBy != "Helm release web/web" || it.Declared || it.Address != "" || it.Tags["tofu-estate"] != "smoke-k8s" {
 		t.Errorf("item = %+v", it)
 	}
+}
+
+// TestLiveLsKubernetesList_BindsByAddressAnnotation (GitHub issue #1677):
+// live-ls must read the same address-annotation join the plan's Kubernetes
+// sweep binds by ([discovery.KubernetesAddressBindings], from GitHub issue
+// #1640), not the natural-key join alone. Two shapes, #1640's own:
+//
+//   - #1541's: the configuration renamed the object. The resolution is
+//     concrete and names the NEW object (not yet listed); the OLD object is
+//     still on the cluster, carrying the annotation of the block that
+//     declared it. Needs nothing beyond req.Resolutions.
+//   - #1539's: the static evaluator refused the instance and the plan-node
+//     seam took it over, so it never reaches req.Resolutions at all - only
+//     nodeRefused says the address is declared. Proven both ways: bound
+//     when the caller passes nodeRefused, still an orphan when it does not,
+//     so the wiring from liveLsGaps is what a reader can trust, not an
+//     accident of addressCandidate's other conditions.
+func TestLiveLsKubernetesList_BindsByAddressAnnotation(t *testing.T) {
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	types := []string{"kubernetes_config_map_v1"}
+
+	t.Run("renamed object binds from a resolution alone", func(t *testing.T) {
+		sweeper := &liveLsStubSweeper{
+			kinds: []kubesweep.Kind{cm},
+			objects: map[string][]kubesweep.Object{
+				"ConfigMap": {{
+					Kind: "ConfigMap", Namespace: "rep-chdf", Name: "cfg-a",
+					ImportID: "rep-chdf/cfg-a",
+					Labels:   map[string]string{"tofu-estate": "smoke-k8s"},
+					Address:  "kubernetes_config_map_v1.cfg",
+				}},
+			},
+		}
+		// The resolution names the new object, cfg-b, which nothing has
+		// listed yet - stock's own create-before-destroy shape.
+		resolutions := []identity.Resolution{liveLsK8sResolution(t, "kubernetes_config_map_v1", "cfg", "rep-chdf/cfg-b")}
+
+		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "", resolutions, nil)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected errors: %s", diags.Err())
+		}
+		if len(items) != 1 {
+			t.Fatalf("items = %+v, want the one renamed object", items)
+		}
+		it := items[0]
+		if !it.Declared || it.Address != "kubernetes_config_map_v1.cfg" || it.Type != "kubernetes_config_map_v1" {
+			t.Errorf("cfg-a = %+v, want declared at kubernetes_config_map_v1.cfg", it)
+		}
+	})
+
+	t.Run("node-refused instance binds only when the caller hands its refusal in", func(t *testing.T) {
+		newSweeper := func() *liveLsStubSweeper {
+			return &liveLsStubSweeper{
+				kinds: []kubesweep.Kind{cm},
+				objects: map[string][]kubesweep.Object{
+					"ConfigMap": {{
+						Kind: "ConfigMap", Namespace: "m1116-res", Name: "my-awesome-cron-image-reader",
+						ImportID: "m1116-res/my-awesome-cron-image-reader",
+						Labels:   map[string]string{"tofu-estate": "smoke-k8s"},
+						Address:  "kubernetes_config_map_v1.reader",
+					}},
+				},
+			}
+		}
+		nodeRefused := map[string]bool{"kubernetes_config_map_v1.reader": true}
+
+		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nodeRefused)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected errors: %s", diags.Err())
+		}
+		if len(items) != 1 {
+			t.Fatalf("items = %+v, want the one object", items)
+		}
+		if it := items[0]; !it.Declared || it.Address != "kubernetes_config_map_v1.reader" {
+			t.Errorf("with nodeRefused: item = %+v, want bound at kubernetes_config_map_v1.reader", it)
+		}
+
+		// The control: with no resolution and no nodeRefused entry, nothing
+		// says the annotation names a declared instance, so the object stays
+		// exactly the orphan it always was.
+		items, diags = liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nil)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected errors: %s", diags.Err())
+		}
+		if it := items[0]; it.Declared || it.Address != "" {
+			t.Errorf("without nodeRefused: item = %+v, want undeclared", it)
+		}
+	})
 }

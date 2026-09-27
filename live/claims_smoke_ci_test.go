@@ -36,13 +36,7 @@ const claimsSmokeWorkflow = "../.github/workflows/claims-smoke.yml"
 // entry here must not appear in either matrix below; removing an entry
 // without adding its scenario back to one of the two matrices is how its
 // fix ships.
-var claimsSmokeExcluded = map[string]string{
-	// #1636: the BREAK control's own denied() check greps the whole apply
-	// transcript, and matches an unrelated sweep warning that also
-	// contains the string "AccessDenied" - a false positive, not a
-	// regression in the tag boundary the claim proves.
-	"the-tag-is-the-boundary": "#1636",
-}
+var claimsSmokeExcluded = map[string]string{}
 
 // claimsSmokeNightlyOnly is a proven, non-real-AWS AWS cell measured over
 // the 10-minute (both arms) budget the workflow's header states, so it runs

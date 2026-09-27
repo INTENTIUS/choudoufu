@@ -344,3 +344,27 @@ func TestMergeKeepsTheUnaddressedAccount(t *testing.T) {
 		t.Error("a nil result has an account")
 	}
 }
+
+// TestKubernetesAddressBindingsAgreesOnTwoClaimants: live-ls asks the same
+// rule the sweep does (GitHub issue #1677). Where the sweep refuses two
+// claimants as a collision and binds neither (#1641), live-ls must not
+// report either as bound.
+func TestKubernetesAddressBindingsAgreesOnTwoClaimants(t *testing.T) {
+	cfg := k8sInstance(t, "kubernetes_config_map_v1", "cfg")
+	undeclared := []UndeclaredObject{
+		{Kind: configMapKind(), TypeName: "kubernetes_config_map_v1", Object: labelled("ConfigMap", "ns", "cfg-a", cfg.String())},
+		{Kind: configMapKind(), TypeName: "kubernetes_config_map_v1", Object: labelled("ConfigMap", "ns", "cfg-b", cfg.String())},
+	}
+	listed := ListedObjects{}
+	listed.Add("ConfigMap", "ns/cfg-a")
+	listed.Add("ConfigMap", "ns/cfg-b")
+	req := Request{Estate: "m1116", NodeRefused: map[string]bool{cfg.String(): true}}
+	declared := DeclaredKubernetesObjects(nil, k8sTypes(), "kubernetes_manifest")
+	if got := KubernetesAddressBindings(req, "kubernetes_manifest", declared, listed, undeclared); len(got) != 0 {
+		t.Fatalf("live-ls binds %v; the sweep binds neither of two claimants", got)
+	}
+	// And one claimant alone binds in both.
+	if got := KubernetesAddressBindings(req, "kubernetes_manifest", declared, listed, undeclared[:1]); got[0].String() != cfg.String() {
+		t.Fatalf("live-ls binds %v, want index 0 at %s", got, cfg)
+	}
+}
