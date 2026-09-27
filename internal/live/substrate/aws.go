@@ -30,13 +30,6 @@ func (aws) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
 
-func (aws) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	if markers.HasTagsAttribute(block) {
-		return markers.SurfaceTags, true
-	}
-	return "", false
-}
-
 func (aws) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
 	if surface == markers.SurfaceTags {
 		return markers.TagsOf(obj)

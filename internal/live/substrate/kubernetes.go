@@ -39,19 +39,6 @@ func (kubernetes) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
 
-// OwnershipSurfaceOf asks the label shape before the manifest shape, the
-// order the ownership read always asked them in; they are disjoint, so the
-// order decides nothing.
-func (kubernetes) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	if _, ok := markers.LabelSurface(block); ok {
-		return markers.SurfaceLabels, true
-	}
-	if markers.ManifestSurface(block) {
-		return markers.SurfaceManifest, true
-	}
-	return "", false
-}
-
 // MarkersOf on the manifest surface reads the prior manifest, which is
 // where the projection's mirror of the live object's own estate label
 // lands (#1079).

@@ -21,8 +21,12 @@
 // dispatch below until it is handled.
 //
 // It is an extraction: every answer here is the answer the dispatch it
-// replaced gave, including the one place two of them disagree (see
-// [OwnershipSurfaceOf]).
+// replaced gave. GitHub issue #1589: the projection's ownership read used to
+// ask a looser tag question than [SurfaceOf] (markers.HasTagsAttribute (since deleted)),
+// kept apart in case the two ever disagreed on a real AWS or Kubernetes
+// type. The 2026-09-26 decision package measured the disagreement empty at
+// every pinned provider version, so the ownership read now asks [SurfaceOf]
+// like every other caller and the second question is gone.
 package substrate
 
 import (
@@ -119,10 +123,6 @@ type Substrate interface {
 	// one of this family's, read off the schema and never off the type
 	// name.
 	SurfaceOf(block *configschema.Block) (markers.Surface, bool)
-
-	// OwnershipSurfaceOf is SurfaceOf as the projection's ownership read
-	// asks it. See the package-level [OwnershipSurfaceOf].
-	OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool)
 
 	// MarkersOf reads the marker map off an object from wherever surface,
 	// one of this family's, keeps it.
@@ -232,22 +232,6 @@ func For(surface markers.Surface) Substrate {
 func SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	for _, s := range All {
 		if surface, ok := s.SurfaceOf(block); ok {
-			return surface, true
-		}
-	}
-	return "", false
-}
-
-// OwnershipSurfaceOf is [SurfaceOf] as the projection's ownership read has
-// always asked it, and differs in the tag arm alone: any "tags" or
-// "tags_all" attribute at all counts ([markers.HasTagsAttribute]), settable
-// or not, where [SurfaceOf] asks for a settable tag map the marker
-// vocabulary can round-trip ([markers.Taggable]). Narrowing it would change
-// which AWS types the ownership rule covers, so the two questions stay two
-// and this extraction keeps each caller on the one it asked.
-func OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	for _, s := range All {
-		if surface, ok := s.OwnershipSurfaceOf(block); ok {
 			return surface, true
 		}
 	}

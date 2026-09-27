@@ -115,7 +115,7 @@ func Scan(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor) []Rem
 		before, _ := change.Before.UnmarkDeep()
 		after, _ := change.After.UnmarkDeep()
 
-		surface, ok := substrate.OwnershipSurfaceOf(schema.Block)
+		surface, ok := substrate.SurfaceOf(schema.Block)
 		if !ok {
 			continue
 		}
@@ -216,7 +216,7 @@ func mightCarryEstate(encoded plans.DynamicValue) bool {
 // (GitHub issue #1649): tags and tags_all, metadata[0].labels,
 // manifest.metadata.labels.
 //
-// The surface comes from [substrate.OwnershipSurfaceOf], whose tag arm
+// The surface comes from [substrate.SurfaceOf], whose tag arm
 // counts any tags or tags_all attribute. That is the set this package read
 // before #1649 put the label surfaces beside it, so no AWS type moved.
 func knownMarkers(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
@@ -257,7 +257,7 @@ func ScanCreates(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor
 			continue
 		}
 		after, _ := change.After.UnmarkDeep()
-		surface, ok := substrate.OwnershipSurfaceOf(schema.Block)
+		surface, ok := substrate.SurfaceOf(schema.Block)
 		if !ok {
 			continue
 		}
