@@ -205,9 +205,8 @@ func TestKubernetesSweepDeniedListIsClassedAndNamed(t *testing.T) {
 		listErrs: map[string]error{"Secret": denyErr},
 	}
 	req := Request{
-		Estate:          "smoke-k8s",
-		Kubernetes:      sweeper,
-		KubernetesTypes: []string{"kubernetes_secret", "kubernetes_config_map"},
+		Estate:   "smoke-k8s",
+		Sweepers: []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_secret", "kubernetes_config_map"}}},
 	}
 	res := &Result{}
 	diags := sweepKubernetes(context.Background(), req, res)
