@@ -840,28 +840,6 @@ func Taggable(block *configschema.Block) bool {
 	return ok
 }
 
-// HasTagsAttribute reports whether a resource type's schema has a "tags" or
-// a "tags_all" attribute at all, settable or not: the looser question the
-// projection's ownership read has always asked before reading [TagsOf],
-// kept separate from [TagSurface] because narrowing it would change which
-// AWS types the ownership rule covers. It moved here from
-// internal/live/projection for GitHub issue #1118, so that the ownership
-// read's tag arm is a member of the tag surface the completeness guard can
-// see rather than a string lookup it cannot.
-//
-//markers:surface tags
-func HasTagsAttribute(block *configschema.Block) bool {
-	if block == nil {
-		return false
-	}
-	for _, name := range []string{"tags", "tags_all"} {
-		if _, ok := block.Attributes[name]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 // TagSurface is [Taggable] with its reasoning, for a caller that has to
 // explain a refusal rather than only make one. It returns the tag map's
 // attribute schema when the type can carry a marker.
